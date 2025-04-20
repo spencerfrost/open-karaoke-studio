@@ -1,0 +1,102 @@
+# gui.py
+"""Defines the PySimpleGUI layout and creates the main window."""
+
+import PySimpleGUI as sg
+import sys
+import config  # Import settings
+
+
+def create_main_window(demucs_available):
+    """Creates and returns the main application window."""
+
+    sg.theme("DarkBlue3")  # Example theme
+
+    # Row 1: File Selection
+    file_browser_row = [
+        sg.Text("Audio File:"),
+        sg.Input(key="-FILEPATH-", readonly=True, enable_events=True, expand_x=True),
+        sg.FileBrowse(
+            button_text="Browse",
+            file_types=(
+                ("Audio Files", "*.mp3 *.wav *.flac *.ogg *.m4a"),
+                ("All Files", "*.*"),
+            ),
+        ),
+    ]
+
+    # Row 2: Action Button and Status
+    action_row = [
+        sg.Button("Create Karaoke Tracks", key="-PROCESS-", disabled=True),
+        sg.Text(
+            config.DEFAULT_STATUS_SELECT_FILE,
+            key="-STATUS-",
+            size=(50, 1),
+            expand_x=True,
+        ),
+    ]
+
+    # --- Future Row: Song Browser ---
+    # This will be more complex later, maybe a Listbox or Table
+    browser_row = [
+        sg.Text("Processed Songs Library:", font="_ 14"),
+        sg.Listbox(
+            values=[],  # Initially empty, will be populated later
+            key="-SONG_LIST-",
+            enable_events=True,
+            size=(60, 10),
+            expand_x=True,
+            expand_y=True,
+        ),
+        # Add buttons here later (Play, Delete etc.)
+    ]
+
+    # Combine layout
+    if not demucs_available:
+        layout = [
+            [sg.Text("Demucs or PyTorch failed to import.")],
+            [
+                sg.Text(
+                    "Karaoke features disabled. Please check console output and installation."
+                )
+            ],
+            [sg.Text(f"Attempted Python path: {sys.executable}")],
+            [sg.Button("Exit")],
+        ]
+    else:
+        layout = [
+            [sg.Text(config.WINDOW_TITLE, font="_ 18")],
+            [sg.HorizontalSeparator()],
+            file_browser_row,
+            action_row,
+            [sg.HorizontalSeparator()],
+            browser_row,  # Add the placeholder browser row
+        ]
+
+    # Create the window
+    window = sg.Window(
+        config.WINDOW_TITLE, layout, finalize=True, resizable=True
+    )  # Finalize needed for early updates if any
+
+    return window
+
+
+# --- GUI Update Functions ---
+# (Optional, could be methods if GUI becomes a class)
+
+
+def update_status(window: sg.Window, message: str):
+    """Updates the status text element."""
+    if window:
+        window["-STATUS-"].update(f"Status: {message}")
+
+
+def update_process_button(window: sg.Window, disabled: bool):
+    """Enables or disables the main process button."""
+    if window:
+        window["-PROCESS-"].update(disabled=disabled)
+
+
+def update_song_list(window: sg.Window, song_list: list):
+    """Updates the song listbox."""
+    if window:
+        window["-SONG_LIST-"].update(values=song_list)
