@@ -24,9 +24,10 @@ def create_main_window(demucs_available):  # Doesn't need initial_settings anymo
         ),
     ]
 
-    # Row 2: Action Button and Status
+    # Row 2: Action Buttons and Status
     action_row = [
         sg.Button("Create Karaoke Tracks", key="-PROCESS-", disabled=True),
+        sg.Button("Stop", key="-STOP-", disabled=True),  # Add Stop button
         sg.Text(
             config.DEFAULT_STATUS_SELECT_FILE,
             key="-STATUS-",
@@ -89,6 +90,12 @@ def update_process_button(window: sg.Window, disabled: bool):
     """Enables or disables the main process button."""
     if window:
         window["-PROCESS-"].update(disabled=disabled)
+
+
+def update_stop_button(window: sg.Window, disabled: bool):
+    """Enables or disables the stop button."""
+    if window:
+        window["-STOP-"].update(disabled=disabled)
 
 
 def update_song_list(window: sg.Window, song_list: list):
