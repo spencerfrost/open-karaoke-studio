@@ -7,13 +7,10 @@ import PySimpleGUI as sg
 from . import config
 
 try:
-    from openkaraoke.gui_components import file_browser, action_status, song_library
+    from .gui_components import file_browser, action_status, song_library
 except ImportError:
-    try:
-        from gui_components import file_browser, action_status, song_library
-    except ImportError:
-        print("Error: Could not import GUI components.", file=sys.stderr)
-        sys.exit(1)
+    print("Error: Could not import GUI components.", file=sys.stderr)
+    sys.exit(1)
 
 
 def create_main_window(demucs_available):
