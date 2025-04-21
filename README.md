@@ -54,7 +54,7 @@ The ultimate vision for this project is a fully-featured karaoke creation and pl
 * `torch` (PyTorch)
 * `torchaudio`
 * `numpy<2.0` (**Important:** Required for compatibility with current PyTorch/Demucs builds)
-* `demucs` (specifically the [`adefossez/demucs`](https://github.com/adefossez/demucs) fork from GitHub)
+* `demucs` (specifically the [`spencerfrost/demucs`](https://github.com/spencerfrost/demucs) fork from GitHub)
 * `PySimpleGUI`
 
 *(Future requirements will include `yt-dlp`, `Youtube-python` or similar)*

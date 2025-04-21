@@ -1,8 +1,8 @@
 # gui.py
 """Defines the PySimpleGUI layout and creates the main window"""
 
-import PySimpleGUI as sg
 import sys
+import PySimpleGUI as sg
 import config  # Import settings
 
 

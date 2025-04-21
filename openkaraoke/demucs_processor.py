@@ -1,13 +1,11 @@
 # demucs_processor.py
-"""Handles audio separation using the Demucs API"""
-
 import sys
 import traceback
 from pathlib import Path
 import time
 import torch
 
-import file_manager
+import openkaraoke.file_manager as file_manager
 import config
 
 try:
@@ -29,6 +27,7 @@ def is_available():
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
+
     pass
 
 
@@ -58,13 +57,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             return  # Skip update if too frequent, unless it's the final segment update
 
         total_segments = data["audio_length"]
-        processed_segments = data[
-            "segment_offset"
-        ]
+        processed_segments = data["segment_offset"]
         model_idx = data["model_idx_in_bag"]
-        models_count = data[
-            "models"
-        ]
+        models_count = data["models"]
 
         progress_current_model = (
             (processed_segments / total_segments) if total_segments > 0 else 0
@@ -90,19 +85,34 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         # Check if stop was requested
         if stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
-            
+
         actual_device = "cuda" if torch.cuda.is_available() else "cpu"
-        status_callback(f"Using device: {actual_device}")
+        if actual_device == "cuda":
+            device_name = torch.cuda.get_device_name(0)  # Get GPU name
+            device_str = f"cuda:0 ({device_name})"
+        else:
+            device_str = "cpu"
+        status_callback(f"Using device: {device_str}")  # More specific device info
 
         # --- Initialization ---
         model_name = config.DEFAULT_MODEL
         status_callback(
-            f"Initializing Demucs (Model: {model_name}, Device: {actual_device})..."
+            f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
         )
-        # Pass the progress callback function to the Separator
-        separator = Separator(
-            model=model_name, device=actual_device, callback=_demucs_progress_callback
-        )
+        try:
+            # Pass the progress callback function to the Separator
+            separator = Separator(
+                model=model_name,
+                device=actual_device,
+                callback=_demucs_progress_callback,
+            )
+        except (torch.cuda.CudaError, RuntimeError) as e:
+            status_callback(f"** Error initializing Demucs: {e} **")
+            return False  # Important: Exit if initialization fails
+        except Exception as e:
+            status_callback(f"** Unexpected error during Demucs init: {e} **")
+            traceback.print_exc()
+            return False
 
         # --- Determine Output Format ---
         input_extension = input_path.suffix.lower()
@@ -111,7 +121,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         )
         output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
         status_callback(f"Input: {input_extension}, Output: {output_format_str}")
-        
+
         # Check if stop was requested
         if stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -128,9 +138,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 raise StopProcessingError("Processing stopped by user")
         except StopProcessingError:
             raise  # Re-raise our custom exception
+        except (torch.cuda.CudaError, RuntimeError) as e:
+            status_callback(f"** Error during separation: {e} **")
+            return False
         except Exception as e:
-            status_callback(f"Error during separation: {e}")
-            raise
+            status_callback(f"** Unexpected error during separation: {e} **")
+            traceback.print_exc()
+            return False
         status_callback("Separation models finished.")  # Signal end of core separation
 
         # --- Calculate Instrumental ---
@@ -144,7 +158,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         # Check if stop was requested
         if stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
-            
+
         instrumental_tensor = torch.zeros_like(separated[first_stem_name])
         for stem_name in instrumental_stems:
             instrumental_tensor += separated[stem_name]
@@ -169,7 +183,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         # Check if stop was requested
         if stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
-            
+
         # --- Save Vocals ---
         if vocals_tensor is not None:
             status_callback(f"Saving vocals ({output_format_str})...")
@@ -180,7 +194,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         # Check if stop was requested
         if stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
-            
+
         # --- Save Instrumental ---
         status_callback(f"Saving instrumental ({output_format_str})...")
         save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)

@@ -6,12 +6,12 @@ import sys
 import traceback
 from pathlib import Path
 import shutil
-
-import gui
-import demucs_processor
-import file_manager
-
 import PySimpleGUI as sg
+
+import openkaraoke.gui as gui
+import openkaraoke.demucs_processor as demucs_processor
+import openkaraoke.file_manager as file_manager
+
 import config
 
 PROCESSING_THREAD = None
