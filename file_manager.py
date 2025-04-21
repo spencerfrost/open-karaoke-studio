@@ -1,5 +1,5 @@
 # file_manager.py
-"""Manages file and directory operations for the song library."""
+"""Manages file and directory operations for the song library - Reverted State."""
 
 import shutil
 from pathlib import Path
@@ -21,19 +21,21 @@ def get_song_dir(input_path: Path) -> Path:
 
 def get_vocals_path(song_dir: Path) -> Path:
     """Returns the standard path for the vocals file."""
-    return song_dir / config.VOCALS_FILENAME
+    return song_dir / config.VOCALS_FILENAME  # Uses hardcoded name from config
 
 
 def get_instrumental_path(song_dir: Path) -> Path:
     """Returns the standard path for the instrumental file."""
-    return song_dir / config.INSTRUMENTAL_FILENAME
+    return song_dir / config.INSTRUMENTAL_FILENAME  # Uses hardcoded name from config
 
 
 def get_original_path(song_dir: Path, original_input_path: Path) -> Path:
-    """Returns the path for storing the original file, potentially renamed."""
-    # Using suffix to avoid overwriting if original was already wav/mp3
-    # You could also just use original_input_path.name if no conversion needed
-    return song_dir / f"{original_input_path.stem}{config.ORIGINAL_FILENAME_SUFFIX}"
+    """Returns the path for storing the original file, keeping original suffix."""
+    # Using suffix defined in config and original extension
+    return (
+        song_dir
+        / f"{original_input_path.stem}{config.ORIGINAL_FILENAME_SUFFIX}{original_input_path.suffix}"
+    )
 
 
 def save_original_file(input_path: Path, song_dir: Path) -> Path:
@@ -48,14 +50,20 @@ def save_original_file(input_path: Path, song_dir: Path) -> Path:
         return None
 
 
-# --- Future Functions ---
-def get_processed_songs():
+def get_processed_songs(library_path=None):
     """Scans the library and returns a list of processed song names."""
-    ensure_library_exists()
+    # Use default library dir from config if none provided
+    library_dir = library_path if library_path else config.BASE_LIBRARY_DIR
+    try:
+        library_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
+    except Exception as e:
+        print(f"Error accessing or creating library directory {library_dir}: {e}")
+        return []
+
     songs = []
-    for item in config.BASE_LIBRARY_DIR.iterdir():
+    for item in library_dir.iterdir():
         if item.is_dir():
-            # Check if essential files exist (e.g., instrumental and vocals)
+            # Check if essential files exist (using fixed names from config)
             if (item / config.INSTRUMENTAL_FILENAME).exists() and (
                 item / config.VOCALS_FILENAME
             ).exists():

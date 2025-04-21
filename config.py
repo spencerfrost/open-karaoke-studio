@@ -1,25 +1,25 @@
 # config.py
-"""Configuration settings for the Karaoke App."""
+"""Configuration settings for the Karaoke App - Reverted State."""
 
 from pathlib import Path
 
 # --- Audio Processing ---
 DEFAULT_MODEL = "htdemucs_ft" # Default Demucs model
-DEFAULT_STEMS = ['vocals', 'drums', 'bass', 'other'] # Stems expected from the default model
-OUTPUT_FORMAT = ".wav" # Output format ('.wav' or '.mp3')
-MP3_BITRATE = "320" # Bitrate if output format is MP3 (e.g., "192", "320")
+DEFAULT_MP3_BITRATE = "320" # Default bitrate if saving as MP3
+# Stems expected from the default model
+DEFAULT_STEMS = ['vocals', 'drums', 'bass', 'other']
 
 # --- File Management ---
 BASE_LIBRARY_DIR = Path("./karaoke_library") # Root directory for processed songs
-SEPARATED_FOLDER_NAME = "separated" # Subfolder within the library for raw stems (optional now)
-VOCALS_FILENAME = f"vocals{OUTPUT_FORMAT}"
-INSTRUMENTAL_FILENAME = f"instrumental{OUTPUT_FORMAT}"
-ORIGINAL_FILENAME_SUFFIX = f"_original{OUTPUT_FORMAT}" # Suffix if copying/converting original
+# Define base filenames (extension added dynamically)
+VOCALS_FILENAME_STEM = "vocals"
+INSTRUMENTAL_FILENAME_STEM = "instrumental"
+ORIGINAL_FILENAME_SUFFIX = "_original" # Suffix for the copied original
 
 # --- GUI ---
-WINDOW_TITLE = "Open Karaoke Studio"
+WINDOW_TITLE = "Open Karaoke Studio (Reverted)"
 DEFAULT_STATUS_READY = "Status: Ready"
 DEFAULT_STATUS_SELECT_FILE = "Status: Select an audio file"
 
 # --- Future Use ---
-YT_DOWNLOAD_DIR = Path("./downloads") # Temporary directory for YouTube downloads
+YT_DOWNLOAD_DIR = Path("./downloads")

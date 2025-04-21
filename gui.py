@@ -1,12 +1,12 @@
 # gui.py
-"""Defines the PySimpleGUI layout and creates the main window."""
+"""Defines the PySimpleGUI layout and creates the main window - Reverted State."""
 
 import PySimpleGUI as sg
 import sys
 import config  # Import settings
 
 
-def create_main_window(demucs_available):
+def create_main_window(demucs_available):  # Doesn't need initial_settings anymore
     """Creates and returns the main application window."""
 
     sg.theme("DarkBlue3")  # Example theme
@@ -35,22 +35,20 @@ def create_main_window(demucs_available):
         ),
     ]
 
-    # --- Future Row: Song Browser ---
-    # This will be more complex later, maybe a Listbox or Table
+    # Row 3: Song Browser
     browser_row = [
         sg.Text("Processed Songs Library:", font="_ 14"),
         sg.Listbox(
-            values=[],  # Initially empty, will be populated later
+            values=[],  # Initially empty
             key="-SONG_LIST-",
             enable_events=True,
             size=(60, 10),
             expand_x=True,
-            expand_y=True,
+            expand_y=True,  # Allow vertical expansion
         ),
-        # Add buttons here later (Play, Delete etc.)
     ]
 
-    # Combine layout
+    # Combine layout (Single layout, no tabs)
     if not demucs_available:
         layout = [
             [sg.Text("Demucs or PyTorch failed to import.")],
@@ -69,19 +67,16 @@ def create_main_window(demucs_available):
             file_browser_row,
             action_row,
             [sg.HorizontalSeparator()],
-            browser_row,  # Add the placeholder browser row
+            browser_row,
         ]
 
     # Create the window
-    window = sg.Window(
-        config.WINDOW_TITLE, layout, finalize=True, resizable=True
-    )  # Finalize needed for early updates if any
+    window = sg.Window(config.WINDOW_TITLE, layout, finalize=True, resizable=True)
 
     return window
 
 
 # --- GUI Update Functions ---
-# (Optional, could be methods if GUI becomes a class)
 
 
 def update_status(window: sg.Window, message: str):
