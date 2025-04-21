@@ -1,4 +1,7 @@
-# demucs_processor.py
+# openkaraoke/audio_processing.py
+"""Contains the audio processing logic using Demucs."""
+
+import shutil
 import sys
 import traceback
 from pathlib import Path
@@ -24,12 +27,68 @@ def is_available():
     """Checks if Demucs was imported successfully."""
     return DEMUCS_AVAILABLE
 
-
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
 
     pass
 
+def process_audio_thread(filepath_str, window, stop_event):
+    """Target function for the audio processing thread."""
+
+    def gui_callback(message):
+        """Function to send status updates back to the main thread."""
+        if window:
+            window.write_event_value("-THREAD_UPDATE-", message)
+
+    try:
+        # Reset stop event state at the beginning of processing
+        stop_event.clear()
+
+        filepath = Path(filepath_str)
+        gui_callback(f"Starting processing for {filepath.name}...")
+
+        # 1. Ensure library and create song directory (using default base path)
+        file_manager.ensure_library_exists()
+        song_dir = file_manager.get_song_dir(filepath)
+        gui_callback(f"Using song directory: {song_dir}")
+
+        # 2. Copy original file
+        gui_callback("Copying original file...")
+        original_saved_path = file_manager.save_original_file(filepath, song_dir)
+        if not original_saved_path:
+            gui_callback("** Error: Failed to copy original file. Aborting. **")
+            return
+
+        # 3. Separate audio (using hardcoded settings via demucs_processor)
+        success = separate_audio(filepath, song_dir, gui_callback, stop_event)
+
+        # 4. Final status update
+        if success:
+            gui_callback(f"Successfully processed {filepath.name}!")
+            window.write_event_value("-REFRESH_SONGS-", None)
+        else:
+            gui_callback(f"Processing failed for {filepath.name}.")
+
+    except Exception as e:
+        if stop_event.is_set():
+            # This was a deliberate stop, clean up partial files
+            gui_callback("Processing stopped by user.")
+            try:
+                # Remove the partially processed song directory
+                if song_dir.exists():
+                    shutil.rmtree(song_dir)
+                    gui_callback(f"Cleaned up partial files for {filepath.name}")
+            except Exception as cleanup_error:
+                print(f"Error during cleanup: {cleanup_error}", file=sys.stderr)
+                gui_callback(f"Failed to clean up partial files: {cleanup_error}")
+        else:
+            # This was an actual error
+            print(f"Critical error in processing thread: {e}", file=sys.stderr)
+            traceback.print_exc()
+            gui_callback(f"** Critical Thread Error: {e} **")
+    finally:
+        if window:
+            window.write_event_value("-THREAD_DONE-", None)
 
 def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event):
     """
@@ -116,9 +175,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
         # --- Determine Output Format ---
         input_extension = input_path.suffix.lower()
-        output_extension = (
-            input_extension if input_extension in [".wav", ".mp3"] else ".wav"
-        )
+        try:  # Added try-except block
+            output_extension = (
+                input_extension if input_extension in [".wav", ".mp3"] else ".wav"
+            )
+        except Exception as e:
+            status_callback(f"** Error determining output format: {e} **")
+            return False  # Or potentially choose a default: output_extension = ".wav"
         output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
         status_callback(f"Input: {input_extension}, Output: {output_format_str}")
 
@@ -187,7 +250,11 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         # --- Save Vocals ---
         if vocals_tensor is not None:
             status_callback(f"Saving vocals ({output_format_str})...")
-            save_audio(vocals_tensor, str(vocals_path), **save_kwargs)
+            try:  # Correct placement of try...except
+                save_audio(vocals_tensor, str(vocals_path), **save_kwargs)
+            except Exception as e:
+                status_callback(f"** Error saving vocals: {e} **")
+                return False
         else:
             status_callback("** Warning: Vocals stem not found in model output. **")
 
@@ -197,7 +264,11 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
         # --- Save Instrumental ---
         status_callback(f"Saving instrumental ({output_format_str})...")
-        save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)
+        try:  # Correct placement of try...except
+            save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)
+        except Exception as e:
+            status_callback(f"** Error saving instrumental: {e} **")
+            return False
 
         status_callback(
             f"Processing complete for {input_path.name}!"

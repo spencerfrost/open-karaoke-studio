@@ -2,8 +2,7 @@
 """Component definition for the action buttons and status bar."""
 
 import PySimpleGUI as sg
-import config  # Assuming config is accessible or passed if needed
-
+from . import config
 
 def layout():
     """Returns the layout list for the action/status row."""

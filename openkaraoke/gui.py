@@ -4,7 +4,7 @@ and creates the main window"""
 
 import sys
 import PySimpleGUI as sg
-import config
+from . import config
 
 try:
     from openkaraoke.gui_components import file_browser, action_status, song_library
