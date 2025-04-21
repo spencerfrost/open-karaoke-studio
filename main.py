@@ -5,6 +5,7 @@ import threading
 import sys
 import traceback
 from pathlib import Path
+import shutil
 
 import gui
 import demucs_processor
@@ -14,9 +15,10 @@ import PySimpleGUI as sg
 import config
 
 PROCESSING_THREAD = None
+STOP_EVENT = threading.Event()
 
 
-def process_audio_thread(filepath_str, window):  # Simpler signature
+def process_audio_thread(filepath_str, window, stop_event):  # Added stop_event parameter
     """Target function for the audio processing thread."""
     global PROCESSING_THREAD
 
@@ -26,6 +28,9 @@ def process_audio_thread(filepath_str, window):  # Simpler signature
             window.write_event_value("-THREAD_UPDATE-", message)
 
     try:
+        # Reset stop event state at the beginning of processing
+        stop_event.clear()
+        
         filepath = Path(filepath_str)
         gui_callback(f"Starting processing for {filepath.name}...")
 
@@ -42,7 +47,7 @@ def process_audio_thread(filepath_str, window):  # Simpler signature
             return
 
         # 3. Separate audio (using hardcoded settings via demucs_processor)
-        success = demucs_processor.separate_audio(filepath, song_dir, gui_callback)
+        success = demucs_processor.separate_audio(filepath, song_dir, gui_callback, stop_event)
 
         # 4. Final status update
         if success:
@@ -52,9 +57,22 @@ def process_audio_thread(filepath_str, window):  # Simpler signature
             gui_callback(f"Processing failed for {filepath.name}.")
 
     except Exception as e:
-        print(f"Critical error in processing thread: {e}", file=sys.stderr)
-        traceback.print_exc()
-        gui_callback(f"** Critical Thread Error: {e} **")
+        if stop_event.is_set():
+            # This was a deliberate stop, clean up partial files
+            gui_callback("Processing stopped by user.")
+            try:
+                # Remove the partially processed song directory
+                if song_dir.exists():
+                    shutil.rmtree(song_dir)
+                    gui_callback(f"Cleaned up partial files for {filepath.name}")
+            except Exception as cleanup_error:
+                print(f"Error during cleanup: {cleanup_error}", file=sys.stderr)
+                gui_callback(f"Failed to clean up partial files: {cleanup_error}")
+        else:
+            # This was an actual error
+            print(f"Critical error in processing thread: {e}", file=sys.stderr)
+            traceback.print_exc()
+            gui_callback(f"** Critical Thread Error: {e} **")
     finally:
         if window:
             window.write_event_value("-THREAD_DONE-", None)
@@ -62,7 +80,7 @@ def process_audio_thread(filepath_str, window):  # Simpler signature
 
 def main():
     """Main application function."""
-    global PROCESSING_THREAD
+    global PROCESSING_THREAD, STOP_EVENT
 
     demucs_ok = demucs_processor.is_available()
 
@@ -109,10 +127,11 @@ def main():
 
             # Start the processing thread without passing settings
             gui.update_process_button(window, disabled=True)
+            gui.update_stop_button(window, disabled=False)  # Enable stop button
             gui.update_status(window, "Starting processing thread...")
             PROCESSING_THREAD = threading.Thread(
                 target=process_audio_thread,
-                args=(filepath_str, window),  # Simpler args
+                args=(filepath_str, window, STOP_EVENT),  # Pass stop_event
                 daemon=True,
             )
             PROCESSING_THREAD.start()
@@ -125,7 +144,13 @@ def main():
             gui.update_song_list(window, file_manager.get_processed_songs())
         if event == "-THREAD_DONE-":
             gui.update_process_button(window, disabled=False)
+            gui.update_stop_button(window, disabled=True)  # Disable stop button
             PROCESSING_THREAD = None
+            
+        # --- Stop Button Clicked ---
+        if event == "-STOP-" and PROCESSING_THREAD is not None and PROCESSING_THREAD.is_alive():
+            gui.update_status(window, "Requesting to stop processing...")
+            STOP_EVENT.set()  # Signal the processing thread to stop
 
         # --- Song List Interaction ---
         if event == "-SONG_LIST-":

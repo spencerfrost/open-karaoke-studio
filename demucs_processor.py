@@ -27,7 +27,12 @@ def is_available():
     return DEMUCS_AVAILABLE
 
 
-def separate_audio(input_path: Path, song_dir: Path, status_callback):
+class StopProcessingError(Exception):
+    """Custom exception raised when processing is stopped by user."""
+    pass
+
+
+def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event):
     """
     Separates the audio file into vocals and instrumental tracks,
     matching the input file format and reporting progress.
@@ -41,6 +46,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
     last_update_time = 0
 
     def _demucs_progress_callback(data):
+        # Check if stop was requested
+        if stop_event.is_set():
+            status_callback("Stop requested. Terminating processing...")
+            raise StopProcessingError("Processing stopped by user")
         nonlocal last_update_time
         current_time = time.time()
         # Throttle GUI updates slightly (e.g., max once per 0.5 seconds)
@@ -78,6 +87,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
 
     try:
         # --- Determine Device ---
+        # Check if stop was requested
+        if stop_event.is_set():
+            raise StopProcessingError("Processing stopped by user")
+            
         actual_device = "cuda" if torch.cuda.is_available() else "cpu"
         status_callback(f"Using device: {actual_device}")
 
@@ -98,13 +111,26 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
         )
         output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
         status_callback(f"Input: {input_extension}, Output: {output_format_str}")
+        
+        # Check if stop was requested
+        if stop_event.is_set():
+            raise StopProcessingError("Processing stopped by user")
 
         # --- Separation (This is the long part) ---
         status_callback(
             f"Loading audio file: {input_path.name}..."
         )  # Add loading step msg
         # The _demucs_progress_callback will be called during this next line
-        _, separated = separator.separate_audio_file(str(input_path))
+        try:
+            _, separated = separator.separate_audio_file(str(input_path))
+            # Check if stop was requested after separation
+            if stop_event.is_set():
+                raise StopProcessingError("Processing stopped by user")
+        except StopProcessingError:
+            raise  # Re-raise our custom exception
+        except Exception as e:
+            status_callback(f"Error during separation: {e}")
+            raise
         status_callback("Separation models finished.")  # Signal end of core separation
 
         # --- Calculate Instrumental ---
@@ -115,6 +141,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
             status_callback("** Error: No non-vocal stems found! **")
             return False
         first_stem_name = instrumental_stems[0]
+        # Check if stop was requested
+        if stop_event.is_set():
+            raise StopProcessingError("Processing stopped by user")
+            
         instrumental_tensor = torch.zeros_like(separated[first_stem_name])
         for stem_name in instrumental_stems:
             instrumental_tensor += separated[stem_name]
@@ -136,6 +166,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
             save_kwargs["bits_per_sample"] = 16
             save_kwargs["as_float"] = False
 
+        # Check if stop was requested
+        if stop_event.is_set():
+            raise StopProcessingError("Processing stopped by user")
+            
         # --- Save Vocals ---
         if vocals_tensor is not None:
             status_callback(f"Saving vocals ({output_format_str})...")
@@ -143,6 +177,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback):
         else:
             status_callback("** Warning: Vocals stem not found in model output. **")
 
+        # Check if stop was requested
+        if stop_event.is_set():
+            raise StopProcessingError("Processing stopped by user")
+            
         # --- Save Instrumental ---
         status_callback(f"Saving instrumental ({output_format_str})...")
         save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)
