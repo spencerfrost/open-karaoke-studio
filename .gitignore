@@ -1,7 +1,46 @@
-venv
-__pycache__
+# Virtual environments
+venv/
+env/
+.venv/
+.env
 
-karaoke_library
-downloads
-file_manager.py
-separated
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Project specific
+karaoke_library/
+downloads/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Logs
+*.log
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo

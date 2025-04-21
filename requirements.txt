@@ -1,0 +1,8 @@
+numpy<2.0.0
+torch>=2.0.0
+torchaudio>=2.2.0
+--extra-index-url https://PySimpleGUI.net/install
+PySimpleGUI
+python-dotenv>=0.19.0
+# The fork below has updated torchaudio requirements to work with newer versions
+git+https://github.com/spencerfrost/demucs.git

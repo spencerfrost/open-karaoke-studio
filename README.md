@@ -63,6 +63,14 @@ The ultimate vision for this project is a fully-featured karaoke creation and pl
 
 ## 🚀 Installation
 
+### Easy Installation
+
+1. **Windows users:** Run `install.bat`
+2. **macOS/Linux users:** Run `./install.sh` (you may need to make it executable first with `chmod +x install.sh`)
+3. Follow the instructions displayed after installation completes
+
+### Manual Installation
+
 1.  📁 **Clone or Download:** Obtain the project files. If using Git:
     ```bash
     # Replace with your actual repository URL if you create one
@@ -88,19 +96,15 @@ The ultimate vision for this project is a fully-featured karaoke creation and pl
 
 4.  📦 **Install Dependencies:** Install the required packages using pip. The order can sometimes matter.
     ```bash
-    # Ensure NumPy < 2.0 is installed first for PyTorch compatibility
-    pip install "numpy<2"
-
-    # Install core PyTorch and Torchaudio
-    # (Check PyTorch website for specific CUDA version commands if needed)
-    pip install torch torchaudio
-
-    # Install the GUI library
-    pip install PySimpleGUI
-
-    # Install Demucs directly from the adefossez fork on GitHub
-    pip install git+[https://github.com/adefossez/demucs](https://github.com/adefossez/demucs)
+    # Install all dependencies at once using requirements.txt
+    pip install -r requirements.txt
     ```
+
+5. **Alternative - Development Installation:** If you want to develop or modify the application:
+   ```bash
+   # Install in development mode
+   pip install -e .
+   ```
 
 ---
 
