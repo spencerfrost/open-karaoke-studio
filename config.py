@@ -1,5 +1,5 @@
 # config.py
-"""Configuration settings for the Karaoke App - Reverted State."""
+"""Configuration settings for the Karaoke App"""
 
 from pathlib import Path
 
@@ -17,7 +17,7 @@ INSTRUMENTAL_FILENAME_STEM = "instrumental"
 ORIGINAL_FILENAME_SUFFIX = "_original" # Suffix for the copied original
 
 # --- GUI ---
-WINDOW_TITLE = "Open Karaoke Studio (Reverted)"
+WINDOW_TITLE = "Open Karaoke Studio"
 DEFAULT_STATUS_READY = "Status: Ready"
 DEFAULT_STATUS_SELECT_FILE = "Status: Select an audio file"
 

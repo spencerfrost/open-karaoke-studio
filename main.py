@@ -1,27 +1,24 @@
 # main.py
-"""Main application file for Open Karaoke Studio - Reverted State."""
+"""Main application file for Open Karaoke Studio"""
 
-import PySimpleGUI as sg
 import threading
 import sys
 import traceback
 from pathlib import Path
 
-# Import our modules
-import config
 import gui
 import demucs_processor
 import file_manager
 
-# No settings_manager import needed
+import PySimpleGUI as sg
+import config
 
-# --- Global variable for the processing thread ---
-processing_thread = None
+PROCESSING_THREAD = None
 
 
 def process_audio_thread(filepath_str, window):  # Simpler signature
     """Target function for the audio processing thread."""
-    global processing_thread
+    global PROCESSING_THREAD
 
     def gui_callback(message):
         """Function to send status updates back to the main thread."""
@@ -65,18 +62,12 @@ def process_audio_thread(filepath_str, window):  # Simpler signature
 
 def main():
     """Main application function."""
-    global processing_thread
+    global PROCESSING_THREAD
 
-    # No settings loading needed
-    # app_settings = settings_manager.load_settings()
-
-    # --- Initial checks ---
     demucs_ok = demucs_processor.is_available()
 
-    # --- Create Window ---
     window = gui.create_main_window(demucs_ok)  # No initial settings needed
 
-    # --- Load initial song list (using default library path) ---
     if demucs_ok:
         gui.update_song_list(
             window, file_manager.get_processed_songs()
@@ -87,7 +78,7 @@ def main():
         event, values = window.read()
 
         if event == sg.WIN_CLOSED or event == "Exit":
-            if processing_thread is not None and processing_thread.is_alive():
+            if PROCESSING_THREAD is not None and PROCESSING_THREAD.is_alive():
                 print("Warning: Closing window while processing is active.")
             break
 
@@ -112,19 +103,19 @@ def main():
                     window, "** Error: Please select a valid audio file first! **"
                 )
                 continue
-            if processing_thread is not None and processing_thread.is_alive():
+            if PROCESSING_THREAD is not None and PROCESSING_THREAD.is_alive():
                 sg.popup_error("Processing already in progress!", title="Busy")
                 continue
 
             # Start the processing thread without passing settings
             gui.update_process_button(window, disabled=True)
             gui.update_status(window, "Starting processing thread...")
-            processing_thread = threading.Thread(
+            PROCESSING_THREAD = threading.Thread(
                 target=process_audio_thread,
                 args=(filepath_str, window),  # Simpler args
                 daemon=True,
             )
-            processing_thread.start()
+            PROCESSING_THREAD.start()
 
         # --- Thread Communication ---
         if event == "-THREAD_UPDATE-":
@@ -134,7 +125,7 @@ def main():
             gui.update_song_list(window, file_manager.get_processed_songs())
         if event == "-THREAD_DONE-":
             gui.update_process_button(window, disabled=False)
-            processing_thread = None
+            PROCESSING_THREAD = None
 
         # --- Song List Interaction ---
         if event == "-SONG_LIST-":

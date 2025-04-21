@@ -1,5 +1,5 @@
 # gui.py
-"""Defines the PySimpleGUI layout and creates the main window - Reverted State."""
+"""Defines the PySimpleGUI layout and creates the main window"""
 
 import PySimpleGUI as sg
 import sys
