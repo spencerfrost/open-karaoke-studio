@@ -1,0 +1,22 @@
+import { QueueItemWithSong } from './Queue';
+
+export type PlayerStatus = 'idle' | 'playing' | 'paused';
+
+export interface PlayerState {
+  status: PlayerStatus;
+  currentTime: number;
+  duration: number;
+  vocalVolume: number;
+  instrumentalVolume: number;
+  currentSong: QueueItemWithSong | null;
+}
+
+export interface Lyric {
+  time: number; // In seconds
+  text: string;
+}
+
+export interface LyricSet {
+  songId: string;
+  lyrics: Lyric[];
+}

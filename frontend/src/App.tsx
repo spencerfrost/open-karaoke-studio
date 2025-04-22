@@ -1,28 +1,45 @@
-import React from "react";
-import { BrowserRouter as Router } from "react-router-dom";
-import ProcessLibraryTab from "@/components/tabs/ProcessLibraryTab";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Context providers
+import { SongsProvider } from './context/SongsContext';
+import { QueueProvider } from './context/QueueContext';
+import { PlayerProvider } from './context/PlayerContext';
+import { SettingsProvider } from './context/SettingsContext';
+
+// Pages
+import LibraryPage from './pages/Library';
+import AddSongPage from './pages/AddSong';
+import QueuePage from './pages/Queue';
+import SettingsPage from './pages/Settings';
+import PlayerPage from './pages/Player';
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Open Karaoke Studio</h1>
-        <Tabs default-value="process">
-          <TabsList className="mb-4">
-            <TabsTrigger value="process" >Process & Library</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="player">Player</TabsTrigger>
-          </TabsList>
-          {/* default to Process & Library tab */}
-          <TabsContent value="process">
-            <ProcessLibraryTab /> {/* Use the new tab component */}
-          </TabsContent>
-          <TabsContent value="settings">Settings content</TabsContent>
-          <TabsContent value="player">Player content</TabsContent>
-        </Tabs>
-      </div>
-    </Router>
+    <SettingsProvider>
+      <SongsProvider>
+        <QueueProvider>
+          <PlayerProvider>
+            <Router>
+              <Routes>
+                {/* Main app routes */}
+                <Route path="/" element={<LibraryPage />} />
+                <Route path="/add" element={<AddSongPage />} />
+                <Route path="/queue" element={<QueuePage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                
+                {/* Player routes */}
+                <Route path="/player" element={<PlayerPage />} />
+                <Route path="/player/:id" element={<PlayerPage />} />
+                
+                {/* Fallback route */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Router>
+          </PlayerProvider>
+        </QueueProvider>
+      </SongsProvider>
+    </SettingsProvider>
   );
 };
 
