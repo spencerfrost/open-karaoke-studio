@@ -1,5 +1,6 @@
 # backend/app/main.py
 from flask import Flask, request, jsonify
+from . import youtube
 from flask_cors import CORS
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -223,6 +224,48 @@ def process_audio_endpoint():
         )
         return jsonify({"error": "Invalid file type"}), 400
 
+@app.route('/api/youtube/search', methods=['POST'])
+def search_youtube_route():
+    data = request.json
+    query = data.get('query', '')
+    max_results = data.get('max_results', 10)
+
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+
+    try:
+        results = youtube.search_youtube(query, max_results)
+        return jsonify({'results': results})
+    except Exception as e:
+        app.logger.error(f"YouTube search error: {str(e)}")
+        return jsonify({'error': f'Failed to search YouTube: {str(e)}'}), 500
+
+@app.route('/api/youtube/download', methods=['POST'])
+def download_youtube_route():
+    data = request.json
+    video_id = data.get('video_id', '')
+
+    if not video_id:
+        return jsonify({'error': 'Video ID is required'}), 400
+
+    try:
+        upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
+        result = youtube.download_youtube_audio(video_id, upload_folder)
+
+        # After downloading, the file can be processed like any other uploaded file
+        return jsonify({
+            'success': True,
+            'file': result['filepath'],
+            'metadata': {
+                'id': result['id'],
+                'title': result['title'],
+                'duration': result['duration'],
+                'uploader': result['uploader']
+            }
+        })
+    except Exception as e:
+        app.logger.error(f"YouTube download error: {str(e)}")
+        return jsonify({'error': f'Failed to download from YouTube: {str(e)}'}), 500
 
 # --- Register Blueprints ---
 app.register_blueprint(song_bp)
