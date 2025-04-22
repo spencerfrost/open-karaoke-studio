@@ -4,9 +4,9 @@ numpy<2.0.0
 torch>=2.0.0
 torchaudio>=2.2.0
 pydantic>=2.11.3
-# The fork below has updated torchaudio requirements to work with newer versions
-git+https://github.com/spencerfrost/demucs.git
-# Task queue and dependencies
+yt-dlp>=2024.04.1
 celery[redis]>=5.0,<6.0
 flask-celery-helper
 python-dotenv
+# The fork below has updated torchaudio requirements to work with newer versions
+git+https://github.com/spencerfrost/demucs.git
