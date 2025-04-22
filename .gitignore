@@ -60,5 +60,6 @@ pnpm-debug.log
 *.swn
 
 # Project-specific
-# downloads
-# karaoke_library
+karaoke_library
+downloads
+job_store
