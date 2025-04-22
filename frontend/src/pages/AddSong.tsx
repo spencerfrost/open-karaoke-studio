@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { toast } from "sonner"; // For submission feedback
+import { toast } from "sonner"; 
+import { Upload } from "lucide-react";
 
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,17 +16,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import FileUpload from "../components/upload/FileUpload"; // The refactored FileUpload component
-import YouTubeImporter from "../components/upload/YouTubeImporter";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import FileUpload from "../components/upload/FileUpload";
+import YouTubeSearch from "../components/upload/YouTubeSearch";
 import AppLayout from "../components/layout/AppLayout";
-import {
-  uploadAndProcessAudio,
-  processYouTubeVideo,
-} from "../services/uploadService";
+import { uploadAndProcessAudio } from "../services/uploadService";
 import ProcessingQueue from "@/components/upload/ProcessingQueue";
 
 // Define Zod schema for the File Upload form
-const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB (example)
+const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB
 
 const fileUploadFormSchema = z.object({
   audioFile: z
@@ -37,7 +36,6 @@ const fileUploadFormSchema = z.object({
     )
     .optional()
     .nullable(),
-  // Add other potential form fields for the upload tab here if needed
 });
 
 type FileUploadFormValues = z.infer<typeof fileUploadFormSchema>;
@@ -45,8 +43,6 @@ type FileUploadFormValues = z.infer<typeof fileUploadFormSchema>;
 // --- Component Starts ---
 
 const AddSongPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("upload");
-
   // State for File Upload form submission
   const [isSubmittingUpload, setIsSubmittingUpload] = useState(false);
   const [uploadSubmissionError, setUploadSubmissionError] = useState<
@@ -113,108 +109,74 @@ const AddSongPage: React.FC = () => {
     }
   };
 
-  // Handle YouTube import (remains unchanged)
-  const handleYouTubeImport = async (
-    url: string,
-    title?: string,
-    artist?: string
-  ) => {
-    // Consider adding loading/error state for YouTube import as well
-    console.log(`Importing YouTube URL: ${url}`);
-    try {
-      const response = await processYouTubeVideo(url, { title, artist });
-      if (response.error) {
-        console.error("Error processing YouTube URL:", response.error);
-        toast.error(`YouTube processing failed: ${response.error}`);
-        return;
-      }
-      console.log("YouTube processing initiated:", response.data);
-      toast.success(`YouTube video processing started for ${url}`);
-    } catch (error) {
-      console.error("YouTube processing error:", error);
-      toast.error(
-        `YouTube processing failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
+  // Handle YouTube download start
+  const handleYouTubeDownloadStart = (videoId: string, title: string) => {
+    toast.info(`Started processing "${title}"`);
+    // Additional code could be added here to update UI or track downloads
   };
 
   return (
     <AppLayout>
-      <div>
-        {/* Use Tailwind classes based on theme variables */}
-        <h1 className="text-2xl font-semibold mb-6 text-secondary">
-          {" "}
-          {/* Assuming orangePeel maps to secondary */}
-          Add New Songs
-        </h1>
-
-        <Tabs
-          defaultValue="upload"
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="mb-6"
-        >
-          {/* Style Tabs using Tailwind and data attributes */}
-          <TabsList className="mb-4 p-1 rounded-lg bg-card/80 inline-flex">
-            <TabsTrigger
-              value="upload"
-              className="px-4 py-2 rounded-md text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-150"
-            >
-              Upload File
-            </TabsTrigger>
-            <TabsTrigger
-              value="youtube"
-              className="px-4 py-2 rounded-md text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-150"
-            >
-              YouTube
-            </TabsTrigger>
-          </TabsList>
-
-          {/* --- Upload Tab Content --- */}
-          <TabsContent value="upload" className="mt-0">
+      <div className="p-4 md:p-6">
+        {/* Background elements from CSS */}
+        <div className="sunburst-pattern"></div>
+        <div className="texture-overlay"></div>
+        
+        <h1 className="text-xl md:text-2xl font-retro text-secondary mb-6">Find Songs</h1>
+        
+        {/* YouTube Search Section */}
+        <Card className="mb-8 relative overflow-hidden">
+          <CardHeader className="border-b border-border/30">
+            <CardTitle className="font-retro text-lg text-card-foreground">Search YouTube</CardTitle>
+            <CardDescription className="text-card-foreground/80">
+              Find songs on YouTube to add to your karaoke library
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="p-4 md:p-6">
+            <YouTubeSearch onDownloadStart={handleYouTubeDownloadStart} />
+          </CardContent>
+        </Card>
+        
+        {/* Upload Alternative */}
+        <Card className="mb-8">
+          <CardHeader className="border-b border-border/30">
+            <CardTitle className="font-retro text-lg text-card-foreground">Upload File</CardTitle>
+            <CardDescription className="text-card-foreground/80">
+              Or upload your own audio files
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="p-4 md:p-6">
             <Form {...form}>
-              {/* Use the specific onSubmit handler for this form */}
-              <form
-                onSubmit={form.handleSubmit(onSubmitUpload)}
-                className="space-y-6"
-              >
-                {/* File Upload Field using FormField */}
+              <form onSubmit={form.handleSubmit(onSubmitUpload)} className="space-y-6">
                 <FormField
                   control={form.control}
-                  name="audioFile" // Must match schema
+                  name="audioFile"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">
-                        Audio File
-                      </FormLabel>
                       <FormControl>
-                        {/* Pass react-hook-form field props */}
                         <FileUpload
                           value={field.value}
                           onChange={field.onChange}
-                          accept="audio/*" // Specify types
-                          maxSize={MAX_FILE_SIZE} // Pass max size
+                          accept="audio/*"
+                          maxSize={MAX_FILE_SIZE}
                         />
                       </FormControl>
                       <FormDescription>
                         Select or drag and drop your audio file here.
                       </FormDescription>
-                      {/* FormMessage displays Zod validation errors */}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {/* Display general submission errors for the upload form */}
                 {uploadSubmissionError && (
                   <Alert variant="destructive">
                     <AlertDescription>{uploadSubmissionError}</AlertDescription>
                   </Alert>
                 )}
 
-                {/* Submit Button for the upload form */}
                 <Button
                   type="submit"
                   disabled={isSubmittingUpload}
@@ -224,25 +186,22 @@ const AddSongPage: React.FC = () => {
                 </Button>
               </form>
             </Form>
-          </TabsContent>
-
-          {/* --- YouTube Tab Content (Unchanged) --- */}
-          <TabsContent value="youtube" className="mt-0">
-            <YouTubeImporter onYouTubeImport={handleYouTubeImport} />
-          </TabsContent>
-        </Tabs>
-
-        {/* --- Processing Queue Section --- */}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-3 text-secondary">
-            {" "}
-            {/* Assuming orangePeel maps to secondary */}
-            Processing Queue
-          </h2>
-
-          {/* Processing Queue component would go here */}
-          <ProcessingQueue />
-        </div>
+          </CardContent>
+        </Card>
+        
+        {/* Processing Queue */}
+        <Card>
+          <CardHeader className="border-b border-border/30">
+            <CardTitle className="font-retro text-lg text-card-foreground">Processing Queue</CardTitle>
+            <CardDescription className="text-card-foreground/80">
+              Songs being prepared for karaoke
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="p-4 md:p-6">
+            <ProcessingQueue />
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

@@ -252,8 +252,8 @@ def download_youtube_route():
         upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
         result = youtube.download_youtube_audio(video_id, upload_folder)
 
-        # After downloading, the file can be processed like any other uploaded file
-        return jsonify({
+        # Return info including the processing job details
+        response_data = {
             'success': True,
             'file': result['filepath'],
             'metadata': {
@@ -261,8 +261,14 @@ def download_youtube_route():
                 'title': result['title'],
                 'duration': result['duration'],
                 'uploader': result['uploader']
+            },
+            'processing': {
+                'job_id': result['job_id'],
+                'status': result['job_status'],
+                'task_id': result['task_id']
             }
-        })
+        }
+        return jsonify(response_data), 202
     except Exception as e:
         app.logger.error(f"YouTube download error: {str(e)}")
         return jsonify({'error': f'Failed to download from YouTube: {str(e)}'}), 500
