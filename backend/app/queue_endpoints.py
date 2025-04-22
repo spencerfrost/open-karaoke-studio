@@ -4,7 +4,7 @@ These endpoints provide access to the processing queue and job status.
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .models import JobStatus, JobStore
@@ -33,13 +33,20 @@ def get_queue_jobs():
     else:
         jobs = job_store.get_all_jobs()
 
-    # Sort jobs by created_at (newest first)
-    jobs = sorted(jobs, key=lambda j: j.created_at, reverse=True)
+    def get_created_time(job):
+        if job.created_at is None:
+            # Return a minimum datetime if created_at is None
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        if job.created_at.tzinfo is None:
+                return job.created_at.replace(tzinfo=timezone.utc)
+        return job.created_at
+
+    jobs = sorted(jobs, key=get_created_time, reverse=True)
 
     return jsonify({
         "jobs": [job.to_dict() for job in jobs]
     })
-
 @queue_bp.route('/job/<job_id>', methods=['GET'])
 def get_queue_job(job_id):
     """Get detailed information about a specific job"""

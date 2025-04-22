@@ -23,7 +23,7 @@ import {
   uploadAndProcessAudio,
   processYouTubeVideo,
 } from "../services/uploadService";
-// Removed: import vintageTheme from '../utils/theme'; // Assuming theme is handled globally now
+import ProcessingQueue from "@/components/upload/ProcessingQueue";
 
 // Define Zod schema for the File Upload form
 const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB (example)
@@ -241,14 +241,7 @@ const AddSongPage: React.FC = () => {
           </h2>
 
           {/* Processing Queue component would go here */}
-          {/* <ProcessingQueue /> */}
-
-          {/* Placeholder Styling using Tailwind */}
-          <div className="rounded-lg p-6 text-center bg-muted/10 text-muted-foreground border border-border">
-            <p className="opacity-80">
-              Processing queue display is not yet implemented.
-            </p>
-          </div>
+          <ProcessingQueue />
         </div>
       </div>
     </AppLayout>

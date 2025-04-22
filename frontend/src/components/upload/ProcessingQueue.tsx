@@ -11,7 +11,7 @@ interface ProcessingQueueProps {
 
 const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   className = '',
-  refreshInterval = 5000, // Default to 5 seconds
+  refreshInterval = 2000, // Default to 5 seconds
 }) => {
   const [processingItems, setProcessingItems] = useState<SongProcessingStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +32,12 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
         }
         
         if (response.data) {
-          setProcessingItems(response.data);
+          // Check if response.data is an object with jobs property
+          if ('jobs' in response.data) {
+            setProcessingItems(response.data.jobs);
+          } else {
+            setProcessingItems(response.data);
+          }
         }
       } catch (err) {
         setIsLoading(false);
@@ -70,6 +75,16 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
     } catch (err) {
       setError('Failed to cancel processing');
       console.error('Error canceling processing:', err);
+    }
+  };
+
+  // Get status label
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'queued': return 'Queued';
+      case 'processing': return 'Processing';
+      case 'error': return 'Failed';
+      default: return status;
     }
   };
 
@@ -141,11 +156,23 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
               <Music size={20} style={{ color: colors.darkCyan }} />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium truncate">
-                {item.id}
-                {item.message && ` - ${item.message}`}
-              </h4>
-              <div className="flex items-center">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium truncate">
+                  {item.message || `Job ${item.id.substring(0, 8)}...`}
+                </h4>
+                <span className="text-xs px-2 py-1 rounded-full"
+                  style={{
+                    backgroundColor: item.status === 'error'
+                      ? `${colors.rust}30`
+                      : item.status === 'processing'
+                        ? `${colors.darkCyan}30`
+                        : `${colors.orangePeel}30`
+                  }}
+                >
+                  {getStatusLabel(item.status)}
+                </span>
+              </div>
+              <div className="flex items-center mt-1">
                 <div 
                   className="h-1 rounded-full flex-1 mr-2"
                   style={{ backgroundColor: `${colors.russet}30` }}
