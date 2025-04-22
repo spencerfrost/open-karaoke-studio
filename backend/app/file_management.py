@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 from typing import List, Optional
-import config
+from . import config
 
 def ensure_library_exists():
     """Creates the base library directory if it doesn't exist."""

@@ -5,3 +5,8 @@ torch>=2.0.0
 torchaudio>=2.2.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
+# Task queue and dependencies
+celery>=5.3.0
+redis>=4.5.0
+flask-celery-helper
+python-dotenv

@@ -5,8 +5,9 @@ from pathlib import Path
 import time
 import torch
 
-import file_management
-import config
+# Use relative imports
+from . import file_management
+from . import config
 
 try:
     from demucs.api import Separator, save_audio
@@ -29,7 +30,7 @@ class StopProcessingError(Exception):
 
     pass
 
-def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event):
+def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event=None):
     """
     Separates the audio file into vocals and instrumental tracks,
     matching the input file format and reporting progress.
@@ -37,11 +38,11 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
     Args:
         input_path: Path to the input audio file.
         song_dir: Path to the directory where processed files will be saved.
-        status_callback:  (Removed - not used in backend)
-        stop_event:  A threading.Event to check for stop requests.
+        status_callback: Function to call with status updates.
+        stop_event: A threading.Event to check for stop requests. Can be None.
 
     Returns:
-        True on success, False on failure.  (But now, exceptions are preferred for errors)
+        True on success, False on failure.
 
     Raises:
         StopProcessingError: If processing is stopped by the user.
@@ -56,19 +57,45 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
     def _demucs_progress_callback(data):
         # Check if stop was requested
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
+        
         nonlocal last_update_time
         current_time = time.time()
         # Throttle updates slightly (e.g., max once per 0.5 seconds)
         if current_time - last_update_time < 0.5 and data["state"] != "end":
             return  # Skip update if too frequent
 
-        # (Progress reporting removed - not relevant for backend)
+        total_segments = data.get("audio_length", 0)
+        processed_segments = data.get("segment_offset", 0)
+        model_idx = data.get("model_idx_in_bag", 0)
+        models_count = data.get("models", 1)
+
+        progress_current_model = (
+            (processed_segments / total_segments) if total_segments > 0 else 0
+        )
+        overall_progress = (
+            ((model_idx + progress_current_model) / models_count)
+            if models_count > 0
+            else 0
+        )
+
+        if data["state"] == "end":
+            progress_percent = overall_progress * 100
+            # Example: "Separating: Model 2/4 (Overall 35.7%)"
+            status_msg = (
+                f"Separating: Model {model_idx + 1}/{models_count} "
+                f"(Overall {progress_percent:.1f}%)"
+            )
+            
+            if status_callback:
+                status_callback(status_msg)  # Use the callback if provided
+            
+            last_update_time = current_time
 
     try:
         # --- Determine Device ---
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         actual_device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -77,11 +104,19 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             device_str = f"cuda:0 ({device_name})"
         else:
             device_str = "cpu"
-        print(f"Using device: {device_str}")  # Log to console instead of GUI
+        
+        device_msg = f"Using device: {device_str}"
+        print(device_msg)
+        if status_callback:
+            status_callback(device_msg)
 
         # --- Initialization ---
         model_name = config.DEFAULT_MODEL
-        print(f"Initializing Demucs (Model: {model_name}, Device: {device_str})...")
+        init_msg = f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
+        print(init_msg)
+        if status_callback:
+            status_callback(init_msg)
+            
         try:
             separator = Separator(
                 model=model_name,
@@ -89,9 +124,15 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 callback=_demucs_progress_callback,
             )
         except (torch.cuda.CudaError, RuntimeError) as e:
-            raise Exception(f"Error initializing Demucs: {e}")
+            error_msg = f"Error initializing Demucs: {e}"
+            if status_callback:
+                status_callback(error_msg)
+            raise Exception(error_msg)
         except Exception as e:
-            raise Exception(f"Unexpected error during Demucs init: {e}")
+            error_msg = f"Unexpected error during Demucs init: {e}"
+            if status_callback:
+                status_callback(error_msg)
+            raise Exception(error_msg)
 
         # --- Determine Output Format ---
         input_extension = input_path.suffix.lower()
@@ -99,33 +140,58 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             input_extension if input_extension in [".wav", ".mp3"] else ".wav"
         )
         output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
-        print(f"Input: {input_extension}, Output: {output_format_str}")
+        format_msg = f"Input: {input_extension}, Output: {output_format_str}"
+        print(format_msg)
+        if status_callback:
+            status_callback(format_msg)
 
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         # --- Separation (This is the long part) ---
-        print(f"Loading audio file: {input_path.name}...")  # Log loading
+        loading_msg = f"Loading audio file: {input_path.name}..."
+        print(loading_msg)
+        if status_callback:
+            status_callback(loading_msg)
+            
         try:
             _, separated = separator.separate_audio_file(str(input_path))
-            if stop_event.is_set():
+            if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
         except StopProcessingError:
             raise
         except (torch.cuda.CudaError, RuntimeError) as e:
-            raise Exception(f"Error during separation: {e}")
+            error_msg = f"Error during separation: {e}"
+            if status_callback:
+                status_callback(error_msg)
+            raise Exception(error_msg)
         except Exception as e:
-            raise Exception(f"Unexpected error during separation: {e}")
-        print("Separation models finished.")
+            error_msg = f"Unexpected error during separation: {e}"
+            if status_callback:
+                status_callback(error_msg)
+            raise Exception(error_msg)
+            
+        sep_msg = "Separation models finished."
+        print(sep_msg)
+        if status_callback:
+            status_callback(sep_msg)
 
         # --- Calculate Instrumental ---
-        print("Calculating instrumental track...")
+        instr_msg = "Calculating instrumental track..."
+        print(instr_msg)
+        if status_callback:
+            status_callback(instr_msg)
+            
         instrumental_tensor = None
         instrumental_stems = [s_name for s_name in separated if s_name != "vocals"]
         if not instrumental_stems:
-            raise Exception("No non-vocal stems found!")
+            error_msg = "No non-vocal stems found!"
+            if status_callback:
+                status_callback(error_msg)
+            raise Exception(error_msg)
+            
         first_stem_name = instrumental_stems[0]
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         instrumental_tensor = torch.zeros_like(separated[first_stem_name])
@@ -149,24 +215,36 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             save_kwargs["bits_per_sample"] = 16
             save_kwargs["as_float"] = False
 
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         # --- Save Vocals ---
         if vocals_tensor is not None:
-            print(f"Saving vocals ({output_format_str})...")
+            vocal_msg = f"Saving vocals ({output_format_str})..."
+            print(vocal_msg)
+            if status_callback:
+                status_callback(vocal_msg)
             save_audio(vocals_tensor, str(vocals_path), **save_kwargs)
         else:
-            print("** Warning: Vocals stem not found in model output. **")
+            warning_msg = "** Warning: Vocals stem not found in model output. **"
+            print(warning_msg)
+            if status_callback:
+                status_callback(warning_msg)
 
-        if stop_event.is_set():
+        if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         # --- Save Instrumental ---
-        print(f"Saving instrumental ({output_format_str})...")
+        instr_save_msg = f"Saving instrumental ({output_format_str})..."
+        print(instr_save_msg)
+        if status_callback:
+            status_callback(instr_save_msg)
         save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)
 
-        print(f"Processing complete for {input_path.name}!")
+        complete_msg = f"Processing complete for {input_path.name}!"
+        print(complete_msg)
+        if status_callback:
+            status_callback(complete_msg)
         return True
 
     except StopProcessingError:
@@ -174,4 +252,6 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
     except Exception as e:
         print(f"Error during separation for {input_path.name}: {e}", file=sys.stderr)
         traceback.print_exc()
+        if status_callback:
+            status_callback(f"** Error during separation: {e} **")
         raise
