@@ -1,52 +1,61 @@
-"""
-Celery configuration for task queue management
-"""
+# app/celery_app.py
 from celery import Celery
 import os
+import multiprocessing
 from dotenv import load_dotenv
+import logging
 
-# Load environment variables if available
+# Setup logging
+logger = logging.getLogger(__name__)
+
+try:
+    if multiprocessing.get_start_method(allow_none=True) != 'spawn':
+        multiprocessing.set_start_method('spawn', force=True)
+    logger.info("Multiprocessing start method set to 'spawn' for CUDA compatibility")
+except RuntimeError as e:
+    logger.warning(f"Could not set multiprocessing start method: {e}")
+
 load_dotenv()
 
-# Configure Celery
-def make_celery(app=None):
-    # Default Redis URL or from environment
-    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-    
-    celery = Celery(
-        'open_karaoke',
-        broker=redis_url,
-        backend=redis_url,
-        include=['app.tasks'],
-        broker_connection_retry_on_startup=True,
-        broker_connection_max_retries=1
-    )
-    
-    # Set some default configuration
-    celery.conf.update(
-        result_expires=3600,  # Results expire after 1 hour
-        task_track_started=True,
-        task_serializer='json',
-        accept_content=['json'],
-        result_serializer='json',
-        timezone='UTC',
-        enable_utc=True,
-    )
-    
-    # If we have a Flask app, configure it properly
-    if app:
-        TaskBase = celery.Task
-        
-        class ContextTask(TaskBase):
-            abstract = True
-            
-            def __call__(self, *args, **kwargs):
-                with app.app_context():
-                    return TaskBase.__call__(self, *args, **kwargs)
-        
-        celery.Task = ContextTask
-        
-    return celery
+# Get broker and backend URLs from environment with fallbacks
+broker_url = os.getenv('CELERY_BROKER_URL', os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
+result_backend = os.getenv('CELERY_RESULT_BACKEND', os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
 
-# Create the Celery instance
-celery = make_celery()
+logger.info(f"Configuring Celery with broker: {broker_url}, backend: {result_backend}")
+
+# Create Celery app
+celery = Celery(
+    'backend',
+    broker=broker_url,
+    backend=result_backend,
+    include=['backend.app.tasks']
+)
+
+# Configure Celery
+celery.conf.update(
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+    broker_connection_retry=True,
+    broker_connection_retry_on_startup=True,
+    task_routes={
+        'app.tasks.process_audio_task': {'queue': 'audio_processing'},
+        'app.tasks.cleanup_old_jobs': {'queue': 'maintenance'},
+    }
+)
+
+# For Flask integration (optional)
+def init_celery(app):
+    """Initialize Celery with Flask app context."""
+    if not app:
+        return celery
+
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = ContextTask
+    return celery

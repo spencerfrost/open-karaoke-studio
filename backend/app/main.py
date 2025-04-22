@@ -1,64 +1,45 @@
 # backend/app/main.py
-
-# --- Imports ---
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import os
-import traceback
-import uuid  # For job IDs
-from datetime import datetime  # For job creation time
-import logging  # For logging
-from typing import Dict, Any  # For type hinting
+import uuid
+from datetime import datetime
+import logging
+from typing import Dict, Any
 
-# --- Import App Modules ---
-# Use absolute imports assuming 'app' is the package root or PYTHONPATH is set
-from app import audio, file_management, config  # Core logic
-from app.celery_app import make_celery  # Celery app factory
-from app.models import (
+from . import config
+from .celery_app import init_celery, celery
+from .tasks import process_audio_task
+from .models import (
     Job,
     JobStatus,
     JobStore,
-)  # Job/Data models (ensure JobStore is defined correctly)
-from app.tasks import process_audio_task  # Celery task import
+)
+from .song_endpoints import song_bp
+from .queue_endpoints import queue_bp
 
-# --- Import Blueprints ---
-from app.song_endpoints import song_bp  # Song API blueprint
-from app.queue_endpoints import queue_bp  # Queue API blueprint
-
-# --- App Setup ---
+# --- Flask app Setup ---
 app = Flask(__name__)
-CORS(app)  # Configure CORS appropriately for production
+CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO)  # Basic config, adjust as needed
-app.logger.setLevel(logging.INFO)  # Ensure Flask logger uses the level
+# --- Configuration FIRST ---
+app.config.from_object(config)
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+app.config["UPLOAD_FOLDER"] = config.YT_DOWNLOAD_DIR
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
 
-# Setup Celery - Pass the Flask app instance
-celery = make_celery(app)
-
-# Initialize the Job Store (ensure JobStore() implementation exists and works)
-# This might handle loading/saving jobs from files or a database
+# --- Celery Initialization ---
+init_celery(app)
 try:
     job_store = JobStore()
-    app.logger.info("JobStore initialized.")
+    app.logger.info("JobStore instance created successfully.")
 except Exception as e:
     app.logger.error(f"Failed to initialize JobStore: {e}", exc_info=True)
-    # Depending on JobStore importance, might exit or continue with limited functionality
-    job_store = None  # Or a dummy store
-
-# --- Configuration ---
-UPLOAD_FOLDER = config.YT_DOWNLOAD_DIR
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200MB limit
-# Ensure upload directory exists
-try:
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-except OSError as e:
-    app.logger.error(
-        f"Could not create upload folder {UPLOAD_FOLDER}: {e}", exc_info=True
-    )
+    job_store = None
 
 
 # --- Error Handling ---
@@ -105,56 +86,6 @@ def allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
 
 
-# --- Fallback Processing (if Celery fails) ---
-def run_audio_processing_directly(job_id: str, filepath_str: str):
-    """
-    Runs audio processing directly in a thread (fallback).
-    NOTE: This bypasses the Celery queue and runs locally. Not recommended for production.
-    """
-    app.logger.warning(f"Running job {job_id} directly in fallback thread.")
-    # Need app context if task uses Flask features
-    with app.app_context():
-        # We're calling the task function directly, not through Celery
-        # It expects 'self' as first arg for @shared_task with bind=True
-        class DummyTask:
-            def update_state(self, state=None, meta=None):
-                # Log progress locally instead of updating Celery state
-                if meta:
-                    progress = meta.get("progress", "?")
-                    message = meta.get("message", "")
-                    app.logger.info(
-                        f"[DirectRun-{job_id}] Progress: {progress}% - {message}"
-                    )
-                else:
-                    app.logger.info(f"[DirectRun-{job_id}] State: {state}")
-
-            # Add request attribute if needed by context task base class
-            # request = None
-
-        dummy_task = DummyTask()
-        try:
-            # Call the task function directly with the dummy task as 'self'
-            process_audio_task(dummy_task, job_id, filepath_str)
-            app.logger.info(f"Direct processing finished for job {job_id}.")
-        except Exception as e:
-            app.logger.error(
-                f"Error during direct processing for job {job_id}: {e}", exc_info=True
-            )
-            # Update JobStore status if possible
-            if job_store:
-                try:
-                    job = job_store.get_job(job_id)
-                    if job:
-                        job.status = JobStatus.FAILED
-                        job.error = f"Direct processing failed: {str(e)}"
-                        job.completed_at = datetime.utcnow()
-                        job_store.save_job(job)
-                except Exception as store_err:
-                    app.logger.error(
-                        f"Failed to update JobStore after direct processing error: {store_err}"
-                    )
-
-
 # --- Queue Management Functions ---
 def create_job(filename: str) -> Job | None:
     """Creates and stores a new job record."""
@@ -166,7 +97,7 @@ def create_job(filename: str) -> Job | None:
         id=job_id,
         filename=filename,
         status=JobStatus.PENDING,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
     )
     try:
         job_store.save_job(job)
@@ -178,52 +109,35 @@ def create_job(filename: str) -> Job | None:
 
 
 def start_processing_job(job: Job, filepath: Path) -> Dict[str, Any]:
-    """Starts a Celery task for audio processing, with fallback."""
+    """Starts a Celery task for audio processing."""
     app.logger.info(f"Attempting to start processing for Job {job.id} via Celery.")
+    app.logger.info(f"Using Celery Broker: {celery.conf.broker_url}")
+
+    # --- Direct Redis Ping Test (Optional but Recommended) ---
+    # (Keep the ping test using redis.ConnectionPool.from_url(celery.conf.broker_url) as before)
+    # ...
+
+    # Send task to Celery queue using the IMPORTED 'celery' instance
     try:
-        # Send task to Celery queue
+        # Make sure process_audio_task is decorated with the SAME celery instance
         task = process_audio_task.delay(job.id, str(filepath))
-        app.logger.info(f"Successfully queued Celery task {task.id} for Job {job.id}")
-        # Update Job with Celery Task ID (optional but useful)
-        job.task_id = task.id
-        job_store.save_job(job)
-        return {
-            "job_id": job.id,
-            "filename": job.filename,
-            "status": job.status.value,  # Should still be PENDING initially
-            "task_id": task.id,
-        }
-    except Exception as e:  # Catch specific Celery connection errors if possible
-        app.logger.error(
-            f"CRITICAL: Error starting Celery task for Job {job.id}: {e}", exc_info=True
-        )
-        app.logger.warning(
-            "Attempting fallback: processing directly in main process thread."
-        )
+        app.logger.info(f"Celery task dispatched successfully. Task ID: {task.id}")
+    except Exception as celery_err:
+        app.logger.error(f"Celery .delay() FAILED: {celery_err}", exc_info=True)
+        # Check traceback carefully here in logs!
+        raise ProcessingError(f"Failed to queue processing task: {celery_err}", 500)
 
-        # Update job status to indicate direct processing attempt
-        job.status = JobStatus.PROCESSING  # Mark as processing directly
-        job.started_at = datetime.utcnow()
-        job.notes = "Processing directly due to Celery dispatch failure."  # Add note
-        job_store.save_job(job)
+    # Update Job status and Task ID
+    job.task_id = task.id
+    job.status = JobStatus.QUEUED  # Indicate it's queued
+    job_store.save_job(job)
 
-        # Start processing in a separate thread (non-blocking but runs locally)
-        import threading
-
-        thread = threading.Thread(
-            target=run_audio_processing_directly,
-            args=(job.id, str(filepath)),
-            daemon=True,  # Allows app to exit even if thread is running
-        )
-        thread.start()
-        app.logger.info(f"Started fallback processing thread for Job {job.id}")
-
-        return {
-            "job_id": job.id,
-            "filename": job.filename,
-            "status": job.status.value,  # Now PROCESSING
-            "direct_processing": True,  # Indicate fallback was used
-        }
+    return {
+        "job_id": job.id,
+        "filename": job.filename,
+        "status": job.status.value,
+        "task_id": task.id,
+    }
 
 
 # --- API Endpoints ---

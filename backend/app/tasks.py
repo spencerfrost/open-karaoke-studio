@@ -1,19 +1,17 @@
 """
 Celery task definitions for audio processing
 """
-import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 import traceback
 import shutil
 
-from celery import shared_task
 from celery.utils.log import get_task_logger
 
 from . import audio
 from . import file_management
 from . import config
+from .celery_app import celery
 from .models import Job, JobStatus, JobStore
 
 logger = get_task_logger(__name__)
@@ -23,35 +21,35 @@ class AudioProcessingError(Exception):
     """Custom exception for audio processing errors"""
     pass
 
-@shared_task(bind=True)
+@celery.task(bind=True)
 def process_audio_task(self, job_id, filepath_str):
     """
     Celery task to process audio file
-    
+
     Args:
         job_id: Unique identifier for the job
         filepath_str: Path to the audio file
     """
     logger.info(f"Starting audio processing task for job {job_id}")
-    
+
     # Get the job from storage
     job = job_store.get_job(job_id)
     if not job:
         logger.error(f"Job {job_id} not found")
         return {"status": "error", "message": "Job not found"}
-    
+
     filepath = Path(filepath_str)
     filename = filepath.name
-    
+
     # Update job status to processing
     job.status = JobStatus.PROCESSING
-    job.started_at = datetime.utcnow()
+    job.started_at = datetime.now()
     job_store.save_job(job)
-    
+
     # Create a stop event (for compatibility with audio.separate_audio)
     import threading
     stop_event = threading.Event()
-    
+
     try:
         # Create a progress callback function for this job
         def progress_callback(message):
@@ -72,11 +70,11 @@ def process_audio_task(self, job_id, filepath_str):
                     progress = int(float(progress_str))
                 except (ValueError, IndexError):
                     pass
-            
+
             # Update job progress
             job.progress = progress
             job_store.save_job(job)
-            
+
             # Also update Celery task state if running as a Celery task
             if hasattr(self, 'update_state'):
                 self.update_state(
@@ -90,33 +88,33 @@ def process_audio_task(self, job_id, filepath_str):
                     }
                 )
             logger.info(f"Job {job_id} progress: {progress}% - {message}")
-            
+
         # 1. Ensure library and create song directory
         file_management.ensure_library_exists()
         song_dir = file_management.get_song_dir(filepath)
         progress_callback(f"Created directory for {filename}")
-        
+
         # 2. Copy original file
         original_saved_path = file_management.save_original_file(filepath, song_dir)
         if not original_saved_path:
             raise AudioProcessingError("Failed to copy original file")
         progress_callback("Copied original file")
-        
+
         # 3. Separate audio
         if not audio.separate_audio(
-            filepath, 
-            song_dir, 
-            status_callback=progress_callback, 
+            filepath,
+            song_dir,
+            status_callback=progress_callback,
             stop_event=stop_event
         ):
             raise AudioProcessingError("Audio separation failed")
-            
+
         # 4. Update job status to completed
         job.status = JobStatus.COMPLETED
         job.progress = 100
-        job.completed_at = datetime.utcnow()
+        job.completed_at = datetime.now()
         job_store.save_job(job)
-        
+
         # 5. Return success result
         result = {
             "status": "success",
@@ -127,41 +125,41 @@ def process_audio_task(self, job_id, filepath_str):
         }
         logger.info(f"Job {job_id} completed successfully")
         return result
-        
+
     except audio.StopProcessingError:
         # Processing was manually stopped
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
-        job.completed_at = datetime.utcnow()
+        job.completed_at = datetime.now()
         job_store.save_job(job)
-        
+
         # Clean up partial files
         if song_dir.exists():
             shutil.rmtree(song_dir)
-            
+
         logger.info(f"Job {job_id} was cancelled")
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
-        
+
     except Exception as e:
         # Handle any other exception
         error_message = str(e)
         logger.error(f"Error processing job {job_id}: {error_message}")
         traceback.print_exc()
-        
+
         # Update job status
         job.status = JobStatus.FAILED
         job.error = error_message
-        job.completed_at = datetime.utcnow()
+        job.completed_at = datetime.now()
         job_store.save_job(job)
-        
+
         return {
-            "status": "error", 
-            "job_id": job_id, 
+            "status": "error",
+            "job_id": job_id,
             "filename": filename,
             "error": error_message
         }
 
-@shared_task
+@celery.task(bind=True, name="cleanup_old_jobs")
 def cleanup_old_jobs():
     """
     Periodically clean up old job records and temporary files
@@ -169,4 +167,3 @@ def cleanup_old_jobs():
     # Implement cleanup logic here
     logger.info("Running job cleanup task")
     # This could delete jobs older than X days or remove temporary files
-    pass
