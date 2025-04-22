@@ -1,10 +1,11 @@
 # backend/app/file_management.py
 import shutil
 import json # Add json import
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any # Add Dict, Any
-import config
-from models import SongMetadata # Import the new Pydantic model for metadata
+from . import config
+from .models import SongMetadata # Import the new Pydantic model for metadata
 
 # --- Constants ---
 METADATA_FILENAME = "metadata.json"
@@ -143,7 +144,7 @@ def create_initial_metadata(input_path: Path, song_dir: Path, duration: Optional
         title=title_guess,
         artist="Unknown Artist", # Or try to parse from filename
         duration=duration,
-        dateAdded=datetime.datetime.now(datetime.timezone.utc),
+        dateAdded=datetime.now(timezone.utc),
         favorite=False
     )
     print(f"Creating initial metadata for song: {song_id}")
