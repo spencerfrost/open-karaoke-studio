@@ -127,9 +127,8 @@ def start_processing_job(job: Job, filepath: Path) -> Dict[str, Any]:
         # Check traceback carefully here in logs!
         raise ProcessingError(f"Failed to queue processing task: {celery_err}", 500)
 
-    # Update Job status and Task ID
     job.task_id = task.id
-    job.status = JobStatus.QUEUED  # Indicate it's queued
+    job.status = JobStatus.PENDING
     job_store.save_job(job)
 
     return {
@@ -139,10 +138,7 @@ def start_processing_job(job: Job, filepath: Path) -> Dict[str, Any]:
         "task_id": task.id,
     }
 
-
 # --- API Endpoints ---
-
-
 @app.route("/process", methods=["POST"])
 def process_audio_endpoint():
     """Endpoint to upload audio and queue it for processing."""
