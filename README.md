@@ -1,142 +1,53 @@
-# 🎤 Open Karaoke Studio ✨
+# 🎶 Open Karaoke Studio 🎤
 
-**(Project Status as of April 21, 2025: Initial development, core separation working, GUI basics in place.)**
+**Your open-source AI powered karaoke studio!**
 
----
+Open Karaoke Studio is a web application designed to make it easy for you to generate instrumental versions of your favorite songs. By using AI-powered vocal separation, it provides the tools to create custom karaoke tracks.
 
-A desktop application built with Python and Demucs to help create karaoke tracks by separating vocals from music. Includes a graphical interface for processing local audio files and managing a basic library.
+## Current Features
+* 🎶  **Upload & Process:** Upload your favorite songs and let the AI do the rest.
+* 🎵  **Vocal Separation:** Cleanly extract vocals from any song.
+* ✂️  **Create Instrumentals:** Get high-quality instrumental tracks for your karaoke sessions.
+* 📂  **Song Library:** Keep track of your processed songs in a user-friendly library.
+* 🚀  **Modern & Fast:** Built with cutting-edge web technologies for a smooth experience.
 
-The ultimate vision for this project is a fully-featured karaoke creation and playback experience, including YouTube integration and synchronized lyrics! 🎶
+## Planned Features
+* 🖥️  **Web Interface:** A sleek, user-friendly interface for a seamless experience.
+* ⚙️  **Settings/Configuration:** Customize your experience and song processing options.
+* 🔄  **Asynchronous Processing:** Queue up multiple song processing tasks to run in the background
+* 🎵  **Song Search:** Search for songs from various sources (Youtube etc) and automatically generate karaoke tracks.
+* 📺  **Karaoke Player:** Integrated karaoke player for seamless playback.
+* 🎙️  **Vocal Guide:** Adjust the volume of the original vocals to sing along, for when you need a little help remembering the tune!
+* 🩺  **Beat Detection:** Automatic beat synchronization for lyrics display
+* 🤖  **Lyrics Display:** Auto-generate karaoke-style lyrics graphics
+* 📱  **Mobile Support:** Add songs from your mobile device and enjoy on-the-go functionality.
+* 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
+* 🎚️  **Audio Effects:** Apply real-time effects to vocals and instrumentals
 
----
+## Tech Stack
 
-## 🌟 Features
+Open Karaoke Studio is built using a combination of modern web technologies. For detailed information, please refer to the specific README files:
 
-### ✅ Current Features:
+* **Frontend:** The user interface is built with React, Vite, Tailwind, and ShadCN.  [Frontend README](./frontend/README.md) 💻
+* **Backend:** The API is handled by a Flask/Python backend using Demucs for audio processing.  [Backend README](./backend/README.md) ⚙️
 
-* ✨ **Graphical User Interface (GUI):** Built with PySimpleGUI for ease of use.
-* 📁 **Local File Processing:** Select local audio files (MP3, WAV, FLAC, etc.) via a file browser.
-* 🎧 **High-Quality Separation:** Utilizes state-of-the-art [Demucs models](https://github.com/adefossez/demucs) (specifically the `adefossez/demucs` fork) for audio source separation.
-* 🎤 **Karaoke Track Generation:** Automatically outputs separate `vocals` and `instrumental` tracks.
-* ↔️ **Format Matching:** Output files (`vocals`, `instrumental`) are saved in the same format as the input file (MP3 input -> MP3 output; WAV input -> WAV output; other formats default to WAV output).
-* 📊 **Progress Indicator:** Real-time status updates in the GUI during the Demucs separation process.
-* 🤖 **Automatic Device Selection:** Uses GPU (CUDA) for processing if available and detected by PyTorch, otherwise falls back to CPU.
-* 📚 **Song Library:**
-    * Processed tracks are organized into a `karaoke_library` folder, with sub-folders for each song.
-    * The original audio file is copied into the song's sub-folder for reference.
-    * A basic listbox in the GUI displays the names of processed song folders found in the library.
+## Getting Started
 
-### 🚀 Planned Features / Vision:
+To get the application up and running:
 
-* 🔧 **Enhanced Settings:** A dedicated settings page/tab in the GUI to configure:
-    * Processing device (Auto/CPU/GPU).
-    * Choice of Demucs model.
-    * Output quality parameters (MP3 bitrate, WAV bit depth).
-    * Customizable library location.
-* 📺 **YouTube Integration:**
-    * Search YouTube for songs/videos directly within the application.
-    * Download audio tracks from YouTube links using `yt-dlp`.
-* 💾 **Improved Library Management:**
-    * More robust scanning and display of processed songs.
-    * Ability to add/edit metadata (artist, title, genre).
-    * Search and filtering capabilities.
-* ▶️ **Karaoke Player:**
-    * An integrated player window.
-    * Playback of the generated instrumental track.
-    * Loading and display of synchronized lyrics (e.g., from `.lrc` files).
-    * Potential video playback capabilities.
+1.  **Clone the Repository:** Obtain the project code.
+2.  **Follow the Setup Guides:** Detailed setup instructions are available in the [Frontend README](./frontend/README.md) and [Backend README](./backend/README.md).
 
----
+_Unified, 1-click setup coming soon!_
 
-## 📋 Requirements
+## Contributing
 
-* Python 3.8+
-* `torch` (PyTorch)
-* `torchaudio`
-* `numpy<2.0` (**Important:** Required for compatibility with current PyTorch/Demucs builds)
-* `demucs` (specifically the [`spencerfrost/demucs`](https://github.com/spencerfrost/demucs) fork from GitHub)
-* `PySimpleGUI`
+We welcome contributions to Open Karaoke Studio!  If you're interested in contributing, please:
 
-*(Future requirements will include `yt-dlp`, `Youtube-python` or similar)*
+1.  Fork the repository.
+2.  Create a branch for your changes.
+3.  Implement your feature or bug fix.
+4.  Submit a pull request.
 
----
-
-## 🚀 Installation
-
-### Easy Installation
-
-1. **Windows users:** Run `install.bat`
-2. **macOS/Linux users:** Run `./install.sh` (you may need to make it executable first with `chmod +x install.sh`)
-3. Follow the instructions displayed after installation completes
-
-### Manual Installation
-
-1.  📁 **Clone or Download:** Obtain the project files. If using Git:
-    ```bash
-    # Replace with your actual repository URL if you create one
-    git clone [https://github.com/your_username/open-karaoke-studio.git](https://github.com/your_username/open-karaoke-studio.git)
-    cd open-karaoke-studio
-    ```
-
-2.  🐍 **Create Virtual Environment:** It's highly recommended to use a virtual environment.
-    ```bash
-    python -m venv venv
-    ```
-
-3.  ✅ **Activate Virtual Environment:**
-    * Windows:
-        ```bash
-        .\venv\Scripts\activate
-        ```
-    * macOS/Linux:
-        ```bash
-        source venv/bin/activate
-        ```
-    *(You should see `(venv)` at the start of your terminal prompt)*
-
-4.  📦 **Install Dependencies:** Install the required packages using pip. The order can sometimes matter.
-    ```bash
-    # Install all dependencies at once using requirements.txt
-    pip install -r requirements.txt
-    ```
-
-5. **Alternative - Development Installation:** If you want to develop or modify the application:
-   ```bash
-   # Install in development mode
-   pip install -e .
-   ```
-
----
-
-## ▶️ Usage
-
-1.  Ensure your virtual environment is activated (`(venv)` should appear in your terminal prompt).
-2.  Run the main application script from the project's root directory:
-    ```bash
-    python main.py
-    ```
-3.  The "Open Karaoke Studio" window will appear.
-4.  🖱️ Click "Browse" to select an audio file you want to process.
-5.  ▶️ Click the "Create Karaoke Tracks" button (it enables after a valid file is selected).
-6.  👀 Monitor the status bar at the bottom for progress updates (initialization, separation progress percentage, saving). Demucs separation can take time, especially on CPU!
-7.  ✅ Upon completion, the status bar will indicate success or failure.
-8.  🎉 Processed files (`vocals.*`, `instrumental.*`, and a copy of the original `*_original.*`) will be located in the `karaoke_library/YourSongName/` directory within the project folder.
-9.  📂 View processed songs in the "Processed Songs Library" listbox.
-
----
-
-## ⚙️ Configuration
-
-Currently, core processing settings are defined as constants directly within the `config.py` file:
-
-* `DEFAULT_MODEL`: Specifies the Demucs model used (default: `"htdemucs_ft"`).
-* `DEFAULT_MP3_BITRATE`: Sets the bitrate if the output format happens to be MP3 (default: `"320"`).
-* `BASE_LIBRARY_DIR`: The location where the `karaoke_library` folder is created (default: `./karaoke_library`).
-
-*(A future update will introduce GUI settings saved to `settings.json`)*
-
----
-
-## 📄 License
-
-This project utilizes components (primarily Demucs) that are often distributed under the MIT license. Consider using the [MIT License](https://opensource.org/licenses/MIT) if you share this project.
+## License
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.

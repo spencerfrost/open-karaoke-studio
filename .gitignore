@@ -1,46 +1,64 @@
-# Virtual environments
-venv/
-env/
-.venv/
-.env
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.env
+.env.*
 
-# Python cache files
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-
-# Distribution / packaging
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+*.pyo
+*.pyd
+*.sqlite3
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
+*.whl
+*.coverage
+.coverage.*
+venv
 
-# Project specific
-karaoke_library/
-downloads/
+# Flask
+instance/
+*.db
+*.sqlite
+*.pyc
 
-# PyInstaller
-*.manifest
-*.spec
+# Node.js / Vite / React
+node_modules/
+dist/
+build/
+.vite/
+.vscode/
+*.cache
+*.parcel-cache
+*.eslintcache
+*.babelrc
+*.prettierrc
+*.npmrc
+*.yarnrc
+yarn-error.log
+npm-debug.log
+pnpm-debug.log
 
-# Logs
-*.log
-
-# IDE specific files
+# IDEs and Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*.swn
+*.sublime-project
+*.sublime-workspace
+
+# OS-specific
+*.bak
+*.tmp
+*.swp
+*.swo
+*.swn
+
+# Project-specific
+# downloads
+# karaoke_library
