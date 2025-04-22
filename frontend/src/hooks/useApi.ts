@@ -1,6 +1,6 @@
 import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
 
-const API_BASE_URL = 'http://127.0.0.1:5000'; // Adjust as needed, use env vars
+const API_BASE_URL = 'http://127.0.0.1:5000/api'; // Adjust as needed, use env vars
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {

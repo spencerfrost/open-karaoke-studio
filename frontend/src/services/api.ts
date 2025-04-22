@@ -81,7 +81,7 @@ export async function uploadFile<T>(
 ): Promise<ApiResponse<T>> {
   try {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('audio_file', file);
 
     if (additionalData) {
       Object.entries(additionalData).forEach(([key, value]) => {
