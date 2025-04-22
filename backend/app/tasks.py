@@ -10,9 +10,8 @@ from celery.utils.log import get_task_logger
 
 from . import audio
 from . import file_management
-from . import config
 from .celery_app import celery
-from .models import Job, JobStatus, JobStore
+from .models import JobStatus, JobStore
 
 logger = get_task_logger(__name__)
 job_store = JobStore()
@@ -91,14 +90,14 @@ def process_audio_task(self, job_id, filepath_str):
 
         # 1. Ensure library and create song directory
         file_management.ensure_library_exists()
-        song_dir = file_management.get_song_dir(filepath)
-        progress_callback(f"Created directory for {filename}")
+        song_dir = file_management.get_song_dir(job_id)
+        progress_callback(f"Created directory for {job_id}")
 
-        # 2. Copy original file
-        original_saved_path = file_management.save_original_file(filepath, song_dir)
-        if not original_saved_path:
-            raise AudioProcessingError("Failed to copy original file")
-        progress_callback("Copied original file")
+        # # 2. Copy original file
+        # original_saved_path = file_management.save_original_file(filepath, song_dir)
+        # if not original_saved_path:
+        #     raise AudioProcessingError("Failed to copy original file")
+        # progress_callback("Copied original file")
 
         # 3. Separate audio
         if not audio.separate_audio(

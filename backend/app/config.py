@@ -11,5 +11,5 @@ ORIGINAL_FILENAME_SUFFIX = "_original" # Suffix for the copied original
 DEFAULT_MODEL = "htdemucs_ft" # Default Demucs model
 DEFAULT_MP3_BITRATE = "320" # Default bitrate if saving as MP3
 
-# --- Uploads ---
-YT_DOWNLOAD_DIR = Path("./downloads") # Directory to store uploaded files
+# --- Downloads ---
+TEMP_DOWNLOADS_DIR = Path("./temp_downloads") # Directory for temporary downloads

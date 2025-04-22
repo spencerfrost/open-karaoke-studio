@@ -28,7 +28,7 @@ CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
 # --- Configuration FIRST ---
 app.config.from_object(config)
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-app.config["UPLOAD_FOLDER"] = config.YT_DOWNLOAD_DIR
+app.config["TEMP_DOWNLOADS_DIR"] = config.TEMP_DOWNLOADS_DIR
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 logging.basicConfig(level=logging.INFO)
 app.logger.setLevel(logging.INFO)
@@ -88,12 +88,15 @@ def allowed_file(filename: str) -> bool:
 
 
 # --- Queue Management Functions ---
-def create_job(filename: str) -> Job | None:
+def create_job(filename: str, job_id: str = None) -> Job | None:
     """Creates and stores a new job record."""
     if not job_store:
         app.logger.error("JobStore not available, cannot create job.")
         return None
-    job_id = str(uuid.uuid4())
+
+    # Use provided job_id if available, otherwise generate UUID
+    job_id = job_id or str(uuid.uuid4())
+
     job = Job(
         id=job_id,
         filename=filename,
@@ -107,7 +110,6 @@ def create_job(filename: str) -> Job | None:
     except Exception as e:
         app.logger.error(f"Failed to save new job {job_id}: {e}", exc_info=True)
         return None
-
 
 def start_processing_job(job: Job, filepath: Path) -> Dict[str, Any]:
     """Starts a Celery task for audio processing."""
@@ -157,12 +159,12 @@ def process_audio_endpoint():
         filename = secure_filename(
             str(audio_file.filename)
         )  # Ensure filename is safe string
-        filepath = Path(app.config["UPLOAD_FOLDER"]) / filename
+        filepath = Path(app.config["TEMP_DOWNLOADS_DIR"]) / filename
         app.logger.info(f"Processing uploaded file: {filename}")
 
         try:
             # Ensure upload folder exists (redundant if done at start, but safe)
-            os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+            os.makedirs(app.config["TEMP_DOWNLOADS_DIR"], exist_ok=True)
             audio_file.save(filepath)
             app.logger.info(f"File saved successfully: {filepath}")
         except Exception as e:
@@ -249,10 +251,10 @@ def download_youtube_route():
         return jsonify({'error': 'Video ID is required'}), 400
 
     try:
-        upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
-        result = youtube.download_youtube_audio(video_id, upload_folder)
+        TEMP_DOWNLOADS_DIR = app.config.get('TEMP_DOWNLOADS_DIR', 'uploads')
+        result = youtube.download_youtube_audio(video_id, TEMP_DOWNLOADS_DIR)
 
-        # Return info including the processing job details
+        # Return enhanced info including the processing job details
         response_data = {
             'success': True,
             'file': result['filepath'],
@@ -260,7 +262,10 @@ def download_youtube_route():
                 'id': result['id'],
                 'title': result['title'],
                 'duration': result['duration'],
-                'uploader': result['uploader']
+                'uploader': result['uploader'],
+                'has_thumbnail': result.get('has_thumbnail', False),
+                'has_cover_art': result.get('has_cover_art', False),
+                'song_dir': result.get('song_dir')
             },
             'processing': {
                 'job_id': result['job_id'],
