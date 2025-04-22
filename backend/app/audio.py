@@ -3,26 +3,11 @@ import sys
 import traceback
 from pathlib import Path
 import time
+from demucs.api import Separator, save_audio
 
 # Use relative imports
 from . import file_management
 from . import config
-
-try:
-    from demucs.api import Separator, save_audio
-
-    DEMUCS_AVAILABLE = True
-except ImportError as e:
-    print(f"Error importing Demucs or PyTorch: {e}", file=sys.stderr)
-    DEMUCS_AVAILABLE = False
-except Exception as e:
-    print(f"An unexpected error occurred during Demucs import: {e}", file=sys.stderr)
-    traceback.print_exc()
-    DEMUCS_AVAILABLE = False
-
-def is_available():
-    """Checks if Demucs was imported successfully."""
-    return DEMUCS_AVAILABLE
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
@@ -47,9 +32,6 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         StopProcessingError: If processing is stopped by the user.
         Exception: For other errors during processing.
     """
-    if not is_available():
-        raise Exception("Demucs is not available! Check installation.")
-
     if status_callback is None:
         def status_callback(msg): print(msg)
 

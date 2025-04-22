@@ -209,6 +209,24 @@ class SongMetadata(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     coverArt: Optional[str] = None  # URL or path to cover art
+    thumbnail: Optional[str] = None  # Path to YouTube thumbnail
+    
+    # Source information
+    source: Optional[str] = None  # "youtube", "upload", etc.
+    sourceUrl: Optional[str] = None  # Original URL (YouTube URL, etc.)
+    
+    # YouTube-specific fields
+    videoId: Optional[str] = None  # YouTube video ID
+    channelName: Optional[str] = None  # YouTube channel name
+    channelId: Optional[str] = None  # YouTube channel ID
+    description: Optional[str] = None  # Video description (truncated)
+    uploadDate: Optional[datetime] = None  # When video was published
+    
+    # MusicBrainz fields
+    mbid: Optional[str] = None  # MusicBrainz recording ID
+    releaseTitle: Optional[str] = None  # Album title
+    releaseId: Optional[str] = None  # MusicBrainz release ID
+    releaseDate: Optional[str] = None  # Release date
 
     class Config:
         model_config = {

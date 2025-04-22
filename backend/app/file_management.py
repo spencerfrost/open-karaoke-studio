@@ -1,11 +1,13 @@
 # backend/app/file_management.py
 import shutil
 import json # Add json import
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Dict, Any # Add Dict, Any
+from typing import List, Optional, Dict, Any, Tuple # Add Dict, Any, Tuple
 from . import config
 from .models import SongMetadata # Import the new Pydantic model for metadata
+from urllib.parse import urlparse
 
 # --- Constants ---
 METADATA_FILENAME = "metadata.json"
@@ -131,21 +133,157 @@ def write_song_metadata(song_id: str, metadata: SongMetadata, library_path: Opti
         raise ProcessingError(f"Could not write metadata for {song_id}", 500) from e
 
 
-# --- Function to create initial metadata (Example) ---
-# Call this function after successful audio separation in your processing task
+# --- Media and Asset Management ---
 
-def create_initial_metadata(input_path: Path, song_dir: Path, duration: Optional[float] = None):
+def download_image(url: str, save_path: Path) -> bool:
+    """Downloads an image from a URL and saves it to the specified path."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        
+        # Ensure the directory exists
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write the image to file
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        print(f"Successfully downloaded image to: {save_path}")
+        return True
+    except Exception as e:
+        print(f"Error downloading image from {url}: {e}")
+        return False
+
+def get_thumbnail_path(song_dir: Path) -> Path:
+    """Returns the standard path for the YouTube thumbnail."""
+    return song_dir / "thumbnail.jpg"
+
+def get_cover_art_path(song_dir: Path) -> Path:
+    """Returns the standard path for the album cover art."""
+    return song_dir / "cover.jpg"
+
+def parse_title_artist(title: str) -> Tuple[str, str]:
+    """Attempts to parse artist and song title from a YouTube video title."""
+    # Common patterns: "Artist - Title", "Artist | Title", "Title by Artist"
+    # Also remove common suffixes like "(Official Video)", "(Lyrics)", etc.
+    
+    # Default values
+    artist = "Unknown Artist"
+    cleaned_title = title
+    
+    # Remove common suffixes
+    common_suffixes = [
+        "(Official Video)", "(Official Music Video)", "(Official Audio)",
+        "(Lyrics)", "(Lyric Video)", "(Audio)", "(HQ)", "(HD)",
+        "[Official Video]", "[Official Music Video]", "[Official Audio]",
+        "[Lyrics]", "[Lyric Video]", "[Audio]", "[HQ]", "[HD]",
+        "- Official Video", "- Lyrics", "(Official)", "[Official]"
+    ]
+    
+    for suffix in common_suffixes:
+        if suffix.lower() in title.lower():
+            cleaned_title = title.replace(suffix, "").strip()
+    
+    # Try common separators
+    separators = [" - ", " – ", " | ", " _ ", ": "]
+    for separator in separators:
+        if separator in cleaned_title:
+            parts = cleaned_title.split(separator, 1)
+            artist = parts[0].strip()
+            cleaned_title = parts[1].strip()
+            return cleaned_title, artist
+    
+    # Try "by" pattern (e.g., "Title by Artist")
+    if " by " in cleaned_title.lower():
+        parts = cleaned_title.lower().split(" by ", 1)
+        cleaned_title = parts[0].strip().title()  # Title case for title
+        artist = parts[1].strip().title()  # Title case for artist
+        return cleaned_title, artist
+    
+    # Return best guess
+    return cleaned_title, artist
+
+# --- Function to create initial metadata ---
+
+def create_initial_metadata(input_path: Path, song_dir: Path, duration: Optional[float] = None, 
+                            youtube_info: Optional[Dict[str, Any]] = None):
     """Creates the initial metadata file after processing."""
     song_id = song_dir.name
-    # Basic metadata extraction (improve as needed)
-    title_guess = song_id.replace('_', ' ').replace('-', ' ').title()
-
-    initial_data = SongMetadata(
-        title=title_guess,
-        artist="Unknown Artist", # Or try to parse from filename
-        duration=duration,
-        dateAdded=datetime.now(timezone.utc),
-        favorite=False
-    )
+    
+    if youtube_info:  # If we have YouTube info
+        # Parse title and artist from YouTube title
+        youtube_title = youtube_info.get('title', '')
+        title, artist = parse_title_artist(youtube_title)
+        
+        # Create metadata with YouTube info
+        initial_data = SongMetadata(
+            title=title,
+            artist=artist,
+            duration=youtube_info.get('duration', duration),
+            dateAdded=datetime.now(timezone.utc),
+            favorite=False,
+            source="youtube",
+            sourceUrl=youtube_info.get('url', ''),
+            videoId=youtube_info.get('id', ''),
+            channelName=youtube_info.get('uploader', ''),
+            channelId=youtube_info.get('channel_id', ''),
+            description=youtube_info.get('description', '')[:500] if youtube_info.get('description') else None,  # Truncate long descriptions
+            uploadDate=youtube_info.get('upload_date'),
+            # Set thumbnail if we downloaded it
+            thumbnail=str(get_thumbnail_path(song_dir).relative_to(config.BASE_LIBRARY_DIR)) if get_thumbnail_path(song_dir).exists() else None,
+            # coverArt will be set later if MusicBrainz lookup succeeds
+        )
+    else:  # Regular file upload
+        # Basic metadata extraction from filename
+        title_guess = song_id.replace('_', ' ').replace('-', ' ').title()
+        
+        initial_data = SongMetadata(
+            title=title_guess,
+            artist="Unknown Artist",  # Or try to parse from filename
+            duration=duration,
+            dateAdded=datetime.now(timezone.utc),
+            favorite=False,
+            source="upload"
+        )
+    
     print(f"Creating initial metadata for song: {song_id}")
     write_song_metadata(song_id, initial_data)
+    return initial_data
+
+
+def generate_directory_name(artist: str, title: str) -> str:
+    """Generate a clean directory name from artist and title."""
+    # Replace spaces and problematic characters
+    artist_clean = (
+        artist.replace(' ', '-')
+        .replace('/', '_')
+        .replace('\\', '_')
+        .replace(':', '')
+        .replace('*', '')
+        .replace('?', '')
+        .replace('"', '')
+        .replace('<', '')
+        .replace('>', '')
+        .replace('|', '')
+    )
+
+    title_clean = (
+        title.replace(' ', '-')
+        .replace('/', '_')
+        .replace('\\', '_')
+        .replace(':', '')
+        .replace('*', '')
+        .replace('?', '')
+        .replace('"', '')
+        .replace('<', '')
+        .replace('>', '')
+        .replace('|', '')
+    )
+
+    # Create name and ensure it's not too long for filesystems
+    dir_name = f"{artist_clean}-{title_clean}"
+    if len(dir_name) > 80:  # Set a reasonable maximum length
+        dir_name = dir_name[:80]
+
+    return dir_name
