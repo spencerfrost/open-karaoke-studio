@@ -227,6 +227,10 @@ class SongMetadata(BaseModel):
     releaseTitle: Optional[str] = None  # Album title
     releaseId: Optional[str] = None  # MusicBrainz release ID
     releaseDate: Optional[str] = None  # Release date
+    
+    # Additional metadata fields
+    genre: Optional[str] = None  # Music genre
+    language: Optional[str] = None  # Language of the lyrics
 
     class Config:
         model_config = {

@@ -5,6 +5,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import List
 
+# Importing SongMetadata for the metadata endpoint
+from .models import Song, SongMetadata
+
 # Assuming these modules are in the same 'app' directory or PYTHONPATH is set
 from . import file_management
 from . import config
@@ -140,18 +143,128 @@ def download_song_track(song_id: str, track_type: str):
         return jsonify({"error": "An internal error occurred during download."}), 500
 
 
-# --- Add other song-related endpoints here later ---
-# Example: Get single song details
-# @song_bp.route('/<string:song_id>', methods=['GET'])
-# def get_song_details(song_id: str):
-#     # ... implementation ...
-#     pass
+# --- Additional song-related endpoints ---
 
-# Example: Update song metadata (e.g., toggle favorite)
-# @song_bp.route('/<string:song_id>', methods=['PUT']) # Or PATCH
-# def update_song_details(song_id: str):
-#     # ... implementation ...
-#     pass
+@song_bp.route('/<string:song_id>', methods=['GET'])
+def get_song_details(song_id: str):
+    """Endpoint to get details for a specific song."""
+    current_app.logger.info(f"Received request for song details: {song_id}")
+    try:
+        song_dir = file_management.get_song_dir(song_id)
+        
+        if not song_dir.is_dir():
+            current_app.logger.error(f"Song directory not found: {song_dir}")
+            return jsonify({"error": "Song not found"}), 404
+        
+        metadata = file_management.read_song_metadata(song_id)
+        
+        if not metadata:
+            current_app.logger.warning(f"Metadata missing for song ID {song_id}. Using defaults.")
+            # Create a minimal response with defaults
+            return jsonify({
+                "id": song_id,
+                "title": song_id.replace('_', ' ').title(),
+                "artist": "Unknown Artist",
+                "status": "processed",
+                "favorite": False,
+                "dateAdded": datetime.now(timezone.utc).isoformat()
+            }), 200
+        
+        # Determine file paths
+        vocals_file = file_management.get_vocals_path_stem(song_dir).with_suffix(file_management.VOCALS_SUFFIX)
+        instrumental_file = file_management.get_instrumental_path_stem(song_dir).with_suffix(file_management.INSTRUMENTAL_SUFFIX)
+        original_suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
+        original_pattern = f"{song_id}{original_suffix}.*"
+        original_file = next(song_dir.glob(original_pattern), None)
+        
+        # Create response
+        response = {
+            "id": song_id,
+            "title": metadata.title or song_id.replace('_', ' ').title(),
+            "artist": metadata.artist or "Unknown Artist",
+            "album": metadata.releaseTitle,  # Map from MusicBrainz releaseTitle
+            "year": metadata.releaseDate,    # Map from MusicBrainz releaseDate
+            "genre": metadata.genre,
+            "language": metadata.language,
+            "duration": metadata.duration,
+            "favorite": metadata.favorite,
+            "dateAdded": metadata.dateAdded.isoformat() if metadata.dateAdded else datetime.now(timezone.utc).isoformat(),
+            "coverArt": metadata.coverArt,
+            "vocalPath": str(vocals_file.relative_to(config.BASE_LIBRARY_DIR)) if vocals_file.exists() else None,
+            "instrumentalPath": str(instrumental_file.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_file.exists() else None,
+            "originalPath": str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
+            "status": "processed",
+            "musicbrainzId": metadata.mbid
+        }
+        
+        current_app.logger.info(f"Returning details for song {song_id}")
+        return jsonify(response), 200
+            
+    except Exception as e:
+        current_app.logger.error(f"Error getting song details for '{song_id}': {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred."}), 500
+
+
+@song_bp.route('/<string:song_id>/metadata', methods=['PATCH'])
+def update_song_metadata(song_id: str):
+    """Endpoint to update song metadata."""
+    from flask import request  # Import here for clarity
+    
+    current_app.logger.info(f"Received metadata update request for song: {song_id}")
+    try:
+        # Validate that song exists
+        song_dir = file_management.get_song_dir(song_id)
+        if not song_dir.is_dir():
+            current_app.logger.error(f"Song directory not found: {song_dir}")
+            return jsonify({"error": "Song not found"}), 404
+            
+        # Get request data
+        update_data = request.get_json()
+        if not update_data:
+            return jsonify({"error": "No update data provided"}), 400
+            
+        # Get existing metadata
+        existing_metadata = file_management.read_song_metadata(song_id)
+        if not existing_metadata:
+            # Create new metadata if it doesn't exist
+            current_app.logger.warning(f"Creating new metadata for song {song_id}")
+            existing_metadata = SongMetadata(
+                title=update_data.get('title', song_id.replace('_', ' ').title()),
+                artist=update_data.get('artist', "Unknown Artist"),
+                dateAdded=datetime.now(timezone.utc)
+            )
+            
+        # Update fields
+        # Handle the standard fields
+        if 'title' in update_data:
+            existing_metadata.title = update_data['title']
+        if 'artist' in update_data:
+            existing_metadata.artist = update_data['artist']
+        if 'favorite' in update_data:
+            existing_metadata.favorite = update_data['favorite']
+            
+        # Handle the new fields we're adding - map from frontend to backend naming
+        if 'album' in update_data:
+            existing_metadata.releaseTitle = update_data['album']
+        if 'year' in update_data:
+            existing_metadata.releaseDate = update_data['year']
+        if 'genre' in update_data:
+            existing_metadata.genre = update_data['genre']
+        if 'language' in update_data:
+            existing_metadata.language = update_data['language']
+        if 'musicbrainzId' in update_data and update_data['musicbrainzId']:
+            existing_metadata.mbid = update_data['musicbrainzId']
+            
+        # Save updated metadata
+        file_management.write_song_metadata(song_id, existing_metadata)
+        
+        # Return the full song details
+        return get_song_details(song_id)
+            
+    except Exception as e:
+        current_app.logger.error(f"Error updating metadata for song '{song_id}': {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred while updating metadata."}), 500
+
 
 # Example: Delete song
 # @song_bp.route('/<string:song_id>', methods=['DELETE'])
