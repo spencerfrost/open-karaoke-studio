@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
 import { Badge } from "@/components/ui/badge"; // Import ShadCN Badge
 import { Progress } from "@/components/ui/progress"; // Import ShadCN Progress
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Import ShadCN Card components
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Import ShadCN Card components
 import { toast } from "sonner"; // For user feedback on cancel/error
 
 // Removed: import vintageTheme from "../../utils/theme";
@@ -191,7 +191,10 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       )}
 
       <Card className="overflow-hidden">
-        {/* Removed CardHeader/Title, but could be added back if needed */}
+        <CardHeader>
+          <CardTitle>Processing Queue</CardTitle>
+          <CardDescription>Songs being prepared for karaoke</CardDescription>
+        </CardHeader>
         <CardContent className="p-0">
           {processingItems.map((item) => {
             const statusInfo = getStatusInfo(item.status);
@@ -209,9 +212,12 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center gap-2">
                     <h4 className="font-medium truncate text-sm text-card-foreground">
-                      {item.message || `Job ${item.id.substring(0, 8)}...`}
+                      {item.message || `Job ${item.id}`}
                     </h4>
-                    <Badge variant={statusInfo.variant} className="flex-shrink-0">
+                    <Badge
+                      variant={statusInfo.variant}
+                      className="flex-shrink-0"
+                    >
                       {statusInfo.label}
                     </Badge>
                   </div>
@@ -233,7 +239,8 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
                   )}
 
                   {/* Cancel Button */}
-                  {(item.status === "queued" || item.status === "processing") && (
+                  {(item.status === "queued" ||
+                    item.status === "processing") && (
                     <Button
                       variant="ghost"
                       size="icon"

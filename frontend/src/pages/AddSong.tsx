@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { toast } from "sonner"; 
+import { toast } from "sonner";
 import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import FileUpload from "../components/upload/FileUpload";
 import YouTubeSearch from "../components/upload/YouTubeSearch";
@@ -117,37 +123,22 @@ const AddSongPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="p-4 md:p-6">
-        {/* Background elements from CSS */}
-        <div className="sunburst-pattern"></div>
-        <div className="texture-overlay"></div>
-        
-        <h1 className="text-xl md:text-2xl font-retro text-secondary mb-6">Find Songs</h1>
-        
-        {/* YouTube Search Section */}
-        <Card className="mb-8 relative overflow-hidden">
-          <CardHeader className="border-b border-border/30">
-            <CardTitle className="font-retro text-lg text-card-foreground">Search YouTube</CardTitle>
-            <CardDescription className="text-card-foreground/80">
-              Find songs on YouTube to add to your karaoke library
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="p-4 md:p-6">
-            <YouTubeSearch onDownloadStart={handleYouTubeDownloadStart} />
-          </CardContent>
-        </Card>
-        
+      <div className="p-4 md:p-6 space-y-6">
+        <ProcessingQueue />
+        <YouTubeSearch onDownloadStart={handleYouTubeDownloadStart} />
+
         {/* Upload Alternative */}
-        <Card className="mb-8">
-          <CardHeader className="border-b border-border/30">
-            <CardTitle className="font-retro text-lg text-card-foreground">Upload File</CardTitle>
-            <CardDescription className="text-card-foreground/80">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Upload File
+            </CardTitle>
+            <CardDescription>
               Or upload your own audio files
             </CardDescription>
           </CardHeader>
           
-          <CardContent className="p-4 md:p-6">
+          <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmitUpload)} className="space-y-6">
                 <FormField
@@ -186,20 +177,6 @@ const AddSongPage: React.FC = () => {
                 </Button>
               </form>
             </Form>
-          </CardContent>
-        </Card>
-        
-        {/* Processing Queue */}
-        <Card>
-          <CardHeader className="border-b border-border/30">
-            <CardTitle className="font-retro text-lg text-card-foreground">Processing Queue</CardTitle>
-            <CardDescription className="text-card-foreground/80">
-              Songs being prepared for karaoke
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="p-4 md:p-6">
-            <ProcessingQueue />
           </CardContent>
         </Card>
       </div>
