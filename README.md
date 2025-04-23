@@ -5,23 +5,23 @@
 Open Karaoke Studio is a web application designed to make it easy for you to generate instrumental versions of your favorite songs. By using AI-powered vocal separation, it provides the tools to create custom karaoke tracks.
 
 ## Current Features
-* 🎶  **Upload & Process:** Upload your favorite songs and let the AI do the rest.
-* 🎵  **Vocal Separation:** Cleanly extract vocals from any song.
-* ✂️  **Create Instrumentals:** Get high-quality instrumental tracks for your karaoke sessions.
+* 💿  **Upload & Process:** Upload your favorite songs and let the AI do the rest.
+* ✂️  **Vocal Separation:** Cleanly extract vocals from any song.
+* 🎸  **Create Instrumentals:** Get high-quality instrumental tracks for your karaoke sessions.
 * 📂  **Song Library:** Keep track of your processed songs in a user-friendly library.
 * 🚀  **Modern & Fast:** Built with cutting-edge web technologies for a smooth experience.
+* 🔍  **Song Search:** Search for songs from Youtube and automatically generate karaoke tracks.
+* 🔄  **Asynchronous Processing:** Queue up multiple song processing tasks to run in the background
+* 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
 
 ## Planned Features
 * 🖥️  **Web Interface:** A sleek, user-friendly interface for a seamless experience.
 * ⚙️  **Settings/Configuration:** Customize your experience and song processing options.
-* 🔄  **Asynchronous Processing:** Queue up multiple song processing tasks to run in the background
-* 🎵  **Song Search:** Search for songs from Youtube and automatically generate karaoke tracks.
 * 📺  **Karaoke Player:** Integrated karaoke player for seamless playback.
 * 🎙️  **Vocal Guide:** Adjust the volume of the original vocals to sing along.
 * 🩺  **Beat Detection:** Automatic beat synchronization for lyrics display
 * 🤖  **Lyrics Display:** Auto-generate karaoke-style lyrics graphics
 * 📱  **Mobile Support:** Add songs from your mobile device and enjoy on-the-go functionality.
-* 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
 * 🎚️  **Audio Effects:** Apply real-time effects to vocals and instrumentals
 
 ## Tech Stack
