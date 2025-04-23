@@ -33,16 +33,23 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       setOpen(false);
     } catch (error) {
       console.error("Failed to update metadata:", error);
-      // TODO: Show error toast/message
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSelectMusicBrainzResult = (result: Partial<Song>) => {
-    // Switch to edit tab to let user review and save the changes
-    setActiveTab("edit");
-    // The metadata will be saved when user clicks Save in the edit tab
+    // Save the selected result to the metadata
+    const metadataToSave: Partial<Song> = {
+      title: result.title,
+      artist: result.artist,
+      album: result.album,
+      year: result.year,
+      genre: result.genre,
+      language: result.language,
+      coverArt: result.coverArt,
+    };
+    handleSaveMetadata(metadataToSave);
   };
 
   return (
@@ -61,34 +68,15 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
 
       {/* Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[625px] min-h-1/3 bg-foreground text-background">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="pt-0">
+        <DialogContent className="sm:max-w-[625px] min-h-1/3">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full p-0">
-              <TabsTrigger
-                value="edit"
-                className={`w-50 ${
-                  activeTab === "edit"
-                    ? "text-foreground"
-                    : "text-background border border-border"
-                }`}
-              >
-                Edit Metadata
-              </TabsTrigger>
-              <TabsTrigger
-                value="search"
-                className={`w-50 ${
-                  activeTab === "search"
-                    ? "text-foreground"
-                    : "text-background border border-border"
-                }`}
-              >
-                MusicBrainz Search
-              </TabsTrigger>
+              <TabsTrigger value="edit">Edit Metadata</TabsTrigger>
+              <TabsTrigger value="search">MusicBrainz Search</TabsTrigger>
             </TabsList>
             <TabsContent value="edit">
               <MetadataEditorTab song={song} onSave={handleSaveMetadata} />
             </TabsContent>
-
             <TabsContent value="search">
               <MusicBrainzSearchTab
                 song={song}
