@@ -1,5 +1,6 @@
 import React from 'react';
 import { Music, Heart, Play } from 'lucide-react';
+import MetadataEditor from './MetadataEditor';
 import { Song } from '../../types/Song';
 import { formatTime } from '../../utils/formatters';
 import vintageTheme from '../../utils/theme';
@@ -9,6 +10,7 @@ interface SongCardProps {
   onPlay: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   onToggleFavorite: (song: Song) => void;
+  onSongUpdated?: (song: Song) => void;
   compact?: boolean; // For list view
 }
 
@@ -17,6 +19,7 @@ const SongCard: React.FC<SongCardProps> = ({
   onPlay,
   onAddToQueue,
   onToggleFavorite,
+  onSongUpdated,
   compact = false,
 }) => {
   const colors = vintageTheme.colors;
@@ -64,6 +67,12 @@ const SongCard: React.FC<SongCardProps> = ({
         <div className="flex-1">
           <h3 className="font-medium">{song.title}</h3>
           <p className="text-sm opacity-75">{song.artist}</p>
+          <div className="mt-1">
+            <MetadataEditor 
+              song={song} 
+              onSongUpdated={onSongUpdated || ((updatedSong) => console.log('Song updated:', updatedSong))} 
+            />
+          </div>
         </div>
         
         <div className="text-right">
@@ -164,6 +173,10 @@ const SongCard: React.FC<SongCardProps> = ({
         <p className="text-sm opacity-75">{song.artist}</p>
         
         <div className="flex justify-between items-center mt-2 text-xs">
+          <MetadataEditor 
+            song={song} 
+            onSongUpdated={onSongUpdated || ((updatedSong) => console.log('Song updated:', updatedSong))} 
+          />
           <span className="opacity-60">{formatTime(song.duration)}</span>
           
           {song.status === 'processing' && (

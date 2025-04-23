@@ -89,6 +89,26 @@ export async function downloadOriginal(songId: string, filename?: string) {
 }
 
 /**
+ * Update song metadata
+ */
+export async function updateSongMetadata(id: string, metadata: Partial<Song>) {
+  return apiRequest<Song>(`${API_BASE}/songs/${id}/metadata`, {
+    method: "PATCH",
+    body: metadata,
+  });
+}
+
+/**
+ * Search MusicBrainz for song metadata
+ */
+export async function searchMusicBrainz(query: { title?: string; artist?: string }) {
+  return apiRequest<Array<Partial<Song>>>(`${API_BASE}/musicbrainz/search`, {
+    method: "POST",
+    body: query,
+  });
+}
+
+/**
  * Get song processing status
  */
 export async function getSongStatus(id: string) {
