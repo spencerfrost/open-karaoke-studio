@@ -25,7 +25,7 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
   };
 
   return (
-    <nav className="flex justify-around py-2 bg-background border-t-1 border-border/80 sticky bottom-0 z-20">
+    <nav className="flex justify-around py-2 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20">
       {items.map((item) => {
         const active = isActive(item.path);
         const Icon = item.icon;
@@ -34,12 +34,10 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
           <button
             key={item.name}
             onClick={() => navigate(item.path)}
-            className={`flex flex-col items-center justify-center gap-1 transition-all duration-200 ease-in-out ${
-              active
-                ? "text-foreground opacity-100"
-                : "text-foreground opacity-60 hover:opacity-80"
+            className={`flex flex-col items-center justify-center gap-1 text-background transition-all ${
+              active ? "opacity-100" : "opacity-60 hover:opacity-80"
             }`}
-            aria-current={active ? "page" : undefined} // Accessibility: indicate current page
+            aria-current={active ? "page" : undefined}
           >
             <Icon size={20} />
             <span className="text-xs mt-1">{item.name}</span>
