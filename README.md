@@ -10,12 +10,12 @@ Open Karaoke Studio is a web application designed to make it easy for you to gen
 * 🎸  **Create Instrumentals:** Get high-quality instrumental tracks for your karaoke sessions.
 * 📂  **Song Library:** Keep track of your processed songs in a user-friendly library.
 * 🚀  **Modern & Fast:** Built with cutting-edge web technologies for a smooth experience.
+* 🖥️  **Web Interface:** A sleek, user-friendly interface for a seamless experience.
 * 🔍  **Song Search:** Search for songs from Youtube and automatically generate karaoke tracks.
 * 🔄  **Asynchronous Processing:** Queue up multiple song processing tasks to run in the background
 * 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
 
 ## Planned Features
-* 🖥️  **Web Interface:** A sleek, user-friendly interface for a seamless experience.
 * ⚙️  **Settings/Configuration:** Customize your experience and song processing options.
 * 📺  **Karaoke Player:** Integrated karaoke player for seamless playback.
 * 🎙️  **Vocal Guide:** Adjust the volume of the original vocals to sing along.
