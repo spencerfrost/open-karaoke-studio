@@ -28,8 +28,10 @@ Open Karaoke Studio is a web application designed to make it easy for you to gen
 
 Open Karaoke Studio is built using a combination of modern web technologies. For detailed information, please refer to the specific README files:
 
-* **Frontend:** The user interface is built with React, Vite, Tailwind, and ShadCN.  [Frontend README](./frontend/README.md) 💻
-* **Backend:** The API is handled by a Flask/Python backend using Demucs for audio processing.  [Backend README](./backend/README.md) ⚙️
+* **Frontend:** The user interface is built with React, Vite, Tailwind, and ShadCN.
+  * [Frontend README](./frontend/README.md) 💻
+* **Backend:** The API is handled by a Flask/Python backend using Demucs for audio processing.
+  * [Backend README](./backend/README.md) ⚙️
 
 ## Getting Started
 
