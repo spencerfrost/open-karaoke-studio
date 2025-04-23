@@ -6,6 +6,42 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Vintage theme color palette */
+:root {
+  /* Base colors */
+  --black: #080705;
+  --rust: #B44819;
+  --russet: #774320;
+  --lemon-chiffon: #F5F3C7;
+  --orange-peel: #FD9A02;
+  --dark-cyan: #01928B;
+
+  /* UI Elements */
+  --radius: 0.5rem;
+  --background: var(--lemon-chiffon);
+  --foreground: var(--black);
+
+  --card: var(--lemon-chiffon);
+  --card-foreground: var(--black);
+  --popover: var(--lemon-chiffon);
+  --popover-foreground: var(--black);
+
+  --primary: var(--orange-peel);
+  --primary-foreground: var(--lemon-chiffon);
+  --secondary: var(--rust);
+  --secondary-foreground: var(--black);
+  --accent: var(--dark-cyan);
+  --accent-foreground: var(--black);
+  --destructive: var(--color-red-800);
+  --destructive-foreground: var(--lemon-chiffon);
+  --muted: color-mix(var(--russet), transparent 20%);
+  --muted-foreground: var(--black);
+
+  --border: var(--orange-peel);
+  --input: color-mix(in srgb, var(--black), transparent 20%);
+  --ring: var(--dark-cyan);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -42,50 +78,21 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
 
-/* Vintage theme color palette */
-:root {
-  /* Base colors */
-  --russet: #774320;
-  --rust: #B44819;
-  --lemon-chiffon: #F5F3C7;
-  --orange-peel: #FD9A02;
-  --dark-cyan: #01928B;
-  
-  /* UI Elements */
-  --radius: 0.5rem;
-  --background: var(--russet);
-  --foreground: var(--lemon-chiffon);
-  --card: var(--lemon-chiffon);
-  --card-foreground: var(--russet);
-  --popover: var(--lemon-chiffon);
-  --popover-foreground: var(--russet);
-  --primary: var(--dark-cyan);
-  --primary-foreground: var(--lemon-chiffon);
-  --secondary: var(--orange-peel);
-  --secondary-foreground: var(--russet);
-  --muted: color-mix(in oklch, var(--lemon-chiffon), transparent 20%);
-  --muted-foreground: color-mix(in oklch, var(--russet), transparent 20%);
-  --accent: var(--orange-peel);
-  --accent-foreground: var(--lemon-chiffon);
-  --destructive: var(--rust);
-  --destructive-foreground: var(--lemon-chiffon);
-  --border: var(--orange-peel);
-  --input: color-mix(in oklch, var(--lemon-chiffon), transparent 20%);
-  --ring: var(--dark-cyan);
+  --color-black: var(--black);
+  --color-white: var(--lemon-chiffon);
+  --color-rust: var(--rust);
+  --color-russet: var(--russet);
+  --color-lemon-chiffon: var(--lemon-chiffon);
+  --color-orange-peel: var(--orange-peel);
+  --color-dark-cyan: var(--dark-cyan);
 }
 
 @layer base {
-  html {
-    font-family: 'DM Sans', system-ui, sans-serif;
-  }
-  
   body {
+    font-family: 'DM Sans', system-ui, sans-serif;
     @apply bg-background text-foreground;
     background-image: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
-    min-height: 100vh;
-    overflow-x: hidden;
   }
   
   h1, h2, h3, h4, h5, h6 {
