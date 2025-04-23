@@ -1,4 +1,9 @@
 import React, { useState } from "react";
+import {
+  DialogHeader,
+  DialogDescription,
+  DialogTitle,
+} from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -30,13 +35,13 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
     setNoResults(false);
 
     try {
-      const results = await searchMusicBrainz({
+      const response = await searchMusicBrainz({
         title: searchQuery.title,
         artist: searchQuery.artist,
       });
 
-      setSearchResults(results);
-      setNoResults(results.length === 0);
+      setSearchResults(response.data || []);
+      setNoResults(response.data?.length === 0);
     } catch (error) {
       console.error("MusicBrainz search failed:", error);
       setNoResults(true);
@@ -52,14 +57,14 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   return (
     <div className="pt-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex-grow">
-        <h3 className="text-lg font-semibold">Search MusicBrainz</h3>
-        <p>
+      <DialogHeader className="flex-grow">
+        <DialogTitle className="text-lg font-semibold">Search MusicBrainz</DialogTitle>
+        <DialogDescription>
           Find the correct metadata for your song.
           <br />
           Enter the title and artist, and we will search MusicBrainz for you.
-        </p>
-      </div>
+        </DialogDescription>
+      </DialogHeader>
 
       {/* Search Form */}
       <div className="space-y-4">
@@ -74,7 +79,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
               onChange={(e) =>
                 setSearchQuery((prev) => ({ ...prev, title: e.target.value }))
               }
-              className="w-full text-background border-border bg-foreground"
+              className="w-full"
             />
           </div>
 
@@ -88,7 +93,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
               onChange={(e) =>
                 setSearchQuery((prev) => ({ ...prev, artist: e.target.value }))
               }
-              className="w-full text-background border-border bg-foreground"
+              className="w-full"
             />
           </div>
         </div>
@@ -120,7 +125,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
         <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
           {searchResults.map((result, index) => (
             <div
-              key={result.musicbrainzId || index}
+              key={result.musicbrainzId ?? index}
               className="flex items-start gap-3 p-3 rounded-md cursor-pointer hover:bg-gray-100"
               style={{
                 backgroundColor: `${colors.lemonChiffon}80`,

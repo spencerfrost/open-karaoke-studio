@@ -12,47 +12,18 @@ export const vintageTheme = {
   
   // Background with vintage gradient
   background: `linear-gradient(135deg, ${vintageColors.russet} 0%, ${vintageColors.rust} 100%)`,
-  
-  // Card style
-  card: {
-    backgroundColor: vintageColors.lemonChiffon,
-    color: vintageColors.russet,
-    boxShadow: `0 4px 6px rgba(0, 0, 0, 0.2), inset 0 0 0 1px ${vintageColors.orangePeel}`,
-  },
-  
-  // Button styles
-  buttons: {
-    primary: {
-      backgroundColor: vintageColors.darkCyan,
-      color: vintageColors.lemonChiffon,
-      border: `1px solid ${vintageColors.lemonChiffon}`,
-    },
-    secondary: {
-      backgroundColor: vintageColors.orangePeel,
-      color: vintageColors.russet,
-      border: `1px solid ${vintageColors.lemonChiffon}`,
-    }
-  },
-  
-  // Text styles
-  text: {
-    primary: vintageColors.lemonChiffon,
-    secondary: `${vintageColors.lemonChiffon}80`, // With opacity
-    accent: vintageColors.orangePeel,
-    inverted: vintageColors.russet,
-  },
-  
+
   // Generate a texture overlay CSS
   getTextureOverlay: () => ({
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E")`,
-    backgroundRepeat: 'repeat',
-    position: 'absolute',
+    backgroundRepeat: 'repeat' as const,
+    position: 'absolute' as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 10,
-    pointerEvents: 'none'
+    pointerEvents: 'none' as const,
   }),
   
   // Generate a sunburst pattern CSS
@@ -66,15 +37,15 @@ export const vintageTheme = {
         ${vintageColors.russet}80 12deg
       )
     `,
-    backgroundSize: '100% 100%, 100% 100%',
-    position: 'absolute',
+    backgroundSize: '100% 100%, 100% 100%' as const,
+    position: 'absolute' as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     opacity: 0.15,
     zIndex: 5,
-    pointerEvents: 'none'
+    pointerEvents: 'none' as const
   })
 };
 

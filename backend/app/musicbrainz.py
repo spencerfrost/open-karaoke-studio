@@ -1,7 +1,7 @@
 # backend/app/musicbrainz.py
 import musicbrainzngs
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 import logging
 from .file_management import download_image, get_cover_art_path
@@ -13,40 +13,167 @@ musicbrainzngs.set_useragent(
     "s.s.frost@gmail.com"  # Replace with actual contact
 )
 
-def search_musicbrainz(artist: str, title: str) -> Optional[Dict[str, Any]]:
+def search_musicbrainz(artist: str, title: str, limit: int = 5) -> List[Dict[str, Any]]:
     """
     Search MusicBrainz for recording metadata.
     
     Args:
         artist (str): Artist name
         title (str): Song title
+        limit (int): Maximum number of results to return
         
     Returns:
-        Optional[Dict[str, Any]]: Recording metadata or None if not found
+        List[Dict[str, Any]]: List of recording metadata or empty list if none found
     """
     try:
         logging.info(f"Searching MusicBrainz for: {artist} - {title}")
         
+        # Search parameters
+        search_params = {}
+        if artist:
+            search_params['artist'] = artist
+        if title:
+            search_params['recording'] = title
+        
         # Search for recordings matching artist and title
         result = musicbrainzngs.search_recordings(
-            artist=artist,
-            recording=title,
-            limit=5
+            limit=limit,
+            **search_params
         )
         
+        matches = []
         if result and 'recording-list' in result and result['recording-list']:
-            # Return the top match
-            return {
-                "mbid": result['recording-list'][0].get('id'),
-                "title": result['recording-list'][0].get('title'),
-                "length": result['recording-list'][0].get('length'),
-                "artist": result['recording-list'][0].get('artist-credit', [{}])[0].get('artist', {}).get('name'),
-                "artist_id": result['recording-list'][0].get('artist-credit', [{}])[0].get('artist', {}).get('id'),
-                "release": _extract_release_info(result['recording-list'][0])
-            }
+            for recording in result['recording-list']:
+                try:
+                    # Extract genre from tags
+                    genre = _extract_genre(recording)
+                    
+                    # Extract language
+                    language = _extract_language(recording)
+                    
+                    # Get release info
+                    release_info = _extract_release_info(recording)
+                    
+                    # Get cover art URL if release exists
+                    cover_art_url = None
+                    if release_info and release_info.get('id'):
+                        try:
+                            cover_art_url = _get_cover_art_url(release_info['id'])
+                        except Exception as e:
+                            logging.warning(f"Error getting cover art URL: {e}")
+                    
+                    # Create recording data
+                    recording_data = {
+                        "mbid": recording.get('id'),
+                        "title": recording.get('title'),
+                        "length": recording.get('length'),
+                        "artist": recording.get('artist-credit', [{}])[0].get('artist', {}).get('name'),
+                        "artist_id": recording.get('artist-credit', [{}])[0].get('artist', {}).get('id'),
+                        "release": release_info,
+                        "genre": genre,
+                        "language": language,
+                        "coverArtUrl": cover_art_url
+                    }
+                    
+                    matches.append(recording_data)
+                except Exception as e:
+                    # Skip recordings that cause errors during processing
+                    logging.warning(f"Error processing recording: {e}")
+            
+            return matches
             
     except Exception as e:
         logging.error(f"MusicBrainz search error: {e}")
+    
+    return []
+
+def _extract_genre(recording: Dict[str, Any]) -> Optional[str]:
+    """Extract genre from recording tags with better prioritization."""
+    # Common music genres for prioritization
+    common_genres = [
+        'rock', 'pop', 'hip hop', 'rap', 'r&b', 'jazz', 'blues', 
+        'country', 'folk', 'electronic', 'dance', 'metal', 'classical', 
+        'reggae', 'punk', 'soul', 'indie', 'alternative', 'disco', 
+        'house', 'techno', 'trance'
+    ]
+    
+    if 'tag-list' in recording:
+        # First pass: look for common genres
+        for tag in recording.get('tag-list', []):
+            if tag.get('name') and tag.get('count'):
+                try:
+                    count = int(tag.get('count', 0))
+                    if count > 0:
+                        tag_name = tag.get('name').lower()
+                        if tag_name in common_genres:
+                            return tag_name.capitalize()
+                except (ValueError, TypeError):
+                    # Skip tags with invalid count values
+                    continue
+        
+        # Second pass: use tag with highest count as fallback
+        highest_count = 0
+        best_tag = None
+        
+        for tag in recording.get('tag-list', []):
+            try:
+                if tag.get('name'):
+                    count = int(tag.get('count', 0))
+                    if count > highest_count:
+                        highest_count = count
+                        best_tag = tag.get('name')
+            except (ValueError, TypeError):
+                # Skip tags with invalid count values
+                continue
+                
+        if best_tag:
+            return best_tag.capitalize()
+    
+    return None
+
+def _extract_language(recording: Dict[str, Any]) -> Optional[str]:
+    """Extract language from recording tags."""
+    # Common languages to check for
+    common_languages = [
+        'english', 'spanish', 'french', 'german', 'italian', 
+        'japanese', 'korean', 'chinese', 'portuguese', 'russian'
+    ]
+    
+    if 'tag-list' in recording:
+        for tag in recording.get('tag-list', []):
+            try:
+                if tag.get('name') and int(tag.get('count', 0)) > 0:
+                    tag_name = tag.get('name').lower()
+                    if tag_name in common_languages:
+                        return tag_name.capitalize()
+            except (ValueError, TypeError):
+                # Skip tags with invalid count values
+                continue
+    
+    return None
+
+def _get_cover_art_url(release_id: str) -> Optional[str]:
+    """Get cover art URL for a release from MusicBrainz Cover Art Archive."""
+    if not release_id:
+        return None
+    
+    try:
+        # Get cover art from Cover Art Archive
+        cover_art_list = musicbrainzngs.get_image_list(release_id)
+        
+        if cover_art_list and 'images' in cover_art_list and cover_art_list['images']:
+            # Try to get front image first
+            front_images = [img for img in cover_art_list['images'] if img.get('front', False)]
+            
+            if front_images:
+                return front_images[0]['thumbnails'].get('large', front_images[0]['image'])
+            else:
+                # Fall back to first image
+                return cover_art_list['images'][0]['thumbnails'].get('large', cover_art_list['images'][0]['image'])
+                
+    except Exception as e:
+        # Many releases won't have cover art - this is normal and shouldn't be logged as an error
+        logging.info(f"No cover art available for release {release_id}: {e}")
     
     return None
 
@@ -123,10 +250,14 @@ def enhance_metadata_with_musicbrainz(metadata: Dict[str, Any], song_dir: Path) 
         if not artist or artist == "Unknown Artist" or not title:
             return metadata  # Not enough information to search
             
-        mb_data = search_musicbrainz(artist, title)
+        # Search for matches but limit to just the top match
+        mb_results = search_musicbrainz(artist, title, limit=1)
         
-        if not mb_data:
+        if not mb_results or len(mb_results) == 0:
             return metadata  # No results found
+        
+        # Use the top match
+        mb_data = mb_results[0]
             
         # Try to get cover art
         cover_art_path = None
@@ -144,6 +275,10 @@ def enhance_metadata_with_musicbrainz(metadata: Dict[str, Any], song_dir: Path) 
             "releaseTitle": mb_data.get("release", {}).get("title"),
             "releaseId": mb_data.get("release", {}).get("id"),
             "releaseDate": mb_data.get("release", {}).get("date"),
+            # Add genre if available
+            "genre": mb_data.get("genre") if mb_data.get("genre") else metadata.get("genre"),
+            # Add language if available
+            "language": mb_data.get("language") if mb_data.get("language") else metadata.get("language"),
         })
         
         # Add cover art if found

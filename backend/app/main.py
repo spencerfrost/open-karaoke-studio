@@ -20,6 +20,7 @@ from .models import (
 )
 from .song_endpoints import song_bp
 from .queue_endpoints import queue_bp
+from .musicbrainz_endpoints import mb_bp
 
 # --- Flask app Setup ---
 app = Flask(__name__)
@@ -283,6 +284,8 @@ app.register_blueprint(song_bp)
 app.logger.info("Registered song_bp blueprint at /api/songs")
 app.register_blueprint(queue_bp)
 app.logger.info("Registered queue_bp blueprint at /queue")
+app.register_blueprint(mb_bp)
+app.logger.info("Registered mb_bp blueprint at /api/musicbrainz")
 
 
 # --- Main Guard ---
