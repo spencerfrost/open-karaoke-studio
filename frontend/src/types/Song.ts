@@ -12,6 +12,12 @@ export interface Song {
   vocalPath?: string;
   instrumentalPath?: string;
   originalPath?: string;
+  // Additional metadata fields
+  album?: string;
+  year?: string;
+  genre?: string;
+  language?: string;
+  musicbrainzId?: string; // Used by backend for lookup
 }
 
 export interface SongProcessingRequest {

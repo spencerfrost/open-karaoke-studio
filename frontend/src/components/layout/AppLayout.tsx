@@ -1,11 +1,19 @@
 import React, { ReactNode } from 'react';
 import NavBar from './NavBar';
+import { Music, Upload, List, Settings } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import vintageTheme from '../../utils/theme';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
+
+const navigationItems = [
+  { name: 'Library', path: '/', icon: Music },
+  { name: 'Add', path: '/add', icon: Upload },
+  { name: 'Queue', path: '/queue', icon: List },
+  { name: 'Settings', path: '/settings', icon: Settings },
+];
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { settings } = useSettings();
@@ -35,7 +43,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       </main>
       
       {/* Bottom navigation */}
-      <NavBar />
+      <NavBar
+        items={navigationItems}
+      />
     </div>
   );
 };
