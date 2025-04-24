@@ -256,6 +256,7 @@ class Song(BaseModel):
     vocalPath: Optional[str] = None  # Relative path/URL for frontend
     instrumentalPath: Optional[str] = None  # Relative path/URL for frontend
     originalPath: Optional[str] = None  # Relative path/URL for frontend
+    thumbnail: Optional[str] = None  # Path to YouTube thumbnail
 
     class Config:
         model_config = {

@@ -53,9 +53,9 @@ const SongCard: React.FC<SongCardProps> = ({
           className="h-12 w-12 rounded-md flex items-center justify-center mr-3"
           style={{ backgroundColor: `${colors.orangePeel}20` }}
         >
-          {song.coverArt ? (
+          {song.coverArt || song.thumbnail ? (
             <img
-              src={song.coverArt}
+              src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
               alt={song.title}
               className="h-full w-full object-cover rounded-md"
             />
@@ -124,9 +124,9 @@ const SongCard: React.FC<SongCardProps> = ({
         className="h-40 flex items-center justify-center relative"
         style={{ backgroundColor: `${colors.orangePeel}20` }}
       >
-        {song.coverArt ? (
+        {song.coverArt || song.thumbnail ? (
           <img
-            src={song.coverArt}
+            src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
             alt={song.title}
             className="h-full w-full object-cover"
           />

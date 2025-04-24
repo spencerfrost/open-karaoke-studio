@@ -287,7 +287,6 @@ app.logger.info("Registered queue_bp blueprint at /queue")
 app.register_blueprint(mb_bp)
 app.logger.info("Registered mb_bp blueprint at /api/musicbrainz")
 
-
 # --- Main Guard ---
 if __name__ == "__main__":
     app.logger.info("Starting Flask development server...")

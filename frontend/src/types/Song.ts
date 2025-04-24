@@ -9,6 +9,7 @@ export interface Song {
   favorite: boolean;
   dateAdded: string;
   coverArt?: string;
+  thumbnail?: string;
   vocalPath?: string;
   instrumentalPath?: string;
   originalPath?: string;

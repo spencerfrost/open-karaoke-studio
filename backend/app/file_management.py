@@ -38,17 +38,17 @@ def get_song_dir(input_path_or_id: Path | str) -> Path:
 def get_vocals_path_stem(song_dir: Path) -> Path:
     """Returns the standard path stem (without extension) for the vocals file."""
     # Use actual filename from config/constants if available
-    return song_dir / (config.VOCALS_FILENAME_STEM if hasattr(config, 'VOCALS_FILENAME_STEM') else "vocals")
+    return song_dir / "vocals"
 
 def get_instrumental_path_stem(song_dir: Path) -> Path:
     """Returns the standard path stem (without extension) for the instrumental file."""
     # Use actual filename from config/constants if available
-    return song_dir / (config.INSTRUMENTAL_FILENAME_STEM if hasattr(config, 'INSTRUMENTAL_FILENAME_STEM') else "instrumental")
+    return song_dir / "instrumental"
 
 def get_original_path(song_dir: Path, original_input_path: Path) -> Path:
     """Returns the path for storing the original file, keeping original suffix."""
     # Standardize original filename slightly for easier retrieval
-    suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
+    suffix = "_original"
     filename = f"{song_dir.name}{suffix}{original_input_path.suffix}"
     return song_dir / filename
 
