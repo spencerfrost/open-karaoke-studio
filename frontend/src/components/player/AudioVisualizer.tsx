@@ -10,7 +10,7 @@ interface AudioVisualizerProps {
 
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   height = 120,
-  barCount = 32,
+  barCount = 120,
   className = "",
 }) => {
   const { state: playerState } = usePlayer();
