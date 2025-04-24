@@ -124,18 +124,20 @@ const SongCard: React.FC<SongCardProps> = ({
   return (
     <div className="rounded-lg overflow-hidden shadow-md" style={cardStyle}>
       <div
-        className="h-40 flex items-center justify-center relative"
+        className="flex items-center justify-center relative"
         style={{ backgroundColor: `${colors.orangePeel}20` }}
       >
-        {song.coverArt || song.thumbnail ? (
-          <img
-            src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
-            alt={song.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <Music size={64} style={{ color: colors.darkCyan }} />
-        )}
+        <div className="aspect-video w-full">
+          {song.coverArt || song.thumbnail ? (
+            <img
+              src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
+              alt={song.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Music size={64} style={{ color: colors.darkCyan }} />
+          )}
+        </div>
 
         {/* Play button overlay */}
         {song.status === "processed" && (

@@ -97,7 +97,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
   };
 
   return (
-    <Card>
+    <Card className="bg-card/80">
       <CardHeader>
         <CardTitle>Search YouTube</CardTitle>
         <CardDescription>

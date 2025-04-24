@@ -20,6 +20,7 @@ const PlayerPage: React.FC = () => {
   const [vocalsMuted, setVocalsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -55,12 +56,14 @@ const PlayerPage: React.FC = () => {
     if (!audioElement) return;
 
     const handleTimeUpdate = () => {
-      const currentTime = audioElement.currentTime;
+      const currentTimeValue = audioElement.currentTime;
       const duration = audioElement.duration;
       if (duration > 0) {
-        const calculatedProgress = currentTime / duration;
+        const calculatedProgress = currentTimeValue / duration;
         console.log("Audio Progress:", calculatedProgress);
         setProgress(calculatedProgress);
+        // Convert current time to milliseconds for synced lyrics
+        setCurrentTime(currentTimeValue * 1000);
       }
     };
 
@@ -139,7 +142,11 @@ const PlayerPage: React.FC = () => {
             <div className="mt-6">
 
               <div className="aspect-video w-full bg-black/80 overflow-hidden">
-                <LyricsDisplay songId={id} progress={progress} />
+                <LyricsDisplay 
+                  songId={id} 
+                  progress={progress} 
+                  currentTime={currentTime}
+                />
               </div>
               <audio
                 controls
@@ -172,14 +179,13 @@ const PlayerPage: React.FC = () => {
           {/* Main lyrics and visualization area */}
           <div className="flex-1 flex flex-col items-center justify-center">
             {/* Audio visualization */}
-            {settings.display.showAudioVisualizations && (
-              <AudioVisualizer className="mb-6" />
-            )}
+            <AudioVisualizer className="mb-6" />
 
             {/* Lyrics display */}
             <LyricsDisplay
               songId={playerState.currentSong?.song.id || ''}
               progress={progress}
+              currentTime={currentTime}
             />
           </div>
 

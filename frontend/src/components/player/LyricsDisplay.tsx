@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getSongLyrics } from "../../services/songService";
+import SyncedLyricsDisplay from "./SyncedLyricsDisplay";
 
 interface LyricsDisplayProps {
   className?: string;
   songId: string;
   progress: number; // Progress in percentage (0 to 1)
+  currentTime?: number; // Current time in milliseconds
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   className = "",
   songId,
   progress,
+  currentTime = 0,
 }) => {
   const [lyrics, setLyrics] = useState<{
     plainLyrics: string;
@@ -36,7 +39,9 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   }, [songId]);
 
   useEffect(() => {
-    if (lyrics && lyricsRef.current && containerRef.current) {
+    // Only apply scroll effect for plain lyrics
+    // Synced lyrics will be handled by the SyncedLyricsDisplay component
+    if (lyrics && lyricsRef.current && containerRef.current && !lyrics.syncedLyrics) {
       const updateScrollPosition = () => {
         const lyricsElement = lyricsRef.current;
         if (!lyricsElement) return;
@@ -56,7 +61,20 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
     if (error) {
       return <div className="text-red-500">{error}</div>;
     }
+    
     if (lyrics) {
+      // If we have synced lyrics, use the SyncedLyricsDisplay component
+      if (lyrics.syncedLyrics) {
+        return (
+          <SyncedLyricsDisplay
+            syncedLyrics={lyrics.syncedLyrics}
+            currentTime={currentTime}
+            className="h-full"
+          />
+        );
+      }
+      
+      // Fallback to plain lyrics
       return lyrics.plainLyrics ? (
         <div className="text-2xl font-semibold text-background whitespace-pre-line">
           {lyrics.plainLyrics}

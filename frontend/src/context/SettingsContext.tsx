@@ -116,17 +116,16 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   // Load settings from localStorage on initial render
-  const loadedSettings = (() => {
-    try {
-      const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (storedSettings) {
-        return JSON.parse(storedSettings) as AppSettings;
-      }
-    } catch (error) {
-      console.error("Failed to load settings from localStorage:", error);
+  let loadedSettings = initialSettings;
+  
+  try {
+    const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (storedSettings) {
+      loadedSettings = JSON.parse(storedSettings) as AppSettings;
     }
-    return initialSettings;
-  })();
+  } catch (error) {
+    console.error("Failed to load settings from localStorage:", error);
+  }
 
   const [settings, dispatch] = useReducer(settingsReducer, loadedSettings);
 
