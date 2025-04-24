@@ -4,17 +4,20 @@ import { getSongLyrics } from "../../services/songService";
 interface LyricsDisplayProps {
   className?: string;
   songId: string;
+  progress: number; // Progress in percentage (0 to 1)
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   className = "",
   songId,
+  progress,
 }) => {
   const [lyrics, setLyrics] = useState<{
     plainLyrics: string;
     syncedLyrics: string;
     duration: number;
   } | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const lyricsRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,7 +27,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
       try {
         const fetchedLyrics = await getSongLyrics(songId);
         setLyrics(fetchedLyrics.data);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch lyrics.");
       }
     };
@@ -33,31 +36,51 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   }, [songId]);
 
   useEffect(() => {
-    if (lyrics && lyricsRef.current) {
-      const totalHeight = lyricsRef.current.scrollHeight;
-      const containerHeight = lyricsRef.current.clientHeight;
-      lyricsRef.current.style.transition = `transform ${lyrics.duration}s linear`;
-      lyricsRef.current.style.transform = `translateY(-${totalHeight-containerHeight}px)`;
+    if (lyrics && lyricsRef.current && containerRef.current) {
+      const updateScrollPosition = () => {
+        const lyricsElement = lyricsRef.current;
+        if (!lyricsElement) return;
+
+        // Calculate the total scrollable distance (total height minus visible height)
+        const totalScrollHeight = lyricsElement.scrollHeight - lyricsElement.clientHeight;
+        // Calculate scroll position based on progress percentage
+        const scrollPosition = Math.max(0, Math.min(totalScrollHeight, progress * totalScrollHeight));
+
+        lyricsElement.scrollTop = scrollPosition;
+      };
+      setTimeout(updateScrollPosition, 0);
     }
-  }, [lyrics]);
+  }, [progress, lyrics]);
+
+  const renderLyricsContent = () => {
+    if (error) {
+      return <div className="text-red-500">{error}</div>;
+    }
+    if (lyrics) {
+      return lyrics.plainLyrics ? (
+        <div className="text-2xl font-semibold text-background whitespace-pre-line">
+          {lyrics.plainLyrics}
+        </div>
+      ) : (
+        <div className="text-gray-400">No lyrics available</div>
+      );
+    }
+    return <div className="text-gray-500">Loading lyrics...</div>;
+  };
 
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center p-4 overflow-hidden ${className}`}
+      className={`flex flex-col items-center justify-center text-center p-4 ${className}`}
       ref={containerRef}
+      style={{ height: "100%", width: "100%" }}
     >
-      {error ? (
-        <div className="text-red-500">{error}</div>
-      ) : lyrics ? (
-        <div
-          ref={lyricsRef}
-          className="text-2xl font-semibold mb-4 text-background whitespace-pre-line"
-        >
-          {lyrics.plainLyrics || "No lyrics available"}
-        </div>
-      ) : (
-        <div className="text-gray-500">Loading lyrics...</div>
-      )}
+      <div
+        ref={lyricsRef}
+        className="w-full h-full overflow-y-auto scrollbar-hide"
+        style={{ maxHeight: "100%" }}
+      >
+        {renderLyricsContent()}
+      </div>
     </div>
   );
 };

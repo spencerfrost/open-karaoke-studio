@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Play, Pause, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { usePlayer } from "../context/PlayerContext";
@@ -7,7 +7,6 @@ import PlayerLayout from "../components/layout/PlayerLayout";
 import LyricsDisplay from "../components/player/LyricsDisplay";
 import AudioVisualizer from "../components/player/AudioVisualizer";
 import ProgressBar from "../components/player/ProgressBar";
-import QRCodeDisplay from "../components/queue/QRCodeDisplay";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
 import { useSettings } from "../context/SettingsContext";
@@ -19,6 +18,8 @@ const PlayerPage: React.FC = () => {
   const { state: queueState, dispatch: queueDispatch } = useQueue();
   const { settings } = useSettings();
   const [vocalsMuted, setVocalsMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -48,6 +49,27 @@ const PlayerPage: React.FC = () => {
     queueState.items,
     queueState.currentItem,
   ]);
+
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    if (!audioElement) return;
+
+    const handleTimeUpdate = () => {
+      const currentTime = audioElement.currentTime;
+      const duration = audioElement.duration;
+      if (duration > 0) {
+        const calculatedProgress = currentTime / duration;
+        console.log("Audio Progress:", calculatedProgress);
+        setProgress(calculatedProgress);
+      }
+    };
+
+    audioElement.addEventListener("timeupdate", handleTimeUpdate);
+
+    return () => {
+      audioElement.removeEventListener("timeupdate", handleTimeUpdate);
+    };
+  }, [audioRef]);
 
   const handlePlayPause = () => {
     playerDispatch({ type: "TOGGLE_PLAY_PAUSE" });
@@ -115,17 +137,21 @@ const PlayerPage: React.FC = () => {
           {/* Audio test player */}
           {id && (
             <div className="mt-6">
+
               <div className="aspect-video w-full bg-black/80 overflow-hidden">
-                <LyricsDisplay songId={id} />
+                <LyricsDisplay songId={id} progress={progress} />
               </div>
               <audio
                 controls
                 autoPlay
                 src={getAudioUrl(id, "instrumental")}
                 className="w-full"
+                ref={audioRef}
               >
                 <track kind="captions" src="" label="No captions available" />
               </audio>
+              <AudioVisualizer className="my-6" />
+
             </div>
           )}
 
@@ -152,8 +178,8 @@ const PlayerPage: React.FC = () => {
 
             {/* Lyrics display */}
             <LyricsDisplay
-              songId={id}
-              duration={playerState.currentSong?.song.duration || 0}
+              songId={playerState.currentSong?.song.id || ''}
+              progress={progress}
             />
           </div>
 
