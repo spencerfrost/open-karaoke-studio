@@ -9,7 +9,7 @@ export const vintageColors = {
 
 export const vintageTheme = {
   colors: vintageColors,
-  
+
   // Background with vintage gradient
   background: `linear-gradient(135deg, ${vintageColors.russet} 0%, ${vintageColors.rust} 100%)`,
 

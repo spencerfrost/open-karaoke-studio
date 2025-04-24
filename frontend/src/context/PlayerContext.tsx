@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useRef } from 'react';
 import { PlayerState, PlayerStatus, Lyric } from '../types/Player';
 import { QueueItemWithSong } from '../types/Queue';
+import { getAudioUrl } from '../services/songService';
 
 // Action types
 type PlayerAction =
@@ -84,6 +85,9 @@ const mockLyrics: { [key: string]: Lyric[] } = {};
 // Provider component
 export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(playerReducer, initialState);
+  // Audio element refs for vocals and instrumental
+  const vocalsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const instrumentalAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Function to get current and next lyrics based on the current time
   const getCurrentLyric = () => {
@@ -110,6 +114,59 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     return { current, next };
   };
+
+  // Load and prepare audio when song changes
+  useEffect(() => {
+    // Pause and clear previous audio
+    vocalsAudioRef.current?.pause();
+    instrumentalAudioRef.current?.pause();
+    if (!state.currentSong) return;
+    const songId = state.currentSong.songId;
+    const vocals = new Audio(getAudioUrl(songId, 'vocals'));
+    const instrumental = new Audio(getAudioUrl(songId, 'instrumental'));
+    // Set initial volumes
+    vocals.volume = state.vocalVolume / 100;
+    instrumental.volume = state.instrumentalVolume / 100;
+    // Sync events from vocals track
+    vocals.addEventListener('loadedmetadata', () => {
+      dispatch({ type: 'SET_DURATION', payload: vocals.duration });
+    });
+    vocals.addEventListener('timeupdate', () => {
+      dispatch({ type: 'SET_CURRENT_TIME', payload: vocals.currentTime });
+    });
+    vocals.addEventListener('ended', () => {
+      dispatch({ type: 'SET_STATUS', payload: 'idle' });
+    });
+    // Store refs
+    vocalsAudioRef.current = vocals;
+    instrumentalAudioRef.current = instrumental;
+  }, [state.currentSong]);
+
+  // Play or pause audio based on status
+  useEffect(() => {
+    const vocals = vocalsAudioRef.current;
+    const instrumental = instrumentalAudioRef.current;
+    if (!vocals || !instrumental) return;
+    if (state.status === 'playing') {
+      vocals.play();
+      instrumental.play();
+    } else {
+      vocals.pause();
+      instrumental.pause();
+    }
+  }, [state.status]);
+
+  // Update volumes when changed
+  useEffect(() => {
+    if (vocalsAudioRef.current) {
+      vocalsAudioRef.current.volume = state.vocalVolume / 100;
+    }
+  }, [state.vocalVolume]);
+  useEffect(() => {
+    if (instrumentalAudioRef.current) {
+      instrumentalAudioRef.current.volume = state.instrumentalVolume / 100;
+    }
+  }, [state.instrumentalVolume]);
 
   // Effect for updating player state based on playback status
   useEffect(() => {
