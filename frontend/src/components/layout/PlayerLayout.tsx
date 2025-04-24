@@ -1,12 +1,20 @@
 import React, { ReactNode, useState } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, List, Music, Settings, Upload } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import vintageTheme from "../../utils/theme";
+import NavBar from "./NavBar";
 
 interface PlayerLayoutProps {
   children: ReactNode;
   showControls?: boolean;
 }
+
+const navigationItems = [
+  { name: "Library", path: "/", icon: Music },
+  { name: "Add", path: "/add", icon: Upload },
+  { name: "Queue", path: "/queue", icon: List },
+  { name: "Settings", path: "/settings", icon: Settings },
+];
 
 const PlayerLayout: React.FC<PlayerLayoutProps> = ({
   children,
@@ -55,6 +63,7 @@ const PlayerLayout: React.FC<PlayerLayoutProps> = ({
 
       {/* Main content area */}
       <div className="relative z-10 h-full">{children}</div>
+      <NavBar items={navigationItems} />
     </div>
   );
 };
