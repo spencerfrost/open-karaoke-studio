@@ -114,3 +114,35 @@ export async function getSongStatus(id: string) {
   );
   return apiRequest<{ status: string; progress?: number }>(`/status/${id}`);
 }
+
+/**
+ * Fetch lyrics for a specific song by ID
+ */
+export async function getSongLyrics(songId: string) {
+  return apiRequest<{ plainLyrics: string; syncedLyrics: string; duration: number }>(
+    `${API_PATH}/songs/${songId}/lyrics`
+  );
+}
+
+/**
+ * Search for lyrics using keywords
+ */
+export async function searchLyrics(query: {
+  q?: string;
+  track_name?: string;
+  artist_name?: string;
+  album_name?: string;
+}) {
+  const queryParams = new URLSearchParams(query as Record<string, string>);
+  return apiRequest<
+    Array<{
+      id: number;
+      trackName: string;
+      artistName: string;
+      albumName: string;
+      duration: number;
+      plainLyrics: string | null;
+      syncedLyrics: string | null;
+    }>
+  >(`${API_PATH}/lyrics/search?${queryParams.toString()}`);
+}
