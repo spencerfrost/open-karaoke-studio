@@ -115,8 +115,8 @@ const PlayerPage: React.FC = () => {
           {/* Audio test player */}
           {id && (
             <div className="mt-6">
-              <div className="aspect-video w-full bg-black/80">
-                <LyricsDisplay />
+              <div className="aspect-video w-full bg-black/80 overflow-hidden">
+                <LyricsDisplay songId={id} />
               </div>
               <audio
                 controls
@@ -151,7 +151,10 @@ const PlayerPage: React.FC = () => {
             )}
 
             {/* Lyrics display */}
-            <LyricsDisplay />
+            <LyricsDisplay
+              songId={id}
+              duration={playerState.currentSong?.song.duration || 0}
+            />
           </div>
 
           {/* Bottom controls */}
