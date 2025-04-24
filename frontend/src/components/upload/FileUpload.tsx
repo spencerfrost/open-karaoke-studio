@@ -16,6 +16,7 @@ interface FileUploadFieldProps {
   onChange: (file: File | null) => void; // Callback to update react-hook-form state
   accept?: string;
   maxSize?: number;
+  className?: string;
 }
 
 // Helper (keep as is or refine)
@@ -47,6 +48,7 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
   onChange: rhfOnChange, // Rename prop
   accept = "audio/*",
   maxSize = 100 * 1024 * 1024,
+  className,
 }) => {
   // Internal state for the FileUploader component, which expects File[] | null
   const [internalFiles, setInternalFiles] = useState<File[] | null>(null);
@@ -121,18 +123,16 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
 
   return (
     <div className="w-full space-y-2">
-      {/* FileUploader now controlled by internalFiles, but updates RHF via handleInternalValueChange */}
       <FileUploader
         value={internalFiles}
         onValueChange={handleInternalValueChange}
         dropzoneOptions={dropZoneConfig}
-        className="relative bg-card text-card-foreground border border-border rounded-lg p-2 data-[state=dragging]:border-primary data-[state=dragging]:ring-2 data-[state=dragging]:ring-offset-2 data-[state=dragging]:ring-primary data-[state=dragging]:ring-offset-card"
+        className={`relative bg-card text-card-foreground border border-border rounded-lg p-2 data-[state=dragging]:border-primary data-[state=dragging]:ring-2 data-[state=dragging]:ring-offset-2 data-[state=dragging]:ring-primary data-[state=dragging]:ring-offset-card ${className}`}
       >
         <FileInput
           id={fileInputId}
           className="outline-dashed outline-1 outline-border hover:outline-primary data-[state=dragging]:bg-primary/10 data-[state=dragging]:outline-primary"
         >
-          {/* ... Input display unchanged ... */}
           <div className="flex items-center justify-center flex-col py-6 text-center">
             <Upload className="w-10 h-10 mb-2 text-primary" />
             <p className="mb-1 text-sm text-muted-foreground">

@@ -15,52 +15,43 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card"; // Import ShadCN Card components
-import { toast } from "sonner"; // For user feedback on cancel/error
-
-// Removed: import vintageTheme from "../../utils/theme";
+} from "@/components/ui/card";
+import { toast } from "sonner";
 
 interface ProcessingQueueProps {
   className?: string;
-  refreshInterval?: number; // in milliseconds
+  refreshInterval?: number;
 }
 
 const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   className = "",
-  refreshInterval = 5000, // Default to 5 seconds
+  refreshInterval = 5000,
 }) => {
   const [processingItems, setProcessingItems] = useState<
     SongProcessingStatus[]
   >([]);
-  const [isLoading, setIsLoading] = useState(true); // Start loading initially
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Removed: const colors = vintageTheme.colors;
 
-  // Fetch processing queue
   useEffect(() => {
-    let isMounted = true; // Prevent state updates on unmounted component
+    let isMounted = true;
 
     const fetchQueue = async () => {
-      // Don't set loading to true on subsequent fetches unless needed visually
-      // setIsLoading(true);
-      setError(null); // Clear previous errors on fetch attempt
+      setError(null);
 
       try {
         const response = await getProcessingQueue();
 
-        if (!isMounted) return; // Exit if component unmounted
+        if (!isMounted) return;
 
         if (response.error) {
           console.error("Error fetching queue:", response.error);
           setError(response.error);
-          setProcessingItems([]); // Clear items on error
+          setProcessingItems([]);
         } else if (response.data) {
-          // Check if response.data is an object with jobs property
           const jobs =
             "jobs" in response.data ? response.data.jobs : response.data;
-          // Only update state if data has changed to prevent unnecessary re-renders
           setProcessingItems((prevItems) => {
-            // Basic check for changes (can be improved with deep comparison if needed)
             if (JSON.stringify(prevItems) !== JSON.stringify(jobs)) {
               return jobs;
             }
@@ -113,7 +104,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       } else {
         // Revert if backend indicates failure differently
         toast.warning(
-          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`,
+          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`
         );
         setProcessingItems(originalItems);
       }
@@ -129,7 +120,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
 
   // Get status label and badge variant
   const getStatusInfo = (
-    status: string,
+    status: string
   ): { label: string; variant: "secondary" | "default" | "destructive" } => {
     switch (status?.toLowerCase()) {
       case "processing":
@@ -158,7 +149,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   if (isLoading) {
     return (
       <div
-        className={`flex items-center justify-center rounded-lg p-6 border border-border bg-card text-card-foreground ${className}`}
+        className={`flex items-center justify-center rounded-lg p-6 border border-border bg-card/60 text-card-foreground ${className}`}
       >
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
         <span>Loading processing queue...</span>
@@ -178,7 +169,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   // Empty Queue State
   if (!processingItems.length) {
     return (
-      <Card className={`text-center ${className}`}>
+      <Card className={`text-center bg-card/80 ${className}`}>
         <CardContent className="p-6">
           <p className="text-muted-foreground">No songs currently processing</p>
         </CardContent>
@@ -196,7 +187,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
         </Alert>
       )}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden bg-card/80">
         <CardHeader>
           <CardTitle>Processing Queue</CardTitle>
           <CardDescription>Songs being prepared for karaoke</CardDescription>
@@ -237,10 +228,9 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
                       {item.progress ?? 0}%
                     </span>
                   </div>
-                  {(item.status === "error" || item.status === "failed") && (
+                  {(item.status === "error") && (
                     <p className="text-xs mt-1 text-destructive">
-                      Processing failed{" "}
-                      {item.error_message ? `: ${item.error_message}` : ""}
+                      Processing failed. Please try again.
                     </p>
                   )}
 

@@ -123,12 +123,12 @@ const AddSongPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6 container mx-auto">
         <ProcessingQueue />
         <YouTubeSearch onDownloadStart={handleYouTubeDownloadStart} />
 
         {/* Upload Alternative */}
-        <Card>
+        <Card className="bg-card/80">
           <CardHeader>
             <CardTitle>Upload File</CardTitle>
             <CardDescription>Or upload your own audio files</CardDescription>
@@ -151,6 +151,7 @@ const AddSongPage: React.FC = () => {
                           onChange={field.onChange}
                           accept="audio/*"
                           maxSize={MAX_FILE_SIZE}
+                          className="bg-card/50"
                         />
                       </FormControl>
                       <FormDescription>

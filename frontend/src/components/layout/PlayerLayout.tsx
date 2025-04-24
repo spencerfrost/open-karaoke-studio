@@ -62,7 +62,7 @@ const PlayerLayout: React.FC<PlayerLayoutProps> = ({
       )}
 
       {/* Main content area */}
-      <div className="relative z-10 h-full">{children}</div>
+      <div className="relative z-10 h-full container mx-auto">{children}</div>
       <NavBar items={navigationItems} />
     </div>
   );
