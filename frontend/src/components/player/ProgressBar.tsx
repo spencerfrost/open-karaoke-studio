@@ -1,7 +1,7 @@
-import React from 'react';
-import { usePlayer } from '../../context/PlayerContext';
-import { formatTime } from '../../utils/formatters';
-import vintageTheme from '../../utils/theme';
+import React from "react";
+import { usePlayer } from "../../context/PlayerContext";
+import { formatTime } from "../../utils/formatters";
+import vintageTheme from "../../utils/theme";
 
 interface ProgressBarProps {
   onChange?: (value: number) => void;
@@ -10,29 +10,29 @@ interface ProgressBarProps {
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   onChange,
-  className = '',
+  className = "",
 }) => {
   const { state: playerState, dispatch } = usePlayer();
   const colors = vintageTheme.colors;
-  
+
   // Calculate progress percentage
-  const progressPercentage = playerState.duration 
+  const progressPercentage = playerState.duration
     ? (playerState.currentTime / playerState.duration) * 100
     : 0;
-  
+
   // Handle user seeking
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const seekTime = Number(e.target.value);
-    
+
     // Update progress locally
-    dispatch({ type: 'SET_CURRENT_TIME', payload: seekTime });
-    
+    dispatch({ type: "SET_CURRENT_TIME", payload: seekTime });
+
     // Notify parent component
     if (onChange) {
       onChange(seekTime);
     }
   };
-  
+
   return (
     <div className={`w-full ${className}`}>
       <div className="flex justify-between text-xs mb-1">
@@ -43,23 +43,23 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
           {formatTime(playerState.duration)}
         </span>
       </div>
-      
+
       <div className="relative h-2">
         {/* Progress bar track */}
-        <div 
+        <div
           className="absolute inset-0 rounded-full overflow-hidden"
-          style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+          style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
         >
           {/* Progress bar fill */}
-          <div 
+          <div
             className="h-full rounded-full"
-            style={{ 
+            style={{
               width: `${progressPercentage}%`,
-              background: `linear-gradient(90deg, ${colors.darkCyan} 0%, ${colors.orangePeel} 100%)`
+              background: `linear-gradient(90deg, ${colors.darkCyan} 0%, ${colors.orangePeel} 100%)`,
             }}
           />
         </div>
-        
+
         {/* Slider input (visually hidden but functional) */}
         <input
           type="range"

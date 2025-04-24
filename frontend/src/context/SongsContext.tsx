@@ -1,12 +1,12 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { Song, SongStatus } from '../types/Song';
+import React, { createContext, useContext, useReducer, ReactNode } from "react";
+import { Song, SongStatus } from "../types/Song";
 
 // State type
 interface SongsState {
   songs: Song[];
   filteredSongs: Song[];
   filterTerm: string;
-  filterStatus: SongStatus | 'all';
+  filterStatus: SongStatus | "all";
   filterFavorites: boolean;
   isLoading: boolean;
   error: string | null;
@@ -14,22 +14,22 @@ interface SongsState {
 
 // Action types
 type SongsAction =
-  | { type: 'SET_SONGS'; payload: Song[] }
-  | { type: 'ADD_SONG'; payload: Song }
-  | { type: 'UPDATE_SONG'; payload: { id: string; updates: Partial<Song> } }
-  | { type: 'REMOVE_SONG'; payload: string }
-  | { type: 'SET_FILTER_TERM'; payload: string }
-  | { type: 'SET_FILTER_STATUS'; payload: SongStatus | 'all' }
-  | { type: 'SET_FILTER_FAVORITES'; payload: boolean }
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: "SET_SONGS"; payload: Song[] }
+  | { type: "ADD_SONG"; payload: Song }
+  | { type: "UPDATE_SONG"; payload: { id: string; updates: Partial<Song> } }
+  | { type: "REMOVE_SONG"; payload: string }
+  | { type: "SET_FILTER_TERM"; payload: string }
+  | { type: "SET_FILTER_STATUS"; payload: SongStatus | "all" }
+  | { type: "SET_FILTER_FAVORITES"; payload: boolean }
+  | { type: "SET_LOADING"; payload: boolean }
+  | { type: "SET_ERROR"; payload: string | null };
 
 // Initial state
 const initialState: SongsState = {
   songs: [],
   filteredSongs: [],
-  filterTerm: '',
-  filterStatus: 'all',
+  filterTerm: "",
+  filterStatus: "all",
   filterFavorites: false,
   isLoading: false,
   error: null,
@@ -47,7 +47,7 @@ const SongsContext = createContext<{
 // Reducer
 const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
   switch (action.type) {
-    case 'SET_SONGS':
+    case "SET_SONGS":
       return {
         ...state,
         songs: action.payload,
@@ -55,10 +55,10 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           action.payload,
           state.filterTerm,
           state.filterStatus,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'ADD_SONG':
+    case "ADD_SONG":
       const updatedSongs = [...state.songs, action.payload];
       return {
         ...state,
@@ -67,14 +67,14 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           updatedSongs,
           state.filterTerm,
           state.filterStatus,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'UPDATE_SONG':
+    case "UPDATE_SONG":
       const updatedSongsList = state.songs.map((song) =>
         song.id === action.payload.id
           ? { ...song, ...action.payload.updates }
-          : song
+          : song,
       );
       return {
         ...state,
@@ -83,12 +83,12 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           updatedSongsList,
           state.filterTerm,
           state.filterStatus,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'REMOVE_SONG':
+    case "REMOVE_SONG":
       const songsAfterRemoval = state.songs.filter(
-        (song) => song.id !== action.payload
+        (song) => song.id !== action.payload,
       );
       return {
         ...state,
@@ -97,10 +97,10 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           songsAfterRemoval,
           state.filterTerm,
           state.filterStatus,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'SET_FILTER_TERM':
+    case "SET_FILTER_TERM":
       return {
         ...state,
         filterTerm: action.payload,
@@ -108,10 +108,10 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           state.songs,
           action.payload,
           state.filterStatus,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'SET_FILTER_STATUS':
+    case "SET_FILTER_STATUS":
       return {
         ...state,
         filterStatus: action.payload,
@@ -119,10 +119,10 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           state.songs,
           state.filterTerm,
           action.payload,
-          state.filterFavorites
+          state.filterFavorites,
         ),
       };
-    case 'SET_FILTER_FAVORITES':
+    case "SET_FILTER_FAVORITES":
       return {
         ...state,
         filterFavorites: action.payload,
@@ -130,15 +130,15 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
           state.songs,
           state.filterTerm,
           state.filterStatus,
-          action.payload
+          action.payload,
         ),
       };
-    case 'SET_LOADING':
+    case "SET_LOADING":
       return {
         ...state,
         isLoading: action.payload,
       };
-    case 'SET_ERROR':
+    case "SET_ERROR":
       return {
         ...state,
         error: action.payload,
@@ -152,18 +152,18 @@ const songsReducer = (state: SongsState, action: SongsAction): SongsState => {
 const filterSongs = (
   songs: Song[],
   term: string,
-  status: SongStatus | 'all',
-  favorites: boolean
+  status: SongStatus | "all",
+  favorites: boolean,
 ): Song[] => {
   return songs.filter((song) => {
     // Filter by search term
     const matchesTerm =
-      term === '' ||
+      term === "" ||
       song.title.toLowerCase().includes(term.toLowerCase()) ||
       song.artist.toLowerCase().includes(term.toLowerCase());
 
     // Filter by status
-    const matchesStatus = status === 'all' || song.status === status;
+    const matchesStatus = status === "all" || song.status === status;
 
     // Filter by favorites
     const matchesFavorites = !favorites || song.favorite;
@@ -173,7 +173,9 @@ const filterSongs = (
 };
 
 // Provider component
-export const SongsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const SongsProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [state, dispatch] = useReducer(songsReducer, initialState);
 
   return (
@@ -187,7 +189,7 @@ export const SongsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 export const useSongs = () => {
   const context = useContext(SongsContext);
   if (context === undefined) {
-    throw new Error('useSongs must be used within a SongsProvider');
+    throw new Error("useSongs must be used within a SongsProvider");
   }
   return context;
 };

@@ -1,7 +1,7 @@
-import React from 'react';
-import { QueueItemWithSong } from '../../types/Queue';
-import QueueItem from './QueueItem';
-import vintageTheme from '../../utils/theme';
+import React from "react";
+import { QueueItemWithSong } from "../../types/Queue";
+import QueueItem from "./QueueItem";
+import vintageTheme from "../../utils/theme";
 
 interface QueueListProps {
   items: QueueItemWithSong[];
@@ -17,14 +17,14 @@ const QueueList: React.FC<QueueListProps> = ({
   currentItemId = null,
   onRemove,
   onReorder,
-  emptyMessage = 'No songs in the queue',
-  className = '',
+  emptyMessage = "No songs in the queue",
+  className = "",
 }) => {
   const colors = vintageTheme.colors;
-  
+
   if (!items.length) {
     return (
-      <div 
+      <div
         className={`p-8 text-center ${className}`}
         style={{ color: `${colors.lemonChiffon}80` }}
       >
@@ -33,10 +33,10 @@ const QueueList: React.FC<QueueListProps> = ({
       </div>
     );
   }
-  
+
   // For a real implementation, you would add drag-and-drop functionality
   // using a library like react-beautiful-dnd for reordering
-  
+
   return (
     <div className={className}>
       {items.map((item, index) => (

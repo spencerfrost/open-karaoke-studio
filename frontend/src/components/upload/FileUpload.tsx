@@ -20,7 +20,7 @@ interface FileUploadFieldProps {
 
 // Helper (keep as is or refine)
 const generateAcceptObject = (
-  acceptString?: string
+  acceptString?: string,
 ): { [key: string]: string[] } | undefined => {
   // ... (implementation from previous step) ...
   if (!acceptString) return undefined;
@@ -85,7 +85,7 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
         if (!isAudioFile(file)) {
           console.warn(
             "File passed dropzone but failed isAudioFile check:",
-            file.name
+            file.name,
           );
           setError("Invalid file type. Please select a valid audio file.");
           setInternalFiles(null); // Clear internal state
@@ -101,7 +101,7 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
         rhfOnChange(null); // Update RHF state
       }
     },
-    [rhfOnChange] // Dependency: react-hook-form's onChange
+    [rhfOnChange], // Dependency: react-hook-form's onChange
   );
 
   // Handler for the clear button

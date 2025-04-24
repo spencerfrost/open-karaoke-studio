@@ -3,13 +3,13 @@
  */
 export const isAudioFile = (file: File): boolean => {
   const audioTypes = [
-    'audio/mpeg',
-    'audio/mp3',
-    'audio/wav',
-    'audio/ogg',
-    'audio/flac',
-    'audio/aac',
-    'audio/m4a'
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/ogg",
+    "audio/flac",
+    "audio/aac",
+    "audio/m4a",
   ];
   return audioTypes.includes(file.type);
 };
@@ -27,7 +27,7 @@ export const isValidYouTubeUrl = (url: string): boolean => {
  */
 export const extractYouTubeVideoId = (url: string): string | null => {
   if (!isValidYouTubeUrl(url)) return null;
-  
+
   // Match patterns like youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID
   const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
   return match ? match[1] : null;

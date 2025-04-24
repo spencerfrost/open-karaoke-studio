@@ -1,4 +1,4 @@
-export type SongStatus = 'processing' | 'queued' | 'processed' | 'error';
+export type SongStatus = "processing" | "queued" | "processed" | "error";
 
 export interface Song {
   id: string;

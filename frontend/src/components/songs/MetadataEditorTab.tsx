@@ -47,9 +47,7 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Cover Art Column */}
         <div className="flex flex-col items-center gap-4">
-          <div
-            className="w-full aspect-square rounded-md flex items-center justify-center relative overflow-hidden bg-accent/20"
-          >
+          <div className="w-full aspect-square rounded-md flex items-center justify-center relative overflow-hidden bg-accent/20">
             {metadata.coverArt ? (
               <img
                 src={metadata.coverArt}

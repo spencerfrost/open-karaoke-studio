@@ -61,7 +61,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       toast.error(
         `Failed to search: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsSearching(false);
@@ -89,7 +89,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       toast.error(
         `Failed to download: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setDownloadingIds((prev) => prev.filter((id) => id !== result.id));

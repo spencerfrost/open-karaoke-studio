@@ -1,21 +1,27 @@
-import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  UseQueryOptions,
+  UseMutationOptions,
+} from "@tanstack/react-query";
 
-const API_BASE_URL = 'http://127.0.0.1:5000/api'; // Adjust as needed, use env vars
+const API_BASE_URL = "http://127.0.0.1:5000/api"; // Adjust as needed, use env vars
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
-    const response = await fetch(`${API_BASE_URL}${url}`);
-    if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        try {
-            const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-            errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-        } catch (jsonError: any) { // Type as 'any' temporarily, refine later
-            console.error("Error parsing error response:", jsonError);
-        }
-        throw new Error(errorMessage);
+  const response = await fetch(`${API_BASE_URL}${url}`);
+  if (!response.ok) {
+    let errorMessage = `HTTP error! Status: ${response.status}`;
+    try {
+      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
+      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+    } catch (jsonError: any) {
+      // Type as 'any' temporarily, refine later
+      console.error("Error parsing error response:", jsonError);
     }
-    return await response.json();
+    throw new Error(errorMessage);
+  }
+  return await response.json();
 };
 
 /**
@@ -29,25 +35,30 @@ const apiGet = async <T>(url: string): Promise<T> => {
  * @returns {Promise<T>} - A promise resolving to the response data.
  * @throws {Error} - Throws an error if the response is not ok.
  */
-const apiSend = async <T, V>(url: string, method: string, data: V | null = null): Promise<T> => {
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: data ? JSON.stringify(data) : null,
-    });
-    if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        try {
-            const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-            errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-        } catch (jsonError: any) { // Type as 'any' temporarily, refine later
-            console.error("Error parsing error response:", jsonError);
-        }
-        throw new Error(errorMessage);
+const apiSend = async <T, V>(
+  url: string,
+  method: string,
+  data: V | null = null,
+): Promise<T> => {
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: data ? JSON.stringify(data) : null,
+  });
+  if (!response.ok) {
+    let errorMessage = `HTTP error! Status: ${response.status}`;
+    try {
+      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
+      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+    } catch (jsonError: any) {
+      // Type as 'any' temporarily, refine later
+      console.error("Error parsing error response:", jsonError);
     }
-    return await response.json();
+    throw new Error(errorMessage);
+  }
+  return await response.json();
 };
 
 /**
@@ -61,17 +72,18 @@ const apiSend = async <T, V>(url: string, method: string, data: V | null = null)
  * @returns {UseQueryResult<T, Error>} - The result of the query.
  */
 export function useApiQuery<T, TQueryKey extends readonly any[]>(
-    queryKey: TQueryKey,
-    url: string,
-    options?: Omit<UseQueryOptions<T, Error, T, TQueryKey>, 'queryKey' | 'queryFn'>,
+  queryKey: TQueryKey,
+  url: string,
+  options?: Omit<
+    UseQueryOptions<T, Error, T, TQueryKey>,
+    "queryKey" | "queryFn"
+  >,
 ) {
-    return useQuery<T, Error, T, TQueryKey>(
-        {
-            queryKey,
-            queryFn: () => apiGet<T>(url),
-            ...options
-        }
-    );
+  return useQuery<T, Error, T, TQueryKey>({
+    queryKey,
+    queryFn: () => apiGet<T>(url),
+    ...options,
+  });
 }
 
 /**
@@ -86,16 +98,18 @@ export function useApiQuery<T, TQueryKey extends readonly any[]>(
  * @returns {UseMutationResult<TData, Error, TVariables, TContext>} - The result of the mutation.
  */
 export function useApiMutation<TData, TVariables, TContext = unknown>(
-    url: string,
-    method: 'post' | 'put' | 'patch' | 'delete',
-    options?: Omit<UseMutationOptions<TData, Error, TVariables, TContext>, 'mutationFn'>,
+  url: string,
+  method: "post" | "put" | "patch" | "delete",
+  options?: Omit<
+    UseMutationOptions<TData, Error, TVariables, TContext>,
+    "mutationFn"
+  >,
 ) {
-    return useMutation<TData, Error, TVariables, TContext>(
-        {
-            mutationFn: (data: TVariables) => apiSend<TData, TVariables>(url, method, data),
-            ...options
-        }
-    );
+  return useMutation<TData, Error, TVariables, TContext>({
+    mutationFn: (data: TVariables) =>
+      apiSend<TData, TVariables>(url, method, data),
+    ...options,
+  });
 }
 
 /**
@@ -108,24 +122,25 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
  * @throws {Error} - Throws an error if the response is not ok.
  */
 export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
-    const formData = new FormData();
-    formData.append('audio_file', file);
+  const formData = new FormData();
+  formData.append("audio_file", file);
 
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-        method: 'POST',
-        body: formData,
-    });
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: "POST",
+    body: formData,
+  });
 
-    if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        try {
-            const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-            errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-        } catch (jsonError: any) { // Type as 'any' temporarily, refine later
-            console.error("Error parsing error response:", jsonError);
-        }
-        throw new Error(errorMessage);
+  if (!response.ok) {
+    let errorMessage = `HTTP error! Status: ${response.status}`;
+    try {
+      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
+      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+    } catch (jsonError: any) {
+      // Type as 'any' temporarily, refine later
+      console.error("Error parsing error response:", jsonError);
     }
+    throw new Error(errorMessage);
+  }
 
-    return await response.json();
+  return await response.json();
 };

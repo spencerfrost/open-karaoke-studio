@@ -1,6 +1,6 @@
-import { QueueItemWithSong } from './Queue';
+import { QueueItemWithSong } from "./Queue";
 
-export type PlayerStatus = 'idle' | 'playing' | 'paused';
+export type PlayerStatus = "idle" | "playing" | "paused";
 
 export interface PlayerState {
   status: PlayerStatus;

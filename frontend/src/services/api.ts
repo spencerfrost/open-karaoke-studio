@@ -3,11 +3,11 @@
  */
 
 // Base API URL - will be replaced with environment variable
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = "http://localhost:5000";
 export const API_BASE = API_BASE_URL;
 
 // Types
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface ApiOptions {
   method?: HttpMethod;
@@ -25,18 +25,18 @@ interface ApiResponse<T> {
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options: ApiOptions = {}
+  options: ApiOptions = {},
 ): Promise<ApiResponse<T>> {
   try {
-    const { method = 'GET', headers = {}, body } = options;
+    const { method = "GET", headers = {}, body } = options;
 
     const requestOptions: RequestInit = {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...headers,
       },
-      credentials: 'include',
+      credentials: "include",
     };
 
     if (body) {
@@ -44,10 +44,10 @@ export async function apiRequest<T>(
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
-    
+
     // Handle non-JSON responses
-    const contentType = response.headers.get('Content-Type') || '';
-    if (!contentType.includes('application/json')) {
+    const contentType = response.headers.get("Content-Type") || "";
+    if (!contentType.includes("application/json")) {
       if (!response.ok) {
         throw new Error(`API request failed with status ${response.status}`);
       }
@@ -58,16 +58,17 @@ export async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
-      const errorMessage = data.error || `API request failed with status ${response.status}`;
+      const errorMessage =
+        data.error || `API request failed with status ${response.status}`;
       throw new Error(errorMessage);
     }
 
     return { data, error: null };
   } catch (error) {
-    console.error('API request error:', error);
+    console.error("API request error:", error);
     return {
       data: null,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -78,11 +79,11 @@ export async function apiRequest<T>(
 export async function uploadFile<T>(
   endpoint: string,
   file: File,
-  additionalData?: Record<string, any>
+  additionalData?: Record<string, any>,
 ): Promise<ApiResponse<T>> {
   try {
     const formData = new FormData();
-    formData.append('audio_file', file);
+    formData.append("audio_file", file);
 
     if (additionalData) {
       Object.entries(additionalData).forEach(([key, value]) => {
@@ -91,24 +92,25 @@ export async function uploadFile<T>(
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
-      credentials: 'include',
+      credentials: "include",
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      const errorMessage = data.error || `File upload failed with status ${response.status}`;
+      const errorMessage =
+        data.error || `File upload failed with status ${response.status}`;
       throw new Error(errorMessage);
     }
 
     return { data, error: null };
   } catch (error) {
-    console.error('File upload error:', error);
+    console.error("File upload error:", error);
     return {
       data: null,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -116,11 +118,14 @@ export async function uploadFile<T>(
 /**
  * Download file function
  */
-export async function downloadFile(endpoint: string, filename: string): Promise<void> {
+export async function downloadFile(
+  endpoint: string,
+  filename: string,
+): Promise<void> {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      credentials: 'include',
+      method: "GET",
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -129,15 +134,15 @@ export async function downloadFile(endpoint: string, filename: string): Promise<
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.setAttribute('download', filename);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Download error:', error);
+    console.error("Download error:", error);
     throw error;
   }
 }

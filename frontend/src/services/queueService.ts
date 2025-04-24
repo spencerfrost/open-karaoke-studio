@@ -1,29 +1,33 @@
 /**
  * Queue-related API services
  */
-import { apiRequest } from './api';
-import { QueueItem, QueueItemWithSong, AddToQueueRequest } from '../types/Queue';
+import { apiRequest } from "./api";
+import {
+  QueueItem,
+  QueueItemWithSong,
+  AddToQueueRequest,
+} from "../types/Queue";
 
 /**
  * Get the current queue
  */
 export async function getQueue() {
-  return apiRequest<QueueItemWithSong[]>('/queue');
+  return apiRequest<QueueItemWithSong[]>("/queue");
 }
 
 /**
  * Get the current playing item
  */
 export async function getCurrentItem() {
-  return apiRequest<QueueItemWithSong | null>('/queue/current');
+  return apiRequest<QueueItemWithSong | null>("/queue/current");
 }
 
 /**
  * Add a song to the queue
  */
 export async function addToQueue(request: AddToQueueRequest) {
-  return apiRequest<QueueItem>('/queue', {
-    method: 'POST',
+  return apiRequest<QueueItem>("/queue", {
+    method: "POST",
     body: request,
   });
 }
@@ -33,7 +37,7 @@ export async function addToQueue(request: AddToQueueRequest) {
  */
 export async function removeFromQueue(id: string) {
   return apiRequest<{ success: boolean }>(`/queue/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
@@ -41,8 +45,8 @@ export async function removeFromQueue(id: string) {
  * Reorder the queue
  */
 export async function reorderQueue(itemIds: string[]) {
-  return apiRequest<QueueItemWithSong[]>('/queue/reorder', {
-    method: 'PUT',
+  return apiRequest<QueueItemWithSong[]>("/queue/reorder", {
+    method: "PUT",
     body: { itemIds },
   });
 }
@@ -51,8 +55,8 @@ export async function reorderQueue(itemIds: string[]) {
  * Skip to the next item in the queue
  */
 export async function skipToNext() {
-  return apiRequest<QueueItemWithSong | null>('/queue/next', {
-    method: 'POST',
+  return apiRequest<QueueItemWithSong | null>("/queue/next", {
+    method: "POST",
   });
 }
 
@@ -60,5 +64,5 @@ export async function skipToNext() {
  * Get QR code data for joining the queue
  */
 export async function getQueueQrCode() {
-  return apiRequest<{ qrCodeUrl: string }>('/queue/qr-code');
+  return apiRequest<{ qrCodeUrl: string }>("/queue/qr-code");
 }

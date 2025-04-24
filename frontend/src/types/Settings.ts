@@ -1,6 +1,6 @@
 export interface ThemeSettings {
   darkMode: boolean;
-  themeName: 'vintage' | 'synthwave' | 'minimal';
+  themeName: "vintage" | "synthwave" | "minimal";
 }
 
 export interface AudioSettings {
@@ -11,13 +11,13 @@ export interface AudioSettings {
 }
 
 export interface ProcessingSettings {
-  quality: 'low' | 'medium' | 'high';
-  outputFormat: 'mp3' | 'wav';
+  quality: "low" | "medium" | "high";
+  outputFormat: "mp3" | "wav";
   autoProcessYouTube: boolean;
 }
 
 export interface DisplaySettings {
-  lyricsSize: 'small' | 'medium' | 'large';
+  lyricsSize: "small" | "medium" | "large";
   showAudioVisualizations: boolean;
   showProgress: boolean;
 }

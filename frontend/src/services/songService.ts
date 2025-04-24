@@ -8,7 +8,10 @@ import { Song } from "../types/Song";
 /**
  * Get a playback URL for a given song track type
  */
-export function getAudioUrl(songId: string, trackType: 'vocals' | 'instrumental' | 'original'): string {
+export function getAudioUrl(
+  songId: string,
+  trackType: "vocals" | "instrumental" | "original",
+): string {
   return `${API_HOST}${API_PATH}/songs/${songId}/download/${trackType}`;
 }
 
@@ -50,7 +53,7 @@ export async function deleteSong(id: string) {
  */
 export async function toggleFavorite(id: string, isFavorite: boolean) {
   console.warn(
-    "toggleFavorite endpoint not implemented in backend blueprint yet."
+    "toggleFavorite endpoint not implemented in backend blueprint yet.",
   );
   return updateSong(id, { favorite: isFavorite });
 }
@@ -92,7 +95,10 @@ export async function updateSongMetadata(id: string, metadata: Partial<Song>) {
 /**
  * Search MusicBrainz for song metadata
  */
-export async function searchMusicBrainz(query: { title?: string; artist?: string }) {
+export async function searchMusicBrainz(query: {
+  title?: string;
+  artist?: string;
+}) {
   return apiRequest<Array<Partial<Song>>>(`${API_PATH}/musicbrainz/search`, {
     method: "POST",
     body: query,
@@ -104,7 +110,7 @@ export async function searchMusicBrainz(query: { title?: string; artist?: string
  */
 export async function getSongStatus(id: string) {
   console.warn(
-    "getSongStatus may require original filename, not song_id, for current /status endpoint"
+    "getSongStatus may require original filename, not song_id, for current /status endpoint",
   );
   return apiRequest<{ status: string; progress?: number }>(`/status/${id}`);
 }

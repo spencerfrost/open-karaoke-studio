@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
-import { isValidYouTubeUrl, extractYouTubeVideoId } from '../../utils/validators';
-import vintageTheme from '../../utils/theme';
+import React, { useState } from "react";
+import {
+  isValidYouTubeUrl,
+  extractYouTubeVideoId,
+} from "../../utils/validators";
+import vintageTheme from "../../utils/theme";
 
 interface YouTubeImporterProps {
   onYouTubeImport: (url: string, title?: string, artist?: string) => void;
 }
 
-const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) => {
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [artist, setArtist] = useState('');
+const YouTubeImporter: React.FC<YouTubeImporterProps> = ({
+  onYouTubeImport,
+}) => {
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
   const [showMetadata, setShowMetadata] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const colors = vintageTheme.colors;
@@ -44,25 +49,25 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
   // Validate and proceed
   const handleNext = () => {
     if (!url.trim()) {
-      setError('Please enter a YouTube URL');
+      setError("Please enter a YouTube URL");
       return;
     }
 
     if (!isValidYouTubeUrl(url)) {
-      setError('Please enter a valid YouTube URL');
+      setError("Please enter a valid YouTube URL");
       return;
     }
 
     // Try to extract video ID to further validate
     const videoId = extractYouTubeVideoId(url);
     if (!videoId) {
-      setError('Could not extract video ID from URL');
+      setError("Could not extract video ID from URL");
       return;
     }
 
     setError(null);
     setShowMetadata(true);
-    
+
     // You could potentially fetch video metadata here using the YouTube API
     // and pre-populate the title and artist fields
   };
@@ -70,16 +75,16 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
   // Handle final submission
   const handleSubmit = () => {
     if (!url.trim() || !isValidYouTubeUrl(url)) {
-      setError('Please enter a valid YouTube URL');
+      setError("Please enter a valid YouTube URL");
       return;
     }
-    
+
     onYouTubeImport(url, title || undefined, artist || undefined);
-    
+
     // Reset form
-    setUrl('');
-    setTitle('');
-    setArtist('');
+    setUrl("");
+    setTitle("");
+    setArtist("");
     setShowMetadata(false);
   };
 
@@ -91,20 +96,20 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
   return (
     <div className="w-full rounded-lg p-4" style={cardStyle}>
       <h3 className="text-md font-medium mb-3">YouTube URL</h3>
-      
+
       {!showMetadata ? (
         // Step 1: URL input
         <div>
           <div className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Paste YouTube URL here" 
+            <input
+              type="text"
+              placeholder="Paste YouTube URL here"
               className="flex-1 border rounded px-3 py-2 focus:outline-none"
               style={inputStyle}
               value={url}
               onChange={handleUrlChange}
             />
-            <button 
+            <button
               className="px-4 py-2 rounded transition-colors hover:opacity-90"
               style={buttonStyle}
               onClick={handleNext}
@@ -113,19 +118,22 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
             </button>
           </div>
           {error && (
-            <div 
+            <div
               className="mt-2 p-2 rounded text-sm"
-              style={{ backgroundColor: `${colors.rust}20`, color: colors.rust }}
+              style={{
+                backgroundColor: `${colors.rust}20`,
+                color: colors.rust,
+              }}
             >
               {error}
             </div>
           )}
-          
+
           {/* YouTube thumbnail preview */}
           {url && isValidYouTubeUrl(url) && extractYouTubeVideoId(url) && (
             <div className="mt-3">
               <div className="aspect-video bg-gray-200 rounded overflow-hidden">
-                <img 
+                <img
                   src={`https://img.youtube.com/vi/${extractYouTubeVideoId(url)}/0.jpg`}
                   alt="YouTube video thumbnail"
                   className="w-full h-full object-cover"
@@ -140,9 +148,9 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
           <div className="space-y-3">
             <div>
               <label className="block text-sm mb-1">Video Title</label>
-              <input 
-                type="text" 
-                placeholder="Enter video title (optional)" 
+              <input
+                type="text"
+                placeholder="Enter video title (optional)"
                 className="w-full border rounded px-3 py-2 focus:outline-none"
                 style={inputStyle}
                 value={title}
@@ -151,9 +159,9 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
             </div>
             <div>
               <label className="block text-sm mb-1">Artist</label>
-              <input 
-                type="text" 
-                placeholder="Enter artist name (optional)" 
+              <input
+                type="text"
+                placeholder="Enter artist name (optional)"
                 className="w-full border rounded px-3 py-2 focus:outline-none"
                 style={inputStyle}
                 value={artist}
@@ -161,20 +169,20 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({ onYouTubeImport }) =>
               />
             </div>
           </div>
-          
+
           <div className="flex gap-2 mt-4">
-            <button 
+            <button
               className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
-              style={{ 
-                backgroundColor: 'transparent', 
+              style={{
+                backgroundColor: "transparent",
                 border: `1px solid ${colors.orangePeel}`,
-                color: colors.russet
+                color: colors.russet,
               }}
               onClick={handleBack}
             >
               Back
             </button>
-            <button 
+            <button
               className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
               style={buttonStyle}
               onClick={handleSubmit}
