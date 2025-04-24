@@ -1,7 +1,9 @@
 from pathlib import Path
 
 # --- File Management ---
-BASE_LIBRARY_DIR = Path("./karaoke_library") # Root directory for processed songs
+# Determine project root three levels up (open-karaoke directory)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+BASE_LIBRARY_DIR = PROJECT_ROOT / "karaoke_library"  # Root directory for processed songs
 # Define base filenames (extension added dynamically)
 VOCALS_FILENAME_STEM = "vocals"
 INSTRUMENTAL_FILENAME_STEM = "instrumental"

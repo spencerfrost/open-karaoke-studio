@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Music, Search } from 'lucide-react';
-import { useSongs } from '../context/SongsContext'; // Assuming this context exists and works
+import { useSongs } from '../context/SongsContext';
 import SongCard from '../components/songs/SongCard';
 import AppLayout from '../components/layout/AppLayout';
 import { toggleFavorite } from '../services/songService';
@@ -58,13 +58,11 @@ const LibraryPage: React.FC = () => {
     });
   };
 
-  // Handle song favorite toggle (no changes needed for now)
-  // Note: This still uses songService.toggleFavorite.
-  // This could potentially be refactored to use useApiMutation later.
-  const handleToggleFavorite = async (song: Song) => { // Use the Song type
+  // Handle song favorite toggle
+  const handleToggleFavorite = async (song: Song) => {
     const newFavoriteStatus = !song.favorite;
 
-    // Optimistic update (no change)
+    // Optimistic update
     dispatch({
       type: 'UPDATE_SONG',
       payload: {
@@ -74,14 +72,10 @@ const LibraryPage: React.FC = () => {
     });
 
     try {
-        // API call using the service (no change for now)
         await toggleFavorite(song.id, newFavoriteStatus);
-        // If successful, optimistic update is kept.
-        // Optional: Invalidate query cache if needed upon mutation success
-        // queryClient.invalidateQueries(['songs', 'list']); // Requires queryClient instance
     } catch (error) {
         console.error("Failed to toggle favorite:", error);
-        // Revert on error (no change)
+        // Revert on error
         dispatch({
           type: 'UPDATE_SONG',
           payload: {
@@ -89,17 +83,28 @@ const LibraryPage: React.FC = () => {
             updates: { favorite: song.favorite } // Revert to original status
           }
         });
-        // Optional: Show error notification to user
     }
   };
 
+  // Handle song metadata update
+  const handleSongUpdated = (updatedSong: Song) => {
+    // Update the song in context
+    dispatch({
+      type: 'UPDATE_SONG',
+      payload: {
+        id: updatedSong.id,
+        updates: updatedSong
+      }
+    });
+    
+    // Invalidate the songs query to refresh data
+    songsQuery.refetch();
+  };
 
-  // Handle play song (no changes needed)
   const handlePlaySong = (song: Song) => { // Use the Song type
     navigate(`/player/${song.id}`);
   };
 
-  // Handle add to queue (no changes needed)
   const handleAddToQueue = (song: Song) => { // Use the Song type
     navigate('/queue', { state: { songId: song.id } });
   };
@@ -253,6 +258,7 @@ const LibraryPage: React.FC = () => {
                       onPlay={handlePlaySong}
                       onAddToQueue={handleAddToQueue}
                       onToggleFavorite={handleToggleFavorite}
+                      onSongUpdated={handleSongUpdated}
                     />
                   ))}
                 </div>
@@ -265,6 +271,7 @@ const LibraryPage: React.FC = () => {
                       onPlay={handlePlaySong}
                       onAddToQueue={handleAddToQueue}
                       onToggleFavorite={handleToggleFavorite}
+                      onSongUpdated={handleSongUpdated}
                       compact
                     />
                   ))}

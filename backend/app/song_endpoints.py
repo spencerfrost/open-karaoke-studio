@@ -56,6 +56,7 @@ def get_songs():
                 favorite=metadata.favorite,
                 dateAdded=metadata.dateAdded,
                 coverArt=metadata.coverArt,
+                thumbnail=metadata.thumbnail,  # Include thumbnail from metadata
             )
         else:
             # Fallback if metadata is missing
@@ -198,6 +199,8 @@ def get_song_details(song_id: str):
         }
         
         current_app.logger.info(f"Returning details for song {song_id}")
+        # Log the song_dir for debugging
+        current_app.logger.info(f"Song directory for {song_id}: {song_dir}")
         return jsonify(response), 200
             
     except Exception as e:
@@ -264,6 +267,32 @@ def update_song_metadata(song_id: str):
     except Exception as e:
         current_app.logger.error(f"Error updating metadata for song '{song_id}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred while updating metadata."}), 500
+
+
+@song_bp.route('/<string:song_id>/thumbnail.jpg', methods=['GET'])
+def get_thumbnail(song_id: str):
+    """Serve the thumbnail image for a song."""
+    from flask import send_file
+    import os
+
+    # Decode the song ID to handle URL-encoded characters
+    from urllib.parse import unquote
+    song_id = unquote(song_id)
+
+    # Construct the path to the thumbnail
+    song_dir = file_management.get_song_dir(song_id)
+    thumbnail_path = song_dir / "thumbnail.jpg"
+
+    if not thumbnail_path.exists():
+        return jsonify({"error": "Thumbnail not found"}), 404
+
+    if not os.access(thumbnail_path, os.R_OK):
+        return jsonify({"error": "Thumbnail is not readable"}), 403
+
+    try:
+        return send_file(thumbnail_path, mimetype='image/jpeg')
+    except Exception:
+        return jsonify({"error": "An internal error occurred while serving the thumbnail."}), 500
 
 
 # Example: Delete song
