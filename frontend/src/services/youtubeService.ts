@@ -1,7 +1,7 @@
 /**
  * YouTube-related API services
  */
-import { apiRequest } from './api';
+import { apiRequest } from "./api";
 
 export interface YouTubeSearchResult {
   id: string;
@@ -31,8 +31,8 @@ export interface YouTubeDownloadResponse {
  * Search YouTube for videos matching the query
  */
 export async function searchYouTube(query: string, maxResults: number = 10) {
-  return apiRequest<YouTubeSearchResponse>('/api/youtube/search', {
-    method: 'POST',
+  return apiRequest<YouTubeSearchResponse>("/api/youtube/search", {
+    method: "POST",
     body: {
       query,
       max_results: maxResults,
@@ -44,8 +44,8 @@ export async function searchYouTube(query: string, maxResults: number = 10) {
  * Download a YouTube video as MP3
  */
 export async function downloadYouTubeVideo(videoId: string) {
-  return apiRequest<YouTubeDownloadResponse>('/api/youtube/download', {
-    method: 'POST',
+  return apiRequest<YouTubeDownloadResponse>("/api/youtube/download", {
+    method: "POST",
     body: {
       video_id: videoId,
     },

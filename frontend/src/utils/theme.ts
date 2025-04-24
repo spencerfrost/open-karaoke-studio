@@ -1,10 +1,10 @@
 // Vintage enamel sign palette
 export const vintageColors = {
   russet: "#774320", // Deep brown
-  rust: "#B44819",   // Reddish-brown/orange
+  rust: "#B44819", // Reddish-brown/orange
   lemonChiffon: "#F5F3C7", // Creamy off-white
   orangePeel: "#FD9A02", // Vibrant orange
-  darkCyan: "#01928B"   // Teal/turquoise
+  darkCyan: "#01928B", // Teal/turquoise
 };
 
 export const vintageTheme = {
@@ -16,16 +16,16 @@ export const vintageTheme = {
   // Generate a texture overlay CSS
   getTextureOverlay: () => ({
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E")`,
-    backgroundRepeat: 'repeat' as const,
-    position: 'absolute' as const,
+    backgroundRepeat: "repeat" as const,
+    position: "absolute" as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 10,
-    pointerEvents: 'none' as const,
+    pointerEvents: "none" as const,
   }),
-  
+
   // Generate a sunburst pattern CSS
   getSunburstPattern: () => ({
     background: `
@@ -37,16 +37,16 @@ export const vintageTheme = {
         ${vintageColors.russet}80 12deg
       )
     `,
-    backgroundSize: '100% 100%, 100% 100%' as const,
-    position: 'absolute' as const,
+    backgroundSize: "100% 100%, 100% 100%" as const,
+    position: "absolute" as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     opacity: 0.15,
     zIndex: 5,
-    pointerEvents: 'none' as const
-  })
+    pointerEvents: "none" as const,
+  }),
 };
 
 // For future theme expansion

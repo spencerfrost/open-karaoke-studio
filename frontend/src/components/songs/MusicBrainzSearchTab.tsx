@@ -1,9 +1,5 @@
 import React, { useState } from "react";
-import {
-  DialogHeader,
-  DialogDescription,
-  DialogTitle,
-} from "../ui/dialog";
+import { DialogHeader, DialogDescription, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -58,7 +54,9 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
     <div className="pt-6 h-full flex flex-col">
       {/* Header */}
       <DialogHeader className="flex-grow">
-        <DialogTitle className="text-lg font-semibold">Search MusicBrainz</DialogTitle>
+        <DialogTitle className="text-lg font-semibold">
+          Search MusicBrainz
+        </DialogTitle>
         <DialogDescription>
           Find the correct metadata for your song.
           <br />

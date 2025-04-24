@@ -1,22 +1,28 @@
 /**
  * Upload-related API services
  */
-import { uploadFile, apiRequest } from './api';
-import { SongProcessingRequest, SongProcessingStatus } from '../types/Song';
+import { uploadFile, apiRequest } from "./api";
+import { SongProcessingRequest, SongProcessingStatus } from "../types/Song";
 
 /**
  * Upload and process an audio file
  */
-export async function uploadAndProcessAudio(file: File, metadata?: { title?: string; artist?: string }) {
-  return uploadFile<{ id: string; status: string }>('/process', file, metadata);
+export async function uploadAndProcessAudio(
+  file: File,
+  metadata?: { title?: string; artist?: string },
+) {
+  return uploadFile<{ id: string; status: string }>("/process", file, metadata);
 }
 
 /**
  * Process a YouTube video
  */
-export async function processYouTubeVideo(youtubeUrl: string, metadata?: { title?: string; artist?: string }) {
-  return apiRequest<{ id: string; status: string }>('/process-youtube', {
-    method: 'POST',
+export async function processYouTubeVideo(
+  youtubeUrl: string,
+  metadata?: { title?: string; artist?: string },
+) {
+  return apiRequest<{ id: string; status: string }>("/process-youtube", {
+    method: "POST",
     body: {
       url: youtubeUrl,
       ...metadata,
@@ -29,7 +35,7 @@ export async function processYouTubeVideo(youtubeUrl: string, metadata?: { title
  */
 export async function getProcessingQueue() {
   // Get jobs from the queue endpoint
-  const response = await apiRequest<{jobs: any[]}>('/queue/jobs');
+  const response = await apiRequest<{ jobs: any[] }>("/queue/jobs");
 
   if (response.error) {
     return response;
@@ -39,17 +45,17 @@ export async function getProcessingQueue() {
     // Transform backend job format to frontend SongProcessingStatus format
     const processedData: SongProcessingStatus[] = response.data.jobs
       // Only include pending, processing, or failed jobs
-      .filter(job => ['pending', 'processing', 'failed'].includes(job.status))
-      .map(job => ({
+      .filter((job) => ["pending", "processing", "failed"].includes(job.status))
+      .map((job) => ({
         id: job.id,
         progress: job.progress || 0,
         status: mapBackendStatus(job.status),
-        message: job.error || job.notes || undefined
+        message: job.error || job.notes || undefined,
       }));
 
     return {
       data: processedData,
-      error: null
+      error: null,
     };
   }
 
@@ -61,17 +67,17 @@ export async function getProcessingQueue() {
  */
 function mapBackendStatus(backendStatus: string): SongStatus {
   switch (backendStatus) {
-    case 'pending':
-      return 'queued';
-    case 'processing':
-      return 'processing';
-    case 'completed':
-      return 'processed';
-    case 'failed':
-    case 'cancelled':
-      return 'error';
+    case "pending":
+      return "queued";
+    case "processing":
+      return "processing";
+    case "completed":
+      return "processed";
+    case "failed":
+    case "cancelled":
+      return "error";
     default:
-      return 'error';
+      return "error";
   }
 }
 
@@ -91,12 +97,12 @@ export async function getProcessingStatus(taskId: string) {
       id: response.data.id,
       progress: response.data.progress || 0,
       status: mapBackendStatus(response.data.status),
-      message: response.data.error || response.data.notes || undefined
+      message: response.data.error || response.data.notes || undefined,
     };
 
     return {
       data: processedData,
-      error: null
+      error: null,
     };
   }
 
@@ -108,6 +114,6 @@ export async function getProcessingStatus(taskId: string) {
  */
 export async function cancelProcessing(taskId: string) {
   return apiRequest<{ success: boolean }>(`/queue/job/${taskId}/cancel`, {
-    method: 'POST',
+    method: "POST",
   });
 }

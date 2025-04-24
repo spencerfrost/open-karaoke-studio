@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { QrCode } from 'lucide-react';
-import vintageTheme from '../../utils/theme';
+import React, { useEffect, useState } from "react";
+import { QrCode } from "lucide-react";
+import vintageTheme from "../../utils/theme";
 
 interface QRCodeDisplayProps {
   value: string;
@@ -13,13 +13,13 @@ interface QRCodeDisplayProps {
 const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   value,
   size = 200,
-  title = 'Scan to Add Songs',
-  description = 'Use your phone to add songs to the queue',
-  className = '',
+  title = "Scan to Add Songs",
+  description = "Use your phone to add songs to the queue",
+  className = "",
 }) => {
   const colors = vintageTheme.colors;
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
+
   // Generate QR code URL when component mounts or value changes
   useEffect(() => {
     // Using Google Charts API to generate QR code
@@ -28,28 +28,28 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
     const url = `https://chart.googleapis.com/chart?cht=qr&chl=${encodedValue}&chs=${size}x${size}&chco=000000`;
     setQrCodeUrl(url);
   }, [value, size]);
-  
+
   return (
     <div className={`flex flex-col items-center ${className}`}>
       {title && (
-        <h2 
+        <h2
           className="text-2xl font-semibold text-center mb-2"
           style={{ color: colors.orangePeel }}
         >
           {title}
         </h2>
       )}
-      
+
       {description && (
-        <p 
+        <p
           className="text-center mb-6 opacity-80"
           style={{ color: colors.lemonChiffon }}
         >
           {description}
         </p>
       )}
-      
-      <div 
+
+      <div
         className="p-4 rounded-lg flex items-center justify-center"
         style={{
           backgroundColor: colors.lemonChiffon,
@@ -59,18 +59,18 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
         }}
       >
         {qrCodeUrl ? (
-          <img 
-            src={qrCodeUrl} 
-            alt="QR Code" 
-            width={size} 
+          <img
+            src={qrCodeUrl}
+            alt="QR Code"
+            width={size}
             height={size}
             style={{
-              display: 'block',
-              maxWidth: '100%',
+              display: "block",
+              maxWidth: "100%",
             }}
           />
         ) : (
-          <div 
+          <div
             className="flex items-center justify-center"
             style={{ width: size, height: size }}
           >

@@ -1,7 +1,7 @@
-import React from 'react';
-import { Music, X } from 'lucide-react';
-import { QueueItemWithSong } from '../../types/Queue';
-import vintageTheme from '../../utils/theme';
+import React from "react";
+import { Music, X } from "lucide-react";
+import { QueueItemWithSong } from "../../types/Queue";
+import vintageTheme from "../../utils/theme";
 
 interface QueueItemProps {
   item: QueueItemWithSong;
@@ -16,32 +16,34 @@ const QueueItem: React.FC<QueueItemProps> = ({
   index,
   isActive = false,
   onRemove,
-  className = '',
+  className = "",
 }) => {
   const colors = vintageTheme.colors;
-  
+
   return (
-    <div 
+    <div
       className={`p-4 flex items-center ${className}`}
       style={{
-        backgroundColor: isActive ? `${colors.darkCyan}30` : 'transparent',
+        backgroundColor: isActive ? `${colors.darkCyan}30` : "transparent",
         borderBottom: `1px solid ${colors.orangePeel}30`,
       }}
     >
       {/* Position indicator */}
-      <div 
+      <div
         className="h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0"
         style={{
-          backgroundColor: isActive ? colors.darkCyan : `${colors.orangePeel}40`,
+          backgroundColor: isActive
+            ? colors.darkCyan
+            : `${colors.orangePeel}40`,
           color: isActive ? colors.lemonChiffon : colors.orangePeel,
         }}
       >
         {index + 1}
       </div>
-      
+
       {/* Song info */}
       <div className="flex-1 min-w-0">
-        <h3 
+        <h3
           className="font-semibold text-xl truncate"
           style={{
             color: isActive ? colors.orangePeel : colors.lemonChiffon,
@@ -50,12 +52,15 @@ const QueueItem: React.FC<QueueItemProps> = ({
           {item.song.title}
         </h3>
         <p className="opacity-80 truncate">
-          {item.song.artist} • <span style={{ color: colors.orangePeel }}>Singer: {item.singer}</span>
+          {item.song.artist} •{" "}
+          <span style={{ color: colors.orangePeel }}>
+            Singer: {item.singer}
+          </span>
         </p>
       </div>
-      
+
       {/* Album art / icon */}
-      <div 
+      <div
         className="h-12 w-12 rounded-md flex items-center justify-center ml-3 mr-1 shrink-0"
         style={{ backgroundColor: `${colors.orangePeel}20` }}
       >
@@ -69,7 +74,7 @@ const QueueItem: React.FC<QueueItemProps> = ({
           <Music size={24} style={{ color: colors.darkCyan }} />
         )}
       </div>
-      
+
       {/* Remove button */}
       {onRemove && (
         <button
@@ -77,7 +82,12 @@ const QueueItem: React.FC<QueueItemProps> = ({
           onClick={() => onRemove(item.id)}
           aria-label="Remove from queue"
         >
-          <X size={18} style={{ color: isActive ? colors.orangePeel : colors.lemonChiffon }} />
+          <X
+            size={18}
+            style={{
+              color: isActive ? colors.orangePeel : colors.lemonChiffon,
+            }}
+          />
         </button>
       )}
     </div>

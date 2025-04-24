@@ -38,7 +38,7 @@ const fileUploadFormSchema = z.object({
     .instanceof(File, { message: "Please select an audio file." })
     .refine(
       (file) => file.size <= MAX_FILE_SIZE,
-      `Max file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+      `Max file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
     )
     .optional()
     .nullable(),
@@ -99,7 +99,7 @@ const AddSongPage: React.FC = () => {
       // Handle successful upload
       console.log("File uploaded successfully:", response.data);
       toast.success(
-        `${fileToProcess.name} uploaded successfully and processing started!`
+        `${fileToProcess.name} uploaded successfully and processing started!`,
       );
       form.reset(); // Reset form fields on success
     } catch (error) {
@@ -130,17 +130,16 @@ const AddSongPage: React.FC = () => {
         {/* Upload Alternative */}
         <Card>
           <CardHeader>
-            <CardTitle>
-              Upload File
-            </CardTitle>
-            <CardDescription>
-              Or upload your own audio files
-            </CardDescription>
+            <CardTitle>Upload File</CardTitle>
+            <CardDescription>Or upload your own audio files</CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmitUpload)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmitUpload)}
+                className="space-y-6"
+              >
                 <FormField
                   control={form.control}
                   name="audioFile"

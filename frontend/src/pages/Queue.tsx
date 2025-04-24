@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useQueue } from '../context/QueueContext';
-import { useSongs } from '../context/SongsContext';
-import QueueList from '../components/queue/QueueList';
-import AppLayout from '../components/layout/AppLayout';
-import { getQueue, addToQueue, removeFromQueue, skipToNext } from '../services/queueService';
-import vintageTheme from '../utils/theme';
+import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { useQueue } from "../context/QueueContext";
+import { useSongs } from "../context/SongsContext";
+import QueueList from "../components/queue/QueueList";
+import AppLayout from "../components/layout/AppLayout";
+import {
+  getQueue,
+  addToQueue,
+  removeFromQueue,
+  skipToNext,
+} from "../services/queueService";
+import vintageTheme from "../utils/theme";
 
 const QueuePage: React.FC = () => {
   const location = useLocation();
   const { state: queueState, dispatch: queueDispatch } = useQueue();
   const { state: songsState } = useSongs();
-  const [singerName, setSingerName] = useState('');
-  const [selectedSongId, setSelectedSongId] = useState<string>('');
+  const [singerName, setSingerName] = useState("");
+  const [selectedSongId, setSelectedSongId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const colors = vintageTheme.colors;
@@ -30,12 +35,12 @@ const QueuePage: React.FC = () => {
       setIsLoading(true);
       const response = await getQueue();
       setIsLoading(false);
-      
+
       if (response.data) {
-        queueDispatch({ type: 'SET_QUEUE', payload: response.data });
+        queueDispatch({ type: "SET_QUEUE", payload: response.data });
       }
     };
-    
+
     fetchQueue();
   }, [queueDispatch]);
 
@@ -55,47 +60,47 @@ const QueuePage: React.FC = () => {
   const handleAddToQueue = async () => {
     // Validate input
     if (!singerName.trim()) {
-      setError('Please enter your name');
+      setError("Please enter your name");
       return;
     }
-    
+
     if (!selectedSongId) {
-      setError('Please select a song');
+      setError("Please select a song");
       return;
     }
-    
+
     try {
       const response = await addToQueue({
         songId: selectedSongId,
-        singer: singerName
+        singer: singerName,
       });
-      
+
       if (response.error) {
         setError(response.error);
         return;
       }
-      
+
       if (response.data) {
         // Find the matching song from the songs state
-        const song = songsState.songs.find(s => s.id === selectedSongId);
-        
+        const song = songsState.songs.find((s) => s.id === selectedSongId);
+
         if (song) {
           // Construct the queue item with song data
           const queueItem = {
             ...response.data,
-            song
+            song,
           };
-          
+
           // Add to queue state
-          queueDispatch({ type: 'ADD_TO_QUEUE', payload: queueItem });
-          
+          queueDispatch({ type: "ADD_TO_QUEUE", payload: queueItem });
+
           // Reset form
-          setSingerName('');
-          setSelectedSongId('');
+          setSingerName("");
+          setSelectedSongId("");
         }
       }
     } catch (err) {
-      setError('Failed to add to queue. Please try again.');
+      setError("Failed to add to queue. Please try again.");
     }
   };
 
@@ -103,43 +108,43 @@ const QueuePage: React.FC = () => {
   const handleRemoveFromQueue = async (id: string) => {
     try {
       const response = await removeFromQueue(id);
-      
+
       if (response.data && response.data.success) {
         // Remove from queue state
-        queueDispatch({ type: 'REMOVE_FROM_QUEUE', payload: id });
+        queueDispatch({ type: "REMOVE_FROM_QUEUE", payload: id });
       }
     } catch (err) {
-      console.error('Failed to remove from queue:', err);
+      console.error("Failed to remove from queue:", err);
     }
   };
 
   return (
     <AppLayout>
       <div>
-        <h1 
+        <h1
           className="text-2xl font-semibold mb-6"
           style={{ color: colors.orangePeel }}
         >
           Singer Queue
         </h1>
-        
+
         {/* Current song (if any) */}
         {queueState.currentItem && (
-          <div 
+          <div
             className="rounded-lg p-4 mb-6"
             style={{
               backgroundColor: colors.lemonChiffon,
-              color: colors.russet
+              color: colors.russet,
             }}
           >
-            <h2 
+            <h2
               className="font-medium mb-3"
               style={{ color: colors.orangePeel }}
             >
               Now Playing
             </h2>
             <div className="flex items-center">
-              <div 
+              <div
                 className="h-16 w-16 rounded-md flex items-center justify-center mr-4"
                 style={{ backgroundColor: `${colors.orangePeel}20` }}
               >
@@ -169,24 +174,24 @@ const QueuePage: React.FC = () => {
             </div>
           </div>
         )}
-        
+
         {/* Queue list */}
-        <h2 
-          className="font-medium mb-2"
-          style={{ color: colors.orangePeel }}
-        >
+        <h2 className="font-medium mb-2" style={{ color: colors.orangePeel }}>
           Up Next
         </h2>
-        <div 
+        <div
           className="rounded-lg overflow-hidden mb-6"
           style={{
             backgroundColor: `${colors.lemonChiffon}20`,
-            backdropFilter: 'blur(8px)',
-            border: `1px solid ${colors.orangePeel}40`
+            backdropFilter: "blur(8px)",
+            border: `1px solid ${colors.orangePeel}40`,
           }}
         >
           {isLoading ? (
-            <div className="p-6 text-center" style={{ color: colors.lemonChiffon }}>
+            <div
+              className="p-6 text-center"
+              style={{ color: colors.lemonChiffon }}
+            >
               Loading queue...
             </div>
           ) : (
@@ -197,66 +202,68 @@ const QueuePage: React.FC = () => {
             />
           )}
         </div>
-        
+
         {/* Add to queue form */}
-        <div 
+        <div
           className="rounded-lg p-4"
           style={{
             backgroundColor: colors.lemonChiffon,
-            color: colors.russet
+            color: colors.russet,
           }}
         >
           <h3 className="font-medium mb-3">Add Yourself to Queue</h3>
-          
+
           {error && (
-            <div 
+            <div
               className="mb-3 p-2 rounded text-sm"
-              style={{ backgroundColor: `${colors.rust}20`, color: colors.rust }}
+              style={{
+                backgroundColor: `${colors.rust}20`,
+                color: colors.rust,
+              }}
             >
               {error}
             </div>
           )}
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <input 
-              type="text" 
-              placeholder="Your Name" 
+            <input
+              type="text"
+              placeholder="Your Name"
               className="border rounded px-3 py-2 focus:outline-none"
               style={{
                 backgroundColor: `${colors.lemonChiffon}80`,
                 borderColor: colors.orangePeel,
-                color: colors.russet
+                color: colors.russet,
               }}
               value={singerName}
               onChange={handleSingerNameChange}
             />
-            <select 
+            <select
               className="border rounded px-3 py-2 focus:outline-none"
               style={{
                 backgroundColor: `${colors.lemonChiffon}80`,
                 borderColor: colors.orangePeel,
-                color: colors.russet
+                color: colors.russet,
               }}
               value={selectedSongId}
               onChange={handleSongSelection}
             >
               <option value="">Select a Song</option>
               {songsState.songs
-                .filter(song => song.status === 'processed')
-                .map(song => (
+                .filter((song) => song.status === "processed")
+                .map((song) => (
                   <option key={song.id} value={song.id}>
                     {song.title} - {song.artist}
                   </option>
-                ))
-              }
+                ))}
             </select>
           </div>
-          <button 
+          <button
             className="w-full py-2 rounded transition-colors hover:opacity-90"
             style={{
               backgroundColor: colors.orangePeel,
               color: colors.russet,
-              border: `1px solid ${colors.lemonChiffon}`
+              border: `1px solid ${colors.lemonChiffon}`,
             }}
             onClick={handleAddToQueue}
           >

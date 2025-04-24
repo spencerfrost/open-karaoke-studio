@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
 import { Badge } from "@/components/ui/badge"; // Import ShadCN Badge
 import { Progress } from "@/components/ui/progress"; // Import ShadCN Progress
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Import ShadCN Card components
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"; // Import ShadCN Card components
 import { toast } from "sonner"; // For user feedback on cancel/error
 
 // Removed: import vintageTheme from "../../utils/theme";
@@ -107,7 +113,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       } else {
         // Revert if backend indicates failure differently
         toast.warning(
-          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`
+          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`,
         );
         setProcessingItems(originalItems);
       }
@@ -123,7 +129,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
 
   // Get status label and badge variant
   const getStatusInfo = (
-    status: string
+    status: string,
   ): { label: string; variant: "secondary" | "default" | "destructive" } => {
     switch (status?.toLowerCase()) {
       case "processing":

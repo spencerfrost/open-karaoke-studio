@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -10,11 +10,11 @@
 :root {
   /* Base colors */
   --black: #080705;
-  --rust: #B44819;
+  --rust: #b44819;
   --russet: #774320;
-  --lemon-chiffon: #F5F3C7;
-  --orange-peel: #FD9A02;
-  --dark-cyan: #01928B;
+  --lemon-chiffon: #f5f3c7;
+  --orange-peel: #fd9a02;
+  --dark-cyan: #01928b;
 
   /* UI Elements */
   --radius: 0.5rem;
@@ -90,41 +90,50 @@
 
 @layer base {
   body {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: "DM Sans", system-ui, sans-serif;
     @apply bg-background text-foreground;
-    background-image: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
+    background-image: linear-gradient(
+      135deg,
+      var(--russet) 0%,
+      var(--rust) 100%
+    );
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-weight: 500;
   }
-  
+
   /* Retro-style font for vintage flair */
   .font-retro {
-    font-family: 'VT323', monospace;
+    font-family: "VT323", monospace;
     letter-spacing: 0.05em;
   }
-  
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.1);
     border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: var(--dark-cyan);
     border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: color-mix(in srgb, var(--dark-cyan), white 10%);
   }
-  
+
   /* Texture overlay */
   .texture-overlay {
     position: absolute;
@@ -137,7 +146,7 @@
     pointer-events: none;
     z-index: 10;
   }
-  
+
   /* Sunburst pattern */
   .sunburst-pattern {
     position: absolute;
@@ -146,16 +155,16 @@
     right: 0;
     bottom: 0;
     background: repeating-conic-gradient(
-      var(--rust)80 0deg, 
-      var(--rust)80 6deg, 
-      var(--russet)80 6deg,
-      var(--russet)80 12deg
+      var(--rust) 80 0deg,
+      var(--rust) 80 6deg,
+      var(--russet) 80 6deg,
+      var(--russet) 80 12deg
     );
     opacity: 0.15;
     z-index: 5;
     pointer-events: none;
   }
-  
+
   /* Input styling */
   input[type="range"] {
     -webkit-appearance: none;
@@ -164,7 +173,7 @@
     background: color-mix(in srgb, var(--russet), transparent 70%);
     border-radius: 3px;
   }
-  
+
   input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
@@ -174,7 +183,7 @@
     background: var(--dark-cyan);
     cursor: pointer;
   }
-  
+
   /* For Firefox */
   input[type="range"]::-moz-range-thumb {
     width: 16px;
@@ -184,23 +193,33 @@
     cursor: pointer;
     border: none;
   }
-  
+
   /* Animations */
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
-  
+
   .fade-in {
     animation: fadeIn 0.3s ease-in-out;
   }
-  
+
   @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
-  
+
   .pulse {
     animation: pulse 2s infinite ease-in-out;
   }
