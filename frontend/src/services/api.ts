@@ -4,6 +4,7 @@
 
 // Base API URL - will be replaced with environment variable
 const API_BASE_URL = 'http://localhost:5000';
+export const API_BASE = API_BASE_URL;
 
 // Types
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';

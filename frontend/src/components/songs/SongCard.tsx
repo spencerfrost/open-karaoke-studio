@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Music, Heart, Play } from 'lucide-react';
 import MetadataEditor from './MetadataEditor';
 import { Song } from '../../types/Song';
 import { formatTime } from '../../utils/formatters';
 import vintageTheme from '../../utils/theme';
+import { getAudioUrl } from '../../services/songService';
 
 interface SongCardProps {
   song: Song;
@@ -22,6 +23,8 @@ const SongCard: React.FC<SongCardProps> = ({
   onSongUpdated,
   compact = false,
 }) => {
+  // Local state for inline preview
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const colors = vintageTheme.colors;
   
   // Vintage card style
@@ -138,7 +141,11 @@ const SongCard: React.FC<SongCardProps> = ({
         {song.status === 'processed' && (
           <button
             className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity"
-            onClick={() => onPlay(song)}
+            onClick={() => {
+              const url = getAudioUrl(song.id, 'vocals');
+              setPreviewSrc(url);
+              onPlay(song);
+            }}
             aria-label="Play song"
           >
             <div
@@ -196,6 +203,12 @@ const SongCard: React.FC<SongCardProps> = ({
           )}
         </div>
       </div>
+      {/* Inline audio player for preview */}
+      {previewSrc && (
+        <div className="p-3 bg-black bg-opacity-20">
+          <audio controls src={previewSrc} autoPlay className="w-full" />
+        </div>
+      )}
     </div>
   );
 };
