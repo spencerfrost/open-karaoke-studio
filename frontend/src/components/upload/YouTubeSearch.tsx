@@ -11,7 +11,14 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { searchYouTube, downloadYouTubeVideo } from "@/services/youtubeService";
+import { 
+  searchYouTube, 
+  downloadYouTubeVideo,
+  fetchEnhancedMetadata,
+  fetchLyrics
+} from "@/services/youtubeService";
+import { parseYouTubeTitle } from "@/utils/formatters";
+import { MetadataDialog } from "./MetadataDialog";
 
 // Helper functions
 const formatDuration = (seconds: number) => {
@@ -40,6 +47,11 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<string[]>([]);
+  
+  // State for metadata dialog
+  const [isMetadataDialogOpen, setIsMetadataDialogOpen] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<YouTubeResult | null>(null);
+  const [isSubmittingMetadata, setIsSubmittingMetadata] = useState(false);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -68,22 +80,63 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
     }
   };
 
-  const handleDownload = async (result: YouTubeResult) => {
+  const handleSelectForDownload = (result: YouTubeResult) => {
+    setSelectedResult(result);
+    setIsMetadataDialogOpen(true);
+  };
+
+  const handleMetadataSubmit = async (metadata: { artist: string; title: string }) => {
+    if (!selectedResult) return;
+    
     try {
-      setDownloadingIds((prev) => [...prev, result.id]);
+      setIsSubmittingMetadata(true);
+      setDownloadingIds((prev) => [...prev, selectedResult.id]);
 
       // Notify parent component about download start if callback provided
       if (onDownloadStart) {
-        onDownloadStart(result.id, result.title);
+        onDownloadStart(selectedResult.id, metadata.title);
       }
 
-      const response = await downloadYouTubeVideo(result.id);
+      // 1. Start the audio processing with user-verified metadata
+      const downloadResponse = await downloadYouTubeVideo(selectedResult.id, {
+        title: metadata.title,
+        artist: metadata.artist,
+      });
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (downloadResponse.error) {
+        throw new Error(downloadResponse.error);
       }
 
-      toast.success(`Added "${result.title}" to processing queue`);
+      // Extract the song_id from the response for use in other API calls
+      const songId = downloadResponse.data?.metadata?.id;
+
+      // 2. Start fetching enhanced metadata from MusicBrainz (non-blocking)
+      fetchEnhancedMetadata(metadata.title, metadata.artist, songId)
+        .then(response => {
+          if (!response.error && response.data) {
+            console.log("Enhanced metadata received:", response.data);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching enhanced metadata:", error);
+        });
+
+      // 3. Start fetching lyrics from LRCLIB (non-blocking)
+      fetchLyrics(metadata.title, metadata.artist, songId)
+        .then(response => {
+          if (!response.error && response.data) {
+            console.log("Lyrics received:", response.data);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching lyrics:", error);
+        });
+
+      toast.success(`Added "${metadata.title}" by ${metadata.artist} to processing queue`);
+      
+      // Close dialog
+      setIsMetadataDialogOpen(false);
+      setSelectedResult(null);
     } catch (error) {
       console.error("Download error:", error);
       toast.error(
@@ -92,7 +145,8 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
         }`,
       );
     } finally {
-      setDownloadingIds((prev) => prev.filter((id) => id !== result.id));
+      setIsSubmittingMetadata(false);
+      setDownloadingIds((prev) => prev.filter((id) => selectedResult.id !== id));
     }
   };
 
@@ -159,7 +213,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
                     <YouTubeResultCard
                       key={result.id}
                       result={result}
-                      onDownload={() => handleDownload(result)}
+                      onDownload={() => handleSelectForDownload(result)}
                       isDownloading={downloadingIds.includes(result.id)}
                     />
                   ))}
@@ -169,6 +223,18 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
           )}
         </div>
       </CardContent>
+
+      {/* Metadata Dialog */}
+      {selectedResult && (
+        <MetadataDialog 
+          isOpen={isMetadataDialogOpen}
+          onClose={() => setIsMetadataDialogOpen(false)}
+          onSubmit={handleMetadataSubmit}
+          initialMetadata={parseYouTubeTitle(selectedResult.title)}
+          videoTitle={selectedResult.title}
+          isSubmitting={isSubmittingMetadata}
+        />
+      )}
     </Card>
   );
 };

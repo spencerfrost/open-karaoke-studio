@@ -79,3 +79,94 @@ def get_lyrics_by_id(lyrics_id: int):
     # Proxy GET /api/get/{id}
     status, data = _make_request(f'/api/get/{lyrics_id}', {})
     return jsonify(data), status
+
+
+@lyrics_bp.route('/search', methods=['POST'])
+def search_lyrics_json():
+    """
+    Search for lyrics via POST with JSON body containing artist and title.
+    This endpoint is more directly aligned with our frontend metadata dialog flow.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    title = data.get('title', '')
+    artist = data.get('artist', '')
+    song_id = data.get('song_id')  # Optional song_id for direct metadata update
+    duration = data.get('duration')  # Optional duration for more precise matching
+    
+    if not title or not artist:
+        return jsonify({'error': 'Both title and artist are required'}), 400
+    
+    # Prepare parameters for LRCLIB API
+    params = {
+        'track_name': title,
+        'artist_name': artist
+    }
+    
+    # Add duration if available
+    if duration:
+        params['duration'] = duration
+    
+    try:
+        # Make the API call to LRCLIB
+        status, data = _make_request('/api/get', params)
+        
+        # If song_id is provided, we could save the lyrics directly to the song's metadata
+        # This would require accessing the file_management module and updating metadata
+        if song_id and status == 200 and data and not data.get('error'):
+            try:
+                from .file_management import read_song_metadata, write_song_metadata
+                from .models import SongMetadata
+                
+                # Read current metadata
+                metadata = read_song_metadata(song_id)
+                if metadata:
+                    # Convert to dict for updating
+                    metadata_dict = metadata.dict() if hasattr(metadata, 'dict') else metadata.model_dump()
+                    
+                    # Update with lyrics data
+                    if 'syncedLyrics' in data:
+                        metadata_dict['syncedLyrics'] = data['syncedLyrics']
+                    if 'plainLyrics' in data:
+                        metadata_dict['lyrics'] = data['plainLyrics']
+                    
+                    # Write updated metadata
+                    write_song_metadata(song_id, SongMetadata(**metadata_dict))
+                    
+                    # Add flag indicating metadata was updated
+                    data['metadataUpdated'] = True
+            except Exception as e:
+                current_app.logger.error(f"Error updating lyrics in metadata: {str(e)}")
+                # Still return lyrics even if metadata update failed
+                data['metadataUpdateError'] = str(e)
+        
+        return jsonify(data), status
+    except Exception as e:
+        current_app.logger.error(f"Error fetching lyrics: {str(e)}")
+        return jsonify({'error': f'Failed to fetch lyrics: {str(e)}'}), 500
+
+
+# Function to be called directly from other modules
+def fetch_lyrics(title: str, artist: str, duration: float = None):
+    """
+    Fetch lyrics for a song that can be called from other modules.
+    Returns lyrics data or None if not found.
+    """
+    params = {
+        'track_name': title,
+        'artist_name': artist
+    }
+    
+    if duration:
+        params['duration'] = str(duration)
+    
+    try:
+        status, data = _make_request('/api/get', params)
+        if status == 200 and not data.get('error'):
+            return data
+        return None
+    except Exception as e:
+        current_app.logger.error(f"Error fetching lyrics: {str(e)}")
+        return None
