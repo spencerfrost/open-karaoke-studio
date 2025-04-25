@@ -183,11 +183,16 @@ App
 ### Adding a Song
 1. User navigates to Add Song page
 2. Selects upload method (file or YouTube)
-3. Provides song file or URL
-4. (Optional) Adds metadata
-5. Initiates processing
-6. Views progress in processing queue
-7. Receives notification when processing completes
+3. Provides song file or selects YouTube video via a YouTube search
+4. User enters/verifies song metadata (title, artist, etc.)
+5. A job is created in the backend to process the song:
+  a) The song is added to the audio processing queue
+  b) A metadata search is performed to find the song in the MusicBrainz database
+  c) A lyrics search is performed to find the song in the LRCLIB API.
+6. Progress can be viewed in processing queue (this is useless until we figure out how to calculate the ACTUAL time it takes to process a song and we should probably just show an indeterminant progress bar)
+7. The song is added to the library once processing is complete
+8. User can view the song in the library
+9. User can play the song or add it to the queue
 
 ### Queuing Up to Sing
 1. User navigates to Queue page

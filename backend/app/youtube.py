@@ -78,10 +78,16 @@ def search_youtube_route():
         current_app.logger.error(f"YouTube search error: {str(e)}")
         return jsonify({'error': f'Failed to search YouTube: {str(e)}'}), 500
 
-def download_youtube_audio(video_id, output_dir=None):
+def download_youtube_audio(video_id, output_dir=None, user_title=None, user_artist=None):
     """
     Download audio from a YouTube video and queue it for processing.
-    Also downloads thumbnail and creates rich metadata.
+    Also downloads thumbnail and creates basic metadata.
+    
+    Args:
+        video_id (str): YouTube video ID
+        output_dir (str): Directory for temporary downloads
+        user_title (str, optional): User-provided song title
+        user_artist (str, optional): User-provided artist name
     """
     from flask import current_app
     from .main import create_job, start_processing_job
@@ -107,6 +113,12 @@ def download_youtube_audio(video_id, output_dir=None):
             # Step 2: Parse artist and title from YouTube title
             youtube_title = info.get('title', 'Unknown')
             title, artist = parse_title_artist(youtube_title)
+
+            # Override with user-provided metadata if available
+            if user_title:
+                title = user_title
+            if user_artist:
+                artist = user_artist
 
             # Step 3: Generate meaningful directory name
             dir_name = generate_directory_name(artist, title)
@@ -150,10 +162,12 @@ def download_youtube_audio(video_id, output_dir=None):
 
             # Step 6: Download thumbnail
             thumbnail_url = info.get('thumbnail')
+            thumbnail_path = None
+            has_thumbnail = False
             if thumbnail_url:
                 thumbnail_path = get_thumbnail_path(song_dir)
                 logging.info(f"Downloading thumbnail from {thumbnail_url}")
-                download_image(thumbnail_url, thumbnail_path)
+                has_thumbnail = download_image(thumbnail_url, thumbnail_path)
 
             # Step 7: Create initial metadata
             youtube_metadata = {
@@ -178,33 +192,15 @@ def download_youtube_audio(video_id, output_dir=None):
                 youtube_metadata
             )
 
-            # Step 8: Try to enhance with MusicBrainz
-            enhanced_metadata = enhance_metadata_with_musicbrainz(initial_metadata.dict(), song_dir)
-
-            # If enhancement succeeded, update metadata
-            if enhanced_metadata != initial_metadata.dict():
-                from .models import SongMetadata
-                write_song_metadata(dir_name, SongMetadata(**enhanced_metadata))
-
-            # Step 9: Create job record using the same directory name
+            # Step 8: Create job record using the directory name
             from .main import create_job
             job = create_job(os.path.basename(final_mp3_path), job_id=dir_name)
             if not job:
                 raise Exception("Failed to create processing job record")
 
-            # Step 10: Queue the job for processing
+            # Step 9: Queue the job for processing
             from .main import start_processing_job
             processing_result = start_processing_job(job, Path(final_mp3_path))
-
-            # Step 11: Fetch lyrics
-            from .lyrics_endpoints import fetch_lyrics
-            try:
-                lyrics_data = fetch_lyrics(title=title, artist=artist, duration=info.get('duration', 0))
-                if lyrics_data:
-                    enhanced_metadata['lyrics'] = lyrics_data
-                    write_song_metadata(dir_name, SongMetadata(**enhanced_metadata))
-            except Exception as lyrics_error:
-                logging.warning(f"Failed to fetch lyrics for {title} by {artist}: {lyrics_error}")
 
             # Return comprehensive info
             return {
@@ -217,8 +213,8 @@ def download_youtube_audio(video_id, output_dir=None):
                 'uploader': info.get('uploader', 'Unknown'),
                 'job_id': job.id,
                 'song_dir': str(song_dir),
-                'has_thumbnail': thumbnail_path.exists() if 'thumbnail_path' in locals() else False,
-                'has_cover_art': enhanced_metadata.get('coverArt') is not None if 'enhanced_metadata' in locals() else False,
+                'song_id': dir_name,  # Include song_id for subsequent API calls
+                'has_thumbnail': has_thumbnail,
                 'job_status': job.status.value,
                 'task_id': processing_result.get('task_id')
             }
@@ -231,13 +227,18 @@ def download_youtube_audio(video_id, output_dir=None):
 def download_youtube_route():
     data = request.json
     video_id = data.get('video_id', '')
+    user_title = data.get('title')
+    user_artist = data.get('artist')
 
     if not video_id:
         return jsonify({'error': 'Video ID is required'}), 400
 
     try:
         TEMP_DOWNLOADS_DIR = current_app.config.get('TEMP_DOWNLOADS_DIR', 'uploads')
-        result = download_youtube_audio(video_id, TEMP_DOWNLOADS_DIR)
+        # Pass user-provided metadata to the download function
+        result = download_youtube_audio(video_id, TEMP_DOWNLOADS_DIR, 
+                                       user_title=user_title, 
+                                       user_artist=user_artist)
 
         response_data = {
             'success': True,
