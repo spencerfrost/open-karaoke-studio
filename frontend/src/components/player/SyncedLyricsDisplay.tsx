@@ -1,5 +1,6 @@
-import React from "react";
+import React, { ref } from "react";
 import { Lrc } from "react-lrc";
+import AudioVisualizer from "@/components/player/AudioVisualizer";
 
 interface SyncedLyricsDisplayProps {
   className?: string;

@@ -79,7 +79,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
     }
 
     if (lyrics) {
-      // If we have synced lyrics, use the SyncedLyricsDisplay component
       if (lyrics.syncedLyrics) {
         return (
           <SyncedLyricsDisplay

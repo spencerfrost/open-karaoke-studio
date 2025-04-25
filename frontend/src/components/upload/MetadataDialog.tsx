@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,16 +29,21 @@ export function MetadataDialog({
   videoTitle = "",
   isSubmitting = false,
 }: MetadataDialogProps) {
-  const [artist, setArtist] = useState(initialMetadata.artist);
-  const [title, setTitle] = useState(initialMetadata.title);
+  const [artist, setArtist] = useState("");
+  const [title, setTitle] = useState("");
+  const initialized = useRef(false);
 
-  // Update state when initialMetadata changes
+  // Initialize form values only once when dialog first opens
   useEffect(() => {
-    if (initialMetadata) {
+    if (isOpen && !initialized.current) {
       setArtist(initialMetadata.artist);
       setTitle(initialMetadata.title);
+      initialized.current = true;
+    } else if (!isOpen) {
+      // Reset the initialization flag when dialog closes
+      initialized.current = false;
     }
-  }, [initialMetadata]);
+  }, [isOpen, initialMetadata]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

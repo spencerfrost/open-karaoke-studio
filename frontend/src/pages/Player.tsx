@@ -10,8 +10,10 @@ import ProgressBar from "../components/player/ProgressBar";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
 import { useSettings } from "../context/SettingsContext";
-import { getAudioUrl, getSongById } from "../services/songService";
+import { getAudioUrl, getSongById, searchLyrics } from "../services/songService";
 import { Song } from "../types/Song";
+import { MetadataDialog } from "../components/upload/MetadataDialog";
+import { parseYouTubeTitle } from "../utils/formatters";
 
 const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +25,14 @@ const PlayerPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+  const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
+  const [noLyricsDetected, setNoLyricsDetected] = useState(false);
+  
+  // Derived metadata from the song title or ID
+  const derivedMetadata = currentSong?.title
+    ? parseYouTubeTitle(currentSong.title)
+    : { title: "", artist: "Unknown Artist" };
 
   useEffect(() => {
     if (id) {
@@ -39,11 +49,9 @@ const PlayerPage: React.FC = () => {
           payload: queueItem.song.duration,
         });
         queueDispatch({ type: "SET_CURRENT_ITEM", payload: queueItem });
-        
-        // Set the current song state
+
         setCurrentSong(queueItem.song);
       } else {
-        // If the song isn't in the queue, fetch it directly
         fetchSongDetails(id);
       }
 
@@ -70,6 +78,21 @@ const PlayerPage: React.FC = () => {
       console.error("Failed to fetch song details:", error);
     }
   };
+
+  // Check if lyrics are available and show dialog if needed
+  useEffect(() => {
+    if (currentSong && !noLyricsDetected) {
+      const hasLyrics = 
+        currentSong.lyrics?.trim() ?? 
+        currentSong.syncedLyrics?.trim() ?? 
+        "";
+      
+      if (!hasLyrics) {
+        setNoLyricsDetected(true);
+        setShowMetadataDialog(true);
+      }
+    }
+  }, [currentSong, noLyricsDetected]);
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -122,6 +145,40 @@ const PlayerPage: React.FC = () => {
     }
   };
 
+  // Handle lyrics search submission
+  const handleMetadataSubmit = async (metadata: { artist: string; title: string }) => {
+    if (!id) return;
+    
+    setIsSearchingLyrics(true);
+    
+    try {
+      // Search for lyrics based on metadata
+      const response = await searchLyrics({
+        track_name: metadata.title,
+        artist_name: metadata.artist,
+      });
+      
+      if (response.data && response.data.length > 0) {
+        // Get first result
+        const lyricsData = response.data[0];
+        
+        // Update the current song object with the new lyrics
+        if (currentSong && (lyricsData.plainLyrics || lyricsData.syncedLyrics)) {
+          setCurrentSong({
+            ...currentSong,
+            lyrics: lyricsData.plainLyrics ?? "",
+            syncedLyrics: lyricsData.syncedLyrics ?? "",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to search for lyrics:", error);
+    } finally {
+      setIsSearchingLyrics(false);
+      setShowMetadataDialog(false);
+    }
+  };
+
   // Toggle vocals
   const handleToggleVocals = () => {
     if (vocalsMuted) {
@@ -146,6 +203,16 @@ const PlayerPage: React.FC = () => {
 
   return (
     <PlayerLayout>
+      {/* Metadata Dialog for Lyrics Search */}
+      <MetadataDialog
+        isOpen={showMetadataDialog}
+        onClose={() => setShowMetadataDialog(false)}
+        onSubmit={handleMetadataSubmit}
+        initialMetadata={derivedMetadata}
+        videoTitle={currentSong?.title ?? ""}
+        isSubmitting={isSearchingLyrics}
+      />
+
       {playerState.status === "idle" || !playerState.currentSong ? (
         <div className="flex flex-col gap-4 h-full p-6 relative z-20">
           <div className="text-center mt-8">
@@ -160,13 +227,21 @@ const PlayerPage: React.FC = () => {
           {/* Audio test player */}
           {id && (
             <div className="mt-6">
-
-              <div className="aspect-video w-full bg-black/80 overflow-hidden">
-                <LyricsDisplay 
-                  songId={id} 
+              <div className="aspect-video w-full bg-black/80 overflow-hidden relative">
+                <LyricsDisplay
+                  songId={id}
                   song={currentSong}
-                  progress={progress} 
+                  progress={progress}
                   currentTime={currentTime}
+                />
+                <AudioVisualizer 
+                  className="absolute bottom-0 left-0 right-0" 
+                  expanded={!noLyricsDetected}
+                  onExpandedChange={(expanded) => {
+                    if (!expanded && noLyricsDetected) {
+                      setShowMetadataDialog(true);
+                    }
+                  }}
                 />
               </div>
               <audio
@@ -178,8 +253,6 @@ const PlayerPage: React.FC = () => {
               >
                 <track kind="captions" src="" label="No captions available" />
               </audio>
-              <AudioVisualizer className="my-6" />
-
             </div>
           )}
 
@@ -195,17 +268,11 @@ const PlayerPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        // Karaoke Player View when song is playing
         <div className="flex flex-col h-full relative z-20">
-          {/* Main lyrics and visualization area */}
           <div className="flex-1 flex flex-col items-center justify-center">
-            {/* Audio visualization */}
-            <AudioVisualizer className="mb-6" />
-
-            {/* Lyrics display */}
             <LyricsDisplay
-              songId={playerState.currentSong?.song.id || ''}
-              song={playerState.currentSong?.song}
+              songId={playerState.currentSong?.song.id || ""}
+              song={currentSong || playerState.currentSong?.song}
               progress={progress}
               currentTime={currentTime}
             />
