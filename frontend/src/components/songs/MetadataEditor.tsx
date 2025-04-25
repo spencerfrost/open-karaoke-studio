@@ -39,7 +39,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   };
 
   const handleSelectMusicBrainzResult = (result: Partial<Song>) => {
-    // Save the selected result to the metadata
+    // Save the selected result to the metadata but preserve existing lyrics
     const metadataToSave: Partial<Song> = {
       title: result.title,
       artist: result.artist,
@@ -48,6 +48,9 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       genre: result.genre,
       language: result.language,
       coverArt: result.coverArt,
+      // Preserve lyrics fields from the existing song object
+      lyrics: song.lyrics,
+      syncedLyrics: song.syncedLyrics
     };
     handleSaveMetadata(metadataToSave);
   };
