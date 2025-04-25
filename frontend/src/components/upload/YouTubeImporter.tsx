@@ -4,6 +4,8 @@ import {
   extractYouTubeVideoId,
 } from "../../utils/validators";
 import vintageTheme from "../../utils/theme";
+import { fetchParsedMetadata } from "@/services/youtubeService";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface YouTubeImporterProps {
   onYouTubeImport: (url: string, title?: string, artist?: string) => void;
@@ -47,7 +49,7 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({
   };
 
   // Validate and proceed
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!url.trim()) {
       setError("Please enter a YouTube URL");
       return;
@@ -66,10 +68,15 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({
     }
 
     setError(null);
-    setShowMetadata(true);
 
-    // You could potentially fetch video metadata here using the YouTube API
-    // and pre-populate the title and artist fields
+    try {
+      const response = await fetchParsedMetadata(videoId);
+      setTitle(response.title);
+      setArtist(response.artist);
+      setShowMetadata(true);
+    } catch (error) {
+      setError("Failed to fetch metadata. Please try again.");
+    }
   };
 
   // Handle final submission
@@ -144,53 +151,57 @@ const YouTubeImporter: React.FC<YouTubeImporterProps> = ({
         </div>
       ) : (
         // Step 2: Metadata input
-        <div>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm mb-1">Video Title</label>
-              <input
-                type="text"
-                placeholder="Enter video title (optional)"
-                className="w-full border rounded px-3 py-2 focus:outline-none"
-                style={inputStyle}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
+        <Dialog open={showMetadata} onOpenChange={setShowMetadata}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Metadata</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm mb-1">Video Title</label>
+                <input
+                  type="text"
+                  placeholder="Enter video title (optional)"
+                  className="w-full border rounded px-3 py-2 focus:outline-none"
+                  style={inputStyle}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Artist</label>
+                <input
+                  type="text"
+                  placeholder="Enter artist name (optional)"
+                  className="w-full border rounded px-3 py-2 focus:outline-none"
+                  style={inputStyle}
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm mb-1">Artist</label>
-              <input
-                type="text"
-                placeholder="Enter artist name (optional)"
-                className="w-full border rounded px-3 py-2 focus:outline-none"
-                style={inputStyle}
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-              />
+            <div className="flex gap-2 mt-4">
+              <button
+                className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
+                style={{
+                  backgroundColor: "transparent",
+                  border: `1px solid ${colors.orangePeel}`,
+                  color: colors.russet,
+                }}
+                onClick={handleBack}
+              >
+                Back
+              </button>
+              <button
+                className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
+                style={buttonStyle}
+                onClick={handleSubmit}
+              >
+                Process Video
+              </button>
             </div>
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <button
-              className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
-              style={{
-                backgroundColor: "transparent",
-                border: `1px solid ${colors.orangePeel}`,
-                color: colors.russet,
-              }}
-              onClick={handleBack}
-            >
-              Back
-            </button>
-            <button
-              className="px-4 py-2 rounded transition-colors hover:opacity-90 flex-1"
-              style={buttonStyle}
-              onClick={handleSubmit}
-            >
-              Process Video
-            </button>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
