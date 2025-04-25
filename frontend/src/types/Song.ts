@@ -19,6 +19,9 @@ export interface Song {
   genre?: string;
   language?: string;
   musicbrainzId?: string; // Used by backend for lookup
+  // Lyrics fields
+  lyrics?: string; // Plain text lyrics
+  syncedLyrics?: string; // LRC format synchronized lyrics
 }
 
 export interface SongProcessingRequest {

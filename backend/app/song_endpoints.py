@@ -1,17 +1,16 @@
 # backend/app/song_endpoints.py
 
-from flask import Blueprint, jsonify, send_from_directory, current_app
+from flask import Blueprint, jsonify, send_from_directory, current_app, request
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
+from urllib.parse import unquote
 
-# Importing SongMetadata for the metadata endpoint
-from .models import Song, SongMetadata
-
-# Assuming these modules are in the same 'app' directory or PYTHONPATH is set
+# Import database and models
+from . import database
+from .models import Song, SongMetadata, DbSong
 from . import file_management
 from . import config
-from .models import Song # Import the Pydantic Song model
 from .lyrics_endpoints import _make_request
 
 # Define the Blueprint
@@ -22,61 +21,20 @@ song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')
 def get_songs():
     """Endpoint to get a list of processed songs with metadata."""
     current_app.logger.info("Received request for /api/songs")
-    song_ids = file_management.get_processed_songs()
-    songs_list: List[Song] = []
-
-    for song_id in song_ids:
-        metadata = file_management.read_song_metadata(song_id)
-        song_dir = file_management.get_song_dir(song_id)
-
-        # --- Determine file paths ---
-        vocals_file = file_management.get_vocals_path_stem(song_dir).with_suffix(file_management.VOCALS_SUFFIX)
-        instrumental_file = file_management.get_instrumental_path_stem(song_dir).with_suffix(file_management.INSTRUMENTAL_SUFFIX)
-        # Find original file using glob pattern based on song_id and suffix
-        original_suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
-        original_pattern = f"{song_id}{original_suffix}.*"
-        original_file = next(song_dir.glob(original_pattern), None)
-
-        # --- Create Song object ---
-        song_base_data = {
-            "id": song_id,
-            "status": 'processed', # Assume processed if listed
-            # Construct relative paths or URLs as needed for the frontend
-            # Example: using relative paths from BASE_LIBRARY_DIR
-            "vocalPath": str(vocals_file.relative_to(config.BASE_LIBRARY_DIR)) if vocals_file.exists() else None,
-            "instrumentalPath": str(instrumental_file.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_file.exists() else None,
-            "originalPath": str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
-        }
-
-        if metadata:
-            song_data = Song(
-                **song_base_data,
-                title=metadata.title or song_id.replace('_', ' ').title(),
-                artist=metadata.artist or "Unknown Artist",
-                duration=metadata.duration,
-                favorite=metadata.favorite,
-                dateAdded=metadata.dateAdded,
-                coverArt=metadata.coverArt,
-                thumbnail=metadata.thumbnail,  # Include thumbnail from metadata
-            )
-        else:
-            # Fallback if metadata is missing
-            current_app.logger.warning(f"Metadata missing for song ID {song_id}. Using defaults.")
-            try:
-                ctime = datetime.fromtimestamp(song_dir.stat().st_ctime, tz=timezone.utc)
-            except FileNotFoundError:
-                ctime = datetime.now(timezone.utc)
-
-            song_data = Song(
-                 **song_base_data,
-                title=song_id.replace('_', ' ').title(),
-                artist="Unknown Artist",
-                favorite=False,
-                dateAdded=ctime,
-            )
-
-        songs_list.append(song_data)
-
+    
+    # Get songs from the database
+    db_songs = database.get_all_songs()
+    
+    # If database has no songs, sync from filesystem first
+    if not db_songs:
+        current_app.logger.info("No songs found in database, syncing from filesystem")
+        songs_added = database.sync_songs_with_filesystem()
+        current_app.logger.info(f"Added {songs_added} songs from filesystem to database")
+        db_songs = database.get_all_songs()
+    
+    # Convert SQLAlchemy models to Pydantic models for API response
+    songs_list = [song.to_pydantic() for song in db_songs]
+    
     # Use Pydantic's serialization
     response_data = [song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() for song in songs_list]
     current_app.logger.info(f"Returning {len(response_data)} songs.")
@@ -86,6 +44,7 @@ def get_songs():
 @song_bp.route('/<string:song_id>/download/<string:track_type>', methods=['GET'])
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
+    # This function remains mostly unchanged as it deals with file downloads
     current_app.logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
     track_type = track_type.lower() # Normalize track type
 
@@ -141,7 +100,6 @@ def download_song_track(song_id: str, track_type: str):
     except Exception as e:
         current_app.logger.error(f"Error during download for song '{song_id}', track '{track_type}': {e}", exc_info=True)
         # Use exc_info=True in logger to include traceback
-        # traceback.print_exc() # Keep if logger isn't configured for tracebacks
         return jsonify({"error": "An internal error occurred during download."}), 500
 
 
@@ -152,6 +110,32 @@ def get_song_details(song_id: str):
     """Endpoint to get details for a specific song."""
     current_app.logger.info(f"Received request for song details: {song_id}")
     try:
+        # First try to get from database
+        db_song = database.get_song(song_id)
+        
+        if db_song:
+            # Convert to Pydantic model
+            song = db_song.to_pydantic()
+            
+            # Add additional fields from DbSong that aren't in the Song model
+            response = song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
+            response.update({
+                "album": db_song.release_title,
+                "year": db_song.release_date,
+                "genre": db_song.genre,
+                "language": db_song.language,
+                "musicbrainzId": db_song.mbid,
+                "channelName": db_song.channel_name,
+                "source": db_song.source,
+                "sourceUrl": db_song.source_url,
+                "lyrics": db_song.lyrics,
+                "syncedLyrics": db_song.synced_lyrics
+            })
+            
+            current_app.logger.info(f"Returning details for song {song_id} from database")
+            return jsonify(response), 200
+        
+        # Fall back to file-based approach if not in database
         song_dir = file_management.get_song_dir(song_id)
         
         if not song_dir.is_dir():
@@ -196,12 +180,16 @@ def get_song_details(song_id: str):
             "instrumentalPath": str(instrumental_file.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_file.exists() else None,
             "originalPath": str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
             "status": "processed",
-            "musicbrainzId": metadata.mbid
+            "musicbrainzId": metadata.mbid,
+            "lyrics": metadata.lyrics,
+            "syncedLyrics": metadata.syncedLyrics
         }
         
-        current_app.logger.info(f"Returning details for song {song_id}")
-        # Log the song_dir for debugging
-        current_app.logger.info(f"Song directory for {song_id}: {song_dir}")
+        current_app.logger.info(f"Returning details for song {song_id} from filesystem")
+        
+        # Add song to database for future requests
+        database.create_or_update_song(song_id, metadata)
+        
         return jsonify(response), 200
             
     except Exception as e:
@@ -212,8 +200,6 @@ def get_song_details(song_id: str):
 @song_bp.route('/<string:song_id>/metadata', methods=['PATCH'])
 def update_song_metadata(song_id: str):
     """Endpoint to update song metadata."""
-    from flask import request  # Import here for clarity
-    
     current_app.logger.info(f"Received metadata update request for song: {song_id}")
     try:
         # Validate that song exists
@@ -227,8 +213,38 @@ def update_song_metadata(song_id: str):
         if not update_data:
             return jsonify({"error": "No update data provided"}), 400
             
-        # Get existing metadata
-        existing_metadata = file_management.read_song_metadata(song_id)
+        # Get existing metadata from database first, then filesystem
+        db_song = database.get_song(song_id)
+        existing_metadata = None
+        
+        if db_song:
+            # Convert database song to SongMetadata for file_management.write_song_metadata
+            existing_metadata = SongMetadata(
+                title=db_song.title,
+                artist=db_song.artist,
+                duration=db_song.duration,
+                favorite=db_song.favorite,
+                dateAdded=db_song.date_added,
+                coverArt=db_song.cover_art_path,
+                thumbnail=db_song.thumbnail_path,
+                source=db_song.source,
+                sourceUrl=db_song.source_url,
+                videoId=db_song.video_id,
+                channelName=db_song.channel_name,
+                channelId=db_song.channel_id,
+                description=db_song.description,
+                uploadDate=db_song.upload_date,
+                mbid=db_song.mbid,
+                releaseTitle=db_song.release_title,
+                releaseId=db_song.release_id,
+                releaseDate=db_song.release_date,
+                genre=db_song.genre,
+                language=db_song.language
+            )
+        else:
+            # Get from filesystem if not in database
+            existing_metadata = file_management.read_song_metadata(song_id)
+            
         if not existing_metadata:
             # Create new metadata if it doesn't exist
             current_app.logger.warning(f"Creating new metadata for song {song_id}")
@@ -259,8 +275,11 @@ def update_song_metadata(song_id: str):
         if 'musicbrainzId' in update_data and update_data['musicbrainzId']:
             existing_metadata.mbid = update_data['musicbrainzId']
             
-        # Save updated metadata
+        # Save updated metadata to file
         file_management.write_song_metadata(song_id, existing_metadata)
+        
+        # Update database entry
+        database.create_or_update_song(song_id, existing_metadata)
         
         # Return the full song details
         return get_song_details(song_id)
@@ -277,9 +296,11 @@ def get_thumbnail(song_id: str):
     import os
 
     # Decode the song ID to handle URL-encoded characters
-    from urllib.parse import unquote
     song_id = unquote(song_id)
 
+    # Get song from database to find thumbnail path
+    db_song = database.get_song(song_id)
+    
     # Construct the path to the thumbnail
     song_dir = file_management.get_song_dir(song_id)
     thumbnail_path = song_dir / "thumbnail.jpg"
@@ -299,22 +320,38 @@ def get_thumbnail(song_id: str):
 @song_bp.route('/<string:song_id>/lyrics', methods=['GET'])
 def get_song_lyrics(song_id: str):
     """Fetch synchronized or plain lyrics for a song using LRCLIB."""
+    # This function can remain mostly unchanged
     current_app.logger.info(f"Received lyrics request for song {song_id}")
-    # Read metadata
-    metadata = file_management.read_song_metadata(song_id)
-    if not metadata or not metadata.title or not metadata.duration:
-        current_app.logger.warning(f"Metadata incomplete for lyrics: {song_id}")
-        return jsonify({"error": "Missing metadata (title, duration) for lyrics lookup"}), 400
+    
+    # Try to get from database first
+    db_song = database.get_song(song_id)
+    
+    if db_song:
+        # Use database fields
+        title = db_song.title
+        artist = db_song.artist if db_song.artist.lower() != 'unknown artist' else db_song.channel_name
+        duration = str(int(db_song.duration)) if db_song.duration else None
+        album = db_song.release_title
+    else:
+        # Fall back to file-based approach
+        metadata = file_management.read_song_metadata(song_id)
+        if not metadata or not metadata.title or not metadata.duration:
+            current_app.logger.warning(f"Metadata incomplete for lyrics: {song_id}")
+            return jsonify({"error": "Missing metadata (title, duration) for lyrics lookup"}), 400
 
-    # Determine best artist name: prefer metadata.artist, else channelName
-    artist = metadata.artist if metadata.artist and metadata.artist.lower() != 'unknown artist' else getattr(metadata, 'channelName', None)
-    if not artist:
-        current_app.logger.warning(f"Artist unknown for lyrics: {song_id}")
-        return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
+        # Determine best artist name: prefer metadata.artist, else channelName
+        artist = metadata.artist if metadata.artist and metadata.artist.lower() != 'unknown artist' else getattr(metadata, 'channelName', None)
+        if not artist:
+            current_app.logger.warning(f"Artist unknown for lyrics: {song_id}")
+            return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
 
-    title = metadata.title
-    duration = str(int(metadata.duration))
-    album = metadata.releaseTitle
+        title = metadata.title
+        duration = str(int(metadata.duration))
+        album = metadata.releaseTitle
+
+    # If missing essential info, return error
+    if not title or not artist or not duration:
+        return jsonify({"error": "Missing essential info for lyrics lookup"}), 400
 
     # 1) If we know album and duration, try cached/get endpoints
     if album:

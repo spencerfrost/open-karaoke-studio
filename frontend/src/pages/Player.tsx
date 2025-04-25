@@ -10,7 +10,8 @@ import ProgressBar from "../components/player/ProgressBar";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
 import { useSettings } from "../context/SettingsContext";
-import { getAudioUrl } from "../services/songService";
+import { getAudioUrl, getSongById } from "../services/songService";
+import { Song } from "../types/Song";
 
 const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ const PlayerPage: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -37,6 +39,12 @@ const PlayerPage: React.FC = () => {
           payload: queueItem.song.duration,
         });
         queueDispatch({ type: "SET_CURRENT_ITEM", payload: queueItem });
+        
+        // Set the current song state
+        setCurrentSong(queueItem.song);
+      } else {
+        // If the song isn't in the queue, fetch it directly
+        fetchSongDetails(id);
       }
 
       setTimeout(() => {
@@ -50,6 +58,18 @@ const PlayerPage: React.FC = () => {
     queueState.items,
     queueState.currentItem,
   ]);
+
+  // Fetch song details if needed
+  const fetchSongDetails = async (songId: string) => {
+    try {
+      const response = await getSongById(songId);
+      if (response.data) {
+        setCurrentSong(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch song details:", error);
+    }
+  };
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -144,6 +164,7 @@ const PlayerPage: React.FC = () => {
               <div className="aspect-video w-full bg-black/80 overflow-hidden">
                 <LyricsDisplay 
                   songId={id} 
+                  song={currentSong}
                   progress={progress} 
                   currentTime={currentTime}
                 />
@@ -184,6 +205,7 @@ const PlayerPage: React.FC = () => {
             {/* Lyrics display */}
             <LyricsDisplay
               songId={playerState.currentSong?.song.id || ''}
+              song={playerState.currentSong?.song}
               progress={progress}
               currentTime={currentTime}
             />

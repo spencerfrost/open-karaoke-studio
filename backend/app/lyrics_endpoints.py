@@ -74,13 +74,6 @@ def get_cached_lyrics():
     return jsonify(data), status
 
 
-@lyrics_bp.route('/get/<int:lyrics_id>', methods=['GET'])
-def get_lyrics_by_id(lyrics_id: int):
-    # Proxy GET /api/get/{id}
-    status, data = _make_request(f'/api/get/{lyrics_id}', {})
-    return jsonify(data), status
-
-
 @lyrics_bp.route('/search', methods=['POST'])
 def search_lyrics_json():
     """
@@ -93,8 +86,9 @@ def search_lyrics_json():
 
     title = data.get('title', '')
     artist = data.get('artist', '')
-    song_id = data.get('song_id')  # Optional song_id for direct metadata update
+    album = data.get('album', '') # Optional album name for more precise matching
     duration = data.get('duration')  # Optional duration for more precise matching
+    song_id = data.get('song_id')  # Optional song_id for direct metadata update
     
     if not title or not artist:
         return jsonify({'error': 'Both title and artist are required'}), 400
@@ -113,30 +107,44 @@ def search_lyrics_json():
         # Make the API call to LRCLIB
         status, data = _make_request('/api/get', params)
         
-        # If song_id is provided, we could save the lyrics directly to the song's metadata
-        # This would require accessing the file_management module and updating metadata
+        # If song_id is provided, save the lyrics to the song's metadata and database
         if song_id and status == 200 and data and not data.get('error'):
             try:
+                # 1. Update metadata.json file
                 from .file_management import read_song_metadata, write_song_metadata
                 from .models import SongMetadata
                 
                 # Read current metadata
                 metadata = read_song_metadata(song_id)
                 if metadata:
-                    # Convert to dict for updating
-                    metadata_dict = metadata.dict() if hasattr(metadata, 'dict') else metadata.model_dump()
+                    # Extract lyrics data
+                    plain_lyrics = data.get('plainLyrics')
+                    synced_lyrics = data.get('syncedLyrics')
                     
-                    # Update with lyrics data
-                    if 'syncedLyrics' in data:
-                        metadata_dict['syncedLyrics'] = data['syncedLyrics']
-                    if 'plainLyrics' in data:
-                        metadata_dict['lyrics'] = data['plainLyrics']
+                    # Update metadata with lyrics
+                    metadata.lyrics = plain_lyrics
+                    metadata.syncedLyrics = synced_lyrics
                     
-                    # Write updated metadata
-                    write_song_metadata(song_id, SongMetadata(**metadata_dict))
+                    # Write updated metadata (this also updates the database)
+                    write_song_metadata(song_id, metadata)
                     
                     # Add flag indicating metadata was updated
                     data['metadataUpdated'] = True
+                
+                # 2. Also directly update database for redundancy
+                try:
+                    from . import database
+                    db_song = database.get_song(song_id)
+                    if db_song:
+                        with database.get_db() as db:
+                            db_song.lyrics = plain_lyrics
+                            db_song.synced_lyrics = synced_lyrics
+                            db.commit()
+                except ImportError:
+                    current_app.logger.info("Database module not available for direct lyrics update")
+                except Exception as e:
+                    current_app.logger.error(f"Error updating lyrics in database: {str(e)}")
+                
             except Exception as e:
                 current_app.logger.error(f"Error updating lyrics in metadata: {str(e)}")
                 # Still return lyrics even if metadata update failed

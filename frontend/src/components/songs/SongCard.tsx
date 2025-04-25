@@ -142,7 +142,7 @@ const SongCard: React.FC<SongCardProps> = ({
         {/* Play button overlay */}
         {song.status === "processed" && (
           <button
-            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity"
+            className="absolute inset-0 flex items-center justify-center bg-transparent"
             onClick={() => {
               const url = getAudioUrl(song.id, "vocals");
               setPreviewSrc(url);
@@ -151,7 +151,7 @@ const SongCard: React.FC<SongCardProps> = ({
             aria-label="Play song"
           >
             <div
-              className="h-12 w-12 rounded-full flex items-center justify-center"
+              className="h-12 w-12 rounded-full items-center justify-center hidden hover:flex"
               style={{ backgroundColor: colors.darkCyan }}
             >
               <Play

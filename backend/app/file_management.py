@@ -1,10 +1,10 @@
 # backend/app/file_management.py
 import shutil
-import json # Add json import
+import json
 import requests
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple # Add Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple
 from . import config
 from .models import SongMetadata # Import the new Pydantic model for metadata
 from urllib.parse import urlparse
@@ -18,21 +18,29 @@ INSTRUMENTAL_SUFFIX = ".mp3" # Or .wav, .flac etc.
 # --- Existing Functions ---
 def ensure_library_exists():
     """Creates the base library directory if it doesn't exist."""
-    try:
-        config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"Error creating base library directory {config.BASE_LIBRARY_DIR}: {e}")
-        raise
+    config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_song_dir(input_path_or_id: Path | str) -> Path:
     """Creates and returns the specific directory for a song within the library."""
+    ensure_library_exists()
+    
+    # Handle both Path objects and string IDs
     if isinstance(input_path_or_id, Path):
-        song_name = input_path_or_id.stem
-    else: # Assume it's an ID (string)
-        song_name = str(input_path_or_id)
-    song_dir = config.BASE_LIBRARY_DIR / song_name
-    # Don't auto-create here anymore, creation should happen during processing
-    # song_dir.mkdir(parents=True, exist_ok=True)
+        # Extract a reasonable directory name from the file path
+        if input_path_or_id.is_file():
+            # Use the stem (filename without suffix) as the directory name
+            # For YouTube filenames, this is usually a clean-ish ID
+            song_id = input_path_or_id.stem
+        else:
+            # If it's already a directory, use its name
+            song_id = input_path_or_id.name
+    else:
+        # If it's already a song ID string, use as-is
+        song_id = input_path_or_id
+    
+    # Create and return the full path to the song directory
+    song_dir = config.BASE_LIBRARY_DIR / song_id
+    song_dir.mkdir(parents=True, exist_ok=True)
     return song_dir
 
 def get_vocals_path_stem(song_dir: Path) -> Path:
@@ -47,51 +55,37 @@ def get_instrumental_path_stem(song_dir: Path) -> Path:
 
 def get_original_path(song_dir: Path, original_input_path: Path) -> Path:
     """Returns the path for storing the original file, keeping original suffix."""
-    # Standardize original filename slightly for easier retrieval
-    suffix = "_original"
-    filename = f"{song_dir.name}{suffix}{original_input_path.suffix}"
-    return song_dir / filename
+    # Assume the song_dir is named after the song ID
+    song_id = song_dir.name
+    # Use the original file extension
+    original_suffix = original_input_path.suffix
+    return song_dir / f"{song_id}{config.ORIGINAL_FILENAME_SUFFIX}{original_suffix}"
 
 def save_original_file(input_path: Path, song_dir: Path) -> Optional[Path]:
     """Copies the original input file to the song directory."""
-    destination_path = get_original_path(song_dir, input_path)
+    if not input_path.exists():
+        return None
+    
+    destination = get_original_path(song_dir, input_path)
     try:
-        # Ensure directory exists before copying
-        song_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(input_path, destination_path)
-        print(f"Copied original file to: {destination_path}")
-        return destination_path
-    except Exception as e:
-        print(f"Error copying original file {input_path} to {destination_path}: {e}")
-        # Don't raise here, let the caller handle based on context
-        return None # Indicate failure
-
+        shutil.copy2(input_path, destination)
+        return destination
+    except (IOError, OSError) as e:
+        print(f"Error copying original file: {e}")
+        return None
 
 def get_processed_songs(library_path: Optional[Path] = None) -> List[str]:
     """Scans the library and returns a list of potential song IDs (directories)."""
-    library_dir = library_path if library_path else config.BASE_LIBRARY_DIR
-    try:
-        library_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"Error accessing or creating library directory {library_dir}: {e}")
+    library_path = library_path or config.BASE_LIBRARY_DIR
+    
+    # Ensure the library directory exists
+    if not library_path.is_dir():
         return []
+    
+    # Get all subdirectories of the library, which should be song directories
+    return [d.name for d in library_path.iterdir() if d.is_dir()]
 
-    song_ids = []
-    try:
-        for item in library_dir.iterdir():
-            # Basic check: is it a directory and does it contain expected files?
-            if item.is_dir():
-                 # Optional: Add check for vocals/instrumental files existence if needed
-                 # vocals_file = get_vocals_path_stem(item).with_suffix(VOCALS_SUFFIX)
-                 # instrumental_file = get_instrumental_path_stem(item).with_suffix(INSTRUMENTAL_SUFFIX)
-                 # if vocals_file.exists() and instrumental_file.exists():
-                 song_ids.append(item.name)
-    except OSError as e:
-        print(f"Error reading library directory {library_dir}: {e}")
-        return []
-    return song_ids
-
-# --- New Metadata Functions ---
+# --- Metadata Functions ---
 
 def read_song_metadata(song_id: str, library_path: Optional[Path] = None) -> Optional[SongMetadata]:
     """Reads metadata.json for a given song ID."""
@@ -114,7 +108,10 @@ def read_song_metadata(song_id: str, library_path: Optional[Path] = None) -> Opt
         return None # Metadata file doesn't exist
 
 def write_song_metadata(song_id: str, metadata: SongMetadata, library_path: Optional[Path] = None):
-    """Writes metadata.json for a given song ID."""
+    """
+    Writes metadata.json for a given song ID.
+    Also updates the database entry if database module is available.
+    """
     song_dir = get_song_dir(song_id)
     metadata_file = song_dir / METADATA_FILENAME
     try:
@@ -127,29 +124,41 @@ def write_song_metadata(song_id: str, metadata: SongMetadata, library_path: Opti
 
         with open(metadata_file, 'w') as f:
             f.write(json_data)
+            
+        # Update database entry if database module is available
+        try:
+            from . import database
+            database.create_or_update_song(song_id, metadata)
+        except ImportError:
+            # Database module not available, skip database update
+            pass
+        except Exception as e:
+            print(f"Error updating database for {song_id}: {e}")
+            # Continue since we've already saved the file
+            
     except Exception as e:
         print(f"Error writing metadata for {song_id}: {e}")
         # Decide if error should be raised or just logged
-        raise ProcessingError(f"Could not write metadata for {song_id}", 500) from e
-
+        raise Exception(f"Could not write metadata for {song_id}: {e}") from e
 
 # --- Media and Asset Management ---
 
 def download_image(url: str, save_path: Path) -> bool:
     """Downloads an image from a URL and saves it to the specified path."""
     try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raise an exception for HTTP errors
+        response = requests.get(url, stream=True, timeout=10)
+        response.raise_for_status() # Raise exception for HTTP errors
         
-        # Ensure the directory exists
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Write the image to file
+        # Check if response contains image data
+        content_type = response.headers.get('content-type', '')
+        if not content_type.startswith('image/'):
+            print(f"Downloaded content is not an image: {content_type}")
+            return False
+            
+        # Save the image
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-        
-        print(f"Successfully downloaded image to: {save_path}")
         return True
     except Exception as e:
         print(f"Error downloading image from {url}: {e}")
@@ -165,125 +174,94 @@ def get_cover_art_path(song_dir: Path) -> Path:
 
 def parse_title_artist(title: str) -> Tuple[str, str]:
     """Attempts to parse artist and song title from a YouTube video title."""
-    # Common patterns: "Artist - Title", "Artist | Title", "Title by Artist"
-    # Also remove common suffixes like "(Official Video)", "(Lyrics)", etc.
+    # Common patterns: "Artist - Title", "Artist: Title", "Artist | Title"
+    separators = [' - ', ': ', ' | ', ' – ', '- ', ': ', '| ', '– ']
     
-    # Default values
-    artist = "Unknown Artist"
-    cleaned_title = title
-    
-    # Remove common suffixes
-    common_suffixes = [
-        "(Official Video)", "(Official Music Video)", "(Official Audio)",
-        "(Lyrics)", "(Lyric Video)", "(Audio)", "(HQ)", "(HD)",
-        "[Official Video]", "[Official Music Video]", "[Official Audio]",
-        "[Lyrics]", "[Lyric Video]", "[Audio]", "[HQ]", "[HD]",
-        "- Official Video", "- Lyrics", "(Official)", "[Official]"
-    ]
-    
-    for suffix in common_suffixes:
-        if suffix.lower() in title.lower():
-            cleaned_title = title.replace(suffix, "").strip()
-    
-    # Try common separators
-    separators = [" - ", " – ", " | ", " _ ", ": "]
     for separator in separators:
-        if separator in cleaned_title:
-            parts = cleaned_title.split(separator, 1)
+        if separator in title:
+            parts = title.split(separator, 1)
             artist = parts[0].strip()
-            cleaned_title = parts[1].strip()
-            return cleaned_title, artist
+            song_title = parts[1].strip()
+            
+            # Clean up common YouTube title artifacts
+            song_title = song_title.split('(Official')[0].strip()
+            song_title = song_title.split('[Official')[0].strip()
+            song_title = song_title.split('(feat.')[0].strip()
+            song_title = song_title.split('ft.')[0].strip()
+            
+            return artist, song_title
     
-    # Try "by" pattern (e.g., "Title by Artist")
-    if " by " in cleaned_title.lower():
-        parts = cleaned_title.lower().split(" by ", 1)
-        cleaned_title = parts[0].strip().title()  # Title case for title
-        artist = parts[1].strip().title()  # Title case for artist
-        return cleaned_title, artist
-    
-    # Return best guess
-    return cleaned_title, artist
+    # If no separator found, return title and Unknown Artist
+    return "Unknown Artist", title
 
 # --- Function to create initial metadata ---
 
 def create_initial_metadata(input_path: Path, song_dir: Path, duration: Optional[float] = None, 
-                            youtube_info: Optional[Dict[str, Any]] = None):
-    """Creates the initial metadata file after processing."""
-    song_id = song_dir.name
+                           youtube_info: Optional[Dict[str, Any]] = None):
+    """
+    Creates the initial metadata file after processing.
+    Also creates a database entry if database module is available.
+    """
+    # Default values
+    title = input_path.stem  # Use filename as default title
+    artist = "Unknown Artist"
     
-    if youtube_info:  # If we have YouTube info
-        # Parse title and artist from YouTube title
-        youtube_title = youtube_info.get('title', '')
-        title, artist = parse_title_artist(youtube_title)
-        
-        # Create metadata with YouTube info
-        initial_data = SongMetadata(
-            title=title,
-            artist=artist,
-            duration=youtube_info.get('duration', duration),
-            dateAdded=datetime.now(timezone.utc),
-            favorite=False,
-            source="youtube",
-            sourceUrl=youtube_info.get('url', ''),
-            videoId=youtube_info.get('id', ''),
-            channelName=youtube_info.get('uploader', ''),
-            channelId=youtube_info.get('channel_id', ''),
-            description=youtube_info.get('description', '')[:500] if youtube_info.get('description') else None,  # Truncate long descriptions
-            uploadDate=youtube_info.get('upload_date'),
-            # Set thumbnail if we downloaded it
-            thumbnail=str(get_thumbnail_path(song_dir).relative_to(config.BASE_LIBRARY_DIR)) if get_thumbnail_path(song_dir).exists() else None,
-            # coverArt will be set later if MusicBrainz lookup succeeds
-        )
-    else:  # Regular file upload
-        # Basic metadata extraction from filename
-        title_guess = song_id.replace('_', ' ').replace('-', ' ').title()
-        
-        initial_data = SongMetadata(
-            title=title_guess,
-            artist="Unknown Artist",  # Or try to parse from filename
-            duration=duration,
-            dateAdded=datetime.now(timezone.utc),
-            favorite=False,
-            source="upload"
-        )
+    # Create basic metadata object
+    metadata = SongMetadata(
+        title=title,
+        artist=artist,
+        duration=duration,
+        dateAdded=datetime.now(timezone.utc)
+    )
     
-    print(f"Creating initial metadata for song: {song_id}")
-    write_song_metadata(song_id, initial_data)
-    return initial_data
-
-
-def generate_directory_name(artist: str, title: str) -> str:
-    """Generate a clean directory name from artist and title."""
-    # Replace spaces and problematic characters
-    artist_clean = (
-        artist.replace(' ', '-')
-        .replace('/', '_')
-        .replace('\\', '_')
-        .replace(':', '')
-        .replace('*', '')
-        .replace('?', '')
-        .replace('"', '')
-        .replace('<', '')
-        .replace('>', '')
-        .replace('|', '')
-    )
-
-    title_clean = (
-        title.replace(' ', '-')
-        .replace('/', '_')
-        .replace('\\', '_')
-        .replace(':', '')
-        .replace('*', '')
-        .replace('?', '')
-        .replace('"', '')
-        .replace('<', '')
-        .replace('>', '')
-        .replace('|', '')
-    )
-
-    # Create name and ensure it's not too long for filesystems
-    dir_name = f"{artist_clean}-{title_clean}"
-    if len(dir_name) > 80:  # Set a reasonable maximum length
-        dir_name = dir_name[:80]
-
-    return dir_name
+    # If we have YouTube info, enhance the metadata
+    if youtube_info:
+        # Parse artist and title if possible
+        raw_title = youtube_info.get('title', title)
+        if raw_title:
+            artist, parsed_title = parse_title_artist(raw_title)
+            metadata.title = parsed_title
+            metadata.artist = artist
+        
+        # Add YouTube-specific fields
+        metadata.source = "youtube"
+        metadata.sourceUrl = youtube_info.get('webpage_url')
+        metadata.videoId = youtube_info.get('id')
+        metadata.channelName = youtube_info.get('channel', youtube_info.get('uploader'))
+        metadata.channelId = youtube_info.get('channel_id', youtube_info.get('uploader_id'))
+        metadata.description = youtube_info.get('description', '')[:500]  # Truncate long descriptions
+        
+        # Handle upload date if available
+        upload_date_str = youtube_info.get('upload_date')
+        if upload_date_str and len(upload_date_str) == 8:
+            # YouTube-DL format is YYYYMMDD
+            try:
+                year = int(upload_date_str[0:4])
+                month = int(upload_date_str[4:6])
+                day = int(upload_date_str[6:8])
+                metadata.uploadDate = datetime(year, month, day, tzinfo=timezone.utc)
+            except (ValueError, IndexError):
+                pass
+        
+        # Download thumbnail if available
+        thumbnail_url = youtube_info.get('thumbnail')
+        if thumbnail_url:
+            thumbnail_path = get_thumbnail_path(song_dir)
+            if download_image(thumbnail_url, thumbnail_path):
+                # Store relative path to thumbnail
+                metadata.thumbnail = f"{song_dir.name}/thumbnail.jpg"
+    
+    # Save metadata
+    write_song_metadata(song_dir.name, metadata)
+    
+    # Also update database if available
+    try:
+        from . import database
+        database.create_or_update_song(song_dir.name, metadata)
+    except ImportError:
+        # Database module not available
+        pass
+    except Exception as e:
+        print(f"Error updating database with initial metadata: {e}")
+    
+    return metadata
