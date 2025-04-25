@@ -29,7 +29,7 @@ export const vintageTheme = {
   // Generate a sunburst pattern CSS
   getSunburstPattern: () => ({
     background: `
-      radial-gradient(circle at center, transparent 0, transparent 40%, rgba(0,0,0,0.2) 41%, transparent 42%), 
+      radial-gradient(circle at center, transparent 0, transparent 40%, rgba(0,0,0,0.2) 41%, transparent 42%),
       repeating-conic-gradient(
         ${vintageColors.rust}80 0deg, 
         ${vintageColors.rust}80 6deg, 
@@ -43,7 +43,7 @@ export const vintageTheme = {
     left: 0,
     right: 0,
     bottom: 0,
-    opacity: 0.15,
+    opacity: 0.20,
     zIndex: 5,
     pointerEvents: "none" as const,
   }),
