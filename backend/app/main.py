@@ -26,6 +26,7 @@ from .musicbrainz_endpoints import mb_bp
 from .lyrics_endpoints import lyrics_bp
 from .karaoke_queue_endpoints import karaoke_queue_bp
 from .user_endpoints import user_bp
+from .youtube import youtube_bp
 
 # --- Flask app Setup ---
 app = Flask(__name__)
@@ -234,22 +235,6 @@ def process_audio_endpoint():
         )
         return jsonify({"error": "Invalid file type"}), 400
 
-@app.route('/api/youtube/search', methods=['POST'])
-def search_youtube_route():
-    data = request.json
-    query = data.get('query', '')
-    max_results = data.get('max_results', 10)
-
-    if not query:
-        return jsonify({'error': 'Query is required'}), 400
-
-    try:
-        results = youtube.search_youtube(query, max_results)
-        return jsonify({'results': results})
-    except Exception as e:
-        app.logger.error(f"YouTube search error: {str(e)}")
-        return jsonify({'error': f'Failed to search YouTube: {str(e)}'}), 500
-
 @app.route('/api/youtube/download', methods=['POST'])
 def download_youtube_route():
     data = request.json
@@ -299,6 +284,8 @@ app.register_blueprint(karaoke_queue_bp)
 app.logger.info("Registered karaoke_queue_bp blueprint at /karaoke-queue")
 app.register_blueprint(user_bp)
 app.logger.info("Registered user_bp blueprint at /users")
+app.register_blueprint(youtube_bp)
+app.logger.info("Registered youtube_bp blueprint at /api/youtube")
 
 # --- Main Guard ---
 if __name__ == "__main__":

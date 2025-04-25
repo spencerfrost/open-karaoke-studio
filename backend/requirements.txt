@@ -10,5 +10,6 @@ flask-celery-helper
 python-dotenv
 musicbrainzngs
 requests
+sqlalchemy
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git

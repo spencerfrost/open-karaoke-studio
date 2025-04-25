@@ -3,13 +3,15 @@ import json
 import os
 import yt_dlp
 import logging
-from flask import current_app
+from flask import current_app, request, jsonify, Blueprint
 from pathlib import Path
 from .file_management import (
     get_song_dir, get_thumbnail_path, download_image,
     create_initial_metadata, write_song_metadata
 )
 from .musicbrainz import enhance_metadata_with_musicbrainz
+
+youtube_bp = Blueprint('youtube', __name__, url_prefix='/api/youtube')
 
 def search_youtube(query, max_results=10):
     """
@@ -59,6 +61,22 @@ def search_youtube(query, max_results=10):
                 })
 
         return results
+
+@youtube_bp.route('/search', methods=['POST'])
+def search_youtube_route():
+    data = request.json
+    query = data.get('query', '')
+    max_results = data.get('max_results', 10)
+
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+
+    try:
+        results = search_youtube(query, max_results)
+        return jsonify({'results': results})
+    except Exception as e:
+        current_app.logger.error(f"YouTube search error: {str(e)}")
+        return jsonify({'error': f'Failed to search YouTube: {str(e)}'}), 500
 
 def download_youtube_audio(video_id, output_dir=None):
     """
@@ -178,6 +196,16 @@ def download_youtube_audio(video_id, output_dir=None):
             from .main import start_processing_job
             processing_result = start_processing_job(job, Path(final_mp3_path))
 
+            # Step 11: Fetch lyrics
+            from .lyrics_endpoints import fetch_lyrics
+            try:
+                lyrics_data = fetch_lyrics(title=title, artist=artist, duration=info.get('duration', 0))
+                if lyrics_data:
+                    enhanced_metadata['lyrics'] = lyrics_data
+                    write_song_metadata(dir_name, SongMetadata(**enhanced_metadata))
+            except Exception as lyrics_error:
+                logging.warning(f"Failed to fetch lyrics for {title} by {artist}: {lyrics_error}")
+
             # Return comprehensive info
             return {
                 'id': info.get('id', video_id),
@@ -198,3 +226,70 @@ def download_youtube_audio(video_id, output_dir=None):
     except Exception as e:
         logging.error(f"Error processing YouTube video: {e}")
         raise
+
+@youtube_bp.route('/download', methods=['POST'])
+def download_youtube_route():
+    data = request.json
+    video_id = data.get('video_id', '')
+
+    if not video_id:
+        return jsonify({'error': 'Video ID is required'}), 400
+
+    try:
+        TEMP_DOWNLOADS_DIR = current_app.config.get('TEMP_DOWNLOADS_DIR', 'uploads')
+        result = download_youtube_audio(video_id, TEMP_DOWNLOADS_DIR)
+
+        response_data = {
+            'success': True,
+            'file': result['filepath'],
+            'metadata': {
+                'id': result['id'],
+                'title': result['title'],
+                'duration': result['duration'],
+                'uploader': result['uploader'],
+                'has_thumbnail': result.get('has_thumbnail', False),
+                'has_cover_art': result.get('has_cover_art', False),
+                'song_dir': result.get('song_dir')
+            },
+            'processing': {
+                'job_id': result['job_id'],
+                'status': result['job_status'],
+                'task_id': result['task_id']
+            }
+        }
+        return jsonify(response_data), 202
+    except Exception as e:
+        current_app.logger.error(f"YouTube download error: {str(e)}")
+        return jsonify({'error': f'Failed to download from YouTube: {str(e)}'}), 500
+
+@youtube_bp.route('/parse-metadata', methods=['POST'])
+def parse_youtube_metadata():
+    """Parse metadata (title and artist) from a YouTube video."""
+    data = request.json
+    video_id = data.get('video_id')
+
+    if not video_id:
+        return jsonify({'error': 'Video ID is required'}), 400
+
+    try:
+        # Extract video info without downloading
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+
+            if not info:
+                return jsonify({'error': 'Failed to extract video info'}), 500
+
+            youtube_title = info.get('title', 'Unknown')
+            title, artist = parse_title_artist(youtube_title)
+
+            return jsonify({'title': title, 'artist': artist}), 200
+
+    except Exception as e:
+        logging.error(f"Error parsing YouTube metadata: {e}")
+        return jsonify({'error': 'Failed to parse metadata'}), 500
