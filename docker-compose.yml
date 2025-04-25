@@ -1,0 +1,60 @@
+services:
+  # Backend API service
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    volumes:
+      - karaoke_data:/app/karaoke_library
+      - temp_data:/app/temp_downloads
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=app/main.py
+      - FLASK_ENV=production
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  # Celery worker service
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    volumes:
+      - karaoke_data:/app/karaoke_library
+      - temp_data:/app/temp_downloads
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - api
+
+  # Frontend service with Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+  # Redis service (for Celery)
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+# Named volumes for data persistence
+volumes:
+  karaoke_data:
+  temp_data:
+  redis_data:

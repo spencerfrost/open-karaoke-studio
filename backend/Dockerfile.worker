@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app/ ./app/
+COPY __init__.py celery.conf ./
+
+# Create directories for mounted volumes
+RUN mkdir -p karaoke_library temp_downloads
+
+# Make sure Python can find the modules
+ENV PYTHONPATH=/app
+ENV C_FORCE_ROOT=true
+
+# Start the Celery worker
+CMD ["celery", "-A", "app.celery_app.celery", "worker", "--loglevel=info", "--concurrency=2", "--pool=prefork"]
