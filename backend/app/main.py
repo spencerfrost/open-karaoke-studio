@@ -17,11 +17,15 @@ from .models import (
     Job,
     JobStatus,
     JobStore,
+    Base,
+    engine,
 )
 from .song_endpoints import song_bp
 from .queue_endpoints import queue_bp
 from .musicbrainz_endpoints import mb_bp
 from .lyrics_endpoints import lyrics_bp
+from .karaoke_queue_endpoints import karaoke_queue_bp
+from .user_endpoints import user_bp
 
 # --- Flask app Setup ---
 app = Flask(__name__)
@@ -44,6 +48,8 @@ except Exception as e:
     app.logger.error(f"Failed to initialize JobStore: {e}", exc_info=True)
     job_store = None
 
+# Ensure SQLite tables are created
+Base.metadata.create_all(bind=engine)
 
 # --- Error Handling ---
 class ProcessingError(Exception):
@@ -289,6 +295,10 @@ app.register_blueprint(mb_bp)
 app.logger.info("Registered mb_bp blueprint at /api/musicbrainz")
 app.register_blueprint(lyrics_bp)
 app.logger.info("Registered lyrics_bp blueprint at /api/lyrics")
+app.register_blueprint(karaoke_queue_bp)
+app.logger.info("Registered karaoke_queue_bp blueprint at /karaoke-queue")
+app.register_blueprint(user_bp)
+app.logger.info("Registered user_bp blueprint at /users")
 
 # --- Main Guard ---
 if __name__ == "__main__":

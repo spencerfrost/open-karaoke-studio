@@ -17,6 +17,16 @@ import json
 import os
 from pathlib import Path
 
+# SQLAlchemy imports
+from sqlalchemy import Column, Integer, String, create_engine, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, validates
+
+# Password hashing imports
+from werkzeug.security import generate_password_hash, check_password_hash
+
+Base = declarative_base()
+
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -262,3 +272,48 @@ class Song(BaseModel):
         model_config = {
             "json_encoders": {datetime: lambda v: v.isoformat() if v else None}
         }
+
+
+class KaraokeQueueItem(Base):
+    __tablename__ = 'karaoke_queue'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    singer_name = Column(String, nullable=False)
+    song_id = Column(String, nullable=False)
+    position = Column(Integer, nullable=False)
+
+
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=True)  # Optional password
+    display_name = Column(String, nullable=True)
+    theme = Column(String, nullable=True)  # Field for UI theme selection
+    color = Column(String, nullable=True)  # Field for user-specific color
+    is_admin = Column(Boolean, default=False)
+
+    def set_password(self, password):
+        if password:
+            self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        if self.password_hash:
+            return check_password_hash(self.password_hash, password)
+        return False
+
+    @validates('username')
+    def validate_username(self, key, username):
+        if not username or len(username) < 3:
+            raise ValueError("Username must be at least 3 characters long.")
+        return username
+
+
+# SQLite setup
+DATABASE_URL = "sqlite:///karaoke.db"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create tables
+Base.metadata.create_all(bind=engine)
