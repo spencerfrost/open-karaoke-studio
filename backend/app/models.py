@@ -18,9 +18,9 @@ import os
 from pathlib import Path
 
 # SQLAlchemy imports
-from sqlalchemy import Column, Integer, String, create_engine, Boolean
+from sqlalchemy import Column, Integer, String, create_engine, Boolean, Float, DateTime, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, validates
+from sqlalchemy.orm import sessionmaker, validates, relationship
 
 # Password hashing imports
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -241,6 +241,10 @@ class SongMetadata(BaseModel):
     # Additional metadata fields
     genre: Optional[str] = None  # Music genre
     language: Optional[str] = None  # Language of the lyrics
+    
+    # Lyrics fields
+    lyrics: Optional[str] = None  # Plain text lyrics
+    syncedLyrics: Optional[str] = None  # LRC format synchronized lyrics
 
     class Config:
         model_config = {
@@ -274,13 +278,117 @@ class Song(BaseModel):
         }
 
 
+# --- SQLAlchemy Models for Database Storage ---
+
+class DbSong(Base):
+    """SQLAlchemy model for storing songs in the database"""
+    __tablename__ = 'songs'
+    
+    id = Column(String, primary_key=True)  # Song directory name as ID
+    title = Column(String, nullable=False)
+    artist = Column(String, nullable=False, default="Unknown Artist")
+    duration = Column(Float, nullable=True)
+    favorite = Column(Boolean, default=False)
+    date_added = Column(DateTime, default=datetime.now(timezone.utc))
+    
+    # File paths (relative to library directory)
+    vocals_path = Column(String, nullable=True)
+    instrumental_path = Column(String, nullable=True)
+    original_path = Column(String, nullable=True)
+    thumbnail_path = Column(String, nullable=True)
+    cover_art_path = Column(String, nullable=True)
+    
+    # Source information
+    source = Column(String, nullable=True)  # "youtube", "upload", etc.
+    source_url = Column(String, nullable=True)  # Original URL
+    
+    # YouTube-specific fields
+    video_id = Column(String, nullable=True)  # YouTube video ID
+    channel_name = Column(String, nullable=True)  # YouTube channel name
+    channel_id = Column(String, nullable=True)  # YouTube channel ID
+    description = Column(Text, nullable=True)  # Video description
+    upload_date = Column(DateTime, nullable=True)  # When video was published
+    
+    # MusicBrainz fields
+    mbid = Column(String, nullable=True)  # MusicBrainz recording ID
+    release_title = Column(String, nullable=True)  # Album title
+    release_id = Column(String, nullable=True)  # MusicBrainz release ID
+    release_date = Column(String, nullable=True)  # Release date string
+    
+    # Additional metadata fields
+    genre = Column(String, nullable=True)  # Music genre
+    language = Column(String, nullable=True)  # Language of the lyrics
+    
+    # Lyrics fields
+    lyrics = Column(Text, nullable=True)  # Plain text lyrics
+    synced_lyrics = Column(Text, nullable=True)  # LRC format synchronized lyrics
+    
+    # Relationships
+    queue_items = relationship("KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan")
+    
+    def to_pydantic(self) -> Song:
+        """Convert SQLAlchemy model to Pydantic model for API responses"""
+        return Song(
+            id=self.id,
+            title=self.title,
+            artist=self.artist,
+            duration=self.duration,
+            status="processed",  # Default status for songs in DB
+            favorite=self.favorite,
+            dateAdded=self.date_added,
+            coverArt=self.cover_art_path,
+            vocalPath=self.vocals_path,
+            instrumentalPath=self.instrumental_path,
+            originalPath=self.original_path,
+            thumbnail=self.thumbnail_path
+        )
+        
+    @classmethod
+    def from_metadata(cls, song_id: str, metadata: SongMetadata, 
+                     vocals_path: str = None, 
+                     instrumental_path: str = None,
+                     original_path: str = None):
+        """Create a DbSong from SongMetadata and file paths"""
+        return cls(
+            id=song_id,
+            title=metadata.title or song_id.replace('_', ' ').title(),
+            artist=metadata.artist or "Unknown Artist",
+            duration=metadata.duration,
+            favorite=metadata.favorite,
+            date_added=metadata.dateAdded,
+            vocals_path=vocals_path,
+            instrumental_path=instrumental_path, 
+            original_path=original_path,
+            thumbnail_path=metadata.thumbnail,
+            cover_art_path=metadata.coverArt,
+            source=metadata.source,
+            source_url=metadata.sourceUrl,
+            video_id=metadata.videoId,
+            channel_name=metadata.channelName,
+            channel_id=metadata.channelId,
+            description=metadata.description,
+            upload_date=metadata.uploadDate,
+            mbid=metadata.mbid,
+            release_title=metadata.releaseTitle,
+            release_id=metadata.releaseId,
+            release_date=metadata.releaseDate,
+            genre=metadata.genre,
+            language=metadata.language,
+            lyrics=metadata.lyrics,
+            synced_lyrics=metadata.syncedLyrics
+        )
+
+
 class KaraokeQueueItem(Base):
     __tablename__ = 'karaoke_queue'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     singer_name = Column(String, nullable=False)
-    song_id = Column(String, nullable=False)
+    song_id = Column(String, ForeignKey("songs.id"), nullable=False)
     position = Column(Integer, nullable=False)
+    
+    # Relationship to song
+    song = relationship("DbSong", back_populates="queue_items")
 
 
 class User(Base):
