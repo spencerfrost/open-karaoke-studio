@@ -239,7 +239,10 @@ def update_song_metadata(song_id: str):
                 releaseId=db_song.release_id,
                 releaseDate=db_song.release_date,
                 genre=db_song.genre,
-                language=db_song.language
+                language=db_song.language,
+                # Make sure to include lyrics fields
+                lyrics=db_song.lyrics,
+                syncedLyrics=db_song.synced_lyrics
             )
         else:
             # Get from filesystem if not in database
@@ -274,6 +277,12 @@ def update_song_metadata(song_id: str):
             existing_metadata.language = update_data['language']
         if 'musicbrainzId' in update_data and update_data['musicbrainzId']:
             existing_metadata.mbid = update_data['musicbrainzId']
+        
+        # Explicitly handle the lyrics fields to ensure they're preserved
+        if 'lyrics' in update_data:
+            existing_metadata.lyrics = update_data['lyrics']
+        if 'syncedLyrics' in update_data:
+            existing_metadata.syncedLyrics = update_data['syncedLyrics']
             
         # Save updated metadata to file
         file_management.write_song_metadata(song_id, existing_metadata)
