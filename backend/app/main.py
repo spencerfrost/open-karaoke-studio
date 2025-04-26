@@ -27,6 +27,8 @@ from .lyrics_endpoints import lyrics_bp
 from .karaoke_queue_endpoints import karaoke_queue_bp
 from .user_endpoints import user_bp
 from .youtube import youtube_bp
+# Import WebSocket module
+from . import websocket
 
 # --- Flask app Setup ---
 app = Flask(__name__)
@@ -48,6 +50,10 @@ try:
 except Exception as e:
     app.logger.error(f"Failed to initialize JobStore: {e}", exc_info=True)
     job_store = None
+
+# --- WebSocket Initialization ---
+socketio = websocket.init_socketio(app)
+app.logger.info("WebSocket initialized for performance controls")
 
 # Ensure SQLite tables are created
 Base.metadata.create_all(bind=engine)
@@ -289,8 +295,9 @@ app.logger.info("Registered youtube_bp blueprint at /api/youtube")
 
 # --- Main Guard ---
 if __name__ == "__main__":
-    app.logger.info("Starting Flask development server...")
+    app.logger.info("Starting Flask server with SocketIO support...")
     # Use host='0.0.0.0' to be accessible on the network
     # Turn off Flask reloader if using Celery worker in same env to avoid issues
     use_reloader = os.environ.get("FLASK_USE_RELOADER", "true").lower() == "true"
-    app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=use_reloader)
+    # Use socketio.run instead of app.run to enable WebSocket functionality
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000, use_reloader=use_reloader)
