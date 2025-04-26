@@ -194,6 +194,12 @@
     border: none;
   }
 
+  /* Lyrics fade-out effect */
+  .mask-image-fade-bottom {
+    -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
+  }
+
   /* Animations */
   @keyframes fadeIn {
     from {

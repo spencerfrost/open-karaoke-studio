@@ -10,10 +10,15 @@ import ProgressBar from "../components/player/ProgressBar";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
 import { useSettings } from "../context/SettingsContext";
-import { getAudioUrl, getSongById, searchLyrics } from "../services/songService";
+import {
+  getAudioUrl,
+  getSongById,
+  searchLyrics,
+} from "../services/songService";
 import { Song } from "../types/Song";
 import { MetadataDialog } from "../components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "../utils/formatters";
+import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
 
 const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,7 +33,7 @@ const PlayerPage: React.FC = () => {
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
   const [noLyricsDetected, setNoLyricsDetected] = useState(false);
-  
+
   // Derived metadata from the song title or ID
   const derivedMetadata = currentSong?.title
     ? parseYouTubeTitle(currentSong.title)
@@ -82,11 +87,9 @@ const PlayerPage: React.FC = () => {
   // Check if lyrics are available and show dialog if needed
   useEffect(() => {
     if (currentSong && !noLyricsDetected) {
-      const hasLyrics = 
-        currentSong.lyrics?.trim() ?? 
-        currentSong.syncedLyrics?.trim() ?? 
-        "";
-      
+      const hasLyrics =
+        currentSong.lyrics?.trim() ?? currentSong.syncedLyrics?.trim() ?? "";
+
       if (!hasLyrics) {
         setNoLyricsDetected(true);
         setShowMetadataDialog(true);
@@ -146,24 +149,30 @@ const PlayerPage: React.FC = () => {
   };
 
   // Handle lyrics search submission
-  const handleMetadataSubmit = async (metadata: { artist: string; title: string }) => {
+  const handleMetadataSubmit = async (metadata: {
+    artist: string;
+    title: string;
+  }) => {
     if (!id) return;
-    
+
     setIsSearchingLyrics(true);
-    
+
     try {
       // Search for lyrics based on metadata
       const response = await searchLyrics({
         track_name: metadata.title,
         artist_name: metadata.artist,
       });
-      
+
       if (response.data && response.data.length > 0) {
         // Get first result
         const lyricsData = response.data[0];
-        
+
         // Update the current song object with the new lyrics
-        if (currentSong && (lyricsData.plainLyrics || lyricsData.syncedLyrics)) {
+        if (
+          currentSong &&
+          (lyricsData.plainLyrics || lyricsData.syncedLyrics)
+        ) {
           setCurrentSong({
             ...currentSong,
             lyrics: lyricsData.plainLyrics ?? "",
@@ -228,21 +237,20 @@ const PlayerPage: React.FC = () => {
           {id && (
             <div className="mt-6">
               <div className="aspect-video w-full bg-black/80 overflow-hidden relative">
-                <LyricsDisplay
-                  songId={id}
-                  song={currentSong}
-                  progress={progress}
-                  currentTime={currentTime}
-                />
-                <AudioVisualizer 
-                  className="absolute bottom-0 left-0 right-0" 
-                  expanded={!noLyricsDetected}
-                  onExpandedChange={(expanded) => {
-                    if (!expanded && noLyricsDetected) {
-                      setShowMetadataDialog(true);
-                    }
-                  }}
-                />
+                {currentSong?.syncedLyrics ? (
+                  <SyncedLyricsDisplay
+                    syncedLyrics={currentSong.syncedLyrics}
+                    currentTime={currentTime}
+                    className="h-full"
+                  />
+                ) : (
+                  <LyricsDisplay
+                    songId={id}
+                    lyrics={currentSong?.lyrics}
+                    progress={progress}
+                    currentTime={currentTime}
+                  />
+                )}
               </div>
               <audio
                 controls
