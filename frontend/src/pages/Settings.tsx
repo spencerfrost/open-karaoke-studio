@@ -8,10 +8,14 @@ const SettingsPage: React.FC = () => {
   const settings = useSettingsStore((state) => state);
   const setThemeSettings = useSettingsStore((state) => state.setThemeSettings);
   const setAudioSettings = useSettingsStore((state) => state.setAudioSettings);
-  const setProcessingSettings = useSettingsStore((state) => state.setProcessingSettings);
-  const setDisplaySettings = useSettingsStore((state) => state.setDisplaySettings);
+  const setProcessingSettings = useSettingsStore(
+    (state) => state.setProcessingSettings,
+  );
+  const setDisplaySettings = useSettingsStore(
+    (state) => state.setDisplaySettings,
+  );
   const resetSettings = useSettingsStore((state) => state.resetSettings);
-  
+
   const colors = vintageTheme.colors;
 
   // Handler for theme settings
@@ -74,7 +78,9 @@ const SettingsPage: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.theme.darkMode}
-                onChange={(e) => handleThemeChange("darkMode", e.target.checked)}
+                onChange={(e) =>
+                  handleThemeChange("darkMode", e.target.checked)
+                }
                 style={inputStyle}
                 className="p-2 border rounded"
               />
@@ -109,7 +115,10 @@ const SettingsPage: React.FC = () => {
                 max="100"
                 value={settings.audio.defaultVocalVolume}
                 onChange={(e) =>
-                  handleAudioChange("defaultVocalVolume", Number(e.target.value))
+                  handleAudioChange(
+                    "defaultVocalVolume",
+                    Number(e.target.value),
+                  )
                 }
                 className="w-full"
               />
@@ -127,7 +136,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleAudioChange(
                     "defaultInstrumentalVolume",
-                    Number(e.target.value)
+                    Number(e.target.value),
                   )
                 }
                 className="w-full"
@@ -243,7 +252,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange(
                     "showAudioVisualizations",
-                    e.target.checked
+                    e.target.checked,
                   )
                 }
                 style={inputStyle}

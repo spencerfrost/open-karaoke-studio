@@ -2,7 +2,7 @@
  * Upload-related API services
  */
 import { uploadFile, apiRequest } from "./api";
-import { SongProcessingRequest, SongProcessingStatus } from "../types/Song";
+import { SongProcessingStatus, SongStatus } from "../types/Song";
 
 /**
  * Upload and process an audio file

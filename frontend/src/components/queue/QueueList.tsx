@@ -7,7 +7,6 @@ interface QueueListProps {
   items: QueueItemWithSong[];
   currentItemId?: string | null;
   onRemove?: (id: string) => void;
-  onReorder?: (items: QueueItemWithSong[]) => void;
   emptyMessage?: string;
   className?: string;
 }
@@ -16,7 +15,6 @@ const QueueList: React.FC<QueueListProps> = ({
   items,
   currentItemId = null,
   onRemove,
-  onReorder,
   emptyMessage = "No songs in the queue",
   className = "",
 }) => {

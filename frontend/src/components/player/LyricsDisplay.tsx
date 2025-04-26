@@ -26,7 +26,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
           lyricsElement.scrollHeight - lyricsElement.clientHeight;
         const scrollPosition = Math.max(
           0,
-          Math.min(totalScrollHeight, progress * totalScrollHeight)
+          Math.min(totalScrollHeight, progress * totalScrollHeight),
         );
 
         lyricsElement.scrollTop = scrollPosition;

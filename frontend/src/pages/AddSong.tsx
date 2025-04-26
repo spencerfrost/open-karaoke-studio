@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +11,6 @@ import {
   FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,7 +21,6 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import FileUpload from "../components/upload/FileUpload";
 import YouTubeSearch from "../components/upload/YouTubeSearch";
 import AppLayout from "../components/layout/AppLayout";
@@ -117,8 +114,7 @@ const AddSongPage: React.FC = () => {
 
   // Handle YouTube download start
   const handleYouTubeDownloadStart = (videoId: string, title: string) => {
-    toast.info(`Started processing "${title}"`);
-    // Additional code could be added here to update UI or track downloads
+    toast.info(`Started processing "${title} (${videoId})"`);
   };
 
   return (

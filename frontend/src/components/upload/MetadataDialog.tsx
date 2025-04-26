@@ -57,13 +57,16 @@ export function MetadataDialog({
           <DialogTitle>Song Information</DialogTitle>
           <DialogDescription>
             {videoTitle ? (
-              <>Verify or edit song information from: <strong>{videoTitle}</strong></>
+              <>
+                Verify or edit song information from:{" "}
+                <strong>{videoTitle}</strong>
+              </>
             ) : (
               <>Enter song information</>
             )}
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="title" className="text-right">
@@ -79,7 +82,7 @@ export function MetadataDialog({
               autoFocus
             />
           </div>
-          
+
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="artist" className="text-right">
               Artist
@@ -93,12 +96,20 @@ export function MetadataDialog({
               required
             />
           </div>
-          
+
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !title.trim() || !artist.trim()}>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !title.trim() || !artist.trim()}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

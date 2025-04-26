@@ -117,7 +117,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   // Load settings from localStorage on initial render
   let loadedSettings = initialSettings;
-  
+
   try {
     const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (storedSettings) {

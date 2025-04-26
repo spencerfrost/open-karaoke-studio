@@ -104,7 +104,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       } else {
         // Revert if backend indicates failure differently
         toast.warning(
-          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`
+          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`,
         );
         setProcessingItems(originalItems);
       }
@@ -120,7 +120,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
 
   // Get status label and badge variant
   const getStatusInfo = (
-    status: string
+    status: string,
   ): { label: string; variant: "secondary" | "default" | "destructive" } => {
     switch (status?.toLowerCase()) {
       case "processing":
@@ -228,7 +228,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
                       {item.progress ?? 0}%
                     </span>
                   </div>
-                  {(item.status === "error") && (
+                  {item.status === "error" && (
                     <p className="text-xs mt-1 text-destructive">
                       Processing failed. Please try again.
                     </p>
