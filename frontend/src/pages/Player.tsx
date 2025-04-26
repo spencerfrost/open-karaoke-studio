@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
-import { Play, Pause, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Play, Pause, SkipForward, Volume2, VolumeX, Sliders } from "lucide-react";
 import { usePlayer } from "../context/PlayerContext";
 import { useQueue } from "../context/QueueContext";
 import PlayerLayout from "../components/layout/PlayerLayout";
@@ -18,9 +18,11 @@ import { Song } from "../types/Song";
 import { MetadataDialog } from "../components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "../utils/formatters";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
+import { Button } from "@/components/ui/button";
 
 const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { state: playerState, dispatch: playerDispatch } = usePlayer();
   const { state: queueState, dispatch: queueDispatch } = useQueue();
   // Replace Context API with Zustand store for settings
@@ -35,6 +37,12 @@ const PlayerPage: React.FC = () => {
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
   const [noLyricsDetected, setNoLyricsDetected] = useState(false);
+
+  // Navigate to performance controls page
+  const handleOpenControls = () => {
+    // Go to controls page (no ID needed since it's global)
+    navigate('/player/controls');
+  };
 
   // Derived metadata from the song title or ID
   const derivedMetadata = currentSong?.title
@@ -223,6 +231,13 @@ const PlayerPage: React.FC = () => {
         videoTitle={currentSong?.title ?? ""}
         isSubmitting={isSearchingLyrics}
       />
+                    <Button
+                className="p-3 rounded-full bg-accent text-background z-100"
+                onClick={handleOpenControls}
+                aria-label="Open performance controls"
+              >
+                <Sliders size={24} />
+              </Button>
 
       {playerState.status === "idle" || !playerState.currentSong ? (
         <div className="flex flex-col gap-4 h-full p-6 relative z-20">
@@ -325,6 +340,14 @@ const PlayerPage: React.FC = () => {
               >
                 <SkipForward size={24} />
               </button>
+
+              <Button
+                className="p-3 rounded-full bg-accent text-background z-100"
+                onClick={handleOpenControls}
+                aria-label="Open performance controls"
+              >
+                <Sliders size={24} />
+              </Button>
             </div>
           </div>
         </div>
