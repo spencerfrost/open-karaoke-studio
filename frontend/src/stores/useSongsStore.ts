@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import { Song, SongStatus } from "../types/Song";
 
 // Helper function for filtering songs based on criteria
@@ -6,7 +6,7 @@ const filterSongs = (
   songs: Song[],
   term: string,
   status: SongStatus | "all",
-  favorites: boolean
+  favorites: boolean,
 ): Song[] => {
   return songs.filter((song) => {
     // Filter by search term
@@ -34,7 +34,7 @@ interface SongsState {
   filterFavorites: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   setSongs: (songs: Song[]) => void;
   addSong: (song: Song) => void;
@@ -56,92 +56,99 @@ export const useSongsStore = create<SongsState>((set) => ({
   filterFavorites: false,
   isLoading: false,
   error: null,
-  
+
   // Actions
-  setSongs: (songs) => set((state) => ({
-    songs,
-    filteredSongs: filterSongs(
+  setSongs: (songs) =>
+    set((state) => ({
       songs,
-      state.filterTerm,
-      state.filterStatus,
-      state.filterFavorites
-    ),
-  })),
-  
-  addSong: (song) => set((state) => {
-    const updatedSongs = [...state.songs, song];
-    return {
-      songs: updatedSongs,
       filteredSongs: filterSongs(
-        updatedSongs,
+        songs,
         state.filterTerm,
         state.filterStatus,
-        state.filterFavorites
+        state.filterFavorites,
       ),
-    };
-  }),
-  
-  updateSong: (id, updates) => set((state) => {
-    const updatedSongs = state.songs.map((song) =>
-      song.id === id ? { ...song, ...updates } : song
-    );
-    
-    return {
-      songs: updatedSongs,
-      filteredSongs: filterSongs(
-        updatedSongs,
-        state.filterTerm,
-        state.filterStatus,
-        state.filterFavorites
-      ),
-    };
-  }),
-  
-  removeSong: (id) => set((state) => {
-    const updatedSongs = state.songs.filter((song) => song.id !== id);
-    
-    return {
-      songs: updatedSongs,
-      filteredSongs: filterSongs(
-        updatedSongs,
-        state.filterTerm,
-        state.filterStatus,
-        state.filterFavorites
-      ),
-    };
-  }),
-  
-  setFilterTerm: (filterTerm) => set((state) => ({
-    filterTerm,
-    filteredSongs: filterSongs(
-      state.songs,
+    })),
+
+  addSong: (song) =>
+    set((state) => {
+      const updatedSongs = [...state.songs, song];
+      return {
+        songs: updatedSongs,
+        filteredSongs: filterSongs(
+          updatedSongs,
+          state.filterTerm,
+          state.filterStatus,
+          state.filterFavorites,
+        ),
+      };
+    }),
+
+  updateSong: (id, updates) =>
+    set((state) => {
+      const updatedSongs = state.songs.map((song) =>
+        song.id === id ? { ...song, ...updates } : song,
+      );
+
+      return {
+        songs: updatedSongs,
+        filteredSongs: filterSongs(
+          updatedSongs,
+          state.filterTerm,
+          state.filterStatus,
+          state.filterFavorites,
+        ),
+      };
+    }),
+
+  removeSong: (id) =>
+    set((state) => {
+      const updatedSongs = state.songs.filter((song) => song.id !== id);
+
+      return {
+        songs: updatedSongs,
+        filteredSongs: filterSongs(
+          updatedSongs,
+          state.filterTerm,
+          state.filterStatus,
+          state.filterFavorites,
+        ),
+      };
+    }),
+
+  setFilterTerm: (filterTerm) =>
+    set((state) => ({
       filterTerm,
-      state.filterStatus,
-      state.filterFavorites
-    ),
-  })),
-  
-  setFilterStatus: (filterStatus) => set((state) => ({
-    filterStatus,
-    filteredSongs: filterSongs(
-      state.songs,
-      state.filterTerm,
+      filteredSongs: filterSongs(
+        state.songs,
+        filterTerm,
+        state.filterStatus,
+        state.filterFavorites,
+      ),
+    })),
+
+  setFilterStatus: (filterStatus) =>
+    set((state) => ({
       filterStatus,
-      state.filterFavorites
-    ),
-  })),
-  
-  setFilterFavorites: (filterFavorites) => set((state) => ({
-    filterFavorites,
-    filteredSongs: filterSongs(
-      state.songs,
-      state.filterTerm,
-      state.filterStatus,
-      filterFavorites
-    ),
-  })),
-  
+      filteredSongs: filterSongs(
+        state.songs,
+        state.filterTerm,
+        filterStatus,
+        state.filterFavorites,
+      ),
+    })),
+
+  setFilterFavorites: (filterFavorites) =>
+    set((state) => ({
+      filterFavorites,
+      filteredSongs: filterSongs(
+        state.songs,
+        state.filterTerm,
+        state.filterStatus,
+        filterFavorites,
+      ),
+    })),
+
   setLoading: (isLoading) => set({ isLoading }),
-  
+
   setError: (error) => set({ error }),
 }));

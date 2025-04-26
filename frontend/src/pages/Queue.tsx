@@ -8,7 +8,6 @@ import {
   getQueue,
   addToQueue,
   removeFromQueue,
-  skipToNext,
 } from "../services/queueService";
 import vintageTheme from "../utils/theme";
 
@@ -99,7 +98,7 @@ const QueuePage: React.FC = () => {
           setSelectedSongId("");
         }
       }
-    } catch (err) {
+    } catch {
       setError("Failed to add to queue. Please try again.");
     }
   };

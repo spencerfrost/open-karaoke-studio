@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Play, Pause, SkipForward, Volume2, VolumeX, Sliders } from "lucide-react";
+import {
+  Play,
+  Pause,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Sliders,
+} from "lucide-react";
 import { usePlayer } from "../context/PlayerContext";
 import { useQueue } from "../context/QueueContext";
 import PlayerLayout from "../components/layout/PlayerLayout";
@@ -27,7 +34,9 @@ const PlayerPage: React.FC = () => {
   const { state: queueState, dispatch: queueDispatch } = useQueue();
   // Replace Context API with Zustand store for settings
   const settings = useSettingsStore();
-  const defaultVocalVolume = useSettingsStore((state) => state.audio.defaultVocalVolume);
+  const defaultVocalVolume = useSettingsStore(
+    (state) => state.audio.defaultVocalVolume,
+  );
 
   const [vocalsMuted, setVocalsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -41,7 +50,7 @@ const PlayerPage: React.FC = () => {
   // Navigate to performance controls page
   const handleOpenControls = () => {
     // Go to controls page (no ID needed since it's global)
-    navigate('/player/controls');
+    navigate("/player/controls");
   };
 
   // Derived metadata from the song title or ID
@@ -231,13 +240,13 @@ const PlayerPage: React.FC = () => {
         videoTitle={currentSong?.title ?? ""}
         isSubmitting={isSearchingLyrics}
       />
-                    <Button
-                className="p-3 rounded-full bg-accent text-background z-100"
-                onClick={handleOpenControls}
-                aria-label="Open performance controls"
-              >
-                <Sliders size={24} />
-              </Button>
+      <Button
+        className="p-3 rounded-full bg-accent text-background z-100"
+        onClick={handleOpenControls}
+        aria-label="Open performance controls"
+      >
+        <Sliders size={24} />
+      </Button>
 
       {playerState.status === "idle" || !playerState.currentSong ? (
         <div className="flex flex-col gap-4 h-full p-6 relative z-20">
@@ -294,11 +303,19 @@ const PlayerPage: React.FC = () => {
       ) : (
         <div className="flex flex-col h-full relative z-20">
           <div className="flex-1 flex flex-col items-center justify-center">
-            <LyricsDisplay
-              song={currentSong || playerState.currentSong?.song}
-              progress={progress}
-              currentTime={currentTime}
-            />
+            {currentSong?.syncedLyrics ? (
+              <SyncedLyricsDisplay
+                syncedLyrics={currentSong.syncedLyrics}
+                currentTime={currentTime}
+                className="h-full"
+              />
+            ) : (
+              <LyricsDisplay
+                lyrics={currentSong?.lyrics ?? ""}
+                progress={progress}
+                currentTime={currentTime}
+              />
+            )}
           </div>
 
           {/* Bottom controls */}

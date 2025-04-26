@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
@@ -21,20 +21,16 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   buttonClassName = "",
 }) => {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
   const colors = vintageTheme.colors;
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
-      setIsSubmitting(true);
       const updatedSong = await updateSongMetadata(song.id, metadata);
-      onSongUpdated(updatedSong);
+      onSongUpdated(updatedSong.data as Song);
       setOpen(false);
     } catch (error) {
       console.error("Failed to update metadata:", error);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -48,9 +44,8 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       genre: result.genre,
       language: result.language,
       coverArt: result.coverArt,
-      // Preserve lyrics fields from the existing song object
       lyrics: song.lyrics,
-      syncedLyrics: song.syncedLyrics
+      syncedLyrics: song.syncedLyrics,
     };
     handleSaveMetadata(metadataToSave);
   };

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import { QueueItem, QueueItemWithSong } from "../types/Queue";
 import { Song } from "../types/Song";
 
@@ -7,7 +7,7 @@ interface QueueState {
   currentItem: QueueItemWithSong | null;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   setQueue: (items: QueueItemWithSong[]) => void;
   addToQueue: (item: QueueItemWithSong) => void;
@@ -40,35 +40,38 @@ export const useQueueStore = create<QueueState>((set) => ({
   currentItem: null,
   isLoading: false,
   error: null,
-  
+
   // Actions - directly equivalent to your reducer cases
   setQueue: (items) => set({ items }),
-  
-  addToQueue: (item) => set((state) => ({ 
-    items: [...state.items, item] 
-  })),
-  
-  removeFromQueue: (id) => set((state) => ({ 
-    items: state.items.filter((item) => item.id !== id)
-  })),
-  
+
+  addToQueue: (item) =>
+    set((state) => ({
+      items: [...state.items, item],
+    })),
+
+  removeFromQueue: (id) =>
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== id),
+    })),
+
   reorderQueue: (items) => set({ items }),
-  
+
   setCurrentItem: (currentItem) => set({ currentItem }),
-  
-  nextItem: () => set((state) => {
-    if (state.items.length === 0) {
-      return { currentItem: null };
-    }
-    
-    const nextItem = state.items[0];
-    return {
-      currentItem: nextItem,
-      items: state.items.slice(1),
-    };
-  }),
-  
+
+  nextItem: () =>
+    set((state) => {
+      if (state.items.length === 0) {
+        return { currentItem: null };
+      }
+
+      const nextItem = state.items[0];
+      return {
+        currentItem: nextItem,
+        items: state.items.slice(1),
+      };
+    }),
+
   setLoading: (isLoading) => set({ isLoading }),
-  
+
   setError: (error) => set({ error }),
 }));

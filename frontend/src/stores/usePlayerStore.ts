@@ -1,14 +1,13 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import { PlayerState, PlayerStatus, Lyric } from "../types/Player";
 import { QueueItemWithSong } from "../types/Queue";
-import { getAudioUrl } from "../services/songService";
 
 // Store state interface that extends PlayerState and adds actions
 interface PlayerStore extends PlayerState {
   // Audio element references (managed separately outside the store)
   vocalsAudioRef?: HTMLAudioElement | null;
   instrumentalAudioRef?: HTMLAudioElement | null;
-  
+
   // Actions
   setCurrentSong: (song: QueueItemWithSong | null) => void;
   setStatus: (status: PlayerStatus) => void;
@@ -17,11 +16,13 @@ interface PlayerStore extends PlayerState {
   setDuration: (duration: number) => void;
   setVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
-  setSeekTime: (time: number) => void;
-  
+
   // Helper functions
   getCurrentLyric: () => { current: Lyric | null; next: Lyric | null };
-  setAudioRefs: (vocals: HTMLAudioElement | null, instrumental: HTMLAudioElement | null) => void;
+  setAudioRefs: (
+    vocals: HTMLAudioElement | null,
+    instrumental: HTMLAudioElement | null,
+  ) => void;
 }
 
 // Mock lyrics for development (you can keep this or integrate with real lyric data)
@@ -36,40 +37,41 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   instrumentalVolume: 100,
   currentSong: null,
   seekTime: 0,
-  
+
   // Actions
-  setCurrentSong: (currentSong) => set({ 
-    currentSong,
-    status: "idle",
-    currentTime: 0
-  }),
-  
+  setCurrentSong: (currentSong) =>
+    set({
+      currentSong,
+      status: "idle",
+      currentTime: 0,
+    }),
+
   setStatus: (status) => set({ status }),
-  
-  togglePlayPause: () => set((state) => ({
-    status: state.status === "playing" ? "paused" : "playing"
-  })),
-  
+
+  togglePlayPause: () =>
+    set((state) => ({
+      status: state.status === "playing" ? "paused" : "playing",
+    })),
+
   setCurrentTime: (currentTime) => set({ currentTime }),
-  
+
   setDuration: (duration) => set({ duration }),
-  
+
   setVocalVolume: (vocalVolume) => set({ vocalVolume }),
-  
+
   setInstrumentalVolume: (instrumentalVolume) => set({ instrumentalVolume }),
-  
-  setSeekTime: (seekTime) => set({ seekTime }),
-  
+
   // Method to set audio refs
-  setAudioRefs: (vocals, instrumental) => set({ 
-    vocalsAudioRef: vocals, 
-    instrumentalAudioRef: instrumental 
-  }),
-  
+  setAudioRefs: (vocals, instrumental) =>
+    set({
+      vocalsAudioRef: vocals,
+      instrumentalAudioRef: instrumental,
+    }),
+
   // Helper function to get current lyric
   getCurrentLyric: () => {
     const state = get();
-    
+
     if (!state.currentSong) {
       return { current: null, next: null };
     }

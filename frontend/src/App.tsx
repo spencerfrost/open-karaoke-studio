@@ -37,9 +37,12 @@ const App: React.FC = () => {
                 {/* Player routes */}
                 <Route path="/player" element={<PlayerPage />} />
                 <Route path="/player/:id" element={<PlayerPage />} />
-                
+
                 {/* Performance controls route - simplified to global */}
-                <Route path="/player/controls" element={<PerformanceControlsPage />} />
+                <Route
+                  path="/player/controls"
+                  element={<PerformanceControlsPage />}
+                />
 
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" replace />} />

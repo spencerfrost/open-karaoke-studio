@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import {
   AppSettings,
   ThemeSettings,
@@ -57,32 +57,32 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       // Initial state
       ...initialSettings,
-      
+
       // Actions
-      setThemeSettings: (themeSettings) => 
-        set((state) => ({ 
-          theme: { ...state.theme, ...themeSettings }
-        })),
-        
-      setAudioSettings: (audioSettings) => 
-        set((state) => ({ 
-          audio: { ...state.audio, ...audioSettings }
-        })),
-        
-      setProcessingSettings: (processingSettings) => 
-        set((state) => ({ 
-          processing: { ...state.processing, ...processingSettings }
-        })),
-        
-      setDisplaySettings: (displaySettings) => 
+      setThemeSettings: (themeSettings) =>
         set((state) => ({
-          display: { ...state.display, ...displaySettings }
+          theme: { ...state.theme, ...themeSettings },
         })),
-        
+
+      setAudioSettings: (audioSettings) =>
+        set((state) => ({
+          audio: { ...state.audio, ...audioSettings },
+        })),
+
+      setProcessingSettings: (processingSettings) =>
+        set((state) => ({
+          processing: { ...state.processing, ...processingSettings },
+        })),
+
+      setDisplaySettings: (displaySettings) =>
+        set((state) => ({
+          display: { ...state.display, ...displaySettings },
+        })),
+
       resetSettings: () => set(initialSettings),
     }),
     {
       name: "openKaraokeSettings", // localStorage key
-    }
-  )
+    },
+  ),
 );

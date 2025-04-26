@@ -11,11 +11,11 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { 
-  searchYouTube, 
+import {
+  searchYouTube,
   downloadYouTubeVideo,
   fetchEnhancedMetadata,
-  fetchLyrics
+  fetchLyrics,
 } from "@/services/youtubeService";
 import { parseYouTubeTitle } from "@/utils/formatters";
 import { MetadataDialog } from "./MetadataDialog";
@@ -47,10 +47,12 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<string[]>([]);
-  
+
   // State for metadata dialog
   const [isMetadataDialogOpen, setIsMetadataDialogOpen] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<YouTubeResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState<YouTubeResult | null>(
+    null,
+  );
   const [isSubmittingMetadata, setIsSubmittingMetadata] = useState(false);
 
   const handleSearch = async () => {
@@ -85,9 +87,12 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
     setIsMetadataDialogOpen(true);
   };
 
-  const handleMetadataSubmit = async (metadata: { artist: string; title: string }) => {
+  const handleMetadataSubmit = async (metadata: {
+    artist: string;
+    title: string;
+  }) => {
     if (!selectedResult) return;
-    
+
     try {
       setIsSubmittingMetadata(true);
       setDownloadingIds((prev) => [...prev, selectedResult.id]);
@@ -112,28 +117,30 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
 
       // 2. Start fetching enhanced metadata from MusicBrainz (non-blocking)
       fetchEnhancedMetadata(metadata.title, metadata.artist, songId)
-        .then(response => {
+        .then((response) => {
           if (!response.error && response.data) {
             console.log("Enhanced metadata received:", response.data);
           }
         })
-        .catch(error => {
+        .catch((error) => {
           console.error("Error fetching enhanced metadata:", error);
         });
 
       // 3. Start fetching lyrics from LRCLIB (non-blocking)
       fetchLyrics(metadata.title, metadata.artist, songId)
-        .then(response => {
+        .then((response) => {
           if (!response.error && response.data) {
             console.log("Lyrics received:", response.data);
           }
         })
-        .catch(error => {
+        .catch((error) => {
           console.error("Error fetching lyrics:", error);
         });
 
-      toast.success(`Added "${metadata.title}" by ${metadata.artist} to processing queue`);
-      
+      toast.success(
+        `Added "${metadata.title}" by ${metadata.artist} to processing queue`,
+      );
+
       // Close dialog
       setIsMetadataDialogOpen(false);
       setSelectedResult(null);
@@ -146,7 +153,9 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       );
     } finally {
       setIsSubmittingMetadata(false);
-      setDownloadingIds((prev) => prev.filter((id) => selectedResult.id !== id));
+      setDownloadingIds((prev) =>
+        prev.filter((id) => selectedResult.id !== id),
+      );
     }
   };
 
@@ -226,7 +235,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
 
       {/* Metadata Dialog */}
       {selectedResult && (
-        <MetadataDialog 
+        <MetadataDialog
           isOpen={isMetadataDialogOpen}
           onClose={() => setIsMetadataDialogOpen(false)}
           onSubmit={handleMetadataSubmit}

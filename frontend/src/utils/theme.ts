@@ -43,7 +43,7 @@ export const vintageTheme = {
     left: 0,
     right: 0,
     bottom: 0,
-    opacity: 0.20,
+    opacity: 0.2,
     zIndex: 5,
     pointerEvents: "none" as const,
   }),
