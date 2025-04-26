@@ -11,5 +11,8 @@ python-dotenv
 musicbrainzngs
 requests
 sqlalchemy
+# WebSocket support for performance controls
+flask-socketio
+eventlet
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
