@@ -5,11 +5,10 @@ import { usePlayer } from "../context/PlayerContext";
 import { useQueue } from "../context/QueueContext";
 import PlayerLayout from "../components/layout/PlayerLayout";
 import LyricsDisplay from "../components/player/LyricsDisplay";
-import AudioVisualizer from "../components/player/AudioVisualizer";
 import ProgressBar from "../components/player/ProgressBar";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
-import { useSettings } from "../context/SettingsContext";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import {
   getAudioUrl,
   getSongById,
@@ -24,7 +23,10 @@ const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { state: playerState, dispatch: playerDispatch } = usePlayer();
   const { state: queueState, dispatch: queueDispatch } = useQueue();
-  const { settings } = useSettings();
+  // Replace Context API with Zustand store for settings
+  const settings = useSettingsStore();
+  const defaultVocalVolume = useSettingsStore((state) => state.audio.defaultVocalVolume);
+
   const [vocalsMuted, setVocalsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
@@ -194,7 +196,7 @@ const PlayerPage: React.FC = () => {
       // Restore vocal volume
       playerDispatch({
         type: "SET_VOCAL_VOLUME",
-        payload: settings.audio.defaultVocalVolume,
+        payload: defaultVocalVolume,
       });
       setVocalsMuted(false);
     } else {
@@ -245,8 +247,7 @@ const PlayerPage: React.FC = () => {
                   />
                 ) : (
                   <LyricsDisplay
-                    songId={id}
-                    lyrics={currentSong?.lyrics}
+                    lyrics={currentSong?.lyrics ?? ""}
                     progress={progress}
                     currentTime={currentTime}
                   />
@@ -279,7 +280,6 @@ const PlayerPage: React.FC = () => {
         <div className="flex flex-col h-full relative z-20">
           <div className="flex-1 flex flex-col items-center justify-center">
             <LyricsDisplay
-              songId={playerState.currentSong?.song.id || ""}
               song={currentSong || playerState.currentSong?.song}
               progress={progress}
               currentTime={currentTime}
