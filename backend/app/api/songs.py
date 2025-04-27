@@ -1,4 +1,4 @@
-# backend/app/song_endpoints.py
+# backend/app/api/songs.py
 
 from flask import Blueprint, jsonify, send_from_directory, current_app, request
 from pathlib import Path
@@ -7,11 +7,11 @@ from typing import List, Optional
 from urllib.parse import unquote
 
 # Import database and models
-from . import database
-from .models import Song, SongMetadata, DbSong
-from . import file_management
-from . import config
-from .lyrics_endpoints import _make_request
+from ..db import database
+from ..db.models import Song, SongMetadata, DbSong
+from ..services import file_management
+from ..config import Config as config
+from ..services.lyrics_service import make_request
 
 # Define the Blueprint
 # All routes defined here will be prefixed with /api/songs
@@ -125,7 +125,7 @@ def get_song_details(song_id: str):
                 "genre": db_song.genre,
                 "language": db_song.language,
                 "musicbrainzId": db_song.mbid,
-                "channelName": db_song.channel_name,
+                "channelName": db_song.channel,
                 "source": db_song.source,
                 "sourceUrl": db_song.source_url,
                 "lyrics": db_song.lyrics,
@@ -230,7 +230,7 @@ def update_song_metadata(song_id: str):
                 source=db_song.source,
                 sourceUrl=db_song.source_url,
                 videoId=db_song.video_id,
-                channelName=db_song.channel_name,
+                channelName=db_song.channel,
                 channelId=db_song.channel_id,
                 description=db_song.description,
                 uploadDate=db_song.upload_date,
@@ -365,19 +365,19 @@ def get_song_lyrics(song_id: str):
     # 1) If we know album and duration, try cached/get endpoints
     if album:
         params = { 'track_name': title, 'artist_name': artist, 'album_name': album, 'duration': duration }
-        status, data = _make_request('/api/get-cached', params)
+        status, data = make_request('/api/get-cached', params)
         if status == 404:
             current_app.logger.info(f"Cached lyrics not found for {song_id}, falling back to external lookup")
-            status, data = _make_request('/api/get', params)
+            status, data = make_request('/api/get', params)
         return jsonify(data), status
 
     # 2) Fallback: search by track+artist, pick first result, then fetch by ID
     search_params = { 'track_name': title, 'artist_name': artist }
-    status, results = _make_request('/api/search', search_params)
+    status, results = make_request('/api/search', search_params)
     if status != 200 or not isinstance(results, list) or not results:
         return jsonify({"error": "No lyrics found via search", "details": results}), status
     lyric_id = results[0].get('id')
     if not lyric_id:
         return jsonify({"error": "Invalid search result format", "details": results}), 500
-    status, data = _make_request(f'/api/get/{lyric_id}', {})
+    status, data = make_request(f'/api/get/{lyric_id}', {})
     return jsonify(data), status
