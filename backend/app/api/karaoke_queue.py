@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy.orm import Session
-from .models import SessionLocal, KaraokeQueueItem
+from ..db.database import SessionLocal
+from ..db.models import KaraokeQueueItem
 
 karaoke_queue_bp = Blueprint('karaoke_queue', __name__, url_prefix='/karaoke-queue')
 

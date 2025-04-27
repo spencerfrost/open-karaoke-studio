@@ -6,9 +6,9 @@ from pathlib import Path
 import traceback
 import shutil
 from celery.utils.log import get_task_logger
-from . import audio, file_management
+from ..services import audio, file_management
 from .celery_app import celery
-from .models import JobStatus, JobStore
+from ..db.models import JobStatus, JobStore
 
 logger = get_task_logger(__name__)
 job_store = JobStore()
@@ -17,26 +17,48 @@ class AudioProcessingError(Exception):
     """Custom exception for audio processing errors"""
     pass
 
-@celery.task(bind=True)
-def process_audio_task(self, job_id, filepath_str):
+def get_filepath_from_job(job):
+    """Get the full filepath for a job based on its filename"""
+    from pathlib import Path
+    from ..config import Config
+    
+    # Construct the path to the original file based on the job's filename
+    song_dir = Path(Config.BASE_LIBRARY_DIR) / job.id
+    filepath = song_dir / "original.mp3"  # Or however you determine the filename
+    
+    return str(filepath)
+
+@celery.task(bind=True, name='app.tasks.tasks.process_audio_task', max_retries=3)
+def process_audio_task(self, job_id):
     """
     Celery task to process audio file
-
+    
     Args:
         job_id: Unique identifier for the job
-        filepath_str: Path to the audio file
     """
     logger.info(f"Starting audio processing task for job {job_id}")
-
-    # Get the job from storage
+    
+    # Get the job from storage with retry logic
     job = job_store.get_job(job_id)
     if not job:
-        logger.error(f"Job {job_id} not found")
-        return {"status": "error", "message": "Job not found"}
-
-    filepath = Path(filepath_str)
+        if self.request.retries < self.max_retries:
+            logger.warning(f"Job {job_id} not found, retrying in {2 ** self.request.retries} seconds")
+            # Exponential backoff: 2, 4, 8 seconds
+            raise self.retry(countdown=2 ** self.request.retries)
+        else:
+            logger.error(f"Job {job_id} not found after {self.max_retries} retries")
+            return {"status": "error", "message": "Job not found"}
+    
+    # Determine the filepath from the job
+    from pathlib import Path
+    from ..config import Config
+    song_dir = Path(Config.BASE_LIBRARY_DIR) / job.id
+    filepath = song_dir / "original.mp3"  # Or use job.filename to determine the path
+    filepath_str = str(filepath)
+    
+    # Rest of your existing code remains the same
     filename = filepath.name
-
+    
     # Update job status to processing
     job.status = JobStatus.PROCESSING
     job.started_at = datetime.now()
@@ -71,8 +93,8 @@ def process_audio_task(self, job_id, filepath_str):
 
         # Separate audio
         if not audio.separate_audio(
-            filepath,
-            song_dir,
+            input_path=filepath,  # Pass the original MP3 file path
+            song_dir=song_dir,    # Pass the song directory
             status_callback=lambda msg: update_progress(20, msg),
             stop_event=stop_event
         ):
@@ -119,8 +141,8 @@ def process_audio_task(self, job_id, filepath_str):
             "error": error_message
         }
 
-@celery.task(bind=True, name="cleanup_old_jobs")
-def cleanup_old_jobs():
+@celery.task(bind=True, name='cleanup_old_jobs')
+def cleanup_old_jobs(self):
     """
     Periodically clean up old job records and temporary files
     """

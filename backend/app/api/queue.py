@@ -7,8 +7,8 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .models import JobStatus, JobStore
-from . import file_management
+from ..db.models import JobStatus, JobStore
+from ..services import file_management
 
 queue_bp = Blueprint('queue', __name__, url_prefix='/queue')
 job_store = JobStore()
