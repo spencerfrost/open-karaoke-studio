@@ -7,14 +7,16 @@ USER_AGENT = "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaok
 
 def make_request(path: str, params: dict) -> Tuple[int, Dict[str, Any]]:
     """
-    Helper function to call LRCLIB API and return status code + JSON.
+    Helper function to call LRCLIB API
     
     Args:
         path (str): API endpoint path
         params (dict): Query parameters to include in the request
         
     Returns:
-        Tuple[int, Dict[str, Any]]: (HTTP status code, JSON response data)
+        Tuple[int, Dict[str, Any]]: HTTP status code and response data
+    
+        
     """
     url = f"https://lrclib.net{path}"
     headers = {'User-Agent': USER_AGENT}
@@ -26,16 +28,15 @@ def make_request(path: str, params: dict) -> Tuple[int, Dict[str, Any]]:
     except ValueError:
         text = resp.text.strip()
         if status >= 400:
-            # Pass through HTML or error text in JSON
             data = {'error': text}
         else:
             data = {'error': 'Invalid JSON from LRCLIB'}
+    current_app.logger.info(f"LRCLIB response: {resp.status_code} {resp.text[:250]}")
     return status, data
 
 
 def fetch_lyrics(title: str, artist: str, album: str = None) -> Optional[Dict[str, Any]]:
-    """
-    Fetch lyrics for a song that can be called from other modules.
+    """ Fetch lyrics for a song that can be called from other modules.
     
     Args:
         title (str): Song title
@@ -61,4 +62,3 @@ def fetch_lyrics(title: str, artist: str, album: str = None) -> Optional[Dict[st
     except Exception as e:
         current_app.logger.error(f"Error fetching lyrics: {str(e)}")
         return None
-
