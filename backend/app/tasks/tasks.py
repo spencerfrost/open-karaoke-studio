@@ -28,7 +28,7 @@ def get_filepath_from_job(job):
     
     return str(filepath)
 
-@celery.task(bind=True, name='app.tasks.tasks.process_audio_task', max_retries=3)
+@celery.task(bind=True, name='process_audio_task', max_retries=3)
 def process_audio_task(self, job_id):
     """
     Celery task to process audio file
@@ -54,9 +54,6 @@ def process_audio_task(self, job_id):
     from ..config import Config
     song_dir = Path(Config.BASE_LIBRARY_DIR) / job.id
     filepath = song_dir / "original.mp3"  # Or use job.filename to determine the path
-    filepath_str = str(filepath)
-    
-    # Rest of your existing code remains the same
     filename = filepath.name
     
     # Update job status to processing
@@ -86,7 +83,6 @@ def process_audio_task(self, job_id):
         logger.info(f"Job {job_id} progress: {progress}% - {message}")
 
     try:
-        # Ensure library and create song directory
         file_management.ensure_library_exists()
         song_dir = file_management.get_song_dir(job_id)
         update_progress(5, f"Created directory for {job_id}")
@@ -100,7 +96,6 @@ def process_audio_task(self, job_id):
         ):
             raise AudioProcessingError("Audio separation failed")
 
-        # Update job status to completed
         job.status = JobStatus.COMPLETED
         job.progress = 100
         job.completed_at = datetime.now()
@@ -115,7 +110,6 @@ def process_audio_task(self, job_id):
         }
 
     except audio.StopProcessingError:
-        # Processing was manually stopped
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
@@ -126,7 +120,6 @@ def process_audio_task(self, job_id):
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
     except Exception as e:
-        # Handle any other exception
         error_message = str(e)
         logger.error(f"Error processing job {job_id}: {error_message}")
         traceback.print_exc()

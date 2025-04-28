@@ -40,10 +40,6 @@ celery.conf.update(
     enable_utc=True,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
-    task_routes={
-        'app.tasks.tasks.process_audio_task': {'queue': 'audio_processing'},
-        'app.tasks.tasks.cleanup_old_jobs': {'queue': 'maintenance'},
-    }
 )
 
 # For Flask integration (optional)
