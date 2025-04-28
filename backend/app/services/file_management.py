@@ -2,18 +2,16 @@
 import shutil
 import json
 import requests
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 from ..config import Config as config
-from ..db.models import SongMetadata  # Import the Pydantic model for metadata
-from urllib.parse import urlparse
+from ..db.models import SongMetadata 
 
-# --- Constants ---
 METADATA_FILENAME = "metadata.json"
 VOCALS_SUFFIX = ".mp3"
 INSTRUMENTAL_SUFFIX = ".mp3"
-
 
 def ensure_library_exists():
     """Creates the base library directory if it doesn't exist."""
@@ -93,9 +91,6 @@ def get_processed_songs(library_path: Optional[Path] = None) -> List[str]:
     return [d.name for d in library_path.iterdir() if d.is_dir()]
 
 
-# --- Metadata Functions ---
-
-
 def read_song_metadata(
     song_id: str, library_path: Optional[Path] = None
 ) -> Optional[SongMetadata]:
@@ -106,22 +101,20 @@ def read_song_metadata(
         try:
             with open(metadata_file, "r") as f:
                 data = json.load(f)
-                # Use Pydantic to parse and validate
+
                 return SongMetadata(**data)
         except (json.JSONDecodeError, TypeError, ValueError, FileNotFoundError) as e:
             print(f"Error reading or parsing metadata for {song_id}: {e}")
-            return None  # Return None on error
-        except Exception as e:  # Catch potential Pydantic validation errors too
+            return None
+        except Exception as e: 
             print(f"Validation error reading metadata for {song_id}: {e}")
             return None
     else:
-        # print(f"Metadata file not found for song ID: {song_id}") # Optional: Log this
-        return None  # Metadata file doesn't exist
+        print(f"Metadata file not found for song ID: {song_id}")
+        return None
 
 
-def write_song_metadata(
-    song_id: str, metadata: SongMetadata, library_path: Optional[Path] = None
-):
+def write_song_metadata(song_id: str, metadata: SongMetadata):
     """
     Writes metadata.json for a given song ID.
     Also updates the database entry if database module is available.
@@ -129,17 +122,12 @@ def write_song_metadata(
     song_dir = get_song_dir(song_id)
     metadata_file = song_dir / METADATA_FILENAME
     try:
-        song_dir.mkdir(parents=True, exist_ok=True)  # Ensure dir exists
-        # Use Pydantic's .model_dump_json() (V2) or .json() (V1) for serialization
-        if hasattr(metadata, "model_dump_json"):
-            json_data = metadata.model_dump_json(indent=2)
-        else:
-            json_data = metadata.json(indent=2)  # Pydantic V1 fallback
+        song_dir.mkdir(parents=True, exist_ok=True)
+        json_data = metadata.model_dump_json(indent=2)
 
         with open(metadata_file, "w") as f:
             f.write(json_data)
 
-        # Update database entry if database module is available
         try:
             from . import database
 
@@ -149,15 +137,10 @@ def write_song_metadata(
             pass
         except Exception as e:
             print(f"Error updating database for {song_id}: {e}")
-            # Continue since we've already saved the file
 
     except Exception as e:
         print(f"Error writing metadata for {song_id}: {e}")
-        # Decide if error should be raised or just logged
         raise Exception(f"Could not write metadata for {song_id}: {e}") from e
-
-
-# --- Media and Asset Management ---
 
 
 def download_image(url: str, save_path: Path) -> bool:

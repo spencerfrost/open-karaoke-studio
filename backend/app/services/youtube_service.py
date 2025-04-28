@@ -2,20 +2,16 @@
 import uuid
 import os
 import yt_dlp
-import logging
-import shutil
-import json
 import re
-from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
 from flask import current_app
-from ..config import Config as config
 from .file_management import (
     get_song_dir, get_thumbnail_path, download_image,
     create_initial_metadata, write_song_metadata
 )
 from .musicbrainz_service import enhance_metadata_with_musicbrainz
+from ..db.database import create_or_update_song
 
 def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     """
@@ -41,10 +37,10 @@ def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     results = []
     
     try:
-        logging.info(f"Starting YouTube search with term: {search_term}")
+        current_app.logger.info(f"Starting YouTube search with term: {search_term}")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(search_term, download=False)
-            logging.info(f"Search returned info: {bool(info)}, has entries: {'entries' in info}")
+            current_app.logger.info(f"Search returned info: {bool(info)}, has entries: {'entries' in info}")
             if 'entries' in info:
                 for entry in info['entries']:
                     results.append({
@@ -56,12 +52,12 @@ def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
                         'thumbnail': entry.get('thumbnails')[0]['url'] if entry.get('thumbnails') else None,
                         'duration': entry.get('duration'),
                     })
-                logging.info(f"Found {len(results)} search results")
+                current_app.logger.info(f"Found {len(results)} search results")
             else:
-                logging.warning(f"YouTube search returned no entries. Info keys: {info.keys() if info else 'None'}")
+                current_app.logger.warning(f"YouTube search returned no entries. Info keys: {info.keys() if info else 'None'}")
         return results
     except Exception as e:
-        logging.error(f"YouTube search failed: {e}", exc_info=True)
+        current_app.logger.error(f"YouTube search failed: {e}", exc_info=True)
         return []
 
 
@@ -78,13 +74,12 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
     Returns:
         Tuple[str, Dict[str, Any]]: (song_id, metadata)
     """
-    logging.info(f"Downloading from YouTube: {url}")
-    logging.info(f"Artist: {artist}, Title: {song_title}")
+    current_app.logger.info(f"Downloading from YouTube: {url}")
+    current_app.logger.info(f"Artist: {artist}, Title: {song_title}")
     
     try:
         song_id = str(uuid.uuid4())
         song_dir = get_song_dir(song_id)
-        logging.info(f"Song directory: {song_dir}")
         outtmpl = os.path.join(song_dir, "original.%(ext)s")
         
         ydl_opts = {
@@ -106,9 +101,6 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
             if info is None:
                 raise ValueError(f"Could not download video info from {url}")
         
-        logging.info(f"Saving original file to {song_dir}")
-        
-
         if not os.path.exists(song_dir):
             raise FileNotFoundError(f"Download completed but file not found: {song_dir}")
         
@@ -116,11 +108,9 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
         thumbnail_url = thumbnails[0]['url'] if thumbnails else None
         if thumbnail_url:
             thumbnail_path = get_thumbnail_path(song_dir)
-            logging.info(f"Downloading thumbnail from {thumbnail_url}")
+            current_app.logger.info(f"Downloading thumbnail from {thumbnail_url}")
             download_image(thumbnail_url, thumbnail_path)
             
-        
-        
         metadata = create_initial_metadata(
             song_dir=song_dir,
             title=song_title,
@@ -139,27 +129,17 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
         )
         
         # Try to enhance with MusicBrainz data
-        enhanced_metadata = enhance_metadata_with_musicbrainz(metadata, song_dir)
-        if enhanced_metadata:
-            metadata = enhanced_metadata
+        # enhanced_metadata = enhance_metadata_with_musicbrainz(metadata, song_dir)
+        # if enhanced_metadata:
+        #     metadata = enhanced_metadata
         
-        # Save metadata to JSON file
+        create_or_update_song(song_id, metadata)
         write_song_metadata(song_id, metadata)
         
-        # Return the song ID (directory name) and metadata
-        metadata_dict = {
-            "id": song_id,
-            "title": metadata.title,
-            "artist": metadata.artist,
-            "duration": metadata.duration,
-            "source": "youtube", 
-            "sourceUrl": url
-        }
-        
-        return song_id, metadata_dict
+        return song_id, metadata
         
     except Exception as e:
-        logging.error(f"Failed to download from YouTube: {e}")
+        current_app.logger.error(f"Failed to download from YouTube: {e}")
         raise
 
 
