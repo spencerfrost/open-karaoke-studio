@@ -369,3 +369,28 @@ def get_song_lyrics(song_id: str):
         return jsonify({"error": "Invalid search result format", "details": results}), 500
     status, data = make_request(f'/api/get/{lyric_id}', {})
     return jsonify(data), status
+
+
+@song_bp.route('/<string:song_id>', methods=['DELETE'])
+def delete_song(song_id: str):
+    """Endpoint to delete a song by its ID."""
+    current_app.logger.info(f"Received request to delete song: {song_id}")
+    try:
+        # Validate that the song exists
+        song_dir = file_management.get_song_dir(song_id)
+        if not song_dir.is_dir():
+            current_app.logger.error(f"Song directory not found: {song_dir}")
+            return jsonify({"error": "Song not found"}), 404
+
+        # Delete song files
+        file_management.delete_song_files(song_id)
+
+        # Remove song from the database
+        database.delete_song(song_id)
+
+        current_app.logger.info(f"Successfully deleted song: {song_id}")
+        return jsonify({"message": "Song deleted successfully"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error deleting song '{song_id}': {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred while deleting the song."}), 500

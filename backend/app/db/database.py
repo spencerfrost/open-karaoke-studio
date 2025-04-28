@@ -202,3 +202,21 @@ def sync_songs_with_filesystem() -> int:
         logging.error(f"Error syncing songs with filesystem: {e}")
         traceback.print_exc()
         return count
+
+
+def delete_song(song_id: str) -> bool:
+    """Delete a song from the database by its ID."""
+    try:
+        with get_db_session() as session:
+            db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
+            if db_song:
+                session.delete(db_song)
+                session.commit()
+                logging.info(f"Successfully deleted song {song_id} from the database.")
+                return True
+            else:
+                logging.warning(f"Song {song_id} not found in the database.")
+                return False
+    except Exception as e:
+        logging.error(f"Error deleting song {song_id} from the database: {e}")
+        return False

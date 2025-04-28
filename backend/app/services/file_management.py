@@ -253,3 +253,17 @@ def create_initial_metadata(
         print(f"Error updating database with initial metadata: {e}")
 
     return metadata
+
+
+def delete_song_files(song_id: str):
+    """Deletes the directory and all files associated with a song."""
+    song_dir = get_song_dir(song_id)
+    if song_dir.exists() and song_dir.is_dir():
+        try:
+            shutil.rmtree(song_dir)
+            logging.info(f"Successfully deleted song directory: {song_dir}")
+        except Exception as e:
+            logging.error(f"Error deleting song directory {song_dir}: {e}")
+            raise Exception(f"Could not delete song directory {song_dir}: {e}")
+    else:
+        logging.warning(f"Song directory does not exist: {song_dir}")

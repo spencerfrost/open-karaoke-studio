@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
 import vintageTheme from "../../utils/theme";
-import { updateSongMetadata } from "../../services/songService";
+import { updateSongMetadata, deleteSong } from "../../services/songService";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
 
@@ -50,6 +50,20 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
     handleSaveMetadata(metadataToSave);
   };
 
+  const handleDeleteSong = async () => {
+    if (window.confirm("Are you sure you want to delete this song? This action cannot be undone.")) {
+      try {
+        await deleteSong(song.id);
+        setOpen(false);
+        alert("Song deleted successfully.");
+        // Optionally, trigger a parent update or refresh the song list
+      } catch (error) {
+        console.error("Failed to delete song:", error);
+        alert("Failed to delete the song. Please try again.");
+      }
+    }
+  };
+
   return (
     <>
       {/* Edit Button */}
@@ -82,6 +96,11 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
               />
             </TabsContent>
           </Tabs>
+          <div className="flex justify-end mt-4">
+            <Button variant="destructive" onClick={handleDeleteSong}>
+              Delete Song
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>
