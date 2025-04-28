@@ -82,7 +82,7 @@ def download_youtube_endpoint():
             
         lyrics_data = fetch_lyrics(**params)
         
-        if lyrics_data[0]:
+        if lyrics_data and lyrics_data[0]:
             metadata = metadata.copy(update={
                 'lyrics': lyrics_data[0].get('lyrics'),
                 'syncedLyrics': lyrics_data[0].get('syncedLyrics')
