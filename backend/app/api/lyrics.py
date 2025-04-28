@@ -5,37 +5,75 @@ from ..db.database import create_or_update_song
 
 lyrics_bp = Blueprint('lyrics', __name__, url_prefix='/api/lyrics')
 
-@lyrics_bp.route('/search', methods=['POST'])
+@lyrics_bp.route('/search', methods=['GET', 'POST'])
 def search_lyrics():
-    """ Search for lyrics via POST with body containing artist and title. """
-    params = request.get_json()
-    song_id = params.get('song_id')
-    if not params:
-        return jsonify({'error': 'No params provided'}), 400
-    if 'title' not in params or 'artist' not in params:
-        return jsonify({'error': 'Missing title or artist'}), 400
+    """ 
+    Search for lyrics via POST (with JSON body) or GET (with query parameters).
+    
+    Parameters:
+    - track_name: Song title (required)
+    - artist_name: Artist name (required)
+    - album_name: Album name (optional) - can improve search results
+    - song_id: Optional song ID to update database metadata if lyrics are found
+    """
+    # Extract parameters based on request method
+    song_id, track_name, artist_name, album_name = _extract_lyrics_search_params()
+    if not track_name or not artist_name:
+        return jsonify({'error': 'Missing track_name/artist_name information'}), 400
+    
+    search_params = {
+        'track_name': track_name,
+        'artist_name': artist_name
+    }
+    
+    # Add album to search params if provided
+    if album_name:
+        search_params['album_name'] = album_name
     
     try:
-        status, data = make_request('/api/search', params)
+        # Call the lyrics service
+        status, data = make_request('/api/search', search_params)
+        
+        # Update database if needed
         if song_id and status == 200 and data:
-            # log the data for debugging json indentation
-            current_app.logger.debug(f"Data: {data}")
-            
-            try:
-                from ..db.models import SongMetadata
-                metadata = SongMetadata(
-                    lyrics=data.get('plainLyrics'),
-                    syncedLyrics=data.get('syncedLyrics')
-                )
-                create_or_update_song(song_id, metadata)
-            except Exception as e:
-                current_app.logger.error(f"Error updating song metadata: {str(e)}")
+            _update_song_metadata(song_id, data)
         
         return jsonify(data), status
     except Exception as e:
         current_app.logger.error(f"Error fetching lyrics: {str(e)}")
         return jsonify({'error': f'Failed to fetch lyrics: {str(e)}'}), 500
+
+def _extract_lyrics_search_params():
+    """Helper function to extract parameters from either POST or GET requests."""
+    if request.method == 'POST':
+        params = request.get_json()
+        if not params:
+            return None, None, None, None
+        
+        song_id = params.get('song_id')
+        track_name = params.get('track_name') or params.get('title')  # Support legacy 'title' param
+        artist_name = params.get('artist_name') or params.get('artist')  # Support legacy 'artist' param
+        album_name = params.get('album_name') or params.get('album')  # Support legacy 'album' param
+    else:  # GET
+        song_id = request.args.get('song_id')
+        track_name = request.args.get('track_name') or request.args.get('title')
+        artist_name = request.args.get('artist_name') or request.args.get('artist')
+        album_name = request.args.get('album_name') or request.args.get('album')
     
+    return song_id, track_name, artist_name, album_name
+
+def _update_song_metadata(song_id, data):
+    """Helper function to update song metadata in the database."""
+    current_app.logger.debug(f"Updating metadata for song {song_id}")
+    try:
+        from ..db.models import SongMetadata
+        metadata = SongMetadata(
+            lyrics=data.get('plainLyrics'),
+            syncedLyrics=data.get('syncedLyrics')
+        )
+        create_or_update_song(song_id, metadata)
+    except Exception as e:
+        current_app.logger.error(f"Error updating song metadata: {str(e)}")
 
 @lyrics_bp.route('/get', methods=['GET'])
 def get_lyrics():
