@@ -13,8 +13,6 @@ from ..services import file_management
 from ..config import Config as config
 from ..services.lyrics_service import make_request
 
-# Define the Blueprint
-# All routes defined here will be prefixed with /api/songs
 song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')
 
 @song_bp.route('/', methods=['GET'])
@@ -103,8 +101,6 @@ def download_song_track(song_id: str, track_type: str):
         return jsonify({"error": "An internal error occurred during download."}), 500
 
 
-# --- Additional song-related endpoints ---
-
 @song_bp.route('/<string:song_id>', methods=['GET'])
 def get_song_details(song_id: str):
     """Endpoint to get details for a specific song."""
@@ -114,7 +110,6 @@ def get_song_details(song_id: str):
         db_song = database.get_song(song_id)
         
         if db_song:
-            # Convert to Pydantic model
             song = db_song.to_pydantic()
             
             # Add additional fields from DbSong that aren't in the Song model
@@ -135,7 +130,6 @@ def get_song_details(song_id: str):
             current_app.logger.info(f"Returning details for song {song_id} from database")
             return jsonify(response), 200
         
-        # Fall back to file-based approach if not in database
         song_dir = file_management.get_song_dir(song_id)
         
         if not song_dir.is_dir():
@@ -146,7 +140,6 @@ def get_song_details(song_id: str):
         
         if not metadata:
             current_app.logger.warning(f"Metadata missing for song ID {song_id}. Using defaults.")
-            # Create a minimal response with defaults
             return jsonify({
                 "id": song_id,
                 "title": song_id.replace('_', ' ').title(),
@@ -156,14 +149,12 @@ def get_song_details(song_id: str):
                 "dateAdded": datetime.now(timezone.utc).isoformat()
             }), 200
         
-        # Determine file paths
         vocals_file = file_management.get_vocals_path_stem(song_dir).with_suffix(file_management.VOCALS_SUFFIX)
         instrumental_file = file_management.get_instrumental_path_stem(song_dir).with_suffix(file_management.INSTRUMENTAL_SUFFIX)
         original_suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
         original_pattern = f"{song_id}{original_suffix}.*"
         original_file = next(song_dir.glob(original_pattern), None)
         
-        # Create response
         response = {
             "id": song_id,
             "title": metadata.title or song_id.replace('_', ' ').title(),
@@ -185,9 +176,6 @@ def get_song_details(song_id: str):
             "syncedLyrics": metadata.syncedLyrics
         }
         
-        current_app.logger.info(f"Returning details for song {song_id} from filesystem")
-        
-        # Add song to database for future requests
         database.create_or_update_song(song_id, metadata)
         
         return jsonify(response), 200

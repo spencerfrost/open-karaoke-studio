@@ -158,7 +158,6 @@ class JobStore:
                     session.add(db_job)
                 else:
                     # Update existing job
-                    print(f"Updating existing job in DB: {job.id}")
                     db_job.filename = job.filename
                     db_job.status = job.status.value
                     db_job.progress = job.progress
@@ -169,7 +168,6 @@ class JobStore:
                     db_job.notes = job.notes
                 
                 session.commit()
-                print(f"Committed job {job.id} to database")
         except Exception as e:
             print(f"Error saving job {job.id}: {e}")
             traceback.print_exc()
@@ -323,7 +321,19 @@ class Song(BaseModel):
     title: str
     artist: str = UNKNOWN_ARTIST
     duration: Optional[float] = None
-    status: SongStatus = "processed"  # Default status for songs found in library
+    status: SongStatus = "processed" 
+    videoId: Optional[str] = None  # YouTube video ID
+    uploader: Optional[str] = None  # Uploader name
+    uploaderId: Optional[str] = None  # Uploader ID
+    channel: Optional[str] = None  # YouTube channel name
+    channelId: Optional[str] = None  # YouTube channel ID
+    description: Optional[str] = None  # Video description
+    uploadDate: Optional[datetime] = None  # When video was published
+    mbid: Optional[str] = None  # MusicBrainz recording ID
+    releaseTitle: Optional[str] = None  # Album title
+    releaseId: Optional[str] = None  # MusicBrainz release ID
+    releaseDate: Optional[str] = None  # Release date
+    genre: Optional[str] = None  # Music genre
     favorite: bool = False
     dateAdded: Optional[datetime] = None
     coverArt: Optional[str] = None
@@ -399,7 +409,24 @@ class DbSong(Base):
             title=self.title,
             artist=self.artist,
             duration=self.duration,
-            status="processed",  # Default status for songs in DB
+            status="processed",
+            videoId=self.video_id,
+            uploader=self.uploader,
+            uploaderId=self.uploader_id,
+            channel=self.channel,
+            channelId=self.channel_id,
+            description=self.description,
+            uploadDate=self.upload_date,
+            mbid=self.mbid,
+            releaseTitle=self.release_title,
+            releaseId=self.release_id,
+            releaseDate=self.release_date,
+            genre=self.genre,
+            language=self.language,
+            lyrics=self.lyrics,
+            syncedLyrics=self.synced_lyrics,
+            source=self.source,
+            sourceUrl=self.source_url,
             favorite=self.favorite,
             dateAdded=self.date_added,
             coverArt=self.cover_art_path,

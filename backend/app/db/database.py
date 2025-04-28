@@ -108,137 +108,62 @@ def get_song(song_id: str) -> Optional[DbSong]:
 
 def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]:
     """Create or update a song in the database from metadata"""
-    
-    # Get the song directory and file paths
+
     song_dir = file_management.get_song_dir(song_id)
     vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(file_management.VOCALS_SUFFIX)
     instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(file_management.INSTRUMENTAL_SUFFIX)
     original_suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
     original_pattern = f"{song_id}{original_suffix}.*"
     original_file = next(song_dir.glob(original_pattern), None)
-    
+
     try:
         with get_db_session() as session:
-            # Check if song already exists
             db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
-            
+
             if not db_song:
                 # Create new song
-                db_song = DbSong(
-                    id=song_id,
-                    title=metadata.title if metadata.title else song_id.replace('_', ' ').title(),
-                    artist=metadata.artist if metadata.artist else "Unknown Artist",
-                    duration=metadata.duration,
-                    favorite=metadata.favorite if hasattr(metadata, 'favorite') else False,
-                    date_added=metadata.dateAdded,
-                    cover_art_path=metadata.coverArt if hasattr(metadata, 'coverArt') else None,
-                    thumbnail_path=metadata.thumbnail if hasattr(metadata, 'thumbnail') else None,
-                    vocals_path=str(vocals_path.relative_to(config.BASE_LIBRARY_DIR)) if vocals_path.exists() else None,
-                    instrumental_path=str(instrumental_path.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_path.exists() else None,
-                    original_path=str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
-                    source=metadata.source if hasattr(metadata, 'source') else None,
-                    source_url=metadata.sourceUrl if hasattr(metadata, 'sourceUrl') else None,
-                    video_id=metadata.videoId if hasattr(metadata, 'videoId') else None,
-                    uploader=metadata.uploader if hasattr(metadata, 'uploader') else None,
-                    uploader_id=metadata.uploaderId if hasattr(metadata, 'uploaderId') else None,
-                    channel=metadata.channel if hasattr(metadata, 'channel') else None,
-                    channel_id=metadata.channelId if hasattr(metadata, 'channelId') else None,
-                    description=metadata.description if hasattr(metadata, 'description') else None,
-                    upload_date=metadata.uploadDate if hasattr(metadata, 'uploadDate') else None,
-                    mbid=metadata.mbid if hasattr(metadata, 'mbid') else None,
-                    release_title=metadata.releaseTitle if hasattr(metadata, 'releaseTitle') else None,
-                    release_id=metadata.releaseId if hasattr(metadata, 'releaseId') else None,
-                    release_date=metadata.releaseDate if hasattr(metadata, 'releaseDate') else None,
-                    genre=metadata.genre if hasattr(metadata, 'genre') else None,
-                    language=metadata.language if hasattr(metadata, 'language') else None,
-                    lyrics=metadata.lyrics if hasattr(metadata, 'lyrics') else None,
-                    synced_lyrics=metadata.syncedLyrics if hasattr(metadata, 'syncedLyrics') else None
-                )
+                db_song = DbSong(id=song_id)
                 session.add(db_song)
-            else:
-                # Update existing song
-                db_song.title = metadata.title if metadata.title else db_song.title
-                db_song.artist = metadata.artist if metadata.artist else db_song.artist
-                db_song.duration = metadata.duration if metadata.duration else db_song.duration
-                
-                # Only update favorite status if it's explicitly set
-                if hasattr(metadata, 'favorite'):
-                    db_song.favorite = metadata.favorite
-                
-                # Path updates
-                if hasattr(metadata, 'coverArt') and metadata.coverArt:
-                    db_song.cover_art_path = metadata.coverArt
-                
-                if hasattr(metadata, 'thumbnail') and metadata.thumbnail:
-                    db_song.thumbnail_path = metadata.thumbnail
-                
-                # Update file paths if they exist
-                if vocals_path.exists():
-                    db_song.vocals_path = str(vocals_path.relative_to(config.BASE_LIBRARY_DIR))
-                
-                if instrumental_path.exists():
-                    db_song.instrumental_path = str(instrumental_path.relative_to(config.BASE_LIBRARY_DIR))
-                
-                if original_file and original_file.exists():
-                    db_song.original_path = str(original_file.relative_to(config.BASE_LIBRARY_DIR))
-                
-                # Source information
-                if hasattr(metadata, 'source') and metadata.source:
-                    db_song.source = metadata.source
-                
-                if hasattr(metadata, 'sourceUrl') and metadata.sourceUrl:
-                    db_song.source_url = metadata.sourceUrl
-                
-                if hasattr(metadata, 'videoId') and metadata.videoId:
-                    db_song.video_id = metadata.videoId
-                    
-                if hasattr(metadata, 'uploader') and metadata.uploader:
-                    db_song.uploader = metadata.uploader
-                    
-                if hasattr(metadata, 'uploaderId') and metadata.uploaderId:
-                    db_song.uploader_id = metadata.uploaderId
-                
-                if hasattr(metadata, 'channel') and metadata.channel:
-                    db_song.channel = metadata.channel
-                
-                if hasattr(metadata, 'channelId') and metadata.channelId:
-                    db_song.channel_id = metadata.channelId
-                
-                if hasattr(metadata, 'description') and metadata.description:
-                    db_song.description = metadata.description
-                
-                if hasattr(metadata, 'uploadDate') and metadata.uploadDate:
-                    db_song.upload_date = metadata.uploadDate
-                
-                # MusicBrainz information
-                if hasattr(metadata, 'mbid') and metadata.mbid:
-                    db_song.mbid = metadata.mbid
-                
-                if hasattr(metadata, 'releaseTitle') and metadata.releaseTitle:
-                    db_song.release_title = metadata.releaseTitle
-                
-                if hasattr(metadata, 'releaseId') and metadata.releaseId:
-                    db_song.release_id = metadata.releaseId
-                
-                if hasattr(metadata, 'releaseDate') and metadata.releaseDate:
-                    db_song.release_date = metadata.releaseDate
-                
-                if hasattr(metadata, 'genre') and metadata.genre:
-                    db_song.genre = metadata.genre
-                
-                if hasattr(metadata, 'language') and metadata.language:
-                    db_song.language = metadata.language
-                
-                # Lyrics
-                if hasattr(metadata, 'lyrics') and metadata.lyrics:
-                    db_song.lyrics = metadata.lyrics
-                
-                if hasattr(metadata, 'syncedLyrics') and metadata.syncedLyrics:
-                    db_song.synced_lyrics = metadata.syncedLyrics
-            
+
+            # Convert metadata to a dictionary and filter out None values
+            metadata_dict = {
+                "title": metadata.title,
+                "artist": metadata.artist,
+                "duration": metadata.duration,
+                "favorite": metadata.favorite if hasattr(metadata, 'favorite') else None,
+                "date_added": metadata.dateAdded,
+                "cover_art_path": metadata.coverArt if hasattr(metadata, 'coverArt') else None,
+                "thumbnail_path": metadata.thumbnail if hasattr(metadata, 'thumbnail') else None,
+                "vocals_path": str(vocals_path.relative_to(config.BASE_LIBRARY_DIR)) if vocals_path.exists() else None,
+                "instrumental_path": str(instrumental_path.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_path.exists() else None,
+                "original_path": str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
+                "source": metadata.source if hasattr(metadata, 'source') else None,
+                "source_url": metadata.sourceUrl if hasattr(metadata, 'sourceUrl') else None,
+                "video_id": metadata.videoId if hasattr(metadata, 'videoId') else None,
+                "uploader": metadata.uploader if hasattr(metadata, 'uploader') else None,
+                "uploader_id": metadata.uploaderId if hasattr(metadata, 'uploaderId') else None,
+                "channel": metadata.channel if hasattr(metadata, 'channel') else None,
+                "channel_id": metadata.channelId if hasattr(metadata, 'channelId') else None,
+                "description": metadata.description if hasattr(metadata, 'description') else None,
+                "upload_date": metadata.uploadDate if hasattr(metadata, 'uploadDate') else None,
+                "mbid": metadata.mbid if hasattr(metadata, 'mbid') else None,
+                "release_title": metadata.releaseTitle if hasattr(metadata, 'releaseTitle') else None,
+                "release_id": metadata.releaseId if hasattr(metadata, 'releaseId') else None,
+                "release_date": metadata.releaseDate if hasattr(metadata, 'releaseDate') else None,
+                "genre": metadata.genre if hasattr(metadata, 'genre') else None,
+                "language": metadata.language if hasattr(metadata, 'language') else None,
+                "lyrics": metadata.lyrics if hasattr(metadata, 'lyrics') else None,
+                "synced_lyrics": metadata.syncedLyrics if hasattr(metadata, 'syncedLyrics') else None
+            }
+
+            # Update db_song attributes dynamically
+            for key, value in metadata_dict.items():
+                if value is not None:
+                    setattr(db_song, key, value)
+
             session.commit()
             return db_song
-            
+
     except Exception as e:
         logging.error(f"Error creating or updating song {song_id}: {e}")
         traceback.print_exc()

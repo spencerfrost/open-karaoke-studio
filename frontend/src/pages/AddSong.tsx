@@ -112,18 +112,12 @@ const AddSongPage: React.FC = () => {
     }
   };
 
-  // Handle YouTube download start
-  const handleYouTubeDownloadStart = (videoId: string, title: string) => {
-    toast.info(`Started processing "${title} (${videoId})"`);
-  };
-
   return (
     <AppLayout>
       <div className="p-4 md:p-6 space-y-6 container mx-auto">
         <ProcessingQueue />
-        <YouTubeSearch onDownloadStart={handleYouTubeDownloadStart} />
+        <YouTubeSearch />
 
-        {/* Upload Alternative */}
         <Card className="bg-card/80">
           <CardHeader>
             <CardTitle>Upload File</CardTitle>

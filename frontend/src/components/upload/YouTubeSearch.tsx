@@ -29,22 +29,16 @@ const formatDuration = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-interface YouTubeSearchProps {
-  onDownloadStart?: (videoId: string, title: string) => void;
-}
-
-const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
+const YouTubeSearch: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<YouTubeSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<string[]>([]);
 
-  // State for metadata dialog
   const [isMetadataDialogOpen, setIsMetadataDialogOpen] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<YouTubeSearchResult | null>(
-    null,
-  );
+  const [selectedResult, setSelectedResult] =
+    useState<YouTubeSearchResult | null>(null);
   const [isSubmittingMetadata, setIsSubmittingMetadata] = useState(false);
 
   const handleSearch = async () => {
@@ -53,7 +47,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       return;
     }
 
-      setIsSearching(true);
+    setIsSearching(true);
     try {
       const response = await searchYouTube(searchQuery);
       if (response.error) {
@@ -67,7 +61,7 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       toast.error(
         `Failed to search: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`,
+        }`
       );
     } finally {
       setIsSearching(false);
@@ -89,18 +83,13 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       setIsSubmittingMetadata(true);
       setDownloadingIds((prev) => [...prev, selectedResult.id]);
 
-      // Notify parent component about download start if callback provided
-      if (onDownloadStart) {
-        onDownloadStart(selectedResult.id, metadata.title);
-      }
-
       await downloadYouTubeVideo(selectedResult.id, {
         title: metadata.title,
         artist: metadata.artist,
       });
 
       toast.success(
-        `Added "${metadata.title}" by ${metadata.artist} to processing queue`,
+        `Added "${metadata.title}" by ${metadata.artist} to processing queue`
       );
 
       setIsMetadataDialogOpen(false);
@@ -110,12 +99,12 @@ const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ onDownloadStart }) => {
       toast.error(
         `Failed to download: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`,
+        }`
       );
     } finally {
       setIsSubmittingMetadata(false);
       setDownloadingIds((prev) =>
-        prev.filter((id) => selectedResult.id !== id),
+        prev.filter((id) => selectedResult.id !== id)
       );
     }
   };
