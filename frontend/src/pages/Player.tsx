@@ -20,6 +20,7 @@ import {
   getAudioUrl,
   getSongById,
   searchLyrics,
+  updateSongMetadata,
 } from "../services/songService";
 import { Song } from "../types/Song";
 import { MetadataDialog } from "../components/upload/MetadataDialog";
@@ -46,6 +47,8 @@ const PlayerPage: React.FC = () => {
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
   const [noLyricsDetected, setNoLyricsDetected] = useState(false);
+  const [isLoadingSong, setIsLoadingSong] = useState(false);
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
   // Navigate to performance controls page
   const handleOpenControls = () => {
@@ -60,6 +63,7 @@ const PlayerPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      setIsLoadingSong(true);
       const queueItem =
         queueState.items.find((item) => item.song.id === id) ||
         (queueState.currentItem?.song.id === id
@@ -75,6 +79,7 @@ const PlayerPage: React.FC = () => {
         queueDispatch({ type: "SET_CURRENT_ITEM", payload: queueItem });
 
         setCurrentSong(queueItem.song);
+        setIsLoadingSong(false);
       } else {
         fetchSongDetails(id);
       }
@@ -94,18 +99,21 @@ const PlayerPage: React.FC = () => {
   // Fetch song details if needed
   const fetchSongDetails = async (songId: string) => {
     try {
+      setIsLoadingSong(true);
       const response = await getSongById(songId);
       if (response.data) {
         setCurrentSong(response.data);
       }
     } catch (error) {
       console.error("Failed to fetch song details:", error);
+    } finally {
+      setIsLoadingSong(false);
     }
   };
 
   // Check if lyrics are available and show dialog if needed
   useEffect(() => {
-    if (currentSong && !noLyricsDetected) {
+    if (currentSong && !noLyricsDetected && !isLoadingSong) {
       const hasLyrics =
         currentSong.lyrics?.trim() ?? currentSong.syncedLyrics?.trim() ?? "";
 
@@ -114,7 +122,7 @@ const PlayerPage: React.FC = () => {
         setShowMetadataDialog(true);
       }
     }
-  }, [currentSong, noLyricsDetected]);
+  }, [currentSong, noLyricsDetected, isLoadingSong]);
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -187,16 +195,40 @@ const PlayerPage: React.FC = () => {
         // Get first result
         const lyricsData = response.data[0];
 
-        // Update the current song object with the new lyrics
+        // Only proceed if we found lyrics and have a current song
         if (
           currentSong &&
           (lyricsData.plainLyrics || lyricsData.syncedLyrics)
         ) {
-          setCurrentSong({
+          // Prepare updated song data with metadata and lyrics
+          const updatedSongData = {
             ...currentSong,
+            artist: metadata.artist,
+            title: metadata.title,
             lyrics: lyricsData.plainLyrics ?? "",
             syncedLyrics: lyricsData.syncedLyrics ?? "",
-          });
+          };
+          
+          // Update local state first
+          setCurrentSong(updatedSongData);
+          
+          // Then persist to server
+          try {
+            // Save both the metadata and lyrics to the server
+            await updateSongMetadata(id, {
+              artist: metadata.artist,
+              title: metadata.title,
+              lyrics: lyricsData.plainLyrics ?? "",
+              syncedLyrics: lyricsData.syncedLyrics ?? "",
+            });
+            console.log("Successfully saved song metadata and lyrics");
+            
+            // Set noLyricsDetected to false since we now have lyrics
+            setNoLyricsDetected(false);
+          } catch (saveError) {
+            console.error("Failed to save song metadata and lyrics to server:", saveError);
+            // We keep the UI updated even if server save fails
+          }
         }
       }
     } catch (error) {
@@ -233,7 +265,7 @@ const PlayerPage: React.FC = () => {
     <PlayerLayout>
       {/* Metadata Dialog for Lyrics Search */}
       <MetadataDialog
-        isOpen={showMetadataDialog}
+        isOpen={showMetadataDialog && !isLoadingSong}
         onClose={() => setShowMetadataDialog(false)}
         onSubmit={handleMetadataSubmit}
         initialMetadata={derivedMetadata}
@@ -279,7 +311,6 @@ const PlayerPage: React.FC = () => {
               </div>
               <audio
                 controls
-                autoPlay
                 src={getAudioUrl(id, "instrumental")}
                 className="w-full"
                 ref={audioRef}
