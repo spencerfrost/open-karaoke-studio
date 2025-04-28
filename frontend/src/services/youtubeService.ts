@@ -108,13 +108,15 @@ export async function fetchEnhancedMetadata(
 export async function fetchLyrics(
   title: string,
   artist: string,
+  album?: string,
   songId?: string,
 ) {
   return apiRequest<LyricsResponse>("/api/lyrics/search", {
     method: "POST",
     body: {
-      title,
-      artist,
+      track_name: title,
+      artist_name: artist,
+      album_name: album,
       song_id: songId,
     },
   });

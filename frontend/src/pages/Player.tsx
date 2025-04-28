@@ -19,9 +19,9 @@ import { useSettingsStore } from "../stores/useSettingsStore";
 import {
   getAudioUrl,
   getSongById,
-  searchLyrics,
   updateSongMetadata,
 } from "../services/songService";
+import { fetchLyrics } from "../services/youtubeService";
 import { Song } from "../types/Song";
 import { MetadataDialog } from "../components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "../utils/formatters";
@@ -48,15 +48,11 @@ const PlayerPage: React.FC = () => {
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
   const [noLyricsDetected, setNoLyricsDetected] = useState(false);
   const [isLoadingSong, setIsLoadingSong] = useState(false);
-  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
-  // Navigate to performance controls page
   const handleOpenControls = () => {
-    // Go to controls page (no ID needed since it's global)
     navigate("/player/controls");
   };
 
-  // Derived metadata from the song title or ID
   const derivedMetadata = currentSong?.title
     ? parseYouTubeTitle(currentSong.title)
     : { title: "", artist: "Unknown Artist" };
@@ -179,6 +175,7 @@ const PlayerPage: React.FC = () => {
   const handleMetadataSubmit = async (metadata: {
     artist: string;
     title: string;
+    album?: string;
   }) => {
     if (!id) return;
 
@@ -186,26 +183,27 @@ const PlayerPage: React.FC = () => {
 
     try {
       // Search for lyrics based on metadata
-      const response = await searchLyrics({
-        track_name: metadata.title,
-        artist_name: metadata.artist,
-      });
+      const response = await fetchLyrics(
+        metadata.title,
+        metadata.artist,
+        metadata.album,
+        id
+      );
 
-      if (response.data && response.data.length > 0) {
-        // Get first result
-        const lyricsData = response.data[0];
+      if (response.data) {
+        const lyricsData = response.data;
 
         // Only proceed if we found lyrics and have a current song
         if (
           currentSong &&
-          (lyricsData.plainLyrics || lyricsData.syncedLyrics)
+          (lyricsData.lyrics || lyricsData.syncedLyrics)
         ) {
           // Prepare updated song data with metadata and lyrics
           const updatedSongData = {
             ...currentSong,
             artist: metadata.artist,
             title: metadata.title,
-            lyrics: lyricsData.plainLyrics ?? "",
+            lyrics: lyricsData.lyrics ?? "",
             syncedLyrics: lyricsData.syncedLyrics ?? "",
           };
           
@@ -218,7 +216,7 @@ const PlayerPage: React.FC = () => {
             await updateSongMetadata(id, {
               artist: metadata.artist,
               title: metadata.title,
-              lyrics: lyricsData.plainLyrics ?? "",
+              lyrics: lyricsData.lyrics ?? "",
               syncedLyrics: lyricsData.syncedLyrics ?? "",
             });
             console.log("Successfully saved song metadata and lyrics");
@@ -277,7 +275,7 @@ const PlayerPage: React.FC = () => {
         onClick={handleOpenControls}
         aria-label="Open performance controls"
       >
-        <Sliders size={24} />
+  <Sliders size={24} />
       </Button>
 
       {playerState.status === "idle" || !playerState.currentSong ? (
