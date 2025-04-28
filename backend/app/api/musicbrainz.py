@@ -1,8 +1,7 @@
 # backend/app/musicbrainz_endpoints.py
 
 from flask import Blueprint, jsonify, request, current_app
-from . import musicbrainz
-from typing import List, Dict, Any
+from ..services.musicbrainz_service import search_musicbrainz
 
 # Create a blueprint
 mb_bp = Blueprint('musicbrainz', __name__, url_prefix='/api/musicbrainz')
@@ -25,7 +24,7 @@ def search_musicbrainz_endpoint():
             return jsonify({"error": "At least one search term (title or artist) is required"}), 400
             
         # Perform MusicBrainz search
-        results = musicbrainz.search_musicbrainz(artist, title)
+        results = search_musicbrainz(artist, title)
         
         if not results:
             return jsonify([]), 200  # Return empty array, not an error

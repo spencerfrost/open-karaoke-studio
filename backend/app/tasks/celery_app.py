@@ -1,4 +1,4 @@
-# app/celery_app.py
+# backend/app/tasks/celery_app.py
 from celery import Celery
 import os
 import multiprocessing
@@ -23,12 +23,12 @@ result_backend = os.getenv('CELERY_RESULT_BACKEND', os.getenv('REDIS_URL', 'redi
 
 logger.info(f"Configuring Celery with broker: {broker_url}, backend: {result_backend}")
 
-# Create Celery app
+# Create Celery app - this name is what forms the beginning of task names
 celery = Celery(
-    'backend',
+    'app',
     broker=broker_url,
     backend=result_backend,
-    include=['backend.app.tasks']
+    include=['app.tasks.tasks']
 )
 
 # Configure Celery
@@ -40,10 +40,6 @@ celery.conf.update(
     enable_utc=True,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
-    task_routes={
-        'app.tasks.process_audio_task': {'queue': 'audio_processing'},
-        'app.tasks.cleanup_old_jobs': {'queue': 'maintenance'},
-    }
 )
 
 # For Flask integration (optional)

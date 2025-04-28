@@ -1,7 +1,7 @@
 /**
  * YouTube-related API services
  */
-import { apiRequest } from "./api";
+import { apiRequest, ApiResponse } from "./api";
 
 export interface YouTubeSearchResult {
   id: string;
@@ -10,10 +10,6 @@ export interface YouTubeSearchResult {
   duration: number;
   thumbnail: string;
   url: string;
-}
-
-export interface YouTubeSearchResponse {
-  results: YouTubeSearchResult[];
 }
 
 export interface YouTubeDownloadResponse {
@@ -42,7 +38,7 @@ export interface LyricsResponse {
  * Search YouTube for videos matching the query
  */
 export async function searchYouTube(query: string, maxResults: number = 10) {
-  return apiRequest<YouTubeSearchResponse>("/api/youtube/search", {
+  return apiRequest<ApiResponse<YouTubeSearchResult[]>>("/api/youtube/search", {
     method: "POST",
     body: {
       query,
@@ -61,7 +57,7 @@ export async function downloadYouTubeVideo(
   return apiRequest<YouTubeDownloadResponse>("/api/youtube/download", {
     method: "POST",
     body: {
-      video_id: videoId,
+      videoId,
       ...metadata,
     },
   });
@@ -112,13 +108,15 @@ export async function fetchEnhancedMetadata(
 export async function fetchLyrics(
   title: string,
   artist: string,
+  album?: string,
   songId?: string,
 ) {
   return apiRequest<LyricsResponse>("/api/lyrics/search", {
     method: "POST",
     body: {
-      title,
-      artist,
+      track_name: title,
+      artist_name: artist,
+      album_name: album,
       song_id: songId,
     },
   });

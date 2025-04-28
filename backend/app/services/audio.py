@@ -7,7 +7,7 @@ from demucs.api import Separator, save_audio
 
 # Use relative imports
 from . import file_management
-from . import config
+from ..config import Config as config
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
