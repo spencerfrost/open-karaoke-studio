@@ -17,6 +17,9 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
     return null;
   }
 
+  // TO DO: Use the size from the performance controls store
+  // const { lyricsSize } = usePerformanceControlsStore();
+
   return (
     <div className={`h-full w-full ${className} relative`}>
       <Lrc
