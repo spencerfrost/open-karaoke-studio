@@ -15,11 +15,11 @@ const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
   const colors = vintageTheme.colors;
 
-  // --- Use useApiQuery to fetch songs ---
-  const songsQuery = useApiQuery<Song[]>(["songs", "list"], "/songs", {
-    // Optional: Configure staleTime, cacheTime, etc. if needed
-    // staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  const songsQuery = useApiQuery<Song[], ["songs", "list"]>(
+    ["songs", "list"],
+    "/songs",
+    {}
+  );
 
   // --- Effect to update context when query data changes ---
   useEffect(() => {
@@ -31,7 +31,6 @@ const LibraryPage: React.FC = () => {
     // along with dispatch if your linter requires it.
   }, [songsQuery.isSuccess, songsQuery.data, dispatch]);
 
-  // Removed: The useEffect block that previously called fetchSongs
 
   // Handle search input (no changes needed)
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,7 +41,7 @@ const LibraryPage: React.FC = () => {
   const handleStatusFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
     dispatch({
       type: "SET_FILTER_STATUS",
-      payload: e.target.value as any,
+      payload: e.target.value as "all" | "processed" | "processing" | "queued",
     });
   };
 

@@ -16,24 +16,24 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   const lyricsRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (lyricsRef.current && containerRef.current) {
-      const updateScrollPosition = () => {
-        const lyricsElement = lyricsRef.current;
-        if (!lyricsElement) return;
+  // useEffect(() => {
+  //   if (lyricsRef.current && containerRef.current) {
+  //     const updateScrollPosition = () => {
+  //       const lyricsElement = lyricsRef.current;
+  //       if (!lyricsElement) return;
 
-        const totalScrollHeight =
-          lyricsElement.scrollHeight - lyricsElement.clientHeight;
-        const scrollPosition = Math.max(
-          0,
-          Math.min(totalScrollHeight, progress * totalScrollHeight),
-        );
+  //       const totalScrollHeight =
+  //         lyricsElement.scrollHeight - lyricsElement.clientHeight;
+  //       const scrollPosition = Math.max(
+  //         0,
+  //         Math.min(totalScrollHeight, progress * totalScrollHeight),
+  //       );
 
-        lyricsElement.scrollTop = scrollPosition;
-      };
-      setTimeout(updateScrollPosition, 0);
-    }
-  }, [progress, lyrics]);
+  //       lyricsElement.scrollTop = scrollPosition;
+  //     };
+  //     setTimeout(updateScrollPosition, 0);
+  //   }
+  // }, [progress, lyrics]);
 
   return (
     <div

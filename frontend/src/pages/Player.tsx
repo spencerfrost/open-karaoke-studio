@@ -270,14 +270,17 @@ const PlayerPage: React.FC = () => {
         videoTitle={currentSong?.title ?? ""}
         isSubmitting={isSearchingLyrics}
       />
+
       <Button
         className="p-3 rounded-full bg-accent text-background z-100"
         onClick={handleOpenControls}
         aria-label="Open performance controls"
       >
-  <Sliders size={24} />
+        <Sliders size={24} />
       </Button>
 
+
+      {/* Loading state */}
       {playerState.status === "idle" || !playerState.currentSong ? (
         <div className="flex flex-col gap-4 h-full p-6 relative z-20">
           <div className="text-center mt-8">
