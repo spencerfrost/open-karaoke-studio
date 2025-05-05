@@ -33,7 +33,7 @@ def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         'noplaylist': True
     }
     
-    search_term = f"ytsearch{max_results}:{query} Official Audio"
+    search_term = f"ytsearch{max_results}:{query}"
     results = []
     
     try:
