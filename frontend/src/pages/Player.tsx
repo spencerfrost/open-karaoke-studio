@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Play,
   Pause,
@@ -16,27 +16,17 @@ import ProgressBar from "../components/player/ProgressBar";
 import QueueList from "../components/queue/QueueList";
 import { skipToNext } from "../services/queueService";
 import { useSettingsStore } from "../stores/useSettingsStore";
-import {
-  getAudioUrl,
-  getSongById,
-  updateSongMetadata,
-} from "../services/songService";
-import { fetchLyrics } from "../services/youtubeService";
 import { Song } from "../types/Song";
-import { MetadataDialog } from "../components/upload/MetadataDialog";
-import { parseYouTubeTitle } from "../utils/formatters";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
 import { Button } from "@/components/ui/button";
 
 const PlayerPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { state: playerState, dispatch: playerDispatch } = usePlayer();
   const { state: queueState, dispatch: queueDispatch } = useQueue();
-  // Replace Context API with Zustand store for settings
   const settings = useSettingsStore();
   const defaultVocalVolume = useSettingsStore(
-    (state) => state.audio.defaultVocalVolume,
+    (state) => state.audio.defaultVocalVolume
   );
 
   const [vocalsMuted, setVocalsMuted] = useState(false);
@@ -44,81 +34,10 @@ const PlayerPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
-  const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
-  const [noLyricsDetected, setNoLyricsDetected] = useState(false);
-  const [isLoadingSong, setIsLoadingSong] = useState(false);
 
   const handleOpenControls = () => {
     navigate("/player/controls");
   };
-
-  const derivedMetadata = currentSong?.title
-    ? parseYouTubeTitle(currentSong.title)
-    : { title: "", artist: "Unknown Artist" };
-
-  useEffect(() => {
-    if (id) {
-      setIsLoadingSong(true);
-      const queueItem =
-        queueState.items.find((item) => item.song.id === id) ||
-        (queueState.currentItem?.song.id === id
-          ? queueState.currentItem
-          : null);
-
-      if (queueItem) {
-        playerDispatch({ type: "SET_CURRENT_SONG", payload: queueItem });
-        playerDispatch({
-          type: "SET_DURATION",
-          payload: queueItem.song.duration,
-        });
-        queueDispatch({ type: "SET_CURRENT_ITEM", payload: queueItem });
-
-        setCurrentSong(queueItem.song);
-        setIsLoadingSong(false);
-      } else {
-        fetchSongDetails(id);
-      }
-
-      setTimeout(() => {
-        playerDispatch({ type: "SET_STATUS", payload: "playing" });
-      }, 500);
-    }
-  }, [
-    id,
-    playerDispatch,
-    queueDispatch,
-    queueState.items,
-    queueState.currentItem,
-  ]);
-
-  // Fetch song details if needed
-  const fetchSongDetails = async (songId: string) => {
-    try {
-      setIsLoadingSong(true);
-      const response = await getSongById(songId);
-      if (response.data) {
-        setCurrentSong(response.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch song details:", error);
-    } finally {
-      setIsLoadingSong(false);
-    }
-  };
-
-  // Check if lyrics are available and show dialog if needed
-  useEffect(() => {
-    if (currentSong && !noLyricsDetected && !isLoadingSong) {
-      const hasLyrics =
-        currentSong.lyrics?.trim() ?? currentSong.syncedLyrics?.trim() ?? "";
-
-      if (!hasLyrics) {
-        setNoLyricsDetected(true);
-        setShowMetadataDialog(true);
-      }
-    }
-  }, [currentSong, noLyricsDetected, isLoadingSong]);
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -171,72 +90,6 @@ const PlayerPage: React.FC = () => {
     }
   };
 
-  // Handle lyrics search submission
-  const handleMetadataSubmit = async (metadata: {
-    artist: string;
-    title: string;
-    album?: string;
-  }) => {
-    if (!id) return;
-
-    setIsSearchingLyrics(true);
-
-    try {
-      // Search for lyrics based on metadata
-      const response = await fetchLyrics(
-        metadata.title,
-        metadata.artist,
-        metadata.album,
-        id
-      );
-
-      if (response.data) {
-        const lyricsData = response.data;
-
-        // Only proceed if we found lyrics and have a current song
-        if (
-          currentSong &&
-          (lyricsData.lyrics || lyricsData.syncedLyrics)
-        ) {
-          // Prepare updated song data with metadata and lyrics
-          const updatedSongData = {
-            ...currentSong,
-            artist: metadata.artist,
-            title: metadata.title,
-            lyrics: lyricsData.lyrics ?? "",
-            syncedLyrics: lyricsData.syncedLyrics ?? "",
-          };
-          
-          // Update local state first
-          setCurrentSong(updatedSongData);
-          
-          // Then persist to server
-          try {
-            // Save both the metadata and lyrics to the server
-            await updateSongMetadata(id, {
-              artist: metadata.artist,
-              title: metadata.title,
-              lyrics: lyricsData.lyrics ?? "",
-              syncedLyrics: lyricsData.syncedLyrics ?? "",
-            });
-            console.log("Successfully saved song metadata and lyrics");
-            
-            // Set noLyricsDetected to false since we now have lyrics
-            setNoLyricsDetected(false);
-          } catch (saveError) {
-            console.error("Failed to save song metadata and lyrics to server:", saveError);
-            // We keep the UI updated even if server save fails
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to search for lyrics:", error);
-    } finally {
-      setIsSearchingLyrics(false);
-      setShowMetadataDialog(false);
-    }
-  };
-
   // Toggle vocals
   const handleToggleVocals = () => {
     if (vocalsMuted) {
@@ -261,16 +114,6 @@ const PlayerPage: React.FC = () => {
 
   return (
     <PlayerLayout>
-      {/* Metadata Dialog for Lyrics Search */}
-      <MetadataDialog
-        isOpen={showMetadataDialog && !isLoadingSong}
-        onClose={() => setShowMetadataDialog(false)}
-        onSubmit={handleMetadataSubmit}
-        initialMetadata={derivedMetadata}
-        videoTitle={currentSong?.title ?? ""}
-        isSubmitting={isSearchingLyrics}
-      />
-
       <Button
         className="p-3 rounded-full bg-accent text-background z-100"
         onClick={handleOpenControls}
@@ -279,8 +122,6 @@ const PlayerPage: React.FC = () => {
         <Sliders size={24} />
       </Button>
 
-
-      {/* Loading state */}
       {playerState.status === "idle" || !playerState.currentSong ? (
         <div className="flex flex-col gap-4 h-full p-6 relative z-20">
           <div className="text-center mt-8">
@@ -291,35 +132,6 @@ const PlayerPage: React.FC = () => {
               Scan the QR code to add songs to the queue
             </p>
           </div>
-
-          {/* Audio test player */}
-          {id && (
-            <div className="mt-6">
-              <div className="aspect-video w-full bg-black/80 overflow-hidden relative">
-                {currentSong?.syncedLyrics ? (
-                  <SyncedLyricsDisplay
-                    syncedLyrics={currentSong.syncedLyrics}
-                    currentTime={currentTime}
-                    className="h-full"
-                  />
-                ) : (
-                  <LyricsDisplay
-                    lyrics={currentSong?.lyrics ?? ""}
-                    progress={progress}
-                    currentTime={currentTime}
-                  />
-                )}
-              </div>
-              <audio
-                controls
-                src={getAudioUrl(id, "instrumental")}
-                className="w-full"
-                ref={audioRef}
-              >
-                <track kind="captions" src="" label="No captions available" />
-              </audio>
-            </div>
-          )}
 
           <h2 className="text-2xl font-semibold text-center mb-4 text-orange-peel">
             Up Next
@@ -335,19 +147,20 @@ const PlayerPage: React.FC = () => {
       ) : (
         <div className="flex flex-col h-full relative z-20">
           <div className="flex-1 flex flex-col items-center justify-center">
-            {currentSong?.syncedLyrics ? (
-              <SyncedLyricsDisplay
-                syncedLyrics={currentSong.syncedLyrics}
-                currentTime={currentTime}
-                className="h-full"
-              />
-            ) : (
-              <LyricsDisplay
-                lyrics={currentSong?.lyrics ?? ""}
-                progress={progress}
-                currentTime={currentTime}
-              />
-            )}
+            {currentSong &&
+              (currentSong.syncedLyrics ? (
+                <SyncedLyricsDisplay
+                  syncedLyrics={currentSong.syncedLyrics}
+                  currentTime={currentTime}
+                  className="h-full"
+                />
+              ) : (
+                <LyricsDisplay
+                  lyrics={currentSong?.lyrics ?? ""}
+                  progress={progress}
+                  currentTime={currentTime}
+                />
+              ))}
           </div>
 
           {/* Bottom controls */}
