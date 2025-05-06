@@ -229,7 +229,7 @@ const SongPlayer: React.FC = () => {
           <ProgressBar
             currentTime={currentTime}
             duration={duration}
-            onChange={(val) => seek(duration ? (val / 100) * duration : 0)}
+            onSeek={(val) => seek(val)}
             className="mb-2"
           />
           <div className="flex justify-center items-center gap-6">
