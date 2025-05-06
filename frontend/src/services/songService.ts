@@ -17,7 +17,7 @@ const API_PATH = "/api";
  */
 export function getAudioUrl(
   songId: string,
-  trackType: "vocals" | "instrumental" | "original",
+  trackType: "vocals" | "instrumental" | "original"
 ): string {
   return `${API_HOST}${API_PATH}/songs/${songId}/download/${trackType}`;
 }
@@ -41,7 +41,7 @@ export async function getSongById(id: string): Promise<ApiResponse<Song>> {
  */
 export async function updateSong(
   id: string,
-  updates: Partial<Song>,
+  updates: Partial<Song>
 ): Promise<ApiResponse<Song>> {
   return apiRequest<Song>(`${API_PATH}/songs/${id}`, {
     method: "PUT",
@@ -53,7 +53,7 @@ export async function updateSong(
  * Delete a song
  */
 export async function deleteSong(
-  id: string,
+  id: string
 ): Promise<ApiResponse<{ success: boolean }>> {
   return apiRequest<{ success: boolean }>(`${API_PATH}/songs/${id}`, {
     method: "DELETE",
@@ -65,10 +65,10 @@ export async function deleteSong(
  */
 export async function toggleFavorite(
   id: string,
-  isFavorite: boolean,
+  isFavorite: boolean
 ): Promise<ApiResponse<Song>> {
   console.warn(
-    "toggleFavorite endpoint not implemented in backend blueprint yet.",
+    "toggleFavorite endpoint not implemented in backend blueprint yet."
   );
   return updateSong(id, { favorite: isFavorite });
 }
@@ -78,7 +78,7 @@ export async function toggleFavorite(
  */
 export async function downloadVocals(
   songId: string,
-  filename?: string,
+  filename?: string
 ): Promise<void> {
   const url = `${API_PATH}/songs/${songId}/download/vocals`;
   return downloadFile(url, filename ?? `vocals-${songId}.mp3`);
@@ -89,7 +89,7 @@ export async function downloadVocals(
  */
 export async function downloadInstrumental(
   songId: string,
-  filename?: string,
+  filename?: string
 ): Promise<void> {
   const url = `${API_PATH}/songs/${songId}/download/instrumental`;
   return downloadFile(url, filename ?? `instrumental-${songId}.mp3`);
@@ -100,7 +100,7 @@ export async function downloadInstrumental(
  */
 export async function downloadOriginal(
   songId: string,
-  filename?: string,
+  filename?: string
 ): Promise<void> {
   const url = `${API_PATH}/songs/${songId}/download/original`;
   return downloadFile(url, filename ?? `original-${songId}.mp3`);
@@ -111,7 +111,7 @@ export async function downloadOriginal(
  */
 export async function updateSongMetadata(
   id: string,
-  metadata: Partial<Song>,
+  metadata: Partial<Song>
 ): Promise<ApiResponse<Song>> {
   return apiRequest<Song>(`${API_PATH}/songs/${id}/metadata`, {
     method: "PATCH" as HttpMethod,
@@ -136,10 +136,10 @@ export async function searchMusicBrainz(query: {
  * Get song processing status
  */
 export async function getSongStatus(
-  id: string,
+  id: string
 ): Promise<ApiResponse<{ status: string; progress?: number }>> {
   console.warn(
-    "getSongStatus may require original filename, not song_id, for current /status endpoint",
+    "getSongStatus may require original filename, not song_id, for current /status endpoint"
   );
   return apiRequest<{ status: string; progress?: number }>(`/status/${id}`);
 }
@@ -194,4 +194,13 @@ export async function searchLyrics(query: {
       syncedLyrics: string | null;
     }>
   >(`${API_PATH}/lyrics/search?${queryParams.toString()}`);
+}
+
+/**
+ * Fetch an audio file as an ArrayBuffer for Web Audio API
+ */
+export async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Failed to fetch audio file");
+  return await response.arrayBuffer();
 }
