@@ -18,6 +18,8 @@ import AddSongPage from "./pages/AddSong";
 import QueuePage from "./pages/Queue";
 import SettingsPage from "./pages/Settings";
 import PlayerPage from "./pages/Player";
+import SongPlayerPage from "./pages/SongPlayer";
+import PerformanceControlsPage from "./pages/PerformanceControlsPage";
 
 const App: React.FC = () => {
   return (
@@ -35,7 +37,13 @@ const App: React.FC = () => {
 
                 {/* Player routes */}
                 <Route path="/player" element={<PlayerPage />} />
-                <Route path="/player/:id" element={<PlayerPage />} />
+                <Route path="/player/:id" element={<SongPlayerPage />} />
+
+                {/* Performance controls route - simplified to global */}
+                <Route
+                  path="/player/controls"
+                  element={<PerformanceControlsPage />}
+                />
 
                 {/* Fallback route */}
                 <Route path="*" element={<Navigate to="/" replace />} />

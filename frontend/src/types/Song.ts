@@ -6,6 +6,10 @@ export interface Song {
   artist: string;
   duration: number; // in seconds
   status: SongStatus;
+  uploader: string;
+  uploadId: string;
+  channel: string;
+  channelId: string;
   favorite: boolean;
   dateAdded: string;
   coverArt?: string;

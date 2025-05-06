@@ -13,10 +13,10 @@ tmux split-window -v -t karaoke:0.0
 
 # Start services in their respective panes
 # Start the API server in the top-right pane
-tmux send-keys -t karaoke:0.1 "cd $(pwd)/backend && ./run_api.sh" C-m
+tmux send-keys -t karaoke:0.1 "cd $(pwd)/backend && source venv/bin/activate && ./run_api.sh" C-m
 
 # Start the Celery worker in the bottom-left pane
-tmux send-keys -t karaoke:0.2 "cd $(pwd)/backend && ./run_celery.sh" C-m
+tmux send-keys -t karaoke:0.2 "cd $(pwd)/backend && source venv/bin/activate && ./run_celery.sh" C-m
 
 # Start the frontend in the bottom-right pane
 tmux send-keys -t karaoke:0.3 "cd $(pwd)/frontend && pnpm run dev" C-m

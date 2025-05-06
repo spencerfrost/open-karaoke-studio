@@ -71,7 +71,7 @@ const apiSend = async <T, V>(
  * @param {Omit<UseQueryOptions<T, Error, T, TQueryKey>, 'queryKey' | 'queryFn'>} [options] - Additional options for the query.
  * @returns {UseQueryResult<T, Error>} - The result of the query.
  */
-export function useApiQuery<T, TQueryKey extends readonly any[]>(
+export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
   queryKey: TQueryKey,
   url: string,
   options?: Omit<

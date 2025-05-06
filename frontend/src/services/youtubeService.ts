@@ -1,7 +1,7 @@
 /**
  * YouTube-related API services
  */
-import { apiRequest } from "./api";
+import { apiRequest, ApiResponse } from "./api";
 
 export interface YouTubeSearchResult {
   id: string;
@@ -10,10 +10,6 @@ export interface YouTubeSearchResult {
   duration: number;
   thumbnail: string;
   url: string;
-}
-
-export interface YouTubeSearchResponse {
-  results: YouTubeSearchResult[];
 }
 
 export interface YouTubeDownloadResponse {
@@ -42,7 +38,7 @@ export interface LyricsResponse {
  * Search YouTube for videos matching the query
  */
 export async function searchYouTube(query: string, maxResults: number = 10) {
-  return apiRequest<YouTubeSearchResponse>("/api/youtube/search", {
+  return apiRequest<ApiResponse<YouTubeSearchResult[]>>("/api/youtube/search", {
     method: "POST",
     body: {
       query,
@@ -56,12 +52,12 @@ export async function searchYouTube(query: string, maxResults: number = 10) {
  */
 export async function downloadYouTubeVideo(
   videoId: string,
-  metadata?: { title?: string; artist?: string }
+  metadata?: { title?: string; artist?: string },
 ) {
   return apiRequest<YouTubeDownloadResponse>("/api/youtube/download", {
     method: "POST",
     body: {
-      video_id: videoId,
+      videoId,
       ...metadata,
     },
   });
@@ -71,24 +67,31 @@ export async function downloadYouTubeVideo(
  * Fetch parsed metadata for a YouTube video
  */
 export async function fetchParsedMetadata(videoId: string) {
-  const response = await apiRequest<MetadataResponse>("/api/youtube/parse-metadata", {
-    method: "POST",
-    body: {
-      video_id: videoId,
+  const response = await apiRequest<MetadataResponse>(
+    "/api/youtube/parse-metadata",
+    {
+      method: "POST",
+      body: {
+        video_id: videoId,
+      },
     },
-  });
-  
+  );
+
   if (response.error) {
     throw new Error(response.error);
   }
-  
+
   return response.data as MetadataResponse;
 }
 
 /**
  * Fetch enhanced metadata from MusicBrainz for a song
  */
-export async function fetchEnhancedMetadata(title: string, artist: string, songId?: string) {
+export async function fetchEnhancedMetadata(
+  title: string,
+  artist: string,
+  songId?: string,
+) {
   return apiRequest<any>("/api/musicbrainz/search", {
     method: "POST",
     body: {
@@ -102,12 +105,18 @@ export async function fetchEnhancedMetadata(title: string, artist: string, songI
 /**
  * Fetch lyrics from LRCLIB for a song
  */
-export async function fetchLyrics(title: string, artist: string, songId?: string) {
+export async function fetchLyrics(
+  title: string,
+  artist: string,
+  album?: string,
+  songId?: string,
+) {
   return apiRequest<LyricsResponse>("/api/lyrics/search", {
     method: "POST",
     body: {
-      title,
-      artist,
+      track_name: title,
+      artist_name: artist,
+      album_name: album,
       song_id: songId,
     },
   });

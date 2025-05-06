@@ -13,41 +13,47 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
 interface MetadataDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (metadata: { artist: string; title: string }) => void;
-  initialMetadata?: { artist: string; title: string };
-  videoTitle?: string;
-  isSubmitting?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSubmit: (metadata: { artist: string; title: string, album: string }) => void;
+  readonly initialMetadata?: { artist: string; title: string; album?: string };
+  readonly videoTitle?: string;
+  readonly isSubmitting?: boolean;
 }
 
 export function MetadataDialog({
   isOpen,
   onClose,
   onSubmit,
-  initialMetadata = { artist: "Unknown Artist", title: "" },
+  initialMetadata = { artist: "", title: "", album: "" },
   videoTitle = "",
   isSubmitting = false,
 }: MetadataDialogProps) {
   const [artist, setArtist] = useState("");
   const [title, setTitle] = useState("");
+  const [album, setAlbum] = useState("");
   const initialized = useRef(false);
 
-  // Initialize form values only once when dialog first opens
+  // Initialize form values when dialog opens
   useEffect(() => {
     if (isOpen && !initialized.current) {
       setArtist(initialMetadata.artist);
       setTitle(initialMetadata.title);
+      setAlbum(initialMetadata.album ?? "");
       initialized.current = true;
-    } else if (!isOpen) {
-      // Reset the initialization flag when dialog closes
-      initialized.current = false;
     }
   }, [isOpen, initialMetadata]);
 
+  // Reset initialization flag when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      initialized.current = false;
+    }
+  }, [isOpen]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ artist: artist.trim(), title: title.trim() });
+    onSubmit({ artist: artist.trim(), title: title.trim(), album: album.trim() });
   };
 
   return (
@@ -57,13 +63,16 @@ export function MetadataDialog({
           <DialogTitle>Song Information</DialogTitle>
           <DialogDescription>
             {videoTitle ? (
-              <>Verify or edit song information from: <strong>{videoTitle}</strong></>
+              <>
+                Verify or edit song information from:{" "}
+                <strong>{videoTitle}</strong>
+              </>
             ) : (
               <>Enter song information</>
             )}
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="title" className="text-right">
@@ -79,7 +88,7 @@ export function MetadataDialog({
               autoFocus
             />
           </div>
-          
+
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="artist" className="text-right">
               Artist
@@ -93,12 +102,33 @@ export function MetadataDialog({
               required
             />
           </div>
-          
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="album" className="text-right">
+              Album
+            </Label>
+            <Input
+              id="album"
+              value={album}
+              onChange={(e) => setAlbum(e.target.value)}
+              className="col-span-3"
+              placeholder="Album name (optional)"
+            />
+          </div>
+
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !title.trim() || !artist.trim()}>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !title.trim() || !artist.trim()}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
