@@ -7,15 +7,15 @@ const API_BASE_URL = "http://localhost:5000";
 export const API_BASE = API_BASE_URL;
 
 // Types
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface ApiOptions {
   method?: HttpMethod;
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
 }
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   data: T | null;
   error: string | null;
 }
@@ -101,7 +101,7 @@ export async function uploadFile<T>(
 
     if (!response.ok) {
       const errorMessage =
-        data.error || `File upload failed with status ${response.status}`;
+        data.error ?? `File upload failed with status ${response.status}`;
       throw new Error(errorMessage);
     }
 

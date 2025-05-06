@@ -47,7 +47,7 @@ export const truncateText = (text: string, maxLength: number): string => {
  * Similar to the backend implementation but available client-side
  */
 export const parseYouTubeTitle = (
-  videoTitle: string
+  videoTitle: string,
 ): { title: string; artist: string } => {
   // Default values
   let artist = "Unknown Artist";
@@ -79,7 +79,10 @@ export const parseYouTubeTitle = (
 
   // Case insensitive removal of suffixes
   for (const suffix of commonSuffixes) {
-    const regex = new RegExp(suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const regex = new RegExp(
+      suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     if (regex.test(title)) {
       title = title.replace(regex, "").trim();
     }
@@ -101,15 +104,17 @@ export const parseYouTubeTitle = (
     const parts = title.toLowerCase().split(" by ", 2);
     title = parts[0].trim();
     artist = parts[1].trim();
-    
+
     // Convert to title case
-    title = title.replace(/\w\S*/g, (txt) => 
-      txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+    title = title.replace(
+      /\w\S*/g,
+      (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase(),
     );
-    artist = artist.replace(/\w\S*/g, (txt) => 
-      txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+    artist = artist.replace(
+      /\w\S*/g,
+      (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase(),
     );
-    
+
     return { title, artist };
   }
 

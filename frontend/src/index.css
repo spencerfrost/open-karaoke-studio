@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Manrope:wght@400;600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -90,7 +91,7 @@
 
 @layer base {
   body {
-    font-family: "DM Sans", system-ui, sans-serif;
+    font-family: "Manrope", system-ui, sans-serif;
     @apply bg-background text-foreground;
     background-image: linear-gradient(
       135deg,
@@ -105,7 +106,17 @@
   h4,
   h5,
   h6 {
-    font-weight: 500;
+    font-family: "Syne", system-ui, sans-serif;
+    font-weight: 700;
+  }
+
+  .font-heading {
+    font-family: "Syne", system-ui, sans-serif;
+    font-weight: 700;
+  }
+  .font-body {
+    font-family: "Manrope", system-ui, sans-serif;
+    font-weight: 400;
   }
 
   /* Retro-style font for vintage flair */
@@ -192,6 +203,12 @@
     background: var(--dark-cyan);
     cursor: pointer;
     border: none;
+  }
+
+  /* Lyrics fade-out effect */
+  .mask-image-fade-bottom {
+    -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
   }
 
   /* Animations */

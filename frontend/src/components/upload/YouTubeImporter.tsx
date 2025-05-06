@@ -5,7 +5,12 @@ import {
 } from "../../utils/validators";
 import vintageTheme from "../../utils/theme";
 import { fetchParsedMetadata } from "@/services/youtubeService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface YouTubeImporterProps {
   onYouTubeImport: (url: string, title?: string, artist?: string) => void;

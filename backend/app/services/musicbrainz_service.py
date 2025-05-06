@@ -1,4 +1,4 @@
-# backend/app/musicbrainz.py
+# backend/app/services/musicbrainz_service.py
 import musicbrainzngs
 from pathlib import Path
 from typing import Dict, Any, Optional, List

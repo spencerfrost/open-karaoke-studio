@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
 import vintageTheme from "../../utils/theme";
-import { updateSongMetadata } from "../../services/songService";
+import { updateSongMetadata, deleteSong } from "../../services/songService";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
 
@@ -21,20 +21,16 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   buttonClassName = "",
 }) => {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
   const colors = vintageTheme.colors;
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
-      setIsSubmitting(true);
       const updatedSong = await updateSongMetadata(song.id, metadata);
-      onSongUpdated(updatedSong);
+      onSongUpdated(updatedSong.data as Song);
       setOpen(false);
     } catch (error) {
       console.error("Failed to update metadata:", error);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -48,11 +44,24 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       genre: result.genre,
       language: result.language,
       coverArt: result.coverArt,
-      // Preserve lyrics fields from the existing song object
       lyrics: song.lyrics,
-      syncedLyrics: song.syncedLyrics
+      syncedLyrics: song.syncedLyrics,
     };
     handleSaveMetadata(metadataToSave);
+  };
+
+  const handleDeleteSong = async () => {
+    if (window.confirm("Are you sure you want to delete this song? This action cannot be undone.")) {
+      try {
+        await deleteSong(song.id);
+        setOpen(false);
+        alert("Song deleted successfully.");
+        // Optionally, trigger a parent update or refresh the song list
+      } catch (error) {
+        console.error("Failed to delete song:", error);
+        alert("Failed to delete the song. Please try again.");
+      }
+    }
   };
 
   return (
@@ -87,6 +96,11 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
               />
             </TabsContent>
           </Tabs>
+          <div className="flex justify-end mt-4">
+            <Button variant="destructive" onClick={handleDeleteSong}>
+              Delete Song
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

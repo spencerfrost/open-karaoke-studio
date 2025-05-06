@@ -11,7 +11,6 @@ import {
 } from "../ui/select";
 import { Music, Save, Upload } from "lucide-react";
 import { Song } from "../../types/Song";
-import vintageTheme from "../../utils/theme";
 
 interface MetadataEditorTabProps {
   song: Song;
@@ -22,8 +21,6 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
   song,
   onSave,
 }) => {
-  const colors = vintageTheme.colors;
-
   const [metadata, setMetadata] = useState<Partial<Song>>({
     title: song.title,
     artist: song.artist,
