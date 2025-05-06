@@ -1,17 +1,14 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { type LucideIcon } from "lucide-react"; // Use the specific type for Lucide icons
+import { type LucideIcon } from "lucide-react";
 
-// Define the structure for a single navigation item
 interface NavItem {
   name: string;
   path: string;
-  icon: LucideIcon; // Expecting a Lucide icon component
+  icon: LucideIcon;
 }
 
-// Define the props for the NavBar component
 interface NavBarProps {
-  /** Array of navigation item objects */
   items: NavItem[];
 }
 
@@ -19,7 +16,6 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Determine if a nav item is active
   const isActive = (path: string): boolean => {
     return location.pathname === path;
   };
