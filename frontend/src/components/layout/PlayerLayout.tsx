@@ -16,10 +16,7 @@ const navigationItems = [
 
 const PlayerLayout: React.FC<PlayerLayoutProps> = ({ children }) => {
   return (
-    <div
-      style={{ background: vintageTheme.background }}
-      className="w-screen min-h-screen overflow-scroll relative"
-    >
+    <div className="flex flex-col h-screen">
       <div style={vintageTheme.getTextureOverlay()} />
       <div style={vintageTheme.getSunburstPattern()} />
 
