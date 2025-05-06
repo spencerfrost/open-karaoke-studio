@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
 import {
   getSongById,
@@ -14,22 +14,18 @@ import { Button } from "@/components/ui/button";
 import { MetadataDialog } from "@/components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "@/utils/formatters";
 import { useParams } from "react-router-dom";
+import { useWebAudioKaraoke } from "@/hooks/useWebAudioKaraoke";
+import PlayerLayout from "@/components/layout/PlayerLayout";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  // Zustand store state/actions
   const [song, setSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [vocalsMuted, setVocalsMuted] = useState(false);
-  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
-  const instrumentalRef = useRef<HTMLAudioElement | null>(null);
-  const vocalsRef = useRef<HTMLAudioElement | null>(null);
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
 
   // Fetch song on mount
   useEffect(() => {
@@ -77,48 +73,6 @@ const SongPlayer: React.FC = () => {
       .finally(() => setLyricsLoading(false));
   }, [song]);
 
-  // Audio event handlers
-  useEffect(() => {
-    const vocals = vocalsRef.current;
-    if (!vocals) return;
-    const onEnded = () => setPlaying(false);
-    vocals.addEventListener("ended", onEnded);
-    return () => {
-      vocals.removeEventListener("ended", onEnded);
-    };
-  }, [vocalsRef, song]);
-
-  // Play/pause sync
-  useEffect(() => {
-    const instrumental = instrumentalRef.current;
-    const vocals = vocalsRef.current;
-    if (!instrumental || !vocals) return;
-    if (playing) {
-      instrumental.play().catch(() => setPlaying(false));
-      vocals.play().catch(() => setPlaying(false));
-    } else {
-      instrumental.pause();
-      vocals.pause();
-    }
-  }, [playing]);
-
-  // Mute vocals (set volume to 0)
-  useEffect(() => {
-    const vocals = vocalsRef.current;
-    if (vocals) vocals.volume = vocalsMuted ? 0 : 1;
-  }, [vocalsMuted]);
-
-  // Seek
-  const handleSeek = (time: number) => {
-    const instrumental = instrumentalRef.current;
-    const vocals = vocalsRef.current;
-    if (instrumental && vocals) {
-      instrumental.currentTime = time;
-      vocals.currentTime = time;
-      setCurrentTime(time);
-    }
-  };
-
   // Show metadata dialog if lyrics are missing
   useEffect(() => {
     if (
@@ -160,7 +114,7 @@ const SongPlayer: React.FC = () => {
         });
         setShowMetadataDialog(false);
       }
-    } catch (err) {
+    } catch {
       // Optionally handle error
     } finally {
       setIsSearchingLyrics(false);
@@ -169,11 +123,40 @@ const SongPlayer: React.FC = () => {
 
   // Button handlers
   const handlePlayPause = () => {
-    setPlaying((p) => !p);
+    if (isPlaying) {
+      pause();
+    } else {
+      play();
+    }
   };
   const handleMute = () => {
-    setVocalsMuted((v) => !v);
+    setVocalVol(vocalVolume === 0 ? 1 : 0);
   };
+
+  // Prepare URLs for the hook, even if song is not loaded yet
+  const instrumentalUrl = song ? getAudioUrl(song.id, "instrumental") : "";
+  const vocalUrl = song ? getAudioUrl(song.id, "vocals") : "";
+  const {
+    currentTime,
+    duration,
+    load,
+    cleanup,
+    seek,
+    isReady,
+    isPlaying,
+    play,
+    pause,
+    vocalVolume,
+    setVocalVol,
+  } = useWebAudioKaraoke({
+    instrumentalUrl,
+    vocalUrl,
+  });
+
+  useEffect(() => {
+    if (song) load();
+    return () => cleanup();
+  }, [song, load, cleanup]);
 
   // Only render player if song is loaded
   if (loading) {
@@ -189,14 +172,39 @@ const SongPlayer: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-full">
         <div className="text-lg text-destructive">
-          {error || "Song not found."}
+          {error ?? "Song not found."}
         </div>
       </div>
     );
   }
 
+  let lyricsContent;
+  if (lyricsLoading) {
+    lyricsContent = (
+      <div className="text-orange-peel animate-pulse text-xl">
+        Fetching lyrics...
+      </div>
+    );
+  } else if (song.syncedLyrics) {
+    lyricsContent = (
+      <SyncedLyricsDisplay
+        syncedLyrics={song.syncedLyrics}
+        currentTime={currentTime * 1000}
+        className="h-full"
+      />
+    );
+  } else {
+    lyricsContent = (
+      <LyricsDisplay
+        lyrics={song.lyrics ?? ""}
+        progress={duration ? currentTime / duration : 0}
+        currentTime={currentTime * 1000}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full w-full items-center justify-center p-4">
+    <PlayerLayout>
       <MetadataDialog
         isOpen={showMetadataDialog}
         onClose={() => setShowMetadataDialog(false)}
@@ -215,70 +223,34 @@ const SongPlayer: React.FC = () => {
           {song.artist}
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden mb-4 flex items-center justify-center relative">
-          {lyricsLoading ? (
-            <div className="text-orange-peel animate-pulse text-xl">
-              Fetching lyrics...
-            </div>
-          ) : song.syncedLyrics ? (
-            <SyncedLyricsDisplay
-              syncedLyrics={song.syncedLyrics}
-              currentTime={currentTime * 1000}
-              className="h-full"
-            />
-          ) : (
-            <LyricsDisplay
-              lyrics={song.lyrics ?? ""}
-              progress={duration ? currentTime / duration : 0}
-              currentTime={currentTime * 1000}
-            />
-          )}
+          {lyricsContent}
         </div>
-        <audio
-          ref={instrumentalRef}
-          src={getAudioUrl(song.id, "instrumental")}
-          onCanPlay={() => setAudioReady(true)}
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onEnded={() => setPlaying(false)}
-          onError={() => {
-            setAudioReady(false);
-            setError("Failed to load instrumental audio.");
-          }}
-          className="w-full hidden"
-        />
-        <audio
-          ref={vocalsRef}
-          src={getAudioUrl(song.id, "vocals")}
-          onCanPlay={() => setAudioReady(true)}
-          onLoadedMetadata={() => setAudioReady(true)}
-          onError={() => {
-            setAudioReady(false);
-            setError("Failed to load vocal audio.");
-          }}
-          className="w-full hidden"
-        />
         <div className="flex flex-col gap-2 mt-2">
           <ProgressBar
-            value={duration ? (currentTime / duration) * 100 : 0}
-            max={100}
-            onChange={(val) => handleSeek((val / 100) * duration)}
+            currentTime={currentTime}
+            duration={duration}
+            onChange={(val) => seek(duration ? (val / 100) * duration : 0)}
             className="mb-2"
           />
           <div className="flex justify-center items-center gap-6">
             <Button
               className="p-3 rounded-full bg-accent text-background"
               onClick={handleMute}
-              aria-label={vocalsMuted ? "Unmute vocals" : "Mute vocals"}
+              aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
             >
-              {vocalsMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+              {vocalVolume === 0 ? (
+                <VolumeX size={24} />
+              ) : (
+                <Volume2 size={24} />
+              )}
             </Button>
             <Button
               className="p-4 rounded-full bg-orange-peel text-russet"
               onClick={handlePlayPause}
-              aria-label={playing ? "Pause" : "Play"}
-              disabled={!audioReady}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              disabled={!isReady}
             >
-              {playing ? (
+              {isPlaying ? (
                 <Pause size={32} />
               ) : (
                 <Play size={32} style={{ marginLeft: "3px" }} />
@@ -287,7 +259,7 @@ const SongPlayer: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PlayerLayout>
   );
 };
 
