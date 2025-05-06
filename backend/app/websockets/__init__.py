@@ -1,4 +1,5 @@
 """
 WebSocket functionality for Open Karaoke Studio.
 """
-from .websocket import init_socketio, socketio
+
+from .socketio import init_socketio, socketio
