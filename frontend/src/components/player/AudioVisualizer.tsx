@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { usePlayer } from "../../context/PlayerContext";
+import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import vintageTheme from "../../utils/theme";
 
 interface AudioVisualizerProps {
@@ -13,53 +13,58 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   barCount = 120,
   className = "",
 }) => {
-  const { state: playerState } = usePlayer();
+  const isPlaying = useWebAudioKaraokeStore((s) => s.isPlaying);
+  const isReady = useWebAudioKaraokeStore((s) => s.isReady);
+  const getWaveformData = useWebAudioKaraokeStore((s) => s.getWaveformData);
+  const error = useWebAudioKaraokeStore((s) => s.error);
   const [audioData, setAudioData] = useState<number[]>([]);
   const animationRef = useRef<number | null>(null);
   const colors = vintageTheme.colors;
 
-  // Generate random audio data for visual effect
-  // In a real implementation, this would use Web Audio API to analyze actual audio
+  // Animation loop for real waveform data
   useEffect(() => {
-    if (playerState.status === "playing") {
-      const generateData = () => {
-        const newData = Array.from({ length: barCount }, (_, i) => {
-          // Create a pseudo-random yet somewhat consistent pattern based on time and position
-          const offset = Math.sin((Date.now() + i * 100) / 500) * 0.3;
-          const baseHeight = 0.2 + ((Math.sin(i * 0.2) + 1) / 2) * 0.6; // 0.2 to 0.8
-          return Math.max(0.1, Math.min(1, baseHeight + offset));
-        });
-
-        setAudioData(newData);
-        animationRef.current = requestAnimationFrame(generateData);
+    if (isReady && isPlaying && getWaveformData) {
+      const animate = () => {
+        const waveform = getWaveformData();
+        if (waveform) {
+          // Downsample or interpolate to barCount
+          const step = Math.floor(waveform.length / barCount) || 1;
+          const bars = Array.from({ length: barCount }, (_, i) => {
+            let sum = 0;
+            let count = 0;
+            for (
+              let j = i * step;
+              j < (i + 1) * step && j < waveform.length;
+              j++
+            ) {
+              sum += waveform[j];
+              count++;
+            }
+            const avg = count ? sum / count : 128;
+            return Math.max(0.1, Math.abs((avg - 128) / 128));
+          });
+          setAudioData(bars);
+        }
+        animationRef.current = requestAnimationFrame(animate);
       };
-
-      generateData();
-
+      animate();
       return () => {
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
         }
       };
     } else {
-      // When not playing, either show flat line or gentle wave
-      if (playerState.status === "paused") {
-        const pausedData = Array.from(
-          { length: barCount },
-          (_, i) => 0.1 + Math.sin(i * 0.5) * 0.05,
-        );
-        setAudioData(pausedData);
-      } else {
-        setAudioData(Array(barCount).fill(0.1)); // Flat line when idle
-      }
-
+      setAudioData(Array(barCount).fill(0.1));
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
     }
-  }, [playerState.status, barCount]);
+  }, [isPlaying, isReady, getWaveformData, barCount]);
 
+  if (error) {
+    return <div className="text-red-500">Audio error: {error}</div>;
+  }
   if (!audioData.length) {
     return null;
   }
@@ -71,10 +76,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     >
       {audioData.map((value, index) => {
         const barHeight = value * height;
-
-        // Create a gradient effect across the visualization
-        const hueRotation = (index / barCount) * 60; // Subtle color variation
-
+        const hueRotation = (index / barCount) * 60;
         return (
           <div
             key={index}
@@ -85,8 +87,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
                 index % 2 === 0 ? colors.darkCyan : colors.orangePeel,
               opacity: 0.7,
               transform: `translateY(${(height - barHeight) / 2}px)`,
-              transition:
-                playerState.status === "playing" ? "none" : "height 0.5s",
+              transition: isPlaying ? "none" : "height 0.5s",
               filter: `hue-rotate(${hueRotation}deg)`,
             }}
           />

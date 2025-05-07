@@ -1,19 +1,19 @@
 import React from "react";
-import { QueueItemWithSong } from "../../types/Queue";
-import QueueItem from "./QueueItem";
+import { KaraokeQueueItemWithSong } from "../../types/KaraokeQueue";
+import KaraokeQueueItem from "./KaraokeQueueItem";
 import vintageTheme from "../../utils/theme";
 
-interface QueueListProps {
-  items: QueueItemWithSong[];
-  currentItemId?: string | null;
+interface KaraokeQueueListProps {
+  items: KaraokeQueueItemWithSong[];
+  currentSongId?: string | null;
   onRemove?: (id: string) => void;
   emptyMessage?: string;
   className?: string;
 }
 
-const QueueList: React.FC<QueueListProps> = ({
+const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
   items,
-  currentItemId = null,
+  currentSongId = null,
   onRemove,
   emptyMessage = "No songs in the queue",
   className = "",
@@ -38,11 +38,11 @@ const QueueList: React.FC<QueueListProps> = ({
   return (
     <div className={className}>
       {items.map((item, index) => (
-        <QueueItem
+        <KaraokeQueueItem
           key={item.id}
           item={item}
           index={index}
-          isActive={item.id === currentItemId}
+          isActive={item.id === currentSongId}
           onRemove={onRemove}
         />
       ))}
@@ -50,4 +50,4 @@ const QueueList: React.FC<QueueListProps> = ({
   );
 };
 
-export default QueueList;
+export default KaraokeQueueList;

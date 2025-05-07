@@ -3,30 +3,30 @@
  */
 import { apiRequest } from "./api";
 import {
-  QueueItem,
-  QueueItemWithSong,
-  AddToQueueRequest,
-} from "../types/Queue";
+  KaraokeQueueItem,
+  KaraokeQueueItemWithSong,
+  AddToKaraokeQueueRequest,
+} from "../types/KaraokeQueue";
 
 /**
  * Get the current queue
  */
 export async function getQueue() {
-  return apiRequest<QueueItemWithSong[]>("/queue");
+  return apiRequest<KaraokeQueueItemWithSong[]>("/queue");
 }
 
 /**
  * Get the current playing item
  */
-export async function getCurrentItem() {
-  return apiRequest<QueueItemWithSong | null>("/queue/current");
+export async function getcurrentSong() {
+  return apiRequest<KaraokeQueueItemWithSong | null>("/queue/current");
 }
 
 /**
  * Add a song to the queue
  */
-export async function addToQueue(request: AddToQueueRequest) {
-  return apiRequest<QueueItem>("/queue", {
+export async function addToKaraokeQueue(request: AddToKaraokeQueueRequest) {
+  return apiRequest<KaraokeQueueItem>("/queue", {
     method: "POST",
     body: request,
   });
@@ -35,7 +35,7 @@ export async function addToQueue(request: AddToQueueRequest) {
 /**
  * Remove an item from the queue
  */
-export async function removeFromQueue(id: string) {
+export async function removeFromKaraokeQueue(id: string) {
   return apiRequest<{ success: boolean }>(`/queue/${id}`, {
     method: "DELETE",
   });
@@ -44,8 +44,8 @@ export async function removeFromQueue(id: string) {
 /**
  * Reorder the queue
  */
-export async function reorderQueue(itemIds: string[]) {
-  return apiRequest<QueueItemWithSong[]>("/queue/reorder", {
+export async function reorderKaraokeQueue(itemIds: string[]) {
+  return apiRequest<KaraokeQueueItemWithSong[]>("/queue/reorder", {
     method: "PUT",
     body: { itemIds },
   });
@@ -55,7 +55,7 @@ export async function reorderQueue(itemIds: string[]) {
  * Skip to the next item in the queue
  */
 export async function skipToNext() {
-  return apiRequest<QueueItemWithSong | null>("/queue/next", {
+  return apiRequest<KaraokeQueueItemWithSong | null>("/queue/next", {
     method: "POST",
   });
 }
@@ -63,6 +63,6 @@ export async function skipToNext() {
 /**
  * Get QR code data for joining the queue
  */
-export async function getQueueQrCode() {
+export async function getKaraokeQueueQrCode() {
   return apiRequest<{ qrCodeUrl: string }>("/queue/qr-code");
 }

@@ -9,8 +9,7 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 
 // API base URL
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const API_BASE_URL = "http://localhost:5000";
 
 interface PerformanceControlsState {
   // Connection state
@@ -151,5 +150,5 @@ export const usePerformanceControlsStore = create<PerformanceControlsState>(
         });
       }
     },
-  }),
+  })
 );

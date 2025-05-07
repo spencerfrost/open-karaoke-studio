@@ -1,17 +1,17 @@
 import React from "react";
 import { Music, X } from "lucide-react";
-import { QueueItemWithSong } from "../../types/Queue";
+import { KaraokeQueueItemWithSong } from "../../types/KaraokeQueue";
 import vintageTheme from "../../utils/theme";
 
-interface QueueItemProps {
-  item: QueueItemWithSong;
+interface KaraokeQueueItemProps {
+  item: KaraokeQueueItemWithSong;
   index: number;
   isActive?: boolean;
   onRemove?: (id: string) => void;
   className?: string;
 }
 
-const QueueItem: React.FC<QueueItemProps> = ({
+const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
   item,
   index,
   isActive = false,
@@ -94,4 +94,4 @@ const QueueItem: React.FC<QueueItemProps> = ({
   );
 };
 
-export default QueueItem;
+export default KaraokeQueueItem;
