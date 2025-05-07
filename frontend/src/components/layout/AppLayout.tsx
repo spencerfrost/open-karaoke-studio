@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import { Music, Upload, List, Settings } from "lucide-react";
+import { Music, Upload, List, Settings, Sliders } from "lucide-react";
 import vintageTheme from "../../utils/theme";
 
 interface AppLayoutProps {
@@ -10,7 +10,8 @@ interface AppLayoutProps {
 const navigationItems = [
   { name: "Library", path: "/", icon: Music },
   { name: "Add", path: "/add", icon: Upload },
-  { name: "Queue", path: "/queue", icon: List },
+  { name: "Stage", path: "/stage", icon: List },
+  { name: "Performance", path: "/controls", icon: Sliders },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 

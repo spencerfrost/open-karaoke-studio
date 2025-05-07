@@ -1,4 +1,4 @@
-import { QueueItemWithSong } from "./Queue";
+import { QueueItemWithSong } from "./KaraokeQueue";
 
 export type PlayerStatus = "idle" | "playing" | "paused";
 

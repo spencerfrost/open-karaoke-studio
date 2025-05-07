@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { List, Music, Settings, Upload } from "lucide-react";
+import { List, Music, Settings, Sliders, Upload } from "lucide-react";
 import vintageTheme from "../../utils/theme";
 import NavBar from "./NavBar";
 
@@ -10,7 +10,8 @@ interface PlayerLayoutProps {
 const navigationItems = [
   { name: "Library", path: "/", icon: Music },
   { name: "Add", path: "/add", icon: Upload },
-  { name: "Queue", path: "/queue", icon: List },
+  { name: "Stage", path: "/stage", icon: List },
+  { name: "Performance", path: "/controls", icon: Sliders },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 

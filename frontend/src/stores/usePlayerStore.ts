@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { PlayerState, PlayerStatus, Lyric } from "../types/Player";
-import { QueueItemWithSong } from "../types/Queue";
+import { QueueItemWithSong } from "../types/KaraokeQueue";
 
 // Store state interface that extends PlayerState and adds actions
 interface PlayerStore extends PlayerState {
@@ -21,7 +21,7 @@ interface PlayerStore extends PlayerState {
   getCurrentLyric: () => { current: Lyric | null; next: Lyric | null };
   setAudioRefs: (
     vocals: HTMLAudioElement | null,
-    instrumental: HTMLAudioElement | null,
+    instrumental: HTMLAudioElement | null
   ) => void;
 }
 
@@ -86,7 +86,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       currentLyrics.length > 0
         ? currentLyrics.reduce(
             (latest, lyric) => (lyric.time > latest.time ? lyric : latest),
-            { time: 0, text: "" },
+            { time: 0, text: "" }
           )
         : null;
 

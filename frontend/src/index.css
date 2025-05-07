@@ -35,7 +35,6 @@
   --accent-foreground: var(--black);
   --destructive: var(--color-red-800);
   --destructive-foreground: var(--lemon-chiffon);
-  --muted: color-mix(var(--russet), transparent 20%);
   --muted-foreground: var(--black);
 
   --border: var(--orange-peel);

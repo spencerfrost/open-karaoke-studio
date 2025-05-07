@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
-import {
-  getSongById,
-  updateSongMetadata,
-  getAudioUrl,
-} from "@/services/songService";
+import { getSongById, updateSongMetadata } from "@/services/songService";
 import { fetchLyrics } from "@/services/youtubeService";
 import { Song } from "@/types/Song";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
@@ -14,18 +10,32 @@ import { Button } from "@/components/ui/button";
 import { MetadataDialog } from "@/components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "@/utils/formatters";
 import { useParams } from "react-router-dom";
-import { useWebAudioKaraoke } from "@/hooks/useWebAudioKaraoke";
+import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import PlayerLayout from "@/components/layout/PlayerLayout";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  // Zustand store state/actions
   const [song, setSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+
+  const {
+    currentTime,
+    duration,
+    load,
+    cleanup,
+    seek,
+    isReady,
+    isPlaying,
+    play,
+    pause,
+    vocalVolume,
+    setVocalVol,
+    setSongAndLoad,
+  } = useWebAudioKaraokeStore();
 
   // Fetch song on mount
   useEffect(() => {
@@ -133,30 +143,14 @@ const SongPlayer: React.FC = () => {
     setVocalVol(vocalVolume === 0 ? 1 : 0);
   };
 
-  // Prepare URLs for the hook, even if song is not loaded yet
-  const instrumentalUrl = song ? getAudioUrl(song.id, "instrumental") : "";
-  const vocalUrl = song ? getAudioUrl(song.id, "vocals") : "";
-  const {
-    currentTime,
-    duration,
-    load,
-    cleanup,
-    seek,
-    isReady,
-    isPlaying,
-    play,
-    pause,
-    vocalVolume,
-    setVocalVol,
-  } = useWebAudioKaraoke({
-    instrumentalUrl,
-    vocalUrl,
-  });
-
+  // Set songId in store and load audio when song changes
   useEffect(() => {
-    if (song) load();
+    if (song) {
+      setSongAndLoad(song.id);
+      load();
+    }
     return () => cleanup();
-  }, [song, load, cleanup]);
+  }, [song, setSongAndLoad, load, cleanup]);
 
   // Only render player if song is loaded
   if (loading) {

@@ -55,7 +55,7 @@ const SongCard: React.FC<SongCardProps> = ({
         >
           {song.coverArt || song.thumbnail ? (
             <img
-              src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
+              src={`/api/songs/${song.coverArt || song.thumbnail}`}
               alt={song.title}
               className="h-full w-full object-cover rounded-md"
             />
@@ -130,7 +130,7 @@ const SongCard: React.FC<SongCardProps> = ({
         <div className="aspect-video w-full">
           {song.coverArt || song.thumbnail ? (
             <img
-              src={`http://localhost:5000/api/songs/${song.coverArt || song.thumbnail}`}
+              src={`/api/songs/${song.coverArt || song.thumbnail}`}
               alt={song.title}
               className="h-full w-full object-cover"
             />
