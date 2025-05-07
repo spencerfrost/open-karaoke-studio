@@ -39,6 +39,7 @@ def make_request(path: str, params: dict) -> Tuple[int, Dict[str, Any]]:
             data = data[0]
         else:
             return status, {"error": "No results found"}
+
     return status, data
 
 
