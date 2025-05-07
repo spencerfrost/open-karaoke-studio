@@ -1,12 +1,3 @@
-/**
- * Base API configuration and utility functions
- */
-
-// Base API URL - will be replaced with environment variable
-const API_BASE_URL = "http://localhost:5000";
-export const API_BASE = API_BASE_URL;
-
-// Types
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface ApiOptions {
@@ -25,7 +16,7 @@ export interface ApiResponse<T> {
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options: ApiOptions = {},
+  options: ApiOptions = {}
 ): Promise<ApiResponse<T>> {
   try {
     const { method = "GET", headers = {}, body } = options;
@@ -43,23 +34,21 @@ export async function apiRequest<T>(
       requestOptions.body = JSON.stringify(body);
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+    const response = await fetch(`${endpoint}`, requestOptions);
 
-    // Handle non-JSON responses
-    const contentType = response.headers.get("Content-Type") || "";
+    const contentType = response.headers.get("Content-Type") ?? "";
     if (!contentType.includes("application/json")) {
       if (!response.ok) {
         throw new Error(`API request failed with status ${response.status}`);
       }
-      // For download endpoints or other non-JSON responses
-      return { data: response as any, error: null };
+      return { data: null, error: "Non-JSON response received" };
     }
 
     const data = await response.json();
 
     if (!response.ok) {
       const errorMessage =
-        data.error || `API request failed with status ${response.status}`;
+        data.error ?? `API request failed with status ${response.status}`;
       throw new Error(errorMessage);
     }
 
@@ -79,7 +68,7 @@ export async function apiRequest<T>(
 export async function uploadFile<T>(
   endpoint: string,
   file: File,
-  additionalData?: Record<string, any>,
+  additionalData?: Record<string, any>
 ): Promise<ApiResponse<T>> {
   try {
     const formData = new FormData();
@@ -91,7 +80,7 @@ export async function uploadFile<T>(
       });
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${endpoint}`, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -120,10 +109,10 @@ export async function uploadFile<T>(
  */
 export async function downloadFile(
   endpoint: string,
-  filename: string,
+  filename: string
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${endpoint}`, {
       method: "GET",
       credentials: "include",
     });

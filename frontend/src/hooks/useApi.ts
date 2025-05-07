@@ -5,11 +5,9 @@ import {
   UseMutationOptions,
 } from "@tanstack/react-query";
 
-const API_BASE_URL = "http://127.0.0.1:5000/api"; // Adjust as needed, use env vars
-
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${url}`);
+  const response = await fetch(`/api/${url}`);
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
@@ -38,9 +36,9 @@ const apiGet = async <T>(url: string): Promise<T> => {
 const apiSend = async <T, V>(
   url: string,
   method: string,
-  data: V | null = null,
+  data: V | null = null
 ): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`/api/${url}`, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -77,7 +75,7 @@ export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
   options?: Omit<
     UseQueryOptions<T, Error, T, TQueryKey>,
     "queryKey" | "queryFn"
-  >,
+  >
 ) {
   return useQuery<T, Error, T, TQueryKey>({
     queryKey,
@@ -103,7 +101,7 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
   options?: Omit<
     UseMutationOptions<TData, Error, TVariables, TContext>,
     "mutationFn"
-  >,
+  >
 ) {
   return useMutation<TData, Error, TVariables, TContext>({
     mutationFn: (data: TVariables) =>
@@ -125,7 +123,7 @@ export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
   const formData = new FormData();
   formData.append("audio_file", file);
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`/api/${url}`, {
     method: "POST",
     body: formData,
   });
