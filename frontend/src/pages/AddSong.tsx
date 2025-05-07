@@ -24,7 +24,7 @@ import {
 import FileUpload from "../components/upload/FileUpload";
 import YouTubeSearch from "../components/upload/YouTubeSearch";
 import AppLayout from "../components/layout/AppLayout";
-import { uploadAndProcessAudio } from "../services/uploadService";
+import { useUploadAndProcessAudio } from "../services/uploadService";
 import ProcessingQueue from "@/components/upload/ProcessingQueue";
 
 // Define Zod schema for the File Upload form
@@ -35,7 +35,7 @@ const fileUploadFormSchema = z.object({
     .instanceof(File, { message: "Please select an audio file." })
     .refine(
       (file) => file.size <= MAX_FILE_SIZE,
-      `Max file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+      `Max file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
     )
     .optional()
     .nullable(),
@@ -47,7 +47,6 @@ type FileUploadFormValues = z.infer<typeof fileUploadFormSchema>;
 
 const AddSongPage: React.FC = () => {
   // State for File Upload form submission
-  const [isSubmittingUpload, setIsSubmittingUpload] = useState(false);
   const [uploadSubmissionError, setUploadSubmissionError] = useState<
     string | null
   >(null);
@@ -60,15 +59,30 @@ const AddSongPage: React.FC = () => {
     },
   });
 
+  // Use React Query mutation for upload
+  const uploadMutation = useUploadAndProcessAudio({
+    onSuccess: (data, variables) => {
+      toast.success(
+        `${variables.file.name} uploaded successfully and processing started!`
+      );
+      form.reset();
+      setUploadSubmissionError(null);
+    },
+    onError: (error) => {
+      const errorMsg =
+        error instanceof Error ? error.message : "Unknown upload error.";
+      setUploadSubmissionError(errorMsg);
+      toast.error(`Upload failed: ${errorMsg}`);
+    },
+  });
+
   // onSubmit handler for the File Upload form
-  const onSubmitUpload = async (values: FileUploadFormValues) => {
-    setIsSubmittingUpload(true);
+  const onSubmitUpload = (values: FileUploadFormValues) => {
     setUploadSubmissionError(null);
     const fileToProcess = values.audioFile;
 
     if (!fileToProcess) {
       setUploadSubmissionError("No audio file selected.");
-      setIsSubmittingUpload(false);
       form.setError("audioFile", {
         type: "manual",
         message: "Please select a file before submitting.",
@@ -77,39 +91,7 @@ const AddSongPage: React.FC = () => {
       return;
     }
 
-    console.log("Attempting to upload and process file:", fileToProcess.name);
-    try {
-      // Call the service function (previously in handleFileUpload)
-      const response = await uploadAndProcessAudio(fileToProcess);
-
-      if (response.error) {
-        console.error("Error uploading file:", response.error);
-        const errorMsg =
-          typeof response.error === "string"
-            ? response.error
-            : "Unknown upload error.";
-        setUploadSubmissionError(errorMsg);
-        toast.error(`Upload failed: ${errorMsg}`);
-        return; // Stop execution on handled error
-      }
-
-      // Handle successful upload
-      console.log("File uploaded successfully:", response.data);
-      toast.success(
-        `${fileToProcess.name} uploaded successfully and processing started!`,
-      );
-      form.reset(); // Reset form fields on success
-    } catch (error) {
-      console.error("Upload submission error:", error);
-      const errorMsg =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred during upload.";
-      setUploadSubmissionError(errorMsg);
-      toast.error(`Upload failed: ${errorMsg}`);
-    } finally {
-      setIsSubmittingUpload(false);
-    }
+    uploadMutation.mutate({ file: fileToProcess });
   };
 
   return (
@@ -160,10 +142,12 @@ const AddSongPage: React.FC = () => {
 
                 <Button
                   type="submit"
-                  disabled={isSubmittingUpload}
+                  disabled={uploadMutation.status === "pending"}
                   className="w-full sm:w-auto"
                 >
-                  {isSubmittingUpload ? "Processing..." : "Upload and Process"}
+                  {uploadMutation.status === "pending"
+                    ? "Processing..."
+                    : "Upload and Process"}
                 </Button>
               </form>
             </Form>
