@@ -68,7 +68,7 @@ export async function apiRequest<T>(
 export async function uploadFile<T>(
   endpoint: string,
   file: File,
-  additionalData?: Record<string, any>
+  additionalData?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
   try {
     const formData = new FormData();
