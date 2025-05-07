@@ -11,7 +11,9 @@ import { MetadataDialog } from "@/components/upload/MetadataDialog";
 import { parseYouTubeTitle } from "@/utils/formatters";
 import { useParams } from "react-router-dom";
 import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
-import PlayerLayout from "@/components/layout/PlayerLayout";
+import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
+import WebSocketStatus from "@/components/WebsocketStatus";
+import AppLayout from "@/components/layout/AppLayout";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,10 +34,18 @@ const SongPlayer: React.FC = () => {
     isPlaying,
     play,
     pause,
-    vocalVolume,
-    setVocalVol,
     setSongAndLoad,
   } = useWebAudioKaraokeStore();
+
+  const { connect, disconnect, connected, vocalVolume, setVocalVolume } =
+    usePerformanceControlsStore();
+
+  useEffect(() => {
+    connect();
+    return () => {
+      disconnect();
+    };
+  }, [connect, disconnect]);
 
   // Fetch song on mount
   useEffect(() => {
@@ -87,8 +97,7 @@ const SongPlayer: React.FC = () => {
   useEffect(() => {
     if (
       song &&
-      !song.lyrics &&
-      !song.syncedLyrics &&
+      (!song.lyrics || !song.syncedLyrics) &&
       !loading &&
       !lyricsLoading
     ) {
@@ -140,10 +149,9 @@ const SongPlayer: React.FC = () => {
     }
   };
   const handleMute = () => {
-    setVocalVol(vocalVolume === 0 ? 1 : 0);
+    setVocalVolume(vocalVolume === 0 ? 1 : 0);
   };
 
-  // Set songId in store and load audio when song changes
   useEffect(() => {
     if (song) {
       setSongAndLoad(song.id);
@@ -151,6 +159,16 @@ const SongPlayer: React.FC = () => {
     }
     return () => cleanup();
   }, [song, setSongAndLoad, load, cleanup]);
+
+  useEffect(() => {
+    const controlsStore = usePerformanceControlsStore.getState();
+
+    const handleRemotePlay = () => play();
+    const handleRemotePause = () => pause();
+
+    controlsStore.onPlay(handleRemotePlay);
+    controlsStore.onPause(handleRemotePause);
+  }, [play, pause, seek]);
 
   // Only render player if song is loaded
   if (loading) {
@@ -198,7 +216,7 @@ const SongPlayer: React.FC = () => {
   }
 
   return (
-    <PlayerLayout>
+    <AppLayout>
       <MetadataDialog
         isOpen={showMetadataDialog}
         onClose={() => setShowMetadataDialog(false)}
@@ -209,6 +227,11 @@ const SongPlayer: React.FC = () => {
         videoTitle={song?.title ?? ""}
         isSubmitting={isSearchingLyrics}
       />
+      <WebSocketStatus
+        connected={connected}
+        className="absolute top-4 right-8 z-10"
+      />
+
       <div className="w-full max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold text-center mb-2 text-orange-peel">
           {song.title}
@@ -244,16 +267,12 @@ const SongPlayer: React.FC = () => {
               aria-label={isPlaying ? "Pause" : "Play"}
               disabled={!isReady}
             >
-              {isPlaying ? (
-                <Pause size={32} />
-              ) : (
-                <Play size={32} style={{ marginLeft: "3px" }} />
-              )}
+              {isPlaying ? <Pause size={32} /> : <Play size={32} />}
             </Button>
           </div>
         </div>
       </div>
-    </PlayerLayout>
+    </AppLayout>
   );
 };
 
