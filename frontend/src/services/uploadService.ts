@@ -1,7 +1,8 @@
 /**
  * Upload-related API services
  */
-import { uploadFile, apiRequest } from "./api";
+import { apiRequest } from "./api";
+import { uploadFile } from "@/hooks/useApi";
 import { SongProcessingStatus, SongStatus } from "../types/Song";
 
 /**
@@ -9,7 +10,7 @@ import { SongProcessingStatus, SongStatus } from "../types/Song";
  */
 export async function uploadAndProcessAudio(
   file: File,
-  metadata?: { title?: string; artist?: string },
+  metadata?: { title?: string; artist?: string }
 ) {
   return uploadFile<{ id: string; status: string }>("/process", file, metadata);
 }
@@ -19,7 +20,7 @@ export async function uploadAndProcessAudio(
  */
 export async function processYouTubeVideo(
   youtubeUrl: string,
-  metadata?: { title?: string; artist?: string },
+  metadata?: { title?: string; artist?: string }
 ) {
   return apiRequest<{ id: string; status: string }>("/process-youtube", {
     method: "POST",
