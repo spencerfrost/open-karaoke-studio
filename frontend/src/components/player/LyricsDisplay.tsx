@@ -1,20 +1,28 @@
+import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
 import React, { useEffect, useRef } from "react";
 
 interface LyricsDisplayProps {
   className?: string;
   lyrics: string;
-  progress: number; // Progress in percentage (0 to 1)
-  currentTime?: number; // Current time in milliseconds
+  progress: number;
+  currentTime?: number;
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   className = "",
   lyrics,
-  progress,
+  // progress,
   // currentTime = 0,
 }) => {
   const lyricsRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { lyricsSize } = usePerformanceControlsStore();
+  const lyricsSizeClass =
+    lyricsSize === "small"
+      ? "text-base"
+      : lyricsSize === "large"
+        ? "text-3xl"
+        : "text-xl";
 
   // useEffect(() => {
   //   if (lyricsRef.current && containerRef.current) {
@@ -46,7 +54,9 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
         style={{ maxHeight: "100%" }}
       >
         {lyrics ? (
-          <div className="text-2xl font-semibold text-background whitespace-pre-line">
+          <div
+            className={`text-2xl font-semibold text-background whitespace-pre-line ${lyricsSizeClass}`}
+          >
             {lyrics}
           </div>
         ) : (
