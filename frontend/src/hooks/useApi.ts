@@ -116,12 +116,25 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
  * @template T - The type of the response data.
  * @param {string} url - The endpoint URL (relative to the API base URL).
  * @param {File} file - The file to upload.
+ * @param {Record<string, unknown>} [additionalData] - Additional data to send with the file (optional).
  * @returns {Promise<T>} - A promise resolving to the response data.
  * @throws {Error} - Throws an error if the response is not ok.
  */
-export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
+export const uploadFile = async <T>(
+  url: string,
+  file: File,
+  metadata?: Record<string, unknown>
+): Promise<T> => {
   const formData = new FormData();
   formData.append("audio_file", file);
+
+  if (metadata) {
+    Object.entries(metadata).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, value as string | Blob);
+      }
+    });
+  }
 
   const response = await fetch(`/api/${url}`, {
     method: "POST",
@@ -131,10 +144,9 @@ export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-    } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
+      const errorData: { message?: string } = await response.json();
+      errorMessage = errorData?.message || errorMessage;
+    } catch (jsonError: unknown) {
       console.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
