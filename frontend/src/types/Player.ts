@@ -1,4 +1,4 @@
-import { QueueItemWithSong } from "./KaraokeQueue";
+import { KaraokeQueueItemWithSong } from "./KaraokeQueue";
 
 export type PlayerStatus = "idle" | "playing" | "paused";
 
@@ -8,7 +8,7 @@ export interface PlayerState {
   duration: number;
   vocalVolume: number;
   instrumentalVolume: number;
-  currentSong: QueueItemWithSong | null;
+  currentSong: KaraokeQueueItemWithSong | null;
 }
 
 export interface Lyric {
