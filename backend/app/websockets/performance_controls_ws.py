@@ -1,23 +1,28 @@
 """
 WebSocket event handlers for real-time performance controls in Open Karaoke Studio.
 This module provides functionality for synchronized control across multiple devices
-for performance controls (vocal/instrumental volume, lyrics size, etc).
+for performance controls (vocal/instrumental volume, lyrics size, play/pause).
 """
 
+import logging
 from flask import request
 from flask_socketio import emit, join_room, leave_room
-import logging
 
 logger = logging.getLogger(__name__)
 
-# Global room name for performance controls
 GLOBAL_CONTROLS_ROOM = "global_performance_controls"
 
-# Global state for performance controls
 global_performance_state = {
-    "vocal_volume": 50,
-    "instrumental_volume": 100,
+    "vocal_volume": 0,
+    "instrumental_volume": 1,
     "lyrics_size": "medium",
+    "isPlaying": False,
+}
+
+global_player_state = {
+    "current_time": 0,
+    "duration": 0,
+    "isPlaying": False,
 }
 
 
@@ -50,6 +55,9 @@ def register_handlers(socketio):
         if not all([control_name, value is not None]):
             logger.error(f"Invalid control update request: {data}")
             return
+        if control_name not in global_performance_state:
+            logger.warning(f"Ignored update for unsupported control: {control_name}")
+            return
         global_performance_state[control_name] = value
         emit(
             "control_updated",
@@ -58,5 +66,34 @@ def register_handlers(socketio):
             include_self=False,
         )
         logger.info(f"Updated {control_name}={value} for global performance controls")
+
+    @socketio.on("update_player_state")
+    def handle_player_state_update(data):
+        logger.info(f"Received player state update from {request.sid}: {data}")
+        if not data:
+            logger.error("Invalid player state update: No data received")
+            return
+        global_player_state.update(data)
+        emit(
+            "player_state_updated",
+            global_player_state,
+            room=GLOBAL_CONTROLS_ROOM,
+            include_self=False,
+        )
+        logger.info(f"Updated player state: {global_player_state}")
+
+    @socketio.on("toggle_playback")
+    def handle_toggle_playback(data=None):
+        logger.info(f"Received 'toggle_playback' command from {request.sid}")
+        global_performance_state["isPlaying"] = not global_performance_state[
+            "isPlaying"
+        ]
+        emit("toggle_playback", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
+
+    @socketio.on("playback_pause")
+    def handle_playback_pause(data=None):
+        logger.info(f"Received 'pause' command from {request.sid}")
+        global_performance_state["isPlaying"] = False
+        emit("playback_pause", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
 
     logger.info("Performance controls WebSocket event handlers registered")
