@@ -1,7 +1,6 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Play, Pause, Volume2, VolumeX, Sliders } from "lucide-react";
-import PlayerLayout from "../components/layout/PlayerLayout";
+import React, { useEffect } from "react";
+import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import AppLayout from "../components/layout/AppLayout";
 import LyricsDisplay from "../components/player/LyricsDisplay";
 import ProgressBar from "../components/player/ProgressBar";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
@@ -9,24 +8,35 @@ import { Button } from "@/components/ui/button";
 import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import KaraokeQueueList from "../components/queue/KaraokeQueueList";
 import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
+import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
+import WebSocketStatus from "@/components/WebsocketStatus";
 
 const Stage: React.FC = () => {
-  const navigate = useNavigate();
   const {
     currentTime,
     duration,
-    // isReady,
+    // load,
+    // cleanup,
+    seek,
+    isReady,
     isPlaying,
     play,
-    seek,
     pause,
-    setVocalVol,
+    // setSongAndLoad,
     error: audioError,
   } = useWebAudioKaraokeStore();
 
+  const { connect, disconnect, connected, vocalVolume, setVocalVolume } =
+    usePerformanceControlsStore();
+
   const { currentSong, items } = useKaraokeQueueStore();
 
-  const [vocalsMuted, setVocalsMuted] = useState(false);
+  useEffect(() => {
+    connect();
+    return () => {
+      disconnect();
+    };
+  }, [connect, disconnect]);
 
   const handlePlayPause = () => {
     if (isPlaying) {
@@ -35,16 +45,28 @@ const Stage: React.FC = () => {
       play();
     }
   };
-
-  const handleToggleVocals = () => {
-    if (vocalsMuted) {
-      setVocalVol(1);
-      setVocalsMuted(false);
-    } else {
-      setVocalVol(0);
-      setVocalsMuted(true);
-    }
+  const handleMute = () => {
+    setVocalVolume(vocalVolume === 0 ? 1 : 0);
   };
+
+  let lyricsContent;
+  if (currentSong?.song.syncedLyrics) {
+    lyricsContent = (
+      <SyncedLyricsDisplay
+        syncedLyrics={currentSong?.song.syncedLyrics}
+        currentTime={currentTime * 1000}
+        className="h-full"
+      />
+    );
+  } else {
+    lyricsContent = (
+      <LyricsDisplay
+        lyrics={currentSong?.song.lyrics ?? ""}
+        progress={duration ? currentTime / duration : 0}
+        currentTime={currentTime * 1000}
+      />
+    );
+  }
 
   if (audioError) {
     return (
@@ -56,24 +78,53 @@ const Stage: React.FC = () => {
     );
   }
 
-  // if (!isReady) {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center h-full">
-  //       <div className="text-lg text-orange-peel animate-pulse">Loading...</div>
-  //     </div>
-  //   );
-  // }
-
   return (
-    <PlayerLayout>
+    <AppLayout>
       <div className="flex flex-col gap-4 h-full p-6 relative z-20">
-        <div className="text-center mt-8">
-          <h1 className="text-4xl font-mono tracking-wide mb-2 text-background">
-            OPEN KARAOKE STUDIO
-          </h1>
-          <p className="text-lg opacity-80 text-background">
-            Scan the QR code to add songs to the queue
-          </p>
+        <WebSocketStatus
+          connected={connected}
+          className="absolute top-4 right-8 z-10"
+        />
+        <h1 className="text-3xl font-bold text-center mb-2 text-orange-peel">
+          {currentSong?.song.title}
+        </h1>
+        <h2 className="text-xl text-center mb-4 text-background/80">
+          {currentSong?.song.artist}
+        </h2>
+        <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
+          {lyricsContent}
+        </div>
+        {/* Bottom controls */}
+        <div className="p-4 pt-0 " style={{ zIndex: 30 }}>
+          <ProgressBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={(val) => seek(val)}
+            className="mb-4"
+          />
+
+          <div className="flex justify-center items-center gap-4">
+            <Button
+              className="p-3 rounded-full bg-accent text-background"
+              onClick={handleMute}
+              aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
+            >
+              {vocalVolume === 0 ? (
+                <VolumeX size={24} />
+              ) : (
+                <Volume2 size={24} />
+              )}
+            </Button>
+
+            <Button
+              className="p-4 rounded-full bg-orange-peel text-russet"
+              onClick={handlePlayPause}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              disabled={!isReady}
+            >
+              {isPlaying ? <Pause size={32} /> : <Play size={32} />}
+            </Button>
+          </div>
         </div>
 
         <h2 className="text-2xl font-semibold text-center mb-4 text-orange-peel">
@@ -87,66 +138,7 @@ const Stage: React.FC = () => {
           />
         </div>
       </div>
-      <div className="flex flex-col h-full relative z-20">
-        <div className="flex-1 flex flex-col items-center justify-center">
-          {currentSong &&
-            (currentSong.song.syncedLyrics ? (
-              <SyncedLyricsDisplay
-                syncedLyrics={currentSong.song.syncedLyrics}
-                currentTime={currentTime * 1000}
-                className="h-full"
-              />
-            ) : (
-              <LyricsDisplay
-                lyrics={currentSong.song.lyrics || ""}
-                progress={duration ? currentTime / duration : 0}
-                currentTime={currentTime * 1000}
-              />
-            ))}
-        </div>
-
-        {/* Bottom controls */}
-        <div
-          className="p-4 bg-gradient-to-t from-black to-transparent"
-          style={{ zIndex: 30 }}
-        >
-          {/* Progress bar */}
-          <ProgressBar
-            currentTime={currentTime}
-            duration={duration}
-            onSeek={(val) => seek(val)}
-            className="mb-4"
-          />
-
-          {/* Playback controls */}
-          <div className="flex justify-center items-center gap-4">
-            <Button
-              className="rounded-full bg-accent text-background"
-              onClick={handleToggleVocals}
-              aria-label={vocalsMuted ? "Unmute vocals" : "Mute vocals"}
-            >
-              {vocalsMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-            </Button>
-
-            <Button
-              className="p-4 rounded-full bg-orange-peel text-russet"
-              onClick={handlePlayPause}
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? <Pause size={32} /> : <Play size={32} />}
-            </Button>
-
-            <Button
-              className="rounded-full bg-accent text-background z-100"
-              onClick={() => navigate("/controls")}
-              aria-label="Open performance controls"
-            >
-              <Sliders size={24} />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </PlayerLayout>
+    </AppLayout>
   );
 };
 
