@@ -1,7 +1,11 @@
 /**
  * Queue-related API services
  */
-import { apiRequest } from "./api";
+import { useApiQuery, useApiMutation } from "../hooks/useApi";
+import type {
+  UseQueryOptions,
+  UseMutationOptions,
+} from "@tanstack/react-query";
 import {
   KaraokeQueueItem,
   KaraokeQueueItemWithSong,
@@ -9,60 +13,152 @@ import {
 } from "../types/KaraokeQueue";
 
 /**
- * Get the current queue
+ * Hook: Get the current queue
  */
-export async function getQueue() {
-  return apiRequest<KaraokeQueueItemWithSong[]>("/queue");
+export function useQueue(
+  options?: Omit<
+    UseQueryOptions<
+      KaraokeQueueItemWithSong[],
+      Error,
+      KaraokeQueueItemWithSong[],
+      ["queue"]
+    >,
+    "queryKey" | "queryFn"
+  >
+) {
+  return useApiQuery<KaraokeQueueItemWithSong[], ["queue"]>(
+    ["queue"],
+    "queue",
+    options
+  );
 }
 
 /**
- * Get the current playing item
+ * Hook: Get the current playing item
  */
-export async function getcurrentSong() {
-  return apiRequest<KaraokeQueueItemWithSong | null>("/queue/current");
+export function useCurrentSong(
+  options?: Omit<
+    UseQueryOptions<
+      KaraokeQueueItemWithSong | null,
+      Error,
+      KaraokeQueueItemWithSong | null,
+      ["queue", "current"]
+    >,
+    "queryKey" | "queryFn"
+  >
+) {
+  return useApiQuery<KaraokeQueueItemWithSong | null, ["queue", "current"]>(
+    ["queue", "current"],
+    "queue/current",
+    options
+  );
 }
 
 /**
- * Add a song to the queue
+ * Hook: Add a song to the queue
  */
-export async function addToKaraokeQueue(request: AddToKaraokeQueueRequest) {
-  return apiRequest<KaraokeQueueItem>("/queue", {
-    method: "POST",
-    body: request,
+export function useAddToKaraokeQueue(
+  options?: Omit<
+    UseMutationOptions<
+      KaraokeQueueItem,
+      Error,
+      AddToKaraokeQueueRequest,
+      unknown
+    >,
+    "mutationFn"
+  >
+) {
+  return useApiMutation<KaraokeQueueItem, AddToKaraokeQueueRequest>(
+    "queue",
+    "post",
+    options
+  );
+}
+
+/**
+ * Hook: Remove an item from the queue
+ */
+import { useMutation } from "@tanstack/react-query";
+export function useRemoveFromKaraokeQueue(
+  options?: Omit<
+    UseMutationOptions<{ success: boolean }, Error, string, unknown>,
+    "mutationFn"
+  >
+) {
+  // Custom mutation for dynamic URL based on id
+  return useMutation<{ success: boolean }, Error, string, unknown>({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/queue/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: any = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError: any) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
+    },
+    ...options,
   });
 }
 
 /**
- * Remove an item from the queue
+ * Hook: Reorder the queue
  */
-export async function removeFromKaraokeQueue(id: string) {
-  return apiRequest<{ success: boolean }>(`/queue/${id}`, {
-    method: "DELETE",
-  });
+export function useReorderKaraokeQueue(
+  options?: Omit<
+    UseMutationOptions<
+      KaraokeQueueItemWithSong[],
+      Error,
+      { itemIds: string[] },
+      unknown
+    >,
+    "mutationFn"
+  >
+) {
+  return useApiMutation<KaraokeQueueItemWithSong[], { itemIds: string[] }>(
+    "queue/reorder",
+    "put",
+    options
+  );
 }
 
 /**
- * Reorder the queue
+ * Hook: Skip to the next item in the queue
  */
-export async function reorderKaraokeQueue(itemIds: string[]) {
-  return apiRequest<KaraokeQueueItemWithSong[]>("/queue/reorder", {
-    method: "PUT",
-    body: { itemIds },
-  });
+export function useSkipToNext(
+  options?: Omit<
+    UseMutationOptions<KaraokeQueueItemWithSong | null, Error, void, unknown>,
+    "mutationFn"
+  >
+) {
+  return useApiMutation<KaraokeQueueItemWithSong | null, void>(
+    "queue/next",
+    "post",
+    options
+  );
 }
 
 /**
- * Skip to the next item in the queue
+ * Hook: Get QR code data for joining the queue
  */
-export async function skipToNext() {
-  return apiRequest<KaraokeQueueItemWithSong | null>("/queue/next", {
-    method: "POST",
-  });
-}
-
-/**
- * Get QR code data for joining the queue
- */
-export async function getKaraokeQueueQrCode() {
-  return apiRequest<{ qrCodeUrl: string }>("/queue/qr-code");
+export function useKaraokeQueueQrCode(
+  options?: Omit<
+    UseQueryOptions<
+      { qrCodeUrl: string },
+      Error,
+      { qrCodeUrl: string },
+      ["queue", "qr-code"]
+    >,
+    "queryKey" | "queryFn"
+  >
+) {
+  return useApiQuery<{ qrCodeUrl: string }, ["queue", "qr-code"]>(
+    ["queue", "qr-code"],
+    "queue/qr-code",
+    options
+  );
 }

@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { Music, X, Loader2 } from "lucide-react"; // Added Loader2 for loading state
-import { SongProcessingStatus } from "../../types/Song";
+import React from "react";
+import { Music, X, Loader2 } from "lucide-react";
 import {
-  getProcessingQueue,
-  cancelProcessing,
+  useProcessingQueue,
+  useCancelProcessing,
 } from "../../services/uploadService";
 import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
@@ -27,100 +26,38 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   className = "",
   refreshInterval = 5000,
 }) => {
-  const [processingItems, setProcessingItems] = useState<
-    SongProcessingStatus[]
-  >([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Use React Query for processing queue
+  const {
+    data: processingItems = [],
+    isLoading,
+    error,
+    refetch,
+  } = useProcessingQueue({
+    refetchInterval: refreshInterval,
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchQueue = async () => {
-      setError(null);
-
-      try {
-        const response = await getProcessingQueue();
-
-        if (!isMounted) return;
-
-        if (response.error) {
-          console.error("Error fetching queue:", response.error);
-          setError(response.error);
-          setProcessingItems([]);
-        } else if (response.data) {
-          const jobs =
-            "jobs" in response.data ? response.data.jobs : response.data;
-          setProcessingItems((prevItems) => {
-            if (JSON.stringify(prevItems) !== JSON.stringify(jobs)) {
-              return jobs;
-            }
-            return prevItems;
-          });
-        }
-      } catch (err) {
-        if (!isMounted) return;
-        console.error("Error fetching processing queue:", err);
-        setError("Failed to load processing queue");
-        setProcessingItems([]); // Clear items on error
-      } finally {
-        if (isMounted) {
-          setIsLoading(false); // Set loading false after first fetch attempt
-        }
-      }
-    };
-
-    fetchQueue(); // Initial fetch
-    const intervalId = setInterval(fetchQueue, refreshInterval); // Periodic refresh
-
-    // Clean up
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, [refreshInterval]);
+  // Use React Query for cancel mutation
+  const cancelMutation = useCancelProcessing({
+    onSuccess: (_, taskId) => {
+      toast.success(`Job ${taskId.substring(0, 8)} cancelled successfully.`);
+      refetch();
+    },
+    onError: (err, taskId, context) => {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to cancel job: ${errorMsg}`);
+      refetch();
+    },
+  });
 
   // Handle canceling a processing task
-  const handleCancel = async (taskId: string) => {
-    // Optimistically remove the item
-    const originalItems = processingItems;
-    setProcessingItems((items) => items.filter((item) => item.id !== taskId));
+  const handleCancel = (taskId: string) => {
     toast.info(`Attempting to cancel job ${taskId.substring(0, 8)}...`);
-
-    try {
-      const response = await cancelProcessing(taskId);
-
-      if (response.error) {
-        setError(response.error);
-        toast.error(`Failed to cancel job: ${response.error}`);
-        // Revert optimistic update
-        setProcessingItems(originalItems);
-        return;
-      }
-
-      if (response.data && response.data.success) {
-        toast.success(`Job ${taskId.substring(0, 8)} cancelled successfully.`);
-        // Item already removed optimistically
-      } else {
-        // Revert if backend indicates failure differently
-        toast.warning(
-          `Could not confirm cancellation for job ${taskId.substring(0, 8)}.`,
-        );
-        setProcessingItems(originalItems);
-      }
-    } catch (err) {
-      console.error("Error canceling processing:", err);
-      const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to cancel processing: ${errorMsg}`);
-      toast.error(`Failed to cancel job: ${errorMsg}`);
-      // Revert optimistic update
-      setProcessingItems(originalItems);
-    }
+    cancelMutation.mutate(taskId);
   };
 
   // Get status label and badge variant
   const getStatusInfo = (
-    status: string,
+    status: string
   ): { label: string; variant: "secondary" | "default" | "destructive" } => {
     switch (status?.toLowerCase()) {
       case "processing":
@@ -146,6 +83,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   // --- Render Logic ---
 
   // Initial Loading State
+
   if (isLoading) {
     return (
       <div
@@ -158,10 +96,13 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   }
 
   // Error State (after initial load)
+
   if (error && !processingItems.length) {
     return (
       <Alert variant="destructive" className={className}>
-        <AlertDescription>{error}</AlertDescription>
+        <AlertDescription>
+          {error instanceof Error ? error.message : String(error)}
+        </AlertDescription>
       </Alert>
     );
   }

@@ -1,66 +1,144 @@
 /**
  * Upload-related API services
  */
-import { apiRequest } from "./api";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { uploadFile } from "@/hooks/useApi";
 import { SongProcessingStatus, SongStatus } from "../types/Song";
 
 /**
- * Upload and process an audio file
+ * Hook: Upload and process an audio file
  */
-export async function uploadAndProcessAudio(
-  file: File,
-  metadata?: { title?: string; artist?: string }
+type UploadAudioVariables = {
+  file: File;
+  metadata?: { title?: string; artist?: string };
+};
+type UploadAudioResponse = { id: string; status: string };
+export function useUploadAndProcessAudio(
+  options?: Omit<
+    import("@tanstack/react-query").UseMutationOptions<
+      UploadAudioResponse,
+      Error,
+      UploadAudioVariables,
+      unknown
+    >,
+    "mutationFn"
+  >
 ) {
-  return uploadFile<{ id: string; status: string }>("/process", file, metadata);
+  return useMutation<UploadAudioResponse, Error, UploadAudioVariables, unknown>(
+    {
+      mutationFn: async ({ file, metadata }) => {
+        return uploadFile<UploadAudioResponse>("process", file, metadata);
+      },
+      ...options,
+    }
+  );
 }
 
 /**
- * Process a YouTube video
+ * Hook: Process a YouTube video
  */
-export async function processYouTubeVideo(
-  youtubeUrl: string,
-  metadata?: { title?: string; artist?: string }
+type ProcessYouTubeVariables = {
+  youtubeUrl: string;
+  metadata?: { title?: string; artist?: string };
+};
+type ProcessYouTubeResponse = { id: string; status: string };
+export function useProcessYouTubeVideo(
+  options?: Omit<
+    import("@tanstack/react-query").UseMutationOptions<
+      ProcessYouTubeResponse,
+      Error,
+      ProcessYouTubeVariables,
+      unknown
+    >,
+    "mutationFn"
+  >
 ) {
-  return apiRequest<{ id: string; status: string }>("/process-youtube", {
-    method: "POST",
-    body: {
-      url: youtubeUrl,
-      ...metadata,
+  return useMutation<
+    ProcessYouTubeResponse,
+    Error,
+    ProcessYouTubeVariables,
+    unknown
+  >({
+    mutationFn: async ({ youtubeUrl, metadata }) => {
+      const response = await fetch(`/api/process-youtube`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: youtubeUrl, ...metadata }),
+      });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
     },
+    ...options,
   });
 }
 
 /**
- * Get all currently processing tasks
+ * Hook: Get all currently processing tasks
  */
-export async function getProcessingQueue() {
-  // Get jobs from the queue endpoint
-  const response = await apiRequest<{ jobs: any[] }>("/queue/jobs");
+type BackendJob = {
+  id: string;
+  progress?: number;
+  status: string;
+  error?: string;
+  notes?: string;
+};
 
-  if (response.error) {
-    return response;
-  }
-
-  if (response.data && response.data.jobs) {
-    // Transform backend job format to frontend SongProcessingStatus format
-    const processedData: SongProcessingStatus[] = response.data.jobs
-      // Only include pending, processing, or failed jobs
-      .filter((job) => ["pending", "processing", "failed"].includes(job.status))
-      .map((job) => ({
-        id: job.id,
-        progress: job.progress || 0,
-        status: mapBackendStatus(job.status),
-        message: job.error || job.notes || undefined,
-      }));
-
-    return {
-      data: processedData,
-      error: null,
-    };
-  }
-
-  return response;
+export function useProcessingQueue(
+  options?: Omit<
+    import("@tanstack/react-query").UseQueryOptions<
+      SongProcessingStatus[],
+      Error,
+      SongProcessingStatus[],
+      ["processing-queue"]
+    >,
+    "queryKey" | "queryFn"
+  >
+) {
+  return useQuery<
+    SongProcessingStatus[],
+    Error,
+    SongProcessingStatus[],
+    ["processing-queue"]
+  >({
+    queryKey: ["processing-queue"],
+    queryFn: async () => {
+      const response = await fetch(`/api/queue/jobs`);
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      const data: { jobs?: BackendJob[] } = await response.json();
+      if (data && data.jobs) {
+        return data.jobs
+          .filter((job) =>
+            ["pending", "processing", "failed"].includes(job.status)
+          )
+          .map((job) => ({
+            id: job.id,
+            progress: job.progress || 0,
+            status: mapBackendStatus(job.status),
+            message: job.error || job.notes || undefined,
+          })) as SongProcessingStatus[];
+      }
+      return [];
+    },
+    ...options,
+  });
 }
 
 /**
@@ -83,38 +161,84 @@ function mapBackendStatus(backendStatus: string): SongStatus {
 }
 
 /**
- * Get the status of a processing task
+ * Hook: Get the status of a processing task
  */
-export async function getProcessingStatus(taskId: string) {
-  const response = await apiRequest<any>(`/queue/job/${taskId}`);
 
-  if (response.error) {
-    return response;
-  }
-
-  if (response.data) {
-    // Transform backend job format to frontend SongProcessingStatus format
-    const processedData: SongProcessingStatus = {
-      id: response.data.id,
-      progress: response.data.progress || 0,
-      status: mapBackendStatus(response.data.status),
-      message: response.data.error || response.data.notes || undefined,
-    };
-
-    return {
-      data: processedData,
-      error: null,
-    };
-  }
-
-  return response;
+export function useProcessingStatus(
+  taskId: string,
+  options?: Omit<
+    import("@tanstack/react-query").UseQueryOptions<
+      SongProcessingStatus,
+      Error,
+      SongProcessingStatus,
+      ["processing-status", string]
+    >,
+    "queryKey" | "queryFn"
+  >
+) {
+  return useQuery<
+    SongProcessingStatus,
+    Error,
+    SongProcessingStatus,
+    ["processing-status", string]
+  >({
+    queryKey: ["processing-status", taskId],
+    queryFn: async () => {
+      const response = await fetch(`/api/queue/job/${taskId}`);
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      const data: BackendJob = await response.json();
+      return {
+        id: data.id,
+        progress: data.progress || 0,
+        status: mapBackendStatus(data.status),
+        message: data.error || data.notes || undefined,
+      } as SongProcessingStatus;
+    },
+    ...options,
+  });
 }
 
 /**
- * Cancel a processing task
+ * Hook: Cancel a processing task
  */
-export async function cancelProcessing(taskId: string) {
-  return apiRequest<{ success: boolean }>(`/queue/job/${taskId}/cancel`, {
-    method: "POST",
+
+export function useCancelProcessing(
+  options?: Omit<
+    import("@tanstack/react-query").UseMutationOptions<
+      { success: boolean },
+      Error,
+      string,
+      unknown
+    >,
+    "mutationFn"
+  >
+) {
+  return useMutation<{ success: boolean }, Error, string, unknown>({
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/queue/job/${taskId}/cancel`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
+    },
+    ...options,
   });
 }
