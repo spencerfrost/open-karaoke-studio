@@ -1,9 +1,11 @@
 import React, { useEffect } from "react";
 import { usePerformanceControlsStore } from "../stores/usePerformanceControlsStore";
 import { Button } from "@/components/ui/button";
-import { Volume2, Music, Mic, Maximize2 } from "lucide-react";
+import { Volume2, Play, Pause } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PerformanceControlInput from "@/components/PerformanceControlsInput";
+import ProgressBar from "@/components/player/ProgressBar";
+import WebSocketStatus from "@/components/WebsocketStatus";
 
 /**
  * Mobile-optimized dedicated page for performance controls
@@ -18,20 +20,23 @@ const PerformanceControlsPage: React.FC = () => {
     vocalVolume,
     instrumentalVolume,
     lyricsSize,
+    isPlaying,
     setVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
+    togglePlayback,
+    sendSeek,
+    playerState,
   } = usePerformanceControlsStore();
 
   useEffect(() => {
     connect();
-
     return () => {
       disconnect();
     };
   }, [connect, disconnect]);
 
-  const toggleVocals = () => {
+  const toggleVocalsVolume = () => {
     if (vocalVolume > 0) {
       setVocalVolume(0);
     } else {
@@ -39,7 +44,23 @@ const PerformanceControlsPage: React.FC = () => {
     }
   };
 
-  // Add this helper function above the component
+  const toggleInstrumentalVolume = () => {
+    if (instrumentalVolume > 0) {
+      setInstrumentalVolume(0);
+    } else {
+      setInstrumentalVolume(100);
+    }
+  };
+
+  const handleSeek = (value: number) => {
+    sendSeek(value);
+  };
+
+  const handleTogglePlay = () => {
+    console.log("handleTogglePlay", isPlaying);
+    togglePlayback();
+  };
+
   function getLyricsSizeValue(lyricsSize: string): number {
     if (lyricsSize === "small") return 1;
     if (lyricsSize === "medium") return 2;
@@ -62,7 +83,6 @@ const PerformanceControlsPage: React.FC = () => {
     }
   };
 
-  // Extracted label for lyrics size
   let lyricsSizeLabel = "Medium";
   if (lyricsSize === "small") {
     lyricsSizeLabel = "Small";
@@ -78,18 +98,13 @@ const PerformanceControlsPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-orange-peel font-retro">
               Performance Controls
             </h1>
+            <div>
+              <pre className="text-xs text-lemon-chiffon bg-black/40 rounded px-2 py-1 max-w-xs overflow-x-auto">
+                {playerState?.isPlaying ? "Playing" : "Paused"}
+              </pre>
+            </div>
           </div>
-          {connected ? (
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-dark-cyan animate-pulse"></span>
-              <span className="text-sm text-dark-cyan">Live</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-rust animate-pulse"></span>
-              <span className="text-sm text-rust">Connecting...</span>
-            </div>
-          )}
+          <WebSocketStatus connected={connected} />
         </div>
 
         {!connected ? (
@@ -100,58 +115,84 @@ const PerformanceControlsPage: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="flex-1 grid grid-cols-3 gap-4">
-            {/* Vocal Volume Section */}
-            <PerformanceControlInput
-              icon="mic"
-              label="Vocals"
-              value={vocalVolume}
-              valueDisplay={`${vocalVolume}%`}
-              min={0}
-              max={100}
-              step={5}
-              onValueChange={setVocalVolume}
-            >
-              <Button variant="ghost" size="icon" onClick={toggleVocals}>
-                <Volume2 size={24} />
-              </Button>
-            </PerformanceControlInput>
-
-            {/* Music Volume Section */}
-            <PerformanceControlInput
-              icon="music"
-              label="Instrumental"
-              value={instrumentalVolume}
-              valueDisplay={`${instrumentalVolume}%`}
-              min={0}
-              max={100}
-              step={5}
-              onValueChange={setInstrumentalVolume}
-            >
+          <div className="flex-1 flex items-center justify-center flex-col">
+            <div className="flex items-center justify-center mb-4 w-full gap-4">
               <Button
-                variant="ghost"
+                className="rounded-full"
                 size="icon"
-                onClick={() => setInstrumentalVolume(0)}
+                onClick={handleTogglePlay}
+                aria-label={playerState?.isPlaying ? "Pause" : "Play"}
               >
-                <Volume2 size={24} />
+                {playerState?.isPlaying ? (
+                  <Pause size={24} />
+                ) : (
+                  <Play size={24} />
+                )}
               </Button>
-            </PerformanceControlInput>
+              <ProgressBar
+                currentTime={playerState?.currentTime || 0}
+                duration={playerState?.duration || 0}
+                onSeek={handleSeek}
+                className="w-full"
+              />
+            </div>
+            <div className="flex-1 grid grid-cols-3 gap-4">
+              {/* Vocal Volume Section */}
+              <PerformanceControlInput
+                icon="mic"
+                label="Vocals"
+                value={vocalVolume}
+                valueDisplay={`${Math.round(vocalVolume * 100)}%`}
+                min={0}
+                max={1}
+                step={0.05}
+                onValueChange={setVocalVolume}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleVocalsVolume}
+                >
+                  <Volume2 size={24} />
+                </Button>
+              </PerformanceControlInput>
 
-            {/* Lyrics Size Section */}
-            <PerformanceControlInput
-              icon="maximize-2"
-              label="Lyrics Size"
-              value={getLyricsSizeValue(lyricsSize)}
-              valueDisplay={lyricsSizeLabel}
-              min={1}
-              max={3}
-              step={1}
-              onValueChange={parseLyricsSize}
-            >
-              <Button variant="ghost" size="icon">
-                Aa
-              </Button>
-            </PerformanceControlInput>
+              {/* Music Volume Section */}
+              <PerformanceControlInput
+                icon="music"
+                label="Instrumental"
+                value={instrumentalVolume}
+                valueDisplay={`${Math.round(instrumentalVolume * 100)}%`}
+                min={0}
+                max={1}
+                step={0.05}
+                onValueChange={(value) => setInstrumentalVolume(value)}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleInstrumentalVolume}
+                >
+                  <Volume2 size={24} />
+                </Button>
+              </PerformanceControlInput>
+
+              {/* Lyrics Size Section */}
+              <PerformanceControlInput
+                icon="maximize-2"
+                label="Lyrics Size"
+                value={getLyricsSizeValue(lyricsSize)}
+                valueDisplay={lyricsSizeLabel}
+                min={1}
+                max={3}
+                step={1}
+                onValueChange={parseLyricsSize}
+              >
+                <Button variant="ghost" size="icon">
+                  Aa
+                </Button>
+              </PerformanceControlInput>
+            </div>
           </div>
         )}
       </div>

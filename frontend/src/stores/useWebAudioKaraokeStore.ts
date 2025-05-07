@@ -1,5 +1,6 @@
-import { create } from "zustand";
 import { getAudioUrl } from "@/services/songService";
+import { usePerformanceControlsStore } from "./usePerformanceControlsStore";
+import { create } from "zustand";
 
 interface WebAudioKaraokeState {
   songId: string | null;
@@ -12,22 +13,18 @@ interface WebAudioKaraokeState {
   error: string | null;
   vocalVolume: number;
   instrumentalVolume: number;
-  // Actions
   setSongId: (id: string) => void;
   setSongAndLoad: (id: string) => Promise<void>;
   load: () => Promise<void>;
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
-  setVocalVol: (vol: number) => void;
-  setInstrumentalVol: (vol: number) => void;
   cleanup: () => void;
   getWaveformData: () => Uint8Array | null;
 }
 
 export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
   (set, get) => {
-    // Internal refs for audio context, buffers, etc.
     let audioContext: AudioContext | null = null;
     let instrumentalBuffer: AudioBuffer | null = null;
     let vocalBuffer: AudioBuffer | null = null;
@@ -38,6 +35,38 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
     let analyser: AnalyserNode | null = null;
     let waveformArray: Uint8Array | null = null;
     let interval: NodeJS.Timeout | null = null;
+    let stateInterval: NodeJS.Timeout | null = null;
+
+    usePerformanceControlsStore.subscribe((state, prevState) => {
+      // Only update if volume actually changed
+      if (state.vocalVolume !== prevState.vocalVolume && vocalGain) {
+        console.log("vocalVolume changed", state.vocalVolume, vocalGain);
+
+        vocalGain.gain.value = state.vocalVolume;
+      }
+      if (
+        state.instrumentalVolume !== prevState.instrumentalVolume &&
+        instrumentalGain
+      ) {
+        instrumentalGain.gain.value = state.instrumentalVolume;
+      }
+    });
+
+    const emitPlayerState = () => {
+      const perfStore = usePerformanceControlsStore.getState();
+      const { isPlaying, currentTime, duration } = get();
+      const { socket } = perfStore;
+      if (socket?.connected) {
+        console.log("isPlaying", isPlaying);
+        console.log("currentTime", currentTime);
+        console.log("duration", duration);
+        socket.emit("update_player_state", {
+          isPlaying,
+          currentTime,
+          duration,
+        });
+      }
+    };
 
     return {
       songId: null,
@@ -48,8 +77,12 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
       currentTime: 0,
       duration: 0,
       error: null,
-      vocalVolume: 1,
-      instrumentalVolume: 1,
+      get vocalVolume() {
+        return usePerformanceControlsStore.getState().vocalVolume;
+      },
+      get instrumentalVolume() {
+        return usePerformanceControlsStore.getState().instrumentalVolume;
+      },
       setSongId: (id: string) => {
         set({
           songId: id,
@@ -78,10 +111,7 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
       load: async () => {
         const { instrumentalUrl, vocalUrl } = get();
         try {
-          if (!audioContext) {
-            audioContext = new window.AudioContext();
-          }
-          // Fetch and decode
+          audioContext ??= new window.AudioContext();
           const [instArr, vocArr] = await Promise.all([
             fetch(instrumentalUrl).then((r) => r.arrayBuffer()),
             fetch(vocalUrl).then((r) => r.arrayBuffer()),
@@ -98,8 +128,6 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
             error: null,
           });
         } catch (err) {
-          // Log error for debugging, as required by SonarLint
-
           console.error("Failed to load or decode audio:", err);
           set({ error: "Failed to load or decode audio." });
         }
@@ -134,6 +162,7 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         instrumentalSource.start(now);
         vocalSource.start(now);
         set({ isPlaying: true });
+        emitPlayerState();
         // Track time
         if (interval) clearInterval(interval);
         interval = setInterval(() => {
@@ -141,19 +170,25 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         }, 100);
         instrumentalSource.onended = () => {
           set({ isPlaying: false });
+          emitPlayerState();
           if (interval) clearInterval(interval);
         };
+        // Sync gain nodes in case volume changed before play
+        if (vocalGain) vocalGain.gain.value = get().vocalVolume;
+        if (instrumentalGain)
+          instrumentalGain.gain.value = get().instrumentalVolume;
       },
       pause: () => {
         if (instrumentalSource) instrumentalSource.stop();
         if (vocalSource) vocalSource.stop();
         set({ isPlaying: false });
+        emitPlayerState();
         if (interval) clearInterval(interval);
+        if (stateInterval) clearInterval(stateInterval);
       },
       seek: (time: number) => {
         get().pause();
         if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
-        // Create new sources at offset
         instrumentalSource = audioContext.createBufferSource();
         instrumentalSource.buffer = instrumentalBuffer;
         vocalSource = audioContext.createBufferSource();
@@ -174,22 +209,24 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         instrumentalSource.start(now, time);
         vocalSource.start(now, time);
         set({ isPlaying: true, currentTime: time });
+        emitPlayerState();
         if (interval) clearInterval(interval);
         interval = setInterval(() => {
           set({ currentTime: audioContext!.currentTime });
         }, 100);
+        if (stateInterval) clearInterval(stateInterval);
+        stateInterval = setInterval(() => {
+          emitPlayerState();
+        }, 500);
         instrumentalSource.onended = () => {
           set({ isPlaying: false });
           if (interval) clearInterval(interval);
+          if (stateInterval) clearInterval(stateInterval);
+          emitPlayerState();
         };
-      },
-      setVocalVol: (vol: number) => {
-        set({ vocalVolume: vol });
-        if (vocalGain) vocalGain.gain.value = vol;
-      },
-      setInstrumentalVol: (vol: number) => {
-        set({ instrumentalVolume: vol });
-        if (instrumentalGain) instrumentalGain.gain.value = vol;
+        if (vocalGain) vocalGain.gain.value = get().vocalVolume;
+        if (instrumentalGain)
+          instrumentalGain.gain.value = get().instrumentalVolume;
       },
       cleanup: () => {
         get().pause();
@@ -203,6 +240,7 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         vocalGain = null;
         analyser = null;
         waveformArray = null;
+        if (stateInterval) clearInterval(stateInterval);
         set({ isReady: false });
       },
       getWaveformData: () => {
