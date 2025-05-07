@@ -1,24 +1,37 @@
 import path from "path";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  // Load env variables based on the current mode (development, production, etc.)
+  const env = loadEnv(mode, process.cwd(), "");
+  const backendUrl = env.VITE_BACKEND_URL || "http://localhost:5000";
+
+  return {
+    plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  server: {
-    watch: {
-      usePolling: true,
-      interval: 1500,
-      ignored: [
-        path.resolve(__dirname, "../karaoke_library/**"),
-        path.resolve(__dirname, "../temp_downloads/**"),
-      ],
+    server: {
+      host: true,
+      proxy: {
+        "/api": {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+      watch: {
+        usePolling: true,
+        interval: 1500,
+        ignored: [
+          path.resolve(__dirname, "../karaoke_library/**"),
+          path.resolve(__dirname, "../temp_downloads/**"),
+        ],
+      },
     },
-  },
+  };
 });

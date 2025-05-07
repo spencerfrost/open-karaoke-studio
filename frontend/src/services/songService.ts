@@ -2,15 +2,7 @@
  * Song-related API services
  */
 import { Song } from "../types/Song";
-import {
-  apiRequest,
-  downloadFile,
-  API_BASE as API_HOST,
-  ApiResponse,
-  HttpMethod,
-} from "./api";
-
-const API_PATH = "/api";
+import { apiRequest, downloadFile, ApiResponse, HttpMethod } from "./api";
 
 /**
  * Get a playback URL for a given song track type
@@ -19,21 +11,21 @@ export function getAudioUrl(
   songId: string,
   trackType: "vocals" | "instrumental" | "original"
 ): string {
-  return `${API_HOST}${API_PATH}/songs/${songId}/download/${trackType}`;
+  return `/api/songs/${songId}/download/${trackType}`;
 }
 
 /**
  * Get all songs in the library
  */
 export async function getSongs(): Promise<ApiResponse<Song[]>> {
-  return apiRequest<Song[]>(`${API_PATH}/songs`);
+  return apiRequest<Song[]>(`/api/songs`);
 }
 
 /**
  * Get a specific song by ID
  */
 export async function getSongById(id: string): Promise<ApiResponse<Song>> {
-  return apiRequest<Song>(`${API_PATH}/songs/${id}`);
+  return apiRequest<Song>(`/api/songs/${id}`);
 }
 
 /**
@@ -43,7 +35,7 @@ export async function updateSong(
   id: string,
   updates: Partial<Song>
 ): Promise<ApiResponse<Song>> {
-  return apiRequest<Song>(`${API_PATH}/songs/${id}`, {
+  return apiRequest<Song>(`/api/songs/${id}`, {
     method: "PUT",
     body: updates,
   });
@@ -55,7 +47,7 @@ export async function updateSong(
 export async function deleteSong(
   id: string
 ): Promise<ApiResponse<{ success: boolean }>> {
-  return apiRequest<{ success: boolean }>(`${API_PATH}/songs/${id}`, {
+  return apiRequest<{ success: boolean }>(`/api/songs/${id}`, {
     method: "DELETE",
   });
 }
@@ -80,7 +72,7 @@ export async function downloadVocals(
   songId: string,
   filename?: string
 ): Promise<void> {
-  const url = `${API_PATH}/songs/${songId}/download/vocals`;
+  const url = `/api/songs/${songId}/download/vocals`;
   return downloadFile(url, filename ?? `vocals-${songId}.mp3`);
 }
 
@@ -91,7 +83,7 @@ export async function downloadInstrumental(
   songId: string,
   filename?: string
 ): Promise<void> {
-  const url = `${API_PATH}/songs/${songId}/download/instrumental`;
+  const url = `/api/songs/${songId}/download/instrumental`;
   return downloadFile(url, filename ?? `instrumental-${songId}.mp3`);
 }
 
@@ -102,7 +94,7 @@ export async function downloadOriginal(
   songId: string,
   filename?: string
 ): Promise<void> {
-  const url = `${API_PATH}/songs/${songId}/download/original`;
+  const url = `/api/songs/${songId}/download/original`;
   return downloadFile(url, filename ?? `original-${songId}.mp3`);
 }
 
@@ -113,7 +105,7 @@ export async function updateSongMetadata(
   id: string,
   metadata: Partial<Song>
 ): Promise<ApiResponse<Song>> {
-  return apiRequest<Song>(`${API_PATH}/songs/${id}/metadata`, {
+  return apiRequest<Song>(`/api/songs/${id}/metadata`, {
     method: "PATCH" as HttpMethod,
     body: metadata,
   });
@@ -126,7 +118,7 @@ export async function searchMusicBrainz(query: {
   title?: string;
   artist?: string;
 }): Promise<ApiResponse<Array<Partial<Song>>>> {
-  return apiRequest<Array<Partial<Song>>>(`${API_PATH}/musicbrainz/search`, {
+  return apiRequest<Array<Partial<Song>>>(`/api/musicbrainz/search`, {
     method: "POST",
     body: query,
   });
@@ -158,7 +150,7 @@ export async function getSongLyrics(songId: string): Promise<
     plainLyrics: string;
     syncedLyrics: string;
     duration: number;
-  }>(`${API_PATH}/songs/${songId}/lyrics`);
+  }>(`/api/songs/${songId}/lyrics`);
 }
 
 /**
@@ -193,7 +185,7 @@ export async function searchLyrics(query: {
       plainLyrics: string | null;
       syncedLyrics: string | null;
     }>
-  >(`${API_PATH}/lyrics/search?${queryParams.toString()}`);
+  >(`/api/lyrics/search?${queryParams.toString()}`);
 }
 
 /**
