@@ -16,10 +16,6 @@ global_performance_state = {
     "vocal_volume": 0,
     "instrumental_volume": 1,
     "lyrics_size": "medium",
-    "isPlaying": False,
-}
-
-global_player_state = {
     "current_time": 0,
     "duration": 0,
     "isPlaying": False,
@@ -70,17 +66,26 @@ def register_handlers(socketio):
     @socketio.on("update_player_state")
     def handle_player_state_update(data):
         logger.info(f"Received player state update from {request.sid}: {data}")
-        if not data:
-            logger.error("Invalid player state update: No data received")
-            return
-        global_player_state.update(data)
-        emit(
-            "player_state_updated",
-            global_player_state,
-            room=GLOBAL_CONTROLS_ROOM,
-            include_self=False,
-        )
-        logger.info(f"Updated player state: {global_player_state}")
+        isPlaying = data.get("isPlaying")
+        currentTime = data.get("currentTime")
+        duration = data.get("duration")
+
+        if isPlaying is not None:
+            global_performance_state["isPlaying"] = isPlaying
+        if currentTime is not None:
+            global_performance_state["current_time"] = currentTime
+        if duration is not None:
+            global_performance_state["duration"] = duration
+        emit("performance_state", global_performance_state, room=request.sid)
+
+        logger.info(f"Updated player state: {global_performance_state}")
+
+    @socketio.on("reset_player_state")
+    def handle_reset_player_state(data=None):
+        logger.info(f"Received 'reset_player_state' command from {request.sid}")
+        global_performance_state["current_time"] = 0
+        global_performance_state["isPlaying"] = False
+        emit("reset_player_state", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
 
     @socketio.on("toggle_playback")
     def handle_toggle_playback(data=None):

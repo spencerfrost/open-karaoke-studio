@@ -1,17 +1,14 @@
 import { create } from "zustand";
 import { PlayerState, PlayerStatus, Lyric } from "../types/Player";
-import { QueueItemWithSong } from "../types/KaraokeQueue";
+import { KaraokeQueueItemWithSong } from "../types/KaraokeQueue";
 
-// Store state interface that extends PlayerState and adds actions
 interface PlayerStore extends PlayerState {
-  // Audio element references (managed separately outside the store)
   vocalsAudioRef?: HTMLAudioElement | null;
   instrumentalAudioRef?: HTMLAudioElement | null;
 
   // Actions
-  setCurrentSong: (song: QueueItemWithSong | null) => void;
+  setCurrentSong: (song: KaraokeQueueItemWithSong | null) => void;
   setStatus: (status: PlayerStatus) => void;
-  togglePlayPause: () => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
   setVocalVolume: (volume: number) => void;
@@ -47,11 +44,6 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     }),
 
   setStatus: (status) => set({ status }),
-
-  togglePlayPause: () =>
-    set((state) => ({
-      status: state.status === "playing" ? "paused" : "playing",
-    })),
 
   setCurrentTime: (currentTime) => set({ currentTime }),
 
