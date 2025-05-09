@@ -70,20 +70,6 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
     }
   };
 
-  // Get progress bar color based on status
-  const getProgressColorStyle = (status: string): React.CSSProperties => {
-    // Use CSS variables defined in the theme (globals.css)
-    const color =
-      status === "error" || status === "failed"
-        ? "hsl(var(--destructive))"
-        : "hsl(var(--secondary))"; // Use secondary for queued/processing
-    return { "--progress-indicator": color } as React.CSSProperties;
-  };
-
-  // --- Render Logic ---
-
-  // Initial Loading State
-
   if (isLoading) {
     return (
       <div
@@ -161,9 +147,8 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
                   </div>
                   <div className="flex items-center mt-1">
                     <Progress
-                      value={item.progress ?? 0}
+                      value={null}
                       className="h-1.5 flex-1 mr-2 bg-muted/30"
-                      style={getProgressColorStyle(item.status)}
                     />
                     <span className="text-xs text-muted-foreground">
                       {item.progress ?? 0}%

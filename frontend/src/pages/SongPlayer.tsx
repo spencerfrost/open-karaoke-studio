@@ -97,7 +97,8 @@ const SongPlayer: React.FC = () => {
   useEffect(() => {
     if (
       song &&
-      (!song.lyrics || !song.syncedLyrics) &&
+      !song.lyrics &&
+      !song.syncedLyrics &&
       !loading &&
       !lyricsLoading
     ) {
