@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { type LucideIcon } from "lucide-react";
+import { Button } from "../ui/button";
 
 interface NavItem {
   name: string;
@@ -21,23 +22,24 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
   };
 
   return (
-    <nav className="flex justify-around py-2 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20">
+    <nav className="flex h-16 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20 gap-4">
       {items.map((item) => {
         const active = isActive(item.path);
         const Icon = item.icon;
 
         return (
-          <button
+          <Button
             key={item.name}
+            variant="ghost"
             onClick={() => navigate(item.path)}
-            className={`flex flex-col items-center justify-center gap-1 text-background transition-all ${
-              active ? "opacity-100" : "opacity-60 hover:opacity-80"
+            className={`flex-1 flex flex-col items-center justify-center gap-1 text-background h-full rounded-none ${
+              active ? "opacity-100" : "opacity-50"
             }`}
             aria-current={active ? "page" : undefined}
           >
             <Icon size={20} />
             <span className="text-xs mt-1">{item.name}</span>
-          </button>
+          </Button>
         );
       })}
     </nav>

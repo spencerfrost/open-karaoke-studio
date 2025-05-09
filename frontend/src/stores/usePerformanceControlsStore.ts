@@ -19,12 +19,8 @@ interface PerformanceControlsState {
   instrumentalVolume: number; // 0.0–1.0
   lyricsSize: "small" | "medium" | "large";
   isPlaying: boolean;
-
-  playerState: {
-    isPlaying: boolean;
-    currentTime: number;
-    duration: number;
-  } | null;
+  currentTime: number;
+  duration: number;
 
   // WebSocket instance
   socket: Socket | null;
@@ -41,6 +37,7 @@ interface PerformanceControlsState {
   sendPause: () => void;
   sendSeek: (time: number) => void;
   sendSetSong: (songId: string) => void;
+
   // Playback event listeners (for player to subscribe)
   onPlay: (cb: () => void) => void;
   onPause: (cb: () => void) => void;
@@ -60,51 +57,51 @@ const createSocket = (): Socket => {
 
 export const usePerformanceControlsStore = create<PerformanceControlsState>(
   (set, get) => {
-    // Internal event listeners
     const playListeners: Array<() => void> = [];
     const pauseListeners: Array<() => void> = [];
     const seekListeners: Array<(time: number) => void> = [];
     const setSongListeners: Array<(songId: string) => void> = [];
 
     return {
-      // Initial state
       connected: false,
       vocalVolume: 0,
       instrumentalVolume: 1.0,
       lyricsSize: "medium",
       isPlaying: false,
-      playerState: null,
+      currentTime: 0,
+      duration: 0,
       socket: null,
 
-      // Connect to global performance controls
       connect: () => {
-        // Create socket if it doesn't exist
         let socket = get().socket;
         if (!socket) {
           socket = createSocket();
 
-          // Set up event listeners
           socket.on("connect", () => {
-            console.log("Connected to performance control WebSocket");
+            // console.log("Connected to performance control WebSocket");
             set({ connected: true });
 
-            // Join the global performance controls
             socket?.emit("join_performance");
           });
           socket.on("disconnect", () => set({ connected: false }));
 
-          // Listen for player state updates
-          socket.on("player_state", (data) => {
-            set({ playerState: data });
+          socket.on("performance_state", (data) => {
+            set({
+              isPlaying: data.is_playing,
+              currentTime: data.current_time,
+              duration: data.duration,
+            });
           });
 
           socket.on("performance_state", (state) => {
-            console.log("Received initial performance state", state);
+            // console.log("Received initial performance state", state);
             set({
               vocalVolume: state.vocal_volume,
               instrumentalVolume: state.instrumental_volume,
               lyricsSize: state.lyrics_size,
               isPlaying: state.is_playing,
+              currentTime:
+                typeof state.current_time === "number" ? state.current_time : 0,
             });
           });
 
@@ -120,9 +117,13 @@ export const usePerformanceControlsStore = create<PerformanceControlsState>(
             }
           });
 
-          socket.on("player_state_updated", (data) => {
-            console.log("Received player state update", data);
-            set({ playerState: data });
+          socket.on("performance_state", (data) => {
+            // console.log("Received player state update", data);
+            set({
+              isPlaying: data.isPlaying,
+              currentTime: data.current_time,
+              duration: data.duration,
+            });
           });
 
           // Playback event listeners

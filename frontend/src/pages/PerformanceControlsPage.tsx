@@ -21,12 +21,14 @@ const PerformanceControlsPage: React.FC = () => {
     instrumentalVolume,
     lyricsSize,
     isPlaying,
+    currentTime,
+    duration,
+
     setVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
     togglePlayback,
     sendSeek,
-    playerState,
   } = usePerformanceControlsStore();
 
   useEffect(() => {
@@ -92,7 +94,10 @@ const PerformanceControlsPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="h-full flex flex-col">
+      <div
+        className="h-full flex flex-col"
+        style={{ touchAction: "none" }} // Prevent dragging on mobile
+      >
         <div className="flex justify-between items-center mb-6 z-10">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-orange-peel font-retro">
@@ -100,7 +105,7 @@ const PerformanceControlsPage: React.FC = () => {
             </h1>
             <div>
               <pre className="text-xs text-lemon-chiffon bg-black/40 rounded px-2 py-1 max-w-xs overflow-x-auto">
-                {playerState?.isPlaying ? "Playing" : "Paused"}
+                {isPlaying ? "Playing" : "Paused"}
               </pre>
             </div>
           </div>
@@ -121,17 +126,13 @@ const PerformanceControlsPage: React.FC = () => {
                 className="rounded-full"
                 size="icon"
                 onClick={handleTogglePlay}
-                aria-label={playerState?.isPlaying ? "Pause" : "Play"}
+                aria-label={isPlaying ? "Pause" : "Play"}
               >
-                {playerState?.isPlaying ? (
-                  <Pause size={24} />
-                ) : (
-                  <Play size={24} />
-                )}
+                {isPlaying ? <Pause size={24} /> : <Play size={24} />}
               </Button>
               <ProgressBar
-                currentTime={playerState?.currentTime || 0}
-                duration={playerState?.duration || 0}
+                currentTime={currentTime || 0}
+                duration={duration || 0}
                 onSeek={handleSeek}
                 className="w-full"
               />
@@ -192,6 +193,25 @@ const PerformanceControlsPage: React.FC = () => {
                   Aa
                 </Button>
               </PerformanceControlInput>
+            </div>
+            <div>
+              {/* Nudge lyrics input - plus and minus icons */}
+              <div className="flex items-center justify-center gap-4 mt-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => parseLyricsSize(1)}
+                >
+                  <span className="text-xl">-</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => parseLyricsSize(3)}
+                >
+                  <span className="text-xl">+</span>
+                </Button>
+              </div>
             </div>
           </div>
         )}

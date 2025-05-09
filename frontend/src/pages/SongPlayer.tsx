@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
-import { getSongById, updateSongMetadata } from "@/services/songService";
-import { fetchLyrics } from "@/services/youtubeService";
+import { getSongById } from "@/services/songService";
 import { Song } from "@/types/Song";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
 import LyricsDisplay from "@/components/player/LyricsDisplay";
 import ProgressBar from "@/components/player/ProgressBar";
 import { Button } from "@/components/ui/button";
-import { MetadataDialog } from "@/components/upload/MetadataDialog";
-import { parseYouTubeTitle } from "@/utils/formatters";
 import { useParams } from "react-router-dom";
 import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
@@ -20,25 +17,28 @@ const SongPlayer: React.FC = () => {
   const [song, setSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lyricsLoading, setLyricsLoading] = useState(false);
-  const [isSearchingLyrics, setIsSearchingLyrics] = useState(false);
-  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
 
   const {
     currentTime,
     duration,
-    load,
+    isReady,
     cleanup,
     seek,
-    isReady,
-    isPlaying,
     play,
     pause,
     setSongAndLoad,
   } = useWebAudioKaraokeStore();
 
-  const { connect, disconnect, connected, vocalVolume, setVocalVolume } =
-    usePerformanceControlsStore();
+  const {
+    connect,
+    disconnect,
+    connected,
+    vocalVolume,
+    instrumentalVolume,
+    lyricsSize,
+    isPlaying,
+    setVocalVolume,
+  } = usePerformanceControlsStore();
 
   useEffect(() => {
     connect();
@@ -47,7 +47,6 @@ const SongPlayer: React.FC = () => {
     };
   }, [connect, disconnect]);
 
-  // Fetch song on mount
   useEffect(() => {
     if (!id) {
       setError("No song ID provided.");
@@ -57,89 +56,11 @@ const SongPlayer: React.FC = () => {
     setLoading(true);
     getSongById(id)
       .then((res) => {
-        if (res.data) {
-          setSong(res.data);
-        } else {
-          setError("Song not found.");
-        }
+        setSong(res.data);
       })
       .catch(() => setError("Failed to fetch song."))
       .finally(() => setLoading(false));
-  }, [id]);
-
-  // Fetch lyrics if missing
-  useEffect(() => {
-    if (!song || song.lyrics || song.syncedLyrics) return;
-    setLyricsLoading(true);
-    fetchLyrics(song.title, song.artist, song.album, song.id)
-      .then(async (res) => {
-        if (res.data && (res.data.lyrics || res.data.syncedLyrics)) {
-          const updated = {
-            ...song,
-            lyrics: res.data.lyrics ?? "",
-            syncedLyrics: res.data.syncedLyrics ?? "",
-          };
-          setSong(updated);
-          // Persist lyrics to backend
-          await updateSongMetadata(song.id, {
-            lyrics: res.data.lyrics ?? "",
-            syncedLyrics: res.data.syncedLyrics ?? "",
-          });
-        }
-      })
-      .catch(() => {
-        /* ignore lyrics fetch errors */
-      })
-      .finally(() => setLyricsLoading(false));
-  }, [song]);
-
-  // Show metadata dialog if lyrics are missing
-  useEffect(() => {
-    if (
-      song &&
-      !song.lyrics &&
-      !song.syncedLyrics &&
-      !loading &&
-      !lyricsLoading
-    ) {
-      setShowMetadataDialog(true);
-    }
-  }, [song, loading, lyricsLoading]);
-
-  // Handler for metadata dialog submit
-  const handleMetadataSubmit = async (metadata: {
-    artist: string;
-    title: string;
-    album?: string;
-  }) => {
-    if (!song) return;
-    setIsSearchingLyrics(true);
-    try {
-      const res = await fetchLyrics(
-        metadata.title,
-        metadata.artist,
-        metadata.album,
-        song.id
-      );
-      if (res.data && (res.data.lyrics || res.data.syncedLyrics)) {
-        const updated = {
-          ...song,
-          lyrics: res.data.lyrics ?? "",
-          syncedLyrics: res.data.syncedLyrics ?? "",
-        };
-        setSong(updated);
-        await updateSongMetadata(song.id, {
-          lyrics: res.data.lyrics ?? "",
-          syncedLyrics: res.data.syncedLyrics ?? "",
-        });
-        setShowMetadataDialog(false);
-      }
-    } catch {
-      // Optionally handle error
-    } finally {
-      setIsSearchingLyrics(false);
-    }
-  };
+  }, [id, pause]);
 
   // Button handlers
   const handlePlayPause = () => {
@@ -156,10 +77,15 @@ const SongPlayer: React.FC = () => {
   useEffect(() => {
     if (song) {
       setSongAndLoad(song.id);
-      load();
     }
     return () => cleanup();
-  }, [song, setSongAndLoad, load, cleanup]);
+  }, [song, setSongAndLoad, cleanup]);
+
+  useEffect(() => {
+    return () => {
+      useWebAudioKaraokeStore.getState().cleanup();
+    };
+  }, []);
 
   useEffect(() => {
     const controlsStore = usePerformanceControlsStore.getState();
@@ -169,36 +95,68 @@ const SongPlayer: React.FC = () => {
 
     controlsStore.onPlay(handleRemotePlay);
     controlsStore.onPause(handleRemotePause);
-  }, [play, pause, seek]);
+  }, [play, pause]);
 
   // Only render player if song is loaded
+  const playerState = useWebAudioKaraokeStore();
+  const performanceControlsState = {
+    vocalVolume,
+    instrumentalVolume,
+    lyricsSize,
+    isPlaying: isPlaying,
+    currentTime,
+    duration,
+  };
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="text-lg text-orange-peel animate-pulse">
-          Loading song...
+      <>
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg text-orange-peel animate-pulse">
+            Loading song...
+          </div>
         </div>
-      </div>
+        {/* Debug panel for player state */}
+        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
+          <div className="flex">
+            <div className="flex-1">
+              <strong>Player State Debug:</strong>
+              <pre className="overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(playerState, null, 2)}
+              </pre>
+            </div>
+            <div className="flex-1">
+              <strong>Song Data Debug:</strong>
+              <pre className="overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(song, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
   if (error || !song) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="text-lg text-destructive">
-          {error ?? "Song not found."}
+      <>
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="text-lg text-destructive">
+            {error ?? "Song not found."}
+          </div>
         </div>
-      </div>
+        {/* Debug panel for player state */}
+        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
+          <strong>Player State Debug:</strong>
+          <pre className="overflow-x-auto whitespace-pre-wrap">
+            {JSON.stringify(playerState, null, 2)}
+          </pre>
+        </div>
+      </>
     );
   }
 
   let lyricsContent;
-  if (lyricsLoading) {
-    lyricsContent = (
-      <div className="text-orange-peel animate-pulse text-xl">
-        Fetching lyrics...
-      </div>
-    );
-  } else if (song.syncedLyrics) {
+  if (song.syncedLyrics) {
     lyricsContent = (
       <SyncedLyricsDisplay
         syncedLyrics={song.syncedLyrics}
@@ -218,16 +176,6 @@ const SongPlayer: React.FC = () => {
 
   return (
     <AppLayout>
-      <MetadataDialog
-        isOpen={showMetadataDialog}
-        onClose={() => setShowMetadataDialog(false)}
-        onSubmit={handleMetadataSubmit}
-        initialMetadata={
-          song ? parseYouTubeTitle(song.title) : { title: "", artist: "" }
-        }
-        videoTitle={song?.title ?? ""}
-        isSubmitting={isSearchingLyrics}
-      />
       <WebSocketStatus
         connected={connected}
         className="absolute top-4 right-8 z-10"
@@ -270,6 +218,24 @@ const SongPlayer: React.FC = () => {
             >
               {isPlaying ? <Pause size={32} /> : <Play size={32} />}
             </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Debug panel for player state */}
+      <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
+        <div className="flex">
+          <div className="flex-1">
+            <strong>Player State Debug:</strong>
+            <pre className="overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(playerState, null, 2)}
+            </pre>
+          </div>
+          <div className="flex-1">
+            <strong>Performance Controls State Debug:</strong>
+            <pre className="overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(performanceControlsState, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
