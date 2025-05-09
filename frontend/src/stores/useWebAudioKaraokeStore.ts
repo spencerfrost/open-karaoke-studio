@@ -167,87 +167,50 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         emitPlayerState();
       },
       setSongAndLoad: async (id: string) => {
-        await get().setSongId(id);
+        get().setSongId(id);
         emitPlayerState();
+        // Defensive: always cleanup before loading a new song
+        get().cleanup();
         await get().load();
       },
       load: async () => {
-        if (get().isLoading) {
-          console.warn(
-            "[WebAudioKaraokeStore] Already loading, skipping duplicate call."
-          );
-          return;
-        }
         set({ isLoading: true });
         try {
           const { instrumentalUrl, vocalUrl } = get();
-          console.log("[WebAudioKaraokeStore] load() called", {
-            instrumentalUrl,
-            vocalUrl,
-          });
           if (!instrumentalUrl || !vocalUrl) {
-            console.error(
-              "[WebAudioKaraokeStore] Missing instrumental or vocal URL",
-              { instrumentalUrl, vocalUrl }
-            );
-            set({ error: "Missing instrumental or vocal URL." });
+            set({
+              error: "Missing instrumental or vocal URL.",
+              isLoading: false,
+            });
             return;
           }
-          try {
-            audioContext ??= new window.AudioContext();
-            console.log("[WebAudioKaraokeStore] Loading audio files", {
-              instrumentalUrl,
-              vocalUrl,
-            });
-            const fetchStart = Date.now();
-            const [instArr, vocArr] = await Promise.all([
-              fetch(instrumentalUrl).then((r) => {
-                console.log(
-                  "[WebAudioKaraokeStore] Instrumental fetch status:",
-                  r.status
-                );
-                return r.arrayBuffer();
-              }),
-              fetch(vocalUrl).then((r) => {
-                console.log(
-                  "[WebAudioKaraokeStore] Vocal fetch status:",
-                  r.status
-                );
-                return r.arrayBuffer();
-              }),
-            ]);
-            console.log(
-              `[WebAudioKaraokeStore] Fetch complete in ${Date.now() - fetchStart}ms`
-            );
-            console.log("[WebAudioKaraokeStore] Decoding audio data...");
-            const decodeStart = Date.now();
-            const [instBuf, vocBuf] = await Promise.all([
-              audioContext.decodeAudioData(instArr.slice(0)),
-              audioContext.decodeAudioData(vocArr.slice(0)),
-            ]);
-            console.log(
-              `[WebAudioKaraokeStore] Decoding complete in ${Date.now() - decodeStart}ms`
-            );
-            instrumentalBuffer = instBuf;
-            vocalBuffer = vocBuf;
-            console.log("[WebAudioKaraokeStore] Setting player state", {
-              duration: instBuf.duration,
-              isReady: true,
-              error: null,
-            });
-            set({
-              duration: instBuf.duration,
-              isReady: true,
-              error: null,
-            });
-            emitPlayerState();
-          } catch (err) {
-            console.error(
-              "[WebAudioKaraokeStore] Failed to load or decode audio:",
-              err
-            );
-            set({ error: "Failed to load or decode audio." });
-          }
+          audioContext ??= new window.AudioContext();
+          const [instArr, vocArr] = await Promise.all([
+            fetch(instrumentalUrl, { cache: "reload" }).then((r) => {
+              if (!r.ok)
+                throw new Error(`fetch failed with status ${r.status}`);
+              return r.arrayBuffer();
+            }),
+            fetch(vocalUrl, { cache: "reload" }).then((r) => {
+              if (!r.ok)
+                throw new Error(`fetch failed with status ${r.status}`);
+              return r.arrayBuffer();
+            }),
+          ]);
+          const [instBuf, vocBuf] = await Promise.all([
+            audioContext.decodeAudioData(instArr.slice(0)),
+            audioContext.decodeAudioData(vocArr.slice(0)),
+          ]);
+          instrumentalBuffer = instBuf;
+          vocalBuffer = vocBuf;
+          set({
+            duration: instBuf.duration,
+            isReady: true,
+            error: null,
+          });
+          emitPlayerState();
+        } catch {
+          set({ error: "Failed to load or decode audio." });
         } finally {
           set({ isLoading: false });
         }
@@ -302,7 +265,11 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         analyser = null;
         waveformArray = null;
         clearIntervals();
-        set({ isReady: false });
+        set({
+          isReady: false,
+          isLoading: false,
+          error: null,
+        });
       },
       getWaveformData: () => {
         if (!analyser || !waveformArray) return null;
