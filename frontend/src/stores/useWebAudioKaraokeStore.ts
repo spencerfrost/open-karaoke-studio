@@ -57,9 +57,8 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
     });
 
     const emitPlayerState = () => {
-      const perfStore = usePerformanceControlsStore.getState();
+      const { socket } = usePerformanceControlsStore.getState();
       const { isPlaying, currentTime, duration } = get();
-      const { socket } = perfStore;
       if (socket?.connected) {
         socket.emit("update_player_state", {
           isPlaying,
@@ -69,7 +68,6 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
       }
     };
 
-    // --- Helper Functions ---
     function setupAnalyser() {
       if (!analyser && audioContext) {
         analyser = audioContext.createAnalyser();
@@ -159,17 +157,15 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
           instrumentalUrl: getAudioUrl(id, "instrumental"),
           vocalUrl: getAudioUrl(id, "vocals"),
           isReady: false,
-          isPlaying: false, // Always reset playing state
+          isPlaying: false,
           currentTime: 0,
           duration: 0,
           error: null,
         });
-        emitPlayerState();
+        // emitPlayerState();
       },
       setSongAndLoad: async (id: string) => {
         get().setSongId(id);
-        emitPlayerState();
-        // Defensive: always cleanup before loading a new song
         get().cleanup();
         await get().load();
       },
@@ -184,7 +180,9 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
             });
             return;
           }
-          audioContext ??= new window.AudioContext();
+          // Only fetch and decode audio data, do NOT create AudioContext yet
+          // We'll decode using a temporary context, then close it
+          const tempContext = new window.AudioContext();
           const [instArr, vocArr] = await Promise.all([
             fetch(instrumentalUrl, { cache: "reload" }).then((r) => {
               if (!r.ok)
@@ -198,8 +196,8 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
             }),
           ]);
           const [instBuf, vocBuf] = await Promise.all([
-            audioContext.decodeAudioData(instArr.slice(0)),
-            audioContext.decodeAudioData(vocArr.slice(0)),
+            tempContext.decodeAudioData(instArr.slice(0)),
+            tempContext.decodeAudioData(vocArr.slice(0)),
           ]);
           instrumentalBuffer = instBuf;
           vocalBuffer = vocBuf;
@@ -208,7 +206,7 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
             isReady: true,
             error: null,
           });
-          emitPlayerState();
+          tempContext.close();
         } catch {
           set({ error: "Failed to load or decode audio." });
         } finally {
@@ -216,11 +214,17 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         }
       },
       play: () => {
-        if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
+        // Create AudioContext if not already created
+        if (!audioContext) {
+          audioContext = new window.AudioContext();
+        }
+        if (!instrumentalBuffer || !vocalBuffer) return;
         clearIntervals();
-        const now = audioContext.currentTime;
-        setupAudioGraph(now);
-        set({ isPlaying: true });
+        // Always start at 0 unless seeking
+        const now = 0;
+        console.log("Playing at time:", now);
+        setupAudioGraph(audioContext.currentTime, now);
+        set({ isPlaying: true, currentTime: now });
         emitPlayerState();
         startTimeInterval();
         instrumentalSource!.onended = () => {
@@ -253,23 +257,79 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         };
       },
       cleanup: () => {
-        get().pause();
-        if (audioContext) audioContext.close();
-        audioContext = null;
+        // Defensive: Pause playback and clear intervals
+        try {
+          get().pause();
+        } catch (e) {
+          // Ignore errors if already paused
+        }
+        clearIntervals();
+
+        // Stop and disconnect audio sources if they exist
+        if (instrumentalSource) {
+          try {
+            instrumentalSource.onended = null;
+            instrumentalSource.stop();
+            instrumentalSource.disconnect();
+          } catch (e) {
+            // Already stopped/disconnected
+          }
+          instrumentalSource = null;
+        }
+        if (vocalSource) {
+          try {
+            vocalSource.onended = null;
+            vocalSource.stop();
+            vocalSource.disconnect();
+          } catch (e) {
+            // Already stopped/disconnected
+          }
+          vocalSource = null;
+        }
+        // Disconnect gain nodes
+        if (instrumentalGain) {
+          try {
+            instrumentalGain.disconnect();
+          } catch (e) {}
+          instrumentalGain = null;
+        }
+        if (vocalGain) {
+          try {
+            vocalGain.disconnect();
+          } catch (e) {}
+          vocalGain = null;
+        }
+        // Disconnect analyser
+        if (analyser) {
+          try {
+            analyser.disconnect();
+          } catch (e) {}
+          analyser = null;
+        }
+        waveformArray = null;
+
+        // Close AudioContext if open
+        if (audioContext) {
+          try {
+            // Only close if not already closed
+            if (audioContext.state !== "closed") {
+              audioContext.close();
+            }
+          } catch (e) {
+            // Already closed or error
+          }
+          audioContext = null;
+        }
         instrumentalBuffer = null;
         vocalBuffer = null;
-        instrumentalSource = null;
-        vocalSource = null;
-        instrumentalGain = null;
-        vocalGain = null;
-        analyser = null;
-        waveformArray = null;
-        clearIntervals();
+
+        // Reset store state
         set({
           isReady: false,
           isLoading: false,
           error: null,
         });
+        console.log("WebAudioKaraokeStore cleaned up");
       },
       getWaveformData: () => {
         if (!analyser || !waveformArray) return null;
