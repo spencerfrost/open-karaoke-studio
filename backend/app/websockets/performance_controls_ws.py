@@ -65,7 +65,6 @@ def register_handlers(socketio):
 
     @socketio.on("update_player_state")
     def handle_player_state_update(data):
-        logger.info(f"Received player state update from {request.sid}: {data}")
         isPlaying = data.get("isPlaying")
         currentTime = data.get("currentTime")
         duration = data.get("duration")
@@ -78,7 +77,9 @@ def register_handlers(socketio):
             global_performance_state["duration"] = duration
         emit("performance_state", global_performance_state, room=request.sid)
 
-        logger.info(f"Updated player state: {global_performance_state}")
+        logger.debug(
+            f"Updated player state: isPlaying={isPlaying} currentTime={currentTime} duration={duration}"
+        )
 
     @socketio.on("reset_player_state")
     def handle_reset_player_state(data=None):
