@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Play, Pause, Minimize, Maximize } from "lucide-react";
 import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import { Lrc } from "react-lrc";
@@ -28,7 +28,7 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
   const play = useWebAudioKaraokeStore((s) => s.play);
   const pause = useWebAudioKaraokeStore((s) => s.pause);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleFullscreenChange = () => {
       const fsElement =
         document.fullscreenElement || (document as any).webkitFullscreenElement;
@@ -45,7 +45,7 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
     };
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) {
         exitFullscreen();
