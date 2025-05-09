@@ -214,15 +214,12 @@ export const useWebAudioKaraokeStore = create<WebAudioKaraokeState>(
         }
       },
       play: () => {
-        // Create AudioContext if not already created
         if (!audioContext) {
           audioContext = new window.AudioContext();
         }
         if (!instrumentalBuffer || !vocalBuffer) return;
         clearIntervals();
-        // Always start at 0 unless seeking
-        const now = 0;
-        console.log("Playing at time:", now);
+        const now = get().currentTime;
         setupAudioGraph(audioContext.currentTime, now);
         set({ isPlaying: true, currentTime: now });
         emitPlayerState();
