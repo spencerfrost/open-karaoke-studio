@@ -108,6 +108,26 @@ const SongPlayer: React.FC = () => {
     duration,
   };
 
+  // eslint-disable-next-line
+  const debugPanel = false ? (
+    <div className="fixed bottom-16 left-0 w-full text-xs p-2 z-50 border-t border-russet bg-black/80 text-background">
+      <div className="flex">
+        <div className="flex-1">
+          <strong>Player State Debug:</strong>
+          <pre className="overflow-x-auto whitespace-pre-wrap">
+            {JSON.stringify(playerState, null, 2)}
+          </pre>
+        </div>
+        <div className="flex-1">
+          <strong>Performance Controls State Debug:</strong>
+          <pre className="overflow-x-auto whitespace-pre-wrap">
+            {JSON.stringify(performanceControlsState, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (loading) {
     return (
       <>
@@ -117,22 +137,7 @@ const SongPlayer: React.FC = () => {
           </div>
         </div>
         {/* Debug panel for player state */}
-        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
-          <div className="flex">
-            <div className="flex-1">
-              <strong>Player State Debug:</strong>
-              <pre className="overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(playerState, null, 2)}
-              </pre>
-            </div>
-            <div className="flex-1">
-              <strong>Song Data Debug:</strong>
-              <pre className="overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(song, null, 2)}
-              </pre>
-            </div>
-          </div>
-        </div>
+        {debugPanel}
       </>
     );
   }
@@ -145,12 +150,7 @@ const SongPlayer: React.FC = () => {
           </div>
         </div>
         {/* Debug panel for player state */}
-        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
-          <strong>Player State Debug:</strong>
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(playerState, null, 2)}
-          </pre>
-        </div>
+        {debugPanel}
       </>
     );
   }
@@ -223,22 +223,7 @@ const SongPlayer: React.FC = () => {
       </div>
 
       {/* Debug panel for player state */}
-      <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-gray-100 text-xs p-2 z-50 border-t border-gray-700">
-        <div className="flex">
-          <div className="flex-1">
-            <strong>Player State Debug:</strong>
-            <pre className="overflow-x-auto whitespace-pre-wrap">
-              {JSON.stringify(playerState, null, 2)}
-            </pre>
-          </div>
-          <div className="flex-1">
-            <strong>Performance Controls State Debug:</strong>
-            <pre className="overflow-x-auto whitespace-pre-wrap">
-              {JSON.stringify(performanceControlsState, null, 2)}
-            </pre>
-          </div>
-        </div>
-      </div>
+      {debugPanel}
     </AppLayout>
   );
 };
