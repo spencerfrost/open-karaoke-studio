@@ -7,7 +7,7 @@ import { Song } from "../types/Song";
 
 interface KaraokeQueueState {
   items: KaraokeQueueItemWithSong[];
-  currentSong: KaraokeQueueItemWithSong | null;
+  currentQueueItem: KaraokeQueueItemWithSong | null;
   isLoading: boolean;
   error: string | null;
 
@@ -16,7 +16,7 @@ interface KaraokeQueueState {
   addToKaraokeQueue: (item: KaraokeQueueItemWithSong) => void;
   removeFromKaraokeQueue: (id: string) => void;
   reorderKaraokeQueue: (items: KaraokeQueueItemWithSong[]) => void;
-  setCurrentSong: (item: KaraokeQueueItemWithSong | null) => void;
+  setcurrentQueueItem: (item: KaraokeQueueItemWithSong | null) => void;
   nextSong: () => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
@@ -38,7 +38,7 @@ export const buildKaraokeQueueItemWithSong = (
 
 export const useKaraokeQueueStore = create<KaraokeQueueState>((set) => ({
   items: [],
-  currentSong: null,
+  currentQueueItem: null,
   isLoading: false,
   error: null,
 
@@ -56,17 +56,17 @@ export const useKaraokeQueueStore = create<KaraokeQueueState>((set) => ({
 
   reorderKaraokeQueue: (items) => set({ items }),
 
-  setCurrentSong: (currentSong) => set({ currentSong }),
+  setcurrentQueueItem: (currentQueueItem) => set({ currentQueueItem }),
 
   nextSong: () =>
     set((state) => {
       if (state.items.length === 0) {
-        return { currentSong: null };
+        return { currentQueueItem: null };
       }
 
       const nextItem = state.items[0];
       return {
-        currentSong: nextItem,
+        currentQueueItem: nextItem,
         items: state.items.slice(1),
       };
     }),

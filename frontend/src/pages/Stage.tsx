@@ -1,32 +1,19 @@
 import React, { useEffect } from "react";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
-import AppLayout from "../components/layout/AppLayout";
-import LyricsDisplay from "../components/player/LyricsDisplay";
-import ProgressBar from "../components/player/ProgressBar";
-import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
-import { Button } from "@/components/ui/button";
-import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import KaraokeQueueList from "../components/queue/KaraokeQueueList";
-import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
+
+import AppLayout from "@/components/layout/AppLayout";
 import WebSocketStatus from "@/components/WebsocketStatus";
+import KaraokeQueueList from "@/components/queue/KaraokeQueueList";
+import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
+
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
 
 const Stage: React.FC = () => {
-  const {
-    currentTime,
-    duration,
-    seek,
-    isReady,
-    isPlaying,
-    play,
-    pause,
-    vocalVolume,
-    setVocalVolume,
-    connect,
-    disconnect,
-    connected,
-  } = useKaraokePlayerStore();
+  const { currentTime, duration, seek, connect, disconnect, connected } =
+    useKaraokePlayerStore();
 
-  const { currentSong, items } = useKaraokeQueueStore();
+  const { currentQueueItem, items } = useKaraokeQueueStore();
+  const currentSong = currentQueueItem?.song;
 
   useEffect(() => {
     connect();
@@ -34,36 +21,6 @@ const Stage: React.FC = () => {
       disconnect();
     };
   }, [connect, disconnect]);
-
-  const handlePlayPause = () => {
-    if (isPlaying) {
-      pause();
-    } else {
-      play();
-    }
-  };
-  const handleMute = () => {
-    setVocalVolume(vocalVolume === 0 ? 1 : 0);
-  };
-
-  let lyricsContent;
-  if (currentSong?.song.syncedLyrics) {
-    lyricsContent = (
-      <SyncedLyricsDisplay
-        syncedLyrics={currentSong?.song.syncedLyrics}
-        currentTime={currentTime * 1000}
-        className="h-full"
-      />
-    );
-  } else {
-    lyricsContent = (
-      <LyricsDisplay
-        lyrics={currentSong?.song.lyrics ?? ""}
-        progress={duration ? currentTime / duration : 0}
-        currentTime={currentTime * 1000}
-      />
-    );
-  }
 
   return (
     <AppLayout>
@@ -73,48 +30,23 @@ const Stage: React.FC = () => {
           className="absolute top-4 right-8 z-10"
         />
         <h1 className="text-3xl font-bold text-center mb-2 text-orange-peel">
-          {currentSong?.song.title}
+          {currentSong?.title}
         </h1>
         <h2 className="text-xl text-center mb-4 text-background/80">
-          {currentSong?.song.artist}
+          {currentSong?.artist}
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
-          {lyricsContent}
-        </div>
-        {/* Bottom controls */}
-        <div className="p-4 pt-0 " style={{ zIndex: 30 }}>
-          <ProgressBar
-            currentTime={currentTime}
+          <UnifiedLyricsDisplay
+            lyrics={currentSong?.syncedLyrics || currentSong?.lyrics || ""}
+            isSynced={!!currentSong?.syncedLyrics}
+            currentTime={currentTime * 1000}
+            title={currentSong?.title || ""}
+            artist={currentSong?.artist || ""}
             duration={duration}
-            onSeek={(val) => seek(val)}
-            className="mb-4"
+            onSeek={seek}
           />
-
-          <div className="flex justify-center items-center gap-4">
-            <Button
-              className="p-3 rounded-full bg-accent text-background"
-              onClick={handleMute}
-              aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
-            >
-              {vocalVolume === 0 ? (
-                <VolumeX size={24} />
-              ) : (
-                <Volume2 size={24} />
-              )}
-            </Button>
-
-            <Button
-              className="p-4 rounded-full bg-orange-peel text-russet"
-              onClick={handlePlayPause}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              disabled={!isReady}
-            >
-              {isPlaying ? <Pause size={32} /> : <Play size={32} />}
-            </Button>
-          </div>
         </div>
-
-        <h2 className="text-2xl font-semibold text-center mb-4 text-orange-peel">
+        <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
           Up Next
         </h2>
 
