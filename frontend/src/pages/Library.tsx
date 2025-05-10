@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Music, Search } from "lucide-react";
+import { Grid, List, Music, Search } from "lucide-react";
 import { useSongs } from "../context/SongsContext";
 import SongCard from "../components/songs/SongCard";
 import AppLayout from "../components/layout/AppLayout";
@@ -8,6 +8,8 @@ import { useApiQuery } from "../hooks/useApi";
 import { Song } from "../types/Song";
 import { useNavigate } from "react-router-dom";
 import vintageTheme from "../utils/theme";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 
 const LibraryPage: React.FC = () => {
   const { state, dispatch } = useSongs();
@@ -21,31 +23,16 @@ const LibraryPage: React.FC = () => {
     {}
   );
 
-  // --- Effect to update context when query data changes ---
   useEffect(() => {
-    // Only dispatch if the query was successful and data exists
     if (songsQuery.isSuccess && songsQuery.data) {
       dispatch({ type: "SET_SONGS", payload: songsQuery.data });
     }
-    // Add songsQuery.isSuccess and songsQuery.data as dependencies
-    // along with dispatch if your linter requires it.
   }, [songsQuery.isSuccess, songsQuery.data, dispatch]);
 
-
-  // Handle search input (no changes needed)
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({ type: "SET_FILTER_TERM", payload: e.target.value });
   };
 
-  // Handle filter status change (no changes needed)
-  const handleStatusFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    dispatch({
-      type: "SET_FILTER_STATUS",
-      payload: e.target.value as "all" | "processed" | "processing" | "queued",
-    });
-  };
-
-  // Handle favorites filter (no changes needed)
   const handleFavoritesFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({
       type: "SET_FILTER_FAVORITES",
@@ -53,7 +40,6 @@ const LibraryPage: React.FC = () => {
     });
   };
 
-  // Handle song favorite toggle
   const handleToggleFavorite = async (song: Song) => {
     const newFavoriteStatus = !song.favorite;
 
@@ -81,9 +67,7 @@ const LibraryPage: React.FC = () => {
     }
   };
 
-  // Handle song metadata update
   const handleSongUpdated = (updatedSong: Song) => {
-    // Update the song in context
     dispatch({
       type: "UPDATE_SONG",
       payload: {
@@ -142,22 +126,6 @@ const LibraryPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <select
-              className="py-1 px-3 rounded border"
-              style={{
-                backgroundColor: `${colors.lemonChiffon}20`,
-                borderColor: colors.orangePeel,
-                color: colors.lemonChiffon,
-              }}
-              value={state.filterStatus}
-              onChange={handleStatusFilter}
-            >
-              <option value="all">All Statuses</option>
-              <option value="processed">Processed</option>
-              <option value="processing">Processing</option>
-              <option value="queued">Queued</option>
-            </select>
-
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -172,26 +140,26 @@ const LibraryPage: React.FC = () => {
             </div>
 
             <div className="flex ml-auto gap-2">
-              <button
-                className={`px-3 py-1 rounded ${viewMode === "grid" ? "opacity-100" : "opacity-60"}`}
-                onClick={() => setViewMode("grid")}
-                style={{
-                  backgroundColor:
-                    viewMode === "grid" ? colors.darkCyan : "transparent",
-                }}
-              >
-                Grid
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${viewMode === "list" ? "opacity-100" : "opacity-60"}`}
-                onClick={() => setViewMode("list")}
-                style={{
-                  backgroundColor:
-                    viewMode === "list" ? colors.darkCyan : "transparent",
-                }}
-              >
-                List
-              </button>
+              <ButtonGroup>
+                <Button
+                  variant="accent"
+                  onClick={() => setViewMode("grid")}
+                  className={
+                    viewMode === "grid" ? "hover:none" : "bg-accent/70"
+                  }
+                >
+                  <Grid size={20} />
+                </Button>
+                <Button
+                  variant="accent"
+                  onClick={() => setViewMode("list")}
+                  className={
+                    viewMode === "list" ? "hover:none" : "bg-accent/70"
+                  }
+                >
+                  <List size={20} />
+                </Button>
+              </ButtonGroup>
             </div>
           </div>
         </div>

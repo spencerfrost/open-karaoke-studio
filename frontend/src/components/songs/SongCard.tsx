@@ -5,6 +5,7 @@ import { Song } from "../../types/Song";
 import { formatTime } from "../../utils/formatters";
 import vintageTheme from "../../utils/theme";
 import { getAudioUrl } from "../../services/songService";
+import { Button } from "../ui/button";
 
 interface SongCardProps {
   song: Song;
@@ -67,15 +68,6 @@ const SongCard: React.FC<SongCardProps> = ({
         <div className="flex-1">
           <h3 className="font-medium">{song.title}</h3>
           <p className="text-sm opacity-75">{song.artist}</p>
-          <div className="mt-1">
-            <MetadataEditor
-              song={song}
-              onSongUpdated={
-                onSongUpdated ||
-                ((updatedSong) => console.log("Song updated:", updatedSong))
-              }
-            />
-          </div>
         </div>
 
         <div className="text-right">
@@ -103,19 +95,27 @@ const SongCard: React.FC<SongCardProps> = ({
           </div>
         </div>
 
-        <button
-          className="ml-2"
-          onClick={() => onToggleFavorite(song)}
-          aria-label={
-            song.favorite ? "Remove from favorites" : "Add to favorites"
-          }
-        >
-          <Heart
-            fill={song.favorite ? colors.orangePeel : "none"}
-            style={{ color: colors.orangePeel }}
-            className="h-5 w-5"
+        <div className="flex flex-col items-center ml-3">
+          <Button
+            variant="ghost"
+            onClick={() => onToggleFavorite(song)}
+            aria-label={
+              song.favorite ? "Remove from favorites" : "Add to favorites"
+            }
+          >
+            <Heart
+              className={`h-8 w-8 text-primary ${song.favorite && "fill-current"}`}
+            />
+          </Button>
+          <MetadataEditor
+            icon
+            song={song}
+            onSongUpdated={
+              onSongUpdated ||
+              ((updatedSong) => console.log("Song updated:", updatedSong))
+            }
           />
-        </button>
+        </div>
       </div>
     );
   }
@@ -139,29 +139,26 @@ const SongCard: React.FC<SongCardProps> = ({
           )}
         </div>
 
-        {/* Play button overlay */}
-        {song.status === "processed" && (
-          <button
-            className="absolute inset-0 flex items-center justify-center bg-transparent"
-            onClick={() => {
-              const url = getAudioUrl(song.id, "vocals");
-              setPreviewSrc(url);
-              onPlay(song);
-            }}
-            aria-label="Play song"
+        <button
+          className="absolute inset-0 flex items-center justify-center bg-transparent"
+          onClick={() => {
+            const url = getAudioUrl(song.id, "vocals");
+            setPreviewSrc(url);
+            onPlay(song);
+          }}
+          aria-label="Play song"
+        >
+          <div
+            className="h-12 w-12 rounded-full items-center justify-center hidden hover:flex"
+            style={{ backgroundColor: colors.darkCyan }}
           >
-            <div
-              className="h-12 w-12 rounded-full items-center justify-center hidden hover:flex"
-              style={{ backgroundColor: colors.darkCyan }}
-            >
-              <Play
-                size={24}
-                className="text-white"
-                style={{ marginLeft: "2px" }}
-              />
-            </div>
-          </button>
-        )}
+            <Play
+              size={24}
+              className="text-white"
+              style={{ marginLeft: "2px" }}
+            />
+          </div>
+        </button>
       </div>
 
       <div className="p-3">
@@ -174,9 +171,7 @@ const SongCard: React.FC<SongCardProps> = ({
             }
           >
             <Heart
-              fill={song.favorite ? colors.orangePeel : "none"}
-              style={{ color: colors.orangePeel }}
-              className="h-5 w-5 flex-shrink-0"
+              className={`h-6 w-6 text-primary ${song.favorite && "fill-current"}`}
             />
           </button>
         </div>
@@ -192,22 +187,6 @@ const SongCard: React.FC<SongCardProps> = ({
             }
           />
           <span className="opacity-60">{formatTime(song.duration)}</span>
-
-          {song.status === "processing" && (
-            <span style={{ color: colors.rust }}>Processing...</span>
-          )}
-          {song.status === "queued" && (
-            <span style={{ color: colors.orangePeel }}>Queued</span>
-          )}
-          {song.status === "processed" && (
-            <button
-              className="px-2 py-1 rounded text-xs"
-              style={primaryButtonStyle}
-              onClick={() => onAddToQueue(song)}
-            >
-              Sing
-            </button>
-          )}
         </div>
       </div>
       {/* Inline audio player for preview */}
