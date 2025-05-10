@@ -5,29 +5,26 @@ import LyricsDisplay from "../components/player/LyricsDisplay";
 import ProgressBar from "../components/player/ProgressBar";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
 import { Button } from "@/components/ui/button";
-import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import KaraokeQueueList from "../components/queue/KaraokeQueueList";
 import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
-import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
 import WebSocketStatus from "@/components/WebsocketStatus";
 
 const Stage: React.FC = () => {
   const {
     currentTime,
     duration,
-    // load,
-    // cleanup,
     seek,
     isReady,
     isPlaying,
     play,
     pause,
-    // setSongAndLoad,
-    error: audioError,
-  } = useWebAudioKaraokeStore();
-
-  const { connect, disconnect, connected, vocalVolume, setVocalVolume } =
-    usePerformanceControlsStore();
+    vocalVolume,
+    setVocalVolume,
+    connect,
+    disconnect,
+    connected,
+  } = useKaraokePlayerStore();
 
   const { currentSong, items } = useKaraokeQueueStore();
 
@@ -65,16 +62,6 @@ const Stage: React.FC = () => {
         progress={duration ? currentTime / duration : 0}
         currentTime={currentTime * 1000}
       />
-    );
-  }
-
-  if (audioError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="text-lg text-destructive">
-          Audio error: {audioError}
-        </div>
-      </div>
     );
   }
 
