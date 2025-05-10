@@ -3,6 +3,13 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000";
+const INITIAL_STATE = {
+  isReady: false,
+  isLoading: false,
+  error: null,
+  currentTime: 0,
+  isPlaying: false,
+};
 
 interface KaraokePlayerState {
   // Audio/track info
@@ -132,6 +139,24 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     syncGainValues();
   }
 
+  function resetAudioNodes() {
+    if (instrumentalSource) instrumentalSource.stop();
+    if (vocalSource) vocalSource.stop();
+    if (audioContext) audioContext.close();
+    audioContext = null;
+    instrumentalBuffer = null;
+    vocalBuffer = null;
+    instrumentalSource = null;
+    vocalSource = null;
+    instrumentalGain = null;
+    vocalGain = null;
+    analyser = null;
+    waveformArray = null;
+    clearIntervals();
+    playbackStartTime = null;
+    playbackOffset = 0;
+  }
+
   function startTimeInterval() {
     if (interval) clearInterval(interval);
     if (!audioContext) return;
@@ -152,6 +177,45 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         });
       }
     }, 300);
+  }
+
+  // --- Synced state update helpers ---
+  function updatePlayerState(
+    updates: Partial<
+      Pick<
+        KaraokePlayerState,
+        | "isPlaying"
+        | "currentTime"
+        | "duration"
+        | "songId"
+        | "isReady"
+        | "isLoading"
+        | "error"
+      >
+    >
+  ) {
+    set(updates);
+    socketEmit("update_player_state", updates);
+  }
+
+  function updatePerformanceControl(
+    control:
+      | "vocalVolume"
+      | "instrumentalVolume"
+      | "lyricsSize"
+      | "lyricsOffset",
+    value: any
+  ) {
+    set({ [control]: value } as any);
+    // Map camelCase to snake_case for backend
+    const backendControl = control.replace(
+      /[A-Z]/g,
+      (letter) => "_" + letter.toLowerCase()
+    );
+    socketEmit("update_performance_control", {
+      control: backendControl,
+      value,
+    });
   }
 
   return {
@@ -205,14 +269,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
             set({ lyricsOffset: update.value });
           }
         });
-        socket.on("playback_play", () => {
-          console.log("playback_play");
-          get().play();
-        });
-        socket.on("playback_pause", () => {
-          console.log("playback_pause");
-          get().pause();
-        });
+        socket.on("playback_play", () => get().play());
+        socket.on("playback_pause", () => get().pause());
         set({ socket });
       }
       if (!socket.connected) {
@@ -283,7 +341,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (!instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
 
-      // Start playback from the current offset
       setupAudioGraph(audioContext.currentTime, playbackOffset);
       playbackStartTime = audioContext.currentTime;
       set({ isPlaying: true });
@@ -319,74 +376,31 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         setupAudioGraph(audioContext.currentTime, time);
         playbackStartTime = audioContext.currentTime;
         startTimeInterval();
-        set({ currentTime: time });
+        updatePlayerState({ currentTime: time });
       } else {
         playbackStartTime = null;
-        set({ currentTime: time, isPlaying: false });
+        updatePlayerState({ currentTime: time, isPlaying: false });
       }
-      socketEmit("update_player_state", {
-        currentTime: time,
-        isPlaying: get().isPlaying,
-      });
     },
     setVocalVolume: (volume: number) => {
       const normalized = Math.max(0, Math.min(1, volume));
-      set({ vocalVolume: normalized });
-      socketEmit("update_performance_control", {
-        control: "vocal_volume",
-        value: normalized,
-      });
+      updatePerformanceControl("vocalVolume", normalized);
       if (vocalGain) vocalGain.gain.value = normalized;
     },
     setInstrumentalVolume: (volume: number) => {
       const normalized = Math.max(0, Math.min(1, volume));
-      set({ instrumentalVolume: normalized });
-      socketEmit("update_performance_control", {
-        control: "instrumental_volume",
-        value: normalized,
-      });
+      updatePerformanceControl("instrumentalVolume", normalized);
       if (instrumentalGain) instrumentalGain.gain.value = normalized;
     },
     setLyricsSize: (size: "small" | "medium" | "large") => {
-      set({ lyricsSize: size });
-      socketEmit("update_performance_control", {
-        control: "lyrics_size",
-        value: size,
-      });
+      updatePerformanceControl("lyricsSize", size);
     },
     setLyricsOffset: (offset: number) => {
-      set({ lyricsOffset: offset });
-      const { socket } = get();
-      socketEmit("update_performance_control", {
-        control: "lyrics_offset",
-        value: offset,
-      });
+      updatePerformanceControl("lyricsOffset", offset);
     },
     cleanup: () => {
-      // Stop and disconnect all audio nodes
-      if (instrumentalSource) instrumentalSource.stop();
-      if (vocalSource) vocalSource.stop();
-      if (audioContext) audioContext.close();
-      audioContext = null;
-      instrumentalBuffer = null;
-      vocalBuffer = null;
-      instrumentalSource = null;
-      vocalSource = null;
-      instrumentalGain = null;
-      vocalGain = null;
-      analyser = null;
-      waveformArray = null;
-      clearIntervals();
-      playbackStartTime = null;
-      playbackOffset = 0;
-      // Reset state
-      set({
-        isReady: false,
-        isLoading: false,
-        error: null,
-        currentTime: 0,
-        isPlaying: false,
-      });
+      resetAudioNodes();
+      set({ ...INITIAL_STATE });
       socketEmit("reset_player_state", {});
     },
     getWaveformData: () => {
