@@ -16,9 +16,10 @@ global_performance_state = {
     "vocal_volume": 0,
     "instrumental_volume": 1,
     "lyrics_size": "medium",
+    "lyrics_offset": 0,
     "current_time": 0,
     "duration": 0,
-    "isPlaying": False,
+    "is_playing": False,
 }
 
 
@@ -65,12 +66,12 @@ def register_handlers(socketio):
 
     @socketio.on("update_player_state")
     def handle_player_state_update(data):
-        isPlaying = data.get("isPlaying")
+        is_playing = data.get("isPlaying")
         currentTime = data.get("currentTime")
         duration = data.get("duration")
 
-        if isPlaying is not None:
-            global_performance_state["isPlaying"] = isPlaying
+        if is_playing is not None:
+            global_performance_state["is_playing"] = is_playing
         if currentTime is not None:
             global_performance_state["current_time"] = currentTime
         if duration is not None:
@@ -78,28 +79,52 @@ def register_handlers(socketio):
         emit("performance_state", global_performance_state, room=request.sid)
 
         logger.debug(
-            f"Updated player state: isPlaying={isPlaying} currentTime={currentTime} duration={duration}"
+            f"Updated player state: is_playing={is_playing} currentTime={currentTime} duration={duration}"
         )
 
     @socketio.on("reset_player_state")
     def handle_reset_player_state(data=None):
         logger.info(f"Received 'reset_player_state' command from {request.sid}")
         global_performance_state["current_time"] = 0
-        global_performance_state["isPlaying"] = False
+        global_performance_state["is_playing"] = False
         emit("reset_player_state", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
 
-    @socketio.on("toggle_playback")
-    def handle_toggle_playback(data=None):
-        logger.info(f"Received 'toggle_playback' command from {request.sid}")
-        global_performance_state["isPlaying"] = not global_performance_state[
-            "isPlaying"
-        ]
-        emit("toggle_playback", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
+    @socketio.on("playback_play")
+    def handle_playback_play(data=None):
+        logger.info(f"Received 'play' command from {request.sid}")
+        global_performance_state["is_playing"] = True
+        # Broadcast explicit play command to all clients (including sender)
+        emit(
+            "playback_play",
+            {},
+            room=GLOBAL_CONTROLS_ROOM,
+            include_self=True,
+        )
+        # Also emit updated performance state for state sync
+        emit(
+            "performance_state",
+            global_performance_state,
+            room=GLOBAL_CONTROLS_ROOM,
+            include_self=True,
+        )
 
     @socketio.on("playback_pause")
     def handle_playback_pause(data=None):
         logger.info(f"Received 'pause' command from {request.sid}")
-        global_performance_state["isPlaying"] = False
-        emit("playback_pause", {}, room=GLOBAL_CONTROLS_ROOM, include_self=False)
+        global_performance_state["is_playing"] = False
+        # Broadcast explicit pause command to all clients (including sender)
+        emit(
+            "playback_pause",
+            {},
+            room=GLOBAL_CONTROLS_ROOM,
+            include_self=True,
+        )
+        # Also emit updated performance state for state sync
+        emit(
+            "performance_state",
+            global_performance_state,
+            room=GLOBAL_CONTROLS_ROOM,
+            include_self=True,
+        )
 
     logger.info("Performance controls WebSocket event handlers registered")
