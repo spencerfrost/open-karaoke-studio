@@ -1,19 +1,48 @@
-import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
-import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
 import { VolumeX, Volume2, Pause, Play } from "lucide-react";
 import ProgressBar from "./player/ProgressBar";
 import { Button } from "./ui/button";
+import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
-const KaraokePlayer = () => {
-  const { play, pause, currentTime, duration, isPlaying, audioError } =
-    usePerformanceControlsStore();
-  const { currentSong, items } = useKaraokeQueueStore();
+interface KaraokePlayerProps {
+  lyricsContent: React.ReactNode;
+  currentSong: KaraokeQueueItemWithSong;
+  isPlaying: boolean;
+  isReady: boolean;
+  vocalVolume: number;
+  currentTime: number;
+  duration: number;
+  play: () => void;
+  pause: () => void;
+  seek: (time: number) => void;
+  setVocalVolume: (volume: number) => void;
+}
 
+const KaraokePlayer = ({
+  lyricsContent,
+  currentSong,
+  isPlaying,
+  isReady,
+  vocalVolume,
+  currentTime,
+  duration,
+  play,
+  pause,
+  seek,
+  setVocalVolume,
+}: KaraokePlayerProps) => {
   const handlePlayPause = () => {
     if (isPlaying) {
       pause();
     } else {
       play();
+    }
+  };
+
+  const handleMute = () => {
+    if (vocalVolume > 0) {
+      setVocalVolume(0);
+    } else {
+      setVocalVolume(1);
     }
   };
 
