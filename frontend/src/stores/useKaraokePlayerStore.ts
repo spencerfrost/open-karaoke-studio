@@ -204,9 +204,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       | "instrumentalVolume"
       | "lyricsSize"
       | "lyricsOffset",
-    value: any
+    value: unknown
   ) {
-    set({ [control]: value } as any);
+    set({ [control]: value });
     // Map camelCase to snake_case for backend
     const backendControl = control.replace(
       /[A-Z]/g,
