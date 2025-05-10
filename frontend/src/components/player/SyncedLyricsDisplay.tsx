@@ -1,9 +1,9 @@
 import React, { useEffect } from "react";
 import { Play, Pause, Minimize, Maximize } from "lucide-react";
-import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import { Lrc } from "react-lrc";
+
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import AudioVisualizer from "@/components/player/AudioVisualizer";
-import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
 import { Button } from "../ui/button";
 
 interface SyncedLyricsDisplayProps {
@@ -17,16 +17,11 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
   syncedLyrics,
   currentTime,
 }) => {
-  // All hooks must be called unconditionally at the top
-  const { lyricsSize } = usePerformanceControlsStore();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [fsError, setFsError] = React.useState<string | null>(null);
-  // Playback controls from global store
-  const isPlaying = useWebAudioKaraokeStore((s) => s.isPlaying);
-  const isReady = useWebAudioKaraokeStore((s) => s.isReady);
-  const play = useWebAudioKaraokeStore((s) => s.play);
-  const pause = useWebAudioKaraokeStore((s) => s.pause);
+  const { lyricsSize, lyricsOffset, isReady, isPlaying, userPlay, userPause } =
+    useKaraokePlayerStore();
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -98,9 +93,9 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
   const handlePlayPause = () => {
     if (!isReady) return;
     if (isPlaying) {
-      pause();
+      userPause();
     } else {
-      play();
+      userPlay();
     }
   };
 
@@ -156,7 +151,7 @@ const SyncedLyricsDisplay: React.FC<SyncedLyricsDisplayProps> = ({
       )}
       <Lrc
         lrc={syncedLyrics}
-        currentMillisecond={currentTime}
+        currentMillisecond={currentTime + lyricsOffset}
         verticalSpace={true}
         lineRenderer={({ active, line }) => (
           <div

@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 import { getSongById } from "@/services/songService";
 import { Song } from "@/types/Song";
 import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
 import LyricsDisplay from "@/components/player/LyricsDisplay";
 import ProgressBar from "@/components/player/ProgressBar";
 import { Button } from "@/components/ui/button";
-import { useParams } from "react-router-dom";
-import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
-import { usePerformanceControlsStore } from "@/stores/usePerformanceControlsStore";
-import WebSocketStatus from "@/components/WebsocketStatus";
+
 import AppLayout from "@/components/layout/AppLayout";
+import WebSocketStatus from "@/components/WebsocketStatus";
+import { useParams } from "react-router-dom";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,40 +19,32 @@ const SongPlayer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const {
+    connect,
+    disconnect,
+    connected,
     currentTime,
     duration,
     isReady,
+    isPlaying,
+    lyricsOffset,
     cleanup,
     seek,
     play,
     pause,
     setSongAndLoad,
-  } = useWebAudioKaraokeStore();
-
-  const {
-    connect,
-    disconnect,
-    connected,
-    vocalVolume,
-    instrumentalVolume,
-    lyricsSize,
-    isPlaying,
-    setVocalVolume,
-  } = usePerformanceControlsStore();
+  } = useKaraokePlayerStore();
 
   useEffect(() => {
     connect();
     return () => {
+      cleanup();
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, cleanup]);
 
   useEffect(() => {
-    if (!id) {
-      setError("No song ID provided.");
-      setLoading(false);
-      return;
-    }
+    if (!id) return;
+
     setLoading(true);
     getSongById(id)
       .then((res) => {
@@ -62,18 +54,6 @@ const SongPlayer: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id, pause]);
 
-  // Button handlers
-  const handlePlayPause = () => {
-    if (isPlaying) {
-      pause();
-    } else {
-      play();
-    }
-  };
-  const handleMute = () => {
-    setVocalVolume(vocalVolume === 0 ? 1 : 0);
-  };
-
   useEffect(() => {
     if (song) {
       setSongAndLoad(song.id);
@@ -81,47 +61,23 @@ const SongPlayer: React.FC = () => {
     return () => cleanup();
   }, [song, setSongAndLoad, cleanup]);
 
-  useEffect(() => {
-    return () => {
-      useWebAudioKaraokeStore.getState().cleanup();
-    };
-  }, []);
-
-  useEffect(() => {
-    const controlsStore = usePerformanceControlsStore.getState();
-
-    const handleRemotePlay = () => play();
-    const handleRemotePause = () => pause();
-
-    controlsStore.onPlay(handleRemotePlay);
-    controlsStore.onPause(handleRemotePause);
-  }, [play, pause]);
-
-  // Only render player if song is loaded
-  const playerState = useWebAudioKaraokeStore();
-  const performanceControlsState = {
-    vocalVolume,
-    instrumentalVolume,
-    lyricsSize,
-    isPlaying: isPlaying,
+  const playerState = {
+    isPlaying,
     currentTime,
+    lyricsOffset,
     duration,
+    isReady,
+    connected,
   };
 
   // eslint-disable-next-line
-  const debugPanel = false ? (
+  const debugPanel = true ? (
     <div className="fixed bottom-16 left-0 w-full text-xs p-2 z-50 border-t border-russet bg-black/80 text-background">
       <div className="flex">
         <div className="flex-1">
           <strong>Player State Debug:</strong>
           <pre className="overflow-x-auto whitespace-pre-wrap">
             {JSON.stringify(playerState, null, 2)}
-          </pre>
-        </div>
-        <div className="flex-1">
-          <strong>Performance Controls State Debug:</strong>
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(performanceControlsState, null, 2)}
           </pre>
         </div>
       </div>
@@ -200,19 +156,8 @@ const SongPlayer: React.FC = () => {
           />
           <div className="flex justify-center items-center gap-6">
             <Button
-              className="p-3 rounded-full bg-accent text-background"
-              onClick={handleMute}
-              aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
-            >
-              {vocalVolume === 0 ? (
-                <VolumeX size={24} />
-              ) : (
-                <Volume2 size={24} />
-              )}
-            </Button>
-            <Button
               className="p-4 rounded-full bg-orange-peel text-russet"
-              onClick={handlePlayPause}
+              onClick={isPlaying ? pause : play}
               aria-label={isPlaying ? "Pause" : "Play"}
               disabled={!isReady}
             >

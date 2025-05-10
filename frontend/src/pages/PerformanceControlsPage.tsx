@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { usePerformanceControlsStore } from "../stores/usePerformanceControlsStore";
+import { useKaraokePlayerStore } from "../stores/useKaraokePlayerStore";
 import { Button } from "@/components/ui/button";
 import { Volume2, Play, Pause } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
@@ -14,22 +14,29 @@ import WebSocketStatus from "@/components/WebsocketStatus";
  */
 const PerformanceControlsPage: React.FC = () => {
   const {
+    // WebSocket connection and state
     connect,
     disconnect,
     connected,
+    // Performance control state
     vocalVolume,
     instrumentalVolume,
     lyricsSize,
+    lyricsOffset,
+    // Player state
     isPlaying,
     currentTime,
     duration,
-
+    // Performance control actions
     setVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
-    togglePlayback,
-    sendSeek,
-  } = usePerformanceControlsStore();
+    setLyricsOffset,
+    // Player controls
+    userPlay,
+    userPause,
+    seek,
+  } = useKaraokePlayerStore();
 
   useEffect(() => {
     connect();
@@ -52,15 +59,6 @@ const PerformanceControlsPage: React.FC = () => {
     } else {
       setInstrumentalVolume(100);
     }
-  };
-
-  const handleSeek = (value: number) => {
-    sendSeek(value);
-  };
-
-  const handleTogglePlay = () => {
-    console.log("handleTogglePlay", isPlaying);
-    togglePlayback();
   };
 
   function getLyricsSizeValue(lyricsSize: string): number {
@@ -125,15 +123,15 @@ const PerformanceControlsPage: React.FC = () => {
               <Button
                 className="rounded-full"
                 size="icon"
-                onClick={handleTogglePlay}
+                onClick={isPlaying ? userPause : userPlay}
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? <Pause size={24} /> : <Play size={24} />}
               </Button>
               <ProgressBar
-                currentTime={currentTime || 0}
-                duration={duration || 0}
-                onSeek={handleSeek}
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={seek}
                 className="w-full"
               />
             </div>
@@ -195,21 +193,25 @@ const PerformanceControlsPage: React.FC = () => {
               </PerformanceControlInput>
             </div>
             <div>
-              {/* Nudge lyrics input - plus and minus icons */}
               <div className="flex items-center justify-center gap-4 mt-4">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => parseLyricsSize(1)}
+                  onClick={() => setLyricsOffset(lyricsOffset - 200)}
                 >
-                  <span className="text-xl">-</span>
+                  <span className="text-4xl">-</span>
                 </Button>
+                <div>
+                  <span className="text-lg text-lemon-chiffon">
+                    {lyricsOffset}ms
+                  </span>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => parseLyricsSize(3)}
+                  onClick={() => setLyricsOffset(lyricsOffset + 200)}
                 >
-                  <span className="text-xl">+</span>
+                  <span className="text-4xl">+</span>
                 </Button>
               </div>
             </div>
