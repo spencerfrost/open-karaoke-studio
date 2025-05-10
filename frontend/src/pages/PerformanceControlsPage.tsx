@@ -14,23 +14,27 @@ import WebSocketStatus from "@/components/WebsocketStatus";
  */
 const PerformanceControlsPage: React.FC = () => {
   const {
+    // WebSocket connection and state
     connect,
     disconnect,
     connected,
+    // Performance control state
     vocalVolume,
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
+    // Player state
     isPlaying,
     currentTime,
     duration,
-
+    // Performance control actions
     setVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
-    play,
-    pause,
+    // Player controls
+    userPlay,
+    userPause,
     seek,
   } = useKaraokePlayerStore();
 
@@ -119,7 +123,7 @@ const PerformanceControlsPage: React.FC = () => {
               <Button
                 className="rounded-full"
                 size="icon"
-                onClick={isPlaying ? pause : play}
+                onClick={isPlaying ? userPause : userPlay}
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? <Pause size={24} /> : <Play size={24} />}

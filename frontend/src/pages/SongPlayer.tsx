@@ -43,11 +43,8 @@ const SongPlayer: React.FC = () => {
   }, [connect, disconnect, cleanup]);
 
   useEffect(() => {
-    if (!id) {
-      setError("No song ID provided.");
-      setLoading(false);
-      return;
-    }
+    if (!id) return;
+
     setLoading(true);
     getSongById(id)
       .then((res) => {
