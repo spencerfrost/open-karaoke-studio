@@ -4,7 +4,6 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
-import vintageTheme from "../../utils/theme";
 import { updateSongMetadata, deleteSong } from "../../services/songService";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
@@ -13,16 +12,17 @@ interface MetadataEditorProps {
   song: Song;
   onSongUpdated: (updatedSong: Song) => void;
   buttonClassName?: string;
+  icon?: boolean;
 }
 
 const MetadataEditor: React.FC<MetadataEditorProps> = ({
   song,
   onSongUpdated,
   buttonClassName = "",
+  icon = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
-  const colors = vintageTheme.colors;
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
@@ -35,7 +35,6 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   };
 
   const handleSelectMusicBrainzResult = (result: Partial<Song>) => {
-    // Save the selected result to the metadata but preserve existing lyrics
     const metadataToSave: Partial<Song> = {
       title: result.title,
       artist: result.artist,
@@ -51,12 +50,15 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   };
 
   const handleDeleteSong = async () => {
-    if (window.confirm("Are you sure you want to delete this song? This action cannot be undone.")) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this song? This action cannot be undone."
+      )
+    ) {
       try {
         await deleteSong(song.id);
         setOpen(false);
         alert("Song deleted successfully.");
-        // Optionally, trigger a parent update or refresh the song list
       } catch (error) {
         console.error("Failed to delete song:", error);
         alert("Failed to delete the song. Please try again.");
@@ -69,13 +71,11 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       {/* Edit Button */}
       <Button
         variant="ghost"
-        size="sm"
         onClick={() => setOpen(true)}
-        className={`text-xs flex items-center gap-1 px-2 ${buttonClassName}`}
-        style={{ color: colors.darkCyan }}
+        className={`text-xs flex items-center gap-1 text-accent ${buttonClassName}`}
       >
         <Pencil size={14} />
-        Edit Info
+        {icon ? null : "Edit Metadata"}
       </Button>
 
       {/* Dialog */}
