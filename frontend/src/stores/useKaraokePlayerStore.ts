@@ -92,6 +92,13 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     if (interval) clearInterval(interval);
   }
 
+  function socketEmit(event: string, data: unknown) {
+    const { socket } = get();
+    if (socket?.connected) {
+      socket.emit(event, data);
+    }
+  }
+
   function setupAudioGraph(startTime: number, offset?: number) {
     // Clean up any previous sources
     if (instrumentalSource) instrumentalSource.stop();
@@ -296,23 +303,15 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       }
       set({ isPlaying: false });
     },
-    // User actions: emit to backend, then update local state
     userPlay: () => {
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.emit("playback_play");
-      }
+      socketEmit("playback_play", {});
       get().play();
     },
     userPause: () => {
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.emit("playback_pause");
-      }
+      socketEmit("playback_pause", {});
       get().pause();
     },
     seek: (time: number) => {
-      // --- Web Audio API seek logic ---
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
       playbackOffset = time;
@@ -320,61 +319,48 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         setupAudioGraph(audioContext.currentTime, time);
         playbackStartTime = audioContext.currentTime;
         startTimeInterval();
+        set({ currentTime: time });
       } else {
         playbackStartTime = null;
-        set({ currentTime: time });
+        set({ currentTime: time, isPlaying: false });
       }
-      // Always update currentTime in state for immediate UI feedback
-      set({ currentTime: time });
-      // Emit seek event to backend
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.emit("playback_seek", { time });
-      }
+      socketEmit("update_player_state", {
+        currentTime: time,
+        isPlaying: get().isPlaying,
+      });
     },
     setVocalVolume: (volume: number) => {
-      const { socket } = get();
       const normalized = Math.max(0, Math.min(1, volume));
       set({ vocalVolume: normalized });
-      if (socket?.connected) {
-        socket.emit("update_performance_control", {
-          control: "vocal_volume",
-          value: normalized,
-        });
-      }
+      socketEmit("update_performance_control", {
+        control: "vocal_volume",
+        value: normalized,
+      });
       if (vocalGain) vocalGain.gain.value = normalized;
     },
     setInstrumentalVolume: (volume: number) => {
-      const { socket } = get();
       const normalized = Math.max(0, Math.min(1, volume));
       set({ instrumentalVolume: normalized });
-      if (socket?.connected) {
-        socket.emit("update_performance_control", {
-          control: "instrumental_volume",
-          value: normalized,
-        });
-      }
+      socketEmit("update_performance_control", {
+        control: "instrumental_volume",
+        value: normalized,
+      });
       if (instrumentalGain) instrumentalGain.gain.value = normalized;
     },
     setLyricsSize: (size: "small" | "medium" | "large") => {
-      const { socket } = get();
       set({ lyricsSize: size });
-      if (socket?.connected) {
-        socket.emit("update_performance_control", {
-          control: "lyrics_size",
-          value: size,
-        });
-      }
+      socketEmit("update_performance_control", {
+        control: "lyrics_size",
+        value: size,
+      });
     },
     setLyricsOffset: (offset: number) => {
-      const { socket } = get();
       set({ lyricsOffset: offset });
-      if (socket?.connected) {
-        socket.emit("update_performance_control", {
-          control: "lyrics_offset",
-          value: offset,
-        });
-      }
+      const { socket } = get();
+      socketEmit("update_performance_control", {
+        control: "lyrics_offset",
+        value: offset,
+      });
     },
     cleanup: () => {
       // Stop and disconnect all audio nodes
@@ -401,11 +387,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         currentTime: 0,
         isPlaying: false,
       });
-      // Emit reset state to backend/other clients
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.emit("reset_player_state");
-      }
+      socketEmit("reset_player_state", {});
     },
     getWaveformData: () => {
       if (!analyser || !waveformArray) return null;
