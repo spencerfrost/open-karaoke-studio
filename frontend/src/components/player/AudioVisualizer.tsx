@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useWebAudioKaraokeStore } from "@/stores/useWebAudioKaraokeStore";
 import vintageTheme from "../../utils/theme";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 interface AudioVisualizerProps {
   height?: number;
@@ -13,10 +13,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   barCount = 120,
   className = "",
 }) => {
-  const isPlaying = useWebAudioKaraokeStore((s) => s.isPlaying);
-  const isReady = useWebAudioKaraokeStore((s) => s.isReady);
-  const getWaveformData = useWebAudioKaraokeStore((s) => s.getWaveformData);
-  const error = useWebAudioKaraokeStore((s) => s.error);
+  const { isReady, isPlaying, error, getWaveformData } =
+    useKaraokePlayerStore();
   const [audioData, setAudioData] = useState<number[]>([]);
   const animationRef = useRef<number | null>(null);
   const colors = vintageTheme.colors;
