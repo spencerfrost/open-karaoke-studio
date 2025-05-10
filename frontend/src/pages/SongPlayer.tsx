@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Play, Pause } from "lucide-react";
 import { getSongById } from "@/services/songService";
 import { Song } from "@/types/Song";
-import SyncedLyricsDisplay from "@/components/player/SyncedLyricsDisplay";
-import LyricsDisplay from "@/components/player/LyricsDisplay";
-import ProgressBar from "@/components/player/ProgressBar";
-import { Button } from "@/components/ui/button";
+import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
 
 import AppLayout from "@/components/layout/AppLayout";
 import WebSocketStatus from "@/components/WebsocketStatus";
@@ -29,7 +25,6 @@ const SongPlayer: React.FC = () => {
     lyricsOffset,
     cleanup,
     seek,
-    play,
     pause,
     setSongAndLoad,
   } = useKaraokePlayerStore();
@@ -111,25 +106,6 @@ const SongPlayer: React.FC = () => {
     );
   }
 
-  let lyricsContent;
-  if (song.syncedLyrics) {
-    lyricsContent = (
-      <SyncedLyricsDisplay
-        syncedLyrics={song.syncedLyrics}
-        currentTime={currentTime * 1000}
-        className="h-full"
-      />
-    );
-  } else {
-    lyricsContent = (
-      <LyricsDisplay
-        lyrics={song.lyrics ?? ""}
-        progress={duration ? currentTime / duration : 0}
-        currentTime={currentTime * 1000}
-      />
-    );
-  }
-
   return (
     <AppLayout>
       <WebSocketStatus
@@ -145,25 +121,15 @@ const SongPlayer: React.FC = () => {
           {song.artist}
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden mb-4 flex items-center justify-center relative">
-          {lyricsContent}
-        </div>
-        <div className="flex flex-col gap-2 mt-2">
-          <ProgressBar
-            currentTime={currentTime}
+          <UnifiedLyricsDisplay
+            lyrics={song.syncedLyrics || song.lyrics || ""}
+            isSynced={!!song.syncedLyrics}
+            currentTime={currentTime * 1000}
+            title={song.title}
+            artist={song.artist}
             duration={duration}
-            onSeek={(val) => seek(val)}
-            className="mb-2"
+            onSeek={seek}
           />
-          <div className="flex justify-center items-center gap-6">
-            <Button
-              className="p-4 rounded-full bg-orange-peel text-russet"
-              onClick={isPlaying ? pause : play}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              disabled={!isReady}
-            >
-              {isPlaying ? <Pause size={32} /> : <Play size={32} />}
-            </Button>
-          </div>
         </div>
       </div>
 

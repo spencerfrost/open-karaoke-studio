@@ -400,8 +400,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
     cleanup: () => {
       resetAudioNodes();
-      set({ ...INITIAL_STATE });
-      socketEmit("reset_player_state", {});
+      updatePlayerState({ ...INITIAL_STATE });
     },
     getWaveformData: () => {
       if (!analyser || !waveformArray) return null;
