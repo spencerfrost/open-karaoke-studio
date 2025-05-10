@@ -175,35 +175,6 @@
     pointer-events: none;
   }
 
-  /* Input styling */
-  input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 6px;
-    background: color-mix(in srgb, var(--russet), transparent 70%);
-    border-radius: 3px;
-  }
-
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--dark-cyan);
-    cursor: pointer;
-  }
-
-  /* For Firefox */
-  input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--dark-cyan);
-    cursor: pointer;
-    border: none;
-  }
-
   /* Lyrics fade-out effect */
   .mask-image-fade-bottom {
     -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
