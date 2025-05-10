@@ -93,21 +93,27 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   }
 
   function setupAudioGraph(startTime: number, offset?: number) {
+    // Clean up any previous sources
     if (instrumentalSource) instrumentalSource.stop();
     if (vocalSource) vocalSource.stop();
     if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
+    // Create new sources and connect them to the audio graph
     instrumentalSource = audioContext.createBufferSource();
     instrumentalSource.buffer = instrumentalBuffer;
     vocalSource = audioContext.createBufferSource();
     vocalSource.buffer = vocalBuffer;
+    // Create gain nodes for volume control
     instrumentalGain = audioContext.createGain();
     instrumentalGain.gain.value = get().instrumentalVolume;
     vocalGain = audioContext.createGain();
     vocalGain.gain.value = get().vocalVolume;
+    // Create or reuse the analyser node
     setupAnalyser();
+    // Connect the graph
     instrumentalSource.connect(instrumentalGain).connect(analyser!);
     vocalSource.connect(vocalGain).connect(analyser!);
     analyser!.connect(audioContext.destination);
+    // Stat the sources in sync
     if (typeof offset === "number") {
       instrumentalSource.start(startTime, offset);
       vocalSource.start(startTime, offset);
@@ -115,6 +121,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       instrumentalSource.start(startTime);
       vocalSource.start(startTime);
     }
+    // Set the playback start time
     syncGainValues();
   }
 
@@ -124,10 +131,16 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     interval = setInterval(() => {
       const { isReady, socket, isPlaying, duration } = get();
       if (!isReady) return;
+      let currentTime = playbackOffset;
+      if (isPlaying && playbackStartTime !== null && audioContext) {
+        currentTime =
+          playbackOffset + (audioContext.currentTime - playbackStartTime);
+      }
+      set({ currentTime });
       if (socket?.connected && audioContext && isPlaying) {
         socket.emit("update_player_state", {
           isPlaying: true,
-          currentTime: audioContext.currentTime,
+          currentTime,
           duration,
         });
       }
@@ -263,9 +276,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (!instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
 
-      const offset = get().currentTime;
-      setupAudioGraph(audioContext.currentTime, offset);
-      set({ isPlaying: true, currentTime: offset });
+      // Start playback from the current offset
+      setupAudioGraph(audioContext.currentTime, playbackOffset);
+      playbackStartTime = audioContext.currentTime;
+      set({ isPlaying: true });
 
       startTimeInterval();
     },
@@ -274,11 +288,11 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (vocalSource) vocalSource.stop();
       clearIntervals();
       if (audioContext && playbackStartTime !== null) {
+        // Calculate how much time has elapsed since playback started
         const elapsed = audioContext.currentTime - playbackStartTime;
-        const newCurrentTime = playbackOffset + elapsed;
-        set({ currentTime: newCurrentTime });
-        playbackOffset = newCurrentTime;
+        playbackOffset = playbackOffset + elapsed;
         playbackStartTime = null;
+        set({ currentTime: playbackOffset });
       }
       set({ isPlaying: false });
     },
@@ -301,9 +315,16 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       // --- Web Audio API seek logic ---
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
-      setupAudioGraph(audioContext.currentTime, time);
       playbackOffset = time;
-      playbackStartTime = audioContext.currentTime;
+      if (get().isPlaying) {
+        setupAudioGraph(audioContext.currentTime, time);
+        playbackStartTime = audioContext.currentTime;
+        startTimeInterval();
+      } else {
+        playbackStartTime = null;
+        set({ currentTime: time });
+      }
+      // Always update currentTime in state for immediate UI feedback
       set({ currentTime: time });
       // Emit seek event to backend
       const { socket } = get();
