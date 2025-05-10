@@ -1,5 +1,4 @@
 import React from "react";
-import { formatTime } from "../../utils/formatters";
 
 interface ProgressBarProps {
   currentTime: number;
@@ -25,20 +24,11 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
   return (
     <div className={`w-full ${className}`}>
-      <div className="flex justify-between text-xs mb-1">
-        <span className="text-background">{formatTime(currentTime)}</span>
-        <span className="text-background">{formatTime(duration)}</span>
-      </div>
       <div className="relative h-2">
-        <div
-          className="absolute inset-0 rounded-full overflow-hidden"
-          style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
-        >
+        <div className="absolute inset-0 overflow-hidden bg-black/30">
           <div
-            className={`h-full rounded-full bg-gradient-to-r from-dark-cyan to-orange-peel w-${progressPercentage}%`}
-            style={{
-              width: `${progressPercentage}%`,
-            }}
+            className={`h-full rounded-full bg-gradient-to-r from-dark-cyan to-orange-peel px-1`}
+            style={{ width: `${progressPercentage}%` }}
           />
         </div>
         <input
