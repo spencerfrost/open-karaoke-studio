@@ -66,7 +66,7 @@ const SongPlayer: React.FC = () => {
   };
 
   // eslint-disable-next-line
-  const debugPanel = true ? (
+  const debugPanel = false ? (
     <div className="fixed bottom-16 left-0 w-full text-xs p-2 z-50 border-t border-russet bg-black/80 text-background">
       <div className="flex">
         <div className="flex-1">

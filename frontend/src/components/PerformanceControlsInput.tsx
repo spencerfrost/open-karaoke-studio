@@ -43,6 +43,7 @@ const PerformanceControlInput: React.FC<PerformanceControlInputProps> = ({
         min={min}
         max={max}
         step={step}
+        variant="performance"
         orientation="vertical"
         onValueChange={([v]) => onValueChange(v)}
         className="flex-1"
