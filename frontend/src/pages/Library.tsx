@@ -8,8 +8,10 @@ import { useApiQuery } from "../hooks/useApi";
 import { Song } from "../types/Song";
 import { useNavigate } from "react-router-dom";
 import vintageTheme from "../utils/theme";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
 
 const LibraryPage: React.FC = () => {
   const { state, dispatch } = useSongs();
@@ -140,26 +142,34 @@ const LibraryPage: React.FC = () => {
             </div>
 
             <div className="flex ml-auto gap-2">
-              <ButtonGroup>
-                <Button
-                  variant="accent"
-                  onClick={() => setViewMode("grid")}
+              <ToggleGroup
+                type="single"
+                defaultValue="grid"
+                aria-label="View Mode"
+                value={viewMode}
+                onValueChange={(value) => {
+                  if (value === "grid" || value === "list") {
+                    setViewMode(value);
+                  }
+                }}
+              >
+                <ToggleGroupItem
+                  value="grid"
                   className={
                     viewMode === "grid" ? "hover:none" : "bg-accent/70"
                   }
                 >
                   <Grid size={20} />
-                </Button>
-                <Button
-                  variant="accent"
-                  onClick={() => setViewMode("list")}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="list"
                   className={
                     viewMode === "list" ? "hover:none" : "bg-accent/70"
                   }
                 >
                   <List size={20} />
-                </Button>
-              </ButtonGroup>
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
           </div>
         </div>
