@@ -61,7 +61,8 @@ const AddSongPage: React.FC = () => {
 
   // Use React Query mutation for upload
   const uploadMutation = useUploadAndProcessAudio({
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
+      console.log(variables);
       toast.success(
         `${variables.file.name} uploaded successfully and processing started!`
       );

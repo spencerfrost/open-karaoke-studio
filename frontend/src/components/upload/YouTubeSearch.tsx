@@ -14,8 +14,6 @@ import {
 import {
   searchYouTube,
   downloadYouTubeVideo,
-  fetchEnhancedMetadata,
-  fetchLyrics,
   YouTubeSearchResult,
 } from "@/services/youtubeService";
 import { parseYouTubeTitle } from "@/utils/formatters";

@@ -42,10 +42,8 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       toast.success(`Job ${taskId.substring(0, 8)} cancelled successfully.`);
       refetch();
     },
-    onError: (err, taskId, context) => {
-      const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      toast.error(`Failed to cancel job: ${errorMsg}`);
-      refetch();
+    onError: (err) => {
+      console.error(err);
     },
   });
 
@@ -110,7 +108,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
       {/* Display error alongside items if fetch fails after initial load */}
       {error && (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       )}
 
