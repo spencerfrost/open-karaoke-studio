@@ -13,12 +13,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { KaraokeQueueState } from "@/types/KaraokeQueue";
+
+const state: KaraokeQueueState = {
+  currentSong: null, // Initialize with null or a valid KaraokeQueueItemWithSong
+  items: [],
+};
+
+if (state.currentSong) {
+  console.log(`Now playing: ${state.currentSong.song.title}`);
+}
 
 const KaraokeQueuePage: React.FC = () => {
   const {
     addToKaraokeQueue,
     removeFromKaraokeQueue,
-    currentSong,
+    currentQueueItem, // Use currentQueueItem from the store
     items,
     error,
     isLoading,
@@ -92,15 +102,15 @@ const KaraokeQueuePage: React.FC = () => {
         </h1>
 
         {/* Current song (if any) */}
-        {currentSong && (
+        {currentQueueItem ? ( // Check for currentQueueItem
           <div className="rounded-lg p-4 mb-6 bg-background text-russet">
             <h2 className="font-medium mb-3 text-primary">Now Playing</h2>
             <div className="flex items-center">
               <div className="h-16 w-16 rounded-md flex items-center justify-center mr-4 bg-primary/20">
-                {currentSong.song.coverArt ? (
+                {currentQueueItem.song.coverArt ? (
                   <img
-                    src={currentSong.song.coverArt}
-                    alt={currentSong.song.title}
+                    src={currentQueueItem.song.coverArt}
+                    alt={currentQueueItem.song.title}
                     className="h-full w-full object-cover rounded-md"
                   />
                 ) : (
@@ -111,15 +121,19 @@ const KaraokeQueuePage: React.FC = () => {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">
-                  {currentSong.song.title}
+                  {currentQueueItem.song.title}
                 </h3>
-                <p className="opacity-75">{currentSong.song.artist}</p>
+                <p className="opacity-75">{currentQueueItem.song.artist}</p>
                 <p className="text-sm mt-1 text-accent">
-                  Singer: {currentSong.singer}
+                  Singer: {currentQueueItem.singer}
                 </p>
               </div>
             </div>
           </div>
+        ) : (
+          <p className="text-center text-gray-500 mb-6">
+            No song is currently playing.
+          </p>
         )}
 
         {/* Queue list */}
