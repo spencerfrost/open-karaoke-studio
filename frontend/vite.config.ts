@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
   // Load env variables based on the current mode (development, production, etc.)
   const env = loadEnv(mode, process.cwd(), "");
-  const backendUrl = env.VITE_BACKEND_URL || "http://localhost:5000";
+  const backendUrl = env.VITE_BACKEND_URL || "http://localhost:5123";
 
   return {
     plugins: [react(), tailwindcss()],

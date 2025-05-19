@@ -2,7 +2,7 @@ import { getAudioUrl } from "@/services/songService";
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000";
+const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5123";
 const INITIAL_STATE = {
   isReady: false,
   isLoading: false,
