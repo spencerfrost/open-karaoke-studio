@@ -29,7 +29,7 @@ if __name__ == "__main__":
     register_performance_controls(socketio)
     register_karaoke_queue(socketio)
 
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5123))
     debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
     use_reloader = os.environ.get("FLASK_USE_RELOADER", "true").lower() == "true"
 

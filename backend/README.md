@@ -99,7 +99,7 @@ backend/
     python main.py
     ```
 
-3.  The server will run on a local URL (usually `http://127.0.0.1:5000/`).
+3.  The server will run on a local URL (usually `http://127.0.0.1:5123/`).
 
 ## API Endpoints
 
