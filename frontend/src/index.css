@@ -32,7 +32,7 @@
   --secondary: var(--rust);
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
-  --accent-foreground: var(--black);
+  --accent-foreground: var(--lemon-chiffon);
   --destructive: var(--color-red-800);
   --destructive-foreground: var(--lemon-chiffon);
   --muted-foreground: var(--black);
