@@ -7,7 +7,9 @@ import {
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
-  const response = await fetch(`/api/${url}`);
+  const response = await fetch(`/api/${url}`, {
+    credentials: "include", // Added credentials
+  });
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
@@ -44,6 +46,7 @@ const apiSend = async <T, V>(
       "Content-Type": "application/json",
     },
     body: data ? JSON.stringify(data) : null,
+    credentials: "include", // Added credentials
   });
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
