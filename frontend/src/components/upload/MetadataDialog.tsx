@@ -71,12 +71,22 @@ export function MetadataDialog({
           <DialogTitle>Song Information</DialogTitle>
           <DialogDescription>
             {videoTitle ? (
-              <>
-                Verify or edit song information from:{" "}
-                <strong>{videoTitle}</strong>
-              </>
+              <div className="space-y-1">
+                <p>
+                  Verify or edit song information from:{" "}
+                  <strong>{videoTitle}</strong>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  After this step, we'll find matching lyrics and additional metadata for verification.
+                </p>
+              </div>
             ) : (
-              <>Enter song information</>
+              <div className="space-y-1">
+                <p>Enter song information</p>
+                <p className="text-xs text-muted-foreground">
+                  Provide accurate artist and title information to help find the best matches.
+                </p>
+              </div>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -136,7 +146,7 @@ export function MetadataDialog({
                   Processing...
                 </>
               ) : (
-                "Add to Library"
+                "Continue to Verification"
               )}
             </Button>
           </DialogFooter>
