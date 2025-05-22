@@ -1,7 +1,7 @@
 /**
  * Queue-related API services
  */
-import { useApiQuery, useApiMutation } from "../hooks/useApi";
+import { useApiQuery, useApiMutation } from "./useApi";
 import type {
   UseQueryOptions,
   UseMutationOptions,

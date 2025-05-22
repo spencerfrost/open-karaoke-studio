@@ -1,4 +1,3 @@
-import { getAudioUrl } from "@/services/songService";
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 
@@ -9,6 +8,11 @@ const INITIAL_STATE = {
   error: null,
   currentTime: 0,
   isPlaying: false,
+};
+
+// Helper function to get audio URLs
+const getAudioUrl = (songId: string, trackType: 'vocals' | 'instrumental' | 'original'): string => {
+  return `/api/songs/${songId}/download/${trackType}`;
 };
 
 interface KaraokePlayerState {

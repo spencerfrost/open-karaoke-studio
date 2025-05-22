@@ -15,11 +15,13 @@ import SettingsPage from "./pages/Settings";
 import StagePage from "./pages/Stage";
 import SongPlayerPage from "./pages/SongPlayer";
 import PerformanceControlsPage from "./pages/PerformanceControlsPage";
+import { Toaster } from "./components/ui/sonner";
 
 const App: React.FC = () => {
   return (
     <SettingsProvider>
       <SongsProvider>
+        <Toaster />
         <Router>
           <Routes>
             {/* Main app routes */}

@@ -6,19 +6,23 @@ from ..services.musicbrainz_service import search_musicbrainz
 # Create a blueprint
 mb_bp = Blueprint('musicbrainz', __name__, url_prefix='/api/musicbrainz')
 
-@mb_bp.route('/search', methods=['POST'])
+@mb_bp.route('/search', methods=['GET', 'POST'])
 def search_musicbrainz_endpoint():
     """Endpoint to search MusicBrainz for song metadata."""
     current_app.logger.info("Received MusicBrainz search request")
     
     try:
         # Get search terms from request
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No search terms provided"}), 400
-            
-        title = data.get('title', '')
-        artist = data.get('artist', '')
+        if request.method == 'POST':
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No search terms provided"}), 400
+                
+            title = data.get('title', '')
+            artist = data.get('artist', '')
+        else:  # GET request
+            title = request.args.get('title', '')
+            artist = request.args.get('artist', '')
         
         if not title and not artist:
             return jsonify({"error": "At least one search term (title or artist) is required"}), 400
