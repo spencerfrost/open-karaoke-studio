@@ -9,10 +9,6 @@ from typing import List, Optional, Dict, Any, Tuple
 from ..config import Config as config
 from ..db.models import SongMetadata 
 
-METADATA_FILENAME = "metadata.json"
-VOCALS_SUFFIX = ".mp3"
-INSTRUMENTAL_SUFFIX = ".mp3"
-
 def ensure_library_exists():
     """Creates the base library directory if it doesn't exist."""
     config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,52 +90,70 @@ def get_processed_songs(library_path: Optional[Path] = None) -> List[str]:
 def read_song_metadata(
     song_id: str, library_path: Optional[Path] = None
 ) -> Optional[SongMetadata]:
-    """Reads metadata.json for a given song ID."""
-    song_dir = get_song_dir(song_id)
-    metadata_file = song_dir / METADATA_FILENAME
-    if metadata_file.exists():
-        try:
-            with open(metadata_file, "r") as f:
-                data = json.load(f)
-
-                return SongMetadata(**data)
-        except (json.JSONDecodeError, TypeError, ValueError, FileNotFoundError) as e:
-            print(f"Error reading or parsing metadata for {song_id}: {e}")
-            return None
-        except Exception as e: 
-            print(f"Validation error reading metadata for {song_id}: {e}")
-            return None
-    else:
-        print(f"Metadata file not found for song ID: {song_id}")
+    """
+    Reads song metadata from the database.
+    Falls back to legacy metadata.json if database entry not found.
+    """
+    try:
+        from ..db import database
+        db_song = database.get_song(song_id)
+        
+        if db_song:
+            # Convert DbSong to SongMetadata
+            metadata = SongMetadata(
+                title=db_song.title,
+                artist=db_song.artist,
+                duration=db_song.duration,
+                favorite=db_song.favorite,
+                dateAdded=db_song.date_added,
+                coverArt=db_song.cover_art_path,
+                thumbnail=db_song.thumbnail_path,
+                source=db_song.source,
+                sourceUrl=db_song.source_url,
+                videoId=db_song.video_id,
+                uploader=db_song.uploader,
+                uploaderId=db_song.uploader_id,
+                channel=db_song.channel,
+                channelId=db_song.channel_id,
+                description=db_song.description,
+                uploadDate=db_song.upload_date,
+                mbid=db_song.mbid,
+                releaseTitle=db_song.release_title,
+                releaseId=db_song.release_id,
+                releaseDate=db_song.release_date,
+                genre=db_song.genre,
+                language=db_song.language,
+                lyrics=db_song.lyrics,
+                syncedLyrics=db_song.synced_lyrics
+            )
+            return metadata
+            
+    except ImportError:
+        logging.error("Cannot read metadata: Database module not available")
+        raise Exception("Database module not available, cannot read metadata")
+    
+    
+    
+    except Exception as e:
+        print(f"Error accessing database: {e}")
         return None
 
 
 def write_song_metadata(song_id: str, metadata: SongMetadata):
     """
-    Writes metadata.json for a given song ID.
-    Also updates the database entry if database module is available.
+    Writes song metadata to the database.
+    No longer writes to metadata.json file.
     """
-    song_dir = get_song_dir(song_id)
-    metadata_file = song_dir / METADATA_FILENAME
     try:
-        song_dir.mkdir(parents=True, exist_ok=True)
-        json_data = metadata.model_dump_json(indent=2)
-
-        with open(metadata_file, "w") as f:
-            f.write(json_data)
-
-        try:
-            from . import database
-
-            database.create_or_update_song(song_id, metadata)
-        except ImportError:
-            # Database module not available, skip database update
-            pass
-        except Exception as e:
-            print(f"Error updating database for {song_id}: {e}")
-
+        from ..db import database
+        database.create_or_update_song(song_id, metadata)
+        logging.info(f"Updated database record for song: {song_id}")
+    except ImportError:
+        # Database module not available, log error
+        logging.error("Cannot save metadata: Database module not available")
+        raise Exception("Database module not available, cannot save metadata")
     except Exception as e:
-        print(f"Error writing metadata for {song_id}: {e}")
+        logging.error(f"Error updating database for {song_id}: {e}")
         raise Exception(f"Could not write metadata for {song_id}: {e}") from e
 
 
@@ -207,8 +221,8 @@ def create_initial_metadata(
     youtube_info: Dict[str, Any],
 ):
     """
-    Creates the initial metadata file after processing.
-    Also creates a database entry if database module is available.
+    Creates the initial metadata after processing.
+    Saves directly to database without creating a metadata.json file.
     """
     metadata = SongMetadata(
         title=title,
@@ -218,15 +232,15 @@ def create_initial_metadata(
         source="youtube",
         videoId=youtube_info.get("id"),
         videoTitle=youtube_info.get("title", title),
-        sourceUrl=youtube_info.get("webpage_url"),
         uploader=youtube_info.get("uploader"),
         channel=youtube_info.get("channel"),
-        # description=youtube_info.get("description", "")[:500]
     )
 
-        
     thumbnails = youtube_info.get('thumbnails', [])
-    thumbnail_url = thumbnails[0]['url'] if thumbnails else None
+    thumbnail_url = None
+    if thumbnails:
+        best_thumb = max(thumbnails, key=lambda t: t.get('preference', -9999))
+        thumbnail_url = best_thumb.get('url')
     if thumbnail_url:
         thumbnail_path = get_thumbnail_path(song_dir)
         logging.info(f"Downloading thumbnail from {thumbnail_url}")
@@ -238,19 +252,18 @@ def create_initial_metadata(
         if download_image(thumbnail_url, thumbnail_path):
             metadata.thumbnail = f"{song_dir.name}/thumbnail.jpg"
 
-    # Save metadata
-    write_song_metadata(song_dir.name, metadata)
-
-    # Also update database if available
+    # Save metadata to database
     try:
-        from . import database
-
+        from ..db import database
         database.create_or_update_song(song_dir.name, metadata)
+        logging.info(f"Created initial metadata in database for: {song_dir.name}")
     except ImportError:
         # Database module not available
-        pass
+        logging.error("Cannot save metadata: Database module not available")
+        raise Exception("Database module not available, cannot save metadata")
     except Exception as e:
-        print(f"Error updating database with initial metadata: {e}")
+        logging.error(f"Error updating database with initial metadata: {e}")
+        raise Exception(f"Error updating database with initial metadata: {e}")
 
     return metadata
 

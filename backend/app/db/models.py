@@ -40,6 +40,7 @@ Base = declarative_base()
 # Constants
 UNKNOWN_ARTIST = "Unknown Artist"
 
+
 class JobStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -91,9 +92,9 @@ class Job:
 
 class DbJob(Base):
     """SQLAlchemy model for storing jobs in the database"""
-    
+
     __tablename__ = "jobs"
-    
+
     id = Column(String, primary_key=True)
     filename = Column(String, nullable=False)
     status = Column(String, nullable=False, default=JobStatus.PENDING.value)
@@ -104,7 +105,7 @@ class DbJob(Base):
     completed_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    
+
     def to_job(self) -> Job:
         """Convert SQLAlchemy model to Job dataclass"""
         return Job(
@@ -117,7 +118,7 @@ class DbJob(Base):
             started_at=self.started_at,
             completed_at=self.completed_at,
             error=self.error,
-            notes=self.notes
+            notes=self.notes,
         )
 
 
@@ -127,11 +128,13 @@ class JobStore:
     def __init__(self):
         """No need for a storage_dir anymore as we're using the database"""
         from .database import get_db_session, SessionLocal
+
         self.get_db_session = get_db_session
         self.SessionLocal = SessionLocal
-        
+
         # Ensure table exists
         from .database import engine
+
         DbJob.__table__.create(bind=engine, checkfirst=True)
 
     def save_job(self, job: Job) -> None:
@@ -139,7 +142,7 @@ class JobStore:
         try:
             with self.get_db_session() as session:
                 db_job = session.query(DbJob).filter(DbJob.id == job.id).first()
-                
+
                 if not db_job:
                     # Create new job
                     print(f"Creating new job in DB: {job.id}")
@@ -153,7 +156,7 @@ class JobStore:
                         started_at=job.started_at,
                         completed_at=job.completed_at,
                         error=job.error,
-                        notes=job.notes
+                        notes=job.notes,
                     )
                     session.add(db_job)
                 else:
@@ -166,7 +169,7 @@ class JobStore:
                     db_job.completed_at = job.completed_at
                     db_job.error = job.error
                     db_job.notes = job.notes
-                
+
                 session.commit()
         except Exception as e:
             print(f"Error saving job {job.id}: {e}")
@@ -202,7 +205,9 @@ class JobStore:
         """Get jobs by status"""
         try:
             with self.get_db_session() as session:
-                db_jobs = session.query(DbJob).filter(DbJob.status == status.value).all()
+                db_jobs = (
+                    session.query(DbJob).filter(DbJob.status == status.value).all()
+                )
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
             print(f"Error getting jobs by status {status}: {e}")
@@ -228,12 +233,32 @@ class JobStore:
         try:
             with self.get_db_session() as session:
                 total = session.query(DbJob).count()
-                pending = session.query(DbJob).filter(DbJob.status == JobStatus.PENDING.value).count()
-                processing = session.query(DbJob).filter(DbJob.status == JobStatus.PROCESSING.value).count()
-                completed = session.query(DbJob).filter(DbJob.status == JobStatus.COMPLETED.value).count()
-                failed = session.query(DbJob).filter(DbJob.status == JobStatus.FAILED.value).count()
-                cancelled = session.query(DbJob).filter(DbJob.status == JobStatus.CANCELLED.value).count()
-                
+                pending = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PENDING.value)
+                    .count()
+                )
+                processing = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PROCESSING.value)
+                    .count()
+                )
+                completed = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.COMPLETED.value)
+                    .count()
+                )
+                failed = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.FAILED.value)
+                    .count()
+                )
+                cancelled = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.CANCELLED.value)
+                    .count()
+                )
+
                 return {
                     "total": total,
                     "queue_length": pending,
@@ -317,11 +342,12 @@ class Song(BaseModel):
     Matches frontend/src/types/Song.ts
     """
 
-    id: str  # The directory name / unique ID
+    id: str
     title: str
     artist: str = UNKNOWN_ARTIST
     duration: Optional[float] = None
-    status: SongStatus = "processed" 
+    status: SongStatus = "processed"
+
     videoId: Optional[str] = None  # YouTube video ID
     uploader: Optional[str] = None  # Uploader name
     uploaderId: Optional[str] = None  # Uploader ID
@@ -329,11 +355,13 @@ class Song(BaseModel):
     channelId: Optional[str] = None  # YouTube channel ID
     description: Optional[str] = None  # Video description
     uploadDate: Optional[datetime] = None  # When video was published
+
     mbid: Optional[str] = None  # MusicBrainz recording ID
     releaseTitle: Optional[str] = None  # Album title
     releaseId: Optional[str] = None  # MusicBrainz release ID
     releaseDate: Optional[str] = None  # Release date
     genre: Optional[str] = None  # Music genre
+
     favorite: bool = False
     dateAdded: Optional[datetime] = None
     coverArt: Optional[str] = None

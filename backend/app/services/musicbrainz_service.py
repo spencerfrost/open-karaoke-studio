@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import logging
 from .file_management import download_image, get_cover_art_path
+from flask import current_app
 
 # Configure MusicBrainz API client
 musicbrainzngs.set_useragent(
@@ -62,8 +63,11 @@ def search_musicbrainz(artist: str, title: str, limit: int = 5) -> List[Dict[str
                         "release": release_info,
                         "genre": genre,
                         "language": language,
-                        "coverArtUrl": cover_art_url
+                        "coverArtUrl": cover_art_url,
+                        "duration": recording.get('length'),
+                        
                     }
+                    
                     
                     matches.append(recording_data)
                 except Exception as e:
@@ -160,7 +164,13 @@ def _extract_release_info(recording: Dict[str, Any]) -> Optional[Dict[str, Any]]
     if 'release-list' not in recording or not recording['release-list']:
         return None
     
-    release = recording['release-list'][0]
+    # Prefer a release with country 'US', then 'GB' (UK), then 'CA' (Canada), otherwise use the first release
+    preferred_countries = ['US', 'GB', 'CA']
+    releases = recording['release-list']
+    release = next(
+        (r for country in preferred_countries for r in releases if r.get('country') == country),
+        releases[0]
+    )
     
     return {
         "id": release.get('id'),

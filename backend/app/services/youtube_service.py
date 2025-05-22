@@ -75,7 +75,6 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
         Tuple[str, Dict[str, Any]]: (song_id, metadata)
     """
     current_app.logger.info(f"Downloading from YouTube: {url}")
-    current_app.logger.info(f"Artist: {artist}, Title: {song_title}")
     
     try:
         song_id = str(uuid.uuid4())
@@ -128,13 +127,21 @@ def download_from_youtube(url: str, artist: str, song_title: str) -> Tuple[str, 
             },
         )
         
-        # Try to enhance with MusicBrainz data
-        # enhanced_metadata = enhance_metadata_with_musicbrainz(metadata, song_dir)
-        # if enhanced_metadata:
-        #     metadata = enhanced_metadata
-        
-        create_or_update_song(song_id, metadata)
-        write_song_metadata(song_id, metadata)
+        create_or_update_song(song_id, metadata={
+            'title': metadata.title,
+            'artist': metadata.artist,
+            'duration': metadata.duration,
+            'favorite': metadata.favorite,
+            'dateAdded': metadata.dateAdded,
+            'coverArt': metadata.coverArt,
+            'thumbnail': metadata.thumbnail,
+            'originalPath': str(song_dir / "original.mp3"),
+            'source': "youtube",
+            'sourceUrl': url,
+            'videoId': info.get('id'),
+            'uploader': info.get('uploader'),
+            'channel': info.get('channel'),
+        })
         
         return song_id, metadata
         
