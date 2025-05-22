@@ -109,13 +109,6 @@ def get_song(song_id: str) -> Optional[DbSong]:
 def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]:
     """Create or update a song in the database from metadata"""
 
-    song_dir = file_management.get_song_dir(song_id)
-    vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(file_management.VOCALS_SUFFIX)
-    instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(file_management.INSTRUMENTAL_SUFFIX)
-    original_suffix = config.ORIGINAL_FILENAME_SUFFIX if hasattr(config, 'ORIGINAL_FILENAME_SUFFIX') else "_original"
-    original_pattern = f"{song_id}{original_suffix}.*"
-    original_file = next(song_dir.glob(original_pattern), None)
-
     try:
         with get_db_session() as session:
             db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
@@ -134,9 +127,6 @@ def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSo
                 "date_added": metadata.dateAdded,
                 "cover_art_path": metadata.coverArt if hasattr(metadata, 'coverArt') else None,
                 "thumbnail_path": metadata.thumbnail if hasattr(metadata, 'thumbnail') else None,
-                "vocals_path": str(vocals_path.relative_to(config.BASE_LIBRARY_DIR)) if vocals_path.exists() else None,
-                "instrumental_path": str(instrumental_path.relative_to(config.BASE_LIBRARY_DIR)) if instrumental_path.exists() else None,
-                "original_path": str(original_file.relative_to(config.BASE_LIBRARY_DIR)) if original_file and original_file.exists() else None,
                 "source": metadata.source if hasattr(metadata, 'source') else None,
                 "source_url": metadata.sourceUrl if hasattr(metadata, 'sourceUrl') else None,
                 "video_id": metadata.videoId if hasattr(metadata, 'videoId') else None,
