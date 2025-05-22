@@ -212,62 +212,6 @@ def parse_title_artist(title: str) -> Tuple[str, str]:
     return "Unknown Artist", title
 
 
-# --- Function to create initial metadata ---
-def create_initial_metadata(
-    song_dir: Path,
-    title: str,
-    artist: str,
-    duration: float,
-    youtube_info: Dict[str, Any],
-):
-    """
-    Creates the initial metadata after processing.
-    Saves directly to database without creating a metadata.json file.
-    """
-    metadata = SongMetadata(
-        title=title,
-        artist=artist,
-        duration=duration,
-        dateAdded=datetime.now(timezone.utc),
-        source="youtube",
-        videoId=youtube_info.get("id"),
-        videoTitle=youtube_info.get("title", title),
-        uploader=youtube_info.get("uploader"),
-        channel=youtube_info.get("channel"),
-    )
-
-    thumbnails = youtube_info.get('thumbnails', [])
-    thumbnail_url = None
-    if thumbnails:
-        best_thumb = max(thumbnails, key=lambda t: t.get('preference', -9999))
-        thumbnail_url = best_thumb.get('url')
-    if thumbnail_url:
-        thumbnail_path = get_thumbnail_path(song_dir)
-        logging.info(f"Downloading thumbnail from {thumbnail_url}")
-        download_image(thumbnail_url, thumbnail_path)
-
-    thumbnail_url = youtube_info.get("thumbnail")
-    if thumbnail_url:
-        thumbnail_path = get_thumbnail_path(song_dir)
-        if download_image(thumbnail_url, thumbnail_path):
-            metadata.thumbnail = f"{song_dir.name}/thumbnail.jpg"
-
-    # Save metadata to database
-    try:
-        from ..db import database
-        database.create_or_update_song(song_dir.name, metadata)
-        logging.info(f"Created initial metadata in database for: {song_dir.name}")
-    except ImportError:
-        # Database module not available
-        logging.error("Cannot save metadata: Database module not available")
-        raise Exception("Database module not available, cannot save metadata")
-    except Exception as e:
-        logging.error(f"Error updating database with initial metadata: {e}")
-        raise Exception(f"Error updating database with initial metadata: {e}")
-
-    return metadata
-
-
 def delete_song_files(song_id: str):
     """Deletes the directory and all files associated with a song."""
     song_dir = get_song_dir(song_id)
