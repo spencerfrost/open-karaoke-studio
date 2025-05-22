@@ -85,10 +85,10 @@ def get_db_session() -> Iterator[Session]:
 
 
 def get_all_songs() -> List[DbSong]:
-    """Get all songs from the database"""
+    """Get all songs from the database, sorted by date_added in descending order (newest first)"""
     try:
         with get_db_session() as session:
-            songs = session.query(DbSong).all()
+            songs = session.query(DbSong).order_by(DbSong.date_added.desc()).all()
             return songs
     except Exception as e:
         logging.error(f"Error getting songs from database: {e}")
