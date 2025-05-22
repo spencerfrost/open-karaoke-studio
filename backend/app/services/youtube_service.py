@@ -130,108 +130,40 @@ def download_from_youtube(
             current_app.logger.info(f"Downloading thumbnail from {thumbnail_url}")
             download_image(thumbnail_url, thumbnail_path)
 
+        # Create SongMetadata object
         metadata = SongMetadata(
             title=song_title,
             artist=artist,
             duration=info.get("duration"),
             dateAdded=datetime.now(timezone.utc),
             source="youtube",
+            sourceUrl=url,
             videoId=info.get("id"),
             videoTitle=info.get("title"),
             uploader=info.get("uploader"),
             channel=info.get("channel"),
         )
 
+        # Process thumbnail
         thumbnails = info.get("thumbnails", [])
         thumbnail_url = None
         if thumbnails:
             best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
             thumbnail_url = best_thumb.get("url")
+        elif info.get("thumbnail"):
+            thumbnail_url = info.get("thumbnail")
+            
         if thumbnail_url:
             thumbnail_path = get_thumbnail_path(song_dir)
             current_app.logger.info(f"Downloading thumbnail from {thumbnail_url}")
-            download_image(thumbnail_url, thumbnail_path)
-
-        thumbnail_url = info.get("thumbnail")
-        if thumbnail_url:
-            thumbnail_path = get_thumbnail_path(song_dir)
             if download_image(thumbnail_url, thumbnail_path):
-                metadata.thumbnail = f"{song_dir.name}/thumbnail.jpg"
+                metadata.thumbnail = f"{song_id}/thumbnail.jpg"
 
-        create_or_update_song(
-            song_id,
-            metadata={
-                "title": metadata.title,
-                "artist": metadata.artist,
-                "duration": metadata.duration,
-                "favorite": metadata.favorite,
-                "dateAdded": metadata.dateAdded,
-                "coverArt": metadata.coverArt,
-                "thumbnail": metadata.thumbnail,
-                "originalPath": str(song_dir / "original.mp3"),
-                "source": "youtube",
-                "sourceUrl": url,
-                "videoId": info.get("id"),
-                "uploader": info.get("uploader"),
-                "channel": info.get("channel"),
-            },
-        )
+        # Pass the SongMetadata object directly to create_or_update_song
+        create_or_update_song(song_id, metadata)
 
         return song_id, metadata
 
     except Exception as e:
         current_app.logger.error(f"Failed to download from YouTube: {e}")
         raise
-
-
-def parse_title_artist(youtube_title: str) -> Tuple[str, str]:
-    """
-    Try to parse YouTube video title into song title and artist.
-
-    Args:
-        youtube_title (str): YouTube video title
-
-    Returns:
-        Tuple[str, str]: (title, artist)
-    """
-    # Common patterns to extract title and artist from YouTube video titles
-    patterns = [
-        # "Artist - Title" format
-        r"^(.*?)\s*-\s*(.*?)$",
-        # "Artist "Title"" format
-        r'^(.*?)\s*[\'"]+(.*?)[\'"]+$',
-        # "Title by Artist" format
-        r"^(.*?)\s+by\s+(.*?)$",
-        # "Title || Artist" format
-        r"^(.*?)\s*[\|]+\s*(.*?)$",
-        # "Artist: Title" format
-        r"^(.*?):\s*(.*?)$",
-    ]
-
-    for pattern in patterns:
-        match = re.match(pattern, youtube_title, re.IGNORECASE)
-        if match:
-            parts = match.groups()
-            if len(parts) == 2:
-                # Determine which part is artist and which is title
-                part1, part2 = parts
-
-                # If the second part is clearly an artist (contains "official", etc.)
-                if re.search(
-                    r"official|music\s*video|audio|lyrics", part2, re.IGNORECASE
-                ):
-                    return part1.strip(), ""  # Part 1 is the full title, no artist
-
-                # For "Artist - Title" pattern, part1 is the artist
-                if re.match(r"^(.*?)\s*-\s*(.*?)$", youtube_title):
-                    return part2.strip(), part1.strip()
-
-                # For "Title by Artist" pattern, part2 is the artist
-                if re.match(r"^(.*?)\s+by\s+(.*?)$", youtube_title):
-                    return part1.strip(), part2.strip()
-
-                # Default: assume part1 is artist, part2 is title (most common)
-                return part2.strip(), part1.strip()
-
-    # If no pattern matches, return the whole title and empty artist
-    return youtube_title, ""

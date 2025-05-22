@@ -189,29 +189,6 @@ def get_cover_art_path(song_dir: Path) -> Path:
     return song_dir / "cover.jpg"
 
 
-def parse_title_artist(title: str) -> Tuple[str, str]:
-    """Attempts to parse artist and song title from a YouTube video title."""
-    # Common patterns: "Artist - Title", "Artist: Title", "Artist | Title"
-    separators = [" - ", ": ", " | ", " – ", "- ", ": ", "| ", "– "]
-
-    for separator in separators:
-        if separator in title:
-            parts = title.split(separator, 1)
-            artist = parts[0].strip()
-            song_title = parts[1].strip()
-
-            # Clean up common YouTube title artifacts
-            song_title = song_title.split("(Official")[0].strip()
-            song_title = song_title.split("[Official")[0].strip()
-            song_title = song_title.split("(feat.")[0].strip()
-            song_title = song_title.split("ft.")[0].strip()
-
-            return artist, song_title
-
-    # If no separator found, return title and Unknown Artist
-    return "Unknown Artist", title
-
-
 def delete_song_files(song_id: str):
     """Deletes the directory and all files associated with a song."""
     song_dir = get_song_dir(song_id)
