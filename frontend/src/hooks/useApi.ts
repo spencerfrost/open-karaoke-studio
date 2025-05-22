@@ -41,24 +41,40 @@ const apiSend = async <T, V>(
   data: V | null = null
 ): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
-    method,
+    method: method.toUpperCase(), // Ensure method is uppercase
     headers: {
       "Content-Type": "application/json",
     },
     body: data ? JSON.stringify(data) : null,
     credentials: "include", // Added credentials
   });
+  
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+      const contentType = response.headers.get('Content-Type');
+      if (contentType && contentType.includes('application/json')) {
+        const text = await response.text();
+        if (text) {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        }
+      } else {
+        const text = await response.text();
+        if (text) {
+          errorMessage = `${errorMessage}: ${text}`;
+        }
+      }
     } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
       console.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
+  
+  if (response.status === 204) {
+    return {} as T;
+  }
+  
   return await response.json();
 };
 
