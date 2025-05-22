@@ -1,94 +1,83 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Grid, List, Music, Search } from "lucide-react";
-import { useSongs } from "../context/SongsContext";
 import SongCard from "../components/songs/SongCard";
 import AppLayout from "../components/layout/AppLayout";
-import { toggleFavorite } from "../services/songService";
-import { useApiQuery } from "../hooks/useApi";
 import { Song } from "../types/Song";
 import { useNavigate } from "react-router-dom";
 import vintageTheme from "../utils/theme";
 import {
   ToggleGroup,
   ToggleGroupItem,
-} from "@/components/ui/toggle-group"
+} from "@/components/ui/toggle-group";
+import { useSongs } from "../hooks/useSongs";
 
 const LibraryPage: React.FC = () => {
-  const { state, dispatch } = useSongs();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [filterTerm, setFilterTerm] = useState("");
+  const [filterFavorites, setFilterFavorites] = useState(false);
   const navigate = useNavigate();
   const colors = vintageTheme.colors;
 
-  const songsQuery = useApiQuery<Song[], ["songs", "list"]>(
-    ["songs", "list"],
-    "/songs",
-    {}
-  );
+  // Use our new hook
+  const { useAllSongs, useToggleFavorite } = useSongs();
+  
+  // Get all songs with React Query
+  const { 
+    data: songs = [], 
+    isLoading, 
+    isError, 
+    error,
+    refetch 
+  } = useAllSongs();
+  
+  // Use the toggle favorite mutation
+  const toggleFavorite = useToggleFavorite();
 
-  useEffect(() => {
-    if (songsQuery.isSuccess && songsQuery.data) {
-      dispatch({ type: "SET_SONGS", payload: songsQuery.data });
-    }
-  }, [songsQuery.isSuccess, songsQuery.data, dispatch]);
+  // Filter songs based on search term and favorites filter
+  const filteredSongs = songs.filter(song => {
+    const matchesSearch = !filterTerm || 
+      song.title.toLowerCase().includes(filterTerm.toLowerCase()) ||
+      song.artist.toLowerCase().includes(filterTerm.toLowerCase());
+    
+    const matchesFavorites = !filterFavorites || song.favorite;
+    
+    return matchesSearch && matchesFavorites;
+  });
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch({ type: "SET_FILTER_TERM", payload: e.target.value });
+    setFilterTerm(e.target.value);
   };
 
   const handleFavoritesFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch({
-      type: "SET_FILTER_FAVORITES",
-      payload: e.target.checked,
-    });
+    setFilterFavorites(e.target.checked);
   };
 
   const handleToggleFavorite = async (song: Song) => {
     const newFavoriteStatus = !song.favorite;
 
-    // Optimistic update
-    dispatch({
-      type: "UPDATE_SONG",
-      payload: {
-        id: song.id,
-        updates: { favorite: newFavoriteStatus },
-      },
-    });
-
+    // React Query will handle optimistic updates for us through the mutation
     try {
-      await toggleFavorite(song.id, newFavoriteStatus);
+      await toggleFavorite.mutateAsync({ 
+        id: song.id, 
+        isFavorite: newFavoriteStatus 
+      });
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
-      // Revert on error
-      dispatch({
-        type: "UPDATE_SONG",
-        payload: {
-          id: song.id,
-          updates: { favorite: song.favorite }, // Revert to original status
-        },
-      });
     }
   };
 
-  const handleSongUpdated = (updatedSong: Song) => {
-    dispatch({
-      type: "UPDATE_SONG",
-      payload: {
-        id: updatedSong.id,
-        updates: updatedSong,
-      },
-    });
-
-    // Invalidate the songs query to refresh data
-    songsQuery.refetch();
+  const handleSongUpdated = () => {
+    // With React Query, we don't need to manually update the UI
+    // It will be handled through cache invalidation
+    // Just trigger a refetch to be sure
+    refetch();
   };
 
   const handlePlaySong = (song: Song) => {
-    // Use the Song type
     navigate(`/player/${song.id}`);
   };
 
   const handleAddToQueue = (song: Song) => {
-    // Use the Song type
     navigate("/queue", { state: { songId: song.id } });
   };
 
@@ -102,9 +91,8 @@ const LibraryPage: React.FC = () => {
           Song Library
         </h1>
 
-        {/* Search and filters (no changes needed) */}
+        {/* Search and filters */}
         <div className="mb-4">
-          {/* ... existing search and filter JSX ... */}
           <div
             className="flex items-center border rounded-lg mb-4 relative overflow-hidden"
             style={{
@@ -122,7 +110,7 @@ const LibraryPage: React.FC = () => {
               placeholder="Search songs..."
               className="py-2 px-10 w-full bg-transparent focus:outline-none"
               style={{ color: colors.lemonChiffon }}
-              value={state.filterTerm}
+              value={filterTerm}
               onChange={handleSearch}
             />
           </div>
@@ -133,7 +121,7 @@ const LibraryPage: React.FC = () => {
                 type="checkbox"
                 id="favorites"
                 className="mr-2"
-                checked={state.filterFavorites}
+                checked={filterFavorites}
                 onChange={handleFavoritesFilter}
               />
               <label htmlFor="favorites" style={{ color: colors.lemonChiffon }}>
@@ -142,31 +130,11 @@ const LibraryPage: React.FC = () => {
             </div>
 
             <div className="flex ml-auto gap-2">
-              <ToggleGroup
-                type="single"
-                defaultValue="grid"
-                aria-label="View Mode"
-                value={viewMode}
-                onValueChange={(value) => {
-                  if (value === "grid" || value === "list") {
-                    setViewMode(value);
-                  }
-                }}
-              >
-                <ToggleGroupItem
-                  value="grid"
-                  className={
-                    viewMode === "grid" ? "hover:none" : "bg-accent/70"
-                  }
-                >
+              <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as "grid" | "list")}>
+                <ToggleGroupItem value="grid" aria-label="Grid view">
                   <Grid size={20} />
                 </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="list"
-                  className={
-                    viewMode === "list" ? "hover:none" : "bg-accent/70"
-                  }
-                >
+                <ToggleGroupItem value="list" aria-label="List view">
                   <List size={20} />
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -174,10 +142,8 @@ const LibraryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* --- Use query states for Loading, Error, Empty --- */}
-
         {/* Loading state */}
-        {songsQuery.isLoading && (
+        {isLoading && (
           <div
             className="text-center py-8"
             style={{ color: colors.lemonChiffon }}
@@ -187,23 +153,20 @@ const LibraryPage: React.FC = () => {
         )}
 
         {/* Error state */}
-        {songsQuery.isError && (
+        {isError && (
           <div
-            className="text-center py-8 text-red-500" // Use error color
+            className="text-center py-8 text-red-500"
             role="alert"
           >
-            Error loading songs:{" "}
-            {songsQuery.error instanceof Error
-              ? songsQuery.error.message
-              : "Unknown error"}
+            Error loading songs: {error instanceof Error ? error.message : "Unknown error"}
           </div>
         )}
 
         {/* Success state */}
-        {songsQuery.isSuccess && (
+        {!isLoading && !isError && (
           <>
-            {/* Empty state (uses context state which is updated by the effect) */}
-            {state.filteredSongs.length === 0 && (
+            {/* Empty state */}
+            {filteredSongs.length === 0 && (
               <div
                 className="text-center py-12 rounded-lg"
                 style={{
@@ -216,22 +179,15 @@ const LibraryPage: React.FC = () => {
                   className="mx-auto mb-4"
                   style={{ color: colors.orangePeel }}
                 />
-                <h3 className="text-xl font-semibold mb-2">No songs found</h3>
-                <p className="opacity-80">
-                  {state.filterTerm ||
-                  state.filterStatus !== "all" ||
-                  state.filterFavorites
-                    ? "Try adjusting your filters"
-                    : "Add some songs to get started"}
-                </p>
+                <p>No songs found. Try adjusting your search filters or upload some songs.</p>
               </div>
             )}
 
-            {/* Songs grid/list (uses context state) */}
-            {state.filteredSongs.length > 0 &&
+            {/* Songs grid/list */}
+            {filteredSongs.length > 0 &&
               (viewMode === "grid" ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {state.filteredSongs.map((song) => (
+                  {filteredSongs.map((song) => (
                     <SongCard
                       key={song.id}
                       song={song}
@@ -244,7 +200,7 @@ const LibraryPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {state.filteredSongs.map((song) => (
+                  {filteredSongs.map((song) => (
                     <SongCard
                       key={song.id}
                       song={song}

@@ -4,7 +4,7 @@ import MetadataEditor from "./MetadataEditor";
 import { Song } from "../../types/Song";
 import { formatTime } from "../../utils/formatters";
 import vintageTheme from "../../utils/theme";
-import { getAudioUrl } from "../../services/songService";
+import { useSongs } from "../../hooks/useSongs";
 import { Button } from "../ui/button";
 
 interface SongCardProps {
@@ -27,6 +27,7 @@ const SongCard: React.FC<SongCardProps> = ({
   // Local state for inline preview
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const colors = vintageTheme.colors;
+  const { getAudioUrl } = useSongs();
 
   // Vintage card style
   const cardStyle = {
