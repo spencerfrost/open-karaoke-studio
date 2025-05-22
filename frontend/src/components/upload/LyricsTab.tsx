@@ -90,14 +90,14 @@ export function LyricsTab({
           className="space-y-4"
         >
           {options.map((option, index) => (
-            <div key={option.id || index} className="flex items-start space-x-2">
-              <RadioGroupItem value={String(index)} id={`lyrics-${index}`} className="mt-1" />
+            <div key={option.id || index} className="flex align-middle items-center justify-center space-x-2">
+              <RadioGroupItem value={String(index)} id={`lyrics-${index}`} />
               <div className="flex-1">
                 <Label
                   htmlFor={`lyrics-${index}`}
                   className="flex flex-col space-y-1 cursor-pointer"
                 >
-                  <Card className={`hover:border-primary ${selectedOption === option ? 'border-primary bg-primary/5' : ''}`}>
+                  <Card className={`hover:border-primary w-full ${selectedOption === option ? 'border-primary bg-primary/5' : ''}`}>
                     <CardContent className="p-3">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
