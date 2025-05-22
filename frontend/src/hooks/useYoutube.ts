@@ -63,6 +63,7 @@ export interface MetadataOption {
   artist: string;
   album?: string;
   year?: string;
+  duration?: string;
   genre?: string;
   language?: string;
   coverArtUrl?: string;
