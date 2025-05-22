@@ -6,7 +6,7 @@ import { Label } from "../ui/label";
 import { Music, Search, Check } from "lucide-react";
 import { Song } from "../../types/Song";
 import vintageTheme from "../../utils/theme";
-import { searchMusicBrainz } from "../../services/songService";
+import { useSongs } from "../../hooks/useSongs";
 
 interface MusicBrainzSearchTabProps {
   song: Song;
@@ -18,7 +18,6 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   onSelectResult,
 }) => {
   const colors = vintageTheme.colors;
-  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState({
     title: song.title,
     artist: song.artist,
@@ -26,23 +25,23 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   const [searchResults, setSearchResults] = useState<Partial<Song>[]>([]);
   const [noResults, setNoResults] = useState(false);
 
+  const { useSearchMusicBrainz } = useSongs();
+  const searchMusicBrainz = useSearchMusicBrainz();
+
   const handleSearch = async () => {
-    setIsSearching(true);
     setNoResults(false);
 
     try {
-      const response = await searchMusicBrainz({
+      const results = await searchMusicBrainz.mutateAsync({
         title: searchQuery.title,
         artist: searchQuery.artist,
       });
 
-      setSearchResults(response.data || []);
-      setNoResults(response.data?.length === 0);
+      setSearchResults(results || []);
+      setNoResults(results?.length === 0);
     } catch (error) {
       console.error("MusicBrainz search failed:", error);
       setNoResults(true);
-    } finally {
-      setIsSearching(false);
     }
   };
 
@@ -100,14 +99,14 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
           <Button
             className="flex items-center gap-2"
             onClick={handleSearch}
-            disabled={isSearching}
+            disabled={searchMusicBrainz.isPending}
             style={{
               backgroundColor: colors.darkCyan,
               color: colors.lemonChiffon,
             }}
           >
             <Search size={18} />
-            {isSearching ? "Searching..." : "Search MusicBrainz"}
+            {searchMusicBrainz.isPending ? "Searching..." : "Search MusicBrainz"}
           </Button>
         </div>
       </div>

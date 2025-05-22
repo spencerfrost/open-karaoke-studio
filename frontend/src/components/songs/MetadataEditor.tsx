@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
-import { updateSongMetadata, deleteSong } from "../../services/songService";
+import { useSongs } from "../../hooks/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
 
@@ -23,11 +23,21 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
+  const { useUpdateSongMetadata, useDeleteSong } = useSongs();
+  
+  const updateMetadata = useUpdateSongMetadata();
+  const deleteSong = useDeleteSong();
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
-      const updatedSong = await updateSongMetadata(song.id, metadata);
-      onSongUpdated(updatedSong.data as Song);
+      const result = await updateMetadata.mutateAsync({ 
+        id: song.id, 
+        ...metadata 
+      });
+      
+      if (result) {
+        onSongUpdated(result);
+      }
       setOpen(false);
     } catch (error) {
       console.error("Failed to update metadata:", error);
@@ -56,7 +66,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       )
     ) {
       try {
-        await deleteSong(song.id);
+        await deleteSong.mutateAsync(song.id);
         setOpen(false);
         alert("Song deleted successfully.");
       } catch (error) {
@@ -97,8 +107,12 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
             </TabsContent>
           </Tabs>
           <div className="flex justify-end mt-4">
-            <Button variant="destructive" onClick={handleDeleteSong}>
-              Delete Song
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteSong}
+              disabled={deleteSong.isPending}
+            >
+              {deleteSong.isPending ? "Deleting..." : "Delete Song"}
             </Button>
           </div>
         </DialogContent>

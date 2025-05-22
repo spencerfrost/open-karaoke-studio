@@ -43,9 +43,12 @@ def get_songs():
 @song_bp.route('/<string:song_id>/download/<string:track_type>', methods=['GET'])
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
-    # This function remains mostly unchanged as it deals with file downloads
     current_app.logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
     track_type = track_type.lower() # Normalize track type
+    
+    if track_type not in ("vocals", "instrumental", "original"):
+        current_app.logger.warning(f"Invalid track type requested: {track_type}")
+        return jsonify({"error": "Invalid track type specified. Use 'vocals', 'instrumental', or 'original'."}), 400
 
     try:
         song_dir = file_management.get_song_dir(song_id)
@@ -53,30 +56,10 @@ def download_song_track(song_id: str, track_type: str):
             current_app.logger.error(f"Song directory not found: {song_dir}")
             return jsonify({"error": "Song not found"}), 404
 
-        track_file: Optional[Path] = None
-        track_filename: Optional[str] = None
+        track_file: Optional[Path] = song_dir / f"{track_type}.mp3"
 
-        if track_type == 'vocals':
-            path_stem = file_management.get_vocals_path_stem(song_dir)
-            suffix = file_management.VOCALS_SUFFIX
-            track_file = path_stem.with_suffix(suffix)
-            track_filename = track_file.name
-        elif track_type == 'instrumental':
-            path_stem = file_management.get_instrumental_path_stem(song_dir)
-            suffix = file_management.INSTRUMENTAL_SUFFIX
-            track_file = path_stem.with_suffix(suffix)
-            track_filename = track_file.name
-        elif track_type == 'original':
-            original_pattern = f"{song_id}_original.*"
-            found_original = next(song_dir.glob(original_pattern), None)
-            if found_original:
-                track_file = found_original
-                track_filename = track_file.name
-        else:
-            current_app.logger.warning(f"Invalid track type requested: {track_type}")
-            return jsonify({"error": "Invalid track type specified. Use 'vocals', 'instrumental', or 'original'."}), 400
 
-        if track_file and track_filename and track_file.is_file():
+        if track_file and track_file.is_file():
             # Security Check: Ensure the file is within the base library directory
             library_base_path = config.BASE_LIBRARY_DIR.resolve()
             file_path_resolved = track_file.resolve()
@@ -85,10 +68,10 @@ def download_song_track(song_id: str, track_type: str):
                 current_app.logger.error(f"Attempted download outside library bounds: {track_file}")
                 return jsonify({"error": "Access denied"}), 403
 
-            current_app.logger.info(f"Sending file '{track_filename}' from directory '{song_dir}'")
+            current_app.logger.info(f"Sending {track_type}.mp3 from directory '{song_dir}'")
             return send_from_directory(
                 song_dir, # Directory path object
-                track_filename, # Just the filename string
+                track_file.name, # Just the filename string - use .name to get just the filename
                 as_attachment=True # Trigger browser download prompt
             )
         else:

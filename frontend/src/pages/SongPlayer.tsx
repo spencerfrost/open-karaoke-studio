@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { getSongById } from "@/services/songService";
-import { Song } from "@/types/Song";
+import React, { useEffect } from "react";
 import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
-
 import AppLayout from "@/components/layout/AppLayout";
 import WebSocketStatus from "@/components/WebsocketStatus";
 import { useParams } from "react-router-dom";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useSongs } from "@/hooks/useSongs";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [song, setSong] = useState<Song | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use the song query hook
+  const { useSong, useSongLyrics } = useSongs();
+  const {
+    data: song,
+    isLoading: songLoading,
+    error: songError,
+  } = useSong(id ?? "");
+
+  const { data: lyricsData } = useSongLyrics(id ?? "", {
+    enabled: !!song && !song.lyrics && !song.syncedLyrics,
+  });
 
   const {
     connect,
@@ -25,7 +32,6 @@ const SongPlayer: React.FC = () => {
     lyricsOffset,
     cleanup,
     seek,
-    pause,
     setSongAndLoad,
   } = useKaraokePlayerStore();
 
@@ -38,23 +44,15 @@ const SongPlayer: React.FC = () => {
   }, [connect, disconnect, cleanup]);
 
   useEffect(() => {
-    if (!id) return;
-
-    setLoading(true);
-    getSongById(id)
-      .then((res) => {
-        setSong(res.data);
-      })
-      .catch(() => setError("Failed to fetch song."))
-      .finally(() => setLoading(false));
-  }, [id, pause]);
-
-  useEffect(() => {
     if (song) {
       setSongAndLoad(song.id);
     }
     return () => cleanup();
   }, [song, setSongAndLoad, cleanup]);
+
+  // Combine lyrics data if we fetched it separately
+  const lyrics = song?.lyrics || lyricsData?.plainLyrics || "";
+  const syncedLyrics = song?.syncedLyrics || lyricsData?.syncedLyrics || "";
 
   const playerState = {
     isPlaying,
@@ -79,7 +77,7 @@ const SongPlayer: React.FC = () => {
     </div>
   ) : null;
 
-  if (loading) {
+  if (songLoading) {
     return (
       <>
         <div className="flex flex-col items-center justify-center h-full">
@@ -92,12 +90,12 @@ const SongPlayer: React.FC = () => {
       </>
     );
   }
-  if (error || !song) {
+  if (songError || !song) {
     return (
       <>
         <div className="flex flex-col items-center justify-center h-full">
           <div className="text-lg text-destructive">
-            {error ?? "Song not found."}
+            {songError instanceof Error ? songError.message : "Song not found."}
           </div>
         </div>
         {/* Debug panel for player state */}
@@ -122,8 +120,8 @@ const SongPlayer: React.FC = () => {
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden mb-4 flex items-center justify-center relative">
           <UnifiedLyricsDisplay
-            lyrics={song.syncedLyrics || song.lyrics || ""}
-            isSynced={!!song.syncedLyrics}
+            lyrics={syncedLyrics || lyrics || ""}
+            isSynced={!!syncedLyrics}
             currentTime={currentTime * 1000}
             title={song.title}
             artist={song.artist}
