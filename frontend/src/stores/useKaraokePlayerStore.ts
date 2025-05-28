@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5123";
+// For WebSocket connections, use local proxy in development, direct URL in production
+const WEBSOCKET_URL = import.meta.env.DEV ? window.location.origin : BASE_URL;
 const INITIAL_STATE = {
   isReady: false,
   isLoading: false,
@@ -76,7 +78,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
   // --- WebSocket helpers ---
   function createSocket(): Socket {
-    return io(BASE_URL, {
+    return io(WEBSOCKET_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,

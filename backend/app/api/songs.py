@@ -16,28 +16,34 @@ from ..services.lyrics_service import make_request
 
 song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')
 
-@song_bp.route('/', methods=['GET'])
+@song_bp.route('', methods=['GET'])
 def get_songs():
     """Endpoint to get a list of processed songs with metadata."""
     current_app.logger.info("Received request for /api/songs")
     
-    # Get songs from the database
-    db_songs = database.get_all_songs()
-    
-    # If database has no songs, sync from filesystem first
-    if not db_songs:
-        current_app.logger.info("No songs found in database, syncing from filesystem")
-        songs_added = database.sync_songs_with_filesystem()
-        current_app.logger.info(f"Added {songs_added} songs from filesystem to database")
+    try:
+        # Get songs from the database
         db_songs = database.get_all_songs()
-    
-    # Convert SQLAlchemy models to Pydantic models for API response
-    songs_list = [song.to_pydantic() for song in db_songs]
-    
-    # Use Pydantic's serialization
-    response_data = [song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() for song in songs_list]
-    current_app.logger.info(f"Returning {len(response_data)} songs.")
-    return jsonify(response_data)
+        
+        # If database has no songs, sync from filesystem first
+        if not db_songs:
+            current_app.logger.info("No songs found in database, syncing from filesystem")
+            songs_added = database.sync_songs_with_filesystem()
+            current_app.logger.info(f"Added {songs_added} songs from filesystem to database")
+            db_songs = database.get_all_songs()
+        
+        # Convert SQLAlchemy models to Pydantic models for API response
+        songs_list = [song.to_pydantic() for song in db_songs]
+        
+        # Use Pydantic's serialization
+        response_data = [song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() for song in songs_list]
+        current_app.logger.info(f"Returning {len(response_data)} songs.")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in get_songs endpoint: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch songs", "details": str(e)}), 500
 
 
 @song_bp.route('/<string:song_id>/download/<string:track_type>', methods=['GET'])
@@ -371,7 +377,7 @@ def delete_song(song_id: str):
         return jsonify({"error": "An internal error occurred while deleting the song."}), 500
 
 
-@song_bp.route('/', methods=['POST'])
+@song_bp.route('', methods=['POST'])
 def create_song():
     """Create a new song with basic information before fetching from external APIs."""
     current_app.logger.info("Received request to create a new song")
