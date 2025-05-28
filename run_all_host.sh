@@ -1,4 +1,12 @@
 #!/bin/bash
+
+# Auto-detect the machine's IP address for external access
+HOST_IP=$(hostname -I | awk '{print $1}')
+echo "Detected host IP: $HOST_IP"
+
+# Create/update the frontend .env.local file with the correct backend URL
+echo "VITE_BACKEND_URL=http://$HOST_IP:5123" > frontend/.env.local
+
 tmux new-session -d -s karaoke
 tmux set -g -t karaoke mouse on
 

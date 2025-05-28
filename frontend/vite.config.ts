@@ -23,6 +23,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        "/socket.io": {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+          ws: true, // Enable WebSocket proxying
+        },
       },
       watch: {
         usePolling: true,
