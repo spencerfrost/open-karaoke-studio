@@ -49,7 +49,7 @@ def download_youtube_endpoint():
             
         artist = data.get("artist", "")
         song_title = data.get("title", "")
-        album = data.get("album", "")
+        existing_song_id = data.get("songId")  # Get the existing song ID if provided
         
         # Get a reference to the current app for use in the background thread
         app = current_app._get_current_object()  # Get the actual app instance, not the proxy
@@ -60,7 +60,7 @@ def download_youtube_endpoint():
             with app.app_context():
                 try:
                     # Download YouTube video
-                    song_id, metadata = download_from_youtube(data["videoId"], artist, song_title)
+                    song_id, _ = download_from_youtube(data["videoId"], artist, song_title, existing_song_id)
                     
                     # Queue audio processing
                     song_dir = get_song_dir(song_id)
@@ -94,7 +94,7 @@ def download_youtube_endpoint():
         download_thread.daemon = True
         download_thread.start()
         
-        temp_id = data["videoId"]
+        temp_id = existing_song_id or data["videoId"]  # Use the song ID if provided, otherwise fall back to video ID
         return jsonify({
             "tempId": temp_id,
             "status": "downloading",

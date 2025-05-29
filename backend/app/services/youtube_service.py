@@ -76,7 +76,7 @@ def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
 
 
 def download_from_youtube(
-    url: str, artist: str, song_title: str
+    url: str, artist: str, song_title: str, song_id: str = None
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Download a song from YouTube, save it to the temporary directory,
@@ -86,6 +86,7 @@ def download_from_youtube(
         url (str): YouTube URL
         artist (str): Artist name
         song_title (str): Song title
+        song_id (str, optional): Existing song ID to use. If not provided, generates a new one.
 
     Returns:
         Tuple[str, Dict[str, Any]]: (song_id, metadata)
@@ -93,7 +94,9 @@ def download_from_youtube(
     current_app.logger.info(f"Downloading from YouTube: {url}")
 
     try:
-        song_id = str(uuid.uuid4())
+        # Use provided song_id or generate a new one
+        if not song_id:
+            song_id = str(uuid.uuid4())
         song_dir = get_song_dir(song_id)
         outtmpl = os.path.join(song_dir, "original.%(ext)s")
 
