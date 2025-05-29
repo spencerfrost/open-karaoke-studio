@@ -12,6 +12,7 @@ export interface YouTubeDownloadRequest {
 }
 
 export interface YouTubeDownloadResponse {
+  tempId: string;
   status: string;
   message: string;
 }
