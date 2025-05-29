@@ -9,6 +9,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSongs } from "../hooks/useSongs";
 
 const LibraryPage: React.FC = () => {
@@ -144,12 +145,64 @@ const LibraryPage: React.FC = () => {
 
         {/* Loading state */}
         {isLoading && (
-          <div
-            className="text-center py-8"
-            style={{ color: colors.lemonChiffon }}
-          >
-            Loading songs...
-          </div>
+          <>
+            {viewMode === "grid" ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div key={index} className="rounded-lg overflow-hidden shadow-md" style={{
+                    backgroundColor: colors.lemonChiffon,
+                    boxShadow: `0 4px 6px rgba(0, 0, 0, 0.2), inset 0 0 0 1px ${colors.orangePeel}`,
+                  }}>
+                    {/* Image skeleton */}
+                    <Skeleton className="aspect-video w-full" style={{ backgroundColor: `${colors.orangePeel}20` }} />
+                    
+                    {/* Content skeleton */}
+                    <div className="p-3">
+                      <div className="flex justify-between items-start mb-2">
+                        <Skeleton className="h-5 w-3/4" style={{ backgroundColor: `${colors.russet}30` }} />
+                        <Skeleton className="h-6 w-6 rounded-full" style={{ backgroundColor: `${colors.russet}30` }} />
+                      </div>
+                      <Skeleton className="h-4 w-1/2 mb-2" style={{ backgroundColor: `${colors.russet}20` }} />
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-4 w-8" style={{ backgroundColor: `${colors.russet}20` }} />
+                        <Skeleton className="h-3 w-12" style={{ backgroundColor: `${colors.russet}20` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="rounded-lg p-3 flex items-center" style={{
+                    backgroundColor: colors.lemonChiffon,
+                    boxShadow: `0 4px 6px rgba(0, 0, 0, 0.2), inset 0 0 0 1px ${colors.orangePeel}`,
+                  }}>
+                    {/* Image skeleton */}
+                    <Skeleton className="h-12 w-12 rounded-md mr-3" style={{ backgroundColor: `${colors.orangePeel}20` }} />
+                    
+                    {/* Content skeleton */}
+                    <div className="flex-1">
+                      <Skeleton className="h-5 w-3/4 mb-1" style={{ backgroundColor: `${colors.russet}30` }} />
+                      <Skeleton className="h-4 w-1/2" style={{ backgroundColor: `${colors.russet}20` }} />
+                    </div>
+                    
+                    {/* Right side skeleton */}
+                    <div className="text-right mr-3">
+                      <Skeleton className="h-4 w-12 mb-1" style={{ backgroundColor: `${colors.russet}20` }} />
+                      <Skeleton className="h-6 w-16" style={{ backgroundColor: `${colors.darkCyan}40` }} />
+                    </div>
+                    
+                    {/* Action buttons skeleton */}
+                    <div className="flex flex-col items-center gap-1">
+                      <Skeleton className="h-8 w-8 rounded-full" style={{ backgroundColor: `${colors.russet}30` }} />
+                      <Skeleton className="h-6 w-6 rounded" style={{ backgroundColor: `${colors.russet}30` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* Error state */}
