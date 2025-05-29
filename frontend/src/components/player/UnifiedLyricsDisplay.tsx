@@ -188,7 +188,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
         <div className="w-full h-full overflow-y-auto scrollbar-hide">
           {lyrics ? (
             <div
-              className={`text-2xl font-semibold text-background whitespace-pre-line ${lyricsSizeClass}`}
+              className={`text-2xl font-semibold text-background whitespace-pre-line text-center ${lyricsSizeClass}`}
             >
               {lyrics}
             </div>
