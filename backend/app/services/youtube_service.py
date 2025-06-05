@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 
 from flask import current_app
 from .file_management import (
-    get_song_dir,
     get_thumbnail_path,
     download_image,
 )
+from .file_service import FileService
 from ..db.database import create_or_update_song
 from ..db.models import SongMetadata
 
@@ -97,7 +97,9 @@ def download_from_youtube(
         # Use provided song_id or generate a new one
         if not song_id:
             song_id = str(uuid.uuid4())
-        song_dir = get_song_dir(song_id)
+        
+        file_service = FileService()
+        song_dir = file_service.get_song_directory(song_id)
         outtmpl = os.path.join(song_dir, "original.%(ext)s")
 
         ydl_opts = {

@@ -10,7 +10,9 @@ import uuid
 # Import database and models
 from ..db import database
 from ..db.models import Song, SongMetadata, DbSong
-from ..services import file_management
+from ..services import file_management, FileService
+from ..services.song_service import SongService
+from ..exceptions import ServiceError, NotFoundError
 from ..config import get_config
 from ..services.lyrics_service import make_request
 
@@ -18,32 +20,28 @@ song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')
 
 @song_bp.route('', methods=['GET'])
 def get_songs():
-    """Endpoint to get a list of processed songs with metadata."""
+    """Endpoint to get a list of processed songs with metadata - thin controller using service layer."""
     current_app.logger.info("Received request for /api/songs")
     
     try:
-        # Get songs from the database
-        db_songs = database.get_all_songs()
+        song_service = SongService()
+        songs = song_service.get_all_songs()
         
-        # If database has no songs, sync from filesystem first
-        if not db_songs:
-            current_app.logger.info("No songs found in database, syncing from filesystem")
-            songs_added = database.sync_songs_with_filesystem()
-            current_app.logger.info(f"Added {songs_added} songs from filesystem to database")
-            db_songs = database.get_all_songs()
+        # Convert to JSON response format
+        response_data = [
+            song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() 
+            for song in songs
+        ]
         
-        # Convert SQLAlchemy models to Pydantic models for API response
-        songs_list = [song.to_pydantic() for song in db_songs]
-        
-        # Use Pydantic's serialization
-        response_data = [song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() for song in songs_list]
         current_app.logger.info(f"Returning {len(response_data)} songs.")
-        
         return jsonify(response_data)
         
-    except Exception as e:
-        current_app.logger.error(f"Error in get_songs endpoint: {e}", exc_info=True)
+    except ServiceError as e:
+        current_app.logger.error(f"Service error in get_songs: {e}")
         return jsonify({"error": "Failed to fetch songs", "details": str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error in get_songs: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route('/<string:song_id>/download/<string:track_type>', methods=['GET'])
@@ -57,7 +55,8 @@ def download_song_track(song_id: str, track_type: str):
         return jsonify({"error": "Invalid track type specified. Use 'vocals', 'instrumental', or 'original'."}), 400
 
     try:
-        song_dir = file_management.get_song_dir(song_id)
+        file_service = FileService()
+        song_dir = file_service.get_song_directory(song_id)
         if not song_dir.is_dir():
             current_app.logger.error(f"Song directory not found: {song_dir}")
             return jsonify({"error": "Song not found"}), 404
@@ -93,17 +92,22 @@ def download_song_track(song_id: str, track_type: str):
 
 @song_bp.route('/<string:song_id>', methods=['GET'])
 def get_song_details(song_id: str):
-    """Endpoint to get details for a specific song."""
+    """Endpoint to get details for a specific song - thin controller using service layer."""
     current_app.logger.info(f"Received request for song details: {song_id}")
+    
     try:
-        # Get data from database
-        db_song = database.get_song(song_id)
+        song_service = SongService()
+        song = song_service.get_song_by_id(song_id)
         
+        if not song:
+            return jsonify({"error": f"Song with ID {song_id} not found"}), 404
+        
+        # Convert to response format
+        response = song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
+        
+        # Add additional fields from database if needed (legacy compatibility)
+        db_song = database.get_song(song_id)
         if db_song:
-            song = db_song.to_pydantic()
-            
-            # Add additional fields from DbSong that aren't in the Song model
-            response = song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
             response.update({
                 "album": db_song.release_title,
                 "year": db_song.release_date,
@@ -116,58 +120,16 @@ def get_song_details(song_id: str):
                 "lyrics": db_song.lyrics,
                 "syncedLyrics": db_song.synced_lyrics
             })
-            
-            current_app.logger.info(f"Returning details for song {song_id} from database")
-            return jsonify(response), 200
         
-        # If we reach here, the song doesn't exist in the database
-        # Check if the directory exists
-        song_dir = file_management.get_song_dir(song_id)
-        
-        if not song_dir.is_dir():
-            current_app.logger.error(f"Song directory not found: {song_dir}")
-            return jsonify({"error": "Song not found"}), 404
-        
-        # Try to read legacy metadata as a last resort
-        metadata = file_management.read_song_metadata(song_id)
-        
-        if not metadata:
-            current_app.logger.warning(f"Metadata missing for song ID {song_id}. Using defaults.")
-            return jsonify({
-                "id": song_id,
-                "title": song_id.replace('_', ' ').title(),
-                "artist": "Unknown Artist",
-                "status": "processed",
-                "favorite": False,
-                "dateAdded": datetime.now(timezone.utc).isoformat()
-            }), 200
-        
-        response = {
-            "id": song_id,
-            "title": metadata.title or song_id.replace('_', ' ').title(),
-            "artist": metadata.artist or "Unknown Artist",
-            "album": metadata.releaseTitle,
-            "year": metadata.releaseDate,
-            "genre": metadata.genre,
-            "language": metadata.language,
-            "duration": metadata.duration,
-            "favorite": metadata.favorite,
-            "dateAdded": metadata.dateAdded.isoformat() if metadata.dateAdded else datetime.now(timezone.utc).isoformat(),
-            "coverArt": metadata.coverArt,
-            "status": "processed",
-            "musicbrainzId": metadata.mbid,
-            "lyrics": metadata.lyrics,
-            "syncedLyrics": metadata.syncedLyrics
-        }
-        
-        # Migrate this data to the database for next time
-        database.create_or_update_song(song_id, metadata)
-        
+        current_app.logger.info(f"Returning details for song {song_id}")
         return jsonify(response), 200
-            
+        
+    except ServiceError as e:
+        current_app.logger.error(f"Service error getting song {song_id}: {e}")
+        return jsonify({"error": "Failed to fetch song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Error getting song details for '{song_id}': {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred."}), 500
+        current_app.logger.error(f"Unexpected error getting song {song_id}: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route('/<string:song_id>/metadata', methods=['PATCH'])
@@ -176,7 +138,8 @@ def update_song_metadata(song_id: str):
     current_app.logger.info(f"Received metadata update request for song: {song_id}")
     try:
         # Validate that song exists in filesystem
-        song_dir = file_management.get_song_dir(song_id)
+        file_service = FileService()
+        song_dir = file_service.get_song_directory(song_id)
         if not song_dir.is_dir():
             current_app.logger.error(f"Song directory not found: {song_dir}")
             return jsonify({"error": "Song not found"}), 404
@@ -282,7 +245,8 @@ def get_thumbnail(song_id: str):
     db_song = database.get_song(song_id)
     
     # Construct the path to the thumbnail
-    song_dir = file_management.get_song_dir(song_id)
+    file_service = FileService()
+    song_dir = file_service.get_song_directory(song_id)
     thumbnail_path = song_dir / "thumbnail.jpg"
 
     if not thumbnail_path.exists():
@@ -355,32 +319,34 @@ def get_song_lyrics(song_id: str):
 
 @song_bp.route('/<string:song_id>', methods=['DELETE'])
 def delete_song(song_id: str):
-    """Endpoint to delete a song by its ID."""
+    """Endpoint to delete a song by its ID - thin controller using service layer."""
     current_app.logger.info(f"Received request to delete song: {song_id}")
+    
     try:
-        # Validate that the song exists
-        song_dir = file_management.get_song_dir(song_id)
-        if not song_dir.is_dir():
-            current_app.logger.error(f"Song directory not found: {song_dir}")
+        song_service = SongService()
+        success = song_service.delete_song(song_id)
+        
+        if not success:
             return jsonify({"error": "Song not found"}), 404
-
-        # Delete song files
-        file_management.delete_song_files(song_id)
-
-        # Remove song from the database
-        database.delete_song(song_id)
-
+        
+        # Also delete files using FileService
+        file_service = FileService()
+        file_service.delete_song_files(song_id)
+        
         current_app.logger.info(f"Successfully deleted song: {song_id}")
         return jsonify({"message": "Song deleted successfully"}), 200
-
+        
+    except ServiceError as e:
+        current_app.logger.error(f"Service error deleting song {song_id}: {e}")
+        return jsonify({"error": "Failed to delete song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Error deleting song '{song_id}': {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred while deleting the song."}), 500
+        current_app.logger.error(f"Unexpected error deleting song {song_id}: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route('', methods=['POST'])
 def create_song():
-    """Create a new song with basic information before fetching from external APIs."""
+    """Create a new song with basic information - thin controller using service layer."""
     current_app.logger.info("Received request to create a new song")
     
     try:
@@ -396,9 +362,6 @@ def create_song():
         # Generate a unique ID for the song
         song_id = str(uuid.uuid4())
         current_app.logger.info(f"Creating new song with ID: {song_id}")
-        
-        # Create the song directory
-        song_dir = file_management.get_song_dir(song_id)
         
         # Prepare metadata
         metadata = SongMetadata(
@@ -419,25 +382,55 @@ def create_song():
             language=data.get('language')
         )
         
-        # Save to database
-        db_song = database.create_or_update_song(song_id, metadata)
-        
-        if not db_song:
-            return jsonify({"error": "Failed to create song in database"}), 500
+        # Use service to create song
+        song_service = SongService()
+        song = song_service.create_song_from_metadata(song_id, metadata)
         
         # Return the song data
         response = {
             "id": song_id,
-            "title": metadata.title,
-            "artist": metadata.artist,
-            "album": metadata.releaseTitle,
-            "dateAdded": metadata.dateAdded.isoformat() if metadata.dateAdded else None,
+            "title": song.title,
+            "artist": song.artist,
+            "album": data.get('album'),
+            "dateAdded": song.dateAdded.isoformat() if song.dateAdded else None,
             "status": "pending"
         }
         
         current_app.logger.info(f"Successfully created song: {song_id}")
         return jsonify(response), 201
         
+    except ServiceError as e:
+        current_app.logger.error(f"Service error creating song: {e}")
+        return jsonify({"error": "Failed to create song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Error creating song: {e}", exc_info=True)
-        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
+        current_app.logger.error(f"Unexpected error creating song: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@song_bp.route('/search', methods=['GET'])
+def search_songs():
+    """Search songs endpoint - thin controller using service layer."""
+    query = request.args.get('q', '').strip()
+    current_app.logger.info(f"Received search request with query: '{query}'")
+    
+    if not query:
+        return jsonify([])
+    
+    try:
+        song_service = SongService()
+        songs = song_service.search_songs(query)
+        
+        response_data = [
+            song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() 
+            for song in songs
+        ]
+        
+        current_app.logger.info(f"Found {len(response_data)} songs matching '{query}'")
+        return jsonify(response_data)
+        
+    except ServiceError as e:
+        current_app.logger.error(f"Service error searching songs: {e}")
+        return jsonify({"error": "Failed to search songs", "details": str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error searching songs: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
