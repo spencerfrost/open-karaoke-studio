@@ -11,7 +11,7 @@ import uuid
 from ..db import database
 from ..db.models import Song, SongMetadata, DbSong
 from ..services import file_management
-from ..config import Config as config
+from ..config import get_config
 from ..services.lyrics_service import make_request
 
 song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')
@@ -67,7 +67,8 @@ def download_song_track(song_id: str, track_type: str):
 
         if track_file and track_file.is_file():
             # Security Check: Ensure the file is within the base library directory
-            library_base_path = config.BASE_LIBRARY_DIR.resolve()
+            config = get_config()
+            library_base_path = config.LIBRARY_DIR.resolve()
             file_path_resolved = track_file.resolve()
 
             if library_base_path not in file_path_resolved.parents:

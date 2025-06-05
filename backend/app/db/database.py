@@ -13,13 +13,12 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session, sessionmaker
 from .models import Base, DbSong, SongMetadata
 from ..services import file_management
-from ..config import Config as config
+from ..config import get_config
 
-# Create the database engine
-import os
-BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'karaoke.db')}"
-print(f"Database URL: {DATABASE_URL}")
+# Get configuration and create database engine
+config = get_config()
+DATABASE_URL = config.DATABASE_URL
+logging.info(f"Database URL: {DATABASE_URL}")
 engine = create_engine(DATABASE_URL)
 
 # Create session factory
@@ -38,10 +37,18 @@ class DBSessionMiddleware:
 
 def ensure_db_schema():
     """Ensure the database schema is up to date with the latest model definitions"""
-    # Connect directly to SQLite to check and add columns
-    db_path = Path(os.path.join(BASE_DIR, "karaoke.db"))
-    if not db_path.exists():
-        logging.info("Creating database schema from scratch")
+    # Check if we're using SQLite and get the database path
+    if config.DATABASE_URL.startswith('sqlite:'):
+        # Extract path from sqlite:///path/to/db
+        db_path_str = config.DATABASE_URL.replace('sqlite:///', '')
+        db_path = Path(db_path_str)
+        
+        if not db_path.exists():
+            logging.info("Creating database schema from scratch")
+            Base.metadata.create_all(bind=engine)
+            return
+    else:
+        # For non-SQLite databases, just ensure schema exists
         Base.metadata.create_all(bind=engine)
         return
 
@@ -63,12 +70,26 @@ def ensure_db_schema():
                 for col_name in missing_columns:
                     col = table.columns[col_name]
                     col_type = col.type.compile(dialect=engine.dialect)
+                    
+                    # Handle nullability
                     nullable = "" if col.nullable else "NOT NULL"
-                    default = f"DEFAULT {col.default.arg}" if col.default is not None and col.default.arg is not None else ""
+                    
+                    # Handle defaults carefully
+                    default = ""
+                    if col.default is not None:
+                        if hasattr(col.default, 'arg') and col.default.arg is not None:
+                            if isinstance(col.default.arg, str):
+                                default = f"DEFAULT '{col.default.arg}'"
+                            elif isinstance(col.default.arg, bool):
+                                default = f"DEFAULT {1 if col.default.arg else 0}"
+                            else:
+                                default = f"DEFAULT {col.default.arg}"
                     
                     sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} {nullable} {default}".strip()
                     try:
-                        connection.execute(sql)
+                        from sqlalchemy import text
+                        connection.execute(text(sql))
+                        connection.commit()
                         logging.info(f"Added column: {sql}")
                     except Exception as e:
                         logging.error(f"Error adding column {col_name}: {e}")
@@ -167,9 +188,10 @@ def sync_songs_with_filesystem() -> int:
     """
     count = 0
     try:
-        # Get all song directories
-        config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-        song_dirs = [d for d in config.BASE_LIBRARY_DIR.iterdir() if d.is_dir()]
+        # Get configuration and all song directories
+        config = get_config()
+        config.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+        song_dirs = [d for d in config.LIBRARY_DIR.iterdir() if d.is_dir()]
         
         for song_dir in song_dirs:
             song_id = song_dir.name
