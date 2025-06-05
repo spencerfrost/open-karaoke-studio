@@ -34,7 +34,7 @@ def create_app(config_class=None):
     # Configure CORS with environment-specific origins
     CORS(
         app,
-        origins=config_class.CORS_ORIGINS,
+        origins=config_class.CORS_ORIGINS,  # This is a property that returns a list
         supports_credentials=True,
     )
 
