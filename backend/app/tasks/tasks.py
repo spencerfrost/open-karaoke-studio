@@ -6,7 +6,7 @@ from pathlib import Path
 import traceback
 import shutil
 from celery.utils.log import get_task_logger
-from ..services import audio, file_management
+from ..services import audio, file_management, FileService
 from .celery_app import celery
 from ..db.models import JobStatus, JobStore
 
@@ -85,8 +85,9 @@ def process_audio_task(self, job_id):
         logger.info(f"Job {job_id} progress: {progress}% - {message}")
 
     try:
-        file_management.ensure_library_exists()
-        song_dir = file_management.get_song_dir(job_id)
+        file_service = FileService()
+        file_service.ensure_library_exists()
+        song_dir = file_service.get_song_directory(job_id)
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio
