@@ -1,4 +1,10 @@
 # backend/app/services/file_management.py
+#
+# ===== CLEANED UP VERSION =====
+# Legacy file operations have been moved to FileService.
+# This file now contains only business logic functions that go beyond simple file operations.
+# ==============================
+
 import shutil
 import json
 import requests
@@ -8,47 +14,11 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 from ..config import get_config
 from ..db.models import SongMetadata 
+from .file_service import FileService
 
-def ensure_library_exists():
-    """Creates the base library directory if it doesn't exist."""
-    config = get_config()
-    config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def get_song_dir(input_path_or_id: Path | str) -> Path:
-    """Creates and returns the specific directory for a song within the library."""
-    ensure_library_exists()
-
-    if isinstance(input_path_or_id, Path):
-        if input_path_or_id.is_file():
-            song_id = input_path_or_id.stem
-        else:
-            song_id = input_path_or_id.name
-    else:
-        song_id = input_path_or_id
-
-    config = get_config()
-    song_dir = config.BASE_LIBRARY_DIR / song_id
-    song_dir.mkdir(parents=True, exist_ok=True)
-    return song_dir
-
-
-def get_song_dir_from_id(song_id: str) -> Path:
-    """Returns the directory for a song given its ID."""
-    config = get_config()
-    song_dir = config.BASE_LIBRARY_DIR / song_id
-    song_dir.mkdir(parents=True, exist_ok=True)
-    return song_dir
-
-
-def get_song_dir_from_path(input_path: Path) -> Path:
-    """Returns the directory for a song given its input path."""
-    song_id = input_path.stem
-    config = get_config()
-    song_dir = config.BASE_LIBRARY_DIR / song_id
-    song_dir.mkdir(parents=True, exist_ok=True)
-    return song_dir
-
+# =============================================================================
+# PATH CONSTRUCTION HELPERS - These provide useful path construction logic
+# =============================================================================
 
 def get_vocals_path_stem(song_dir: Path) -> Path:
     """Returns the standard path stem (without extension) for the vocals file."""
@@ -59,21 +29,21 @@ def get_instrumental_path_stem(song_dir: Path) -> Path:
     """Returns the standard path stem (without extension) for the instrumental file."""
     return song_dir / "instrumental"
 
-
-def get_original_path(song_dir: Path, original_input_path: Path) -> Path:
-    """Returns the path for storing the original file, keeping original suffix."""
-    song_id = song_dir.name
-    original_suffix = original_input_path.suffix
-    config = get_config()
-    return song_dir / f"{song_id}{config.ORIGINAL_FILENAME_SUFFIX}{original_suffix}"
-
+# =============================================================================
+# FILE OPERATIONS WITH BUSINESS LOGIC
+# =============================================================================
 
 def save_original_file(input_path: Path, song_dir: Path) -> Optional[Path]:
     """Copies the original input file to the song directory."""
     if not input_path.exists():
         return None
 
-    destination = get_original_path(song_dir, input_path)
+    # Use FileService to get the correct original file path
+    song_id = song_dir.name
+    original_suffix = input_path.suffix
+    file_service = FileService()
+    destination = file_service.get_original_path(song_id, original_suffix)
+    
     try:
         shutil.copy2(input_path, destination)
         return destination
@@ -83,15 +53,24 @@ def save_original_file(input_path: Path, song_dir: Path) -> Optional[Path]:
 
 
 def get_processed_songs(library_path: Optional[Path] = None) -> List[str]:
-    """Scans the library and returns a list of potential song IDs (directories)."""
-    config = get_config()
-    library_path = library_path or config.BASE_LIBRARY_DIR
+    """Scans the library and returns a list of potential song IDs (directories).
+    
+    NOTE: This function remains for compatibility with custom library paths.
+    For default library, prefer FileService.get_processed_song_ids()
+    """
+    if library_path:
+        # If custom library path provided, use direct implementation
+        if not library_path.is_dir():
+            return []
+        return [d.name for d in library_path.iterdir() if d.is_dir()]
+    else:
+        # Use FileService for default library
+        file_service = FileService()
+        return file_service.get_processed_song_ids()
 
-    if not library_path.is_dir():
-        return []
-
-    return [d.name for d in library_path.iterdir() if d.is_dir()]
-
+# =============================================================================
+# METADATA FUNCTIONS - Database and business logic
+# =============================================================================
 
 def read_song_metadata(
     song_id: str, library_path: Optional[Path] = None
@@ -184,26 +163,25 @@ def download_image(url: str, save_path: Path) -> bool:
         print(f"Error downloading image from {url}: {e}")
         return False
 
+# =============================================================================
+# PATH HELPERS - Simple utilities
+# =============================================================================
 
 def get_thumbnail_path(song_dir: Path) -> Path:
-    """Returns the standard path for the YouTube thumbnail."""
+    """Returns the standard path for the YouTube thumbnail.
+    
+    NOTE: Consider using FileService.get_thumbnail_path() for consistency.
+    """
     return song_dir / "thumbnail.jpg"
 
 
 def get_cover_art_path(song_dir: Path) -> Path:
-    """Returns the standard path for the album cover art."""
+    """Returns the standard path for the album cover art.
+    
+    NOTE: Consider using FileService.get_cover_art_path() for consistency.
+    """
     return song_dir / "cover.jpg"
 
-
-def delete_song_files(song_id: str):
-    """Deletes the directory and all files associated with a song."""
-    song_dir = get_song_dir(song_id)
-    if song_dir.exists() and song_dir.is_dir():
-        try:
-            shutil.rmtree(song_dir)
-            logging.info(f"Successfully deleted song directory: {song_dir}")
-        except Exception as e:
-            logging.error(f"Error deleting song directory {song_dir}: {e}")
-            raise Exception(f"Could not delete song directory {song_dir}: {e}")
-    else:
-        logging.warning(f"Song directory does not exist: {song_dir}")
+# =============================================================================
+# END OF FILE
+# =============================================================================
