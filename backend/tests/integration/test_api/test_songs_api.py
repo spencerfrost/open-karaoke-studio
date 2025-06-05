@@ -1,5 +1,6 @@
 """
 Integration tests for the songs API endpoints in Open Karaoke Studio.
+Updated to work with Song Service Layer.
 """
 
 import pytest
@@ -10,171 +11,219 @@ from pathlib import Path
 # Mock the imports that might not be available during testing
 try:
     from app.api.songs import song_bp
-    from app.db.models import DbSong
+    from app.db.models import DbSong, Song
+    from app.services.song_service import SongService
+    from app.exceptions import ServiceError, NotFoundError
 except ImportError:
     song_bp = Mock()
     DbSong = Mock()
+    Song = Mock()
+    SongService = Mock()
+    ServiceError = Exception
+    NotFoundError = Exception
 
 
 class TestSongsAPI:
-    """Test the songs API endpoints"""
+    """Test the songs API endpoints with service layer integration"""
     
-    def test_get_songs_success(self, client):
-        """Test GET /api/songs endpoint success"""
-        # Mock database response
+    @patch('app.api.songs.SongService')
+    def test_get_songs_success(self, mock_song_service_class, client):
+        """Test GET /api/songs endpoint success with service layer"""
+        # Setup mock service
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        
+        # Mock service response
         mock_songs = [
             Mock(
-                id="song-1",
-                title="Test Song 1", 
-                artist="Test Artist 1",
-                duration=180,
-                to_pydantic=Mock(return_value=Mock(
-                    model_dump=Mock(return_value={
-                        "id": "song-1",
-                        "title": "Test Song 1",
-                        "artist": "Test Artist 1",
-                        "duration": 180,
-                        "status": "processed"
-                    })
-                ))
-            ),
-            Mock(
-                id="song-2",
-                title="Test Song 2",
-                artist="Test Artist 2", 
-                duration=200,
-                to_pydantic=Mock(return_value=Mock(
-                    model_dump=Mock(return_value={
-                        "id": "song-2",
-                        "title": "Test Song 2",
-                        "artist": "Test Artist 2",
-                        "duration": 200,
-                        "status": "processed"
-                    })
-                ))
-            )
-        ]
-        
-        with patch('app.db.database.get_all_songs', return_value=mock_songs):
-            # Make request
-            response = client.get('/api/songs')
-            
-            # Assertions
-            assert response.status_code == 200
-            
-            # Parse response data
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert isinstance(data, list)
-            assert len(data) == 2
-            assert data[0]['title'] == "Test Song 1"
-            assert data[1]['title'] == "Test Song 2"
-    
-    def test_get_songs_empty_database_triggers_sync(self, client):
-        """Test GET /api/songs when database is empty triggers filesystem sync"""
-        with patch('app.db.database.get_all_songs') as mock_get_all:
-            # First call returns empty, second call returns songs after sync
-            mock_get_all.side_effect = [[], [Mock(
-                to_pydantic=Mock(return_value=Mock(
-                    model_dump=Mock(return_value={
-                        "id": "synced-song",
-                        "title": "Synced Song",
-                        "artist": "Synced Artist",
-                        "duration": 180
-                    })
-                ))
-            )]]
-            
-            with patch('app.db.database.sync_songs_with_filesystem', return_value=1) as mock_sync:
-                response = client.get('/api/songs')
-                
-                # Should call sync when database is empty
-                mock_sync.assert_called_once()
-                assert mock_get_all.call_count == 2
-                
-                # Should return synced songs
-                if hasattr(response, 'get_json'):
-                    data = response.get_json()
-                else:
-                    data = json.loads(response.data.decode())
-                
-                assert len(data) == 1
-                assert data[0]['title'] == "Synced Song"
-    
-    def test_get_songs_database_error(self, client):
-        """Test GET /api/songs when database error occurs"""
-        with patch('app.db.database.get_all_songs', side_effect=Exception("Database error")):
-            response = client.get('/api/songs')
-            
-            assert response.status_code == 500
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert 'error' in data
-            assert 'Failed to fetch songs' in data['error']
-    
-    def test_get_song_details_success(self, client):
-        """Test GET /api/songs/<id> endpoint success"""
-        mock_song = Mock(
-            id="test-song-123",
-            title="Test Song",
-            artist="Test Artist",
-            duration=180,
-            to_pydantic=Mock(return_value=Mock(
                 model_dump=Mock(return_value={
-                    "id": "test-song-123",
-                    "title": "Test Song",
-                    "artist": "Test Artist",
+                    "id": "song-1",
+                    "title": "Test Song 1",
+                    "artist": "Test Artist 1",
                     "duration": 180,
                     "status": "processed"
                 })
-            ))
-        )
+            ),
+            Mock(
+                model_dump=Mock(return_value={
+                    "id": "song-2",
+                    "title": "Test Song 2",
+                    "artist": "Test Artist 2",
+                    "duration": 200,
+                    "status": "processed"
+                })
+            )
+        ]
+        mock_service.get_all_songs.return_value = mock_songs
         
-        with patch('app.db.database.get_song', return_value=mock_song):
-            response = client.get('/api/songs/test-song-123')
-            
-            assert response.status_code == 200
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert data['id'] == "test-song-123"
-            assert data['title'] == "Test Song"
+        # Make request
+        response = client.get('/api/songs')
+        
+        # Assertions
+        assert response.status_code == 200
+        mock_song_service_class.assert_called_once()
+        mock_service.get_all_songs.assert_called_once()
+        
+        # Parse response data
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert isinstance(data, list)
+        assert len(data) == 2
+        assert data[0]['title'] == "Test Song 1"
+        assert data[1]['title'] == "Test Song 2"
     
-    def test_get_song_details_not_found(self, client):
-        """Test GET /api/songs/<id> when song not found"""
-        with patch('app.db.database.get_song', return_value=None):
-            response = client.get('/api/songs/nonexistent-song')
-            
-            assert response.status_code == 404
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert 'error' in data
+    @patch('app.api.songs.SongService')
+    def test_get_songs_service_error(self, mock_song_service_class, client):
+        """Test GET /api/songs when service raises ServiceError"""
+        # Setup mock service to raise ServiceError
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.get_all_songs.side_effect = ServiceError("Service failed")
+        
+        # Make request
+        response = client.get('/api/songs')
+        
+        # Assertions
+        assert response.status_code == 500
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'Failed to fetch songs' in data['error']
+        assert 'Service failed' in data['details']
     
-    @patch('app.services.file_management.get_song_dir')
-    @patch('app.config.get_config')
-    def test_download_song_track_success(self, mock_get_config, mock_get_song_dir, client):
+    @patch('app.api.songs.SongService')
+    def test_get_songs_unexpected_error(self, mock_song_service_class, client):
+        """Test GET /api/songs when unexpected error occurs"""
+        # Setup mock service to raise unexpected exception
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.get_all_songs.side_effect = Exception("Unexpected error")
+        
+        # Make request
+        response = client.get('/api/songs')
+        
+        # Assertions
+        assert response.status_code == 500
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'Internal server error' in data['error']
+    
+    @patch('app.api.songs.SongService')
+    @patch('app.api.songs.database')  # For the legacy compatibility part
+    def test_get_song_details_success(self, mock_database, mock_song_service_class, client):
+        """Test GET /api/songs/<id> endpoint success with service layer"""
+        # Setup mock service
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        
+        mock_song = Mock(
+            model_dump=Mock(return_value={
+                "id": "test-song-123",
+                "title": "Test Song",
+                "artist": "Test Artist",
+                "duration": 180,
+                "status": "processed"
+            })
+        )
+        mock_service.get_song_by_id.return_value = mock_song
+        
+        # Mock database for legacy compatibility
+        mock_db_song = Mock(
+            release_title="Test Album",
+            release_date="2023",
+            genre="Test Genre",
+            language="English",
+            mbid="test-mbid",
+            channel="Test Channel",
+            source="test",
+            source_url="http://test.com",
+            lyrics="Test lyrics",
+            synced_lyrics="Test synced lyrics"
+        )
+        mock_database.get_song.return_value = mock_db_song
+        
+        # Make request
+        response = client.get('/api/songs/test-song-123')
+        
+        # Assertions
+        assert response.status_code == 200
+        mock_service.get_song_by_id.assert_called_once_with("test-song-123")
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert data['id'] == "test-song-123"
+        assert data['title'] == "Test Song"
+        assert data['album'] == "Test Album"  # Added by legacy compatibility
+    
+    @patch('app.api.songs.SongService')
+    def test_get_song_details_not_found(self, mock_song_service_class, client):
+        """Test GET /api/songs/<id> when song not found with service layer"""
+        # Setup mock service to return None
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.get_song_by_id.return_value = None
+        
+        # Make request
+        response = client.get('/api/songs/nonexistent-song')
+        
+        # Assertions
+        assert response.status_code == 404
+        mock_service.get_song_by_id.assert_called_once_with("nonexistent-song")
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'not found' in data['error']
+    
+    @patch('app.api.songs.SongService')
+    def test_get_song_details_service_error(self, mock_song_service_class, client):
+        """Test GET /api/songs/<id> when service raises ServiceError"""
+        # Setup mock service to raise ServiceError
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.get_song_by_id.side_effect = ServiceError("Service failed")
+        
+        # Make request
+        response = client.get('/api/songs/test-song-123')
+        
+        # Assertions
+        assert response.status_code == 500
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'Failed to fetch song' in data['error']
+    
+    @patch('app.api.songs.FileService')
+    def test_download_song_track_success(self, mock_file_service_class, client):
         """Test GET /api/songs/<id>/download/<track_type> success"""
-        # Setup mocks
-        mock_config = Mock()
-        mock_config.LIBRARY_DIR = Path("/test/library")
-        mock_get_config.return_value = mock_config
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
         
         mock_song_dir = Path("/test/library/test-song")
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         with patch('pathlib.Path.is_dir', return_value=True):
             with patch('pathlib.Path.is_file', return_value=True):
@@ -187,6 +236,8 @@ class TestSongsAPI:
                         
                         response = client.get('/api/songs/test-song/download/vocals')
                         
+                        # Should call FileService.get_song_directory
+                        mock_file_service.get_song_directory.assert_called_once_with("test-song")
                         # Should call send_from_directory
                         mock_send.assert_called_once()
     
@@ -204,12 +255,16 @@ class TestSongsAPI:
         assert 'error' in data
         assert 'Invalid track type' in data['error']
     
-    @patch('app.services.file_management.get_song_dir')
-    def test_download_song_track_song_not_found(self, mock_get_song_dir, client):
+    @patch('app.api.songs.FileService')
+    def test_download_song_track_song_not_found(self, mock_file_service_class, client):
         """Test download when song directory doesn't exist"""
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Mock()
         mock_song_dir.is_dir.return_value = False
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         response = client.get('/api/songs/nonexistent/download/vocals')
         
@@ -223,13 +278,17 @@ class TestSongsAPI:
         assert 'error' in data
         assert 'Song not found' in data['error']
     
-    @patch('app.services.file_management.get_song_dir') 
-    def test_download_song_track_file_not_found(self, mock_get_song_dir, client):
+    @patch('app.api.songs.FileService')
+    def test_download_song_track_file_not_found(self, mock_file_service_class, client):
         """Test download when track file doesn't exist"""
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Mock()
         mock_song_dir.is_dir.return_value = True
         mock_song_dir.__truediv__ = Mock(return_value=Mock(is_file=Mock(return_value=False)))
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         response = client.get('/api/songs/test-song/download/vocals')
         
@@ -243,17 +302,21 @@ class TestSongsAPI:
         assert 'error' in data
         assert 'track not found' in data['error'].lower()
     
-    @patch('app.services.file_management.get_song_dir')
+    @patch('app.api.songs.FileService')
     @patch('app.config.get_config')
-    def test_download_song_track_security_violation(self, mock_get_config, mock_get_song_dir, client):
+    def test_download_song_track_security_violation(self, mock_get_config, mock_file_service_class, client):
         """Test download security check prevents path traversal"""
         # Setup mocks
         mock_config = Mock()
         mock_config.LIBRARY_DIR = Path("/test/library")
         mock_get_config.return_value = mock_config
         
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Path("/test/library/test-song")
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         with patch('pathlib.Path.is_dir', return_value=True):
             with patch('pathlib.Path.is_file', return_value=True):
@@ -277,56 +340,81 @@ class TestSongsAPI:
 class TestSongsAPISearch:
     """Test the songs search functionality"""
     
-    def test_search_songs_success(self, client):
-        """Test GET /api/songs/search endpoint success"""
+    @patch('app.api.songs.SongService')
+    def test_search_songs_success(self, mock_song_service_class, client):
+        """Test GET /api/songs/search endpoint success with service layer"""
+        # Setup mock service
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        
         mock_songs = [
             Mock(
-                to_pydantic=Mock(return_value=Mock(
-                    model_dump=Mock(return_value={
-                        "id": "song-1",
-                        "title": "Test Song",
-                        "artist": "Test Artist",
-                        "duration": 180
-                    })
-                ))
+                model_dump=Mock(return_value={
+                    "id": "song-1",
+                    "title": "Test Song",
+                    "artist": "Test Artist",
+                    "duration": 180,
+                    "status": "processed"
+                })
             )
         ]
+        mock_service.search_songs.return_value = mock_songs
         
-        with patch('app.db.database.search_songs', return_value=mock_songs):
-            response = client.get('/api/songs/search?q=test')
-            
-            assert response.status_code == 200
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert isinstance(data, list)
-            assert len(data) == 1
-            assert data[0]['title'] == "Test Song"
-    
-    def test_search_songs_no_query(self, client):
-        """Test search without query parameter"""
-        response = client.get('/api/songs/search')
+        # Make request with query parameter
+        response = client.get('/api/songs/search?q=test')
         
-        # Should handle missing query gracefully
-        assert response.status_code in [400, 200]  # Depends on implementation
+        # Assertions
+        assert response.status_code == 200
+        mock_service.search_songs.assert_called_once_with('test')
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]['title'] == "Test Song"
     
-    def test_search_songs_empty_results(self, client):
-        """Test search with no matching results"""
-        with patch('app.db.database.search_songs', return_value=[]):
-            response = client.get('/api/songs/search?q=nonexistent')
-            
-            assert response.status_code == 200
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert isinstance(data, list)
-            assert len(data) == 0
+    @patch('app.api.songs.SongService')
+    def test_search_songs_empty_query(self, mock_song_service_class, client):
+        """Test search endpoint with empty query returns empty list"""
+        # Make request with empty query
+        response = client.get('/api/songs/search?q=')
+        
+        # Assertions
+        assert response.status_code == 200
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert data == []
+        # Service should not be called for empty query
+        mock_song_service_class.assert_not_called()
+    
+    @patch('app.api.songs.SongService')
+    def test_search_songs_service_error(self, mock_song_service_class, client):
+        """Test search endpoint when service raises ServiceError"""
+        # Setup mock service to raise ServiceError
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.search_songs.side_effect = ServiceError("Search failed")
+        
+        # Make request
+        response = client.get('/api/songs/search?q=test')
+        
+        # Assertions
+        assert response.status_code == 500
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'Failed to search songs' in data['error']
 
 
 class TestSongsAPIErrorHandling:
@@ -356,3 +444,78 @@ class TestSongsAPIErrorHandling:
         # Should handle invalid paths gracefully
         # Actual behavior depends on Flask routing and implementation
         assert response.status_code in [400, 404, 500]
+
+
+    @patch('app.api.songs.SongService')
+    @patch('app.api.songs.SongService')
+    @patch('app.api.songs.FileService')
+    def test_delete_song_success(self, mock_file_service_class, mock_song_service_class, client):
+        """Test DELETE /api/songs/<id> endpoint success with service layer"""
+        # Setup mock services
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.delete_song.return_value = True
+        
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
+        # Make request
+        response = client.delete('/api/songs/test-song-123')
+        
+        # Assertions
+        assert response.status_code == 200
+        mock_service.delete_song.assert_called_once_with("test-song-123")
+        mock_file_service.delete_song_files.assert_called_once_with("test-song-123")
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'message' in data
+        assert 'deleted successfully' in data['message']
+    
+    @patch('app.api.songs.SongService')
+    def test_delete_song_not_found(self, mock_song_service_class, client):
+        """Test DELETE /api/songs/<id> when song not found with service layer"""
+        # Setup mock service to return False (not found)
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.delete_song.return_value = False
+        
+        # Make request
+        response = client.delete('/api/songs/nonexistent-song')
+        
+        # Assertions
+        assert response.status_code == 404
+        mock_service.delete_song.assert_called_once_with("nonexistent-song")
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'not found' in data['error']
+    
+    @patch('app.api.songs.SongService')
+    def test_delete_song_service_error(self, mock_song_service_class, client):
+        """Test DELETE /api/songs/<id> when service raises ServiceError"""
+        # Setup mock service to raise ServiceError
+        mock_service = Mock()
+        mock_song_service_class.return_value = mock_service
+        mock_service.delete_song.side_effect = ServiceError("Delete failed")
+        
+        # Make request
+        response = client.delete('/api/songs/test-song-123')
+        
+        # Assertions
+        assert response.status_code == 500
+        
+        if hasattr(response, 'get_json'):
+            data = response.get_json()
+        else:
+            data = json.loads(response.data.decode())
+        
+        assert 'error' in data
+        assert 'Failed to delete song' in data['error']
