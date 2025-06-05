@@ -6,11 +6,12 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
-from ..config import Config as config
+from ..config import get_config
 from ..db.models import SongMetadata 
 
 def ensure_library_exists():
     """Creates the base library directory if it doesn't exist."""
+    config = get_config()
     config.BASE_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -26,6 +27,7 @@ def get_song_dir(input_path_or_id: Path | str) -> Path:
     else:
         song_id = input_path_or_id
 
+    config = get_config()
     song_dir = config.BASE_LIBRARY_DIR / song_id
     song_dir.mkdir(parents=True, exist_ok=True)
     return song_dir
@@ -33,6 +35,7 @@ def get_song_dir(input_path_or_id: Path | str) -> Path:
 
 def get_song_dir_from_id(song_id: str) -> Path:
     """Returns the directory for a song given its ID."""
+    config = get_config()
     song_dir = config.BASE_LIBRARY_DIR / song_id
     song_dir.mkdir(parents=True, exist_ok=True)
     return song_dir
@@ -41,6 +44,7 @@ def get_song_dir_from_id(song_id: str) -> Path:
 def get_song_dir_from_path(input_path: Path) -> Path:
     """Returns the directory for a song given its input path."""
     song_id = input_path.stem
+    config = get_config()
     song_dir = config.BASE_LIBRARY_DIR / song_id
     song_dir.mkdir(parents=True, exist_ok=True)
     return song_dir
@@ -60,6 +64,7 @@ def get_original_path(song_dir: Path, original_input_path: Path) -> Path:
     """Returns the path for storing the original file, keeping original suffix."""
     song_id = song_dir.name
     original_suffix = original_input_path.suffix
+    config = get_config()
     return song_dir / f"{song_id}{config.ORIGINAL_FILENAME_SUFFIX}{original_suffix}"
 
 
@@ -79,6 +84,7 @@ def save_original_file(input_path: Path, song_dir: Path) -> Optional[Path]:
 
 def get_processed_songs(library_path: Optional[Path] = None) -> List[str]:
     """Scans the library and returns a list of potential song IDs (directories)."""
+    config = get_config()
     library_path = library_path or config.BASE_LIBRARY_DIR
 
     if not library_path.is_dir():

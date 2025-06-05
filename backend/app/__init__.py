@@ -13,30 +13,28 @@ from .tasks import init_celery
 from .db import Base, engine
 from .websockets import init_socketio
 
-Config = get_config()
 
-
-def create_app(config_class=Config):
+def create_app(config_class=None):
     """
     Application factory function to create and configure the Flask app.
 
     Args:
-        config_class: Configuration class to use for app configuration
+        config_class: Configuration class to use for app configuration.
+                     If None, will be determined from environment.
 
     Returns:
         Configured Flask application instance
     """
+    if config_class is None:
+        config_class = get_config()
+        
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Configure CORS with environment-specific origins
     CORS(
         app,
-        origins="*",
-        # origins=[
-        #     "http://localhost:5173",
-        #     "http://127.0.0.1:5173",
-        #     "http://192.168.50.112:5173",
-        # ],
+        origins=config_class.CORS_ORIGINS,
         supports_credentials=True,
     )
 
@@ -46,8 +44,9 @@ def create_app(config_class=Config):
     # Initialize WebSocket
     init_socketio(app)
 
-    # Ensure database tables are created
-    Base.metadata.create_all(bind=engine)
+    # Ensure database schema is up to date
+    from .db.database import ensure_db_schema
+    ensure_db_schema()
 
     # Register all blueprints
     register_blueprints(app)

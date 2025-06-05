@@ -20,10 +20,11 @@ class AudioProcessingError(Exception):
 def get_filepath_from_job(job):
     """Get the full filepath for a job based on its filename"""
     from pathlib import Path
-    from ..config import Config
+    from ..config import get_config
     
     # Construct the path to the original file based on the job's filename
-    song_dir = Path(Config.BASE_LIBRARY_DIR) / job.id
+    config = get_config()
+    song_dir = Path(config.BASE_LIBRARY_DIR) / job.id
     filepath = song_dir / "original.mp3"  # Or however you determine the filename
     
     return str(filepath)
@@ -51,8 +52,9 @@ def process_audio_task(self, job_id):
     
     # Determine the filepath from the job
     from pathlib import Path
-    from ..config import Config
-    song_dir = Path(Config.BASE_LIBRARY_DIR) / job.id
+    from ..config import get_config
+    config = get_config()
+    song_dir = Path(config.BASE_LIBRARY_DIR) / job.id
     filepath = song_dir / "original.mp3"  # Or use job.filename to determine the path
     filename = filepath.name
     

@@ -8,8 +8,8 @@ from . import create_app
 from .config import get_config
 
 # Get the current configuration and create the Flask app
-Config = get_config()
-app = create_app(Config)
+config = get_config()
+app = create_app(config)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

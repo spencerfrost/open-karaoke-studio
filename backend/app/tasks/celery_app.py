@@ -17,9 +17,13 @@ except RuntimeError as e:
 
 load_dotenv()
 
-# Get broker and backend URLs from environment with fallbacks
-broker_url = os.getenv('CELERY_BROKER_URL', os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
-result_backend = os.getenv('CELERY_RESULT_BACKEND', os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
+# Import configuration for centralized settings
+from ..config import get_config
+config = get_config()
+
+# Use centralized configuration
+broker_url = config.CELERY_BROKER_URL
+result_backend = config.CELERY_RESULT_BACKEND
 
 logger.info(f"Configuring Celery with broker: {broker_url}, backend: {result_backend}")
 
