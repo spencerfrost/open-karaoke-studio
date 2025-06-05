@@ -1,8 +1,9 @@
 # backend/app/services/interfaces/youtube_service.py
-from typing import Protocol, List, Dict, Any, Optional, Tuple
+from typing import Protocol, List, Dict, Any, Optional, Tuple, runtime_checkable
 from ...db.models import SongMetadata
 
 
+@runtime_checkable
 class YouTubeServiceInterface(Protocol):
     """Interface for YouTube Service to enable dependency injection and testing"""
     
