@@ -312,26 +312,3 @@ class YouTubeService(YouTubeServiceInterface):
         except Exception as e:
             logger.warning(f"Error downloading thumbnail for song {song_id}: {e}")
             # Don't fail the whole operation for thumbnail issues
-
-
-# Legacy functions for backward compatibility - will be deprecated
-def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
-    """Legacy function - use YouTubeService.search_videos instead"""
-    service = YouTubeService()
-    return service.search_videos(query, max_results)
-
-
-def download_from_youtube(
-    url: str, artist: str, song_title: str, song_id: str = None
-) -> Tuple[str, Dict[str, Any]]:
-    """Legacy function - use YouTubeService.download_video instead"""
-    # Import here to avoid circular imports
-    from .song_service import SongService
-    
-    service = YouTubeService(song_service=SongService())
-    song_id, metadata = service.download_video(url, song_id, artist, song_title)
-    
-    # Create song in database for backward compatibility
-    service.song_service.create_song_from_metadata(song_id, metadata)
-    
-    return song_id, metadata
