@@ -16,23 +16,23 @@ from app.db.models import Job, JobStatus
 class TestDownloadAndProcessAsync:
     """Test full async workflow integration"""
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
     @patch('pathlib.Path.exists')
     def test_download_and_process_async_complete_workflow(
         self, 
         mock_exists, 
         mock_job_store, 
-        mock_process_task,
+        mock_process_job,
         youtube_service,
         sample_metadata
     ):
         """Test download_and_process_async() complete workflow"""
         # Arrange
         mock_exists.return_value = True
-        mock_task_result = Mock()
-        mock_task_result.id = "task-123-456"
-        mock_process_task.delay.return_value = mock_task_result
+        mock_job_result = Mock()
+        mock_job_result.id = "job-123-456"
+        mock_process_job.delay.return_value = mock_job_result
         
         with patch.object(youtube_service, 'download_video') as mock_download:
             mock_download.return_value = ("song-123", sample_metadata)
@@ -52,18 +52,18 @@ class TestDownloadAndProcessAsync:
             youtube_service.song_service.create_song_from_metadata.assert_called_once_with(
                 "song-123", sample_metadata
             )
-            mock_process_task.delay.assert_called_once_with("song-123")
+            mock_process_job.delay.assert_called_once_with("song-123")
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_song_service_integration(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_song_service_integration(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test SongService integration"""
         # Arrange
         with patch.object(youtube_service, 'download_video') as mock_download, \
              patch('pathlib.Path.exists', return_value=True):
             
             mock_download.return_value = ("song-123", sample_metadata)
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             # Act
             youtube_service.download_and_process_async("dQw4w9WgXcQ")
@@ -73,10 +73,10 @@ class TestDownloadAndProcessAsync:
                 "song-123", sample_metadata
             )
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_task_queue_integration(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
-        """Test Task Queue integration"""
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_job_processing_integration(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
+        """Test job processing integration"""
         # Arrange
         fixed_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -86,14 +86,14 @@ class TestDownloadAndProcessAsync:
 
             mock_datetime.now.return_value = fixed_time
             mock_download.return_value = ("song-123", sample_metadata)
-            mock_task_result = Mock()
-            mock_task_result.id = "celery-task-456"
-            mock_process_task.delay.return_value = mock_task_result
+            mock_job_result = Mock()
+            mock_job_result.id = "celery-task-456"
+            mock_process_job.delay.return_value = mock_job_result
 
             # Act
             youtube_service.download_and_process_async("dQw4w9WgXcQ")
 
-            # Assert - Job creation and task queue interaction
+            # Assert - Job creation and job processing interaction
             assert mock_job_store.save_job.call_count == 2  # Called twice: initial + with task_id
 
             # Check initial job creation
@@ -103,8 +103,8 @@ class TestDownloadAndProcessAsync:
             assert job.status == JobStatus.PROCESSING  # Job status is set to PROCESSING, not PENDING
             assert job.created_at == fixed_time
             
-            # Check task queue submission
-            mock_process_task.delay.assert_called_once_with("song-123")
+            # Check job processing submission
+            mock_process_job.delay.assert_called_once_with("song-123")
             
             # Check job update with task ID
             final_call = mock_job_store.save_job.call_args_list[1]
@@ -112,16 +112,16 @@ class TestDownloadAndProcessAsync:
             assert updated_job.task_id == "celery-task-456"
             assert updated_job.status == JobStatus.PROCESSING
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_file_service_integration(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_file_service_integration(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test FileService integration"""
         # Arrange
         with patch.object(youtube_service, 'download_video') as mock_download, \
              patch('pathlib.Path.exists', return_value=True):
             
             mock_download.return_value = ("song-123", sample_metadata)
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             # Act
             youtube_service.download_and_process_async("dQw4w9WgXcQ")
@@ -129,16 +129,16 @@ class TestDownloadAndProcessAsync:
             # Assert - FileService called for path resolution
             youtube_service.file_service.get_original_path.assert_called_with("song-123", ".mp3")
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_return_value_validation(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_return_value_validation(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test return value validation (song_id)"""
         # Arrange
         with patch.object(youtube_service, 'download_video') as mock_download, \
              patch('pathlib.Path.exists', return_value=True):
             
             mock_download.return_value = ("unique-song-id-789", sample_metadata)
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             # Act
             result = youtube_service.download_and_process_async("dQw4w9WgXcQ")
@@ -147,9 +147,9 @@ class TestDownloadAndProcessAsync:
             assert result == "unique-song-id-789"
             assert isinstance(result, str)
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_async_workflow_with_custom_song_id(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_async_workflow_with_custom_song_id(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test async workflow with custom song ID"""
         # Arrange
         custom_song_id = "custom-async-123"
@@ -158,7 +158,7 @@ class TestDownloadAndProcessAsync:
              patch('pathlib.Path.exists', return_value=True):
             
             mock_download.return_value = (custom_song_id, sample_metadata)
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             # Act
             result = youtube_service.download_and_process_async(
@@ -172,9 +172,9 @@ class TestDownloadAndProcessAsync:
                 "dQw4w9WgXcQ", custom_song_id, None, None
             )
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_async_workflow_missing_file_error(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_async_workflow_missing_file_error(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test async workflow when downloaded file is missing"""
         # Arrange
         with patch.object(youtube_service, 'download_video') as mock_download, \
@@ -186,16 +186,16 @@ class TestDownloadAndProcessAsync:
             with pytest.raises(ServiceError, match="Original audio file not found after download"):
                 youtube_service.download_and_process_async("dQw4w9WgXcQ")
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
-    def test_async_workflow_parameter_passing(self, mock_job_store, mock_process_task, youtube_service, sample_metadata):
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
+    def test_async_workflow_parameter_passing(self, mock_job_store, mock_process_job, youtube_service, sample_metadata):
         """Test parameter passing through async workflow"""
         # Arrange
         with patch.object(youtube_service, 'download_video') as mock_download, \
              patch('pathlib.Path.exists', return_value=True):
             
             mock_download.return_value = ("song-123", sample_metadata)
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             # Act
             youtube_service.download_and_process_async(

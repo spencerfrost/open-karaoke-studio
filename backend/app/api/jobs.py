@@ -1,6 +1,6 @@
 """
-Queue management endpoints for the Open Karaoke Studio API.
-These endpoints provide access to the processing queue and job status.
+Job management endppoints for the Open Karaoke Studio API.
+These endpoints provide access to job processing and status.
 """
 
 from flask import Blueprint, request, jsonify
@@ -10,20 +10,20 @@ from pathlib import Path
 from ..db.models import JobStatus, JobStore
 from ..services import file_management, FileService
 
-queue_bp = Blueprint("queue", __name__, url_prefix="/api/queue")
+jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
 job_store = JobStore()
 
 
-@queue_bp.route("/status", methods=["GET"])
-def get_queue_status():
-    """Get the overall status of the processing queue"""
+@jobs_bp.route("/status", methods=["GET"])
+def get_job_queue_status():
+    """Get the overall status of job processing"""
     stats = job_store.get_stats()
     return jsonify(stats)
 
 
-@queue_bp.route("/jobs", methods=["GET"])
-def get_queue_jobs():
-    """List all jobs in the queue with their status"""
+@jobs_bp.route("/", methods=["GET"])
+def get_jobs():
+    """List all jobs with their status"""
     status_filter = request.args.get("status", None)
 
     if status_filter:
@@ -49,8 +49,8 @@ def get_queue_jobs():
     return jsonify({"jobs": [job.to_dict() for job in jobs]})
 
 
-@queue_bp.route("/job/<job_id>", methods=["GET"])
-def get_queue_job(job_id):
+@jobs_bp.route("/<job_id>", methods=["GET"])
+def get_job(job_id):
     """Get detailed information about a specific job"""
     job = job_store.get_job(job_id)
 
@@ -95,8 +95,8 @@ def get_queue_job(job_id):
     return jsonify(response)
 
 
-@queue_bp.route("/job/<job_id>/cancel", methods=["POST"])
-def cancel_queue_job(job_id):
+@jobs_bp.route("/<job_id>/cancel", methods=["POST"])
+def cancel_job(job_id):
     """Cancel a pending or in-progress job"""
     job = job_store.get_job(job_id)
 
@@ -112,7 +112,7 @@ def cancel_queue_job(job_id):
     job.error = "Cancelled by user"
     job_store.save_job(job)
 
-    # TODO: Implement actual task cancellation in Celery
+    # TODO: Implement actual job cancellation in Celery
     # This would involve celery.control.revoke(task_id, terminate=True)
 
     return jsonify({"success": True, "message": "Job cancelled", "job_id": job_id})

@@ -45,12 +45,12 @@ class TestAdvancedErrorHandling:
             with pytest.raises(ServiceError, match="Failed to download YouTube video.*Could not extract video ID from URL"):
                 youtube_service.download_video(valid_but_bad_url)
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
     def test_error_propagation_database_failure_to_service_error(
         self, 
         mock_job_store, 
-        mock_process_task, 
+        mock_process_job, 
         youtube_service, 
         sample_metadata
     ):
@@ -67,12 +67,12 @@ class TestAdvancedErrorHandling:
             with pytest.raises(ServiceError, match="Failed to download and process video"):
                 youtube_service.download_and_process_async("dQw4w9WgXcQ")
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
     def test_partial_failure_download_succeeds_thumbnail_fails(
         self, 
         mock_job_store, 
-        mock_process_task, 
+        mock_process_job, 
         youtube_service
     ):
         """Test partial failure: Download succeeds, thumbnail fails
@@ -98,7 +98,7 @@ class TestAdvancedErrorHandling:
             mock_ytdl.return_value.__enter__.return_value = mock_ydl_instance
             mock_ydl_instance.extract_info.return_value = sample_info
             mock_download_thumb.side_effect = Exception("Thumbnail error")
-            mock_process_task.delay.return_value.id = "task-123"
+            mock_process_job.delay.return_value.id = "job-123"
             
             youtube_service.file_service.get_song_directory.return_value = Path("/test/dir")
             youtube_service.file_service.get_original_path.return_value = Path("/test/dir/original.mp3")
@@ -109,18 +109,18 @@ class TestAdvancedErrorHandling:
             
             mock_download_thumb.assert_called_once()
 
-    @patch('app.tasks.tasks.process_audio_task')
-    @patch('app.tasks.tasks.job_store')
+    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.job_store')
     def test_partial_failure_download_succeeds_task_queue_fails(
         self, 
         mock_job_store, 
-        mock_process_task, 
+        mock_process_job, 
         youtube_service, 
         sample_metadata
     ):
-        """Test partial failure: Download succeeds, task queue fails"""
+        """Test partial failure: Download succeeds, job processing fails"""
         # Arrange
-        mock_process_task.delay.side_effect = Exception("Celery connection error")
+        mock_process_job.delay.side_effect = Exception("Celery connection error")
         
         with patch.object(youtube_service, 'download_video') as mock_download, \
              patch('pathlib.Path.exists', return_value=True):

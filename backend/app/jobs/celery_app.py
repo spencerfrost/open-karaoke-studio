@@ -1,4 +1,4 @@
-# backend/app/tasks/celery_app.py
+# backend/app/jobs/celery_app.py
 from celery import Celery
 import os
 import multiprocessing
@@ -32,7 +32,7 @@ celery = Celery(
     'app',
     broker=broker_url,
     backend=result_backend,
-    include=['app.tasks.tasks']
+    include=['app.jobs.jobs']
 )
 
 # Configure Celery

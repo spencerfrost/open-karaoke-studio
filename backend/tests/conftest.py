@@ -88,7 +88,7 @@ def mock_celery_task():
     """Mock Celery task for testing"""
     class MockTask:
         def __init__(self):
-            self.id = "test-task-123"
+            self.id = "test-job-123"
             self.state = "PENDING"
             self.result = None
         
