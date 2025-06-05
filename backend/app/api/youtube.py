@@ -6,7 +6,7 @@ from ..services.youtube_service import (
     search_youtube,
     download_from_youtube,
 )
-from ..services.file_management import get_song_dir
+from ..services import FileService
 from ..tasks.tasks import process_audio_task, job_store
 from ..db.models import Job, JobStatus
 
@@ -63,7 +63,8 @@ def download_youtube_endpoint():
                     song_id, _ = download_from_youtube(data["videoId"], artist, song_title, existing_song_id)
                     
                     # Queue audio processing
-                    song_dir = get_song_dir(song_id)
+                    file_service = FileService()
+                    song_dir = file_service.get_song_directory(song_id)
                     original_file_path = song_dir / "original.mp3"
                     
                     if original_file_path.exists():

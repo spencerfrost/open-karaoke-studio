@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..db.models import JobStatus, JobStore
-from ..services import file_management
+from ..services import file_management, FileService
 
 queue_bp = Blueprint("queue", __name__, url_prefix="/api/queue")
 job_store = JobStore()
@@ -61,7 +61,8 @@ def get_queue_job(job_id):
 
     # Add additional info for completed jobs
     if job.status == JobStatus.COMPLETED:
-        song_dir = file_management.get_song_dir(Path(job.filename))
+        file_service = FileService()
+        song_dir = file_service.get_song_directory(Path(job.filename).stem)
         vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
             ".mp3"
         )  # Assuming mp3
