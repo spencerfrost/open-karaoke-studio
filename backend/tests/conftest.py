@@ -24,7 +24,7 @@ from tests.fixtures.test_data import create_test_db_song, create_test_song
 @pytest.fixture(scope="session")
 def app():
     """Create application for testing"""
-    app = create_app(TestingConfig)
+    app = create_app(TestingConfig())  # Create instance instead of passing class
     
     with app.app_context():
         yield app
@@ -125,7 +125,7 @@ def mock_config():
 def mock_file_service():
     """Mock file management service"""
     service = Mock()
-    service.get_song_dir.return_value = Path("/tmp/test_song")
+    service.get_song_directory.return_value = Path("/tmp/test_song")
     service.ensure_song_directory.return_value = Path("/tmp/test_song")
     service.get_metadata.return_value = {
         "title": "Test Song",
