@@ -23,14 +23,15 @@ class TestAudioTasks:
     """Test Celery audio processing tasks"""
     
     @patch('app.tasks.audio_tasks.separate_audio')
-    @patch('app.services.file_management.get_song_dir')
-    @patch('app.services.file_management.ensure_song_directory')
-    def test_process_audio_task_success(self, mock_ensure_dir, mock_get_song_dir, mock_separate_audio):
+    @patch('app.tasks.tasks.FileService')
+    def test_process_audio_task_success(self, mock_file_service_class, mock_separate_audio):
         """Test successful audio processing task"""
-        # Setup mocks
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Path("/test/library/test-song")
-        mock_ensure_dir.return_value = mock_song_dir
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         # Mock successful audio separation
         mock_separate_audio.return_value = True
@@ -40,8 +41,9 @@ class TestAudioTasks:
             with patch('pathlib.Path.is_file', return_value=True):
                 result = process_audio_task("test-song", "/path/to/input.mp3")
                 
-                # Should call necessary functions
-                mock_ensure_dir.assert_called_once_with("test-song")
+                # Should call FileService methods
+                mock_file_service.ensure_library_exists.assert_called_once()
+                mock_file_service.get_song_directory.assert_called_once_with("test-song")
                 mock_separate_audio.assert_called_once()
                 
                 # Should return success result
@@ -49,12 +51,15 @@ class TestAudioTasks:
                 assert "vocals_path" in result or "status" in result
     
     @patch('app.tasks.audio_tasks.separate_audio')
-    @patch('app.services.file_management.get_song_dir')
-    def test_process_audio_task_separation_failure(self, mock_get_song_dir, mock_separate_audio):
+    @patch('app.tasks.tasks.FileService')
+    def test_process_audio_task_separation_failure(self, mock_file_service_class, mock_separate_audio):
         """Test audio processing task when separation fails"""
-        # Setup mocks
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Path("/test/library/test-song")
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         # Mock separation failure
         mock_separate_audio.side_effect = Exception("Separation failed")
@@ -66,12 +71,15 @@ class TestAudioTasks:
         assert "Separation failed" in str(exc_info.value)
     
     @patch('app.tasks.audio_tasks.separate_audio')
-    @patch('app.services.file_management.get_song_dir')
-    def test_process_audio_task_invalid_input(self, mock_get_song_dir, mock_separate_audio):
+    @patch('app.tasks.tasks.FileService')
+    def test_process_audio_task_invalid_input(self, mock_file_service_class, mock_separate_audio):
         """Test audio processing task with invalid input"""
-        # Setup mocks
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Path("/test/library/test-song")
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         
         # Test with invalid/non-existent input file
         with patch('pathlib.Path.exists', return_value=False):
@@ -83,12 +91,15 @@ class TestAudioTasks:
     
     @patch('app.tasks.audio_tasks.current_app')
     @patch('app.tasks.audio_tasks.separate_audio')
-    @patch('app.services.file_management.get_song_dir')
-    def test_process_audio_task_with_progress_callback(self, mock_get_song_dir, mock_separate_audio, mock_app):
+    @patch('app.tasks.tasks.FileService')
+    def test_process_audio_task_with_progress_callback(self, mock_file_service_class, mock_separate_audio, mock_app):
         """Test audio processing task with progress updates"""
-        # Setup mocks
+        # Setup FileService mock
+        mock_file_service = Mock()
+        mock_file_service_class.return_value = mock_file_service
+        
         mock_song_dir = Path("/test/library/test-song")
-        mock_get_song_dir.return_value = mock_song_dir
+        mock_file_service.get_song_directory.return_value = mock_song_dir
         mock_app.logger = Mock()
         
         # Mock progress callback behavior
