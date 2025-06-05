@@ -9,7 +9,7 @@ from flask_cors import CORS
 
 from .config import get_config
 from .api import register_blueprints
-from .tasks import init_celery
+from .jobs import init_celery
 from .db import Base, engine
 from .websockets import init_socketio
 

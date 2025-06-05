@@ -29,15 +29,15 @@ def get_filepath_from_job(job):
     
     return str(filepath)
 
-@celery.task(bind=True, name='process_audio_task', max_retries=3)
-def process_audio_task(self, job_id):
+@celery.task(bind=True, name='process_audio_job', max_retries=3)
+def process_audio_job(self, job_id):
     """
     Celery task to process audio file
     
     Args:
         job_id: Unique identifier for the job
     """
-    logger.info(f"Starting audio processing task for job {job_id}")
+    logger.info(f"Starting audio processing job for job {job_id}")
     
     # Get the job from storage with retry logic
     job = job_store.get_job(job_id)

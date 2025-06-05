@@ -37,10 +37,10 @@ backend/
 │   │   ├── musicbrainz_service.py # MusicBrainz integration
 │   │   └── youtube_service.py # YouTube integration
 │   │
-│   ├── tasks/               # Asynchronous task processing
-│   │   ├── __init__.py      # Task package exports
+│   ├── jobs/               # Asynchronous job processing
+│   │   ├── __init__.py      # Jobs package exports
 │   │   ├── celery_app.py    # Celery configuration
-│   │   └── tasks.py         # Task definitions
+│   │   └── jobs.py         # Jobs definitions
 │   │
 │   └── websockets/          # Real-time communication
 │       ├── __init__.py      # WebSocket package exports

@@ -244,7 +244,7 @@ class YouTubeService(YouTubeServiceInterface):
                 self.song_service.create_song_from_metadata(song_id, metadata)
             
             # Queue for audio processing
-            from ..tasks.tasks import process_audio_task, job_store
+            from ..jobs.jobs import process_audio_job, job_store
             from ..db.models import Job, JobStatus
             
             original_file = self.file_service.get_original_path(song_id, ".mp3")
@@ -260,13 +260,13 @@ class YouTubeService(YouTubeServiceInterface):
                 )
                 job_store.save_job(job)
                 
-                task = process_audio_task.delay(song_id)
+                task = process_audio_job.delay(song_id)
                 
                 job.task_id = task.id
                 job.status = JobStatus.PROCESSING
                 job_store.save_job(job)
                 
-                logger.info(f"Audio processing task queued for song {song_id}")
+                logger.info(f"Audio processing job queued for song {song_id}")
             else:
                 logger.error(f"Original audio file not found at {original_file}")
                 raise ServiceError(f"Original audio file not found after download")

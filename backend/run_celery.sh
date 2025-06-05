@@ -14,7 +14,7 @@ if [ ! -z "$CELERY_BROKER_URL" ]; then
     echo "Using broker URL: $CELERY_BROKER_URL"
 fi
 
-celery -A app.tasks.celery_app.celery worker \
+celery -A app.jobs.celery_app.celery worker \
     --loglevel=info \
     --concurrency=1 \
     --pool=solo

@@ -159,9 +159,9 @@ def sample_metadata():
 @pytest.fixture
 def mock_celery_task():
     """Mock Celery task for async testing"""
-    mock_task = Mock()
-    mock_task.delay.return_value.id = "task-123-456"
-    return mock_task
+    mock_job = Mock()
+    mock_job.delay.return_value.id = "job-123-456"
+    return mock_job
 
 
 @pytest.fixture

@@ -82,7 +82,7 @@ export function useProcessYouTubeVideo(
 }
 
 /**
- * Hook: Get all currently processing tasks
+ * Hook: Get all currently processing jobs
  */
 type BackendJob = {
   id: string;
@@ -111,7 +111,7 @@ export function useProcessingQueue(
   >({
     queryKey: ["processing-queue"],
     queryFn: async () => {
-      const response = await fetch(`/api/queue/jobs`);
+      const response = await fetch(`/api/jobs`);
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
@@ -184,7 +184,7 @@ export function useProcessingStatus(
   >({
     queryKey: ["processing-status", taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/queue/job/${taskId}`);
+      const response = await fetch(`/api/jobs/${taskId}`);
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
@@ -224,7 +224,7 @@ export function useCancelProcessing(
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
-      const response = await fetch(`/api/queue/job/${taskId}/cancel`, {
+      const response = await fetch(`/api/jobs/${taskId}/cancel`, {
         method: "POST",
       });
       if (!response.ok) {
