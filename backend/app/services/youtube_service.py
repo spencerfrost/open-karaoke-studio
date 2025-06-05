@@ -159,6 +159,10 @@ class YouTubeService(YouTubeServiceInterface):
             # Extract and create metadata
             metadata = self._extract_metadata_from_youtube_info(info)
             
+            # Ensure sourceUrl is set correctly
+            if not metadata.sourceUrl:
+                metadata.sourceUrl = url
+            
             # Override with provided metadata if available
             if title:
                 metadata.title = title
@@ -200,16 +204,22 @@ class YouTubeService(YouTubeServiceInterface):
     
     def validate_video_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube video URL"""
+        if not url or not isinstance(url, str):
+            return False
+            
         youtube_regex = re.compile(
-            r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/'
+            r'(https?://)?(www\.|m\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/'
             r'(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
         )
         return bool(youtube_regex.match(url))
     
     def get_video_id_from_url(self, url: str) -> Optional[str]:
         """Extract video ID from YouTube URL"""
+        if not url or not isinstance(url, str):
+            return None
+            
         youtube_regex = re.compile(
-            r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/'
+            r'(https?://)?(www\.|m\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/'
             r'(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
         )
         match = youtube_regex.match(url)
