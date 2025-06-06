@@ -7,5 +7,6 @@ from .file_management import *
 from .file_service import FileService
 from .jobs_service import JobsService
 from .metadata_manager import MetadataManager
+from .metadata_service import metadata_service
 from .youtube_service import YouTubeService
 from .musicbrainz_service import enhance_metadata_with_musicbrainz

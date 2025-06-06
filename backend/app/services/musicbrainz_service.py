@@ -14,30 +14,36 @@ musicbrainzngs.set_useragent(
     "s.s.frost@gmail.com"  # Replace with actual contact
 )
 
-def search_musicbrainz(artist: str, title: str, limit: int = 5) -> List[Dict[str, Any]]:
+def search_musicbrainz(artist: str, title: str, album: str = '', limit: int = 5) -> List[Dict[str, Any]]:
     """
     Search MusicBrainz for recording metadata.
     
     Args:
         artist (str): Artist name
         title (str): Song title
+        album (str): Album name (optional)
         limit (int): Maximum number of results to return
         
     Returns:
         List[Dict[str, Any]]: List of recording metadata or empty list if none found
     """
     try:
-        logging.info(f"Searching MusicBrainz for: {artist} - {title}")
-        
-        search_params = {}
+        # Build search query using proper MusicBrainz query syntax
+        search_terms = []
         if artist:
-            search_params['artist'] = artist
+            search_terms.append(f'artist:"{artist}"')
         if title:
-            search_params['recording'] = title
+            search_terms.append(f'recording:"{title}"')
+        if album:
+            search_terms.append(f'release:"{album}"')
+            
+        search_query = " AND ".join(search_terms)
+        logging.info(f"Searching MusicBrainz with query: {search_query}")
         
+        # Use the query parameter instead of individual parameters
         result = musicbrainzngs.search_recordings(
-            limit=limit,
-            **search_params
+            query=search_query,
+            limit=limit
         )
         
         matches = []
@@ -47,12 +53,13 @@ def search_musicbrainz(artist: str, title: str, limit: int = 5) -> List[Dict[str
                     genre = _extract_genre(recording)
                     language = _extract_language(recording)
                     release_info = _extract_release_info(recording)
-                    cover_art_url = None
-                    if release_info and release_info.get('id'):
-                        try:
-                            cover_art_url = _get_cover_art_url(release_info['id'])
-                        except Exception as e:
-                            logging.warning(f"Error getting cover art URL: {e}")
+                    # TODO: Cover art disabled for now - use YouTube thumbnails instead
+                    # cover_art_url = None
+                    # if release_info and release_info.get('id'):
+                    #     try:
+                    #         cover_art_url = _get_cover_art_url(release_info['id'])
+                    #     except Exception as e:
+                    #         logging.warning(f"Error getting cover art URL: {e}")
                     
                     recording_data = {
                         "mbid": recording.get('id'),
@@ -63,7 +70,7 @@ def search_musicbrainz(artist: str, title: str, limit: int = 5) -> List[Dict[str
                         "release": release_info,
                         "genre": genre,
                         "language": language,
-                        "coverArtUrl": cover_art_url,
+                        "coverArtUrl": None,  # Disabled for now - use YouTube thumbnails
                         "duration": recording.get('length'),
                         
                     }
@@ -196,8 +203,9 @@ def get_cover_art(release_id: str, song_dir: Path) -> Optional[str]:
             
             cover_path = get_cover_art_path(song_dir)
             if download_image(image_url, cover_path):
-                from . import config
-                return str(cover_path.relative_to(config.BASE_LIBRARY_DIR))
+                from ..config import get_config
+                config = get_config()
+                return str(cover_path.relative_to(config.LIBRARY_DIR))
                 
     except Exception as e:
         logging.error(f"Cover art lookup error: {e}")
