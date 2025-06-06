@@ -1,10 +1,8 @@
 /**
  * Upload-related API services
  */
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { uploadFile } from "@/hooks/useApi";
-import { SongProcessingStatus, SongStatus } from "../types/Song";
-import { jobsWebSocketService } from "./jobsWebSocketService";
 
 /**
  * Hook: Upload and process an audio file
@@ -83,39 +81,8 @@ export function useProcessYouTubeVideo(
 }
 
 /**
- * Hook: Get all currently processing jobs (deprecated - use useJobsWebSocket instead)
- */
-type BackendJob = {
-  id: string;
-  progress?: number;
-  status: string;
-  error?: string;
-  notes?: string;
-};
-
-/**
- * Maps backend job status to frontend SongStatus
- */
-function mapBackendStatus(backendStatus: string): SongStatus {
-  switch (backendStatus) {
-    case "pending":
-      return "queued";
-    case "processing":
-      return "processing";
-    case "completed":
-      return "processed";
-    case "failed":
-    case "cancelled":
-      return "error";
-    default:
-      return "error";
-  }
-}
-
-/**
  * Hook: Cancel a processing task
  */
-
 export function useCancelProcessing(
   options?: Omit<
     import("@tanstack/react-query").UseMutationOptions<
@@ -130,6 +97,41 @@ export function useCancelProcessing(
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
       const response = await fetch(`/api/jobs/${taskId}/cancel`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
+    },
+    ...options,
+  });
+}
+
+/**
+ * Hook for dismissing failed, completed, or cancelled jobs from the UI
+ */
+export function useDismissJob(
+  options?: Omit<
+    import("@tanstack/react-query").UseMutationOptions<
+      { success: boolean },
+      Error,
+      string,
+      unknown
+    >,
+    "mutationFn"
+  >
+) {
+  return useMutation<{ success: boolean }, Error, string, unknown>({
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/jobs/${taskId}/dismiss`, {
         method: "POST",
       });
       if (!response.ok) {

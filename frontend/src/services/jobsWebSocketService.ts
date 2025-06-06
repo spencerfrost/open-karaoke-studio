@@ -15,6 +15,8 @@ interface JobData {
   completed_at?: string;
   filename?: string;
   task_id?: string;
+  artist?: string;
+  title?: string;
 }
 
 interface JobsWebSocketEvents {
@@ -38,12 +40,22 @@ class JobsWebSocketService {
 
   private initializeConnection() {
     try {
-      // Get the base URL for WebSocket connection
-      const host = window.location.host;
-      const socketUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:5000' 
-        : `${window.location.protocol}//${host}`;
+      // In development, use the Vite dev server URL to leverage the proxy
+      // In production, use the backend URL directly
+      let socketUrl: string;
+      
+      if (import.meta.env.DEV) {
+        // Development mode - use the current host to leverage Vite proxy
+        socketUrl = `${window.location.protocol}//${window.location.host}`;
+        console.log('Development mode - using Vite proxy for WebSocket:', socketUrl);
+      } else {
+        // Production mode - use the backend URL directly
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || `${window.location.protocol}//${window.location.host}`;
+        socketUrl = backendUrl;
+        console.log('Production mode - using direct backend URL for WebSocket:', socketUrl);
+      }
 
+      console.log('Attempting to connect to WebSocket at:', `${socketUrl}/jobs`);
       this.socket = io(`${socketUrl}/jobs`, {
         transports: ['websocket', 'polling'],
         autoConnect: true,
@@ -86,26 +98,32 @@ class JobsWebSocketService {
 
     // Set up job event listeners
     this.socket.on('job_created', (data: JobData) => {
+      console.log('Received job_created event:', data);
       this.emit('job_created', data);
     });
 
     this.socket.on('job_updated', (data: JobData) => {
+      console.log('Received job_updated event:', data);
       this.emit('job_updated', data);
     });
 
     this.socket.on('job_completed', (data: JobData) => {
+      console.log('Received job_completed event:', data);
       this.emit('job_completed', data);
     });
 
     this.socket.on('job_failed', (data: JobData) => {
+      console.log('Received job_failed event:', data);
       this.emit('job_failed', data);
     });
 
     this.socket.on('job_cancelled', (data: JobData) => {
+      console.log('Received job_cancelled event:', data);
       this.emit('job_cancelled', data);
     });
 
     this.socket.on('jobs_list', (data: { jobs: JobData[] }) => {
+      console.log('Received jobs_list event:', data);
       this.emit('jobs_list', data);
     });
   }

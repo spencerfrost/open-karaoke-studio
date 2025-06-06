@@ -39,4 +39,6 @@ export interface SongProcessingStatus {
   progress: number; // 0-100
   status: SongStatus;
   message?: string;
+  artist?: string;
+  title?: string;
 }
