@@ -145,22 +145,59 @@ def write_song_metadata(song_id: str, metadata: SongMetadata):
 def download_image(url: str, save_path: Path) -> bool:
     """Downloads an image from a URL and saves it to the specified path."""
     try:
-        response = requests.get(url, stream=True, timeout=10)
+        # Create a session to handle redirects properly
+        session = requests.Session()
+        
+        # Configure session with user agent to avoid being blocked
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # First make a HEAD request to check content type and handle redirects
+        head_response = session.head(url, headers=headers, timeout=10, allow_redirects=True)
+        
+        # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
+        if head_response.status_code != 200:
+            logging.warning(f"HEAD request failed with status {head_response.status_code}, trying GET instead")
+        
+        # Make the actual GET request to download the image
+        response = session.get(url, headers=headers, stream=True, timeout=10, allow_redirects=True)
         response.raise_for_status()  # Raise exception for HTTP errors
 
         # Check if response contains image data
         content_type = response.headers.get("content-type", "")
         if not content_type.startswith("image/"):
-            print(f"Downloaded content is not an image: {content_type}")
-            return False
+            logging.warning(f"Downloaded content is not an image: {content_type}")
+            # Some YouTube thumbnails might not correctly report content-type
+            # Check if it at least looks like an image based on first few bytes
+            first_bytes = next(response.iter_content(128), b'')
+            # Check for common image file signatures (JPEG, PNG)
+            if not (first_bytes.startswith(b'\xff\xd8\xff') or  # JPEG
+                    first_bytes.startswith(b'\x89PNG\r\n\x1a\n')):  # PNG
+                logging.warning("Content doesn't appear to be an image based on file signature")
+                return False
 
+        # Ensure the directory exists
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        
         # Save the image
         with open(save_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-        return True
+        
+        # Verify the file was saved and has content
+        if save_path.exists() and save_path.stat().st_size > 0:
+            logging.info(f"Successfully downloaded and saved image to {save_path}")
+            return True
+        else:
+            logging.warning(f"Image file was saved but appears to be empty: {save_path}")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Network error downloading image from {url}: {e}")
+        return False
     except Exception as e:
-        print(f"Error downloading image from {url}: {e}")
+        logging.error(f"Error downloading image from {url}: {e}")
         return False
 
 # =============================================================================
