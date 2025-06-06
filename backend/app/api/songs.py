@@ -14,7 +14,7 @@ from ..services import file_management, FileService
 from ..services.song_service import SongService
 from ..exceptions import ServiceError, NotFoundError
 from ..config import get_config
-from ..services.lyrics_service import make_request
+from ..services.lyrics_service import LyricsService
 
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 
@@ -305,81 +305,80 @@ def get_song_lyrics(song_id: str):
     """Fetch synchronized or plain lyrics for a song using LRCLIB."""
     current_app.logger.info(f"Received lyrics request for song {song_id}")
 
-    # Try to get from database first
-    db_song = database.get_song(song_id)
+    try:
+        lyrics_service = LyricsService()
+        
+        # Check if we have lyrics stored locally first
+        stored_lyrics = lyrics_service.get_lyrics(song_id)
+        if stored_lyrics:
+            current_app.logger.info(f"Returning stored lyrics for song {song_id}")
+            return jsonify({"plainLyrics": stored_lyrics}), 200
 
-    if db_song:
-        # Use database fields
-        title = db_song.title
-        artist = (
-            db_song.artist
-            if db_song.artist.lower() != "unknown artist"
-            else db_song.channel
-        )
-        duration = str(int(db_song.duration)) if db_song.duration else None
-        album = db_song.release_title
-    else:
-        # Fall back to file-based approach
-        metadata = file_management.read_song_metadata(song_id)
-        if not metadata or not metadata.title or not metadata.duration:
-            current_app.logger.warning(f"Metadata incomplete for lyrics: {song_id}")
-            return (
-                jsonify(
-                    {"error": "Missing metadata (title, duration) for lyrics lookup"}
-                ),
-                400,
+        # Try to get from database first
+        db_song = database.get_song(song_id)
+
+        if db_song:
+            # Use database fields
+            title = db_song.title
+            artist = (
+                db_song.artist
+                if db_song.artist.lower() != "unknown artist"
+                else db_song.channel
             )
+            album = db_song.release_title
+        else:
+            # Fall back to file-based approach
+            metadata = file_management.read_song_metadata(song_id)
+            if not metadata or not metadata.title:
+                current_app.logger.warning(f"Metadata incomplete for lyrics: {song_id}")
+                return (
+                    jsonify(
+                        {"error": "Missing metadata (title) for lyrics lookup"}
+                    ),
+                    400,
+                )
 
-        # Determine best artist name: prefer metadata.artist, else channel
-        artist = (
-            metadata.artist
-            if metadata.artist and metadata.artist.lower() != "unknown artist"
-            else metadata.channel
-        )
-        if not artist:
-            current_app.logger.warning(f"Artist unknown for lyrics: {song_id}")
-            return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
-
-        title = metadata.title
-        duration = str(int(metadata.duration))
-        album = metadata.releaseTitle
-
-    # If missing essential info, return error
-    if not title or not artist or not duration:
-        return jsonify({"error": "Missing essential info for lyrics lookup"}), 400
-
-    # 1) If we know album and duration, try cached/get endpoints
-    if album:
-        params = {
-            "track_name": title,
-            "artist_name": artist,
-            "album_name": album,
-            "duration": duration,
-        }
-        status, data = make_request("/api/get-cached", params)
-        if status == 404:
-            current_app.logger.info(
-                f"Cached lyrics not found for {song_id}, falling back to external lookup"
+            # Determine best artist name: prefer metadata.artist, else channel
+            artist = (
+                metadata.artist
+                if metadata.artist and metadata.artist.lower() != "unknown artist"
+                else metadata.channel
             )
-            status, data = make_request("/api/get", params)
-        return jsonify(data), status
+            if not artist:
+                current_app.logger.warning(f"Artist unknown for lyrics: {song_id}")
+                return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
 
-    # 2) Fallback: search by track+artist, pick first result, then fetch by ID
-    search_params = {"track_name": title, "artist_name": artist}
-    status, results = make_request("/api/search", search_params)
-    if status != 200 or not isinstance(results, list) or not results:
-        return (
-            jsonify({"error": "No lyrics found via search", "details": results}),
-            status,
-        )
-    lyric_id = results[0].get("id")
-    if not lyric_id:
-        return (
-            jsonify({"error": "Invalid search result format", "details": results}),
-            500,
-        )
-    status, data = make_request(f"/api/get/{lyric_id}", {})
-    return jsonify(data), status
+            title = metadata.title
+            album = metadata.releaseTitle
+
+        # If missing essential info, return error
+        if not title or not artist:
+            return jsonify({"error": "Missing essential info for lyrics lookup"}), 400
+
+        # Fetch lyrics using the service
+        lyrics_data = lyrics_service.fetch_lyrics(title, artist, album)
+        
+        if lyrics_data:
+            current_app.logger.info(f"Found lyrics for {song_id}")
+            
+            # Optionally save the lyrics locally for future use
+            if lyrics_data.get("plainLyrics"):
+                try:
+                    lyrics_service.save_lyrics(song_id, lyrics_data["plainLyrics"])
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to save lyrics locally: {e}")
+            
+            return jsonify(lyrics_data), 200
+        else:
+            current_app.logger.info(f"No lyrics found for {song_id}")
+            return jsonify({"error": "No lyrics found"}), 404
+
+    except ServiceError as e:
+        current_app.logger.error(f"Service error getting lyrics for {song_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error getting lyrics for {song_id}: {e}")
+        return jsonify({"error": "Failed to fetch lyrics"}), 500
 
 
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
