@@ -1,9 +1,7 @@
 import React from "react";
 import { Music, X, Loader2 } from "lucide-react";
-import {
-  useProcessingQueue,
-  useCancelProcessing,
-} from "../../services/uploadService";
+import { useCancelProcessing } from "../../services/uploadService";
+import { useJobsWebSocket } from "../../hooks/useJobsWebSocket";
 import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
 import { Badge } from "@/components/ui/badge"; // Import ShadCN Badge
@@ -17,24 +15,20 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 
-interface ProcessingQueueProps {
+interface JobsQueueProps {
   className?: string;
-  refreshInterval?: number;
 }
 
-const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
+const JobsQueue: React.FC<JobsQueueProps> = ({
   className = "",
-  refreshInterval = 5000,
 }) => {
-  // Use React Query for processing queue
+  // Use WebSocket for real-time job updates
   const {
-    data: processingItems = [],
-    isLoading,
+    jobs: processingItems = [],
+    isConnected,
     error,
     refetch,
-  } = useProcessingQueue({
-    refetchInterval: refreshInterval,
-  });
+  } = useJobsWebSocket();
 
   // Use React Query for cancel mutation
   const cancelMutation = useCancelProcessing({
@@ -68,24 +62,23 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
     }
   };
 
-  if (isLoading) {
+  if (!processingItems.length && !error) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg p-6 border border-border bg-card/60 text-card-foreground ${className}`}
       >
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        <span>Loading processing queue...</span>
+        <span>Connecting to real-time updates...</span>
       </div>
     );
   }
 
-  // Error State (after initial load)
-
+  // Error State (when WebSocket fails and no jobs available)
   if (error && !processingItems.length) {
     return (
       <Alert variant="destructive" className={className}>
         <AlertDescription>
-          {error instanceof Error ? error.message : String(error)}
+          {error}
         </AlertDescription>
       </Alert>
     );
@@ -96,7 +89,7 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
     return (
       <Card className={`text-center bg-card/80 ${className}`}>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">No songs currently processing</p>
+          <p className="text-muted-foreground">No jobs currently processing</p>
         </CardContent>
       </Card>
     );
@@ -105,17 +98,34 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   // --- Display Processing Items ---
   return (
     <div className={className}>
-      {/* Display error alongside items if fetch fails after initial load */}
+      {/* Display error alongside items if WebSocket connection fails */}
       {error && (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error.message}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       <Card className="overflow-hidden bg-card/80">
         <CardHeader>
-          <CardTitle>Processing Queue</CardTitle>
-          <CardDescription>Songs being prepared for karaoke</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Jobs Queue</CardTitle>
+              <CardDescription>Songs being prepared for karaoke</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {isConnected ? (
+                <div className="flex items-center gap-1 text-green-600">
+                  <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                  <span className="text-xs">Live</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-yellow-600">
+                  <div className="w-2 h-2 bg-yellow-600 rounded-full"></div>
+                  <span className="text-xs">Connecting</span>
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {processingItems.map((item) => {
@@ -181,4 +191,4 @@ const ProcessingQueue: React.FC<ProcessingQueueProps> = ({
   );
 };
 
-export default ProcessingQueue;
+export default JobsQueue;

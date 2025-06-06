@@ -25,7 +25,7 @@ import FileUpload from "../components/upload/FileUpload";
 import YouTubeSearch from "../components/upload/YouTubeSearch";
 import AppLayout from "../components/layout/AppLayout";
 import { useUploadAndProcessAudio } from "../services/uploadService";
-import ProcessingQueue from "@/components/upload/ProcessingQueue";
+import JobsQueue from "@/components/upload/JobsQueue";
 
 // Define Zod schema for the File Upload form
 const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB
@@ -98,7 +98,7 @@ const AddSongPage: React.FC = () => {
   return (
     <AppLayout>
       <div className="p-4 md:p-6 space-y-6 container mx-auto">
-        <ProcessingQueue />
+        <JobsQueue />
         <YouTubeSearch />
 
         <Card className="bg-card/80">
