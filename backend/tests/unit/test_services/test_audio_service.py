@@ -23,79 +23,63 @@ except ImportError:
 class TestAudioService:
     """Test the audio processing service"""
     
-    @patch('app.services.audio.torch')
     @patch('app.services.audio.Separator')
-    def test_separate_audio_success_with_cuda(self, mock_separator, mock_torch):
+    def test_separate_audio_success_with_cuda(self, mock_separator):
         """Test successful audio separation with CUDA available"""
-        # Setup mocks
-        mock_torch.cuda.is_available.return_value = True
-        mock_torch.cuda.get_device_name.return_value = "GeForce RTX 3080"
-        
-        mock_separator_instance = Mock()
-        mock_separator.return_value = mock_separator_instance
-        
-        # Mock paths
-        input_path = Path("/test/input.mp3")
-        song_dir = Path("/test/output")
-        
-        # Mock status callback
-        status_callback = Mock()
-        
-        with patch('app.services.audio.save_audio') as mock_save_audio:
-            # Call the function
-            result = separate_audio(input_path, song_dir, status_callback)
-            
-            # Assertions
-            assert result is True
-            mock_torch.cuda.is_available.assert_called_once()
-            mock_torch.cuda.get_device_name.assert_called_once_with(0)
-            status_callback.assert_called()
-    
-    @patch('app.services.audio.torch')
-    @patch('app.services.audio.Separator')
-    def test_separate_audio_fallback_to_cpu(self, mock_separator, mock_torch):
-        """Test audio separation falls back to CPU when CUDA fails"""
-        # Setup mocks - CUDA available but fails during init
-        mock_torch.cuda.is_available.return_value = True
-        mock_torch.cuda.get_device_name.side_effect = RuntimeError("CUDA init failed")
-        
-        mock_separator_instance = Mock()
-        mock_separator.return_value = mock_separator_instance
-        
-        input_path = Path("/test/input.mp3")
-        song_dir = Path("/test/output")
-        status_callback = Mock()
-        
-        with patch('app.services.audio.save_audio') as mock_save_audio:
-            with patch('app.services.audio.os.environ') as mock_environ:
+        with patch.dict('sys.modules', {'torch': Mock()}):
+            import torch
+            mock_torch = torch
+            mock_torch.cuda.is_available.return_value = True
+            mock_torch.cuda.get_device_name.return_value = "GeForce RTX 3080"
+            mock_separator_instance = Mock()
+            mock_separator.return_value = mock_separator_instance
+            input_path = Path("/test/input.mp3")
+            song_dir = Path("/test/output")
+            status_callback = Mock()
+            with patch('app.services.audio.save_audio') as mock_save_audio:
                 result = separate_audio(input_path, song_dir, status_callback)
-                
-                # Should set CUDA_VISIBLE_DEVICES to empty string
-                mock_environ.__setitem__.assert_called_with("CUDA_VISIBLE_DEVICES", "")
+                assert result is True
+                mock_torch.cuda.is_available.assert_called_once()
+                mock_torch.cuda.get_device_name.assert_called_once_with(0)
                 status_callback.assert_called()
     
-    @patch('app.services.audio.torch')
     @patch('app.services.audio.Separator')
-    def test_separate_audio_cpu_only(self, mock_separator, mock_torch):
+    def test_separate_audio_fallback_to_cpu(self, mock_separator):
+        """Test audio separation falls back to CPU when CUDA fails"""
+        with patch.dict('sys.modules', {'torch': Mock()}):
+            import torch
+            mock_torch = torch
+            mock_torch.cuda.is_available.return_value = True
+            mock_torch.cuda.get_device_name.side_effect = RuntimeError("CUDA init failed")
+            mock_separator_instance = Mock()
+            mock_separator.return_value = mock_separator_instance
+            input_path = Path("/test/input.mp3")
+            song_dir = Path("/test/output")
+            status_callback = Mock()
+            with patch('app.services.audio.save_audio') as mock_save_audio:
+                with patch('app.services.audio.os.environ') as mock_environ:
+                    result = separate_audio(input_path, song_dir, status_callback)
+                    mock_environ.__setitem__.assert_called_with("CUDA_VISIBLE_DEVICES", "")
+                    status_callback.assert_called()
+    
+    @patch('app.services.audio.Separator')
+    def test_separate_audio_cpu_only(self, mock_separator):
         """Test audio separation with CPU only"""
-        # Setup mocks - no CUDA available
-        mock_torch.cuda.is_available.return_value = False
-        
-        mock_separator_instance = Mock()
-        mock_separator.return_value = mock_separator_instance
-        
-        input_path = Path("/test/input.mp3")
-        song_dir = Path("/test/output")
-        status_callback = Mock()
-        
-        with patch('app.services.audio.save_audio') as mock_save_audio:
-            result = separate_audio(input_path, song_dir, status_callback)
-            
-            # Should log CPU usage message
-            status_callback.assert_called()
-            calls = status_callback.call_args_list
-            cpu_message_found = any("CPU" in str(call) for call in calls)
-            assert cpu_message_found
+        with patch.dict('sys.modules', {'torch': Mock()}):
+            import torch
+            mock_torch = torch
+            mock_torch.cuda.is_available.return_value = False
+            mock_separator_instance = Mock()
+            mock_separator.return_value = mock_separator_instance
+            input_path = Path("/test/input.mp3")
+            song_dir = Path("/test/output")
+            status_callback = Mock()
+            with patch('app.services.audio.save_audio') as mock_save_audio:
+                result = separate_audio(input_path, song_dir, status_callback)
+                status_callback.assert_called()
+                calls = status_callback.call_args_list
+                cpu_message_found = any("CPU" in str(call) for call in calls)
+                assert cpu_message_found
     
     def test_separate_audio_stop_processing(self):
         """Test that audio separation can be stopped"""
