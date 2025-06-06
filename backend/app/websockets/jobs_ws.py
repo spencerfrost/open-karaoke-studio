@@ -77,6 +77,7 @@ def broadcast_job_created(job_data: Dict[str, Any]):
     Args:
         job_data: Dictionary containing job information
     """
+    print(f"Broadcasting job_created event: {job_data}")
     socketio.emit(
         'job_created',
         job_data,
