@@ -2,13 +2,13 @@
 
 ## Overview
 
-The Open Karaoke Studio uses Celery as an asynchronous task queue to process audio files in the background. This allows the web interface to remain responsive while CPU/GPU intensive audio separation tasks run asynchronously.
+The Open Karaoke Studio uses Celery as an asynchronous task queue to process audio files in the background. This allows the web interface to remain responsive while CPU/GPU intensive audio separation jobs run asynchronously.
 
 ## Architecture
 
 The system uses the following components:
 
-- **Flask API**: Handles HTTP requests and queues audio processing tasks
+- **Flask API**: Handles HTTP requests and queues audio processing jobs
 - **Celery**: Manages the task queue and worker processes
 - **Redis**: Acts as the message broker between Flask and Celery workers
 - **Demucs**: Powers the audio source separation (vocals/instrumental)
@@ -41,7 +41,7 @@ celery = Celery(
     'backend',
     broker=broker_url,
     backend=result_backend,
-    include=['backend.app.tasks']
+    include=['backend.app.jobs']
 )
 
 # Configure Celery
@@ -58,7 +58,7 @@ celery.conf.update(
 def init_celery(app=None):
     """Initialize Celery with Flask app context if provided."""
     if app:
-        # Add Flask context to tasks
+        # Add Flask context to jobs
         class ContextTask(celery.Task):
             def __call__(self, *args, **kwargs):
                 with app.app_context():
@@ -69,9 +69,9 @@ def init_celery(app=None):
     return celery
 ```
 
-### `tasks.py`
+### `jobs.py`
 
-This file defines the Celery tasks, particularly the audio processing task.
+This file defines the Celery jobs, particularly the audio processing task.
 
 ```python
 from datetime import datetime

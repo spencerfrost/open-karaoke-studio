@@ -12,7 +12,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **Instrumental Creation:** Generates karaoke-ready instrumental tracks.
 - **Song Library:** Maintains a searchable, user-friendly library of processed songs.
 - **YouTube Integration:** Search for songs on YouTube and automatically generate karaoke tracks.
-- **Asynchronous Processing:** Supports queuing and background processing of multiple tasks (Celery planned for production).
+- **Asynchronous Processing:** Supports queuing and background processing of multiple jobs (Celery planned for production).
 - **Modern Web UI:** Fast, responsive interface built with React, Tailwind CSS, and Shadcn components.
 - **Self-Hosting:** Designed for easy deployment and personal use.
 
@@ -37,7 +37,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ### Backend
 - **Framework:** Python 3.10+, Flask (RESTful API)
 - **Audio Processing:** Demucs (PyTorch), with GPU/CPU support
-- **Async Tasks:** Celery (for background processing)
+- **Async Jobs:** Celery (for background processing)
 - **Database:** SQLite (with SQLAlchemy models for song metadata)
 - **APIs:** Endpoints for file upload, processing, library management, YouTube search/download, lyrics, and metadata enrichment
 - **External Integrations:**
