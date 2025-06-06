@@ -46,9 +46,8 @@ class FileService(FileServiceInterface):
         return self.get_song_directory(song_id) / f"instrumental{extension}"
     
     def get_original_path(self, song_id: str, extension: str = ".mp3") -> Path:
-        """Get original file path"""
-        config = get_config()
-        return self.get_song_directory(song_id) / f"{song_id}{config.ORIGINAL_FILENAME_SUFFIX}{extension}"
+        """Get original file path (always 'original.mp3' in the song directory)"""
+        return self.get_song_directory(song_id) / f"original{extension}"
     
     def get_thumbnail_path(self, song_id: str) -> Path:
         """Get thumbnail file path"""

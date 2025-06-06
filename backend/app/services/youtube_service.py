@@ -152,9 +152,15 @@ class YouTubeService(YouTubeServiceInterface):
                     raise ServiceError(f"Could not download video info from {url}")
 
             # Verify download completed
-            original_file = self.file_service.get_original_path(song_id, ".mp3")
-            if not original_file.exists():
-                raise ServiceError(f"Download completed but file not found: {original_file}")
+            # Check for the actual file path created by yt-dlp first
+            expected_file_path = song_dir / "original.mp3"
+            if expected_file_path.exists():
+                original_file = expected_file_path
+            else:
+                # Try the configured path as fallback
+                original_file = self.file_service.get_original_path(song_id, ".mp3")
+                if not original_file.exists():
+                    raise ServiceError(f"Download completed but file not found: {original_file}")
 
             # Extract and create metadata
             metadata = self._extract_metadata_from_youtube_info(info)
@@ -295,12 +301,57 @@ class YouTubeService(YouTubeServiceInterface):
     def _get_best_thumbnail_url(self, video_info: Dict[str, Any]) -> Optional[str]:
         """Get the best quality thumbnail URL from video info"""
         thumbnails = video_info.get("thumbnails", [])
+        
+        # Strategy 1: Look for a maxres or high-resolution thumbnail first
         if thumbnails:
-            # Get thumbnail with highest preference
-            best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
-            return best_thumb.get("url")
-        elif video_info.get("thumbnail"):
+            # First pass: Check for thumbnails with "maxres" or high resolution in the URL or ID
+            for thumb in thumbnails:
+                url = thumb.get("url", "")
+                thumb_id = thumb.get("id", "")
+                if ("maxres" in url.lower() or "maxres" in thumb_id.lower() or 
+                    "hqdefault" in url.lower() or "hqdefault" in thumb_id.lower()):
+                    logger.info(f"Selected high-res thumbnail: {url}")
+                    return url
+            
+            # Strategy 2: Select by preference if available
+            try:
+                # Find thumbnail with highest preference value
+                best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
+                if best_thumb.get("url"):
+                    logger.info(f"Selected thumbnail by preference: {best_thumb.get('url')}")
+                    return best_thumb.get("url")
+            except (ValueError, TypeError):
+                logger.warning("Could not find thumbnail by preference")
+            
+            # Strategy 3: Select by resolution/width if available
+            try:
+                # Find thumbnail with highest width/resolution
+                best_thumb = max(thumbnails, key=lambda t: int(t.get("width", 0)))
+                if best_thumb.get("url"):
+                    logger.info(f"Selected thumbnail by width: {best_thumb.get('url')}")
+                    return best_thumb.get("url")
+            except (ValueError, TypeError):
+                logger.warning("Could not find thumbnail by width")
+            
+            # Strategy 4: Just use the first thumbnail as fallback
+            if thumbnails and thumbnails[0].get("url"):
+                logger.info(f"Selected first available thumbnail: {thumbnails[0].get('url')}")
+                return thumbnails[0].get("url")
+        
+        # Strategy 5: Use the direct thumbnail property if available
+        if video_info.get("thumbnail"):
+            logger.info(f"Using direct thumbnail property: {video_info.get('thumbnail')}")
             return video_info.get("thumbnail")
+        
+        # Last resort: Construct a thumbnail URL based on video ID
+        if video_info.get("id"):
+            video_id = video_info.get("id")
+            # YouTube standard thumbnail URL format
+            constructed_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            logger.info(f"Constructed thumbnail URL from video ID: {constructed_url}")
+            return constructed_url
+            
+        logger.warning("Could not find any thumbnail URL")
         return None
     
     def _download_thumbnail(self, song_id: str, thumbnail_url: str, metadata: SongMetadata) -> None:
@@ -312,13 +363,26 @@ class YouTubeService(YouTubeServiceInterface):
             # Use existing thumbnail download function
             from .file_management import download_image
             
-            logger.info(f"Downloading thumbnail from {thumbnail_url}")
+            logger.info(f"Attempting to download thumbnail from {thumbnail_url}")
             if download_image(thumbnail_url, thumbnail_path):
                 metadata.thumbnail = f"{song_id}/thumbnail.jpg"
-                logger.info(f"Thumbnail downloaded for song {song_id}")
-            else:
-                logger.warning(f"Failed to download thumbnail for song {song_id}")
+                logger.info(f"Thumbnail successfully downloaded for song {song_id}")
+                return
                 
+            # First fallback: Try alternative URL format if original failed
+            video_id = metadata.videoId
+            if video_id:
+                # Try different YouTube thumbnail formats
+                for format_name in ["maxresdefault", "hqdefault", "mqdefault", "sddefault", "default"]:
+                    fallback_url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.jpg"
+                    if fallback_url != thumbnail_url:  # Avoid retrying the same URL
+                        logger.info(f"Trying fallback thumbnail format {format_name}: {fallback_url}")
+                        if download_image(fallback_url, thumbnail_path):
+                            metadata.thumbnail = f"{song_id}/thumbnail.jpg"
+                            logger.info(f"Fallback thumbnail {format_name} downloaded successfully for song {song_id}")
+                            return
+            
+            logger.warning(f"All thumbnail download attempts failed for song {song_id}")
         except Exception as e:
             logger.warning(f"Error downloading thumbnail for song {song_id}: {e}")
             # Don't fail the whole operation for thumbnail issues
