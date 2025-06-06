@@ -19,7 +19,32 @@ from ..config import get_config
 config = get_config()
 DATABASE_URL = config.DATABASE_URL
 logging.info(f"Database URL: {DATABASE_URL}")
-engine = create_engine(DATABASE_URL)
+
+# Log the actual database file path for SQLite debugging
+if DATABASE_URL.startswith('sqlite:'):
+    db_file_path = DATABASE_URL.replace('sqlite:///', '')
+    logging.info(f"SQLite database file path: {db_file_path}")
+    logging.info(f"Database file exists: {Path(db_file_path).exists()}")
+    
+    # Log current working directory for debugging path resolution
+    import os
+    logging.info(f"Current working directory: {os.getcwd()}")
+    logging.info(f"Absolute database path: {Path(db_file_path).resolve()}")
+
+# Configure SQLite engine for better concurrency and cross-process reliability
+if DATABASE_URL.startswith('sqlite:'):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={
+            "timeout": 30,  # 30 second timeout for database locks
+            "check_same_thread": False,  # Allow cross-thread access
+        },
+        pool_pre_ping=True,  # Verify connections before use
+        pool_recycle=3600,   # Recycle connections every hour
+        echo=False,  # Set to True for SQL debugging if needed
+    )
+else:
+    engine = create_engine(DATABASE_URL)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -28,6 +53,38 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db():
     """Initialize the database with tables from models"""
     Base.metadata.create_all(bind=engine)
+    
+    # Configure SQLite for better concurrency if using SQLite
+    if config.DATABASE_URL.startswith('sqlite:'):
+        try:
+            with engine.connect() as connection:
+                from sqlalchemy import text
+                # Enable WAL mode for better concurrency
+                connection.execute(text("PRAGMA journal_mode=WAL;"))
+                # Set reasonable timeout
+                connection.execute(text("PRAGMA busy_timeout=30000;"))
+                # Enable foreign keys
+                connection.execute(text("PRAGMA foreign_keys=ON;"))
+                # Set synchronous mode for better reliability
+                connection.execute(text("PRAGMA synchronous=FULL;"))
+                connection.commit()
+                logging.info("SQLite configured with WAL mode for better concurrency")
+        except Exception as e:
+            logging.warning(f"Failed to configure SQLite pragmas: {e}")
+
+
+def force_db_sync():
+    """Force SQLite WAL checkpoint to ensure data is written to main database file"""
+    if config.DATABASE_URL.startswith('sqlite:'):
+        try:
+            with engine.connect() as connection:
+                from sqlalchemy import text
+                # Force WAL checkpoint to flush all pending transactions
+                result = connection.execute(text("PRAGMA wal_checkpoint(FULL);"))
+                logging.info(f"WAL checkpoint result: {result.fetchone()}")
+                connection.commit()
+        except Exception as e:
+            logging.warning(f"Failed to execute WAL checkpoint: {e}")
 
 # SQLAlchemy session middleware for route handlers (placeholder, can be implemented if needed)
 class DBSessionMiddleware:

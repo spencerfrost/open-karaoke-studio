@@ -27,15 +27,35 @@ class JobsService(JobsServiceInterface):
         self.job_store = job_store or JobStore()
         self.file_service = FileService()
 
-    def get_all_jobs(self) -> List[Job]:
+    def get_all_jobs(self, include_dismissed: bool = False) -> List[Job]:
         """Get all jobs sorted by creation time (newest first)."""
-        jobs = self.job_store.get_all_jobs()
+        if include_dismissed:
+            jobs = self.job_store.get_all_jobs()
+        else:
+            jobs = self.job_store.get_active_jobs()
         
         def get_created_time(job):
             if job.created_at is None:
                 # Return minimum datetime so None values sort last when reverse=True
                 return datetime.min.replace(tzinfo=timezone.utc)
 
+            if job.created_at.tzinfo is None:
+                return job.created_at.replace(tzinfo=timezone.utc)
+            return job.created_at
+
+        return sorted(jobs, key=get_created_time, reverse=True)
+
+    def get_active_jobs(self) -> List[Job]:
+        """Get all non-dismissed jobs (for main queue display)."""
+        return self.get_all_jobs(include_dismissed=False)
+
+    def get_dismissed_jobs(self) -> List[Job]:
+        """Get all dismissed jobs."""
+        jobs = self.job_store.get_dismissed_jobs()
+        
+        def get_created_time(job):
+            if job.created_at is None:
+                return datetime.min.replace(tzinfo=timezone.utc)
             if job.created_at.tzinfo is None:
                 return job.created_at.replace(tzinfo=timezone.utc)
             return job.created_at
@@ -105,6 +125,25 @@ class JobsService(JobsServiceInterface):
 
         return True
 
+    def dismiss_job(self, job_id: str) -> bool:
+        """
+        Dismiss a completed, failed, or cancelled job from the UI.
+        Job is hidden but kept in database for potential retry.
+        
+        Returns:
+            True if job was successfully dismissed, False if job not found or cannot be dismissed
+        """
+        job = self.job_store.get_job(job_id)
+        if not job:
+            return False
+
+        # Check if job can be dismissed (only final states)
+        if job.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            return False
+
+        # Use the job store's dismiss method
+        return self.job_store.dismiss_job(job_id)
+
     def get_statistics(self) -> Dict[str, int]:
         """Get statistics about jobs."""
         return self.job_store.get_stats()
@@ -132,3 +171,45 @@ class JobsService(JobsServiceInterface):
         estimated_remaining = remaining_percent * time_per_percent
 
         return datetime.now() + timedelta(seconds=estimated_remaining)
+
+    def _broadcast_job_event(self, job: Job, was_created: bool = False):
+        """
+        Broadcast a job event via WebSocket if available.
+        
+        Args:
+            job: The job object
+            was_created: Whether this is a newly created job
+        """
+        try:
+            from ..websockets.jobs_ws import (
+                broadcast_job_update,
+                broadcast_job_created,
+                broadcast_job_completed,
+                broadcast_job_failed,
+                broadcast_job_cancelled
+            )
+            
+            job_data = job.to_dict()
+            
+            # Determine the appropriate broadcast function
+            if was_created:
+                broadcast_job_created(job_data)
+            else:
+                # Map job status to appropriate event type
+                if job.status == JobStatus.COMPLETED:
+                    broadcast_job_completed(job_data)
+                elif job.status == JobStatus.FAILED:
+                    broadcast_job_failed(job_data)
+                elif job.status == JobStatus.CANCELLED:
+                    broadcast_job_cancelled(job_data)
+                else:
+                    # For PENDING, PROCESSING, or other statuses
+                    broadcast_job_update(job_data)
+                    
+        except ImportError:
+            # WebSocket module not available, skip broadcasting
+            pass
+        except Exception as e:
+            # Log error but don't fail the operation
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to broadcast job event: {e}")
