@@ -59,8 +59,8 @@ export function useSongs() {
       `status/${id}`,
       {
         enabled: !!id,
-        refetchInterval: (data) => 
-          data && data.status === 'processing' || data?.status === 'queued' ? 2000 : false,
+        refetchInterval: (query) =>
+          query.state.data && (query.state.data.status === 'processing' || query.state.data.status === 'queued') ? 2000 : false,
         ...options,
       }
     );
@@ -124,12 +124,12 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
-          // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+        onError: (_err, variables, context: unknown) => {
+          const ctx = context as { previousSong?: Song } | undefined;
+          if (ctx?.previousSong) {
             queryClient.setQueryData(
-              QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              QUERY_KEYS.song(variables.id),
+              ctx.previousSong
             );
           }
         },
@@ -200,12 +200,13 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
+        onError: (_err, variables, context: unknown) => {
           // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+          const typedContext = context as { previousSong?: Song } | undefined;
+          if (typedContext?.previousSong) {
             queryClient.setQueryData(
               QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              typedContext.previousSong
             );
           }
         },
@@ -245,11 +246,7 @@ export function useSongs() {
       'songs/:id',
       'delete',
       {
-        // Skip all the optimistic update logic for now, just focus on successful deletion
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
-        },
-        mutationFn: async (id) => {
+        mutationFn: async (id: string) => {
           console.log('Deleting song with ID:', id); // Debug log
           const url = formatUrl('songs/:id', { id });
           console.log('Delete URL:', `/api/${url}`); // Debug log
@@ -267,7 +264,7 @@ export function useSongs() {
             try {
               const errorData = JSON.parse(errorText);
               errorMessage = errorData.error || errorMessage;
-            } catch (e) {
+            } catch {
               // If parsing fails, just use the error text
               errorMessage = errorText || errorMessage;
             }
@@ -281,6 +278,9 @@ export function useSongs() {
           }
           
           return response.json();
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
         },
       }
     );
@@ -325,12 +325,13 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
+        onError: (_err, variables, context: unknown) => {
           // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+          const typedContext = context as { previousSong?: Song } | undefined;
+          if (typedContext?.previousSong) {
             queryClient.setQueryData(
               QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              typedContext.previousSong
             );
           }
         },

@@ -12,7 +12,7 @@ export interface YouTubeDownloadRequest {
 }
 
 export interface YouTubeDownloadResponse {
-  tempId: string;
+  jobId: string;  // Changed from tempId to jobId to match new backend response
   status: string;
   message: string;
 }
