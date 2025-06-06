@@ -18,6 +18,8 @@ interface JobData {
   completed_at?: string;
   filename?: string;
   task_id?: string;
+  artist?: string;
+  title?: string;
 }
 
 /**
@@ -48,6 +50,8 @@ function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
     progress: job.progress || 0,
     status: mapBackendStatus(job.status),
     message: job.error || job.notes || undefined,
+    artist: job.artist,
+    title: job.title,
   };
 }
 
@@ -63,6 +67,7 @@ export function useJobsWebSocket() {
 
   // Update job in the list
   const updateJob = useCallback((jobData: JobData) => {
+    console.log('updateJob called with:', jobData);
     const processedJob = mapJobToProcessingStatus(jobData);
     
     setJobs(prevJobs => {
@@ -72,6 +77,7 @@ export function useJobsWebSocket() {
         // Update existing job
         const updatedJobs = [...prevJobs];
         updatedJobs[existingIndex] = processedJob;
+        console.log('Updated existing job in list');
         
         // Remove completed/failed jobs from the processing list after a short delay
         if (processedJob.status === 'processed' || processedJob.status === 'error') {
@@ -84,8 +90,10 @@ export function useJobsWebSocket() {
       } else {
         // Add new job if it's in processing state
         if (['queued', 'processing'].includes(processedJob.status)) {
+          console.log('Added new job to list:', processedJob);
           return [...prevJobs, processedJob];
         }
+        console.log('Job not added - status not processing/queued:', processedJob.status);
         return prevJobs;
       }
     });
@@ -156,21 +164,6 @@ export function useJobsWebSocket() {
       };
     }
   }, [updateJob, removeJob, handleJobsList]);
-
-  // Request initial jobs list via WebSocket on mount
-  useEffect(() => {
-    // We'll rely on the 'subscribed' event to trigger the server to send us the jobs list
-    // The server should automatically send the jobs_list event after subscription
-    
-    // If after a short delay we haven't received the jobs list, set an error
-    const timeoutId = setTimeout(() => {
-      if (jobs.length === 0 && !error) {
-        setError('No initial jobs data received via WebSocket');
-      }
-    }, 3000);
-    
-    return () => clearTimeout(timeoutId);
-  }, [jobs.length, error]);
 
   return {
     jobs,

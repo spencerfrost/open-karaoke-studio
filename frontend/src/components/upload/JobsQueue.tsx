@@ -1,6 +1,9 @@
 import React from "react";
-import { Music, X, Loader2 } from "lucide-react";
-import { useCancelProcessing } from "../../services/uploadService";
+import { Music, X, Loader2, EyeOff } from "lucide-react";
+import {
+  useCancelProcessing,
+  useDismissJob,
+} from "../../services/uploadService";
 import { useJobsWebSocket } from "../../hooks/useJobsWebSocket";
 import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
@@ -19,9 +22,7 @@ interface JobsQueueProps {
   className?: string;
 }
 
-const JobsQueue: React.FC<JobsQueueProps> = ({
-  className = "",
-}) => {
+const JobsQueue: React.FC<JobsQueueProps> = ({ className = "" }) => {
   // Use WebSocket for real-time job updates
   const {
     jobs: processingItems = [],
@@ -41,10 +42,28 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
     },
   });
 
+  // Use React Query for dismiss mutation
+  const dismissMutation = useDismissJob({
+    onSuccess: (_, taskId) => {
+      toast.success(`Job ${taskId.substring(0, 8)} dismissed successfully.`);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(`Failed to dismiss job: ${err.message}`);
+      console.error(err);
+    },
+  });
+
   // Handle canceling a processing task
   const handleCancel = (taskId: string) => {
     toast.info(`Attempting to cancel job ${taskId.substring(0, 8)}...`);
     cancelMutation.mutate(taskId);
+  };
+
+  // Handle dismissing a failed/completed task
+  const handleDismiss = (taskId: string) => {
+    toast.info(`Dismissing job ${taskId.substring(0, 8)}...`);
+    dismissMutation.mutate(taskId);
   };
 
   // Get status label and badge variant
@@ -56,13 +75,15 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
         return { label: "Processing", variant: "default" }; // default uses primary color
       case "error":
         return { label: "Failed", variant: "destructive" };
+      case "processed":
+        return { label: "Completed", variant: "secondary" };
       case "queued":
       default:
         return { label: "Queued", variant: "secondary" };
     }
   };
 
-  if (!processingItems.length && !error) {
+  if (!isConnected && processingItems.length === 0) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg p-6 border border-border bg-card/60 text-card-foreground ${className}`}
@@ -77,21 +98,8 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
   if (error && !processingItems.length) {
     return (
       <Alert variant="destructive" className={className}>
-        <AlertDescription>
-          {error}
-        </AlertDescription>
+        <AlertDescription>{error}</AlertDescription>
       </Alert>
-    );
-  }
-
-  // Empty Queue State
-  if (!processingItems.length) {
-    return (
-      <Card className={`text-center bg-card/80 ${className}`}>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground">No jobs currently processing</p>
-        </CardContent>
-      </Card>
     );
   }
 
@@ -105,12 +113,14 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
         </Alert>
       )}
 
-      <Card className="overflow-hidden bg-card/80">
+      <Card className="overflow-hidden bg-card/80 pb-0 gap-4">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Jobs Queue</CardTitle>
-              <CardDescription>Songs being prepared for karaoke</CardDescription>
+              <CardDescription>
+                Songs being prepared for karaoke
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               {isConnected ? (
@@ -133,7 +143,7 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
             return (
               <div
                 key={item.id}
-                className="p-3 flex items-center border-b border-border/30 last:border-b-0"
+                className="p-3 flex items-center border-t border-black"
               >
                 {/* Icon */}
                 <div className="h-10 w-10 rounded-md flex items-center justify-center mr-3 bg-secondary/20 flex-shrink-0">
@@ -144,7 +154,9 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center gap-2">
                     <h4 className="font-medium truncate text-sm text-card-foreground">
-                      {item.message || `Job ${item.id}`}
+                      {item.title && item.artist
+                        ? `${item.title} - ${item.artist}`
+                        : item.message || `Job ${item.id}`}
                     </h4>
                     <Badge
                       variant={statusInfo.variant}
@@ -153,38 +165,59 @@ const JobsQueue: React.FC<JobsQueueProps> = ({
                       {statusInfo.label}
                     </Badge>
                   </div>
-                  <div className="flex items-center mt-1">
+                  <div className="flex items-center">
                     <Progress
                       value={null}
-                      className="h-1.5 flex-1 mr-2 bg-muted/30"
+                      className="h-1.5 flex-1 mr-2 bg-accent"
                     />
                     <span className="text-xs text-muted-foreground">
                       {item.progress ?? 0}%
                     </span>
                   </div>
-                  {item.status === "error" && (
-                    <p className="text-xs mt-1 text-destructive">
-                      Processing failed. Please try again.
-                    </p>
-                  )}
-
-                  {/* Cancel Button */}
-                  {(item.status === "queued" ||
-                    item.status === "processing") && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-2 text-destructive hover:bg-destructive/10 h-8 w-8 p-0 flex-shrink-0"
-                      onClick={() => handleCancel(item.id)}
-                      aria-label="Cancel processing"
-                    >
-                      <X size={16} />
-                    </Button>
-                  )}
+                  <div className="flex items-center justify-between">
+                    {item.status === "error" && (
+                      <p className="text-xs mt-1 text-destructive">
+                        Processing failed. You can dismiss this job and try
+                        again.
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1">
+                      {/* Cancel Button - Only show for cancellable statuses */}
+                      {(item.status === "queued" ||
+                        item.status === "processing") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10 h-8 w-8 p-0 flex-shrink-0"
+                          onClick={() => handleCancel(item.id)}
+                          aria-label="Cancel processing"
+                        >
+                          <X size={16} />
+                        </Button>
+                      )}
+                      {/* Dismiss Button - Only show for failed jobs */}
+                      {item.status === "error" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:bg-muted/50 h-8 w-8 p-0 flex-shrink-0"
+                          onClick={() => handleDismiss(item.id)}
+                          aria-label="Dismiss failed job"
+                        >
+                          <EyeOff size={16} />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             );
           })}
+          {processingItems.length === 0 && (
+            <div className="p-4 text-center border-t border-black">
+              No jobs in the queue.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
