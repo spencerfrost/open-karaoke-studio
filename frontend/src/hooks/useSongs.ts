@@ -362,16 +362,6 @@ export function useSongs() {
       }
     );
   };
-
-  /**
-   * Search MusicBrainz for song metadata
-   */
-  const useSearchMusicBrainz = () => {
-    return useApiMutation<
-      Array<Partial<Song>>,
-      { title?: string; artist?: string }
-    >('musicbrainz/search', 'post');
-  };
   
   // ===== Utility Functions =====
 
@@ -440,7 +430,6 @@ export function useSongs() {
     useUpdateSongMetadata,
     useDeleteSong,
     useToggleFavorite,
-    useSearchMusicBrainz,
     
     // Utility functions
     getAudioUrl,

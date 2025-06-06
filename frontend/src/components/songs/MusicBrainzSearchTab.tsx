@@ -6,7 +6,7 @@ import { Label } from "../ui/label";
 import { Music, Search, Check } from "lucide-react";
 import { Song } from "../../types/Song";
 import vintageTheme from "../../utils/theme";
-import { useSongs } from "../../hooks/useSongs";
+import { useMetadata } from "../../hooks/useMetadata";
 
 interface MusicBrainzSearchTabProps {
   song: Song;
@@ -21,11 +21,12 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   const [searchQuery, setSearchQuery] = useState({
     title: song.title,
     artist: song.artist,
+    album: song.album || "",
   });
   const [searchResults, setSearchResults] = useState<Partial<Song>[]>([]);
   const [noResults, setNoResults] = useState(false);
 
-  const { useSearchMusicBrainz } = useSongs();
+  const { useSearchMusicBrainz } = useMetadata();
   const searchMusicBrainz = useSearchMusicBrainz();
 
   const handleSearch = async () => {
@@ -35,6 +36,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
       const results = await searchMusicBrainz.mutateAsync({
         title: searchQuery.title,
         artist: searchQuery.artist,
+        album: searchQuery.album,
       });
 
       setSearchResults(results || []);
@@ -65,7 +67,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
 
       {/* Search Form */}
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label className="text-background" htmlFor="searchTitle">
               Title
@@ -91,6 +93,21 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
                 setSearchQuery((prev) => ({ ...prev, artist: e.target.value }))
               }
               className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-background" htmlFor="searchAlbum">
+              Album (optional)
+            </Label>
+            <Input
+              id="searchAlbum"
+              value={searchQuery.album}
+              onChange={(e) =>
+                setSearchQuery((prev) => ({ ...prev, album: e.target.value }))
+              }
+              className="w-full"
+              placeholder="Enter album name..."
             />
           </div>
         </div>

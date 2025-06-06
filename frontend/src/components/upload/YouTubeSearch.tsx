@@ -262,7 +262,7 @@ const YouTubeSearch: React.FC = () => {
   };
 
   return (
-    <Card>
+    <Card className="overflow-hidden bg-card/80 pb-0 gap-4">
       <CardHeader>
         <CardTitle>Search YouTube</CardTitle>
         <CardDescription>
