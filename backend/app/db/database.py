@@ -11,7 +11,7 @@ import logging
 
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session, sessionmaker
-from .models import Base, DbSong, SongMetadata
+from .models import Base, DbSong, SongMetadata, Song
 from ..services import file_management
 from ..config import get_config
 
@@ -128,7 +128,11 @@ def get_song(song_id: str) -> Optional[DbSong]:
 
 
 def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]:
-    """Create or update a song in the database from metadata"""
+    """Create or update a song in the database from metadata
+    
+    Returns:
+        The refreshed DbSong model with all data loaded
+    """
 
     try:
         with get_db_session() as session:
@@ -173,6 +177,8 @@ def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSo
                     setattr(db_song, key, value)
 
             session.commit()
+            # Refresh the instance to ensure all attributes are loaded before session closes
+            session.refresh(db_song)
             return db_song
 
     except Exception as e:

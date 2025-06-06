@@ -181,7 +181,7 @@ class TestJob:
         mock_status = Mock()
         mock_status.PENDING = "pending"
         
-        with patch('app.db.models.JobStatus', mock_status):
+        with patch('app.db.models.job.JobStatus', mock_status):
             job_data = {
                 "id": "job-123",
                 "filename": "test.mp3",
@@ -206,7 +206,7 @@ class TestJob:
         # Mock the datetime
         mock_datetime = datetime.now(timezone.utc)
         
-        with patch('app.db.models.datetime') as mock_dt:
+        with patch('app.db.models.job.datetime') as mock_dt:
             mock_dt.now.return_value = mock_datetime
             
             job = Mock()
