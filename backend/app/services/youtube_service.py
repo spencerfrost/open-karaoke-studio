@@ -238,50 +238,94 @@ class YouTubeService(YouTubeServiceInterface):
         title: str = None,
         song_id: str = None
     ) -> str:
-        """Download video and queue for audio processing, return job/song ID"""
+        """Download video and queue for unified YouTube processing, return job ID"""
         try:
-            # Download video
-            song_id, metadata = self.download_video(
-                video_id_or_url, song_id, artist, title
+            # Extract video ID using same logic as download_video
+            if not self.validate_video_url(video_id_or_url):
+                # Assume it's already a video ID
+                video_id = video_id_or_url
+            else:
+                video_id = self.get_video_id_from_url(video_id_or_url)
+                if not video_id:
+                    raise ValidationError(f"Could not extract video ID from URL: {video_id_or_url}")
+            
+            # Validate song_id is provided
+            if not song_id:
+                raise ValidationError("song_id is required for YouTube processing")
+                
+            # Ensure song exists in database before creating job
+            from ..db import database
+            existing_song = database.get_song(song_id)
+            if not existing_song:
+                # Create song record with basic metadata
+                metadata = SongMetadata(
+                    title=title or "Unknown Title",
+                    artist=artist or "Unknown Artist",
+                    dateAdded=datetime.now(timezone.utc),
+                    source="youtube",
+                    videoId=video_id,
+                )
+                created_song = database.create_or_update_song(song_id, metadata)
+                if created_song:
+                    logger.info(f"Created song record {song_id} in database")
+                else:
+                    raise ServiceError(f"Failed to create song record {song_id}")
+            
+            # Generate unique job ID
+            job_id = str(uuid.uuid4())
+            
+            # Create and save job to database FIRST, before queuing Celery task
+            from ..jobs.jobs import job_store, process_youtube_job
+            from ..db.models import Job, JobStatus
+            import json
+            
+            # Store video_id in notes for reference
+            job_notes = json.dumps({"video_id": video_id})
+            
+            job = Job(
+                id=job_id,
+                filename="original.mp3",
+                status=JobStatus.PENDING,
+                status_message="Queued for YouTube processing",
+                progress=0,
+                song_id=song_id,
+                title=title or "Unknown Title",
+                artist=artist or "Unknown Artist",
+                notes=job_notes,
+                created_at=datetime.now(timezone.utc),
             )
             
-            # Create song in database using Song Service
-            if self.song_service:
-                self.song_service.create_song_from_metadata(song_id, metadata)
+            # Save job to database and verify it was saved
+            job_store.save_job(job)
             
-            # Queue for audio processing
-            from ..jobs.jobs import process_audio_job, job_store
-            from ..db.models import Job, JobStatus
+            # Verify job was actually saved before proceeding
+            saved_job = job_store.get_job(job_id)
+            if not saved_job:
+                raise ServiceError(f"Failed to save job {job_id} to database")
             
-            original_file = self.file_service.get_original_path(song_id, ".mp3")
+            logger.info(f"Job {job_id} successfully saved to database")
             
-            if original_file.exists():
-                logger.info(f"Submitting audio processing task for song {song_id}")
-                
-                job = Job(
-                    id=song_id,
-                    filename=original_file.name,
-                    status=JobStatus.PENDING,
-                    created_at=datetime.now(timezone.utc),
-                )
-                job_store.save_job(job)
-                
-                task = process_audio_job.delay(song_id)
-                
-                job.task_id = task.id
-                job.status = JobStatus.PROCESSING
-                job_store.save_job(job)
-                
-                logger.info(f"Audio processing job queued for song {song_id}")
-            else:
-                logger.error(f"Original audio file not found at {original_file}")
-                raise ServiceError(f"Original audio file not found after download")
+            # Now queue the Celery task
+            metadata_dict = {
+                "artist": artist or "Unknown Artist", 
+                "title": title or "Unknown Title"
+            }
             
-            return song_id
+            logger.info(f"Submitting unified YouTube processing job {job_id} for video {video_id}")
+            
+            task = process_youtube_job.delay(job_id, video_id, metadata_dict)
+            
+            # Update job with task ID
+            job.task_id = task.id
+            job_store.save_job(job)
+            
+            logger.info(f"Unified YouTube processing job {job_id} queued successfully with task {task.id}")
+            
+            return job_id
             
         except Exception as e:
-            logger.error(f"Failed to download and process video {video_id_or_url}: {e}")
-            raise ServiceError(f"Failed to download and process video: {e}")
+            logger.error(f"Failed to queue YouTube processing for {video_id_or_url}: {e}")
+            raise ServiceError(f"Failed to queue YouTube processing: {e}")
     
     def _extract_metadata_from_youtube_info(self, video_info: Dict[str, Any]) -> SongMetadata:
         """Extract metadata from YouTube video info"""

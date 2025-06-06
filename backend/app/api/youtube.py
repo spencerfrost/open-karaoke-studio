@@ -16,21 +16,22 @@ def search_youtube_endpoint():
         query = request.args.get("query")
         if not query:
             return error_response("Missing query parameter", 400)
-            
+
         max_results_str = request.args.get("maxResults", "10")
         try:
             max_results = int(max_results_str)
         except ValueError:
-            return error_response("Invalid maxResults parameter, must be an integer", 400)
+            return error_response(
+                "Invalid maxResults parameter, must be an integer", 400
+            )
 
         youtube_service = YouTubeService()
         results = youtube_service.search_videos(query, max_results)
-        
+
         return success_response(
-            data=results,
-            message=f"Found {len(results)} videos matching '{query}'"
+            data=results, message=f"Found {len(results)} videos matching '{query}'"
         )
-        
+
     except ServiceError as e:
         return error_response(str(e), 500)
     except Exception as e:
@@ -40,38 +41,42 @@ def search_youtube_endpoint():
 
 @youtube_bp.route("/download", methods=["POST"])
 def download_youtube_endpoint():
-    """Download and process YouTube video - thin controller"""
+    """Download and process YouTube video - thin controller delegating to service"""
     try:
         data = request.get_json()
         if not data or "videoId" not in data:
             return error_response("Missing videoId parameter", 400)
-            
+
+        video_id = data["videoId"]
         artist = data.get("artist", "")
         song_title = data.get("title", "")
-        existing_song_id = data.get("songId")
-        
-        # Create YouTube service with Song service dependency
-        song_service = SongService()
-        youtube_service = YouTubeService(song_service=song_service)
-        
-        # Start async download and processing
-        song_id = youtube_service.download_and_process_async(
-            video_id_or_url=data["videoId"],
-            artist=artist,
-            title=song_title,
-            song_id=existing_song_id
+        song_id = data.get("songId")
+
+        # Validate required parameters
+        if not song_id:
+            return error_response("Missing songId parameter", 400)
+
+        # Delegate to service layer for job creation and orchestration
+        # The service will handle song creation if needed
+        youtube_service = YouTubeService()
+        job_id = youtube_service.download_and_process_async(
+            video_id_or_url=video_id, artist=artist, title=song_title, song_id=song_id
         )
-        
+
+        current_app.logger.info(
+            f"YouTube processing started for song {song_id}, video {video_id}, job {job_id}"
+        )
+
         return success_response(
             data={
-                "songId": song_id,
-                "status": "processing",
-                "message": "Download and processing started"
+                "jobId": job_id,
+                "status": "pending",
+                "message": "YouTube processing job created",
             },
-            message="YouTube video download started",
-            status_code=202
+            message="YouTube processing started",
+            status_code=202,
         )
-        
+
     except ValidationError as e:
         return error_response(str(e), 400)
     except ServiceError as e:

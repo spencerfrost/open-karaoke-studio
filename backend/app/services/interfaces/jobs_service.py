@@ -71,6 +71,36 @@ class JobsServiceInterface(Protocol):
         """
         ...
 
+    def dismiss_job(self, job_id: str) -> bool:
+        """
+        Dismiss a completed, failed, or cancelled job from the UI.
+        
+        Args:
+            job_id: The unique identifier for the job to dismiss
+            
+        Returns:
+            True if job was successfully dismissed, False otherwise
+        """
+        ...
+
+    def get_active_jobs(self) -> List[Job]:
+        """
+        Get all non-dismissed jobs (for main queue display).
+        
+        Returns:
+            List of non-dismissed jobs
+        """
+        ...
+
+    def get_dismissed_jobs(self) -> List[Job]:
+        """
+        Get all dismissed jobs.
+        
+        Returns:
+            List of dismissed jobs
+        """
+        ...
+
     def get_statistics(self) -> Dict[str, int]:
         """
         Get statistics about jobs.
