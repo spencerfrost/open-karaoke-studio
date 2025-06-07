@@ -212,7 +212,7 @@ export function SongAdditionStepper({
       album: selectedMetadata?.album || confirmedMetadata.album,
       lyrics: selectedLyrics?.plainLyrics,
       syncedLyrics: selectedLyrics?.syncedLyrics,
-      musicbrainzId: selectedMetadata?.musicbrainzId,
+      metadataId: selectedMetadata?.id,
     });
   };
 
