@@ -9,7 +9,7 @@ from .songs import song_bp
 from .jobs import jobs_bp
 from .karaoke_queue import karaoke_queue_bp
 from .users import user_bp
-from .musicbrainz import mb_bp
+from .metadata import metadata_bp
 from .youtube import youtube_bp
 
 # List of all blueprints to register with the app
@@ -19,7 +19,7 @@ all_blueprints = [
     jobs_bp,
     karaoke_queue_bp,
     user_bp,
-    mb_bp,
+    metadata_bp,
     youtube_bp,
 ]
 

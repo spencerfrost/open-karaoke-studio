@@ -8,7 +8,6 @@ yt-dlp
 celery[redis]>=5.0,<6.0
 flask-celery-helper
 python-dotenv
-musicbrainzngs
 requests
 sqlalchemy
 flask-socketio

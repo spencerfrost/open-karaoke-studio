@@ -139,7 +139,7 @@ def get_song_details(song_id: str):
                     "year": db_song.release_date,
                     "genre": db_song.genre,
                     "language": db_song.language,
-                    "musicbrainzId": db_song.mbid,
+                    "metadataId": db_song.mbid,
                     "channelName": db_song.channel,
                     "source": db_song.source,
                     "sourceUrl": db_song.source_url,
@@ -241,8 +241,8 @@ def update_song_metadata(song_id: str):
             existing_metadata.genre = update_data["genre"]
         if "language" in update_data:
             existing_metadata.language = update_data["language"]
-        if "musicbrainzId" in update_data and update_data["musicbrainzId"]:
-            existing_metadata.mbid = update_data["musicbrainzId"]
+        if "metadataId" in update_data and update_data["metadataId"]:
+            existing_metadata.mbid = update_data["metadataId"]
 
         # Explicitly handle the lyrics fields to ensure they're preserved
         if "lyrics" in update_data:
