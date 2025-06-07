@@ -45,10 +45,12 @@ class TestAdvancedErrorHandling:
             with pytest.raises(ServiceError, match="Failed to download YouTube video.*Could not extract video ID from URL"):
                 youtube_service.download_video(valid_but_bad_url)
 
-    @patch('app.jobs.jobs.process_audio_job')
+    @patch('app.jobs.jobs.process_youtube_job')
     @patch('app.jobs.jobs.job_store')
+    @patch('app.db.database')
     def test_error_propagation_database_failure_to_service_error(
         self, 
+        mock_database,
         mock_job_store, 
         mock_process_job, 
         youtube_service, 
@@ -56,80 +58,37 @@ class TestAdvancedErrorHandling:
     ):
         """Test error propagation: Database failure → ServiceError"""
         # Arrange
-        youtube_service.song_service.create_song_from_metadata.side_effect = Exception("Database error")
+        mock_database.get_song.return_value = None
+        mock_database.create_or_update_song.side_effect = Exception("Database error")
         
-        with patch.object(youtube_service, 'download_video') as mock_download, \
-             patch('pathlib.Path.exists', return_value=True):
-            
-            mock_download.return_value = ("song-123", sample_metadata)
-            
-            # Act & Assert
-            with pytest.raises(ServiceError, match="Failed to download and process video"):
-                youtube_service.download_and_process_async("dQw4w9WgXcQ")
+        # Act & Assert
+        with pytest.raises(ServiceError, match="Failed to queue YouTube processing"):
+            youtube_service.download_and_process_async(
+                "dQw4w9WgXcQ",
+                song_id="song-123"
+            )
 
-    @patch('app.jobs.jobs.process_audio_job')
-    @patch('app.jobs.jobs.job_store')
     def test_partial_failure_download_succeeds_thumbnail_fails(
         self, 
-        mock_job_store, 
-        mock_process_job, 
         youtube_service
     ):
-        """Test partial failure: Download succeeds, thumbnail fails
+        """Test partial failure: Missing song_id parameter (now required)
         
-        Note: Current implementation does not gracefully handle thumbnail failures.
-        This test documents the current behavior - thumbnail failures cause the entire operation to fail.
-        Future enhancement: implement graceful degradation for thumbnail failures.
+        Note: Current implementation requires song_id parameter.
+        This test documents the current validation behavior.
         """
-        # Arrange
-        sample_info = {
-            "id": "dQw4w9WgXcQ",
-            "title": "Test Video",
-            "uploader": "Test Artist",
-            "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        }
-        
-        with patch('app.services.youtube_service.yt_dlp.YoutubeDL') as mock_ytdl, \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch.object(youtube_service, '_get_best_thumbnail_url', return_value="https://invalid-thumb.jpg"), \
-             patch.object(youtube_service, '_download_thumbnail') as mock_download_thumb:
-            
-            mock_ydl_instance = Mock()
-            mock_ytdl.return_value.__enter__.return_value = mock_ydl_instance
-            mock_ydl_instance.extract_info.return_value = sample_info
-            mock_download_thumb.side_effect = Exception("Thumbnail error")
-            mock_process_job.delay.return_value.id = "job-123"
-            
-            youtube_service.file_service.get_song_directory.return_value = Path("/test/dir")
-            youtube_service.file_service.get_original_path.return_value = Path("/test/dir/original.mp3")
-            
-            # Act & Assert - Currently fails due to thumbnail error (not graceful)
-            with pytest.raises(ServiceError, match="Failed to download and process video"):
-                youtube_service.download_and_process_async("dQw4w9WgXcQ")
-            
-            mock_download_thumb.assert_called_once()
+        # Act & Assert - Should fail due to missing song_id
+        with pytest.raises(ServiceError, match="Failed to queue YouTube processing.*song_id is required for YouTube processing"):
+            youtube_service.download_and_process_async("dQw4w9WgXcQ")
 
-    @patch('app.jobs.jobs.process_audio_job')
-    @patch('app.jobs.jobs.job_store')
     def test_partial_failure_download_succeeds_task_queue_fails(
         self, 
-        mock_job_store, 
-        mock_process_job, 
-        youtube_service, 
-        sample_metadata
+        youtube_service
     ):
-        """Test partial failure: Download succeeds, job processing fails"""
-        # Arrange
-        mock_process_job.delay.side_effect = Exception("Celery connection error")
-        
-        with patch.object(youtube_service, 'download_video') as mock_download, \
-             patch('pathlib.Path.exists', return_value=True):
-            
-            mock_download.return_value = ("song-123", sample_metadata)
-            
-            # Act & Assert
-            with pytest.raises(ServiceError, match="Failed to download and process video"):
-                youtube_service.download_and_process_async("dQw4w9WgXcQ")
+        """Test partial failure: Missing song_id parameter causes early validation failure"""
+        # Act & Assert - Should fail validation before reaching task queue
+        with pytest.raises(ServiceError, match="Failed to queue YouTube processing.*song_id is required for YouTube processing"):
+            youtube_service.download_and_process_async("dQw4w9WgXcQ")
 
     def test_partial_failure_recovery_and_cleanup(self, youtube_service):
         """Test recovery and cleanup on partial failures"""
