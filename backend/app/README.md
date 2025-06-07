@@ -17,7 +17,7 @@ backend/
 │   │   ├── __init__.py      # Registers all blueprints
 │   │   ├── karaoke_queue.py # Karaoke queue endpoints
 │   │   ├── lyrics.py        # Lyrics API endpoints
-│   │   ├── musicbrainz.py   # MusicBrainz API endpoints 
+│   │   ├── metadata.py      # Metadata search API endpoints 
 │   │   ├── queue.py         # Queue management endpoints
 │   │   ├── songs.py         # Song management endpoints
 │   │   ├── users.py         # User management endpoints
@@ -33,8 +33,9 @@ backend/
 │   │   ├── __init__.py      # Service package exports
 │   │   ├── audio.py         # Audio processing logic
 │   │   ├── file_management.py # File operations
+│   │   ├── itunes_service.py  # iTunes API integration
 │   │   ├── lyrics_service.py  # Lyrics processing
-│   │   ├── musicbrainz_service.py # MusicBrainz integration
+│   │   ├── metadata_service.py # Metadata search service layer
 │   │   └── youtube_service.py # YouTube integration
 │   │
 │   ├── jobs/               # Asynchronous job processing
