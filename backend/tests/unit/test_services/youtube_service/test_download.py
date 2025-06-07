@@ -212,7 +212,8 @@ class TestDownloadVideo:
             
             # Assert - FileService methods called correctly
             youtube_service.file_service.get_song_directory.assert_called_with(song_id)
-            youtube_service.file_service.get_original_path.assert_called_with(song_id, ".mp3")
+            # Note: get_original_path is only called as fallback when expected file doesn't exist
+            # Since we mock exists() to return True, it uses the expected path directly
 
     @patch('app.services.youtube_service.yt_dlp.YoutubeDL')
     def test_download_video_null_video_info_error(self, mock_ytdl, youtube_service):
