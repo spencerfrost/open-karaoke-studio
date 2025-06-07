@@ -8,12 +8,12 @@ import { Song } from "../../types/Song";
 import vintageTheme from "../../utils/theme";
 import { useMetadata } from "../../hooks/useMetadata";
 
-interface MusicBrainzSearchTabProps {
+interface MetadataSearchTabProps {
   song: Song;
   onSelectResult: (metadata: Partial<Song>) => void;
 }
 
-const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
+const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
   song,
   onSelectResult,
 }) => {
@@ -26,14 +26,14 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   const [searchResults, setSearchResults] = useState<Partial<Song>[]>([]);
   const [noResults, setNoResults] = useState(false);
 
-  const { useSearchMusicBrainz } = useMetadata();
-  const searchMusicBrainz = useSearchMusicBrainz();
+  const { useSearchMetadata } = useMetadata();
+  const searchMetadata = useSearchMetadata();
 
   const handleSearch = async () => {
     setNoResults(false);
 
     try {
-      const results = await searchMusicBrainz.mutateAsync({
+      const results = await searchMetadata.mutateAsync({
         title: searchQuery.title,
         artist: searchQuery.artist,
         album: searchQuery.album,
@@ -42,7 +42,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
       setSearchResults(results || []);
       setNoResults(results?.length === 0);
     } catch (error) {
-      console.error("MusicBrainz search failed:", error);
+      console.error("Metadata search failed:", error);
       setNoResults(true);
     }
   };
@@ -56,12 +56,12 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
       {/* Header */}
       <DialogHeader className="flex-grow">
         <DialogTitle className="text-lg font-semibold">
-          Search MusicBrainz
+          Search Metadata
         </DialogTitle>
         <DialogDescription>
           Find the correct metadata for your song.
           <br />
-          Enter the title and artist, and we will search MusicBrainz for you.
+          Enter the title and artist, and we will search for you.
         </DialogDescription>
       </DialogHeader>
 
@@ -116,14 +116,14 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
           <Button
             className="flex items-center gap-2"
             onClick={handleSearch}
-            disabled={searchMusicBrainz.isPending}
+            disabled={searchMetadata.isPending}
             style={{
               backgroundColor: colors.darkCyan,
               color: colors.lemonChiffon,
             }}
           >
             <Search size={18} />
-            {searchMusicBrainz.isPending ? "Searching..." : "Search MusicBrainz"}
+            {searchMetadata.isPending ? "Searching..." : "Search Metadata"}
           </Button>
         </div>
       </div>
@@ -139,7 +139,7 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
         <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
           {searchResults.map((result, index) => (
             <div
-              key={result.musicbrainzId ?? index}
+              key={result.id ?? index}
               className="flex items-start gap-3 p-3 rounded-md cursor-pointer hover:bg-gray-100"
               style={{
                 backgroundColor: `${colors.lemonChiffon}80`,
@@ -212,4 +212,4 @@ const MusicBrainzSearchTab: React.FC<MusicBrainzSearchTabProps> = ({
   );
 };
 
-export default MusicBrainzSearchTab;
+export default MetadataSearchTab;

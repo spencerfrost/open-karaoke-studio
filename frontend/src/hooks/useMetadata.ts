@@ -7,22 +7,23 @@ import { Song } from '../types/Song';
 export const useMetadata = () => {
 
   /**
-   * Search MusicBrainz for song metadata using mutation pattern
+   * Search for song metadata using mutation pattern
    * This is the preferred pattern for triggered searches in React Query
    */
-  const useSearchMusicBrainz = () => {
+  const useSearchMetadata = () => {
     return useMutation<
       Array<Partial<Song>>,
       Error,
-      { title?: string; artist?: string; album?: string }
+      { title?: string; artist?: string; album?: string; sortBy?: string }
     >({
-      mutationFn: async (params: { title?: string; artist?: string; album?: string }) => {
+      mutationFn: async (params: { title?: string; artist?: string; album?: string; sortBy?: string }) => {
         const queryParams = new URLSearchParams();
         if (params.title) queryParams.append('title', params.title);
         if (params.artist) queryParams.append('artist', params.artist);
         if (params.album) queryParams.append('album', params.album);
+        if (params.sortBy) queryParams.append('sort_by', params.sortBy);
         
-        const response = await fetch(`/api/musicbrainz/search?${queryParams.toString()}`, {
+        const response = await fetch(`/api/metadata/search?${queryParams.toString()}`, {
           credentials: 'include',
         });
         
@@ -40,11 +41,11 @@ export const useMetadata = () => {
         return await response.json();
       },
       // Optional: Add caching by setting a mutation key
-      mutationKey: ['musicbrainz', 'search'],
+      mutationKey: ['metadata', 'search'],
     });
   };
 
   return {
-    useSearchMusicBrainz,
+    useSearchMetadata,
   };
 };
