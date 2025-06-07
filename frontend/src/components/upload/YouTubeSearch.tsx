@@ -13,16 +13,10 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { MetadataDialog } from "./MetadataDialog";
-import { VerificationDialog } from "./VerificationDialog";
+import { SongAdditionStepper } from "./SongAdditionStepper";
 import {
   useYoutubeDownloadMutation,
-  useLyricsSearch,
-  useMetadataSearch,
-  useSaveMetadataMutation,
-  useCreateSongMutation, // Add this import
-  LyricsOption,
-  MetadataOption,
+  useCreateSongMutation,
   CreateSongResponse,
 } from "@/hooks/useYoutube";
 
@@ -53,22 +47,11 @@ const YouTubeSearch: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<string[]>([]);
-  const [selectedResult, setSelectedResult] =
-    useState<YouTubeSearchResult | null>(null);
-  // Dialog states
-  const [isMetadataDialogOpen, setIsMetadataDialogOpen] = useState(false);
-  const [isVerificationDialogOpen, setIsVerificationDialogOpen] =
-    useState(false);
-
-  // Confirmed metadata from first dialog
-  const [confirmedMetadata, setConfirmedMetadata] = useState<{
-    title: string;
-    artist: string;
-    album: string;
-  }>({ title: "", artist: "", album: "" });
-  const [createdSong, setCreatedSong] = useState<CreateSongResponse | null>(
-    null
-  );
+  const [selectedResult, setSelectedResult] = useState<YouTubeSearchResult | null>(null);
+  
+  // Stepper dialog state
+  const [isStepperDialogOpen, setIsStepperDialogOpen] = useState(false);
+  const [createdSong, setCreatedSong] = useState<CreateSongResponse | null>(null);
 
   // --- API Hooks ---
   const createSongMutation = useCreateSongMutation({
@@ -87,13 +70,8 @@ const YouTubeSearch: React.FC = () => {
         });
       }
 
-      // Show metadata confirmation dialog
-      setConfirmedMetadata({
-        title: data.title,
-        artist: data.artist,
-        album: data.album || "",
-      });
-      setIsMetadataDialogOpen(true);
+      // Show stepper dialog
+      setIsStepperDialogOpen(true);
     },
     onError: (error) => {
       toast.error(`Failed to create song: ${error.message}`);
@@ -119,60 +97,6 @@ const YouTubeSearch: React.FC = () => {
       }
     },
   });
-
-  // Initialize the queries with enabled: false so they don't run immediately
-  const {
-    data: lyricsOptions = [],
-    refetch: fetchLyrics,
-    isPending: isLoadingLyrics,
-  } = useLyricsSearch(
-    {
-      title: confirmedMetadata.title,
-      artist: confirmedMetadata.artist,
-      album: confirmedMetadata.album,
-    },
-    {
-      enabled: false,
-      queryKey: ["lyrics", confirmedMetadata.artist, confirmedMetadata.title],
-    }
-  );
-
-  const {
-    data: metadataOptions = [],
-    refetch: fetchMetadata,
-    isPending: isLoadingMetadata,
-  } = useMetadataSearch(
-    {
-      title: confirmedMetadata.title,
-      artist: confirmedMetadata.artist,
-    },
-    {
-      enabled: false,
-      queryKey: ["metadata", confirmedMetadata.artist, confirmedMetadata.title],
-    }
-  );
-
-  const saveMetadataMutation = useSaveMetadataMutation(
-    createdSong?.id || "dummy",
-    {
-      onSuccess: () => {
-        toast.success(
-          "Song added to library with selected metadata and lyrics"
-        );
-        setIsVerificationDialogOpen(false);
-
-        if (selectedResult) {
-          setDownloadingIds((prev) =>
-            prev.filter((id) => id !== selectedResult.id)
-          );
-          setSelectedResult(null);
-        }
-      },
-      onError: (error) => {
-        toast.error(`Failed to save metadata: ${error.message}`);
-      },
-    }
-  );
 
   // --- Event Handlers ---
   const handleSearch = async () => {
@@ -209,7 +133,7 @@ const YouTubeSearch: React.FC = () => {
     setSelectedResult(result);
     setDownloadingIds((prev) => [...prev, result.id]);
 
-    // Step 1: Create a song record in the database first
+    // Create a song record in the database and trigger the stepper dialog
     createSongMutation.mutate({
       title: titleInput,
       artist: artistInput,
@@ -219,46 +143,28 @@ const YouTubeSearch: React.FC = () => {
       videoId: result.id,
       videoTitle: result.title,
     });
-
-    // Step 2: YouTube download is now triggered in the onSuccess callback of createSongMutation
-
-    // Step 3: Metadata confirmation dialog is also shown in the onSuccess callback
   };
 
-  const handleMetadataConfirm = (metadata: {
-    artist: string;
-    title: string;
-    album: string;
-  }) => {
-    setConfirmedMetadata(metadata);
-    setIsMetadataDialogOpen(false);
-
-    // Step 3: Fetch lyrics and metadata options with confirmed data
-    fetchLyrics();
-    fetchMetadata();
-
-    // Open verification dialog after both are fetched
-    setTimeout(() => {
-      setIsVerificationDialogOpen(true);
-    }, 500); // Small delay to allow both to fetch
+  const handleStepperComplete = () => {
+    if (selectedResult) {
+      setDownloadingIds((prev) =>
+        prev.filter((id) => id !== selectedResult.id)
+      );
+      setSelectedResult(null);
+    }
+    setCreatedSong(null);
+    setIsStepperDialogOpen(false);
   };
 
-  // Update the saveMetadataMutation to use the created song ID
-  const handleVerificationSubmit = (selections: {
-    selectedLyrics: LyricsOption | null;
-    selectedMetadata: MetadataOption | null;
-  }) => {
-    if (!createdSong) return;
-
-    // Step 4: Save final selections using the created song ID
-    saveMetadataMutation.mutate({
-      title: selections.selectedMetadata?.title || confirmedMetadata.title,
-      artist: selections.selectedMetadata?.artist || confirmedMetadata.artist,
-      album: selections.selectedMetadata?.album || confirmedMetadata.album,
-      lyrics: selections.selectedLyrics?.plainLyrics,
-      syncedLyrics: selections.selectedLyrics?.syncedLyrics,
-      musicbrainzId: selections.selectedMetadata?.musicbrainzId,
-    });
+  const handleStepperClose = () => {
+    setIsStepperDialogOpen(false);
+    if (selectedResult) {
+      setDownloadingIds((prev) =>
+        prev.filter((id) => id !== selectedResult.id)
+      );
+      setSelectedResult(null);
+    }
+    setCreatedSong(null);
   };
 
   return (
@@ -379,43 +285,22 @@ const YouTubeSearch: React.FC = () => {
         </div>
       </CardContent>
 
-      {/* Metadata Dialog */}
-      {selectedResult && (
-        <MetadataDialog
-          isOpen={isMetadataDialogOpen}
-          onClose={() => {
-            setIsMetadataDialogOpen(false);
-            // If dialog is closed, cancel download
-            if (selectedResult) {
-              setDownloadingIds((prev) =>
-                prev.filter((id) => id !== selectedResult.id)
-              );
-              setSelectedResult(null);
-            }
-          }}
-          onSubmit={handleMetadataConfirm}
+      {/* Stepper Dialog */}
+      {selectedResult && createdSong && (
+        <SongAdditionStepper
+          isOpen={isStepperDialogOpen}
+          onClose={handleStepperClose}
           initialMetadata={{
             artist: artistInput,
             title: titleInput,
             album: albumInput,
           }}
           videoTitle={selectedResult.title}
-          isSubmitting={false}
+          videoDuration={selectedResult.duration}
+          createdSong={createdSong}
+          onComplete={handleStepperComplete}
         />
       )}
-
-      {/* Verification Dialog */}
-      <VerificationDialog
-        isOpen={isVerificationDialogOpen}
-        onClose={() => setIsVerificationDialogOpen(false)}
-        onSubmit={handleVerificationSubmit}
-        lyricsOptions={lyricsOptions}
-        metadataOptions={metadataOptions}
-        isSubmitting={saveMetadataMutation.isPending}
-        isLoadingLyrics={isLoadingLyrics}
-        isLoadingMetadata={isLoadingMetadata}
-        songMetadata={confirmedMetadata}
-      />
     </Card>
   );
 };
