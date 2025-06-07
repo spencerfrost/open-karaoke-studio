@@ -228,8 +228,8 @@ export function LyricsSelectionStep({
   }
 
   return (
-    <div className="space-y-4 max-h-[65vh] flex flex-col">
-      <Card className="flex flex-col overflow-hidden">
+    <div className="space-y-4 flex flex-col overflow-hidden">
+      <Card className="flex flex-col max-h-[65vh] overflow-y-auto">
         <CardHeader className="flex-shrink-0">
           <CardTitle>Lyrics Options</CardTitle>
           <CardDescription>
@@ -237,155 +237,151 @@ export function LyricsSelectionStep({
             match.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6 overflow-hidden">
-          <div className="max-h-[70vh] overflow-y-auto">
-            <div className="space-y-4 pr-4">
-              {isSearching && lyricsOptions.length === 0 ? (
-                // Loading state
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Searching for lyrics...</span>
-                  </div>
-                  {[1, 2, 3].map((index) => (
-                    <Card key={index} className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-start">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-6 w-16" />
+        <CardContent className="space-y-4 pr-4">
+          {isSearching && lyricsOptions.length === 0 ? (
+            // Loading state
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Searching for lyrics...</span>
+              </div>
+              {[1, 2, 3].map((index) => (
+                <Card key={index} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-6 w-16" />
+                    </div>
+                    <div className="p-2 bg-muted/30 rounded-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-3 w-24" />
                         </div>
-                        <div className="p-2 bg-muted/30 rounded-md">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <Skeleton className="h-3 w-20" />
-                              <Skeleton className="h-3 w-24" />
-                            </div>
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                        </div>
-                        <div className="space-y-2 pt-3 border-t">
-                          {[1, 2, 3, 4, 5].map((line) => (
-                            <Skeleton key={line} className="h-3 w-full" />
-                          ))}
-                          <Skeleton className="h-3 w-3/4" />
-                        </div>
+                        <Skeleton className="h-3 w-16" />
                       </div>
-                    </Card>
-                  ))}
-                </div>
-              ) : lyricsOptions.length > 0 ? (
-                <RadioGroup
-                  value={selectedLyrics?.id || ""}
-                  onValueChange={(value) => {
-                    const lyrics = lyricsOptions.find((l) => l.id === value);
-                    if (lyrics) onLyricsSelect(lyrics);
-                  }}
-                  className="space-y-4"
+                    </div>
+                    <div className="space-y-2 pt-3 border-t">
+                      {[1, 2, 3, 4, 5].map((line) => (
+                        <Skeleton key={line} className="h-3 w-full" />
+                      ))}
+                      <Skeleton className="h-3 w-3/4" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : lyricsOptions.length > 0 ? (
+            <RadioGroup
+              value={selectedLyrics?.id || ""}
+              onValueChange={(value) => {
+                const lyrics = lyricsOptions.find((l) => l.id === value);
+                if (lyrics) onLyricsSelect(lyrics);
+              }}
+              className="space-y-4"
+            >
+              {lyricsOptions.map((lyrics, index) => (
+                <div
+                  key={lyrics.id || index}
+                  className="flex items-center space-x-3"
                 >
-                  {lyricsOptions.map((lyrics, index) => (
-                    <div
-                      key={lyrics.id || index}
-                      className="flex items-center space-x-3"
-                    >
-                      <RadioGroupItem
-                        value={lyrics.id}
-                        id={`lyrics-${index}`}
-                        className="mt-4"
-                      />
-                      <Label
-                        htmlFor={`lyrics-${index}`}
-                        className="flex-1 flex flex-col space-y-1 cursor-pointer"
-                      >
-                        <Card
-                          className={`
+                  <RadioGroupItem
+                    value={lyrics.id}
+                    id={`lyrics-${index}`}
+                    className="mt-4"
+                  />
+                  <Label
+                    htmlFor={`lyrics-${index}`}
+                    className="flex-1 flex flex-col space-y-1 cursor-pointer"
+                  >
+                    <Card
+                      className={`
                           hover:border-primary py-0 w-full 
                           ${selectedLyrics === lyrics ? "border-primary bg-primary/5" : ""}
                         `}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex justify-between items-start mb-3">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium text-sm">
-                                  {lyrics.trackName || lyrics.name || "Lyrics"}
-                                </h4>
-                                {lyrics.syncedLyrics && (
-                                  <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
-                                    Synchronized
-                                  </span>
-                                )}
-                              </div>
-                              {lyrics.source && (
-                                <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                                  {lyrics.source}
-                                </span>
-                              )}
-                            </div>
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-sm">
+                              {lyrics.trackName || lyrics.name || "Lyrics"}
+                            </h4>
+                            {lyrics.syncedLyrics && (
+                              <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                                Synchronized
+                              </span>
+                            )}
+                          </div>
+                          {lyrics.source && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
+                              {lyrics.source}
+                            </span>
+                          )}
+                        </div>
 
-                            <div className="mb-3 p-2 bg-muted/30 rounded-md">
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-4">
-                                  <span className="text-muted-foreground">
-                                    Video: {formatDuration(videoDuration)}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    Lyrics:{" "}
-                                    {lyrics.duration
-                                      ? formatDuration(lyrics.duration)
-                                      : "Unknown"}
+                        <div className="mb-3 p-2 bg-muted/30 rounded-md">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-4">
+                              <span className="text-muted-foreground">
+                                Video: {formatDuration(videoDuration)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                Lyrics:{" "}
+                                {lyrics.duration
+                                  ? formatDuration(lyrics.duration)
+                                  : "Unknown"}
+                              </span>
+                            </div>
+                            {(() => {
+                              const comparison = getDurationComparison(
+                                videoDuration,
+                                lyrics.duration
+                              );
+                              const Icon = comparison.icon;
+                              return (
+                                <div
+                                  className={`flex items-center gap-1 ${comparison.className}`}
+                                >
+                                  {Icon && <Icon className="h-3 w-3" />}
+                                  <span className="font-medium text-xs">
+                                    {comparison.message}
                                   </span>
                                 </div>
-                                {(() => {
-                                  const comparison = getDurationComparison(
-                                    videoDuration,
-                                    lyrics.duration
-                                  );
-                                  const Icon = comparison.icon;
-                                  return (
-                                    <div
-                                      className={`flex items-center gap-1 ${comparison.className}`}
-                                    >
-                                      {Icon && <Icon className="h-3 w-3" />}
-                                      <span className="font-medium text-xs">
-                                        {comparison.message}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
 
-                            <div className="text-sm mt-3 border-t pt-3 text-muted-foreground">
-                              <div className="max-h-48 overflow-y-auto">
-                                <ScrollArea className="h-full">
-                                  <div className="pr-2">
-                                    {renderLyricsPreview(
-                                      lyrics.syncedLyrics || lyrics.plainLyrics,
-                                      !!lyrics.syncedLyrics
-                                    )}
-                                  </div>
-                                </ScrollArea>
+                        <div className="text-sm mt-3 border-t pt-3 text-muted-foreground">
+                          <div className="max-h-48 overflow-y-auto">
+                            <ScrollArea className="h-full">
+                              <div className="pr-2">
+                                {renderLyricsPreview(
+                                  lyrics.syncedLyrics || lyrics.plainLyrics,
+                                  !!lyrics.syncedLyrics
+                                )}
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              ) : (
-                <Card>
-                  <CardContent className="py-4">
-                    <p className="text-muted-foreground text-center">
-                      No lyrics found
-                    </p>
-                    <p className="text-xs text-muted-foreground text-center mt-2">
-                      You can add lyrics manually later
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+                            </ScrollArea>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          ) : (
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-muted-foreground text-center">
+                  No lyrics found
+                </p>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  You can add lyrics manually later
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
       </Card>
 

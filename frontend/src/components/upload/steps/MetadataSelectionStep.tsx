@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -27,7 +34,7 @@ interface MetadataSelectionStepProps {
   onMetadataSelect: (metadata: MetadataOption) => void;
   onConfirm: () => void;
   onSkip: () => void;
-  onResearch: (query: { artist: string; title: string; album: string }) => void;
+  onResearch: (query: { artist: string; title: string; album: string; sortBy?: string }) => void;
 }
 
 export function MetadataSelectionStep({
@@ -44,6 +51,7 @@ export function MetadataSelectionStep({
   const [researchArtist, setResearchArtist] = useState("");
   const [researchTitle, setResearchTitle] = useState("");
   const [researchAlbum, setResearchAlbum] = useState("");
+  const [sortBy, setSortBy] = useState("relevance");
 
   const handleResearch = () => {
     onResearch({
@@ -135,16 +143,16 @@ export function MetadataSelectionStep({
   }
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
-      <Card className="pb-1 flex-1 flex flex-col min-h-0">
-        <CardHeader className="flex-shrink-0">
+    <div className="space-y-4 flex flex-col overflow-hidden">
+      <Card className="flex flex-col max-h-[65vh] overflow-y-auto">
+        <CardHeader>
           <CardTitle>Available Metadata</CardTitle>
           <CardDescription>
             Select the correct album and artist information for your song. If
             you don't find the right match, you can search again.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 min-h-0 overflow-auto">
+        <CardContent>
           {isSearching && metadataOptions.length === 0 ? (
             // Loading state
             <div className="space-y-4">
@@ -176,14 +184,14 @@ export function MetadataSelectionStep({
             <RadioGroup
               value={
                 selectedMetadata
-                  ? selectedMetadata.musicbrainzId ||
+                  ? selectedMetadata.id ||
                     `metadata-${metadataOptions.findIndex((m) => m === selectedMetadata)}`
                   : ""
               }
               onValueChange={(value) => {
-                // First try to find by musicbrainzId
+                // First try to find by id
                 let metadata = metadataOptions.find(
-                  (m) => m.musicbrainzId === value
+                  (m) => m.id === value
                 );
 
                 // If not found, it might be a fallback index-based value
@@ -197,7 +205,7 @@ export function MetadataSelectionStep({
             >
               {metadataOptions.map((metadata, index) => {
                 const radioValue =
-                  metadata.musicbrainzId || `metadata-${index}`;
+                  metadata.id || `metadata-${index}`;
                 return (
                   <div
                     key={radioValue}
