@@ -6,7 +6,7 @@ import { Pencil } from "lucide-react";
 import { Song } from "../../types/Song";
 import { useSongs } from "../../hooks/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
-import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
+import MetadataSearchTab from "./MetadataSearchTab";
 
 interface MetadataEditorProps {
   song: Song;
@@ -44,7 +44,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
     }
   };
 
-  const handleSelectMusicBrainzResult = (result: Partial<Song>) => {
+  const handleSelectMetadataResult = (result: Partial<Song>) => {
     const metadataToSave: Partial<Song> = {
       title: result.title,
       artist: result.artist,
@@ -94,15 +94,15 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full p-0">
               <TabsTrigger value="edit">Edit Metadata</TabsTrigger>
-              <TabsTrigger value="search">MusicBrainz Search</TabsTrigger>
+              <TabsTrigger value="search">Metadata Search</TabsTrigger>
             </TabsList>
             <TabsContent value="edit">
               <MetadataEditorTab song={song} onSave={handleSaveMetadata} />
             </TabsContent>
             <TabsContent value="search">
-              <MusicBrainzSearchTab
+              <MetadataSearchTab
                 song={song}
-                onSelectResult={handleSelectMusicBrainzResult}
+                onSelectResult={handleSelectMetadataResult}
               />
             </TabsContent>
           </Tabs>

@@ -72,7 +72,7 @@ export interface MetadataOption {
   genre?: string;
   language?: string;
   coverArtUrl?: string;
-  musicbrainzId?: string;
+  metadataId?: string;
 }
 
 export interface SaveMetadataRequest {
@@ -81,7 +81,7 @@ export interface SaveMetadataRequest {
   album?: string;
   lyrics?: string;
   syncedLyrics?: string;
-  musicbrainzId?: string;
+  metadataId?: string;
 }
 
 export interface SaveMetadataResponse {
