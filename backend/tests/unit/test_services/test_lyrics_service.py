@@ -51,59 +51,6 @@ class TestLyricsService:
         }
 
     @patch('app.services.lyrics_service.requests.get')
-    def test_fetch_lyrics_success_with_album(self, mock_get, lyrics_service, sample_lyrics_data):
-        """Test successful lyrics fetching with album info."""
-        # Arrange
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = sample_lyrics_data
-        mock_get.return_value = mock_response
-        
-        # Act
-        result = lyrics_service.fetch_lyrics("Test Song", "Test Artist", "Test Album")
-        
-        # Assert
-        assert result == sample_lyrics_data
-        assert mock_get.call_count >= 1  # Could be cached or direct get
-
-    @patch('app.services.lyrics_service.requests.get')
-    def test_fetch_lyrics_fallback_to_search(self, mock_get, lyrics_service, sample_lyrics_data):
-        """Test lyrics fetching fallback to search when direct get fails."""
-        # Arrange - First calls (cached, direct) fail, search succeeds
-        def mock_get_side_effect(url, **kwargs):
-            mock_response = Mock()
-            if "/api/search" in url:
-                mock_response.status_code = 200
-                mock_response.json.return_value = [sample_lyrics_data]
-            else:
-                mock_response.status_code = 404
-                mock_response.json.return_value = {"error": "Not found"}
-            return mock_response
-        
-        mock_get.side_effect = mock_get_side_effect
-        
-        # Act
-        result = lyrics_service.fetch_lyrics("Test Song", "Test Artist", "Test Album")
-        
-        # Assert
-        assert result == sample_lyrics_data
-
-    @patch('app.services.lyrics_service.requests.get')
-    def test_fetch_lyrics_not_found(self, mock_get, lyrics_service):
-        """Test lyrics fetching when no results found."""
-        # Arrange
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_response.json.return_value = {"error": "Not found"}
-        mock_get.return_value = mock_response
-        
-        # Act
-        result = lyrics_service.fetch_lyrics("Unknown Song", "Unknown Artist")
-        
-        # Assert
-        assert result is None
-
-    @patch('app.services.lyrics_service.requests.get')
     def test_search_lyrics_success(self, mock_get, lyrics_service, sample_lyrics_data):
         """Test successful lyrics search."""
         # Arrange
@@ -118,6 +65,57 @@ class TestLyricsService:
         # Assert
         assert results == [sample_lyrics_data]
         mock_get.assert_called_once()
+
+    @patch('app.services.lyrics_service.requests.get')
+    def test_search_lyrics_multiple_results(self, mock_get, lyrics_service, sample_lyrics_data):
+        """Test search lyrics returning multiple results."""
+        # Arrange
+        sample_data_2 = sample_lyrics_data.copy()
+        sample_data_2["id"] = 67890
+        sample_data_2["trackName"] = "Another Test Song"
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [sample_lyrics_data, sample_data_2]
+        mock_get.return_value = mock_response
+        
+        # Act
+        results = lyrics_service.search_lyrics("test artist")
+        
+        # Assert
+        assert len(results) == 2
+        assert results[0] == sample_lyrics_data
+        assert results[1] == sample_data_2
+
+    @patch('app.services.lyrics_service.requests.get')
+    def test_search_lyrics_no_results(self, mock_get, lyrics_service):
+        """Test search lyrics when no results found."""
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_get.return_value = mock_response
+        
+        # Act
+        results = lyrics_service.search_lyrics("nonexistent song")
+        
+        # Assert
+        assert results == []
+
+    @patch('app.services.lyrics_service.requests.get')
+    def test_search_lyrics_404_not_found(self, mock_get, lyrics_service):
+        """Test search lyrics when API returns 404."""
+        # Arrange
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {"error": "Not found"}
+        mock_get.return_value = mock_response
+        
+        # Act
+        results = lyrics_service.search_lyrics("unknown query")
+        
+        # Assert
+        assert results == []
 
     def test_get_lyrics_file_exists(self, lyrics_service, temp_dir):
         """Test getting lyrics from existing file."""
@@ -220,7 +218,7 @@ class TestLyricsService:
         
         # Act & Assert
         with pytest.raises(ServiceError):
-            lyrics_service.fetch_lyrics("Test Song", "Test Artist")
+            lyrics_service.search_lyrics("Test Song Test Artist")
 
 
 class TestLegacyMakeRequest:

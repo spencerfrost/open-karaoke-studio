@@ -60,55 +60,6 @@ class LyricsService(LyricsServiceInterface):
             logger.error(f"Failed to make request to LRCLIB: {e}")
             raise ServiceError(f"Failed to connect to lyrics service: {e}")
     
-    def fetch_lyrics(self, track_name: str, artist_name: str, album_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Fetch lyrics from external sources using specific track information
-        
-        Args:
-            track_name: The name of the track
-            artist_name: The name of the artist
-            album_name: Optional album name for more specific matching
-            
-        Returns:
-            Dictionary containing lyrics data if found, None otherwise
-        """
-        try:
-            # Try the get endpoint first if we have album info
-            if album_name:
-                params = {
-                    "track_name": track_name,
-                    "artist_name": artist_name,
-                    "album_name": album_name
-                }
-                
-                # Try cached first, then direct get
-                status, data = self._make_request("/api/get-cached", params)
-                if status == 200 and data:
-                    logger.info(f"Found cached lyrics for {track_name} by {artist_name}")
-                    return data
-                
-                status, data = self._make_request("/api/get", params)
-                if status == 200 and data:
-                    logger.info(f"Found lyrics for {track_name} by {artist_name}")
-                    return data
-            
-            # Fallback to search
-            search_params = {"track_name": track_name, "artist_name": artist_name}
-            status, results = self._make_request("/api/search", search_params)
-            
-            if status == 200 and isinstance(results, list) and results:
-                # Return the first result
-                logger.info(f"Found lyrics via search for {track_name} by {artist_name}")
-                return results[0]
-            
-            logger.info(f"No lyrics found for {track_name} by {artist_name}")
-            return None
-            
-        except ServiceError:
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error fetching lyrics: {e}")
-            raise ServiceError(f"Failed to fetch lyrics: {e}")
-    
     def search_lyrics(self, query: str) -> List[Dict[str, Any]]:
         """Search for lyrics using a general query string
         
@@ -134,6 +85,32 @@ class LyricsService(LyricsServiceInterface):
         except Exception as e:
             logger.error(f"Unexpected error searching lyrics: {e}")
             raise ServiceError(f"Failed to search lyrics: {e}")
+    
+    def search_lyrics_structured(self, params: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Search for lyrics using structured parameters (track_name, artist_name, album_name)
+        
+        Args:
+            params: Dictionary containing track_name, artist_name, and optionally album_name
+            
+        Returns:
+            List of lyrics records matching the search parameters
+        """
+        try:
+            # Use the LRCLIB search endpoint with structured parameters
+            status, results = self._make_request("/api/search", params)
+            
+            if status == 200 and isinstance(results, list):
+                logger.info(f"Found {len(results)} structured lyrics results for params: {params}")
+                return results
+            
+            logger.info(f"No structured lyrics found for params: {params}")
+            return []
+            
+        except ServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in structured lyrics search: {e}")
+            raise ServiceError(f"Failed to search lyrics with structured params: {e}")
     
     def get_lyrics(self, song_id: str) -> Optional[str]:
         """Get lyrics for a song from storage

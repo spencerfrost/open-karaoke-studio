@@ -5,19 +5,6 @@ from typing import Protocol, Optional, Dict, Any, List
 class LyricsServiceInterface(Protocol):
     """Interface for lyrics operations"""
     
-    def fetch_lyrics(self, track_name: str, artist_name: str, album_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Fetch lyrics from external sources or cache
-        
-        Args:
-            track_name: The name of the track
-            artist_name: The name of the artist
-            album_name: Optional album name for more specific matching
-            
-        Returns:
-            Dictionary containing lyrics data if found, None otherwise
-        """
-        ...
-    
     def search_lyrics(self, query: str) -> List[Dict[str, Any]]:
         """Search for lyrics using a general query string
         
