@@ -30,30 +30,23 @@ def search_lyrics():
     try:
         lyrics_service = LyricsService()
         
-        # Try fetch_lyrics first for more specific results
-        lyrics_data = lyrics_service.fetch_lyrics(track_name, artist_name, album_name)
-        
-        if lyrics_data:
-            current_app.logger.info(f"Found specific lyrics for {track_name} by {artist_name}")
-            return jsonify([lyrics_data]), 200
-        
-        # Fallback to general search
+        # Build query string from parameters
         query_parts = [artist_name, track_name]
         if album_name:
             query_parts.append(album_name)
         
-        combined_query = " ".join(query_parts)
-        results = lyrics_service.search_lyrics(combined_query)
+        query = " ".join(query_parts)
+        results = lyrics_service.search_lyrics(query)
         
-        current_app.logger.info(f"Found {len(results)} lyrics results")
+        current_app.logger.info(f"Found {len(results)} lyrics results for query: {query}")
         return jsonify(results), 200
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error fetching lyrics: {e}")
+        current_app.logger.error(f"Service error searching lyrics: {e}")
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Error fetching lyrics: {str(e)}")
-        return jsonify({"error": f"Failed to fetch lyrics: {str(e)}"}), 500
+        current_app.logger.error(f"Error searching lyrics: {str(e)}")
+        return jsonify({"error": f"Failed to search lyrics: {str(e)}"}), 500
 
 
 @lyrics_bp.route("/<string:song_id>", methods=["POST"])

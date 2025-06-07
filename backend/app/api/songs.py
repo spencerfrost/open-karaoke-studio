@@ -355,10 +355,17 @@ def get_song_lyrics(song_id: str):
         if not title or not artist:
             return jsonify({"error": "Missing essential info for lyrics lookup"}), 400
 
-        # Fetch lyrics using the service
-        lyrics_data = lyrics_service.fetch_lyrics(title, artist, album)
+        # Search for lyrics using the service
+        query_parts = [artist, title]
+        if album:
+            query_parts.append(album)
         
-        if lyrics_data:
+        query = " ".join(query_parts)
+        results = lyrics_service.search_lyrics(query)
+        
+        if results:
+            # Take the first result (best match)
+            lyrics_data = results[0]
             current_app.logger.info(f"Found lyrics for {song_id}")
             
             # Optionally save the lyrics locally for future use
