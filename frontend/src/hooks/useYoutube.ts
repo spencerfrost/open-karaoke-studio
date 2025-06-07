@@ -55,6 +55,10 @@ export interface LyricsOption {
   plainLyrics?: string;
   syncedLyrics?: string;
   preview?: string;
+  duration?: number;
+  albumName?: string;
+  name?: string;
+  instrumental?: boolean;
 }
 
 export interface MetadataOption {
