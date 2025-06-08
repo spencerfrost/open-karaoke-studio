@@ -141,7 +141,7 @@ class TestSongsAPI:
         
         # Mock database for legacy compatibility
         mock_db_song = Mock(
-            release_title="Test Album",
+            album="Test Album",
             release_date="2023",
             genre="Test Genre",
             language="English",

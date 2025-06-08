@@ -121,7 +121,7 @@ def sample_search_response():
 
 @pytest.fixture
 def sample_thumbnails() -> List[Dict[str, Any]]:
-    """Sample thumbnail data with different qualities"""
+    """Sample thumbnail data with different qualities and formats"""
     return [
         {
             "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
@@ -140,6 +140,56 @@ def sample_thumbnails() -> List[Dict[str, Any]]:
             "preference": 10,
             "width": 1280,
             "height": 720
+        }
+    ]
+
+
+@pytest.fixture
+def sample_webp_thumbnails() -> List[Dict[str, Any]]:
+    """Sample WebP thumbnail data reflecting real YouTube API response"""
+    return [
+        {
+            "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/maxresdefault.webp",
+            "preference": 0,  # Highest preference (WebP)
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+            "preference": -1,  # Lower preference (JPEG)
+            "width": 1280,
+            "height": 720
+        },
+        {
+            "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/hq720.webp",
+            "preference": -2,  # Lower preference WebP
+            "width": 1280,
+            "height": 720
+        }
+    ]
+
+
+@pytest.fixture  
+def mixed_format_thumbnails() -> List[Dict[str, Any]]:
+    """Mixed format thumbnails to test format detection"""
+    return [
+        {
+            "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/maxresdefault.webp",
+            "preference": 0,  # WebP highest preference
+            "width": 1920,
+            "height": 1080
+        },
+        {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", 
+            "preference": -1,  # JPEG lower preference
+            "width": 1280,
+            "height": 720
+        },
+        {
+            "url": "https://example.com/thumbnail.png",
+            "preference": -3,  # PNG lowest preference
+            "width": 640,
+            "height": 480
         }
     ]
 
