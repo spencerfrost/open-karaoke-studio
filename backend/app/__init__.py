@@ -3,46 +3,52 @@ Open Karaoke Studio Backend
 
 A Flask application for managing and processing karaoke tracks.
 """
-import os
+
 from flask import Flask
 from flask_cors import CORS
 
-# Import the config directly using get_config function
 from .config import get_config
 from .api import register_blueprints
-from .tasks import init_celery
+from .jobs import init_celery
 from .db import Base, engine
 from .websockets import init_socketio
 
-# Get the configuration based on environment
-Config = get_config()
 
-def create_app(config_class=Config):
+def create_app(config_class=None):
     """
     Application factory function to create and configure the Flask app.
-    
+
     Args:
-        config_class: Configuration class to use for app configuration
-        
+        config_class: Configuration class to use for app configuration.
+                     If None, will be determined from environment.
+
     Returns:
         Configured Flask application instance
     """
+    if config_class is None:
+        config_class = get_config()
+        
     app = Flask(__name__)
     app.config.from_object(config_class)
-    
-    # Initialize extensions
-    CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
-    
+
+    # Configure CORS with environment-specific origins
+    CORS(
+        app,
+        origins=config_class.CORS_ORIGINS,  # This is a property that returns a list
+        supports_credentials=True,
+    )
+
     # Initialize Celery
     init_celery(app)
-    
+
     # Initialize WebSocket
-    socketio = init_socketio(app)
-    
-    # Ensure database tables are created
-    Base.metadata.create_all(bind=engine)
-    
+    init_socketio(app)
+
+    # Ensure database schema is up to date
+    from .db.database import ensure_db_schema
+    ensure_db_schema()
+
     # Register all blueprints
     register_blueprints(app)
-    
+
     return app

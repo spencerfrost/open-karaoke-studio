@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode } from "react";
-import { Song, SongStatus } from "../types/Song";
+import { Song, SongStatus } from "@/types/Song";
 
 // State type
 interface SongsState {

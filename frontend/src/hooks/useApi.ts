@@ -5,11 +5,11 @@ import {
   UseMutationOptions,
 } from "@tanstack/react-query";
 
-const API_BASE_URL = "http://127.0.0.1:5000/api"; // Adjust as needed, use env vars
-
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${url}`);
+  const response = await fetch(`/api/${url}`, {
+    credentials: "include", // Added credentials
+  });
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
@@ -38,26 +38,43 @@ const apiGet = async <T>(url: string): Promise<T> => {
 const apiSend = async <T, V>(
   url: string,
   method: string,
-  data: V | null = null,
+  data: V | null = null
 ): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    method,
+  const response = await fetch(`/api/${url}`, {
+    method: method.toUpperCase(), // Ensure method is uppercase
     headers: {
       "Content-Type": "application/json",
     },
     body: data ? JSON.stringify(data) : null,
+    credentials: "include", // Added credentials
   });
+
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-    } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
+      const contentType = response.headers.get("Content-Type");
+      if (contentType && contentType.includes("application/json")) {
+        const text = await response.text();
+        if (text) {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        }
+      } else {
+        const text = await response.text();
+        if (text) {
+          errorMessage = `${errorMessage}: ${text}`;
+        }
+      }
+    } catch (jsonError: unknown) {
       console.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
+
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return await response.json();
 };
 
@@ -77,7 +94,7 @@ export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
   options?: Omit<
     UseQueryOptions<T, Error, T, TQueryKey>,
     "queryKey" | "queryFn"
-  >,
+  >
 ) {
   return useQuery<T, Error, T, TQueryKey>({
     queryKey,
@@ -103,11 +120,14 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
   options?: Omit<
     UseMutationOptions<TData, Error, TVariables, TContext>,
     "mutationFn"
-  >,
+  > & {
+    mutationFn?: (variables: TVariables) => Promise<TData>;
+  }
 ) {
   return useMutation<TData, Error, TVariables, TContext>({
-    mutationFn: (data: TVariables) =>
-      apiSend<TData, TVariables>(url, method, data),
+    mutationFn:
+      options?.mutationFn ??
+      ((data: TVariables) => apiSend<TData, TVariables>(url, method, data)),
     ...options,
   });
 }
@@ -118,14 +138,27 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
  * @template T - The type of the response data.
  * @param {string} url - The endpoint URL (relative to the API base URL).
  * @param {File} file - The file to upload.
+ * @param {Record<string, unknown>} [additionalData] - Additional data to send with the file (optional).
  * @returns {Promise<T>} - A promise resolving to the response data.
  * @throws {Error} - Throws an error if the response is not ok.
  */
-export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
+export const uploadFile = async <T>(
+  url: string,
+  file: File,
+  metadata?: Record<string, unknown>
+): Promise<T> => {
   const formData = new FormData();
   formData.append("audio_file", file);
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  if (metadata) {
+    Object.entries(metadata).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, value as string | Blob);
+      }
+    });
+  }
+
+  const response = await fetch(`/api/${url}`, {
     method: "POST",
     body: formData,
   });
@@ -133,10 +166,9 @@ export const uploadFile = async <T>(url: string, file: File): Promise<T> => {
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
-    } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
+      const errorData: { message?: string } = await response.json();
+      errorMessage = errorData?.message || errorMessage;
+    } catch (jsonError: unknown) {
       console.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);

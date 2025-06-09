@@ -16,6 +16,7 @@
   --lemon-chiffon: #f5f3c7;
   --orange-peel: #fd9a02;
   --dark-cyan: #01928b;
+  --pale-warm-beige: #c7b99c;
 
   /* UI Elements */
   --radius: 0.5rem;
@@ -32,10 +33,10 @@
   --secondary: var(--rust);
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
-  --accent-foreground: var(--black);
+  --accent-foreground: var(--lemon-chiffon);
   --destructive: var(--color-red-800);
   --destructive-foreground: var(--lemon-chiffon);
-  --muted: color-mix(var(--russet), transparent 20%);
+  --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
 
   --border: var(--orange-peel);
@@ -174,35 +175,6 @@
     opacity: 0.25;
     z-index: 5;
     pointer-events: none;
-  }
-
-  /* Input styling */
-  input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 6px;
-    background: color-mix(in srgb, var(--russet), transparent 70%);
-    border-radius: 3px;
-  }
-
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--dark-cyan);
-    cursor: pointer;
-  }
-
-  /* For Firefox */
-  input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--dark-cyan);
-    cursor: pointer;
-    border: none;
   }
 
   /* Lyrics fade-out effect */

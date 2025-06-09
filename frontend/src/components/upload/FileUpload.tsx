@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useId, useEffect } from "react"; // Added useEffect
 import { Upload, X, Paperclip } from "lucide-react";
-import { isAudioFile } from "../../utils/validators";
+import { isAudioFile } from "@/utils/validators";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {

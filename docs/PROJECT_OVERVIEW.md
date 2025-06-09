@@ -12,7 +12,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **Instrumental Creation:** Generates karaoke-ready instrumental tracks.
 - **Song Library:** Maintains a searchable, user-friendly library of processed songs.
 - **YouTube Integration:** Search for songs on YouTube and automatically generate karaoke tracks.
-- **Asynchronous Processing:** Supports queuing and background processing of multiple tasks (Celery planned for production).
+- **Asynchronous Processing:** Supports queuing and background processing of multiple jobs (Celery planned for production).
 - **Modern Web UI:** Fast, responsive interface built with React, Tailwind CSS, and Shadcn components.
 - **Self-Hosting:** Designed for easy deployment and personal use.
 
@@ -37,12 +37,12 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ### Backend
 - **Framework:** Python 3.10+, Flask (RESTful API)
 - **Audio Processing:** Demucs (PyTorch), with GPU/CPU support
-- **Async Tasks:** Celery (for background processing)
+- **Async Jobs:** Celery (for background processing)
 - **Database:** SQLite (with SQLAlchemy models for song metadata)
 - **APIs:** Endpoints for file upload, processing, library management, YouTube search/download, lyrics, and metadata enrichment
 - **External Integrations:**
   - **YouTube:** yt-dlp for search and download
-  - **MusicBrainz:** Metadata enrichment
+  - **iTunes:** Metadata enrichment and search
   - **LRCLIB:** Lyrics fetching
 
 ### Infrastructure & Tooling
@@ -72,7 +72,8 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
   - `audio.py`: Handles Demucs-based separation, progress reporting, and error handling
   - `file_management.py`: Manages file storage, directory structure, and metadata
   - `youtube_service.py`: Integrates yt-dlp for YouTube search/download
-  - `musicbrainz_service.py`: Fetches and enriches song metadata
+  - `metadata_service.py`: Metadata search service layer using iTunes API
+  - `itunes_service.py`: Fetches and enriches song metadata using iTunes Search API
   - `lyrics_service.py`: Retrieves lyrics from LRCLIB
 - **API Design:** RESTful endpoints for all major operations, with robust error handling
 - **Extensibility:** Modular service design for easy feature addition
@@ -82,7 +83,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ## Notable Implementation Details
 - **AI Audio Separation:** Uses Demucs for state-of-the-art source separation, with GPU acceleration if available
 - **Async Processing:** Designed for background task queuing (Celery), enabling scalable processing
-- **Metadata Enrichment:** Integrates with MusicBrainz and LRCLIB for rich song data and lyrics
+- **Metadata Enrichment:** Integrates with iTunes Search API and LRCLIB for rich song data and lyrics
 - **Error Handling:** Both backend and frontend include comprehensive error reporting and user feedback
 - **Security:** Input validation, CORS handling, and safe file operations
 

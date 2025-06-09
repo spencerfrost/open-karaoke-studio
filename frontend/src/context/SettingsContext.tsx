@@ -11,7 +11,7 @@ import {
   AudioSettings,
   ProcessingSettings,
   DisplaySettings,
-} from "../types/Settings";
+} from "@/types/Settings";
 
 // Default settings
 const defaultThemeSettings: ThemeSettings = {

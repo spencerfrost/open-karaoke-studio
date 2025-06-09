@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import { Music, Upload, List, Settings } from "lucide-react";
-import vintageTheme from "../../utils/theme";
+import { Music, Upload, List, Sliders } from "lucide-react";
+import vintageTheme from "@/utils/theme";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -10,8 +10,8 @@ interface AppLayoutProps {
 const navigationItems = [
   { name: "Library", path: "/", icon: Music },
   { name: "Add", path: "/add", icon: Upload },
-  { name: "Queue", path: "/queue", icon: List },
-  { name: "Settings", path: "/settings", icon: Settings },
+  { name: "Stage", path: "/stage", icon: List },
+  { name: "Controls", path: "/controls", icon: Sliders },
 ];
 
 const textureOverlayStyle = vintageTheme.getTextureOverlay();
