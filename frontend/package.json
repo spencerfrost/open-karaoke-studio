@@ -11,7 +11,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "lint:check": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --max-warnings=0",
     "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
-    "typecheck": "tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "check": "npm run format:check && npm run lint:check && npm run typecheck",
     "fix": "npm run format && npm run lint:fix",
     "preview": "vite preview"

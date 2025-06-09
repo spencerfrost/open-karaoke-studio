@@ -15,9 +15,17 @@ Open Karaoke Studio is a web application designed to make it easy for you to gen
 * 🔄  **Asynchronous Processing:** Queue up multiple song processing jobs to run in the background
 * 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
 
+## New: Lyric Timing Solutions 🎯
+* 🔧  **Logic-First Alignment:** Automatically detect and fix timing misalignment between vocals and synced lyrics
+* 🤖  **AI-Generated Lyrics:** Use speech recognition to create perfectly timed lyrics from audio (experimental)
+* 📊  **Batch Analysis:** Test timing alignment across your entire music library
+* ⚡  **Quick Fixes:** Get specific correction values to fix karaoke timing issues
+
+👉 **[Learn more about Lyric Timing Solutions](./docs/LYRIC_TIMING_SOLUTIONS.md)**
+
 ## Planned Features
 * ⚙️  **Settings/Configuration:** Customize your experience and song processing options.
-* 📺  **Karaoke Player:** Integrated karaoke player for seamless playback.
+* 📺  **Karaoke Player:** Integrated karaoke player for seamless playbook.
 * 🎙️  **Vocal Guide:** Adjust the volume of the original vocals to sing along.
 * 🩺  **Beat Detection:** Automatic beat synchronization for lyrics display
 * 🤖  **Lyrics Display:** Auto-generate karaoke-style lyrics graphics
