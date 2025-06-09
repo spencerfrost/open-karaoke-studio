@@ -175,6 +175,65 @@ class YouTubeService(YouTubeServiceInterface):
             if artist:
                 metadata.artist = artist
             
+            # Enhance metadata with iTunes data (Phase 1A Task 1)
+            try:
+                from .itunes_service import enhance_metadata_with_itunes
+                
+                # Convert metadata to dict for iTunes enhancement
+                metadata_dict = {
+                    'artist': metadata.artist,
+                    'title': metadata.title,
+                    'album': getattr(metadata, 'releaseTitle', None),
+                    'genre': getattr(metadata, 'genre', None),
+                    'duration': metadata.duration
+                }
+                
+                # Call iTunes enhancement
+                enhanced_dict = enhance_metadata_with_itunes(metadata_dict, song_dir)
+                
+                # Update metadata with enhanced fields
+                if enhanced_dict != metadata_dict:  # Only update if enhancement returned new data
+                    # Cover art and core metadata
+                    metadata.coverArt = enhanced_dict.get('coverArt')
+                    metadata.genre = enhanced_dict.get('genre') or metadata.genre
+                    metadata.releaseDate = enhanced_dict.get('releaseDate')
+                    
+                    # Additional metadata fields - use correct field names that exist in SongMetadata
+                    if enhanced_dict.get('album'):
+                        metadata.releaseTitle = enhanced_dict.get('album')  # Map album to releaseTitle
+                    if enhanced_dict.get('itunesTrackId'):
+                        metadata.mbid = str(enhanced_dict.get('itunesTrackId'))  # Map iTunes ID to mbid
+                    
+                    # iTunes enhancement fields
+                    if enhanced_dict.get('itunesTrackId'):
+                        metadata.itunesTrackId = enhanced_dict.get('itunesTrackId')
+                    if enhanced_dict.get('itunesArtistId'):
+                        metadata.itunesArtistId = enhanced_dict.get('itunesArtistId')
+                    if enhanced_dict.get('itunesCollectionId'):
+                        metadata.itunesCollectionId = enhanced_dict.get('itunesCollectionId')
+                    if enhanced_dict.get('trackTimeMillis'):
+                        metadata.trackTimeMillis = enhanced_dict.get('trackTimeMillis')
+                    if enhanced_dict.get('itunesExplicit'):
+                        metadata.itunesExplicit = enhanced_dict.get('itunesExplicit')
+                    if enhanced_dict.get('itunesPreviewUrl'):
+                        metadata.itunesPreviewUrl = enhanced_dict.get('itunesPreviewUrl')
+                    if enhanced_dict.get('itunesArtworkUrls'):
+                        metadata.itunesArtworkUrls = enhanced_dict.get('itunesArtworkUrls')
+                    if enhanced_dict.get('itunesRawMetadata'):
+                        metadata.itunesRawMetadata = enhanced_dict.get('itunesRawMetadata')
+                    
+                    # Keep original duration for now (YouTube video duration)
+                    # iTunes track duration will be added in Phase 1B
+                    
+                    logger.info(f"Successfully enhanced metadata with iTunes for song {song_id}")
+                else:
+                    logger.info(f"No iTunes enhancement available for {metadata.artist} - {metadata.title}")
+                    
+            except Exception as e:
+                # iTunes enhancement failure should not break YouTube download
+                logger.warning(f"iTunes metadata enhancement failed for song {song_id}: {e}")
+                # Continue with original metadata
+            
             # Download thumbnail if available
             thumbnail_url = self._get_best_thumbnail_url(info)
             if thumbnail_url:
@@ -329,101 +388,154 @@ class YouTubeService(YouTubeServiceInterface):
     
     def _extract_metadata_from_youtube_info(self, video_info: Dict[str, Any]) -> SongMetadata:
         """Extract metadata from YouTube video info"""
+        from .metadata_service import filter_youtube_metadata_for_storage
+        
+        # Extract channel ID with fallback to uploader_id
+        channel_id = video_info.get("channel_id") or video_info.get("uploader_id")
+        
+        # Helper function to extract selected thumbnails
+        def _extract_selected_thumbnails(video_info):
+            thumbnails = video_info.get("thumbnails", [])
+            if not thumbnails:
+                return None
+            
+            # Select a few key thumbnail URLs
+            selected = []
+            for thumb in thumbnails:
+                url = thumb.get("url")
+                if url and any(res in str(thumb.get("height", 0)) for res in ["120", "320", "640"]):
+                    selected.append(url)
+            
+            return selected[:3] if selected else None  # Limit to 3 thumbnails
+        
         return SongMetadata(
             title=video_info.get("title", "Unknown Title"),
             artist=video_info.get("uploader", "Unknown Artist"),
-            duration=video_info.get("duration"),
+            
+            # Dual duration strategy
+            duration=video_info.get("duration"),           # Keep as youtubeDuration 
+            youtubeDuration=video_info.get("duration"),    # Explicit YouTube duration
+            
             dateAdded=datetime.now(timezone.utc),
             source="youtube",
             sourceUrl=video_info.get("webpage_url"),
             videoId=video_info.get("id"),
             videoTitle=video_info.get("title"),
             uploader=video_info.get("uploader"),
+            uploaderId=video_info.get("uploader_id"),
             channel=video_info.get("channel"),
+            description=video_info.get("description"),
+            uploadDate=self._parse_upload_date(video_info.get("upload_date")),
+            
+            # Phase 1A Task 2: Focus on Channel ID as the key YouTube field
+            channelId=channel_id,
+            
+            # Phase 1B: Enhanced YouTube fields
+            youtubeThumbnailUrls=_extract_selected_thumbnails(video_info),
+            youtubeTags=video_info.get("tags", []),
+            youtubeCategories=video_info.get("categories", []),
+            youtubeChannelId=channel_id,
+            youtubeChannelName=video_info.get("channel") or video_info.get("uploader"),
+            
+            # Phase 1B: Store filtered raw YouTube metadata
+            youtubeRawMetadata=filter_youtube_metadata_for_storage(video_info),
         )
+    
+    def _parse_upload_date(self, upload_date_str: str) -> Optional[datetime]:
+        """Parse upload date string to datetime object"""
+        if not upload_date_str:
+            return None
+            
+        try:
+            # yt-dlp typically provides dates in YYYYMMDD format
+            if len(upload_date_str) == 8:
+                return datetime.strptime(upload_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            pass
+            
+        return None
     
     def _get_best_thumbnail_url(self, video_info: Dict[str, Any]) -> Optional[str]:
         """Get the best quality thumbnail URL from video info"""
         thumbnails = video_info.get("thumbnails", [])
         
-        # Strategy 1: Look for a maxres or high-resolution thumbnail first
         if thumbnails:
-            # First pass: Check for thumbnails with "maxres" or high resolution in the URL or ID
-            for thumb in thumbnails:
-                url = thumb.get("url", "")
-                thumb_id = thumb.get("id", "")
-                if ("maxres" in url.lower() or "maxres" in thumb_id.lower() or 
-                    "hqdefault" in url.lower() or "hqdefault" in thumb_id.lower()):
-                    logger.info(f"Selected high-res thumbnail: {url}")
-                    return url
-            
-            # Strategy 2: Select by preference if available
-            try:
-                # Find thumbnail with highest preference value
-                best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
-                if best_thumb.get("url"):
-                    logger.info(f"Selected thumbnail by preference: {best_thumb.get('url')}")
-                    return best_thumb.get("url")
-            except (ValueError, TypeError):
-                logger.warning("Could not find thumbnail by preference")
-            
-            # Strategy 3: Select by resolution/width if available
-            try:
-                # Find thumbnail with highest width/resolution
-                best_thumb = max(thumbnails, key=lambda t: int(t.get("width", 0)))
-                if best_thumb.get("url"):
-                    logger.info(f"Selected thumbnail by width: {best_thumb.get('url')}")
-                    return best_thumb.get("url")
-            except (ValueError, TypeError):
-                logger.warning("Could not find thumbnail by width")
-            
-            # Strategy 4: Just use the first thumbnail as fallback
-            if thumbnails and thumbnails[0].get("url"):
-                logger.info(f"Selected first available thumbnail: {thumbnails[0].get('url')}")
-                return thumbnails[0].get("url")
+            # Sort by preference (higher = better) and take the best
+            best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
+            if best_thumb.get("url"):
+                return best_thumb.get("url")
         
-        # Strategy 5: Use the direct thumbnail property if available
+        # First fallback: Check for single thumbnail field  
         if video_info.get("thumbnail"):
-            logger.info(f"Using direct thumbnail property: {video_info.get('thumbnail')}")
             return video_info.get("thumbnail")
         
-        # Last resort: Construct a thumbnail URL based on video ID
+        # Final fallback: construct maxresdefault URL
         if video_info.get("id"):
-            video_id = video_info.get("id")
-            # YouTube standard thumbnail URL format
-            constructed_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-            logger.info(f"Constructed thumbnail URL from video ID: {constructed_url}")
-            return constructed_url
-            
-        logger.warning("Could not find any thumbnail URL")
+            return f"https://i.ytimg.com/vi_webp/{video_info.get('id')}/maxresdefault.webp"
+        
         return None
     
     def _download_thumbnail(self, song_id: str, thumbnail_url: str, metadata: SongMetadata) -> None:
         """Download thumbnail and update metadata"""
         try:
             song_dir = self.file_service.get_song_directory(song_id)
-            thumbnail_path = song_dir / "thumbnail.jpg"
+            
+            # Determine file extension from URL or default to jpg
+            import os
+            from urllib.parse import urlparse
+            parsed_url = urlparse(thumbnail_url)
+            url_path = parsed_url.path.lower()
+            
+            if '.webp' in url_path:
+                extension = 'webp'
+                mimetype = 'image/webp'
+            elif '.png' in url_path:
+                extension = 'png'  
+                mimetype = 'image/png'
+            else:
+                extension = 'jpg'  # Default fallback
+                mimetype = 'image/jpeg'
+                
+            thumbnail_filename = f"thumbnail.{extension}"
+            thumbnail_path = song_dir / thumbnail_filename
             
             # Use existing thumbnail download function
             from .file_management import download_image
             
             logger.info(f"Attempting to download thumbnail from {thumbnail_url}")
             if download_image(thumbnail_url, thumbnail_path):
-                metadata.thumbnail = f"{song_id}/thumbnail.jpg"
-                logger.info(f"Thumbnail successfully downloaded for song {song_id}")
+                metadata.thumbnail = f"{song_id}/{thumbnail_filename}"
+                logger.info(f"Thumbnail successfully downloaded for song {song_id} as {thumbnail_filename}")
                 return
                 
-            # First fallback: Try alternative URL format if original failed
+            # First fallback: Try alternative URL formats if original failed
             video_id = metadata.videoId
             if video_id:
-                # Try different YouTube thumbnail formats
-                for format_name in ["maxresdefault", "hqdefault", "mqdefault", "sddefault", "default"]:
-                    fallback_url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.jpg"
+                # Try different YouTube thumbnail formats, prioritizing WebP for quality
+                formats_to_try = [
+                    ("maxresdefault", "webp"),
+                    ("maxresdefault", "jpg"), 
+                    ("hqdefault", "webp"),
+                    ("hqdefault", "jpg"),
+                    ("mqdefault", "jpg"),
+                    ("sddefault", "jpg"),
+                    ("default", "jpg")
+                ]
+                
+                for format_name, format_ext in formats_to_try:
+                    if format_ext == "webp":
+                        fallback_url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+                    else:
+                        fallback_url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
+                        
                     if fallback_url != thumbnail_url:  # Avoid retrying the same URL
-                        logger.info(f"Trying fallback thumbnail format {format_name}: {fallback_url}")
-                        if download_image(fallback_url, thumbnail_path):
-                            metadata.thumbnail = f"{song_id}/thumbnail.jpg"
-                            logger.info(f"Fallback thumbnail {format_name} downloaded successfully for song {song_id}")
+                        logger.info(f"Trying fallback thumbnail format {format_name}.{format_ext}: {fallback_url}")
+                        fallback_filename = f"thumbnail.{format_ext}"
+                        fallback_path = song_dir / fallback_filename
+                        
+                        if download_image(fallback_url, fallback_path):
+                            metadata.thumbnail = f"{song_id}/{fallback_filename}"
+                            logger.info(f"Fallback thumbnail {format_name}.{format_ext} downloaded successfully for song {song_id}")
                             return
             
             logger.warning(f"All thumbnail download attempts failed for song {song_id}")

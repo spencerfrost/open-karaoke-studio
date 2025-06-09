@@ -103,7 +103,7 @@ def read_song_metadata(
                 description=db_song.description,
                 uploadDate=db_song.upload_date,
                 mbid=db_song.mbid,
-                releaseTitle=db_song.release_title,
+                releaseTitle=db_song.album,
                 releaseId=db_song.release_id,
                 releaseDate=db_song.release_date,
                 genre=db_song.genre,
@@ -171,9 +171,10 @@ def download_image(url: str, save_path: Path) -> bool:
             # Some YouTube thumbnails might not correctly report content-type
             # Check if it at least looks like an image based on first few bytes
             first_bytes = next(response.iter_content(128), b'')
-            # Check for common image file signatures (JPEG, PNG)
+            # Check for common image file signatures (JPEG, PNG, WebP)
             if not (first_bytes.startswith(b'\xff\xd8\xff') or  # JPEG
-                    first_bytes.startswith(b'\x89PNG\r\n\x1a\n')):  # PNG
+                    first_bytes.startswith(b'\x89PNG\r\n\x1a\n') or  # PNG
+                    (first_bytes.startswith(b'RIFF') and b'WEBP' in first_bytes[:12])):  # WebP
                 logging.warning("Content doesn't appear to be an image based on file signature")
                 return False
 
