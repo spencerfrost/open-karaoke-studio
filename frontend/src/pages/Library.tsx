@@ -1,26 +1,44 @@
 import React, { useState } from "react";
-import { Grid, List, Music, Search } from "lucide-react";
+import { Grid, List, Music, Search, Filter } from "lucide-react";
 import SongCard from "../components/songs/SongCard";
 import AppLayout from "../components/layout/AppLayout";
-import { Song } from "../types/Song";
+import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
-import vintageTheme from "../utils/theme";
+import vintageTheme from "@/utils/theme";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSongs } from "../hooks/useSongs";
+import { useSongs } from "@/hooks/useSongs";
+
+type SortOption = "title" | "artist" | "album" | "dateAdded" | "duration" | "metadataQuality" | "year";
+type FilterSource = "all" | "itunes" | "youtube" | "both";
 
 const LibraryPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterTerm, setFilterTerm] = useState("");
   const [filterFavorites, setFilterFavorites] = useState(false);
+  const [filterGenre, setFilterGenre] = useState<string>("all");
+  const [filterYear, setFilterYear] = useState<string>("all");
+  const [filterSource, setFilterSource] = useState<FilterSource>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("dateAdded");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
   const navigate = useNavigate();
   const colors = vintageTheme.colors;
 
-  // Use our new hook
-  const { useAllSongs, useToggleFavorite } = useSongs();
+  // Use our hook
+  const { useAllSongs, useToggleFavorite, getMetadataQuality } = useSongs();
   
   // Get all songs with React Query
   const { 
@@ -34,16 +52,68 @@ const LibraryPage: React.FC = () => {
   // Use the toggle favorite mutation
   const toggleFavorite = useToggleFavorite();
 
-  // Filter songs based on search term and favorites filter
-  const filteredSongs = songs.filter(song => {
-    const matchesSearch = !filterTerm || 
-      song.title.toLowerCase().includes(filterTerm.toLowerCase()) ||
-      song.artist.toLowerCase().includes(filterTerm.toLowerCase());
-    
-    const matchesFavorites = !filterFavorites || song.favorite;
-    
-    return matchesSearch && matchesFavorites;
-  });
+  // Get unique genres and years for filters
+  const availableGenres = [...new Set(songs.map(song => song.genre).filter(Boolean))].sort();
+  const availableYears = [...new Set(songs.map(song => song.year).filter(Boolean))].sort();
+
+  // Filter and sort songs
+  const filteredAndSortedSongs = React.useMemo(() => {
+    const filtered = songs.filter(song => {
+      const matchesSearch = !filterTerm || 
+        song.title.toLowerCase().includes(filterTerm.toLowerCase()) ||
+        song.artist.toLowerCase().includes(filterTerm.toLowerCase()) ||
+        song.album?.toLowerCase().includes(filterTerm.toLowerCase());
+      
+      const matchesFavorites = !filterFavorites || song.favorite;
+      
+      const matchesGenre = filterGenre === "all" || song.genre === filterGenre;
+      
+      const matchesYear = filterYear === "all" || song.year === filterYear;
+      
+      const matchesSource = filterSource === "all" || 
+        (filterSource === "itunes" && song.itunesTrackId) ||
+        (filterSource === "youtube" && song.videoId) ||
+        (filterSource === "both" && song.itunesTrackId && song.videoId);
+      
+      return matchesSearch && matchesFavorites && matchesGenre && matchesYear && matchesSource;
+    });
+
+    // Sort the filtered results
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "title":
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case "artist":
+          comparison = a.artist.localeCompare(b.artist);
+          break;
+        case "album":
+          comparison = (a.album || "").localeCompare(b.album || "");
+          break;
+        case "dateAdded":
+          comparison = new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
+          break;
+        case "duration":
+          comparison = a.duration - b.duration;
+          break;
+        case "metadataQuality":
+          comparison = getMetadataQuality(a).percentage - getMetadataQuality(b).percentage;
+          break;
+        case "year": {
+          const yearA = parseInt(a.year || "0");
+          const yearB = parseInt(b.year || "0");
+          comparison = yearA - yearB;
+          break;
+        }
+      }
+      
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [songs, filterTerm, filterFavorites, filterGenre, filterYear, filterSource, sortBy, sortDirection, getMetadataQuality]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilterTerm(e.target.value);
@@ -60,7 +130,7 @@ const LibraryPage: React.FC = () => {
     try {
       await toggleFavorite.mutateAsync({ 
         id: song.id, 
-        isFavorite: newFavoriteStatus 
+        favorite: newFavoriteStatus 
       });
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
@@ -72,10 +142,6 @@ const LibraryPage: React.FC = () => {
     // It will be handled through cache invalidation
     // Just trigger a refetch to be sure
     refetch();
-  };
-
-  const handlePlaySong = (song: Song) => {
-    navigate(`/player/${song.id}`);
   };
 
   const handleAddToQueue = (song: Song) => {
@@ -142,6 +208,106 @@ const LibraryPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Advanced filters */}
+        <div className="mb-4">
+          <Button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}>
+            <Filter size={16} className="mr-2" />
+            Advanced Filters
+          </Button>
+        </div>
+
+        {showAdvancedFilters && (
+          <div className="mb-4 p-4 border rounded-lg" style={{ borderColor: colors.orangePeel }}>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="genre" className="block mb-2" style={{ color: colors.lemonChiffon }}>
+                  Genre
+                </label>
+                <Select value={filterGenre} onValueChange={setFilterGenre}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select genre" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableGenres.map(genre => (
+                      <SelectItem key={genre} value={genre!}>{genre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label htmlFor="year" className="block mb-2" style={{ color: colors.lemonChiffon }}>
+                  Year
+                </label>
+                <Select value={filterYear} onValueChange={setFilterYear}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {availableYears.map(year => (
+                      <SelectItem key={year} value={year!}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label htmlFor="source" className="block mb-2" style={{ color: colors.lemonChiffon }}>
+                  Source
+                </label>
+                <Select value={filterSource} onValueChange={(value) => setFilterSource(value as FilterSource)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="itunes">iTunes</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label htmlFor="sortBy" className="block mb-2" style={{ color: colors.lemonChiffon }}>
+                  Sort By
+                </label>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sort option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="title">Title</SelectItem>
+                    <SelectItem value="artist">Artist</SelectItem>
+                    <SelectItem value="album">Album</SelectItem>
+                    <SelectItem value="dateAdded">Date Added</SelectItem>
+                    <SelectItem value="duration">Duration</SelectItem>
+                    <SelectItem value="metadataQuality">Metadata Quality</SelectItem>
+                    <SelectItem value="year">Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label htmlFor="sortDirection" className="block mb-2" style={{ color: colors.lemonChiffon }}>
+                  Sort Direction
+                </label>
+                <Select value={sortDirection} onValueChange={(value) => setSortDirection(value as "asc" | "desc")}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sort direction" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Loading state */}
         {isLoading && (
@@ -219,7 +385,7 @@ const LibraryPage: React.FC = () => {
         {!isLoading && !isError && (
           <>
             {/* Empty state */}
-            {filteredSongs.length === 0 && (
+            {filteredAndSortedSongs.length === 0 && (
               <div
                 className="text-center py-12 rounded-lg"
                 style={{
@@ -237,14 +403,13 @@ const LibraryPage: React.FC = () => {
             )}
 
             {/* Songs grid/list */}
-            {filteredSongs.length > 0 &&
+            {filteredAndSortedSongs.length > 0 &&
               (viewMode === "grid" ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredSongs.map((song) => (
+                  {filteredAndSortedSongs.map((song) => (
                     <SongCard
                       key={song.id}
                       song={song}
-                      onPlay={handlePlaySong}
                       onAddToQueue={handleAddToQueue}
                       onToggleFavorite={handleToggleFavorite}
                       onSongUpdated={handleSongUpdated}
@@ -253,11 +418,10 @@ const LibraryPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredSongs.map((song) => (
+                  {filteredAndSortedSongs.map((song) => (
                     <SongCard
                       key={song.id}
                       song={song}
-                      onPlay={handlePlaySong}
                       onAddToQueue={handleAddToQueue}
                       onToggleFavorite={handleToggleFavorite}
                       onSongUpdated={handleSongUpdated}

@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { DialogHeader, DialogDescription, DialogTitle } from "../ui/dialog";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+import { DialogHeader, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Music, Search, Check } from "lucide-react";
-import { Song } from "../../types/Song";
-import vintageTheme from "../../utils/theme";
-import { useMetadata } from "../../hooks/useMetadata";
+import { Song } from "@/types/Song";
+import vintageTheme from "@/utils/theme";
+import { useMetadata } from "@/hooks/useMetadata";
 
 interface MetadataSearchTabProps {
   song: Song;
