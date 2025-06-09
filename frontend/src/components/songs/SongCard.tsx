@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Music, Heart, Play, ListPlus, Pencil } from "lucide-react";
+import { Music, Heart, Play, Pencil } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
 import { formatTime } from "@/utils/formatters";
