@@ -10,6 +10,7 @@ flask-celery-helper
 python-dotenv
 requests
 sqlalchemy
+alembic>=1.8.0
 flask-socketio
 eventlet
 # Testing dependencies

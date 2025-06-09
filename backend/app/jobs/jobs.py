@@ -293,9 +293,36 @@ def process_youtube_job(self, job_id, video_id, metadata):
             artist=metadata.get("artist"),
             title=metadata.get("title"),
         )
-
-        # Note: Song was already created in the frontend flow,
-        # so we don't need to create it again here
+        
+        # Extract enhanced metadata from download result
+        result_song_id, enhanced_metadata = download_result
+        
+        # Update the database song with enhanced metadata (including iTunes data)
+        try:
+            from ..db.models.song import DbSong
+            from ..db import database
+            
+            # Create updated song record with enhanced metadata
+            updated_song = DbSong.from_metadata(
+                song_id=song_id,
+                metadata=enhanced_metadata,
+                vocals_path=db_song.vocals_path,  # Preserve existing audio paths
+                instrumental_path=db_song.instrumental_path,
+                original_path=str(song_dir / "original.mp3")  # Set original path
+            )
+            
+            # Update the song in database with enhanced metadata
+            success = database.update_song_with_metadata(song_id, updated_song)
+            
+            if success:
+                logger.info(f"Successfully updated song {song_id} with enhanced metadata")
+                update_progress(25, "Enhanced metadata saved")
+            else:
+                logger.warning(f"Failed to update song {song_id} with enhanced metadata")
+                
+        except Exception as e:
+            logger.error(f"Error updating song metadata for {song_id}: {e}")
+            # Continue processing even if metadata update fails
 
         update_progress(
             30, "Download complete, starting audio processing", JobStatus.PROCESSING
@@ -336,6 +363,35 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Phase 3: Finalization (90-100% progress)
         update_progress(95, "Cleaning up temporary files")
+
+        # Phase 1A Task 3: Update database with audio file paths after processing
+        try:
+            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
+            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
+            
+            # Verify the files actually exist before updating database
+            if vocals_path.exists() and instrumental_path.exists():
+                # Get relative paths from library directory
+                from ..config import get_config
+                config = get_config()
+                
+                vocals_relative = str(vocals_path.relative_to(config.LIBRARY_DIR))
+                instrumental_relative = str(instrumental_path.relative_to(config.LIBRARY_DIR))
+                
+                # Update song with audio file paths
+                from ..db import database
+                success = database.update_song_audio_paths(song_id, vocals_relative, instrumental_relative)
+                
+                if success:
+                    logger.info(f"Successfully updated audio paths for song {song_id}")
+                else:
+                    logger.warning(f"Failed to update audio paths for song {song_id}")
+            else:
+                logger.warning(f"Audio files not found after processing for song {song_id}: vocals={vocals_path.exists()}, instrumental={instrumental_path.exists()}")
+                
+        except Exception as e:
+            # Don't fail the job for path update issues, just log the error
+            logger.error(f"Error updating audio paths for song {song_id}: {e}")
 
         # Any cleanup or final processing steps can go here
 
