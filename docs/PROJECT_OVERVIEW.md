@@ -42,7 +42,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **APIs:** Endpoints for file upload, processing, library management, YouTube search/download, lyrics, and metadata enrichment
 - **External Integrations:**
   - **YouTube:** yt-dlp for search and download
-  - **MusicBrainz:** Metadata enrichment
+  - **iTunes:** Metadata enrichment and search
   - **LRCLIB:** Lyrics fetching
 
 ### Infrastructure & Tooling
@@ -72,7 +72,8 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
   - `audio.py`: Handles Demucs-based separation, progress reporting, and error handling
   - `file_management.py`: Manages file storage, directory structure, and metadata
   - `youtube_service.py`: Integrates yt-dlp for YouTube search/download
-  - `musicbrainz_service.py`: Fetches and enriches song metadata
+  - `metadata_service.py`: Metadata search service layer using iTunes API
+  - `itunes_service.py`: Fetches and enriches song metadata using iTunes Search API
   - `lyrics_service.py`: Retrieves lyrics from LRCLIB
 - **API Design:** RESTful endpoints for all major operations, with robust error handling
 - **Extensibility:** Modular service design for easy feature addition
@@ -82,7 +83,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ## Notable Implementation Details
 - **AI Audio Separation:** Uses Demucs for state-of-the-art source separation, with GPU acceleration if available
 - **Async Processing:** Designed for background task queuing (Celery), enabling scalable processing
-- **Metadata Enrichment:** Integrates with MusicBrainz and LRCLIB for rich song data and lyrics
+- **Metadata Enrichment:** Integrates with iTunes Search API and LRCLIB for rich song data and lyrics
 - **Error Handling:** Both backend and frontend include comprehensive error reporting and user feedback
 - **Security:** Input validation, CORS handling, and safe file operations
 
