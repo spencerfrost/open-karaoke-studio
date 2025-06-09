@@ -7,7 +7,7 @@ from demucs.api import Separator, save_audio
 
 # Use relative imports
 from . import file_management
-from ..config import Config as config
+from ..config import get_config
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
@@ -117,6 +117,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 status_callback(device_msg)
 
             # --- Initialization ---
+            config = get_config()
             model_name = config.DEFAULT_MODEL
             init_msg = f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
             print(init_msg)
@@ -215,6 +216,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             save_kwargs = {"samplerate": separator.samplerate}
             if output_extension == ".mp3":
+                config = get_config()
                 save_kwargs["bitrate"] = int(config.DEFAULT_MP3_BITRATE)
                 save_kwargs["preset"] = 2
             elif output_extension == ".wav":

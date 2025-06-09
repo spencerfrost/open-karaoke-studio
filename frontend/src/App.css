@@ -1,0 +1,10 @@
+.lrc {
+  /* webkit */
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  /* firefox */
+  scrollbar-width: none;
+}

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Song, SongStatus } from "../types/Song";
+import { Song, SongStatus } from "@/types/Song";
 
 // Helper function for filtering songs based on criteria
 const filterSongs = (

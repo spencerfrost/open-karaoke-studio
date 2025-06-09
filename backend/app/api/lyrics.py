@@ -1,97 +1,124 @@
 from flask import Blueprint, request, jsonify, current_app
 
-from ..services.lyrics_service import make_request
+from ..services.lyrics_service import LyricsService
 from ..db.database import create_or_update_song
+from ..exceptions import ServiceError, ValidationError
 
-lyrics_bp = Blueprint('lyrics', __name__, url_prefix='/api/lyrics')
+lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
 
-@lyrics_bp.route('/search', methods=['GET', 'POST'])
+
+@lyrics_bp.route("/search", methods=["GET"])
 def search_lyrics():
-    """ 
-    Search for lyrics via POST (with JSON body) or GET (with query parameters).
-    
+    """
+    Search for lyrics via GET (with query parameters).
+
     Parameters:
     - track_name: Song title (required)
     - artist_name: Artist name (required)
     - album_name: Album name (optional) - can improve search results
-    - song_id: Optional song ID to update database metadata if lyrics are found
+    
+    Returns:
+    - A JSON array with lyrics results from LRCLIB
     """
-    # Extract parameters based on request method
-    song_id, track_name, artist_name, album_name = _extract_lyrics_search_params()
+    track_name = request.args.get("track_name")
+    artist_name = request.args.get("artist_name")
+    album_name = request.args.get("album_name")
+
     if not track_name or not artist_name:
-        return jsonify({'error': 'Missing track_name/artist_name information'}), 400
-    
-    search_params = {
-        'track_name': track_name,
-        'artist_name': artist_name
-    }
-    
-    # Add album to search params if provided
-    if album_name:
-        search_params['album_name'] = album_name
-    
+        return jsonify({"error": "Missing track_name/artist_name information"}), 400
+
     try:
-        # Call the lyrics service
-        status, data = make_request('/api/search', search_params)
+        lyrics_service = LyricsService()
         
-        # Update database if needed
-        if song_id and status == 200 and data:
-            _update_song_metadata(song_id, data)
+        # Build query string from parameters
+        query_parts = [artist_name, track_name]
+        if album_name:
+            query_parts.append(album_name)
         
-        return jsonify(data), status
-    except Exception as e:
-        current_app.logger.error(f"Error fetching lyrics: {str(e)}")
-        return jsonify({'error': f'Failed to fetch lyrics: {str(e)}'}), 500
+        query = " ".join(query_parts)
+        results = lyrics_service.search_lyrics(query)
+        
+        current_app.logger.info(f"Found {len(results)} lyrics results for query: {query}")
+        return jsonify(results), 200
 
-def _extract_lyrics_search_params():
-    """Helper function to extract parameters from either POST or GET requests."""
-    if request.method == 'POST':
-        params = request.get_json()
-        if not params:
-            return None, None, None, None
-        
-        song_id = params.get('song_id')
-        track_name = params.get('track_name') or params.get('title')  # Support legacy 'title' param
-        artist_name = params.get('artist_name') or params.get('artist')  # Support legacy 'artist' param
-        album_name = params.get('album_name') or params.get('album')  # Support legacy 'album' param
-    else:  # GET
-        song_id = request.args.get('song_id')
-        track_name = request.args.get('track_name') or request.args.get('title')
-        artist_name = request.args.get('artist_name') or request.args.get('artist')
-        album_name = request.args.get('album_name') or request.args.get('album')
+    except ServiceError as e:
+        current_app.logger.error(f"Service error searching lyrics: {e}")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(f"Error searching lyrics: {str(e)}")
+        return jsonify({"error": f"Failed to search lyrics: {str(e)}"}), 500
+
+
+@lyrics_bp.route("/<string:song_id>", methods=["POST"])
+def save_song_lyrics(song_id: str):
+    """
+    Save lyrics for a specific song.
     
-    return song_id, track_name, artist_name, album_name
-
-def _update_song_metadata(song_id, data):
-    """Helper function to update song metadata in the database."""
-    current_app.logger.debug(f"Updating metadata for song {song_id}")
+    Parameters:
+    - song_id: The ID of the song to save lyrics for
+    
+    Request body:
+    - lyrics: The lyrics text to save
+    
+    Returns:
+    - Success/error message
+    """
     try:
-        from ..db.models import SongMetadata
-        metadata = SongMetadata(
-            lyrics=data.get('plainLyrics'),
-            syncedLyrics=data.get('syncedLyrics')
-        )
-        create_or_update_song(song_id, metadata)
+        data = request.get_json()
+        if not data or "lyrics" not in data:
+            return jsonify({"error": "Missing lyrics in request body"}), 400
+        
+        lyrics_text = data["lyrics"]
+        if not isinstance(lyrics_text, str):
+            return jsonify({"error": "Lyrics must be a string"}), 400
+        
+        lyrics_service = LyricsService()
+        
+        # Validate and save lyrics
+        success = lyrics_service.save_lyrics(song_id, lyrics_text)
+        
+        if success:
+            current_app.logger.info(f"Successfully saved lyrics for song {song_id}")
+            return jsonify({"message": "Lyrics saved successfully"}), 200
+        else:
+            return jsonify({"error": "Failed to save lyrics"}), 500
+            
+    except ValidationError as e:
+        current_app.logger.warning(f"Validation error saving lyrics for {song_id}: {e}")
+        return jsonify({"error": f"Invalid lyrics: {str(e)}"}), 400
+    except ServiceError as e:
+        current_app.logger.error(f"Service error saving lyrics for {song_id}: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Error updating song metadata: {str(e)}")
-
-@lyrics_bp.route('/get', methods=['GET'])
-def get_lyrics():
-    required = ('track_name', 'artist_name', 'album_name', 'duration')
-    missing = [p for p in required if not request.args.get(p)]
-    if missing:
-        return jsonify({'error': f"Missing parameters: {', '.join(missing)}"}), 400
-    params = {p: request.args.get(p) for p in required}
-    status, data = make_request('/api/get', params)
-    return jsonify(data), status
+        current_app.logger.error(f"Unexpected error saving lyrics for {song_id}: {e}")
+        return jsonify({"error": "Failed to save lyrics"}), 500
 
 
-@lyrics_bp.route('/get-cached', methods=['GET'])
-def get_cached_lyrics():
-    required = ('track_name', 'artist_name', 'album_name', 'duration')
-    missing = [p for p in required if not request.args.get(p)]
-    if missing:
-        return jsonify({'error': f"Missing parameters: {', '.join(missing)}"}), 400
-    params = {p: request.args.get(p) for p in required}
-    status, data = make_request('/api/get-cached', params)
-    return jsonify(data), status
+@lyrics_bp.route("/<string:song_id>", methods=["GET"])
+def get_song_lyrics_local(song_id: str):
+    """
+    Get locally stored lyrics for a specific song.
+    
+    Parameters:
+    - song_id: The ID of the song to get lyrics for
+    
+    Returns:
+    - Lyrics text if found, error message otherwise
+    """
+    try:
+        lyrics_service = LyricsService()
+        lyrics_text = lyrics_service.get_lyrics(song_id)
+        
+        if lyrics_text:
+            current_app.logger.info(f"Retrieved local lyrics for song {song_id}")
+            return jsonify({"lyrics": lyrics_text}), 200
+        else:
+            current_app.logger.info(f"No local lyrics found for song {song_id}")
+            return jsonify({"error": "No lyrics found"}), 404
+            
+    except ServiceError as e:
+        current_app.logger.error(f"Service error getting lyrics for {song_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error getting lyrics for {song_id}: {e}")
+        return jsonify({"error": "Failed to get lyrics"}), 500

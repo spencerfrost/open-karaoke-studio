@@ -15,7 +15,11 @@ import { Loader2 } from "lucide-react";
 interface MetadataDialogProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly onSubmit: (metadata: { artist: string; title: string, album: string }) => void;
+  readonly onSubmit: (metadata: {
+    artist: string;
+    title: string;
+    album: string;
+  }) => void;
   readonly initialMetadata?: { artist: string; title: string; album?: string };
   readonly videoTitle?: string;
   readonly isSubmitting?: boolean;
@@ -53,7 +57,11 @@ export function MetadataDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ artist: artist.trim(), title: title.trim(), album: album.trim() });
+    onSubmit({
+      artist: artist.trim(),
+      title: title.trim(),
+      album: album.trim(),
+    });
   };
 
   return (
@@ -63,12 +71,22 @@ export function MetadataDialog({
           <DialogTitle>Song Information</DialogTitle>
           <DialogDescription>
             {videoTitle ? (
-              <>
-                Verify or edit song information from:{" "}
-                <strong>{videoTitle}</strong>
-              </>
+              <div className="space-y-1">
+                <p>
+                  Verify or edit song information from:{" "}
+                  <strong>{videoTitle}</strong>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  After this step, we'll find matching lyrics and additional metadata for verification.
+                </p>
+              </div>
             ) : (
-              <>Enter song information</>
+              <div className="space-y-1">
+                <p>Enter song information</p>
+                <p className="text-xs text-muted-foreground">
+                  Provide accurate artist and title information to help find the best matches.
+                </p>
+              </div>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -118,15 +136,8 @@ export function MetadataDialog({
 
           <DialogFooter>
             <Button
-              variant="outline"
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
               type="submit"
+              variant="primary"
               disabled={isSubmitting || !title.trim() || !artist.trim()}
             >
               {isSubmitting ? (
@@ -135,7 +146,7 @@ export function MetadataDialog({
                   Processing...
                 </>
               ) : (
-                "Add to Library"
+                "Continue to Verification"
               )}
             </Button>
           </DialogFooter>

@@ -1,41 +1,50 @@
 import React, { useState } from "react";
-import { Button } from "../ui/button";
-import { Dialog, DialogContent } from "../ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pencil } from "lucide-react";
-import { Song } from "../../types/Song";
-import vintageTheme from "../../utils/theme";
-import { updateSongMetadata, deleteSong } from "../../services/songService";
+import { Song } from "@/types/Song";
+import { useSongs } from "@/hooks/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
-import MusicBrainzSearchTab from "./MusicBrainzSearchTab";
+import MetadataSearchTab from "./MetadataSearchTab";
 
 interface MetadataEditorProps {
   song: Song;
   onSongUpdated: (updatedSong: Song) => void;
   buttonClassName?: string;
+  icon?: boolean;
 }
 
 const MetadataEditor: React.FC<MetadataEditorProps> = ({
   song,
   onSongUpdated,
   buttonClassName = "",
+  icon = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
-  const colors = vintageTheme.colors;
+  const { useUpdateSongMetadata, useDeleteSong } = useSongs();
+  
+  const updateMetadata = useUpdateSongMetadata();
+  const deleteSong = useDeleteSong();
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
-      const updatedSong = await updateSongMetadata(song.id, metadata);
-      onSongUpdated(updatedSong.data as Song);
+      const result = await updateMetadata.mutateAsync({ 
+        id: song.id, 
+        ...metadata 
+      });
+      
+      if (result) {
+        onSongUpdated(result);
+      }
       setOpen(false);
     } catch (error) {
       console.error("Failed to update metadata:", error);
     }
   };
 
-  const handleSelectMusicBrainzResult = (result: Partial<Song>) => {
-    // Save the selected result to the metadata but preserve existing lyrics
+  const handleSelectMetadataResult = (result: Partial<Song>) => {
     const metadataToSave: Partial<Song> = {
       title: result.title,
       artist: result.artist,
@@ -51,12 +60,15 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   };
 
   const handleDeleteSong = async () => {
-    if (window.confirm("Are you sure you want to delete this song? This action cannot be undone.")) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this song? This action cannot be undone."
+      )
+    ) {
       try {
-        await deleteSong(song.id);
+        await deleteSong.mutateAsync(song.id);
         setOpen(false);
         alert("Song deleted successfully.");
-        // Optionally, trigger a parent update or refresh the song list
       } catch (error) {
         console.error("Failed to delete song:", error);
         alert("Failed to delete the song. Please try again.");
@@ -69,13 +81,11 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       {/* Edit Button */}
       <Button
         variant="ghost"
-        size="sm"
         onClick={() => setOpen(true)}
-        className={`text-xs flex items-center gap-1 px-2 ${buttonClassName}`}
-        style={{ color: colors.darkCyan }}
+        className={`text-xs flex items-center gap-1 text-accent ${buttonClassName}`}
       >
         <Pencil size={14} />
-        Edit Info
+        {icon ? null : "Edit Metadata"}
       </Button>
 
       {/* Dialog */}
@@ -84,21 +94,25 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full p-0">
               <TabsTrigger value="edit">Edit Metadata</TabsTrigger>
-              <TabsTrigger value="search">MusicBrainz Search</TabsTrigger>
+              <TabsTrigger value="search">Metadata Search</TabsTrigger>
             </TabsList>
             <TabsContent value="edit">
               <MetadataEditorTab song={song} onSave={handleSaveMetadata} />
             </TabsContent>
             <TabsContent value="search">
-              <MusicBrainzSearchTab
+              <MetadataSearchTab
                 song={song}
-                onSelectResult={handleSelectMusicBrainzResult}
+                onSelectResult={handleSelectMetadataResult}
               />
             </TabsContent>
           </Tabs>
           <div className="flex justify-end mt-4">
-            <Button variant="destructive" onClick={handleDeleteSong}>
-              Delete Song
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteSong}
+              disabled={deleteSong.isPending}
+            >
+              {deleteSong.isPending ? "Deleting..." : "Delete Song"}
             </Button>
           </div>
         </DialogContent>
