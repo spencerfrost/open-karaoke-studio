@@ -6,6 +6,7 @@ Database utility functions
 from contextlib import contextmanager
 from typing import Iterator, List, Optional
 import traceback
+import json
 from pathlib import Path
 import logging
 
@@ -206,7 +207,7 @@ def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSo
                 "artist": metadata.artist,
                 "duration": metadata.duration,
                 "favorite": metadata.favorite if hasattr(metadata, 'favorite') else None,
-                "date_added": metadata.dateAdded,
+                "date_added": getattr(metadata, 'dateAdded', None) or getattr(metadata, 'date_added', None),
                 "cover_art_path": metadata.coverArt if hasattr(metadata, 'coverArt') else None,
                 "thumbnail_path": metadata.thumbnail if hasattr(metadata, 'thumbnail') else None,
                 "source": metadata.source if hasattr(metadata, 'source') else None,
@@ -219,13 +220,34 @@ def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSo
                 "description": metadata.description if hasattr(metadata, 'description') else None,
                 "upload_date": metadata.uploadDate if hasattr(metadata, 'uploadDate') else None,
                 "mbid": metadata.mbid if hasattr(metadata, 'mbid') else None,
-                "release_title": metadata.releaseTitle if hasattr(metadata, 'releaseTitle') else None,
+                "album": metadata.releaseTitle if hasattr(metadata, 'releaseTitle') else None,
                 "release_id": metadata.releaseId if hasattr(metadata, 'releaseId') else None,
                 "release_date": metadata.releaseDate if hasattr(metadata, 'releaseDate') else None,
                 "genre": metadata.genre if hasattr(metadata, 'genre') else None,
                 "language": metadata.language if hasattr(metadata, 'language') else None,
                 "lyrics": metadata.lyrics if hasattr(metadata, 'lyrics') else None,
-                "synced_lyrics": metadata.syncedLyrics if hasattr(metadata, 'syncedLyrics') else None
+                "synced_lyrics": metadata.syncedLyrics if hasattr(metadata, 'syncedLyrics') else None,
+                
+                # Phase 1B: iTunes fields
+                "itunes_track_id": metadata.itunesTrackId if hasattr(metadata, 'itunesTrackId') else None,
+                "itunes_artist_id": metadata.itunesArtistId if hasattr(metadata, 'itunesArtistId') else None,
+                "itunes_collection_id": metadata.itunesCollectionId if hasattr(metadata, 'itunesCollectionId') else None,
+                "track_time_millis": metadata.trackTimeMillis if hasattr(metadata, 'trackTimeMillis') else None,
+                "itunes_explicit": metadata.itunesExplicit if hasattr(metadata, 'itunesExplicit') else None,
+                "itunes_preview_url": metadata.itunesPreviewUrl if hasattr(metadata, 'itunesPreviewUrl') else None,
+                "itunes_artwork_urls": json.dumps(metadata.itunesArtworkUrls) if hasattr(metadata, 'itunesArtworkUrls') and metadata.itunesArtworkUrls else None,
+                
+                # Phase 1B: Enhanced YouTube fields
+                "youtube_duration": metadata.youtubeDuration if hasattr(metadata, 'youtubeDuration') else None,
+                "youtube_thumbnail_urls": json.dumps(metadata.youtubeThumbnailUrls) if hasattr(metadata, 'youtubeThumbnailUrls') and metadata.youtubeThumbnailUrls else None,
+                "youtube_tags": json.dumps(metadata.youtubeTags) if hasattr(metadata, 'youtubeTags') and metadata.youtubeTags else None,
+                "youtube_categories": json.dumps(metadata.youtubeCategories) if hasattr(metadata, 'youtubeCategories') and metadata.youtubeCategories else None,
+                "youtube_channel_id": metadata.youtubeChannelId if hasattr(metadata, 'youtubeChannelId') else None,
+                "youtube_channel_name": metadata.youtubeChannelName if hasattr(metadata, 'youtubeChannelName') else None,
+                
+                # Phase 1B: Raw metadata storage
+                "itunes_raw_metadata": metadata.itunesRawMetadata if hasattr(metadata, 'itunesRawMetadata') else None,
+                "youtube_raw_metadata": metadata.youtubeRawMetadata if hasattr(metadata, 'youtubeRawMetadata') else None,
             }
 
             # Update db_song attributes dynamically
@@ -294,4 +316,116 @@ def delete_song(song_id: str) -> bool:
                 return False
     except Exception as e:
         logging.error(f"Error deleting song {song_id} from the database: {e}")
+        return False
+
+
+def update_song_audio_paths(song_id: str, vocals_path: str, instrumental_path: str) -> bool:
+    """Update song with audio file paths after processing completes
+    
+    Args:
+        song_id: Song identifier
+        vocals_path: Relative path to vocals file from library directory
+        instrumental_path: Relative path to instrumental file from library directory
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    try:
+        with get_db_session() as session:
+            db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
+            
+            if not db_song:
+                logging.error(f"Song {song_id} not found for audio path update")
+                return False
+            
+            # Update the audio file paths
+            db_song.vocal_path = vocals_path
+            db_song.instrumental_path = instrumental_path
+            
+            session.commit()
+            logging.info(f"Successfully updated audio paths for song {song_id}")
+            return True
+            
+    except Exception as e:
+        logging.error(f"Error updating audio paths for song {song_id}: {e}")
+        traceback.print_exc()
+        return False
+
+
+def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
+    """Update song with enhanced metadata from processing
+    
+    Args:
+        song_id: Song identifier
+        updated_song: DbSong object with updated metadata fields
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    try:
+        with get_db_session() as session:
+            db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
+            
+            if not db_song:
+                logging.error(f"Song {song_id} not found for metadata update")
+                return False
+            
+            # Update metadata fields, but preserve existing audio paths if not set in updated_song
+            db_song.title = updated_song.title or db_song.title
+            db_song.artist = updated_song.artist or db_song.artist
+            db_song.duration = updated_song.duration or db_song.duration
+            db_song.cover_art_path = updated_song.cover_art_path or db_song.cover_art_path
+            db_song.thumbnail_path = updated_song.thumbnail_path or db_song.thumbnail_path
+            db_song.genre = updated_song.genre or db_song.genre
+            db_song.year = updated_song.year or db_song.year
+            db_song.album = updated_song.album or db_song.album
+            db_song.release_date = updated_song.release_date or db_song.release_date
+            db_song.language = updated_song.language or db_song.language
+            db_song.source = updated_song.source or db_song.source
+            db_song.source_url = updated_song.source_url or db_song.source_url
+            db_song.video_id = updated_song.video_id or db_song.video_id
+            db_song.uploader = updated_song.uploader or db_song.uploader
+            db_song.uploader_id = updated_song.uploader_id or db_song.uploader_id
+            db_song.channel = updated_song.channel or db_song.channel
+            db_song.channel_id = updated_song.channel_id or db_song.channel_id
+            db_song.description = updated_song.description or db_song.description
+            db_song.upload_date = updated_song.upload_date or db_song.upload_date
+            db_song.mbid = updated_song.mbid or db_song.mbid
+            
+            # Phase 1B: iTunes integration fields
+            db_song.itunes_track_id = updated_song.itunes_track_id or db_song.itunes_track_id
+            db_song.itunes_artist_id = updated_song.itunes_artist_id or db_song.itunes_artist_id
+            db_song.itunes_collection_id = updated_song.itunes_collection_id or db_song.itunes_collection_id
+            db_song.track_time_millis = updated_song.track_time_millis or db_song.track_time_millis
+            db_song.itunes_explicit = updated_song.itunes_explicit if updated_song.itunes_explicit is not None else db_song.itunes_explicit
+            db_song.itunes_preview_url = updated_song.itunes_preview_url or db_song.itunes_preview_url
+            db_song.itunes_artwork_urls = updated_song.itunes_artwork_urls or db_song.itunes_artwork_urls
+            
+            # Phase 1B: Enhanced YouTube fields
+            db_song.youtube_duration = updated_song.youtube_duration or db_song.youtube_duration
+            db_song.youtube_thumbnail_urls = updated_song.youtube_thumbnail_urls or db_song.youtube_thumbnail_urls
+            db_song.youtube_tags = updated_song.youtube_tags or db_song.youtube_tags
+            db_song.youtube_categories = updated_song.youtube_categories or db_song.youtube_categories
+            db_song.youtube_channel_id = updated_song.youtube_channel_id or db_song.youtube_channel_id
+            db_song.youtube_channel_name = updated_song.youtube_channel_name or db_song.youtube_channel_name
+            
+            # Phase 1B: Raw metadata storage
+            db_song.itunes_raw_metadata = updated_song.itunes_raw_metadata or db_song.itunes_raw_metadata
+            db_song.youtube_raw_metadata = updated_song.youtube_raw_metadata or db_song.youtube_raw_metadata
+            
+            # Preserve existing file paths if not provided in updated_song
+            if updated_song.vocals_path:
+                db_song.vocals_path = updated_song.vocals_path
+            if updated_song.instrumental_path:
+                db_song.instrumental_path = updated_song.instrumental_path
+            if updated_song.original_path:
+                db_song.original_path = updated_song.original_path
+            
+            session.commit()
+            logging.info(f"Successfully updated metadata for song {song_id}")
+            return True
+            
+    except Exception as e:
+        logging.error(f"Error updating metadata for song {song_id}: {e}")
+        traceback.print_exc()
         return False

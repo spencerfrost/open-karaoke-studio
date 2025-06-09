@@ -135,7 +135,7 @@ def get_song_details(song_id: str):
         if db_song:
             response.update(
                 {
-                    "album": db_song.release_title,
+                    "album": db_song.album,
                     "year": db_song.release_date,
                     "genre": db_song.genre,
                     "language": db_song.language,
@@ -145,6 +145,21 @@ def get_song_details(song_id: str):
                     "sourceUrl": db_song.source_url,
                     "lyrics": db_song.lyrics,
                     "syncedLyrics": db_song.synced_lyrics,
+                    # iTunes metadata
+                    "itunesTrackId": db_song.itunes_track_id,
+                    "itunesArtistId": db_song.itunes_artist_id,
+                    "itunesCollectionId": db_song.itunes_collection_id,
+                    "trackTimeMillis": db_song.track_time_millis,
+                    "itunesExplicit": db_song.itunes_explicit,
+                    "itunesPreviewUrl": db_song.itunes_preview_url,
+                    "itunesArtworkUrls": db_song.itunes_artwork_urls,
+                    # YouTube metadata
+                    "youtubeDuration": db_song.youtube_duration,
+                    "youtubeThumbnailUrls": db_song.youtube_thumbnail_urls,
+                    "youtubeTags": db_song.youtube_tags,
+                    "youtubeCategories": db_song.youtube_categories,
+                    "youtubeChannelId": db_song.youtube_channel_id,
+                    "youtubeChannelName": db_song.youtube_channel_name,
                 }
             )
 
@@ -161,114 +176,60 @@ def get_song_details(song_id: str):
         return jsonify({"error": "Internal server error"}), 500
 
 
-@song_bp.route("/<string:song_id>/metadata", methods=["PATCH"])
-def update_song_metadata(song_id: str):
-    """Endpoint to update song metadata."""
-    current_app.logger.info(f"Received metadata update request for song: {song_id}")
+# Removed redundant metadata endpoint - use generic PATCH /api/songs/<song_id> instead
+
+
+@song_bp.route("/<string:song_id>/thumbnail.<string:extension>", methods=["GET"])
+def get_thumbnail(song_id: str, extension: str):
+    """Serve the thumbnail image for a song."""
+    from flask import send_file
+    import os
+
+    # Decode the song ID to handle URL-encoded characters
+    song_id = unquote(song_id)
+
+    # Validate extension
+    allowed_extensions = {'jpg', 'jpeg', 'png', 'webp'}
+    if extension.lower() not in allowed_extensions:
+        return jsonify({"error": "Invalid image format"}), 400
+
+    # Get song from database to find thumbnail path
+    db_song = database.get_song(song_id)
+
+    # Construct the path to the thumbnail
+    file_service = FileService()
+    song_dir = file_service.get_song_directory(song_id)
+    thumbnail_path = song_dir / f"thumbnail.{extension}"
+
+    if not thumbnail_path.exists():
+        return jsonify({"error": "Thumbnail not found"}), 404
+
+    if not os.access(thumbnail_path, os.R_OK):
+        return jsonify({"error": "Thumbnail is not readable"}), 403
+
+    # Determine correct mimetype based on extension
+    mimetype_map = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg', 
+        'png': 'image/png',
+        'webp': 'image/webp'
+    }
+    mimetype = mimetype_map.get(extension.lower(), 'image/jpeg')
+
     try:
-        # Validate that song exists in filesystem
-        file_service = FileService()
-        song_dir = file_service.get_song_directory(song_id)
-        if not song_dir.is_dir():
-            current_app.logger.error(f"Song directory not found: {song_dir}")
-            return jsonify({"error": "Song not found"}), 404
-
-        # Get request data
-        update_data = request.get_json()
-        if not update_data:
-            return jsonify({"error": "No update data provided"}), 400
-
-        # Get existing metadata from database
-        db_song = database.get_song(song_id)
-        existing_metadata = None
-
-        if db_song:
-            # Convert database song to SongMetadata for file_management.write_song_metadata
-            existing_metadata = SongMetadata(
-                title=db_song.title,
-                artist=db_song.artist,
-                duration=db_song.duration,
-                favorite=db_song.favorite,
-                dateAdded=db_song.date_added,
-                coverArt=db_song.cover_art_path,
-                thumbnail=db_song.thumbnail_path,
-                source=db_song.source,
-                sourceUrl=db_song.source_url,
-                videoId=db_song.video_id,
-                uploader=db_song.uploader,
-                uploaderId=db_song.uploader_id,
-                channel=db_song.channel,
-                channelId=db_song.channel_id,
-                description=db_song.description,
-                uploadDate=db_song.upload_date,
-                mbid=db_song.mbid,
-                releaseTitle=db_song.release_title,
-                releaseId=db_song.release_id,
-                releaseDate=db_song.release_date,
-                genre=db_song.genre,
-                language=db_song.language,
-                lyrics=db_song.lyrics,
-                syncedLyrics=db_song.synced_lyrics,
-            )
-        else:
-            # Try to get from legacy metadata
-            existing_metadata = file_management.read_song_metadata(song_id)
-
-        if not existing_metadata:
-            # Create new metadata if it doesn't exist
-            current_app.logger.warning(f"Creating new metadata for song {song_id}")
-            existing_metadata = SongMetadata(
-                title=update_data.get("title", song_id.replace("_", " ").title()),
-                artist=update_data.get("artist", "Unknown Artist"),
-                dateAdded=datetime.now(timezone.utc),
-            )
-
-        # Update fields
-        # Handle the standard fields
-        if "title" in update_data:
-            existing_metadata.title = update_data["title"]
-        if "artist" in update_data:
-            existing_metadata.artist = update_data["artist"]
-        if "favorite" in update_data:
-            existing_metadata.favorite = update_data["favorite"]
-
-        # Handle the new fields we're adding - map from frontend to backend naming
-        if "album" in update_data:
-            existing_metadata.releaseTitle = update_data["album"]
-        if "year" in update_data:
-            existing_metadata.releaseDate = update_data["year"]
-        if "genre" in update_data:
-            existing_metadata.genre = update_data["genre"]
-        if "language" in update_data:
-            existing_metadata.language = update_data["language"]
-        if "metadataId" in update_data and update_data["metadataId"]:
-            existing_metadata.mbid = update_data["metadataId"]
-
-        # Explicitly handle the lyrics fields to ensure they're preserved
-        if "lyrics" in update_data:
-            existing_metadata.lyrics = update_data["lyrics"]
-        if "syncedLyrics" in update_data:
-            existing_metadata.syncedLyrics = update_data["syncedLyrics"]
-
-        # Save updated metadata to database
-        file_management.write_song_metadata(song_id, existing_metadata)
-
-        # Return the full song details
-        return get_song_details(song_id)
-
-    except Exception as e:
-        current_app.logger.error(
-            f"Error updating metadata for song '{song_id}': {e}", exc_info=True
-        )
+        return send_file(thumbnail_path, mimetype=mimetype)
+    except Exception:
         return (
-            jsonify({"error": "An internal error occurred while updating metadata."}),
+            jsonify(
+                {"error": "An internal error occurred while serving the thumbnail."}
+            ),
             500,
         )
 
 
-@song_bp.route("/<string:song_id>/thumbnail.jpg", methods=["GET"])
-def get_thumbnail(song_id: str):
-    """Serve the thumbnail image for a song."""
+@song_bp.route("/<string:song_id>/thumbnail", methods=["GET"])
+def get_thumbnail_auto(song_id: str):
+    """Serve the thumbnail image for a song, auto-detecting format."""
     from flask import send_file
     import os
 
@@ -281,23 +242,31 @@ def get_thumbnail(song_id: str):
     # Construct the path to the thumbnail
     file_service = FileService()
     song_dir = file_service.get_song_directory(song_id)
-    thumbnail_path = song_dir / "thumbnail.jpg"
+    
+    # Try different formats in order of preference
+    formats_to_try = [
+        ('webp', 'image/webp'),      # Best quality/compression
+        ('jpg', 'image/jpeg'),       # Most common
+        ('jpeg', 'image/jpeg'),      # Alternative JPEG extension
+        ('png', 'image/png')         # Lossless fallback
+    ]
+    
+    for extension, mimetype in formats_to_try:
+        thumbnail_path = song_dir / f"thumbnail.{extension}"
+        if thumbnail_path.exists() and os.access(thumbnail_path, os.R_OK):
+            try:
+                return send_file(thumbnail_path, mimetype=mimetype)
+            except Exception:
+                continue  # Try next format
+    
+    return jsonify({"error": "Thumbnail not found"}), 404
 
-    if not thumbnail_path.exists():
-        return jsonify({"error": "Thumbnail not found"}), 404
 
-    if not os.access(thumbnail_path, os.R_OK):
-        return jsonify({"error": "Thumbnail is not readable"}), 403
-
-    try:
-        return send_file(thumbnail_path, mimetype="image/jpeg")
-    except Exception:
-        return (
-            jsonify(
-                {"error": "An internal error occurred while serving the thumbnail."}
-            ),
-            500,
-        )
+# Backward compatibility route
+@song_bp.route("/<string:song_id>/thumbnail.jpg", methods=["GET"])
+def get_thumbnail_jpg_compat(song_id: str):
+    """Legacy endpoint for thumbnail.jpg - redirects to auto-detection."""
+    return get_thumbnail_auto(song_id)
 
 
 @song_bp.route("/<string:song_id>/lyrics", methods=["GET"])
@@ -325,7 +294,7 @@ def get_song_lyrics(song_id: str):
                 if db_song.artist.lower() != "unknown artist"
                 else db_song.channel
             )
-            album = db_song.release_title
+            album = db_song.album
         else:
             # Fall back to file-based approach
             metadata = file_management.read_song_metadata(song_id)
@@ -529,3 +498,174 @@ def search_songs():
             f"Unexpected error searching songs: {e}", exc_info=True
         )
         return jsonify({"error": "Internal server error"}), 500
+
+
+@song_bp.route("/<string:song_id>", methods=["PATCH"])
+def update_song(song_id: str):
+    """Update a song with any provided fields - generic update endpoint."""
+    current_app.logger.info(f"Received request to update song {song_id}")
+
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Get existing song from database first
+        db_song = database.get_song(song_id)
+        if not db_song:
+            return jsonify({"error": "Song not found"}), 404
+
+        # Start with existing values from database
+        metadata_dict = {
+            "title": db_song.title,
+            "artist": db_song.artist,
+            "duration": db_song.duration,
+            "favorite": db_song.favorite,
+            "dateAdded": db_song.date_added,
+            "coverArt": db_song.cover_art_path,
+            "thumbnail": db_song.thumbnail_path,
+            "source": db_song.source,
+            "sourceUrl": db_song.source_url,
+            "videoId": db_song.video_id,
+            "uploader": db_song.uploader,
+            "uploaderId": db_song.uploader_id,
+            "channel": db_song.channel,
+            "channelId": db_song.channel_id,
+            "description": db_song.description,
+            "uploadDate": db_song.upload_date,
+            "mbid": db_song.mbid,
+            "releaseTitle": db_song.album,  # Keeping for backwards compatibility
+            "releaseId": db_song.release_id,
+            "releaseDate": db_song.release_date,
+            "genre": db_song.genre,
+            "language": db_song.language,
+            "lyrics": db_song.lyrics,
+            "syncedLyrics": db_song.synced_lyrics,
+            # iTunes metadata
+            "itunesTrackId": db_song.itunes_track_id,
+            "itunesArtistId": db_song.itunes_artist_id,
+            "itunesCollectionId": db_song.itunes_collection_id,
+            "trackTimeMillis": db_song.track_time_millis,
+            "itunesExplicit": db_song.itunes_explicit,
+            "itunesPreviewUrl": db_song.itunes_preview_url,
+            "itunesArtworkUrls": db_song.itunes_artwork_urls,
+            # YouTube metadata
+            "youtubeDuration": db_song.youtube_duration,
+            "youtubeThumbnailUrls": db_song.youtube_thumbnail_urls,
+            "youtubeTags": db_song.youtube_tags,
+            "youtubeCategories": db_song.youtube_categories,
+            "youtubeChannelId": db_song.youtube_channel_id,
+            "youtubeChannelName": db_song.youtube_channel_name,
+        }
+        
+        # Apply updates from request data
+        # Handle direct field mappings
+        for field in ["title", "artist", "favorite", "duration", "source", "sourceUrl", 
+                     "videoId", "uploader", "uploaderId", "channel", "channelId", 
+                     "description", "uploadDate", "mbid", "genre", "language", 
+                     "lyrics", "syncedLyrics", "itunesArtworkUrls"]:
+            if field in data:
+                metadata_dict[field] = data[field]
+        
+        # Handle frontend-to-backend field name mappings
+        if "album" in data:
+            metadata_dict["releaseTitle"] = data["album"]
+        if "year" in data:
+            metadata_dict["releaseDate"] = data["year"]
+        if "metadataId" in data:
+            metadata_dict["mbid"] = data["metadataId"]
+        if "coverArt" in data:
+            metadata_dict["coverArt"] = data["coverArt"]
+        if "thumbnail" in data:
+            metadata_dict["thumbnail"] = data["thumbnail"]
+        
+        # Create SongMetadata object
+        updated_metadata = SongMetadata(**metadata_dict)
+        
+        # Save to database using file_management function
+        file_management.write_song_metadata(song_id, updated_metadata)
+        
+        # Return updated song details
+        return get_song_details(song_id)
+
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error updating song {song_id}: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@song_bp.route("/<string:song_id>/cover.<string:extension>", methods=["GET"])
+def get_cover_art(song_id: str, extension: str):
+    """Serve the cover art image for a song."""
+    from flask import send_file
+    import os
+
+    # Decode the song ID to handle URL-encoded characters
+    song_id = unquote(song_id)
+
+    # Validate extension
+    allowed_extensions = {'jpg', 'jpeg', 'png', 'webp'}
+    if extension.lower() not in allowed_extensions:
+        return jsonify({"error": "Invalid image format"}), 400
+
+    # Construct the path to the cover art
+    file_service = FileService()
+    song_dir = file_service.get_song_directory(song_id)
+    cover_art_path = song_dir / f"cover.{extension}"
+
+    if not cover_art_path.exists():
+        return jsonify({"error": "Cover art not found"}), 404
+
+    if not os.access(cover_art_path, os.R_OK):
+        return jsonify({"error": "Cover art is not readable"}), 403
+
+    # Determine correct mimetype based on extension
+    mimetype_map = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg', 
+        'png': 'image/png',
+        'webp': 'image/webp'
+    }
+    mimetype = mimetype_map.get(extension.lower(), 'image/jpeg')
+
+    try:
+        return send_file(cover_art_path, mimetype=mimetype)
+    except Exception:
+        return (
+            jsonify(
+                {"error": "An internal error occurred while serving the cover art."}
+            ),
+            500,
+        )
+
+
+@song_bp.route("/<string:song_id>/cover", methods=["GET"])
+def get_cover_art_auto(song_id: str):
+    """Serve the cover art image for a song, auto-detecting format."""
+    from flask import send_file
+    import os
+
+    # Decode the song ID to handle URL-encoded characters
+    song_id = unquote(song_id)
+
+    # Construct the path to the cover art
+    file_service = FileService()
+    song_dir = file_service.get_song_directory(song_id)
+    
+    # Try different formats in order of preference
+    formats_to_try = [
+        ('webp', 'image/webp'),      # Best quality/compression
+        ('jpg', 'image/jpeg'),       # Most common
+        ('jpeg', 'image/jpeg'),      # Alternative JPEG extension
+        ('png', 'image/png'),        # High quality
+    ]
+    
+    for ext, mimetype in formats_to_try:
+        cover_art_path = song_dir / f"cover.{ext}"
+        if cover_art_path.exists() and os.access(cover_art_path, os.R_OK):
+            try:
+                return send_file(cover_art_path, mimetype=mimetype)
+            except Exception:
+                continue  # Try next format
+    
+    return jsonify({"error": "Cover art not found"}), 404

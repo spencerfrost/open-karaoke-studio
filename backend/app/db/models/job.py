@@ -78,6 +78,11 @@ class DbJob(Base):
     error = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     dismissed = Column(Boolean, default=False)  # Track if job is dismissed from UI
+    
+    # Legacy fields that exist in database
+    phase_message = Column(Text, nullable=True)
+    phase = Column(String, nullable=False, default="created") 
+    retry_count = Column(Integer, default=0)
 
     def to_job(self) -> Job:
         return Job(
