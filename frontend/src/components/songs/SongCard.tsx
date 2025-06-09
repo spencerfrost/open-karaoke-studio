@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { Music, Heart, Play } from "lucide-react";
-import MetadataEditor from "./MetadataEditor";
+import { Music, Heart, Play, ListPlus, Pencil } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
 import { formatTime } from "@/utils/formatters";
 import vintageTheme from "@/utils/theme";
 import { useSongs } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Badge } from "../ui/badge";
 
 interface SongCardProps {
   song: Song;
@@ -20,22 +21,16 @@ const SongCard: React.FC<SongCardProps> = ({
   song,
   onAddToQueue,
   onToggleFavorite,
-  onSongUpdated,
   compact = false,
 }) => {
   // Local state for dialog
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const colors = vintageTheme.colors;
-  const { getArtworkUrl, getMetadataQuality, getAlbumName } = useSongs();
+  const { getArtworkUrl } = useSongs();
+  const navigate = useNavigate();
 
   // Get artwork URL with intelligent fallbacks
-  const artworkUrl = getArtworkUrl(song, compact ? 'small' : 'medium');
-  
-  // Get metadata quality information
-  const metadataQuality = getMetadataQuality(song);
-  
-  // Get album name with backwards compatibility
-  const albumName = getAlbumName(song);
+  const artworkUrl = getArtworkUrl(song, compact ? "small" : "medium");
 
   // Helper functions for dialog
   const handleCardClick = () => {
@@ -68,154 +63,125 @@ const SongCard: React.FC<SongCardProps> = ({
     // List view (compact)
     return (
       <>
-        <div 
-          className="rounded-lg p-3 flex items-center cursor-pointer hover:shadow-md transition-shadow" 
+        <div
+          className="rounded-lg p-3 flex items-center cursor-pointer hover:shadow-md transition-shadow"
           style={cardStyle}
           onClick={handleCardClick}
         >
-        <div
-          className="h-12 w-12 rounded-md flex items-center justify-center mr-3 relative"
-          style={{ backgroundColor: `${colors.orangePeel}20` }}
-        >
-          {artworkUrl ? (
-            <img
-              src={artworkUrl}
-              alt={song.title}
-              className="h-full w-full object-cover rounded-md"
-              style={{ 
-                aspectRatio: '1/1' // Square aspect for all artwork
-              }}
-            />
-          ) : (
-            <Music size={24} style={{ color: colors.darkCyan }} />
-          )}
-          
-          {/* Metadata quality indicator */}
-          {metadataQuality.percentage > 80 && (
-            <div 
-              className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-              style={{ backgroundColor: colors.darkCyan }}
-              title={`${metadataQuality.percentage}% metadata complete`}
-            />
-          )}
-        </div>
-
-        <div className="flex-1">
-          <h3 className="font-medium">{song.title}</h3>
-          <p className="text-sm opacity-75">{song.artist}</p>
-          
-          {/* Show album with enhanced metadata */}
-          {albumName !== 'Unknown Album' && (
-            <p className="text-xs opacity-60" style={{ color: colors.darkCyan }}>
-              {albumName}
-            </p>
-          )}
-          
-          {/* Show genre if no album or different from album */}
-          {song.genre && albumName === 'Unknown Album' && (
-            <p className="text-xs opacity-60" style={{ color: colors.darkCyan }}>
-              {song.genre}
-            </p>
-          )}
-          
-          {/* Show source indicators */}
-          <div className="flex gap-1 mt-1">
-            {song.itunesTrackId && (
-              <span className="text-xs px-1 rounded" style={{ backgroundColor: `${colors.darkCyan}20`, color: colors.darkCyan }}>
-                iTunes
-              </span>
-            )}
-            {song.videoId && (
-              <span className="text-xs px-1 rounded" style={{ backgroundColor: `${colors.rust}20`, color: colors.rust }}>
-                YouTube
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="text-sm opacity-60">{formatTime(song.duration)}</div>
-          <div className="mt-1">
-            {song.status === "processing" && (
-              <span style={{ color: colors.rust }} className="text-xs">
-                Processing...
-              </span>
-            )}
-            {song.status === "queued" && (
-              <span style={{ color: colors.orangePeel }} className="text-xs">
-                Queued
-              </span>
-            )}
-            {song.status === "processed" && (
-              <button
-                className="px-2 py-1 rounded text-xs"
-                style={primaryButtonStyle}
-                onClick={() => onAddToQueue(song)}
-              >
-                Sing
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center ml-3">
-          <Button
-            variant="ghost"
-            onClick={() => onToggleFavorite(song)}
-            aria-label={
-              song.favorite ? "Remove from favorites" : "Add to favorites"
-            }
+          <div
+            className="h-12 w-12 rounded-md flex items-center justify-center mr-3 relative"
+            style={{ backgroundColor: `${colors.orangePeel}20` }}
           >
-            <Heart
-              className={`h-8 w-8 text-primary ${song.favorite && "fill-current"}`}
-            />
-          </Button>
-          <MetadataEditor
-            icon
-            song={song}
-            onSongUpdated={
-              onSongUpdated ||
-              ((updatedSong) => console.log("Song updated:", updatedSong))
-            }
-          />
-        </div>
-      </div>
+            {artworkUrl ? (
+              <img
+                src={artworkUrl}
+                alt={song.title}
+                className="h-full w-full object-cover rounded-md"
+              />
+            ) : (
+              <Music size={24} style={{ color: colors.darkCyan }} />
+            )}
+          </div>
 
-      {/* Song Details Dialog */}
-      <SongDetailsDialog
-        song={song}
-        isOpen={isDialogOpen}
-        onClose={handleCloseDialog}
-      />
-    </>
+          <div className="flex-1">
+            <h3 className="font-medium">{song.title}</h3>
+            <p className="text-sm opacity-75">{song.artist}</p>
+
+            {/* Show album with enhanced metadata */}
+            {song.album !== "Unknown Album" && (
+              <p
+                className="text-xs opacity-60"
+                style={{ color: colors.darkCyan }}
+              >
+                {song.album}
+              </p>
+            )}
+
+            {/* Show genre if no album or different from album */}
+            {song.genre && song.album === "Unknown Album" && (
+              <p
+                className="text-xs opacity-60"
+                style={{ color: colors.darkCyan }}
+              >
+                {song.genre}
+              </p>
+            )}
+          </div>
+
+          <div className="text-right">
+            <div className="text-sm opacity-60">
+              {formatTime(song.duration)}
+            </div>
+            <div className="mt-1">
+              {song.status === "processing" && (
+                <span style={{ color: colors.rust }} className="text-xs">
+                  Processing...
+                </span>
+              )}
+              {song.status === "queued" && (
+                <span style={{ color: colors.orangePeel }} className="text-xs">
+                  Queued
+                </span>
+              )}
+              {song.status === "processed" && (
+                <button
+                  className="px-2 py-1 rounded text-xs"
+                  style={primaryButtonStyle}
+                  onClick={() => onAddToQueue(song)}
+                >
+                  Sing
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center ml-3">
+            <Button
+              variant="ghost"
+              onClick={() => onToggleFavorite(song)}
+              aria-label={
+                song.favorite ? "Remove from favorites" : "Add to favorites"
+              }
+            >
+              <Heart
+                className={`h-8 w-8 text-primary ${song.favorite && "fill-current"}`}
+              />
+            </Button>
+            {formatTime(song.duration)}
+          </div>
+        </div>
+
+        {/* Song Details Dialog */}
+        <SongDetailsDialog
+          song={song}
+          isOpen={isDialogOpen}
+          onClose={handleCloseDialog}
+        />
+      </>
     );
   }
 
   // Grid view (default)
   return (
-    <div className="rounded-lg overflow-hidden shadow-md relative" style={cardStyle}>
-      {/* Metadata quality indicator */}
-      {metadataQuality.percentage > 80 && (
-        <div 
-          className="absolute top-2 right-2 w-4 h-4 rounded-full z-10"
-          style={{ backgroundColor: colors.darkCyan }}
-          title={`${metadataQuality.percentage}% metadata complete`}
-        />
-      )}
-      
+    <div
+      className="rounded-lg overflow-hidden shadow-md relative"
+      style={cardStyle}
+    >
       <div
         className="flex items-center justify-center relative"
         style={{ backgroundColor: `${colors.orangePeel}20` }}
       >
-        <div className="aspect-video w-full">
+        <div className="aspect-video w-full relative">
+          {song.syncedLyrics && (
+            <Badge className="absolute top-2 right-2 z-10 bg-accent">
+              Synced
+            </Badge>
+          )}
           {artworkUrl ? (
             <img
               src={artworkUrl}
               alt={song.title}
-              className="h-full w-full object-cover"
-              style={{ 
-                aspectRatio: song.itunesArtworkUrls ? '1/1' : 'auto' // Square for iTunes artwork
-              }}
+              className="h-full w-full object-cover aspect-video"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -257,60 +223,61 @@ const SongCard: React.FC<SongCardProps> = ({
           </button>
         </div>
 
-        <p className="text-sm opacity-75">{song.artist}</p>
-        
-        {/* Show album with enhanced metadata */}
-        {albumName !== 'Unknown Album' && (
-          <p className="text-xs opacity-60 mt-1" style={{ color: colors.darkCyan }}>
-            📀 {albumName}
+        <div className="flex justify-between items-start mt-1">
+          <p className="text-sm opacity-75">{song.artist}</p>
+          <p className="text-xs opacity-60 mt-1 text-accent">
+            {formatTime(song.duration)}
           </p>
-        )}
-        
-        {/* Show genre if available */}
-        {song.genre && (
-          <p className="text-xs opacity-60 mt-1" style={{ color: colors.darkCyan }}>
-            🎵 {song.genre}
-          </p>
-        )}
+        </div>
 
-        {/* Source indicators and metadata */}
-        <div className="flex flex-wrap gap-1 mt-2">
-          {song.itunesTrackId && (
-            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: `${colors.darkCyan}20`, color: colors.darkCyan }}>
-              iTunes
-            </span>
+        {/* Album and Genre metadata side-by-side */}
+        <div className="flex justify-between gap-2 mt-1">
+          {song.album ? (
+            <p className="text-xs opacity-60 text-accent whitespace-nowrap overflow-hidden text-ellipsis">
+              📀 {song.album}
+            </p>
+          ) : (
+            <div className="text-xs opacity-0 text-accent whitespace-nowrap overflow-hidden text-ellipsis">
+              {/* blank placeholder for flex alignment */}
+            </div>
           )}
-          {song.videoId && (
-            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: `${colors.rust}20`, color: colors.rust }}>
-              YouTube
-            </span>
-          )}
-          {song.syncedLyrics && (
-            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: `${colors.orangePeel}20`, color: colors.orangePeel }}>
-              Synced Lyrics
-            </span>
+          {song.genre && (
+            <p className="text-xs opacity-60 text-accent whitespace-nowrap overflow-hidden text-ellipsis">
+              🎵 {song.genre}
+            </p>
           )}
         </div>
 
-        <div className="flex justify-between items-center mt-2 text-xs">
-          <MetadataEditor
-            song={song}
-            onSongUpdated={
-              onSongUpdated ||
-              ((updatedSong) => console.log("Song updated:", updatedSong))
-            }
-          />
-          <div className="text-right">
-            <span className="opacity-60">{formatTime(song.duration)}</span>
-            {metadataQuality.percentage > 0 && (
-              <div className="text-xs opacity-50 mt-1">
-                {metadataQuality.percentage}% complete
-              </div>
-            )}
-          </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          <Button
+            variant="ghost"
+            className="flex-1"
+            onClick={() => {
+              navigate(`/player/${song.id}`);
+            }}
+            aria-label="Play song"
+          >
+            <Play className="h-5 w-5" />
+          </Button>
+          {/* <Button
+            variant="ghost"
+            className="flex-1"
+            onClick={() => onAddToQueue(song)}
+            aria-label="Add to queue"
+          >
+            <ListPlus className="h-5 w-5" />
+          </Button> */}
+          <Button
+            variant="ghost"
+            className="flex-1 text-accent"
+            onClick={handleCardClick}
+            aria-label="View details"
+          >
+            <Pencil className="h-5 w-5" />
+          </Button>
         </div>
       </div>
-      
+
       {/* Song Details Dialog */}
       <SongDetailsDialog
         song={song}
