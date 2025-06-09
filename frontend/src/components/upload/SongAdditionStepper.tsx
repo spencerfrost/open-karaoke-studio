@@ -100,7 +100,7 @@ export function SongAdditionStepper({
   });
 
   const {
-    data: metadataOptions = [],
+    data: metadataResponse,
     refetch: fetchMetadata,
     isPending: isLoadingMetadata,
   } = useMetadataSearch(metadataSearchQuery, {
@@ -112,6 +112,9 @@ export function SongAdditionStepper({
       metadataSearchQuery.album,
     ],
   });
+
+  // Extract metadata options from the response structure
+  const metadataOptions = metadataResponse?.results || [];
 
   const saveMetadataMutation = useSaveMetadataMutation(createdSong.id, {
     onSuccess: () => {
@@ -212,7 +215,7 @@ export function SongAdditionStepper({
       album: selectedMetadata?.album || confirmedMetadata.album,
       lyrics: selectedLyrics?.plainLyrics,
       syncedLyrics: selectedLyrics?.syncedLyrics,
-      metadataId: selectedMetadata?.id,
+      metadataId: selectedMetadata?.metadataId,
     });
   };
 

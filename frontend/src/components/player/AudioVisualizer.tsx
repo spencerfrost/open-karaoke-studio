@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import vintageTheme from "../../utils/theme";
+import vintageTheme from "@/utils/theme";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 interface AudioVisualizerProps {

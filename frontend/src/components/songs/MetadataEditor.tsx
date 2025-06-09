@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { Button } from "../ui/button";
-import { Dialog, DialogContent } from "../ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pencil } from "lucide-react";
-import { Song } from "../../types/Song";
-import { useSongs } from "../../hooks/useSongs";
+import { Song } from "@/types/Song";
+import { useSongs } from "@/hooks/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MetadataSearchTab from "./MetadataSearchTab";
 

@@ -62,17 +62,37 @@ export interface LyricsOption {
 }
 
 export interface MetadataOption {
-  id: string;
-  source: string;
+  metadataId: string;
   title: string;
   artist: string;
+  artistId: number;
   album?: string;
-  year?: string;
-  duration?: string;
+  albumId?: number;
+  releaseYear?: number;
+  releaseDate?: string;
+  duration?: number;
+  discNumber?: number;
+  trackNumber?: number;
   genre?: string;
-  language?: string;
-  coverArtUrl?: string;
-  metadataId?: string;
+  country?: string;
+  artworkUrl?: string;
+  previewUrl?: string;
+  explicit?: boolean;
+  isStreamable?: boolean;
+  price?: number;
+}
+
+export interface MetadataSearchResponse {
+  count: number;
+  results: MetadataOption[];
+  search: {
+    album: string;
+    artist: string;
+    limit: number;
+    sort_by: string;
+    title: string;
+  };
+  success: boolean;
 }
 
 export interface SaveMetadataRequest {
@@ -126,11 +146,11 @@ export const useLyricsSearch = (
 };
 
 /**
- * Hook to search for metadata using MusicBrainz
+ * Hook to search for metadata using Metadata API
  */
 export const useMetadataSearch = (
   params: MetadataSearchRequest,
-  options?: UseQueryOptions<MetadataOption[], Error>
+  options?: UseQueryOptions<MetadataSearchResponse, Error>
 ) => {
   const queryKey = ['metadata', 'search', params];
   const queryString = new URLSearchParams({
@@ -140,7 +160,7 @@ export const useMetadataSearch = (
   
   return useApiQuery(
     queryKey,
-    `musicbrainz/search?${queryString}`,
+    `metadata/search?${queryString}`,
     options
   );
 };

@@ -1,7 +1,7 @@
 import React from "react";
-import { KaraokeQueueItemWithSong } from "../../types/KaraokeQueue";
+import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 import KaraokeQueueItem from "./KaraokeQueueItem";
-import vintageTheme from "../../utils/theme";
+import vintageTheme from "@/utils/theme";
 
 interface KaraokeQueueListProps {
   items: KaraokeQueueItemWithSong[];
