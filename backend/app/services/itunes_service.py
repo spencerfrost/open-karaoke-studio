@@ -31,7 +31,6 @@ def search_itunes(artist: str, title: str, album: str = '', limit: int = 5) -> L
             search_terms.append(album)
             
         search_query = " ".join(search_terms)
-        
         # iTunes Search API parameters
         params = {
             'term': search_query,
@@ -44,13 +43,32 @@ def search_itunes(artist: str, title: str, album: str = '', limit: int = 5) -> L
         
         logging.info(f"Searching iTunes with query: '{search_query}' (limit: {params['limit']})")
         
+        # Log the full request details
+        url = 'https://itunes.apple.com/search'
+        headers = {
+            'User-Agent': 'curl/8.0.0',
+            'Accept': '*/*'
+        }
+        
+        logging.debug(f"iTunes API Request Details:")
+        logging.debug(f"  URL: {url}")
+        logging.debug(f"  Params: {params}")
+        logging.debug(f"  Headers: {headers}")
+        
         # Make API request
         response = requests.get(
-            'https://itunes.apple.com/search',
+            url,
             params=params,
             timeout=10,
-            headers={'User-Agent': 'OpenKaraokeStudio/1.0'}
+            headers=headers
         )
+        
+        # Log response details before checking status
+        logging.debug(f"iTunes API Response Details:")
+        logging.debug(f"  Status Code: {response.status_code}")
+        logging.debug(f"  Headers: {dict(response.headers)}")
+        logging.debug(f"  URL Used: {response.url}")
+        
         response.raise_for_status()
         
         data = response.json()
@@ -116,9 +134,47 @@ def search_itunes(artist: str, title: str, album: str = '', limit: int = 5) -> L
         return filtered_matches[:limit]
         
     except requests.RequestException as e:
-        logging.error(f"iTunes API request error: {e}")
+        logging.error(f"iTunes API request error for query '{search_query}': {e}")
+        
+        # Log detailed error information
+        if hasattr(e, 'response') and e.response is not None:
+            response = e.response
+            logging.error(f"iTunes API Error Details:")
+            logging.error(f"  Status Code: {response.status_code}")
+            logging.error(f"  Reason: {response.reason}")
+            logging.error(f"  URL: {response.url}")
+            logging.error(f"  Response Headers: {dict(response.headers)}")
+            
+            # Try to get response content for more details
+            try:
+                content = response.text[:1000]  # First 1000 chars to avoid huge logs
+                if content:
+                    logging.error(f"  Response Body (first 1000 chars): {content}")
+            except Exception:
+                logging.error("  Could not read response body")
+                
+            # Log specific error analysis for common HTTP status codes
+            if response.status_code == 403:
+                logging.error("  403 Forbidden Error Analysis:")
+                logging.error("  - This may indicate rate limiting by Apple")
+                logging.error("  - Your IP might be temporarily blocked")
+                logging.error("  - Apple may have changed their API access policies")
+                logging.error("  - Consider adding delays between requests or changing User-Agent")
+            elif response.status_code == 429:
+                logging.error("  429 Too Many Requests - Rate limit exceeded")
+                retry_after = response.headers.get('Retry-After')
+                if retry_after:
+                    logging.error(f"  Retry after: {retry_after} seconds")
+            elif response.status_code >= 500:
+                logging.error("  Server error on Apple's side - may be temporary")
+        else:
+            logging.error(f"  Network error (no response): {type(e).__name__}")
+            
     except Exception as e:
-        logging.error(f"iTunes search error: {e}")
+        logging.error(f"iTunes search error for query '{search_query}': {e}")
+        logging.error(f"  Error type: {type(e).__name__}")
+        import traceback
+        logging.error(f"  Stack trace: {traceback.format_exc()}")
     
     return []
 
@@ -211,19 +267,47 @@ def get_itunes_cover_art(track_data: Dict[str, Any], song_dir: Path) -> Optional
             track_data.get('artworkUrl30')
         )
         
+        logging.info(f"iTunes cover art - Original URL: {artwork_url}")
+        
         if not artwork_url:
+            logging.warning("No iTunes artwork URL found in track data")
             return None
             
-        # iTunes artwork URLs can be modified to get higher resolution
-        # Replace the size in the URL with a larger size
-        high_res_url = artwork_url.replace('100x100', '600x600').replace('60x60', '600x600').replace('30x30', '600x600')
-        
         cover_path = get_cover_art_path(song_dir)
+        logging.info(f"iTunes cover art - Target path: {cover_path}")
+        
+        # First try to get high-resolution artwork (600x600)
+        # iTunes URLs end with dimensions like "100x100bb.jpg", need to replace the whole ending
+        high_res_url = artwork_url.replace('100x100bb.jpg', '600x600bb.jpg').replace('60x60bb.jpg', '600x600bb.jpg').replace('30x30bb.jpg', '600x600bb.jpg')
+        logging.info(f"iTunes cover art - Trying high-res URL: {high_res_url}")
         
         if download_image(high_res_url, cover_path):
+            # Success with high-res
+            if cover_path.exists():
+                file_size = cover_path.stat().st_size
+                logging.info(f"iTunes cover art - High-res download successful, size: {file_size} bytes")
+            
             from ..config import get_config
             config = get_config()
-            return str(cover_path.relative_to(config.LIBRARY_DIR))
+            relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
+            logging.info(f"iTunes cover art - Returning relative path: {relative_path}")
+            return relative_path
+        
+        # High-res failed, try the original URL as fallback
+        logging.warning(f"iTunes cover art - High-res failed, trying original URL: {artwork_url}")
+        
+        if download_image(artwork_url, cover_path):
+            if cover_path.exists():
+                file_size = cover_path.stat().st_size
+                logging.info(f"iTunes cover art - Original URL download successful, size: {file_size} bytes")
+            
+            from ..config import get_config
+            config = get_config()
+            relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
+            logging.info(f"iTunes cover art - Returning relative path: {relative_path}")
+            return relative_path
+        else:
+            logging.error(f"iTunes cover art - Both high-res and original URL failed")
             
     except Exception as e:
         logging.error(f"iTunes cover art download error: {e}")
@@ -242,21 +326,32 @@ def enhance_metadata_with_itunes(metadata: Dict[str, Any], song_dir: Path) -> Di
         Dict[str, Any]: Enhanced metadata
     """
     try:
+        from .metadata_service import filter_itunes_metadata_for_storage
+        
         artist = metadata.get('artist', '')
         title = metadata.get('title', '')
         
+        logging.info(f"Enhancing metadata for: '{title}' by '{artist}'")
+        
         if not artist or artist == "Unknown Artist" or not title:
+            logging.warning(f"Skipping iTunes enhancement - missing artist or title")
             return metadata
             
         itunes_results = search_itunes(artist, title, limit=1)
         
         if not itunes_results:
+            logging.warning(f"No iTunes results found for: '{title}' by '{artist}'")
             return metadata
         
         itunes_data = itunes_results[0]
+        logging.info(f"Found iTunes match: '{itunes_data.get('title')}' by '{itunes_data.get('artist')}'")
         
         # Download cover art
         cover_art_path = get_itunes_cover_art(itunes_data, song_dir)
+        if cover_art_path:
+            logging.info(f"Downloaded cover art to: {cover_art_path}")
+        else:
+            logging.warning("Could not download cover art from iTunes")
         
         # Enhance metadata with iTunes data
         enhanced = metadata.copy()
@@ -274,6 +369,22 @@ def enhance_metadata_with_itunes(metadata: Dict[str, Any], song_dir: Path) -> Di
             "trackNumber": itunes_data.get("trackNumber"),
             "previewUrl": itunes_data.get("previewUrl"),
             "isStreamable": itunes_data.get("isStreamable"),
+            
+            # Phase 1B: New iTunes-specific fields
+            "itunesTrackId": itunes_data.get("id"),
+            "itunesArtistId": itunes_data.get("artistId"), 
+            "itunesCollectionId": itunes_data.get("albumId"),
+            "trackTimeMillis": itunes_data.get("duration"),  # milliseconds from iTunes
+            "itunesExplicit": itunes_data.get("trackExplicitness") == "explicit",
+            "itunesPreviewUrl": itunes_data.get("previewUrl"),
+            "itunesArtworkUrls": [
+                itunes_data.get("artworkUrl30"),
+                itunes_data.get("artworkUrl60"), 
+                itunes_data.get("artworkUrl100")
+            ] if any([itunes_data.get("artworkUrl30"), itunes_data.get("artworkUrl60"), itunes_data.get("artworkUrl100")]) else None,
+            
+            # Phase 1B: Store raw iTunes metadata
+            "itunesRawMetadata": filter_itunes_metadata_for_storage(itunes_data),
         })
         
         if cover_art_path:
@@ -306,6 +417,82 @@ def test_itunes_search():
                 print(f"   Genre: {result.get('genre')}")
         else:
             print("No results found")
+
+def test_itunes_api_access():
+    """Test iTunes API access with detailed debugging."""
+    import json
+    
+    print("=== iTunes API Access Test ===")
+    
+    # Test with minimal request first
+    url = 'https://itunes.apple.com/search'
+    params = {
+        'term': 'coldplay yellow',
+        'entity': 'song',
+        'media': 'music',
+        'limit': 1,
+        'country': 'US'
+    }
+    
+    # Test with different User-Agent strings
+    user_agents = [
+        'OpenKaraokeStudio/1.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'iTunes/12.12 (Linux; N; en_US) AppleWebKit/605.1.15',
+        'python-requests/2.28.1'
+    ]
+    
+    for i, ua in enumerate(user_agents, 1):
+        print(f"\n--- Test {i}: User-Agent: {ua[:50]}... ---")
+        
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                headers={'User-Agent': ua},
+                timeout=10
+            )
+            
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
+            print(f"URL: {response.url}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"Results found: {len(data.get('results', []))}")
+                if data.get('results'):
+                    track = data['results'][0]
+                    print(f"First result: {track.get('trackName')} by {track.get('artistName')}")
+            else:
+                print(f"Error response body: {response.text[:500]}")
+                
+        except Exception as e:
+            print(f"Error: {e}")
+            if hasattr(e, 'response') and e.response:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response text: {e.response.text[:500]}")
+    
+    # Test with session for persistent connections
+    print(f"\n--- Test with Session ---")
+    try:
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        })
+        
+        response = session.get(url, params=params, timeout=10)
+        print(f"Session request - Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Session request - Results: {len(data.get('results', []))}")
+        else:
+            print(f"Session error: {response.text[:500]}")
+            
+    except Exception as e:
+        print(f"Session error: {e}")
+    
+    print("\n=== End iTunes API Test ===")
 
 if __name__ == "__main__":
     # Quick test when running the file directly
