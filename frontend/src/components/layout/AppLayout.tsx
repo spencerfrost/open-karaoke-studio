@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
 import { Music, Upload, List, Sliders } from "lucide-react";
-import vintageTheme from "../../utils/theme";
+import vintageTheme from "@/utils/theme";
 
 interface AppLayoutProps {
   children: ReactNode;

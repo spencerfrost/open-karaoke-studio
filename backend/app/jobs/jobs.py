@@ -292,7 +292,6 @@ def process_youtube_job(self, job_id, video_id, metadata):
             song_id=song_id,  # Use the existing song_id from the job
             artist=metadata.get("artist"),
             title=metadata.get("title"),
-            search_thumbnail_url=metadata.get("searchThumbnailUrl")  # Pass search thumbnail
         )
         
         # Extract enhanced metadata from download result

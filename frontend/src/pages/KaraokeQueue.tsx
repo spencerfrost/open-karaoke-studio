@@ -3,7 +3,7 @@ import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
 import { useSongs } from "../context/SongsContext";
 import QueueList from "../components/queue/KaraokeQueueList";
 import AppLayout from "../components/layout/AppLayout";
-import vintageTheme from "../utils/theme";
+import vintageTheme from "@/utils/theme";
 import { Input } from "@/components/ui/input";
 import {
   Select,

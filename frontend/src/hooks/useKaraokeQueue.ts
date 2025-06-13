@@ -10,7 +10,7 @@ import {
   KaraokeQueueItem,
   KaraokeQueueItemWithSong,
   AddToKaraokeQueueRequest,
-} from "../types/KaraokeQueue";
+} from "@/types/KaraokeQueue";
 
 /**
  * Hook: Get the current queue

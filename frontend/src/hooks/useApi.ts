@@ -48,12 +48,12 @@ const apiSend = async <T, V>(
     body: data ? JSON.stringify(data) : null,
     credentials: "include", // Added credentials
   });
-  
+
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const contentType = response.headers.get('Content-Type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("Content-Type");
+      if (contentType && contentType.includes("application/json")) {
         const text = await response.text();
         if (text) {
           const errorData = JSON.parse(text);
@@ -65,16 +65,16 @@ const apiSend = async <T, V>(
           errorMessage = `${errorMessage}: ${text}`;
         }
       }
-    } catch (jsonError: any) {
+    } catch (jsonError: unknown) {
       console.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
-  
+
   if (response.status === 204) {
     return {} as T;
   }
-  
+
   return await response.json();
 };
 
@@ -120,11 +120,14 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
   options?: Omit<
     UseMutationOptions<TData, Error, TVariables, TContext>,
     "mutationFn"
-  >
+  > & {
+    mutationFn?: (variables: TVariables) => Promise<TData>;
+  }
 ) {
   return useMutation<TData, Error, TVariables, TContext>({
-    mutationFn: (data: TVariables) =>
-      apiSend<TData, TVariables>(url, method, data),
+    mutationFn:
+      options?.mutationFn ??
+      ((data: TVariables) => apiSend<TData, TVariables>(url, method, data)),
     ...options,
   });
 }

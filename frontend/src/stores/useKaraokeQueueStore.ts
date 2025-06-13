@@ -2,8 +2,8 @@ import { create } from "zustand";
 import {
   KaraokeQueueItem,
   KaraokeQueueItemWithSong,
-} from "../types/KaraokeQueue";
-import { Song } from "../types/Song";
+} from "@/types/KaraokeQueue";
+import { Song } from "@/types/Song";
 
 interface KaraokeQueueState {
   items: KaraokeQueueItemWithSong[];

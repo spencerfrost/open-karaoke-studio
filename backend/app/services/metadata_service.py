@@ -27,28 +27,11 @@ def filter_youtube_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
     # Remove the massive formats array (can be 50+ MB)
     if 'formats' in filtered:
         del filtered['formats']
-    
-    # Remove post-processor objects that aren't JSON serializable
-    if 'post_processors' in filtered:
-        del filtered['post_processors']
 
     # Keep automatic_captions and subtitles for future features
     # Keep all other fields for completeness
 
-    def make_json_serializable(obj):
-        """Recursively convert non-serializable objects to strings"""
-        if hasattr(obj, '__dict__'):
-            # Convert objects with __dict__ to their string representation
-            return str(obj)
-        elif isinstance(obj, dict):
-            return {k: make_json_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [make_json_serializable(item) for item in obj]
-        else:
-            return obj
-
-    safe_filtered = make_json_serializable(filtered)
-    return json.dumps(safe_filtered)
+    return json.dumps(filtered)
 
 
 def filter_itunes_metadata_for_storage(raw_data: Dict[str, Any]) -> str:

@@ -1,30 +1,21 @@
 # backend/app/services/youtube_service.py
 import uuid
-import os
-import yt_dlp
 import re
-from typing import Dict, List, Tuple, Optional, Any
+import yt_dlp
+import logging
+from typing import Dict, List, Tuple, Optional, Any, Protocol
 from datetime import datetime, timezone
+from pathlib import Path
 
-from flask import current_app
-from .file_management import (
-    get_song_dir,
-    get_thumbnail_path,
-    download_image,
-)
-from ..db.database import create_or_update_song
+from .interfaces.file_service import FileServiceInterface  
+from .interfaces.song_service import SongServiceInterface
+from .file_service import FileService
+from ..exceptions import ServiceError, ValidationError
 from ..db.models import SongMetadata
 
+logger = logging.getLogger(__name__)
 
-def search_youtube(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
-    """
-    Search YouTube for videos matching the query.
 
-<<<<<<< Updated upstream
-    Args:
-        query (str): Search query
-        max_results (int, optional): Maximum number of results to return. Defaults to 10.
-=======
 class YouTubeServiceInterface(Protocol):
     """Interface for YouTube Service to enable dependency injection and testing"""
     
@@ -37,8 +28,7 @@ class YouTubeServiceInterface(Protocol):
         video_id_or_url: str, 
         song_id: str = None,
         artist: str = None,
-        title: str = None,
-        search_thumbnail_url: str = None
+        title: str = None
     ) -> Tuple[str, SongMetadata]:
         """Download video and extract metadata, return (song_id, metadata)"""
         ...
@@ -52,54 +42,52 @@ class YouTubeServiceInterface(Protocol):
     ) -> str:
         """Download video and queue for audio processing, return job/song ID"""
         ...
->>>>>>> Stashed changes
 
-    Returns:
-        List[Dict[str, Any]]: List of video information objects
-    """
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": True,
-        "default_search": "ytsearch",
-        "noplaylist": True,
-    }
 
-    search_term = f"ytsearch{max_results}:{query}"
-    results = []
+class YouTubeService(YouTubeServiceInterface):
+    """Handle YouTube video operations"""
+    
+    def __init__(
+        self,
+        file_service: FileServiceInterface = None,
+        song_service: SongServiceInterface = None
+    ):
+        self.file_service = file_service or FileService()
+        self.song_service = song_service  # Injected to avoid circular dependency
+    
+    def search_videos(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """Search YouTube for videos matching the query"""
+        try:
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,
+                "default_search": "ytsearch",
+                "noplaylist": True,
+            }
 
-    try:
-        current_app.logger.info(f"Starting YouTube search with term: {search_term}")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_term, download=False)
-            current_app.logger.info(
-                f"Search returned info: {bool(info)}, has entries: {'entries' in info}"
-            )
-            if "entries" in info:
-                for entry in info["entries"]:
-                    results.append(
-                        {
+            search_term = f"ytsearch{max_results}:{query}"
+            results = []
+
+            logger.info(f"Starting YouTube search with term: {search_term}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(search_term, download=False)
+                
+                if "entries" in info:
+                    for entry in info["entries"]:
+                        results.append({
                             "id": entry.get("id"),
                             "title": entry.get("title"),
                             "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
                             "channel": entry.get("channel") or entry.get("uploader"),
-                            "channelId": entry.get("channel_id")
-                            or entry.get("uploader_id"),
+                            "channelId": entry.get("channel_id") or entry.get("uploader_id"),
                             "thumbnail": (
                                 entry.get("thumbnails")[0]["url"]
                                 if entry.get("thumbnails")
                                 else None
                             ),
                             "duration": entry.get("duration"),
-<<<<<<< Updated upstream
-                        }
-                    )
-                current_app.logger.info(f"Found {len(results)} search results")
-            else:
-                current_app.logger.warning(
-                    f"YouTube search returned no entries. Info keys: {info.keys() if info else 'None'}"
-=======
                         })
                     logger.info(f"Found {len(results)} search results")
                 else:
@@ -116,8 +104,7 @@ class YouTubeServiceInterface(Protocol):
         video_id_or_url: str, 
         song_id: str = None,
         artist: str = None,
-        title: str = None,
-        search_thumbnail_url: str = None
+        title: str = None
     ) -> Tuple[str, SongMetadata]:
         """Download video and extract metadata, return (song_id, metadata)"""
         try:
@@ -247,18 +234,10 @@ class YouTubeServiceInterface(Protocol):
                 logger.warning(f"iTunes metadata enhancement failed for song {song_id}: {e}")
                 # Continue with original metadata
             
-            # Download thumbnail with priority for search thumbnail
-            # Try search thumbnail first if provided
-            if search_thumbnail_url:
-                logger.info(f"[THUMBNAIL DEBUG] Prioritizing search thumbnail: {search_thumbnail_url}")
-                self._download_thumbnail(song_id, search_thumbnail_url, metadata)
-            
-            # If search thumbnail failed or wasn't provided, use yt-dlp preference-based selection
-            if not metadata.thumbnail:
-                logger.info(f"[THUMBNAIL DEBUG] Search thumbnail failed/missing, using yt-dlp preference selection")
-                thumbnail_url = self._get_best_thumbnail_url(info)
-                if thumbnail_url:
-                    self._download_thumbnail(song_id, thumbnail_url, metadata)
+            # Download thumbnail if available
+            thumbnail_url = self._get_best_thumbnail_url(info)
+            if thumbnail_url:
+                self._download_thumbnail(song_id, thumbnail_url, metadata)
             
             logger.info(f"Successfully downloaded YouTube video {video_id} as song {song_id}")
             return song_id, metadata
@@ -316,8 +295,7 @@ class YouTubeServiceInterface(Protocol):
         video_id_or_url: str,
         artist: str = None,
         title: str = None,
-        song_id: str = None,
-        search_thumbnail_url: str = None
+        song_id: str = None
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
@@ -345,79 +323,36 @@ class YouTubeServiceInterface(Protocol):
                     dateAdded=datetime.now(timezone.utc),
                     source="youtube",
                     videoId=video_id,
->>>>>>> Stashed changes
                 )
-        return results
-    except Exception as e:
-        current_app.logger.error(f"YouTube search failed: {e}", exc_info=True)
-        return []
-
-
-def download_from_youtube(
-    url: str, artist: str, song_title: str, song_id: str = None
-) -> Tuple[str, Dict[str, Any]]:
-    """
-    Download a song from YouTube, save it to the temporary directory,
-    then move it to the song library and create metadata.
-
-    Args:
-        url (str): YouTube URL
-        artist (str): Artist name
-        song_title (str): Song title
-        song_id (str, optional): Existing song ID to use. If not provided, generates a new one.
-
-    Returns:
-        Tuple[str, Dict[str, Any]]: (song_id, metadata)
-    """
-    current_app.logger.info(f"Downloading from YouTube: {url}")
-
-    try:
-        # Use provided song_id or generate a new one
-        if not song_id:
-            song_id = str(uuid.uuid4())
-        song_dir = get_song_dir(song_id)
-        outtmpl = os.path.join(song_dir, "original.%(ext)s")
-
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": outtmpl,
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "320",
-                }
-            ],
-            "quiet": False,
-            "no_warnings": True,
-            "writeinfojson": True,
-            "noplaylist": True,
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if info is None:
-                raise ValueError(f"Could not download video info from {url}")
-
-        if not os.path.exists(song_dir):
-            raise FileNotFoundError(
-                f"Download completed but file not found: {song_dir}"
+                created_song = database.create_or_update_song(song_id, metadata)
+                if created_song:
+                    logger.info(f"Created song record {song_id} in database")
+                else:
+                    raise ServiceError(f"Failed to create song record {song_id}")
+            
+            # Generate unique job ID
+            job_id = str(uuid.uuid4())
+            
+            # Create and save job to database FIRST, before queuing Celery task
+            from ..jobs.jobs import job_store, process_youtube_job
+            from ..db.models import Job, JobStatus
+            import json
+            
+            # Store video_id in notes for reference
+            job_notes = json.dumps({"video_id": video_id})
+            
+            job = Job(
+                id=job_id,
+                filename="original.mp3",
+                status=JobStatus.PENDING,
+                status_message="Queued for YouTube processing",
+                progress=0,
+                song_id=song_id,
+                title=title or "Unknown Title",
+                artist=artist or "Unknown Artist",
+                notes=job_notes,
+                created_at=datetime.now(timezone.utc),
             )
-<<<<<<< Updated upstream
-
-        thumbnails = info.get("thumbnails", [])
-        thumbnail_url = thumbnails[0]["url"] if thumbnails else None
-        if thumbnail_url:
-            thumbnail_path = get_thumbnail_path(song_dir)
-            current_app.logger.info(f"Downloading thumbnail from {thumbnail_url}")
-            download_image(thumbnail_url, thumbnail_path)
-
-        # Create SongMetadata object
-        metadata = SongMetadata(
-            title=song_title,
-            artist=artist,
-            duration=info.get("duration"),
-=======
             
             # Save job to database and verify it was saved
             job_store.save_job(job)
@@ -432,8 +367,7 @@ def download_from_youtube(
             # Now queue the Celery task
             metadata_dict = {
                 "artist": artist or "Unknown Artist", 
-                "title": title or "Unknown Title",
-                "searchThumbnailUrl": search_thumbnail_url  # Pass search thumbnail to worker
+                "title": title or "Unknown Title"
             }
             
             logger.info(f"Submitting unified YouTube processing job {job_id} for video {video_id}")
@@ -482,41 +416,52 @@ def download_from_youtube(
             duration=video_info.get("duration"),           # Keep as youtubeDuration 
             youtubeDuration=video_info.get("duration"),    # Explicit YouTube duration
             
->>>>>>> Stashed changes
             dateAdded=datetime.now(timezone.utc),
             source="youtube",
-            sourceUrl=url,
-            videoId=info.get("id"),
-            videoTitle=info.get("title"),
-            uploader=info.get("uploader"),
-            channel=info.get("channel"),
-        )
-
-        # Process thumbnail
-        thumbnails = info.get("thumbnails", [])
-        thumbnail_url = None
-        if thumbnails:
-            best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
-<<<<<<< Updated upstream
-            thumbnail_url = best_thumb.get("url")
-        elif info.get("thumbnail"):
-            thumbnail_url = info.get("thumbnail")
+            sourceUrl=video_info.get("webpage_url"),
+            videoId=video_info.get("id"),
+            videoTitle=video_info.get("title"),
+            uploader=video_info.get("uploader"),
+            uploaderId=video_info.get("uploader_id"),
+            channel=video_info.get("channel"),
+            description=video_info.get("description"),
+            uploadDate=self._parse_upload_date(video_info.get("upload_date")),
             
-        if thumbnail_url:
-            thumbnail_path = get_thumbnail_path(song_dir)
-            current_app.logger.info(f"Downloading thumbnail from {thumbnail_url}")
-            if download_image(thumbnail_url, thumbnail_path):
-                metadata.thumbnail = f"{song_id}/thumbnail.jpg"
-
-        # Pass the SongMetadata object directly to create_or_update_song
-        create_or_update_song(song_id, metadata)
-
-        return song_id, metadata
-
-    except Exception as e:
-        current_app.logger.error(f"Failed to download from YouTube: {e}")
-        raise
-=======
+            # Phase 1A Task 2: Focus on Channel ID as the key YouTube field
+            channelId=channel_id,
+            
+            # Phase 1B: Enhanced YouTube fields
+            youtubeThumbnailUrls=_extract_selected_thumbnails(video_info),
+            youtubeTags=video_info.get("tags", []),
+            youtubeCategories=video_info.get("categories", []),
+            youtubeChannelId=channel_id,
+            youtubeChannelName=video_info.get("channel") or video_info.get("uploader"),
+            
+            # Phase 1B: Store filtered raw YouTube metadata
+            youtubeRawMetadata=filter_youtube_metadata_for_storage(video_info),
+        )
+    
+    def _parse_upload_date(self, upload_date_str: str) -> Optional[datetime]:
+        """Parse upload date string to datetime object"""
+        if not upload_date_str:
+            return None
+            
+        try:
+            # yt-dlp typically provides dates in YYYYMMDD format
+            if len(upload_date_str) == 8:
+                return datetime.strptime(upload_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            pass
+            
+        return None
+    
+    def _get_best_thumbnail_url(self, video_info: Dict[str, Any]) -> Optional[str]:
+        """Get the best quality thumbnail URL from video info"""
+        thumbnails = video_info.get("thumbnails", [])
+        
+        if thumbnails:
+            # Sort by preference (higher = better) and take the best
+            best_thumb = max(thumbnails, key=lambda t: t.get("preference", -9999))
             if best_thumb.get("url"):
                 return best_thumb.get("url")
         
@@ -534,9 +479,6 @@ def download_from_youtube(
         """Download thumbnail and update metadata"""
         try:
             song_dir = self.file_service.get_song_directory(song_id)
-            logger.info(f"[THUMBNAIL DEBUG] Starting thumbnail download for song {song_id}")
-            logger.info(f"[THUMBNAIL DEBUG] Song directory: {song_dir}")
-            logger.info(f"[THUMBNAIL DEBUG] Thumbnail URL: {thumbnail_url}")
             
             # Determine file extension from URL or default to jpg
             import os
@@ -546,33 +488,28 @@ def download_from_youtube(
             
             if '.webp' in url_path:
                 extension = 'webp'
+                mimetype = 'image/webp'
             elif '.png' in url_path:
                 extension = 'png'  
+                mimetype = 'image/png'
             else:
                 extension = 'jpg'  # Default fallback
+                mimetype = 'image/jpeg'
                 
             thumbnail_filename = f"thumbnail.{extension}"
             thumbnail_path = song_dir / thumbnail_filename
-            logger.info(f"[THUMBNAIL DEBUG] Determined extension: {extension}, filename: {thumbnail_filename}")
-            logger.info(f"[THUMBNAIL DEBUG] Target path: {thumbnail_path}")
             
             # Use existing thumbnail download function
             from .file_management import download_image
             
-            logger.info("[THUMBNAIL DEBUG] Calling download_image function...")
-            download_result = download_image(thumbnail_url, thumbnail_path)
-            logger.info(f"[THUMBNAIL DEBUG] download_image returned: {download_result}")
-            
-            if download_result:
-                metadata.thumbnail = thumbnail_filename
-                logger.info(f"[THUMBNAIL DEBUG] SUCCESS: Thumbnail downloaded and metadata.thumbnail set to: {metadata.thumbnail}")
+            logger.info(f"Attempting to download thumbnail from {thumbnail_url}")
+            if download_image(thumbnail_url, thumbnail_path):
+                metadata.thumbnail = f"{song_id}/{thumbnail_filename}"
+                logger.info(f"Thumbnail successfully downloaded for song {song_id} as {thumbnail_filename}")
                 return
-            else:
-                logger.warning("[THUMBNAIL DEBUG] Primary download failed, trying fallbacks...")
                 
             # First fallback: Try alternative URL formats if original failed
             video_id = metadata.videoId
-            logger.info(f"[THUMBNAIL DEBUG] Attempting fallback downloads for video_id: {video_id}")
             if video_id:
                 # Try different YouTube thumbnail formats, prioritizing WebP for quality
                 formats_to_try = [
@@ -592,22 +529,16 @@ def download_from_youtube(
                         fallback_url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
                         
                     if fallback_url != thumbnail_url:  # Avoid retrying the same URL
-                        logger.info(f"[THUMBNAIL DEBUG] Trying fallback format {format_name}.{format_ext}: {fallback_url}")
+                        logger.info(f"Trying fallback thumbnail format {format_name}.{format_ext}: {fallback_url}")
                         fallback_filename = f"thumbnail.{format_ext}"
                         fallback_path = song_dir / fallback_filename
                         
-                        fallback_result = download_image(fallback_url, fallback_path)
-                        logger.info(f"[THUMBNAIL DEBUG] Fallback {format_name}.{format_ext} result: {fallback_result}")
-                        
-                        if fallback_result:
-                            metadata.thumbnail = fallback_filename
-                            logger.info(f"[THUMBNAIL DEBUG] SUCCESS: Fallback thumbnail {format_name}.{format_ext} downloaded, metadata.thumbnail set to: {metadata.thumbnail}")
+                        if download_image(fallback_url, fallback_path):
+                            metadata.thumbnail = f"{song_id}/{fallback_filename}"
+                            logger.info(f"Fallback thumbnail {format_name}.{format_ext} downloaded successfully for song {song_id}")
                             return
             
-            logger.warning(f"[THUMBNAIL DEBUG] FAILURE: All thumbnail download attempts failed for song {song_id}")
+            logger.warning(f"All thumbnail download attempts failed for song {song_id}")
         except Exception as e:
-            logger.error(f"[THUMBNAIL DEBUG] EXCEPTION: Error downloading thumbnail for song {song_id}: {e}")
-            import traceback
-            logger.error(f"[THUMBNAIL DEBUG] Stack trace: {traceback.format_exc()}")
+            logger.warning(f"Error downloading thumbnail for song {song_id}: {e}")
             # Don't fail the whole operation for thumbnail issues
->>>>>>> Stashed changes
