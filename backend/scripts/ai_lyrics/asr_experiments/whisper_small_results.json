@@ -1,0 +1,135 @@
+{
+  "model": "whisper-small",
+  "detected_language": "en",
+  "text": " you credit business fortune teller picnic it's nothing wrong with little california magic long time listener first time caller this is what it feels like to be kneeling at the altar preacher on a beach the megaphone preaching listen up you heathens you think these waves are gonna save you let birds can lay the worship in the pavement she says I don't know but lately I think these rollerblades might save me Jesus did have come on let's chase the river don't you know that it's all just California magic techno kids dancing robot in a trance and this movement for the millions our hate man did you feel emerald green liquid metal she drippin down like lava it's a Chevrolet Impala Jesus do you have come on let's chase the rabbit don't you know that it's all just California magic laughing tight row rolling with the skyline on his shoulders. Backseat signal, heavy metal hymnal. Sixth string sling, he's a saint and he's a sinner. Jesus did have it, come on let's chase the rabbit. Can we get back to all that California legend? Jesus did have it, come on let's chase the rabbit. Don't you know that the soldiers California magic? Jesus did have it, come on let's chase the rabbit. Can we get back to all that California magic?",
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 2.06,
+      "text": " you",
+      "words": []
+    },
+    {
+      "start": 30.0,
+      "end": 47.68,
+      "text": " credit business fortune teller picnic it's nothing wrong with little california magic",
+      "words": []
+    },
+    {
+      "start": 47.68,
+      "end": 63.8,
+      "text": " long time listener first time caller this is what it feels like to be kneeling at the altar",
+      "words": []
+    },
+    {
+      "start": 77.68,
+      "end": 97.16000000000001,
+      "text": " preacher on a beach the megaphone preaching listen up you heathens you think these waves are gonna",
+      "words": []
+    },
+    {
+      "start": 97.16,
+      "end": 112.6,
+      "text": " save you let birds can lay the worship in the pavement she says I don't know but lately I",
+      "words": []
+    },
+    {
+      "start": 112.6,
+      "end": 123.67999999999999,
+      "text": " think these rollerblades might save me Jesus did have come on let's chase the",
+      "words": []
+    },
+    {
+      "start": 123.68,
+      "end": 141.60000000000002,
+      "text": " river don't you know that it's all just California magic techno kids dancing robot in",
+      "words": []
+    },
+    {
+      "start": 141.60000000000002,
+      "end": 152.24,
+      "text": " a trance and this movement for the millions our hate man did you feel",
+      "words": []
+    },
+    {
+      "start": 154.44,
+      "end": 172.04000000000002,
+      "text": " emerald green liquid metal she drippin down like lava it's a Chevrolet Impala Jesus do you have",
+      "words": []
+    },
+    {
+      "start": 172.04,
+      "end": 184.0,
+      "text": " come on let's chase the rabbit don't you know that it's all just California magic",
+      "words": []
+    },
+    {
+      "start": 202.56,
+      "end": 203.07999999999998,
+      "text": " laughing",
+      "words": []
+    },
+    {
+      "start": 220.98,
+      "end": 229.22,
+      "text": " tight row",
+      "words": []
+    },
+    {
+      "start": 229.22,
+      "end": 234.1,
+      "text": " rolling with the skyline on his shoulders.",
+      "words": []
+    },
+    {
+      "start": 239.38,
+      "end": 244.42,
+      "text": " Backseat signal, heavy metal hymnal.",
+      "words": []
+    },
+    {
+      "start": 246.82,
+      "end": 251.86,
+      "text": " Sixth string sling, he's a saint and he's a sinner.",
+      "words": []
+    },
+    {
+      "start": 252.10000000000002,
+      "end": 260.1,
+      "text": " Jesus did have it, come on let's chase the rabbit.",
+      "words": []
+    },
+    {
+      "start": 260.1,
+      "end": 268.1,
+      "text": " Can we get back to all that California legend?",
+      "words": []
+    },
+    {
+      "start": 281.86,
+      "end": 309.86,
+      "text": " Jesus did have it, come on let's chase the rabbit.",
+      "words": []
+    },
+    {
+      "start": 312.42,
+      "end": 318.66,
+      "text": " Don't you know that the soldiers California magic?",
+      "words": []
+    },
+    {
+      "start": 326.42,
+      "end": 332.42,
+      "text": " Jesus did have it, come on let's chase the rabbit.",
+      "words": []
+    },
+    {
+      "start": 332.42,
+      "end": 341.22,
+      "text": " Can we get back to all that California magic?",
+      "words": []
+    }
+  ],
+  "words": [],
+  "processing_time": 21.364831924438477
+}
