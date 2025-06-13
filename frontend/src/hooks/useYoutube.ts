@@ -9,6 +9,7 @@ export interface YouTubeDownloadRequest {
   title?: string;
   album?: string;
   songId?: string;
+  searchThumbnailUrl?: string;  // Add field for original search thumbnail
 }
 
 export interface YouTubeDownloadResponse {
@@ -163,7 +164,7 @@ export const useSaveMetadataMutation = (
   options?: UseMutationOptions<SaveMetadataResponse, Error, SaveMetadataRequest>
 ) => {
   return useApiMutation<SaveMetadataResponse, SaveMetadataRequest>(
-    `songs/${songId}/metadata`,
+    `songs/${songId}`,
     'patch',
     options
   );
