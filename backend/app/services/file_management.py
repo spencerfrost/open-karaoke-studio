@@ -165,23 +165,105 @@ def write_song_metadata(song_id: str, metadata: SongMetadata):
 
 def download_image(url: str, save_path: Path) -> bool:
     """Downloads an image from a URL and saves it to the specified path."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+<<<<<<< Updated upstream
         response = requests.get(url, stream=True, timeout=10)
+=======
+        logger.info(f"[IMAGE DOWNLOAD] Starting download from: {url}")
+        logger.info(f"[IMAGE DOWNLOAD] Target path: {save_path}")
+        
+        # Create a session to handle redirects properly
+        session = requests.Session()
+        
+        # Configure session with user agent to avoid being blocked
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # First make a HEAD request to check content type and handle redirects
+        logger.info(f"[IMAGE DOWNLOAD] Making HEAD request...")
+        head_response = session.head(url, headers=headers, timeout=10, allow_redirects=True)
+        logger.info(f"[IMAGE DOWNLOAD] HEAD response status: {head_response.status_code}")
+        
+        # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
+        if head_response.status_code != 200:
+            logger.warning(f"[IMAGE DOWNLOAD] HEAD request failed with status {head_response.status_code}, trying GET instead")
+        
+        # Make the actual GET request to download the image
+        logger.info(f"[IMAGE DOWNLOAD] Making GET request...")
+        response = session.get(url, headers=headers, stream=True, timeout=10, allow_redirects=True)
+        logger.info(f"[IMAGE DOWNLOAD] GET response status: {response.status_code}")
+>>>>>>> Stashed changes
         response.raise_for_status()  # Raise exception for HTTP errors
 
         # Check if response contains image data
         content_type = response.headers.get("content-type", "")
+        logger.info(f"[IMAGE DOWNLOAD] Content-Type: {content_type}")
+        
         if not content_type.startswith("image/"):
+<<<<<<< Updated upstream
             print(f"Downloaded content is not an image: {content_type}")
             return False
 
+=======
+            logger.warning(f"[IMAGE DOWNLOAD] Content is not reported as image: {content_type}")
+            # Some YouTube thumbnails might not correctly report content-type
+            # Check if it at least looks like an image based on first few bytes
+            first_bytes = next(response.iter_content(128), b'')
+            logger.info(f"[IMAGE DOWNLOAD] First 16 bytes hex: {first_bytes[:16].hex() if first_bytes else 'None'}")
+            
+            # Check for common image file signatures (JPEG, PNG, WebP)
+            is_jpeg = first_bytes.startswith(b'\xff\xd8\xff')
+            is_png = first_bytes.startswith(b'\x89PNG\r\n\x1a\n')
+            is_webp = first_bytes.startswith(b'RIFF') and b'WEBP' in first_bytes[:12]
+            
+            logger.info(f"[IMAGE DOWNLOAD] File signature check - JPEG: {is_jpeg}, PNG: {is_png}, WebP: {is_webp}")
+            
+            if not (is_jpeg or is_png or is_webp):
+                logger.warning("[IMAGE DOWNLOAD] Content doesn't appear to be an image based on file signature")
+                return False
+        # Ensure the directory exists
+        logger.info(f"[IMAGE DOWNLOAD] Ensuring directory exists: {save_path.parent}")
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        
+>>>>>>> Stashed changes
         # Save the image
+        logger.info(f"[IMAGE DOWNLOAD] Saving image data to: {save_path}")
+        bytes_written = 0
         with open(save_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
+<<<<<<< Updated upstream
                 f.write(chunk)
         return True
     except Exception as e:
         print(f"Error downloading image from {url}: {e}")
+=======
+                if chunk:  # filter out keep-alive chunks
+                    f.write(chunk)
+                    bytes_written += len(chunk)
+        
+        logger.info(f"[IMAGE DOWNLOAD] Wrote {bytes_written} bytes to file")
+        
+        # Verify the file was saved and has content
+        if save_path.exists() and save_path.stat().st_size > 0:
+            file_size = save_path.stat().st_size
+            logger.info(f"[IMAGE DOWNLOAD] SUCCESS: File saved with size {file_size} bytes at {save_path}")
+            return True
+        else:
+            logger.warning(f"[IMAGE DOWNLOAD] FAILURE: Image file was saved but appears to be empty: {save_path}")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[IMAGE DOWNLOAD] Network error downloading image from {url}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"[IMAGE DOWNLOAD] Unexpected error downloading image from {url}: {e}")
+        import traceback
+        logger.error(f"[IMAGE DOWNLOAD] Stack trace: {traceback.format_exc()}")
+>>>>>>> Stashed changes
         return False
 
 
