@@ -1,0 +1,4 @@
+Model,Processing Time (s),Total Words,Total Segments,Avg Words/Segment,First Word (s),Text Length,Language
+Faster Whisper,3.94,228,18,12.7,14.44,1239,en
+Whisper,3.91,0,54,0.0,N/A,1372,en
+Insanely Fast Whisper,7.22,222,33,6.7,29.98,1185,unknown
