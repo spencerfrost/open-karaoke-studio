@@ -49,6 +49,7 @@ def download_youtube_endpoint():
             
         artist = data.get("artist", "")
         song_title = data.get("title", "")
+<<<<<<< Updated upstream
         existing_song_id = data.get("songId")  # Get the existing song ID if provided
         
         # Get a reference to the current app for use in the background thread
@@ -100,6 +101,44 @@ def download_youtube_endpoint():
             "status": "downloading",
             "message": "Download and processing started in background"
         }), 202  # 202 Accepted indicates the request is being processed asynchronously
+=======
+        song_id = data.get("songId")
+        search_thumbnail_url = data.get("searchThumbnailUrl")  # Capture original search thumbnail
+
+        # Validate required parameters
+        if not song_id:
+            return error_response("Missing songId parameter", 400)
+
+        # Delegate to service layer for job creation and orchestration
+        # The service will handle song creation if needed
+        youtube_service = YouTubeService()
+        job_id = youtube_service.download_and_process_async(
+            video_id_or_url=video_id, 
+            artist=artist, 
+            title=song_title, 
+            song_id=song_id,
+            search_thumbnail_url=search_thumbnail_url  # Pass through to service
+        )
+
+        current_app.logger.info(
+            f"YouTube processing started for song {song_id}, video {video_id}, job {job_id}"
+        )
+
+        return success_response(
+            data={
+                "jobId": job_id,
+                "status": "pending",
+                "message": "YouTube processing job created",
+            },
+            message="YouTube processing started",
+            status_code=202,
+        )
+
+    except ValidationError as e:
+        return error_response(str(e), 400)
+    except ServiceError as e:
+        return error_response(str(e), 500)
+>>>>>>> Stashed changes
     except Exception as e:
         current_app.logger.error(f"YouTube download error: {str(e)}", exc_info=True)
         return jsonify({"error": f"Failed to download from YouTube: {str(e)}"}), 500
