@@ -4,5 +4,7 @@ Contains business logic and utility functions for audio processing, file managem
 """
 from .audio import *
 from .file_management import *
-from .youtube_service import search_youtube, download_from_youtube
-from .musicbrainz_service import enhance_metadata_with_musicbrainz
+from .file_service import FileService
+from .jobs_service import JobsService
+from .youtube_service import YouTubeService
+from .metadata_service import MetadataService

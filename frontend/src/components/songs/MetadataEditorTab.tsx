@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
+} from "@/components/ui/select";
 import { Music, Save, Upload } from "lucide-react";
-import { Song } from "../../types/Song";
+import { Song } from "@/types/Song";
 
 interface MetadataEditorTabProps {
   song: Song;

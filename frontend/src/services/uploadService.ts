@@ -1,9 +1,8 @@
 /**
  * Upload-related API services
  */
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { uploadFile } from "@/hooks/useApi";
-import { SongProcessingStatus, SongStatus } from "../types/Song";
 
 /**
  * Hook: Upload and process an audio file
@@ -82,135 +81,8 @@ export function useProcessYouTubeVideo(
 }
 
 /**
- * Hook: Get all currently processing tasks
- */
-type BackendJob = {
-  id: string;
-  progress?: number;
-  status: string;
-  error?: string;
-  notes?: string;
-};
-
-export function useProcessingQueue(
-  options?: Omit<
-    import("@tanstack/react-query").UseQueryOptions<
-      SongProcessingStatus[],
-      Error,
-      SongProcessingStatus[],
-      ["processing-queue"]
-    >,
-    "queryKey" | "queryFn"
-  >
-) {
-  return useQuery<
-    SongProcessingStatus[],
-    Error,
-    SongProcessingStatus[],
-    ["processing-queue"]
-  >({
-    queryKey: ["processing-queue"],
-    queryFn: async () => {
-      const response = await fetch(`/api/queue/jobs`);
-      if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        try {
-          const errorData: { message?: string } = await response.json();
-          errorMessage = errorData?.message || errorMessage;
-        } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
-        }
-        throw new Error(errorMessage);
-      }
-      const data: { jobs?: BackendJob[] } = await response.json();
-      if (data && data.jobs) {
-        return data.jobs
-          .filter((job) =>
-            ["pending", "processing", "failed"].includes(job.status)
-          )
-          .map((job) => ({
-            id: job.id,
-            progress: job.progress || 0,
-            status: mapBackendStatus(job.status),
-            message: job.error || job.notes || undefined,
-          })) as SongProcessingStatus[];
-      }
-      return [];
-    },
-    ...options,
-  });
-}
-
-/**
- * Maps backend job status to frontend SongStatus
- */
-function mapBackendStatus(backendStatus: string): SongStatus {
-  switch (backendStatus) {
-    case "pending":
-      return "queued";
-    case "processing":
-      return "processing";
-    case "completed":
-      return "processed";
-    case "failed":
-    case "cancelled":
-      return "error";
-    default:
-      return "error";
-  }
-}
-
-/**
- * Hook: Get the status of a processing task
- */
-
-export function useProcessingStatus(
-  taskId: string,
-  options?: Omit<
-    import("@tanstack/react-query").UseQueryOptions<
-      SongProcessingStatus,
-      Error,
-      SongProcessingStatus,
-      ["processing-status", string]
-    >,
-    "queryKey" | "queryFn"
-  >
-) {
-  return useQuery<
-    SongProcessingStatus,
-    Error,
-    SongProcessingStatus,
-    ["processing-status", string]
-  >({
-    queryKey: ["processing-status", taskId],
-    queryFn: async () => {
-      const response = await fetch(`/api/queue/job/${taskId}`);
-      if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        try {
-          const errorData: { message?: string } = await response.json();
-          errorMessage = errorData?.message || errorMessage;
-        } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
-        }
-        throw new Error(errorMessage);
-      }
-      const data: BackendJob = await response.json();
-      return {
-        id: data.id,
-        progress: data.progress || 0,
-        status: mapBackendStatus(data.status),
-        message: data.error || data.notes || undefined,
-      } as SongProcessingStatus;
-    },
-    ...options,
-  });
-}
-
-/**
  * Hook: Cancel a processing task
  */
-
 export function useCancelProcessing(
   options?: Omit<
     import("@tanstack/react-query").UseMutationOptions<
@@ -224,7 +96,42 @@ export function useCancelProcessing(
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
-      const response = await fetch(`/api/queue/job/${taskId}/cancel`, {
+      const response = await fetch(`/api/jobs/${taskId}/cancel`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: { message?: string } = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
+    },
+    ...options,
+  });
+}
+
+/**
+ * Hook for dismissing failed, completed, or cancelled jobs from the UI
+ */
+export function useDismissJob(
+  options?: Omit<
+    import("@tanstack/react-query").UseMutationOptions<
+      { success: boolean },
+      Error,
+      string,
+      unknown
+    >,
+    "mutationFn"
+  >
+) {
+  return useMutation<{ success: boolean }, Error, string, unknown>({
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/jobs/${taskId}/dismiss`, {
         method: "POST",
       });
       if (!response.ok) {

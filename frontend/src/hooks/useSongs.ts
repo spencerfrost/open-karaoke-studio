@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useApiQuery, useApiMutation, uploadFile } from './useApi';
 import { Song, SongProcessingStatus } from '../types/Song';
-import { useQueryClient, UseMutationResult } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Query keys for React Query
 const QUERY_KEYS = {
@@ -9,7 +9,7 @@ const QUERY_KEYS = {
   song: (id: string) => ['songs', id] as const,
   songStatus: (id: string) => ['songs', id, 'status'] as const,
   songLyrics: (id: string) => ['songs', id, 'lyrics'] as const,
-  musicbrainz: ['musicbrainz', 'search'] as const,
+  metadata: ['metadata', 'search'] as const,
 };
 
 // Helper function to replace URL parameters
@@ -59,8 +59,8 @@ export function useSongs() {
       `status/${id}`,
       {
         enabled: !!id,
-        refetchInterval: (data) => 
-          data && data.status === 'processing' || data?.status === 'queued' ? 2000 : false,
+        refetchInterval: (query) =>
+          query.state.data && (query.state.data.status === 'processing' || query.state.data.status === 'queued') ? 2000 : false,
         ...options,
       }
     );
@@ -124,12 +124,12 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
-          // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+        onError: (_err, variables, context: unknown) => {
+          const ctx = context as { previousSong?: Song } | undefined;
+          if (ctx?.previousSong) {
             queryClient.setQueryData(
-              QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              QUERY_KEYS.song(variables.id),
+              ctx.previousSong
             );
           }
         },
@@ -142,7 +142,7 @@ export function useSongs() {
           const { id, ...updates } = data;
           const url = formatUrl('songs/:id', { id });
           const response = await fetch(`/api/${url}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -169,7 +169,7 @@ export function useSongs() {
       Song, 
       { id: string } & Partial<Song>
     >(
-      'songs/:id',
+      'songs/:id/metadata',
       'patch',
       {
         onMutate: async (variables) => {
@@ -200,12 +200,13 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
+        onError: (_err, variables, context: unknown) => {
           // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+          const typedContext = context as { previousSong?: Song } | undefined;
+          if (typedContext?.previousSong) {
             queryClient.setQueryData(
               QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              typedContext.previousSong
             );
           }
         },
@@ -216,7 +217,7 @@ export function useSongs() {
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
-          const url = formatUrl('songs/:id', { id });
+          const url = formatUrl('songs/:id/metadata', { id });
           const response = await fetch(`/api/${url}`, {
             method: 'PATCH',
             headers: {
@@ -238,8 +239,6 @@ export function useSongs() {
   };
 
   /**
-<<<<<<< Updated upstream
-=======
    * Update iTunes metadata for a song
    */
   const useUpdateItunesMetadata = () => {
@@ -260,7 +259,7 @@ export function useSongs() {
         };
       }
     >(
-      'songs/:id',
+      'songs/:id/metadata/itunes',
       'patch',
       {
         onMutate: async (variables) => {
@@ -293,7 +292,7 @@ export function useSongs() {
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
-          const url = formatUrl('songs/:id', { id });
+          const url = formatUrl('songs/:id/metadata/itunes', { id });
           const response = await fetch(`/api/${url}`, {
             method: 'PATCH',
             headers: {
@@ -336,7 +335,7 @@ export function useSongs() {
         youtubeChannelName?: string;
       }
     >(
-      'songs/:id',
+      'songs/:id/metadata/youtube',
       'patch',
       {
         onMutate: async (variables) => {
@@ -369,7 +368,7 @@ export function useSongs() {
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
-          const url = formatUrl('songs/:id', { id });
+          const url = formatUrl('songs/:id/metadata/youtube', { id });
           const response = await fetch(`/api/${url}`, {
             method: 'PATCH',
             headers: {
@@ -391,50 +390,60 @@ export function useSongs() {
   };
 
   /**
->>>>>>> Stashed changes
    * Delete a song
    */
-  const useDeleteSong = (): UseMutationResult<{ success: boolean }, Error, string, unknown> => {
-    return useApiMutation<{ success: boolean }, string>(
+  const useDeleteSong = () => {
+    return useApiMutation<
+      void, 
+      { id: string }
+    >(
       'songs/:id',
       'delete',
       {
-        // Skip all the optimistic update logic for now, just focus on successful deletion
-        onSuccess: () => {
+        onMutate: async (variables) => {
+          await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
+          
+          // Save previous songs list
+          const previousSongs = queryClient.getQueryData<Song[]>(QUERY_KEYS.songs);
+          
+          // Optimistically remove the song from the list
+          if (previousSongs) {
+            queryClient.setQueryData<Song[]>(
+              QUERY_KEYS.songs,
+              previousSongs.filter(song => song.id !== variables.id)
+            );
+          }
+          
+          return { previousSongs };
+        },
+        onError: (_err, _variables, context: unknown) => {
+          // If the mutation fails, restore the previous songs list
+          const ctx = context as { previousSongs?: Song[] } | undefined;
+          if (ctx?.previousSongs) {
+            queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
+          }
+        },
+        onSuccess: (_data, variables) => {
+          // Remove the specific song from cache
+          queryClient.removeQueries({ queryKey: QUERY_KEYS.song(variables.id) });
+        },
+        onSettled: () => {
+          // Refetch to ensure server state
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
         },
-        mutationFn: async (id) => {
-          console.log('Deleting song with ID:', id); // Debug log
-          const url = formatUrl('songs/:id', { id });
-          console.log('Delete URL:', `/api/${url}`); // Debug log
-          
+        mutationFn: async (data) => {
+          const url = formatUrl('songs/:id', { id: data.id });
           const response = await fetch(`/api/${url}`, {
             method: 'DELETE',
             credentials: 'include',
           });
           
           if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Delete error response:', errorText); // Debug log
-            
-            let errorMessage = `Failed to delete song: ${response.status}`;
-            try {
-              const errorData = JSON.parse(errorText);
-              errorMessage = errorData.error || errorMessage;
-            } catch (e) {
-              // If parsing fails, just use the error text
-              errorMessage = errorText || errorMessage;
-            }
-            
-            throw new Error(errorMessage);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to delete song: ${response.status}`);
           }
           
-          // If the server returned no content
-          if (response.status === 204) {
-            return { success: true };
-          }
-          
-          return response.json();
+          return;
         },
       }
     );
@@ -446,13 +455,13 @@ export function useSongs() {
   const useToggleFavorite = () => {
     return useApiMutation<
       Song, 
-      { id: string; isFavorite: boolean }
+      { id: string; favorite: boolean }
     >(
-      'songs/:id',
-      'put',
+      'songs/:id/favorite',
+      'patch',
       {
         onMutate: async (variables) => {
-          const { id, isFavorite } = variables;
+          const { id, favorite } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
           
           // Save previous song
@@ -462,7 +471,7 @@ export function useSongs() {
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
-              { ...previousSong, favorite: isFavorite }
+              { ...previousSong, favorite }
             );
             
             // Also update the song in the list of all songs
@@ -471,7 +480,7 @@ export function useSongs() {
               queryClient.setQueryData<Song[]>(
                 QUERY_KEYS.songs,
                 previousSongs.map(song => 
-                  song.id === id ? { ...song, favorite: isFavorite } : song
+                  song.id === id ? { ...song, favorite } : song
                 )
               );
             }
@@ -479,12 +488,12 @@ export function useSongs() {
           
           return { previousSong };
         },
-        onError: (_err, variables, context: any) => {
-          // If the mutation fails, roll back to the previous song
-          if (context?.previousSong) {
+        onError: (_err, variables, context: unknown) => {
+          const ctx = context as { previousSong?: Song } | undefined;
+          if (ctx?.previousSong) {
             queryClient.setQueryData(
-              QUERY_KEYS.song(variables.id), 
-              context.previousSong
+              QUERY_KEYS.song(variables.id),
+              ctx.previousSong
             );
           }
         },
@@ -494,14 +503,14 @@ export function useSongs() {
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
         },
         mutationFn: async (data) => {
-          const { id, isFavorite } = data;
-          const url = formatUrl('songs/:id', { id });
+          const { id, favorite } = data;
+          const url = formatUrl('songs/:id/favorite', { id });
           const response = await fetch(`/api/${url}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ favorite: isFavorite }),
+            body: JSON.stringify({ favorite }),
             credentials: 'include',
           });
           
@@ -517,16 +526,150 @@ export function useSongs() {
   };
 
   /**
-   * Search MusicBrainz for song metadata
+   * Get rich metadata for a song (includes all iTunes/YouTube metadata)
    */
-  const useSearchMusicBrainz = () => {
-    return useApiMutation<
-      Array<Partial<Song>>,
-      { title?: string; artist?: string }
-    >('musicbrainz/search', 'post');
+  const useRichSongMetadata = (id: string, options = {}) => {
+    return useApiQuery<
+      Song & {
+        metadataQuality?: {
+          hasItunes: boolean;
+          hasYoutube: boolean;
+          hasArtwork: boolean;
+          hasThumbnails: boolean;
+          completeness: number; // 0-100
+        };
+      },
+      ReturnType<typeof QUERY_KEYS.song>
+    >(
+      QUERY_KEYS.song(id), 
+      `songs/${id}?include_metadata=true`, 
+      {
+        enabled: !!id,
+        ...options,
+      }
+    );
   };
-  
+
   // ===== Utility Functions =====
+
+  /**
+   * Get the best available artwork URL for a song with priority fallbacks
+   */
+  const getArtworkUrl = useCallback((song: Song, size: 'small' | 'medium' | 'large' = 'medium'): string | null => {
+    // Priority: Downloaded thumbnail > iTunes artwork > YouTube thumbnail URLs
+    // This fixes the issue where new songs have coverArt pointing to non-existent files
+    
+    // First priority: Downloaded thumbnail (works for both old and new songs)
+    if (song.thumbnail) {
+      return `/api/songs/${song.id}/thumbnail`;
+    }
+    
+    // Second priority: iTunes artwork URLs (external)
+    if (song.itunesArtworkUrls) {
+      switch (size) {
+        case 'large':
+          if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
+          if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
+          if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
+          break;
+        case 'medium':
+          if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
+          if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
+          if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
+          break;
+        case 'small':
+          if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
+          if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
+          if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
+          break;
+      }
+    }
+    
+    // Third priority: YouTube thumbnail URLs (external)
+    if (song.youtubeThumbnailUrls) {
+      switch (size) {
+        case 'large':
+          if (song.youtubeThumbnailUrls.maxres) return song.youtubeThumbnailUrls.maxres;
+          if (song.youtubeThumbnailUrls.standard) return song.youtubeThumbnailUrls.standard;
+          if (song.youtubeThumbnailUrls.high) return song.youtubeThumbnailUrls.high;
+          if (song.youtubeThumbnailUrls.medium) return song.youtubeThumbnailUrls.medium;
+          if (song.youtubeThumbnailUrls.default) return song.youtubeThumbnailUrls.default;
+          break;
+        case 'medium':
+          if (song.youtubeThumbnailUrls.high) return song.youtubeThumbnailUrls.high;
+          if (song.youtubeThumbnailUrls.medium) return song.youtubeThumbnailUrls.medium;
+          if (song.youtubeThumbnailUrls.standard) return song.youtubeThumbnailUrls.standard;
+          if (song.youtubeThumbnailUrls.default) return song.youtubeThumbnailUrls.default;
+          break;
+        case 'small':
+          if (song.youtubeThumbnailUrls.medium) return song.youtubeThumbnailUrls.medium;
+          if (song.youtubeThumbnailUrls.default) return song.youtubeThumbnailUrls.default;
+          if (song.youtubeThumbnailUrls.high) return song.youtubeThumbnailUrls.high;
+          break;
+      }
+    }
+    
+    // Last resort: Try cover art path (but this probably won't work due to missing backend endpoint)
+    if (song.coverArt) {
+      // NOTE: This URL pattern doesn't exist in the backend - coverArt files aren't served
+      // We should either add a backend endpoint or remove this fallback
+      return `/api/songs/${song.id}/cover`;
+    }
+    
+    return null;
+  }, []);
+
+  /**
+   * Calculate metadata quality score for a song
+   */
+  const getMetadataQuality = useCallback((song: Song) => {
+    let score = 0;
+    let maxScore = 0;
+    
+    // Core metadata (always required)
+    maxScore += 30;
+    if (song.title) score += 10;
+    if (song.artist) score += 10;
+    if (song.album || song.releaseTitle) score += 10;
+    
+    // iTunes metadata
+    maxScore += 25;
+    if (song.itunesTrackId) score += 5;
+    if (song.itunesArtworkUrls && Object.keys(song.itunesArtworkUrls).length > 0) score += 10;
+    if (song.itunesPreviewUrl) score += 5;
+    if (song.trackTimeMillis) score += 5;
+    
+    // YouTube metadata
+    maxScore += 20;
+    if (song.videoId) score += 5;
+    if (song.youtubeThumbnailUrls && Object.keys(song.youtubeThumbnailUrls).length > 0) score += 5;
+    if (song.youtubeTags && song.youtubeTags.length > 0) score += 5;
+    if (song.youtubeChannelName) score += 5;
+    
+    // Additional metadata
+    maxScore += 25;
+    if (song.genre) score += 8;
+    if (song.language) score += 7;
+    if (song.lyrics || song.syncedLyrics) score += 10;
+    
+    return {
+      score,
+      maxScore,
+      percentage: Math.round((score / maxScore) * 100),
+      hasItunes: !!(song.itunesTrackId || song.itunesArtworkUrls),
+      hasYoutube: !!(song.videoId || song.youtubeThumbnailUrls),
+      hasArtwork: !!(song.itunesArtworkUrls || song.coverArt),
+      hasThumbnails: !!(song.youtubeThumbnailUrls || song.thumbnail),
+      hasLyrics: !!(song.lyrics || song.syncedLyrics),
+    };
+  }, []);
+
+  /**
+   * Get display name for album field with backwards compatibility
+   */
+  const getAlbumName = useCallback((song: Song): string => {
+    return song.album || song.releaseTitle || 'Unknown Album';
+  }, []);
 
   /**
    * Get a playback URL for a given song track type
@@ -587,13 +730,15 @@ export function useSongs() {
     useSong,
     useSongStatus,
     useSongLyrics,
+    useRichSongMetadata,
     
     // Mutations
     useUpdateSong,
     useUpdateSongMetadata,
+    useUpdateItunesMetadata,
+    useUpdateYoutubeMetadata,
     useDeleteSong,
     useToggleFavorite,
-    useSearchMusicBrainz,
     
     // Utility functions
     getAudioUrl,
@@ -602,6 +747,9 @@ export function useSongs() {
     downloadInstrumental,
     downloadOriginal,
     fetchAudioBuffer,
+    getArtworkUrl,
+    getMetadataQuality,
+    getAlbumName,
   };
 }
 

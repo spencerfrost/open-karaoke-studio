@@ -1,7 +1,7 @@
 import React from "react";
 import { Music, X } from "lucide-react";
-import { KaraokeQueueItemWithSong } from "../../types/KaraokeQueue";
-import vintageTheme from "../../utils/theme";
+import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
+import vintageTheme from "@/utils/theme";
 
 interface KaraokeQueueItemProps {
   item: KaraokeQueueItemWithSong;

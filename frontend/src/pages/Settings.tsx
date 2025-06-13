@@ -1,7 +1,7 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
-import vintageTheme from "../utils/theme";
+import vintageTheme from "@/utils/theme";
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API

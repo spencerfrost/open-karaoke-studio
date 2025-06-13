@@ -16,6 +16,7 @@
   --lemon-chiffon: #f5f3c7;
   --orange-peel: #fd9a02;
   --dark-cyan: #01928b;
+  --pale-warm-beige: #c7b99c;
 
   /* UI Elements */
   --radius: 0.5rem;
@@ -35,6 +36,7 @@
   --accent-foreground: var(--lemon-chiffon);
   --destructive: var(--color-red-800);
   --destructive-foreground: var(--lemon-chiffon);
+  --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
 
   --border: var(--orange-peel);

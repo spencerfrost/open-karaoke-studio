@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { QrCode } from "lucide-react";
-import vintageTheme from "../../utils/theme";
+import vintageTheme from "@/utils/theme";
 
 interface QRCodeDisplayProps {
   value: string;

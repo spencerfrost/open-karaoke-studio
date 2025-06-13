@@ -4,6 +4,7 @@ Thumbs.db
 *.log
 *.env
 .env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -64,5 +65,6 @@ karaoke_library
 downloads
 job_store
 instructions.md
-temp_job_cache/
-docs/issues/
+temp_job_cache
+
+/docs/issues
