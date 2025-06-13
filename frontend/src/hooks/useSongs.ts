@@ -169,7 +169,7 @@ export function useSongs() {
       Song, 
       { id: string } & Partial<Song>
     >(
-      'songs/:id/metadata',
+      'songs/:id',
       'patch',
       {
         onMutate: async (variables) => {
@@ -216,7 +216,7 @@ export function useSongs() {
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
-          const url = formatUrl('songs/:id/metadata', { id });
+          const url = formatUrl('songs/:id', { id });
           const response = await fetch(`/api/${url}`, {
             method: 'PATCH',
             headers: {
@@ -238,6 +238,160 @@ export function useSongs() {
   };
 
   /**
+<<<<<<< Updated upstream
+=======
+   * Update iTunes metadata for a song
+   */
+  const useUpdateItunesMetadata = () => {
+    return useApiMutation<
+      Song, 
+      { 
+        id: string;
+        itunesTrackId?: number;
+        itunesArtistId?: number;
+        itunesCollectionId?: number;
+        trackTimeMillis?: number;
+        itunesExplicit?: boolean;
+        itunesPreviewUrl?: string;
+        itunesArtworkUrls?: {
+          60?: string;
+          100?: string;
+          600?: string;
+        };
+      }
+    >(
+      'songs/:id',
+      'patch',
+      {
+        onMutate: async (variables) => {
+          const { id, ...metadata } = variables;
+          await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
+          
+          const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
+          
+          if (previousSong) {
+            queryClient.setQueryData<Song>(
+              QUERY_KEYS.song(id),
+              { ...previousSong, ...metadata }
+            );
+          }
+          
+          return { previousSong };
+        },
+        onError: (_err, variables, context: unknown) => {
+          const ctx = context as { previousSong?: Song } | undefined;
+          if (ctx?.previousSong) {
+            queryClient.setQueryData(
+              QUERY_KEYS.song(variables.id),
+              ctx.previousSong
+            );
+          }
+        },
+        onSettled: (_data, _error, variables) => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.song(variables.id) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        },
+        mutationFn: async (data) => {
+          const { id, ...metadata } = data;
+          const url = formatUrl('songs/:id', { id });
+          const response = await fetch(`/api/${url}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(metadata),
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to update iTunes metadata: ${response.status}`);
+          }
+          
+          return response.json();
+        },
+      }
+    );
+  };
+
+  /**
+   * Update YouTube metadata for a song
+   */
+  const useUpdateYoutubeMetadata = () => {
+    return useApiMutation<
+      Song, 
+      { 
+        id: string;
+        youtubeDuration?: number;
+        youtubeThumbnailUrls?: {
+          default?: string;
+          medium?: string;
+          high?: string;
+          standard?: string;
+          maxres?: string;
+        };
+        youtubeTags?: string[];
+        youtubeCategories?: string[];
+        youtubeChannelId?: string;
+        youtubeChannelName?: string;
+      }
+    >(
+      'songs/:id',
+      'patch',
+      {
+        onMutate: async (variables) => {
+          const { id, ...metadata } = variables;
+          await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
+          
+          const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
+          
+          if (previousSong) {
+            queryClient.setQueryData<Song>(
+              QUERY_KEYS.song(id),
+              { ...previousSong, ...metadata }
+            );
+          }
+          
+          return { previousSong };
+        },
+        onError: (_err, variables, context: unknown) => {
+          const ctx = context as { previousSong?: Song } | undefined;
+          if (ctx?.previousSong) {
+            queryClient.setQueryData(
+              QUERY_KEYS.song(variables.id),
+              ctx.previousSong
+            );
+          }
+        },
+        onSettled: (_data, _error, variables) => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.song(variables.id) });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        },
+        mutationFn: async (data) => {
+          const { id, ...metadata } = data;
+          const url = formatUrl('songs/:id', { id });
+          const response = await fetch(`/api/${url}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(metadata),
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to update YouTube metadata: ${response.status}`);
+          }
+          
+          return response.json();
+        },
+      }
+    );
+  };
+
+  /**
+>>>>>>> Stashed changes
    * Delete a song
    */
   const useDeleteSong = (): UseMutationResult<{ success: boolean }, Error, string, unknown> => {

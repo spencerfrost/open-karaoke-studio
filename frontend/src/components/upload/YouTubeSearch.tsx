@@ -74,18 +74,17 @@ const YouTubeSearch: React.FC = () => {
   const createSongMutation = useCreateSongMutation({
     onSuccess: (data) => {
       console.log("Song created in database:", data);
-      setCreatedSong(data);
-
-      // After song creation, start YouTube download with the song ID
-      if (selectedResult) {
-        youtubeDownloadMutation.mutate({
-          videoId: selectedResult.id,
-          title: data.title,
-          artist: data.artist,
-          album: data.album,
-          songId: data.id,
-        });
-      }
+      setCreatedSong(data);        // After song creation, start YouTube download with the song ID
+        if (selectedResult) {
+          youtubeDownloadMutation.mutate({
+            videoId: selectedResult.id,
+            title: data.title,
+            artist: data.artist,
+            album: data.album,
+            songId: data.id,
+            searchThumbnailUrl: selectedResult.thumbnail, // Pass the original search thumbnail
+          });
+        }
 
       // Show metadata confirmation dialog
       setConfirmedMetadata({
