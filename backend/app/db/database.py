@@ -4,13 +4,13 @@ Database utility functions
 """
 
 from contextlib import contextmanager
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Dict, Any
 import traceback
 import json
 from pathlib import Path
 import logging
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, func, desc, asc
 from sqlalchemy.orm import Session, sessionmaker
 from .models import Base, DbSong, SongMetadata, Song
 from ..services import file_management
@@ -460,3 +460,226 @@ def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
         logging.error(f"Error updating thumbnail for song {song_id}: {e}")
         traceback.print_exc()
         return False
+
+
+def get_artists_with_counts(search_term: str = "", limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    """Get unique artists with song counts, optionally filtered by search term.
+    
+    Args:
+        search_term: Optional search term to filter artist names
+        limit: Maximum number of artists to return
+        offset: Number of artists to skip
+        
+    Returns:
+        List of dicts with artist info: [{"name": "Artist", "songCount": 5, "firstLetter": "A"}, ...]
+    """
+    try:
+        with get_db_session() as session:
+            query = session.query(
+                DbSong.artist,
+                func.count(DbSong.id).label('song_count')
+            ).group_by(DbSong.artist)
+            
+            # Apply search filter if provided
+            if search_term:
+                query = query.filter(DbSong.artist.ilike(f'%{search_term}%'))
+            
+            # Order by artist name (case-insensitive)
+            query = query.order_by(func.lower(DbSong.artist))
+            
+            # Apply pagination
+            query = query.offset(offset).limit(limit)
+            
+            results = query.all()
+            
+            artists = []
+            for artist, count in results:
+                artists.append({
+                    "name": artist,
+                    "songCount": count,
+                    "firstLetter": artist[0].upper() if artist else "?"
+                })
+            
+            return artists
+            
+    except Exception as e:
+        logging.error(f"Error getting artists from database: {e}")
+        return []
+
+
+def get_artists_total_count(search_term: str = "") -> int:
+    """Get total count of unique artists, optionally filtered by search term."""
+    try:
+        with get_db_session() as session:
+            query = session.query(func.count(func.distinct(DbSong.artist)))
+            
+            if search_term:
+                query = query.filter(DbSong.artist.ilike(f'%{search_term}%'))
+            
+            return query.scalar() or 0
+            
+    except Exception as e:
+        logging.error(f"Error getting artists count: {e}")
+        return 0
+
+
+def get_songs_by_artist(
+    artist_name: str, 
+    limit: int = 20, 
+    offset: int = 0,
+    sort_by: str = "title",
+    direction: str = "asc"
+) -> Dict[str, Any]:
+    """Get songs for a specific artist with pagination and sorting.
+    
+    Args:
+        artist_name: Name of the artist
+        limit: Maximum number of songs to return
+        offset: Number of songs to skip
+        sort_by: Field to sort by ('title', 'album', 'year', 'dateAdded')
+        direction: Sort direction ('asc' or 'desc')
+        
+    Returns:
+        Dict with songs list and total count: {"songs": [...], "total": N}
+    """
+    try:
+        with get_db_session() as session:
+            query = session.query(DbSong).filter(DbSong.artist == artist_name)
+            
+            # Apply sorting
+            sort_field = getattr(DbSong, sort_by, DbSong.title)
+            if direction.lower() == 'desc':
+                query = query.order_by(desc(sort_field))
+            else:
+                query = query.order_by(asc(sort_field))
+            
+            # Get total count before pagination
+            total_count = query.count()
+            
+            # Apply pagination
+            songs = query.offset(offset).limit(limit).all()
+            
+            return {
+                "songs": songs,
+                "total": total_count
+            }
+            
+    except Exception as e:
+        logging.error(f"Error getting songs for artist '{artist_name}': {e}")
+        return {"songs": [], "total": 0}
+
+
+def search_songs_paginated(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    group_by_artist: bool = False,
+    sort_by: str = "relevance",
+    direction: str = "desc"
+) -> Dict[str, Any]:
+    """Search songs with pagination and optional artist grouping.
+    
+    Args:
+        query: Search query string
+        limit: Maximum number of results to return
+        offset: Number of results to skip
+        group_by_artist: Whether to group results by artist
+        sort_by: Field to sort by ('relevance', 'title', 'artist', 'dateAdded')
+        direction: Sort direction ('asc' or 'desc')
+        
+    Returns:
+        Dict with search results and pagination info
+    """
+    try:
+        with get_db_session() as session:
+            # Build base search query
+            search_filter = (
+                DbSong.title.ilike(f'%{query}%') |
+                DbSong.artist.ilike(f'%{query}%') |
+                DbSong.album.ilike(f'%{query}%')
+            )
+            
+            if group_by_artist:
+                # Group results by artist
+                artist_query = session.query(
+                    DbSong.artist,
+                    func.count(DbSong.id).label('song_count')
+                ).filter(search_filter).group_by(DbSong.artist)
+                
+                total_artists = artist_query.count()
+                
+                # Get artists with pagination
+                artist_results = artist_query.offset(offset).limit(limit).all()
+                
+                artists_data = []
+                total_songs = 0
+                
+                for artist, count in artist_results:
+                    # Get a sample of songs for this artist
+                    songs_query = session.query(DbSong).filter(
+                        search_filter,
+                        DbSong.artist == artist
+                    ).limit(5)  # Show max 5 songs per artist in grouped view
+                    
+                    songs = songs_query.all()
+                    total_songs += count
+                    
+                    artists_data.append({
+                        "artist": artist,
+                        "songCount": count,
+                        "songs": songs  # These will be converted to pydantic in the API
+                    })
+                
+                return {
+                    "artists": artists_data,
+                    "total_songs": total_songs,
+                    "total_artists": total_artists,
+                    "pagination": {
+                        "total": total_artists,
+                        "limit": limit,
+                        "offset": offset,
+                        "hasMore": offset + limit < total_artists
+                    }
+                }
+            
+            else:
+                # Flat search results
+                base_query = session.query(DbSong).filter(search_filter)
+                
+                # Apply sorting
+                if sort_by == "relevance":
+                    # Simple relevance: title matches first, then artist matches
+                    base_query = base_query.order_by(
+                        DbSong.title.ilike(f'%{query}%').desc(),
+                        DbSong.artist.ilike(f'%{query}%').desc(),
+                        DbSong.date_added.desc()
+                    )
+                else:
+                    sort_field = getattr(DbSong, sort_by, DbSong.title)
+                    if direction.lower() == 'desc':
+                        base_query = base_query.order_by(desc(sort_field))
+                    else:
+                        base_query = base_query.order_by(asc(sort_field))
+                
+                # Get total count
+                total_count = base_query.count()
+                
+                # Apply pagination
+                songs = base_query.offset(offset).limit(limit).all()
+                
+                return {
+                    "songs": songs,
+                    "pagination": {
+                        "total": total_count,
+                        "limit": limit,
+                        "offset": offset,
+                        "hasMore": offset + limit < total_count
+                    }
+                }
+                
+    except Exception as e:
+        logging.error(f"Error searching songs: {e}")
+        return {
+            "songs": [],
+            "pagination": {"total": 0, "limit": limit, "offset": offset, "hasMore": False}
+        }
