@@ -41,8 +41,8 @@ export function useSongs() {
    */
   const useSong = (id: string, options = {}) => {
     return useApiQuery<Song, ReturnType<typeof QUERY_KEYS.song>>(
-      QUERY_KEYS.song(id), 
-      `songs/${id}`, 
+      QUERY_KEYS.song(id),
+      `songs/${id}`,
       {
         enabled: !!id,
         ...options,
@@ -74,8 +74,8 @@ export function useSongs() {
       { plainLyrics: string; syncedLyrics: string; duration: number },
       ReturnType<typeof QUERY_KEYS.songLyrics>
     >(
-      QUERY_KEYS.songLyrics(songId), 
-      `songs/${songId}/lyrics`, 
+      QUERY_KEYS.songLyrics(songId),
+      `songs/${songId}/lyrics`,
       {
         enabled: !!songId,
         ...options,
@@ -90,7 +90,7 @@ export function useSongs() {
    */
   const useUpdateSong = () => {
     return useApiMutation<
-      Song, 
+      Song,
       Partial<Song> & { id: string }
     >(
       'songs/:id',
@@ -99,29 +99,29 @@ export function useSongs() {
         onMutate: async (variables) => {
           const { id, ...updates } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-          
+
           // Save previous song
           const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
-          
+
           // Optimistically update the song
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
               { ...previousSong, ...updates }
             );
-            
+
             // Also update the song in the list of all songs
             const previousSongs = queryClient.getQueryData<Song[]>(QUERY_KEYS.songs);
             if (previousSongs) {
               queryClient.setQueryData<Song[]>(
                 QUERY_KEYS.songs,
-                previousSongs.map(song => 
+                previousSongs.map(song =>
                   song.id === id ? { ...song, ...updates } : song
                 )
               );
             }
           }
-          
+
           return { previousSong };
         },
         onError: (_err, variables, context: unknown) => {
@@ -149,12 +149,12 @@ export function useSongs() {
             body: JSON.stringify(updates),
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to update song: ${response.status}`);
           }
-          
+
           return response.json();
         },
       }
@@ -166,7 +166,7 @@ export function useSongs() {
    */
   const useUpdateSongMetadata = () => {
     return useApiMutation<
-      Song, 
+      Song,
       { id: string } & Partial<Song>
     >(
       'songs/:id/metadata',
@@ -175,29 +175,29 @@ export function useSongs() {
         onMutate: async (variables) => {
           const { id, ...metadata } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-          
+
           // Save previous song
           const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
-          
+
           // Optimistically update the song
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
               { ...previousSong, ...metadata }
             );
-            
+
             // Also update the song in the list of all songs
             const previousSongs = queryClient.getQueryData<Song[]>(QUERY_KEYS.songs);
             if (previousSongs) {
               queryClient.setQueryData<Song[]>(
                 QUERY_KEYS.songs,
-                previousSongs.map(song => 
+                previousSongs.map(song =>
                   song.id === id ? { ...song, ...metadata } : song
                 )
               );
             }
           }
-          
+
           return { previousSong };
         },
         onError: (_err, variables, context: unknown) => {
@@ -205,7 +205,7 @@ export function useSongs() {
           const typedContext = context as { previousSong?: Song } | undefined;
           if (typedContext?.previousSong) {
             queryClient.setQueryData(
-              QUERY_KEYS.song(variables.id), 
+              QUERY_KEYS.song(variables.id),
               typedContext.previousSong
             );
           }
@@ -226,12 +226,12 @@ export function useSongs() {
             body: JSON.stringify(metadata),
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to update metadata: ${response.status}`);
           }
-          
+
           return response.json();
         },
       }
@@ -243,8 +243,8 @@ export function useSongs() {
    */
   const useUpdateItunesMetadata = () => {
     return useApiMutation<
-      Song, 
-      { 
+      Song,
+      {
         id: string;
         itunesTrackId?: number;
         itunesArtistId?: number;
@@ -265,16 +265,16 @@ export function useSongs() {
         onMutate: async (variables) => {
           const { id, ...metadata } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-          
+
           const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
-          
+
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
               { ...previousSong, ...metadata }
             );
           }
-          
+
           return { previousSong };
         },
         onError: (_err, variables, context: unknown) => {
@@ -301,12 +301,12 @@ export function useSongs() {
             body: JSON.stringify(metadata),
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to update iTunes metadata: ${response.status}`);
           }
-          
+
           return response.json();
         },
       }
@@ -318,8 +318,8 @@ export function useSongs() {
    */
   const useUpdateYoutubeMetadata = () => {
     return useApiMutation<
-      Song, 
-      { 
+      Song,
+      {
         id: string;
         youtubeDuration?: number;
         youtubeThumbnailUrls?: {
@@ -341,16 +341,16 @@ export function useSongs() {
         onMutate: async (variables) => {
           const { id, ...metadata } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-          
+
           const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
-          
+
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
               { ...previousSong, ...metadata }
             );
           }
-          
+
           return { previousSong };
         },
         onError: (_err, variables, context: unknown) => {
@@ -377,12 +377,12 @@ export function useSongs() {
             body: JSON.stringify(metadata),
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to update YouTube metadata: ${response.status}`);
           }
-          
+
           return response.json();
         },
       }
@@ -394,7 +394,7 @@ export function useSongs() {
    */
   const useDeleteSong = () => {
     return useApiMutation<
-      void, 
+      void,
       { id: string }
     >(
       'songs/:id',
@@ -402,10 +402,10 @@ export function useSongs() {
       {
         onMutate: async (variables) => {
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
-          
+
           // Save previous songs list
           const previousSongs = queryClient.getQueryData<Song[]>(QUERY_KEYS.songs);
-          
+
           // Optimistically remove the song from the list
           if (previousSongs) {
             queryClient.setQueryData<Song[]>(
@@ -413,7 +413,7 @@ export function useSongs() {
               previousSongs.filter(song => song.id !== variables.id)
             );
           }
-          
+
           return { previousSongs };
         },
         onError: (_err, _variables, context: unknown) => {
@@ -437,12 +437,12 @@ export function useSongs() {
             method: 'DELETE',
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to delete song: ${response.status}`);
           }
-          
+
           return;
         },
       }
@@ -454,7 +454,7 @@ export function useSongs() {
    */
   const useToggleFavorite = () => {
     return useApiMutation<
-      Song, 
+      Song,
       { id: string; favorite: boolean }
     >(
       'songs/:id/favorite',
@@ -463,29 +463,29 @@ export function useSongs() {
         onMutate: async (variables) => {
           const { id, favorite } = variables;
           await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-          
+
           // Save previous song
           const previousSong = queryClient.getQueryData<Song>(QUERY_KEYS.song(id));
-          
+
           // Optimistically update the song
           if (previousSong) {
             queryClient.setQueryData<Song>(
               QUERY_KEYS.song(id),
               { ...previousSong, favorite }
             );
-            
+
             // Also update the song in the list of all songs
             const previousSongs = queryClient.getQueryData<Song[]>(QUERY_KEYS.songs);
             if (previousSongs) {
               queryClient.setQueryData<Song[]>(
                 QUERY_KEYS.songs,
-                previousSongs.map(song => 
+                previousSongs.map(song =>
                   song.id === id ? { ...song, favorite } : song
                 )
               );
             }
           }
-          
+
           return { previousSong };
         },
         onError: (_err, variables, context: unknown) => {
@@ -513,12 +513,12 @@ export function useSongs() {
             body: JSON.stringify({ favorite }),
             credentials: 'include',
           });
-          
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to toggle favorite: ${response.status}`);
           }
-          
+
           return response.json();
         },
       }
@@ -541,8 +541,8 @@ export function useSongs() {
       },
       ReturnType<typeof QUERY_KEYS.song>
     >(
-      QUERY_KEYS.song(id), 
-      `songs/${id}?include_metadata=true`, 
+      QUERY_KEYS.song(id),
+      `songs/${id}?include_metadata=true`,
       {
         enabled: !!id,
         ...options,
@@ -558,12 +558,12 @@ export function useSongs() {
   const getArtworkUrl = useCallback((song: Song, size: 'small' | 'medium' | 'large' = 'medium'): string | null => {
     // Priority: Downloaded thumbnail > iTunes artwork > YouTube thumbnail URLs
     // This fixes the issue where new songs have coverArt pointing to non-existent files
-    
+
     // First priority: Downloaded thumbnail (works for both old and new songs)
     if (song.thumbnail) {
       return `/api/songs/${song.id}/thumbnail`;
     }
-    
+
     // Second priority: iTunes artwork URLs (external)
     if (song.itunesArtworkUrls) {
       switch (size) {
@@ -584,7 +584,7 @@ export function useSongs() {
           break;
       }
     }
-    
+
     // Third priority: YouTube thumbnail URLs (external)
     if (song.youtubeThumbnailUrls) {
       switch (size) {
@@ -608,14 +608,14 @@ export function useSongs() {
           break;
       }
     }
-    
+
     // Last resort: Try cover art path (but this probably won't work due to missing backend endpoint)
     if (song.coverArt) {
       // NOTE: This URL pattern doesn't exist in the backend - coverArt files aren't served
       // We should either add a backend endpoint or remove this fallback
       return `/api/songs/${song.id}/cover`;
     }
-    
+
     return null;
   }, []);
 
@@ -625,33 +625,33 @@ export function useSongs() {
   const getMetadataQuality = useCallback((song: Song) => {
     let score = 0;
     let maxScore = 0;
-    
+
     // Core metadata (always required)
     maxScore += 30;
     if (song.title) score += 10;
     if (song.artist) score += 10;
     if (song.album || song.releaseTitle) score += 10;
-    
+
     // iTunes metadata
     maxScore += 25;
     if (song.itunesTrackId) score += 5;
     if (song.itunesArtworkUrls && Object.keys(song.itunesArtworkUrls).length > 0) score += 10;
     if (song.itunesPreviewUrl) score += 5;
     if (song.trackTimeMillis) score += 5;
-    
+
     // YouTube metadata
     maxScore += 20;
     if (song.videoId) score += 5;
     if (song.youtubeThumbnailUrls && Object.keys(song.youtubeThumbnailUrls).length > 0) score += 5;
     if (song.youtubeTags && song.youtubeTags.length > 0) score += 5;
     if (song.youtubeChannelName) score += 5;
-    
+
     // Additional metadata
     maxScore += 25;
     if (song.genre) score += 8;
     if (song.language) score += 7;
     if (song.lyrics || song.syncedLyrics) score += 10;
-    
+
     return {
       score,
       maxScore,
@@ -668,7 +668,7 @@ export function useSongs() {
    * Get display name for album field with backwards compatibility
    */
   const getAlbumName = useCallback((song: Song): string => {
-    return song.album || song.releaseTitle || 'Unknown Album';
+    return song.album || 'Unknown Album';
   }, []);
 
   /**
@@ -731,7 +731,7 @@ export function useSongs() {
     useSongStatus,
     useSongLyrics,
     useRichSongMetadata,
-    
+
     // Mutations
     useUpdateSong,
     useUpdateSongMetadata,
@@ -739,7 +739,7 @@ export function useSongs() {
     useUpdateYoutubeMetadata,
     useDeleteSong,
     useToggleFavorite,
-    
+
     // Utility functions
     getAudioUrl,
     uploadSong,
