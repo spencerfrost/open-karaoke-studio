@@ -6,14 +6,26 @@ import os
 import logging
 from . import create_app
 from .config import get_config
+from .config.logging import setup_logging
 
 # Get the current configuration and create the Flask app
 config = get_config()
+
+# Setup comprehensive logging before app creation
+logging_config = setup_logging(config)
+
 app = create_app(config)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-app.logger.setLevel(logging.INFO)
+# Get a logger for this module
+logger = logging.getLogger(__name__)
+logger.info("Open Karaoke Studio backend starting up")
+logger.info(f"Configuration: {config.__class__.__name__}")
+logger.info(f"Log directory: {config.LOG_DIR}")
+logger.info(f"Debug mode: {config.DEBUG}")
+
+# Set Flask app logger to use our configured logging
+app.logger.handlers = []  # Remove default handlers
+app.logger.propagate = True  # Let our loggers handle it
 
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here

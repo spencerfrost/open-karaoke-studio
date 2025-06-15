@@ -21,6 +21,13 @@ class BaseConfig:
         Path(__file__).resolve().parent.parent.parent.parent
     )  # Points to project root
 
+    # Logging Configuration
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_DIR = Path(os.environ.get("LOG_DIR", str(BASE_DIR / "backend" / "logs")))
+    LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", 10485760))
+    LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", 5))
+    LOG_FORMAT = os.environ.get("LOG_FORMAT", "detailed")
+
     # Database Configuration
     # Always use the backend directory database to avoid working directory issues
     BACKEND_DB_PATH = BASE_DIR / "backend" / "karaoke.db"
@@ -129,5 +136,6 @@ class BaseConfig:
         self.validate_config()
 
         # Ensure directories exist
-        self.LIBRARY_DIR.mkdir(exist_ok=True)
-        self.TEMP_DIR.mkdir(exist_ok=True)
+        self.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+        self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        self.LOG_DIR.mkdir(parents=True, exist_ok=True)  # Ensure log directory exists

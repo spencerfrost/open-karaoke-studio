@@ -4,8 +4,9 @@ import os
 import multiprocessing
 from dotenv import load_dotenv
 import logging
+import logging.config
 
-# Setup logging
+# Setup logging first
 logger = logging.getLogger(__name__)
 
 try:
@@ -19,7 +20,12 @@ load_dotenv()
 
 # Import configuration for centralized settings
 from ..config import get_config
+from ..config.logging import setup_logging
+
 config = get_config()
+
+# Setup logging for Celery
+logging_config = setup_logging(config)
 
 # Use centralized configuration
 broker_url = config.CELERY_BROKER_URL
@@ -35,7 +41,8 @@ celery = Celery(
     include=['app.jobs.jobs']
 )
 
-# Configure Celery
+# Configure Celery with enhanced logging
+celery_logging_config = logging_config.configure_celery_logging()
 celery.conf.update(
     task_serializer='json',
     accept_content=['json'],
@@ -44,6 +51,7 @@ celery.conf.update(
     enable_utc=True,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
+    **celery_logging_config
 )
 
 # For Flask integration (optional)
