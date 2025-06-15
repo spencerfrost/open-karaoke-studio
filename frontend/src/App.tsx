@@ -9,7 +9,7 @@ import {
 import { SongsProvider } from "./context/SongsContext";
 import { SettingsProvider } from "./context/SettingsContext";
 
-import LibraryPage from "./pages/Library";
+import EnhancedLibraryPage from "./pages/EnhancedLibrary";
 import AddSongPage from "./pages/AddSong";
 import SettingsPage from "./pages/Settings";
 import StagePage from "./pages/Stage";
@@ -25,7 +25,7 @@ const App: React.FC = () => {
         <Router>
           <Routes>
             {/* Main app routes */}
-            <Route path="/" element={<LibraryPage />} />
+            <Route path="/" element={<EnhancedLibraryPage />} />
             <Route path="/add" element={<AddSongPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/stage" element={<StagePage />} />
