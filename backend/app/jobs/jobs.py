@@ -10,8 +10,14 @@ from celery.utils.log import get_task_logger
 from ..services import audio, file_management, FileService
 from .celery_app import celery
 from ..db.models import JobStatus, JobStore
+from ..config.logging import get_structured_logger
 
 logger = get_task_logger(__name__)
+# Add structured logging for better job tracking
+structured_logger = get_structured_logger('app.jobs', {
+    'module': 'jobs',
+    'component': 'task_processor'
+})
 job_store = JobStore()
 
 
@@ -133,6 +139,17 @@ def process_audio_job(self, job_id):
                     "message": message,
                 },
             )
+        # Enhanced logging with structured data
+        structured_logger.info(
+            f"Job progress: {progress}% - {message}",
+            extra={
+                'job_id': job_id,
+                'progress': progress,
+                'status': 'processing',
+                'filename': filename,
+                'message': message
+            }
+        )
         logger.info(f"Job {job_id} progress: {progress}% - {message}")
 
     try:
@@ -362,7 +379,24 @@ def process_youtube_job(self, job_id, video_id, metadata):
         )
 
         # Phase 3: Finalization (90-100% progress)
-        update_progress(95, "Cleaning up temporary files")
+        update_progress(93, "Downloading thumbnail")
+        
+        # Phase 3A: Download thumbnail (separate from stepper-sensitive operations)
+        try:
+            logger.info(f"Downloading thumbnail for video {video_id}...")
+            thumbnail_url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
+            if thumbnail_url:
+                logger.info(f"✅ Thumbnail downloaded successfully: {thumbnail_url}")
+                update_progress(95, "Thumbnail download complete")
+            else:
+                logger.warning(f"⚠️ Thumbnail download failed for {video_id}")
+                update_progress(95, "Thumbnail download failed, continuing")
+        except Exception as e:
+            # Thumbnail failures should not break the job
+            logger.warning(f"⚠️ Thumbnail download failed for {video_id}: {e}")
+            update_progress(95, "Thumbnail download failed, continuing")
+
+        update_progress(99, "Finalizing processing")
 
         # Phase 1A Task 3: Update database with audio file paths after processing
         try:
