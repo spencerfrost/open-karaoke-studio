@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 
 from ..services.lyrics_service import LyricsService
-from ..db.database import create_or_update_song
+from ..db import create_or_update_song
 from ..exceptions import ServiceError, ValidationError
 
 lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
