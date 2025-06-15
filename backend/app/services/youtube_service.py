@@ -165,6 +165,16 @@ class YouTubeService(YouTubeServiceInterface):
             # Extract and create metadata
             metadata = self._extract_metadata_from_youtube_info(info)
             
+            # Extract duration from downloaded audio file if not available from YouTube
+            if not metadata.duration:
+                try:
+                    duration = self._extract_audio_duration(original_file)
+                    if duration:
+                        metadata.duration = duration
+                        logger.info(f"Extracted duration {duration}s from audio file for song {song_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to extract duration from audio file for song {song_id}: {e}")
+            
             # Ensure sourceUrl is set correctly
             if not metadata.sourceUrl:
                 metadata.sourceUrl = url
@@ -234,10 +244,9 @@ class YouTubeService(YouTubeServiceInterface):
                 logger.warning(f"iTunes metadata enhancement failed for song {song_id}: {e}")
                 # Continue with original metadata
             
-            # Download thumbnail if available
-            thumbnail_url = self._get_best_thumbnail_url(info)
-            if thumbnail_url:
-                self._download_thumbnail(song_id, thumbnail_url, metadata)
+            # NOTE: Thumbnail download removed from download_video() to prevent
+            # stepper interference. Thumbnails are now handled separately in 
+            # the Celery job (process_youtube_job) after audio processing completes.
             
             logger.info(f"Successfully downloaded YouTube video {video_id} as song {song_id}")
             return song_id, metadata
@@ -364,7 +373,10 @@ class YouTubeService(YouTubeServiceInterface):
             
             logger.info(f"Job {job_id} successfully saved to database")
             
-            # Now queue the Celery task
+            # Note: Thumbnail download is now handled by the Celery job to avoid
+            # interfering with frontend stepper state due to database updates
+            
+            # Queue the Celery task for both audio processing and thumbnail download
             metadata_dict = {
                 "artist": artist or "Unknown Artist", 
                 "title": title or "Unknown Title"
@@ -475,12 +487,143 @@ class YouTubeService(YouTubeServiceInterface):
         
         return None
     
-    def _download_thumbnail(self, song_id: str, thumbnail_url: str, metadata: SongMetadata) -> None:
-        """Download thumbnail and update metadata"""
+    def fetch_and_save_thumbnail(self, video_id: str, song_id: str) -> Optional[str]:
+        """Fetch and save thumbnail for a video, returns best thumbnail URL on success"""
         try:
-            song_dir = self.file_service.get_song_directory(song_id)
+            # Extract video info without downloading
+            video_info = self.extract_video_info(video_id)
             
-            # Determine file extension from URL or default to jpg
+            # Try multiple thumbnail sources with fallback
+            successful_url = self._download_thumbnail_with_fallback(video_info, song_id)
+            
+            if not successful_url:
+                logger.warning(f"All thumbnail sources failed for video {video_id}")
+                raise ServiceError("No valid thumbnail found")
+            
+            return successful_url
+                
+        except ServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to fetch and save thumbnail for video {video_id}: {e}")
+            raise ServiceError(f"Failed to fetch thumbnail: {e}")
+    
+    def _download_thumbnail_with_fallback(self, video_info: Dict[str, Any], song_id: str) -> Optional[str]:
+        """Try multiple thumbnail sources with fallback, returns successful URL or None"""
+        video_id = video_info.get("id")
+        if not video_id:
+            return None
+        
+        # Strategy 1: Try yt-dlp thumbnail URLs first
+        thumbnails = video_info.get("thumbnails", [])
+        if thumbnails:
+            logger.info(f"Trying yt-dlp provided thumbnails for video {video_id}")
+            # Sort by preference and resolution for best quality first
+            sorted_thumbnails = sorted(thumbnails, key=lambda t: (
+                t.get("preference", -9999),
+                t.get("width", 0) * t.get("height", 0)
+            ), reverse=True)
+            
+            for thumb in sorted_thumbnails[:3]:  # Try top 3 best thumbnails
+                url = thumb.get("url")
+                if url:
+                    logger.info(f"Trying yt-dlp thumbnail: {url}")
+                    success, thumbnail_filename = self._download_and_save_thumbnail(song_id, url)
+                    if success:
+                        logger.info(f"✅ Successfully downloaded yt-dlp thumbnail: {url}")
+                        self._update_song_thumbnail_in_db(song_id, thumbnail_filename)
+                        return url
+                    else:
+                        logger.warning(f"❌ Failed to download yt-dlp thumbnail: {url}")
+        
+        # Strategy 2: Systematic URL construction fallback
+        logger.info(f"Falling back to systematic URL construction for video {video_id}")
+        formats_to_try = [
+            ("maxresdefault", "webp"),   # 1920x1080 WebP
+            ("maxresdefault", "jpg"),    # 1920x1080 JPG  
+            ("hqdefault", "webp"),       # 480x360 WebP
+            ("hqdefault", "jpg"),        # 480x360 JPG
+            ("mqdefault", "webp"),       # 320x180 WebP
+            ("mqdefault", "jpg"),        # 320x180 JPG
+            ("sddefault", "jpg"),        # 640x480 JPG
+            ("default", "jpg")           # 120x90 JPG
+        ]
+        
+        for format_name, format_ext in formats_to_try:
+            if format_ext == "webp":
+                url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+            else:
+                url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
+            
+            logger.info(f"Trying systematic URL: {url}")
+            success, thumbnail_filename = self._download_and_save_thumbnail(song_id, url)
+            if success:
+                logger.info(f"✅ Successfully downloaded systematic thumbnail: {url}")
+                self._update_song_thumbnail_in_db(song_id, thumbnail_filename)
+                return url
+            else:
+                logger.warning(f"❌ Failed to download systematic thumbnail: {url}")
+        
+        logger.error(f"All thumbnail download attempts failed for video {video_id}")
+        return None
+
+    def _get_best_quality_thumbnail(self, video_info: Dict[str, Any]) -> Optional[str]:
+        """Get best quality thumbnail using systematic fallback chain"""
+        video_id = video_info.get("id")
+        if not video_id:
+            return None
+        
+        # Fallback chain as described in architecture
+        formats_to_try = [
+            ("maxresdefault", "webp"),   # 1920x1080 WebP
+            ("maxresdefault", "jpg"),    # 1920x1080 JPG
+            ("hqdefault", "webp"),       # 480x360 WebP
+            ("hqdefault", "jpg"),        # 480x360 JPG
+            ("mqdefault", "webp"),       # 320x180 WebP
+            ("mqdefault", "jpg"),        # 320x180 JPG
+            ("sddefault", "jpg"),        # 640x480 JPG
+            ("default", "jpg")           # 120x90 JPG
+        ]
+        
+        # First, try to use yt-dlp's preference system
+        thumbnails = video_info.get("thumbnails", [])
+        if thumbnails:
+            # Sort by preference (higher = better) and resolution
+            best_thumb = max(thumbnails, key=lambda t: (
+                t.get("preference", -9999),
+                t.get("width", 0) * t.get("height", 0)
+            ))
+            if best_thumb.get("url"):
+                return best_thumb.get("url")
+        
+        # Fallback to systematic URL construction
+        for format_name, format_ext in formats_to_try:
+            if format_ext == "webp":
+                url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+            else:
+                url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
+            
+            # Quick check if this format exists (optional, can be removed for performance)
+            if self._check_thumbnail_exists(url):
+                logger.info(f"Selected thumbnail format {format_name}.{format_ext} for video {video_id}")
+                return url
+        
+        logger.warning(f"No valid thumbnail found for video {video_id}")
+        return None
+    
+    def _check_thumbnail_exists(self, url: str) -> bool:
+        """Quick HTTP HEAD request to check if thumbnail exists"""
+        try:
+            import requests
+            response = requests.head(url, timeout=5)
+            return response.status_code == 200
+        except Exception:
+            return False  # Return False if we can't check
+    
+    def _download_and_save_thumbnail(self, song_id: str, thumbnail_url: str) -> tuple[bool, str]:
+        """Download and save thumbnail to file system, returns (success, filename)"""
+        try:
+            # Determine file extension from URL (prefer WebP, fallback to JPG)
             import os
             from urllib.parse import urlparse
             parsed_url = urlparse(thumbnail_url)
@@ -488,57 +631,61 @@ class YouTubeService(YouTubeServiceInterface):
             
             if '.webp' in url_path:
                 extension = 'webp'
-                mimetype = 'image/webp'
             elif '.png' in url_path:
                 extension = 'png'  
-                mimetype = 'image/png'
             else:
                 extension = 'jpg'  # Default fallback
-                mimetype = 'image/jpeg'
                 
+            # Get song directory and create proper thumbnail path
+            song_dir = self.file_service.get_song_directory(song_id)
             thumbnail_filename = f"thumbnail.{extension}"
             thumbnail_path = song_dir / thumbnail_filename
             
             # Use existing thumbnail download function
             from .file_management import download_image
             
-            logger.info(f"Attempting to download thumbnail from {thumbnail_url}")
-            if download_image(thumbnail_url, thumbnail_path):
-                metadata.thumbnail = f"{song_id}/{thumbnail_filename}"
-                logger.info(f"Thumbnail successfully downloaded for song {song_id} as {thumbnail_filename}")
-                return
-                
-            # First fallback: Try alternative URL formats if original failed
-            video_id = metadata.videoId
-            if video_id:
-                # Try different YouTube thumbnail formats, prioritizing WebP for quality
-                formats_to_try = [
-                    ("maxresdefault", "webp"),
-                    ("maxresdefault", "jpg"), 
-                    ("hqdefault", "webp"),
-                    ("hqdefault", "jpg"),
-                    ("mqdefault", "jpg"),
-                    ("sddefault", "jpg"),
-                    ("default", "jpg")
-                ]
-                
-                for format_name, format_ext in formats_to_try:
-                    if format_ext == "webp":
-                        fallback_url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
-                    else:
-                        fallback_url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
-                        
-                    if fallback_url != thumbnail_url:  # Avoid retrying the same URL
-                        logger.info(f"Trying fallback thumbnail format {format_name}.{format_ext}: {fallback_url}")
-                        fallback_filename = f"thumbnail.{format_ext}"
-                        fallback_path = song_dir / fallback_filename
-                        
-                        if download_image(fallback_url, fallback_path):
-                            metadata.thumbnail = f"{song_id}/{fallback_filename}"
-                            logger.info(f"Fallback thumbnail {format_name}.{format_ext} downloaded successfully for song {song_id}")
-                            return
+            logger.info(f"Downloading thumbnail from {thumbnail_url} to {thumbnail_path}")
+            success = download_image(thumbnail_url, thumbnail_path)
             
-            logger.warning(f"All thumbnail download attempts failed for song {song_id}")
+            if success:
+                logger.info(f"Thumbnail successfully downloaded for song {song_id} as {thumbnail_filename}")
+                return True, thumbnail_filename
+            else:
+                logger.warning(f"Failed to download thumbnail for song {song_id}")
+                return False, ""
+                
         except Exception as e:
-            logger.warning(f"Error downloading thumbnail for song {song_id}: {e}")
-            # Don't fail the whole operation for thumbnail issues
+            logger.error(f"Error downloading thumbnail for song {song_id}: {e}")
+            return False, ""
+    
+    def _update_song_thumbnail_in_db(self, song_id: str, thumbnail_filename: str) -> None:
+        """Update database with thumbnail information"""
+        try:
+            from ..db import database
+            
+            # Update thumbnail path in database
+            # Use the actual filename that was saved (includes correct extension)
+            thumbnail_path = f"{song_id}/{thumbnail_filename}"
+            
+            # Call database update function
+            success = database.update_song_thumbnail(song_id, thumbnail_path)
+            
+            if success:
+                logger.info(f"Updated database thumbnail path for song {song_id}: {thumbnail_path}")
+            else:
+                logger.warning(f"Failed to update thumbnail in database for song {song_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to update database thumbnail for song {song_id}: {e}")
+    
+    def _extract_audio_duration(self, audio_path) -> Optional[float]:
+        """Extract duration from audio file using librosa"""
+        try:
+            import librosa
+            duration = librosa.get_duration(path=str(audio_path))
+            return float(duration)
+        except Exception as e:
+            logger.warning(f"Failed to extract duration from audio file {audio_path}: {e}")
+            return None
+    
+

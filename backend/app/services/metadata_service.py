@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def filter_youtube_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
-    """Filter YouTube metadata for storage, removing massive formats array
+    """Filter YouTube metadata for storage, removing massive formats array and non-serializable objects
     
     Args:
         raw_data: Raw YouTube metadata from yt-dlp
@@ -22,6 +22,18 @@ def filter_youtube_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
     Returns:
         JSON string of filtered metadata
     """
+    def _make_serializable(obj):
+        """Recursively make object JSON serializable"""
+        if isinstance(obj, dict):
+            return {k: _make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [_make_serializable(item) for item in obj]
+        elif isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        else:
+            # Convert non-serializable objects to string representation
+            return str(obj)
+    
     filtered = raw_data.copy()
     
     # Remove the massive formats array (can be 50+ MB)
@@ -29,9 +41,15 @@ def filter_youtube_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
         del filtered['formats']
 
     # Keep automatic_captions and subtitles for future features
-    # Keep all other fields for completeness
-
-    return json.dumps(filtered)
+    # Keep all other fields for completeness, but make them serializable
+    
+    try:
+        # Try direct serialization first (fastest path)
+        return json.dumps(filtered)
+    except TypeError:
+        # Fallback: clean non-serializable objects
+        serializable_data = _make_serializable(filtered)
+        return json.dumps(serializable_data)
 
 
 def filter_itunes_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
