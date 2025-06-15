@@ -1,7 +1,6 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
-import vintageTheme from "@/utils/theme";
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API
@@ -16,25 +15,23 @@ const SettingsPage: React.FC = () => {
   );
   const resetSettings = useSettingsStore((state) => state.resetSettings);
 
-  const colors = vintageTheme.colors;
-
   // Handler for theme settings
-  const handleThemeChange = (setting: string, value: any) => {
+  const handleThemeChange = (setting: string, value: string | boolean) => {
     setThemeSettings({ [setting]: value });
   };
 
   // Handler for audio settings
-  const handleAudioChange = (setting: string, value: any) => {
+  const handleAudioChange = (setting: string, value: number) => {
     setAudioSettings({ [setting]: value });
   };
 
   // Handler for processing settings
-  const handleProcessingChange = (setting: string, value: any) => {
+  const handleProcessingChange = (setting: string, value: string | boolean) => {
     setProcessingSettings({ [setting]: value });
   };
 
   // Handler for display settings
-  const handleDisplayChange = (setting: string, value: any) => {
+  const handleDisplayChange = (setting: string, value: string | boolean) => {
     setDisplaySettings({ [setting]: value });
   };
 
@@ -43,34 +40,15 @@ const SettingsPage: React.FC = () => {
     resetSettings();
   };
 
-  // Shared card style
-  const cardStyle = {
-    backgroundColor: colors.lemonChiffon,
-    color: colors.russet,
-    boxShadow: `0 4px 6px rgba(0, 0, 0, 0.2), inset 0 0 0 1px ${colors.orangePeel}`,
-    overflow: "hidden",
-    marginBottom: "1rem",
-  };
-
-  // Shared input styles
-  const inputStyle = {
-    backgroundColor: `${colors.lemonChiffon}80`,
-    borderColor: colors.orangePeel,
-    color: colors.russet,
-  };
-
   return (
     <AppLayout>
       <div>
-        <h1
-          className="text-2xl font-semibold mb-6"
-          style={{ color: colors.orangePeel }}
-        >
+        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
           Settings
         </h1>
 
         {/* Theme Settings */}
-        <div style={cardStyle} className="p-4 rounded-lg">
+        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Theme</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -81,8 +59,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleThemeChange("darkMode", e.target.checked)
                 }
-                style={inputStyle}
-                className="p-2 border rounded"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />
             </div>
             <div>
@@ -90,8 +67,7 @@ const SettingsPage: React.FC = () => {
               <select
                 value={settings.theme.themeName}
                 onChange={(e) => handleThemeChange("themeName", e.target.value)}
-                style={inputStyle}
-                className="p-2 border rounded w-full"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
               >
                 <option value="vintage">Vintage</option>
                 <option value="synthwave">Synthwave</option>
@@ -102,7 +78,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Audio Settings */}
-        <div style={cardStyle} className="p-4 rounded-lg">
+        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Audio</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -178,7 +154,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Processing Settings */}
-        <div style={cardStyle} className="p-4 rounded-lg">
+        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Processing</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -188,8 +164,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("quality", e.target.value)
                 }
-                style={inputStyle}
-                className="p-2 border rounded w-full"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -203,8 +178,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("outputFormat", e.target.value)
                 }
-                style={inputStyle}
-                className="p-2 border rounded w-full"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
               >
                 <option value="mp3">MP3</option>
                 <option value="wav">WAV</option>
@@ -218,15 +192,14 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("autoProcessYouTube", e.target.checked)
                 }
-                style={inputStyle}
-                className="p-2 border rounded"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />
             </div>
           </div>
         </div>
 
         {/* Display Settings */}
-        <div style={cardStyle} className="p-4 rounded-lg">
+        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Display</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -236,8 +209,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange("lyricsSize", e.target.value)
                 }
-                style={inputStyle}
-                className="p-2 border rounded w-full"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
               >
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
@@ -255,8 +227,7 @@ const SettingsPage: React.FC = () => {
                     e.target.checked,
                   )
                 }
-                style={inputStyle}
-                className="p-2 border rounded"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />
             </div>
             <div>
@@ -267,8 +238,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange("showProgress", e.target.checked)
                 }
-                style={inputStyle}
-                className="p-2 border rounded"
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />
             </div>
           </div>
@@ -277,11 +247,7 @@ const SettingsPage: React.FC = () => {
         {/* Reset Button */}
         <button
           onClick={handleResetSettings}
-          style={{
-            backgroundColor: colors.rust,
-            color: colors.lemonChiffon,
-          }}
-          className="px-4 py-2 rounded mt-4"
+          className="bg-rust text-lemon-chiffon px-4 py-2 rounded mt-4"
         >
           Reset All Settings
         </button>

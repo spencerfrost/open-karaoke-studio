@@ -7,7 +7,6 @@ import { Song } from "@/types/Song";
 import { formatTime } from "@/utils/formatters";
 import { useSongs } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
-import vintageTheme from "@/utils/theme";
 
 interface HorizontalSongCardProps {
   song: Song;
@@ -24,7 +23,6 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { getArtworkUrl } = useSongs();
-  const colors = vintageTheme.colors;
 
   const artworkUrl = getArtworkUrl(song, "small");
 
@@ -55,29 +53,17 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
   return (
     <>
       <Card 
-        className="overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer group"
-        style={{ 
-          borderColor: `${colors.orangePeel}40`,
-          backgroundColor: `${colors.lemonChiffon}05`
-        }}
+        className="overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer group border-orange-peel/25 bg-lemon-chiffon/5"
         onClick={() => onSongSelect?.(song)}
       >
         <CardContent className="p-3">
           <div className="flex items-center gap-3">
             {/* Album Artwork */}
-            <div 
-              className="relative flex-shrink-0 rounded overflow-hidden"
-              style={{ width: '60px', height: '60px' }}
-            >
+            <div className="relative flex-shrink-0 rounded overflow-hidden w-[60px] h-[60px]">
               {song.syncedLyrics && (
                 <Badge 
-                  className="absolute -top-1 -right-1 z-10 text-xs px-1 py-0" 
+                  className="absolute -top-1 -right-1 z-10 text-xs px-1 py-0 bg-orange-peel text-dark-cyan text-[0.6rem]" 
                   variant="accent"
-                  style={{
-                    backgroundColor: colors.orangePeel,
-                    color: colors.darkCyan,
-                    fontSize: '0.6rem'
-                  }}
                 >
                   ♪
                 </Badge>
@@ -90,11 +76,8 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div 
-                  className="w-full h-full flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.orangePeel}20` }}
-                >
-                  <Music size={24} style={{ color: colors.orangePeel }} />
+                <div className="w-full h-full flex items-center justify-center bg-orange-peel/20">
+                  <Music size={24} className="text-orange-peel" />
                 </div>
               )}
             </div>
@@ -102,32 +85,20 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
             {/* Song Info */}
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-start mb-1">
-                <h4 
-                  className="font-medium truncate text-sm"
-                  style={{ color: colors.lemonChiffon }}
-                >
+                <h4 className="font-medium truncate text-sm text-lemon-chiffon">
                   {song.title}
                 </h4>
-                <span 
-                  className="text-xs ml-2 flex-shrink-0"
-                  style={{ color: `${colors.lemonChiffon}80` }}
-                >
+                <span className="text-xs ml-2 flex-shrink-0 text-lemon-chiffon/80">
                   {formatTime(song.duration)}
                 </span>
               </div>
               
-              <p 
-                className="text-xs truncate mb-1"
-                style={{ color: `${colors.lemonChiffon}90` }}
-              >
+              <p className="text-xs truncate mb-1 text-lemon-chiffon/90">
                 {song.artist}
               </p>
               
               {song.album && (
-                <p 
-                  className="text-xs truncate"
-                  style={{ color: `${colors.lemonChiffon}60` }}
-                >
+                <p className="text-xs truncate text-lemon-chiffon/60">
                   {song.album}
                 </p>
               )}
@@ -138,12 +109,8 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-orange-peel bg-transparent"
                 onClick={handlePlayClick}
-                style={{ 
-                  color: colors.orangePeel,
-                  backgroundColor: 'transparent'
-                }}
               >
                 <Play size={14} />
               </Button>
@@ -151,28 +118,22 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className={`h-8 w-8 p-0 bg-transparent ${
+                  song.favorite ? 'text-orange-peel' : 'text-lemon-chiffon/60'
+                }`}
                 onClick={handleFavoriteClick}
-                style={{ 
-                  color: song.favorite ? colors.orangePeel : `${colors.lemonChiffon}60`,
-                  backgroundColor: 'transparent'
-                }}
               >
                 <Heart 
                   size={14} 
-                  fill={song.favorite ? colors.orangePeel : 'none'} 
+                  fill={song.favorite ? 'currentColor' : 'none'} 
                 />
               </Button>
               
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-lemon-chiffon/80 bg-transparent"
                 onClick={handleQueueClick}
-                style={{ 
-                  color: `${colors.lemonChiffon}80`,
-                  backgroundColor: 'transparent'
-                }}
               >
                 <Plus size={14} />
               </Button>
@@ -180,12 +141,8 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-lemon-chiffon/60 bg-transparent"
                 onClick={handleDetailsClick}
-                style={{ 
-                  color: `${colors.lemonChiffon}60`,
-                  backgroundColor: 'transparent'
-                }}
               >
                 <MoreVertical size={14} />
               </Button>

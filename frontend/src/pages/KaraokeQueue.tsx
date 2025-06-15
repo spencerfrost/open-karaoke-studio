@@ -3,7 +3,6 @@ import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
 import { useSongs } from "../context/SongsContext";
 import QueueList from "../components/queue/KaraokeQueueList";
 import AppLayout from "../components/layout/AppLayout";
-import vintageTheme from "@/utils/theme";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,7 +37,6 @@ const KaraokeQueuePage: React.FC = () => {
   const { state: songsState } = useSongs();
   const [selectedSongId, setSelectedSongId] = useState<string>("");
   const [singerName, setSingerName] = useState<string>("");
-  const colors = vintageTheme.colors;
 
   // Handle singer name input
   const handleSingerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,10 +92,7 @@ const KaraokeQueuePage: React.FC = () => {
   return (
     <AppLayout>
       <div>
-        <h1
-          className="text-2xl font-semibold mb-6"
-          style={{ color: colors.orangePeel }}
-        >
+        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
           Singer Queue
         </h1>
 

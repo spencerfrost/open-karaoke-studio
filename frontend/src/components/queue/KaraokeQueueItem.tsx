@@ -1,7 +1,6 @@
 import React from "react";
 import { Music, X } from "lucide-react";
 import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
-import vintageTheme from "@/utils/theme";
 
 interface KaraokeQueueItemProps {
   item: KaraokeQueueItemWithSong;
@@ -18,25 +17,19 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
   onRemove,
   className = "",
 }) => {
-  const colors = vintageTheme.colors;
-
   return (
     <div
-      className={`p-4 flex items-center ${className}`}
-      style={{
-        backgroundColor: isActive ? `${colors.darkCyan}30` : "transparent",
-        borderBottom: `1px solid ${colors.orangePeel}30`,
-      }}
+      className={`p-4 flex items-center border-b border-orange-peel/30 ${className} ${
+        isActive ? 'bg-dark-cyan/30' : 'bg-transparent'
+      }`}
     >
       {/* Position indicator */}
       <div
-        className="h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0"
-        style={{
-          backgroundColor: isActive
-            ? colors.darkCyan
-            : `${colors.orangePeel}40`,
-          color: isActive ? colors.lemonChiffon : colors.orangePeel,
-        }}
+        className={`h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0 ${
+          isActive 
+            ? 'bg-dark-cyan text-lemon-chiffon' 
+            : 'bg-orange-peel/25 text-orange-peel'
+        }`}
       >
         {index + 1}
       </div>
@@ -44,26 +37,22 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
       {/* Song info */}
       <div className="flex-1 min-w-0">
         <h3
-          className="font-semibold text-xl truncate"
-          style={{
-            color: isActive ? colors.orangePeel : colors.lemonChiffon,
-          }}
+          className={`font-semibold text-xl truncate ${
+            isActive ? 'text-orange-peel' : 'text-lemon-chiffon'
+          }`}
         >
           {item.song.title}
         </h3>
         <p className="opacity-80 truncate">
           {item.song.artist} •{" "}
-          <span style={{ color: colors.orangePeel }}>
+          <span className="text-orange-peel">
             Singer: {item.singer}
           </span>
         </p>
       </div>
 
       {/* Album art / icon */}
-      <div
-        className="h-12 w-12 rounded-md flex items-center justify-center ml-3 mr-1 shrink-0"
-        style={{ backgroundColor: `${colors.orangePeel}20` }}
-      >
+      <div className="h-12 w-12 rounded-md flex items-center justify-center ml-3 mr-1 shrink-0 bg-orange-peel/20">
         {item.song.coverArt ? (
           <img
             src={item.song.coverArt}
@@ -71,7 +60,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
             className="h-full w-full object-cover rounded-md"
           />
         ) : (
-          <Music size={24} style={{ color: colors.darkCyan }} />
+          <Music size={24} className="text-dark-cyan" />
         )}
       </div>
 
@@ -84,9 +73,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
         >
           <X
             size={18}
-            style={{
-              color: isActive ? colors.orangePeel : colors.lemonChiffon,
-            }}
+            className={isActive ? 'text-orange-peel' : 'text-lemon-chiffon'}
           />
         </button>
       )}
