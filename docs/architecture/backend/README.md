@@ -54,11 +54,22 @@ The API will be available at `http://localhost:5000`
 
 ## 📖 Documentation Structure
 
-### Architecture Documentation
-- **[Architecture Overview](architecture/overview.md)** - High-level system design and components
-- **[Data Models](architecture/data-models.md)** - Database schema and relationships
-- **[Request Flow](architecture/request-flow.md)** - How requests move through the system
-- **[External Integrations](architecture/external-integrations.md)** - Third-party service integration
+### 🏗️ Architecture Documentation
+- **[Service Layer Design](service-layer-design.md)** - Business logic organization and patterns
+- **[Database Design](database-design.md)** - Schema design and data access patterns
+
+#### Service Architecture
+- **[Song Service](services/song-service.md)** - Core song operations and synchronization
+- **[YouTube Service](services/youtube-service.md)** - YouTube integration and video processing
+- **[File Service](services/file-service.md)** - File system operations and organization
+- **[Metadata Service](services/metadata-service.md)** - Multi-source metadata processing
+- **[Audio Service](services/audio-service.md)** - Demucs integration and vocal separation
+- **[Lyrics Service](services/lyrics-service.md)** - Lyrics fetching and validation
+- **[iTunes Service](services/itunes-service.md)** - iTunes API integration and cover art
+- **[Background Jobs](services/background-jobs.md)** - Unified job processing and progress tracking
+
+#### Integration Workflows
+- **[YouTube Workflow](integrations/youtube-workflow.md)** - Complete YouTube-to-karaoke processing flow
 
 ### API Documentation
 - **[API Overview](api/README.md)** - Complete REST API reference
