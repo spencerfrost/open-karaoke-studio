@@ -429,3 +429,34 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
         logging.error(f"Error updating metadata for song {song_id}: {e}")
         traceback.print_exc()
         return False
+
+
+def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
+    """Update song with thumbnail path
+    
+    Args:
+        song_id: Song identifier
+        thumbnail_path: Relative path to thumbnail file from library directory
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    try:
+        with get_db_session() as session:
+            db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
+            
+            if not db_song:
+                logging.warning(f"Song {song_id} not found for thumbnail update")
+                return False
+            
+            # Update thumbnail path
+            db_song.thumbnail_path = thumbnail_path
+            
+            session.commit()
+            logging.info(f"Successfully updated thumbnail for song {song_id}: {thumbnail_path}")
+            return True
+            
+    except Exception as e:
+        logging.error(f"Error updating thumbnail for song {song_id}: {e}")
+        traceback.print_exc()
+        return False
