@@ -146,35 +146,30 @@
     background: color-mix(in srgb, var(--dark-cyan), white 10%);
   }
 
-  /* Texture overlay */
-  .texture-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+
+}
+
+/* Vintage Theme Background Pattern Utilities */
+@layer utilities {
+  /* Vintage texture overlay - matches theme.ts getTextureOverlay() */
+  .vintage-texture-overlay {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: repeat;
-    pointer-events: none;
-    z-index: 10;
+    @apply absolute inset-0 z-10 pointer-events-none;
   }
-
-  /* Sunburst pattern */
-  .sunburst-pattern {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-conic-gradient(
-      var(--rust) 80 0deg,
-      var(--rust) 80 6deg,
-      var(--russet) 80 6deg,
-      var(--russet) 80 12deg
-    );
-    opacity: 0.25;
-    z-index: 5;
-    pointer-events: none;
+  
+  /* Vintage sunburst pattern - matches theme.ts getSunburstPattern() */
+  .vintage-sunburst-pattern {
+    background: 
+      radial-gradient(circle at center, transparent 0, transparent 40%, rgba(0,0,0,0.2) 41%, transparent 42%),
+      repeating-conic-gradient(
+        #b4481980 0deg, 
+        #b4481980 6deg, 
+        #77432080 6deg,
+        #77432080 12deg
+      );
+    background-size: 100% 100%, 100% 100%;
+    @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
 
   /* Lyrics fade-out effect */
@@ -182,7 +177,10 @@
     -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
   }
+}
 
+/* Custom Animations */
+@layer utilities {
   /* Animations */
   @keyframes fadeIn {
     from {

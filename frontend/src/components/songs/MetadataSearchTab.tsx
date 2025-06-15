@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Music, Search, Check } from "lucide-react";
 import { Song } from "@/types/Song";
-import vintageTheme from "@/utils/theme";
 import { useMetadata } from "@/hooks/useMetadata";
 
 interface MetadataSearchTabProps {
@@ -17,7 +16,6 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
   song,
   onSelectResult,
 }) => {
-  const colors = vintageTheme.colors;
   const [searchQuery, setSearchQuery] = useState({
     title: song.title,
     artist: song.artist,
@@ -114,13 +112,9 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
 
         <div className="flex justify-end">
           <Button
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-dark-cyan text-lemon-chiffon"
             onClick={handleSearch}
             disabled={searchMetadata.isPending}
-            style={{
-              backgroundColor: colors.darkCyan,
-              color: colors.lemonChiffon,
-            }}
           >
             <Search size={18} />
             {searchMetadata.isPending ? "Searching..." : "Search Metadata"}
@@ -140,16 +134,9 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
           {searchResults.map((result, index) => (
             <div
               key={result.id ?? index}
-              className="flex items-start gap-3 p-3 rounded-md cursor-pointer hover:bg-gray-100"
-              style={{
-                backgroundColor: `${colors.lemonChiffon}80`,
-                borderLeft: `3px solid ${colors.orangePeel}`,
-              }}
+              className="flex items-start gap-3 p-3 rounded-md cursor-pointer hover:bg-gray-100 bg-lemon-chiffon/80 border-l-[3px] border-orange-peel"
             >
-              <div
-                className="h-16 w-16 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden"
-                style={{ backgroundColor: `${colors.orangePeel}20` }}
-              >
+              <div className="h-16 w-16 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden bg-orange-peel/20">
                 {result.coverArt ? (
                   <img
                     src={result.coverArt}
@@ -157,7 +144,7 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <Music size={24} style={{ color: colors.darkCyan }} />
+                  <Music size={24} className="text-dark-cyan" />
                 )}
               </div>
 
@@ -169,13 +156,7 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
                 </p>
                 {result.genre && (
                   <p className="text-xs mt-1">
-                    <span
-                      className="px-2 py-0.5 rounded-full text-xs"
-                      style={{
-                        backgroundColor: `${colors.darkCyan}30`,
-                        color: colors.darkCyan,
-                      }}
-                    >
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-dark-cyan/30 text-dark-cyan">
                       {result.genre}
                     </span>
                   </p>
@@ -185,9 +166,8 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
               <Button
                 size="sm"
                 variant="ghost"
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 text-dark-cyan"
                 onClick={() => handleApplyResult(result)}
-                style={{ color: colors.darkCyan }}
               >
                 <Check size={16} />
                 Apply
@@ -202,8 +182,7 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
         <div className="text-center py-6 opacity-70">
           <Music
             size={48}
-            className="mx-auto mb-2"
-            style={{ color: colors.orangePeel }}
+            className="mx-auto mb-2 text-orange-peel"
           />
           <p>No matches found. Try adjusting your search terms.</p>
         </div>

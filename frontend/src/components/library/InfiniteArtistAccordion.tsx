@@ -5,7 +5,6 @@ import ArtistSection from './ArtistSection';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Song } from '@/types/Song';
-import vintageTheme from '@/utils/theme';
 
 interface InfiniteArtistAccordionProps {
   searchTerm?: string;
@@ -22,7 +21,6 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
   onAddToQueue,
   className = '',
 }) => {
-  const colors = vintageTheme.colors;
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set());
 
   const {
@@ -90,13 +88,7 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
           {Object.entries(groupedArtists).map(([letter, letterArtists]) => (
             <div key={letter}>
               <div
-                className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b"
-                style={{
-                  backgroundColor: colors.darkCyan,
-                  color: colors.orangePeel,
-                  borderColor: colors.orangePeel,
-                  zIndex: 10
-                }}
+                className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10"
               >
                 {letter}
               </div>

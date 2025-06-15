@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { QrCode } from "lucide-react";
-import vintageTheme from "@/utils/theme";
 
 interface QRCodeDisplayProps {
   value: string;
@@ -17,7 +16,6 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   description = "Use your phone to add songs to the queue",
   className = "",
 }) => {
-  const colors = vintageTheme.colors;
   const [qrCodeUrl, setQrCodeUrl] = useState("");
 
   // Generate QR code URL when component mounts or value changes
@@ -32,28 +30,21 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   return (
     <div className={`flex flex-col items-center ${className}`}>
       {title && (
-        <h2
-          className="text-2xl font-semibold text-center mb-2"
-          style={{ color: colors.orangePeel }}
-        >
+        <h2 className="text-2xl font-semibold text-center mb-2 text-orange-peel">
           {title}
         </h2>
       )}
 
       {description && (
-        <p
-          className="text-center mb-6 opacity-80"
-          style={{ color: colors.lemonChiffon }}
-        >
+        <p className="text-center mb-6 opacity-80 text-lemon-chiffon">
           {description}
         </p>
       )}
 
       <div
-        className="p-4 rounded-lg flex items-center justify-center"
+        className="p-4 rounded-lg flex items-center justify-center bg-lemon-chiffon"
         style={{
-          backgroundColor: colors.lemonChiffon,
-          boxShadow: `0 0 0 2px ${colors.orangePeel}, 0 6px 12px rgba(0, 0, 0, 0.3)`,
+          boxShadow: `0 0 0 2px #fd9a02, 0 6px 12px rgba(0, 0, 0, 0.3)`,
           width: `${size + 32}px`,
           height: `${size + 32}px`,
         }}
@@ -74,7 +65,7 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
             className="flex items-center justify-center"
             style={{ width: size, height: size }}
           >
-            <QrCode size={size * 0.8} style={{ color: colors.russet }} />
+            <QrCode size={size * 0.8} className="text-russet" />
           </div>
         )}
       </div>

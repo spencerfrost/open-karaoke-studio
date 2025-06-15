@@ -6,7 +6,6 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import HorizontalSongCard from '@/components/songs/HorizontalSongCard';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { Skeleton } from '@/components/ui/skeleton';
-import vintageTheme from '@/utils/theme';
 
 interface ArtistSectionProps {
   artistName: string;
@@ -27,8 +26,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   onToggleFavorite,
   onAddToQueue,
 }) => {
-  const colors = vintageTheme.colors;
-
   const {
     songs,
     hasNextPage,
@@ -48,23 +45,19 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   });
 
   return (
-    <div className="border rounded-lg overflow-hidden" style={{ borderColor: colors.orangePeel }}>
+    <div className="border border-orange-peel rounded-lg overflow-hidden">
       {/* Artist Header */}
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-opacity-50 transition-colors"
-        style={{
-          backgroundColor: `${colors.lemonChiffon}10`,
-          color: colors.lemonChiffon
-        }}
+        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-opacity-50 transition-colors bg-lemon-chiffon/10 text-lemon-chiffon"
       >
         <div className="flex items-center gap-3">
           {isExpanded ? (
-            <ChevronDown size={20} style={{ color: colors.orangePeel }} />
+            <ChevronDown size={20} className="text-orange-peel" />
           ) : (
-            <ChevronRight size={20} style={{ color: colors.orangePeel }} />
+            <ChevronRight size={20} className="text-orange-peel" />
           )}
-          <Users size={18} style={{ color: colors.orangePeel }} />
+          <Users size={18} className="text-orange-peel" />
           <div>
             <h3 className="font-semibold text-lg">{artistName}</h3>
             <p className="text-sm opacity-75">
@@ -72,20 +65,14 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             </p>
           </div>
         </div>
-        <div
-          className="px-3 py-1 rounded-full text-sm font-medium"
-          style={{
-            backgroundColor: colors.orangePeel,
-            color: colors.darkCyan
-          }}
-        >
+        <div className="px-3 py-1 rounded-full text-sm font-medium bg-orange-peel text-dark-cyan">
           {songCount}
         </div>
       </button>
 
       {/* Expanded Songs List */}
       {isExpanded && (
-        <div className="border-t" style={{ borderColor: colors.orangePeel }}>
+        <div className="border-t border-orange-peel">
           {isLoading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (

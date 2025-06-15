@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import InfiniteArtistAccordion from './InfiniteArtistAccordion';
 import { Song } from '@/types/Song';
-import vintageTheme from '@/utils/theme';
 
 interface SearchableInfiniteArtistsProps {
   onSongSelect?: (song: Song) => void;
@@ -19,7 +18,6 @@ const SearchableInfiniteArtists: React.FC<SearchableInfiniteArtistsProps> = ({
   onAddToQueue,
   className = '',
 }) => {
-  const colors = vintageTheme.colors;
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
 
@@ -29,19 +27,13 @@ const SearchableInfiniteArtists: React.FC<SearchableInfiniteArtistsProps> = ({
       <div className="relative">
         <Search
           size={20}
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-60"
-          style={{ color: colors.orangePeel }}
+          className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-60 text-orange-peel"
         />
         <Input
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search artists..."
-          className="pl-10"
-          style={{
-            borderColor: colors.orangePeel,
-            color: colors.lemonChiffon,
-            backgroundColor: `${colors.darkCyan}20`,
-          }}
+          className="pl-10 border-orange-peel text-lemon-chiffon bg-dark-cyan/20"
         />
       </div>
 
