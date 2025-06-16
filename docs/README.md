@@ -19,8 +19,8 @@ Welcome to the Open Karaoke Studio documentation hub! This guide will help you f
 ### Need API Documentation?
 **→ [API Reference](api/README.md)** - Complete REST API documentation
 
-### Deploying the Application?
-**→ [Deployment Guide](deployment/README.md)** - Configuration and deployment options
+### Looking for Deployment Info?
+**→ [Project Overview](architecture/project-overview.md#deployment-status)** - Current deployment status and future plans
 
 ## 📚 Documentation Sections
 
@@ -47,9 +47,8 @@ Welcome to the Open Karaoke Studio documentation hub! This guide will help you f
 - **[Authentication](api/authentication.md)** - Auth system documentation
 
 ### For Operations
-- **[Deployment](deployment/README.md)** - Docker and configuration guides
-- **[Configuration](deployment/configuration.md)** - Environment variables and settings
-- **[Monitoring](deployment/monitoring.md)** - Logging and observability
+- **[Configuration](development/configuration.md)** - Environment variables and settings
+- **[Deployment Status](architecture/project-overview.md#deployment-status)** - Current deployment options
 
 ## 🔍 Find Specific Information
 
@@ -60,13 +59,12 @@ Welcome to the Open Karaoke Studio documentation hub! This guide will help you f
 - **[Background Jobs](features/background-jobs.md)** - Async processing system
 
 ### Research & Analysis
-- **[Technical Investigations](research/technical-investigations/README.md)** - Deep technical analysis (62+ investigations organized by domain)
+- **[Technical Investigations](research/README.md)** - Deep technical analysis (62+ investigations organized by domain)
 - **[Prototypes](research/prototypes/README.md)** - Experimental features
 - **[Architectural Decisions](research/architectural-decisions/README.md)** - Design decision records
 
 ### Project Planning
-- **[Roadmap](roadmap/README.md)** - Project vision and upcoming features
-- **[Current Development](roadmap/current-development.md)** - Active work in progress
+- **[Roadmap](roadmap.md)** - Project vision and upcoming features
 
 ## 🎯 Common Use Cases
 
