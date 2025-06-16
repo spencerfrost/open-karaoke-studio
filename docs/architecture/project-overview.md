@@ -99,6 +99,29 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 
 ---
 
+## Deployment Status
+
+### Current Deployment Options
+**Development Mode (Actively Supported)**
+- Manual setup with separate frontend/backend servers
+- SQLite database for simple data storage  
+- Local file-based job processing
+- See [Getting Started Guide](../getting-started/README.md) for setup instructions
+
+### Production Deployment (Planned)
+**Status:** Not yet implemented - Docker deployment is a planned feature
+
+The following deployment options are on the roadmap but not currently available:
+- **Docker Deployment** - Containerized deployment with Docker Compose
+- **Cloud Deployment** - AWS/Digital Ocean deployment guides  
+- **Database Migration** - PostgreSQL support for production scale
+- **Redis Integration** - Background job processing with Celery
+- **Load Balancing** - Multi-instance deployment support
+
+**Current Reality:** The application runs well in development mode and can be used for personal karaoke creation, but production-ready deployment tools are still in development.
+
+---
+
 ## Further Resources
 - [Root README](./README.md)
 - [Frontend README](./frontend/README.md)

@@ -11,7 +11,7 @@ This section contains comprehensive documentation about Open Karaoke Studio's sy
 ### Component Architecture
 - **[Backend Architecture](backend/README.md)** - Python/Flask API, services, and data layer
 - **[Frontend Architecture](frontend/README.md)** - React/TypeScript application structure
-- **[External Integrations](integration/external-services.md)** - Third-party service integration
+- **[Integration Architecture](integration/README.md)** - Frontend/backend communication patterns
 
 ## 🏗️ System Overview
 
