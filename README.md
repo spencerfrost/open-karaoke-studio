@@ -34,21 +34,36 @@ Open Karaoke Studio is a web application designed to make it easy for you to gen
 
 ## Tech Stack
 
-Open Karaoke Studio is built using a combination of modern web technologies. For detailed information, please refer to the specific README files:
+Open Karaoke Studio uses modern web technologies for performance and maintainability:
 
-* **Frontend:** The user interface is built with React, Vite, Tailwind, and ShadCN.
-  * [Frontend README](./frontend/README.md)
-* **Backend:** The API is handled by a Flask/Python backend using Demucs for audio processing.
-  * [Backend README](./backend/README.md)
+* **Frontend:** React 19 + TypeScript, Vite, Tailwind CSS, Shadcn/UI
+* **Backend:** Python + Flask, Demucs AI, SQLAlchemy, Celery + Redis
+* **Architecture:** Service-oriented monorepo with clean separation of concerns
+
+**📋 Detailed Information:**
+- **[Architecture Overview](./docs/architecture/README.md)** - Complete system design
+- **[Frontend Details](./frontend/README.md)** - React application structure  
+- **[Backend Details](./docs/architecture/backend/README.md)** - Python API and services
 
 ## Getting Started
 
-To get the application up and running:
+**New to Open Karaoke Studio?** Follow our comprehensive setup guide:
 
-1.  **Clone the Repository:** Obtain the project code.
-2.  **Follow the Setup Guides:** Detailed setup instructions are available in the [Frontend README](./frontend/README.md) and [Backend README](./backend/README.md).
+👉 **[Complete Installation Guide](./docs/getting-started/installation.md)** - Everything you need to get started
 
-_Unified, 1-click setup coming soon!_
+### Quick Start
+1. **Clone the Repository** - Get the project code
+2. **Install Dependencies** - Python, Node.js, and packages  
+3. **Start Services** - Backend and frontend servers
+4. **Process Your First Song** - [Follow the tutorial](./docs/getting-started/first-song.md)
+
+**Time needed:** ~15 minutes to be up and running
+
+### More Resources
+- **[📚 Complete Documentation](./docs/README.md)** - Full documentation hub
+- **[🎵 User Guide](./docs/user-guide/README.md)** - Learn all features  
+- **[🔧 Troubleshooting](./docs/getting-started/troubleshooting.md)** - Common issues and solutions
+- **[👩‍💻 Development Guide](./docs/development/README.md)** - For contributors
 
 ## Contributing
 

@@ -56,9 +56,17 @@ interface InfiniteArtistSongsResult {
   error: Error | null;
 }
 
+/**
+ * Hook for infinite scrolling through artists
+ * 
+ * @param searchTerm - Optional search term to filter artists
+ * @param pageSize - Number of artists to fetch per page (default: 200)
+ *                   High limit is efficient since we only fetch lightweight artist metadata,
+ *                   not song data. Songs are lazy-loaded when artists are expanded.
+ */
 export const useInfiniteArtists = (
   searchTerm: string = '',
-  pageSize: number = 20
+  pageSize: number = 200
 ): InfiniteArtistsResult => {
   const fetchArtists = async ({ pageParam = 0 }) => {
     const queryParams = new URLSearchParams();

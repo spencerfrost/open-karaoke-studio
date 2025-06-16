@@ -70,3 +70,4 @@ temp_job_cache
 /docs/issues
 backend/karaoke.db-shm
 backend/karaoke.db-wal
+docs/archived/
