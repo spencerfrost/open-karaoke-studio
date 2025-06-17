@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Music, Users } from 'lucide-react';
 import { Song } from '@/types/Song';
 import { useLibraryBrowsing } from '@/hooks/useLibraryBrowsing';
-import SongCard from '@/components/songs/SongCard';
+import HorizontalSongCard from '@/components/songs/HorizontalSongCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -47,15 +47,12 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
     offset: songsPage * PAGE_SIZE,
     sort: 'title',
     direction: 'asc',
+  }, {
+    enabled: isExpanded, // Only fetch songs when accordion is expanded
   });
 
   const handleLoadMore = () => {
     setSongsPage(prev => prev + 1);
-  };
-
-  const handleSongUpdated = () => {
-    // Song was updated, could refresh the data
-    // For now, React Query should handle this automatically
   };
 
   return (
@@ -101,13 +98,11 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             <div className="p-2">
               {songsData?.songs.map((song) => (
                 <div key={song.id} className="mb-2">
-                  <SongCard
+                  <HorizontalSongCard
                     song={song}
-                    compact={true}
+                    onSongSelect={onSongSelect}
                     onToggleFavorite={onToggleFavorite}
                     onAddToQueue={onAddToQueue}
-                    onSongUpdated={handleSongUpdated}
-                    onClick={() => onSongSelect?.(song)}
                   />
                 </div>
               ))}
