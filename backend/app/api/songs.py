@@ -469,37 +469,6 @@ def create_song():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@song_bp.route("/search", methods=["GET"])
-def search_songs():
-    """Search songs endpoint - thin controller using service layer."""
-    query = request.args.get("q", "").strip()
-    current_app.logger.info(f"Received search request with query: '{query}'")
-
-    if not query:
-        return jsonify([])
-
-    try:
-        song_service = SongService()
-        songs = song_service.search_songs(query)
-
-        response_data = [
-            song.model_dump(mode="json") if hasattr(song, "model_dump") else song.dict()
-            for song in songs
-        ]
-
-        current_app.logger.info(f"Found {len(response_data)} songs matching '{query}'")
-        return jsonify(response_data)
-
-    except ServiceError as e:
-        current_app.logger.error(f"Service error searching songs: {e}")
-        return jsonify({"error": "Failed to search songs", "details": str(e)}), 500
-    except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error searching songs: {e}", exc_info=True
-        )
-        return jsonify({"error": "Internal server error"}), 500
-
-
 @song_bp.route("/<string:song_id>", methods=["PATCH"])
 def update_song(song_id: str):
     """Update a song with any provided fields - generic update endpoint."""
