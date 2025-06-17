@@ -8,6 +8,7 @@ The API is organized into logical endpoints for different system components:
 
 ### Current API Endpoints
 - **[Songs API](songs.md)** - Song management and processing
+- **[Songs & Artists API](songs-artists-endpoints.md)** - Dual display library with fuzzy search and artist browsing
 - **[Jobs API](jobs.md)** - Background job monitoring and control
 - **[Queue API](queue.md)** - Real-time karaoke queue management
 - **[Metadata API](metadata.md)** - Search and discovery functionality
