@@ -10,6 +10,80 @@ The Open Karaoke Studio frontend uses a layered component architecture built on 
 
 ## 🏗️ Architecture Layers
 
+### Dual Display Library Architecture *(New)*
+The library page implements a sophisticated dual-display system combining search and browsing:
+
+```typescript
+// Main Library Container
+function LibraryContent() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebounce(searchQuery, 300);
+  
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Song Results Section - Prominent search results */}
+      <SongResultsSection 
+        query={debouncedQuery}
+        className="lg:order-1" 
+      />
+      
+      {/* Artist Browsing Section - Alphabetical browsing */}
+      <ArtistResultsSection 
+        className="lg:order-2"
+      />
+    </div>
+  );
+}
+
+// Infinite Scroll Song Search
+function SongResultsSection({ query }: { query: string }) {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isLoading
+  } = useInfiniteFuzzySearch(query);
+  
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xl font-semibold">Songs</h2>
+      <SongResultsGrid 
+        data={data}
+        onLoadMore={fetchNextPage}
+        hasMore={hasNextPage}
+        loading={isLoading}
+      />
+    </section>
+  );
+}
+
+// Expandable Artist Accordion
+function ArtistResultsSection() {
+  const {
+    data: artists,
+    fetchNextPage,
+    hasNextPage
+  } = useInfiniteArtists();
+  
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xl font-semibold">Artists</h2>
+      <InfiniteArtistAccordion 
+        artists={artists}
+        onLoadMore={fetchNextPage}
+        hasMore={hasNextPage}
+      />
+    </section>
+  );
+}
+```
+
+**Key Features**:
+- **Dual Infinite Queries** - Separate pagination for songs and artists
+- **Conditional Loading** - Artist songs load only when expanded
+- **Debounced Search** - 300ms delay to optimize API calls
+- **Performance Optimized** - React Query caching and intersection observers
+
 ### 1. Base Components (Shadcn/UI)
 Foundation layer providing accessible, unstyled primitives:
 
@@ -451,8 +525,18 @@ components/
 │   ├── button.tsx
 │   ├── card.tsx
 │   └── dialog.tsx
+├── library/             # Dual display library components (New)
+│   ├── LibraryContent.tsx          # Main dual-display orchestrator
+│   ├── LibrarySearchInput.tsx      # Unified search input
+│   ├── SongResultsSection.tsx      # Song search results container
+│   ├── ArtistResultsSection.tsx    # Artist browsing container
+│   ├── SongResultsGrid.tsx         # Infinite scroll song grid
+│   ├── ArtistAccordion.tsx         # Base artist accordion
+│   ├── InfiniteArtistAccordion.tsx # Infinite scroll artist list
+│   └── ArtistSection.tsx           # Individual artist sections
 ├── songs/               # Song-related components
-│   ├── SongCard.tsx
+│   ├── SongCard.tsx              # Grid-based song display
+│   ├── HorizontalSongCard.tsx    # Compact horizontal song cards
 │   ├── SongGrid.tsx
 │   ├── SongDetailsDialog.tsx
 │   └── SongPreviewPlayer.tsx
