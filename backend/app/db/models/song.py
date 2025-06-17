@@ -1,14 +1,18 @@
 """
 Song-related models: Pydantic, SQLAlchemy, and helpers.
 """
-from typing import Optional, Literal, List
+
 from datetime import datetime, timezone
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import relationship
-from .base import Base, UNKNOWN_ARTIST
+
+from .base import UNKNOWN_ARTIST, Base
 
 SongStatus = Literal["processing", "queued", "processed", "error"]
+
 
 class SongMetadata(BaseModel):
     title: Optional[str] = None
@@ -36,30 +40,33 @@ class SongMetadata(BaseModel):
     language: Optional[str] = None
     lyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    
+
     # Phase 1B: iTunes "True Song Metadata" Fields
-    itunesTrackId: Optional[int] = None          # iTunes track identifier
-    itunesArtistId: Optional[int] = None         # iTunes artist identifier  
-    itunesCollectionId: Optional[int] = None     # iTunes collection identifier
-    trackTimeMillis: Optional[int] = None        # Official iTunes track duration (ms)
-    itunesExplicit: Optional[bool] = None        # Content explicitness flag
-    itunesPreviewUrl: Optional[str] = None       # Official preview URL
-    itunesArtworkUrls: Optional[List[str]] = None # [artworkUrl30, artworkUrl60, artworkUrl100]
-    
-    # Phase 1B: YouTube "Video Source Context" Fields  
-    youtubeDuration: Optional[float] = None      # Video duration (seconds) - separate from track duration
-    youtubeThumbnailUrls: Optional[List[str]] = None # Selected thumbnail URLs
-    youtubeTags: Optional[List[str]] = None      # Video tags for search/categorization
-    youtubeCategories: Optional[List[str]] = None # Video categories
-    youtubeChannelId: Optional[str] = None       # Channel ID for URL construction
-    youtubeChannelName: Optional[str] = None     # Channel display name
-    
+    itunesTrackId: Optional[int] = None  # iTunes track identifier
+    itunesArtistId: Optional[int] = None  # iTunes artist identifier
+    itunesCollectionId: Optional[int] = None  # iTunes collection identifier
+    trackTimeMillis: Optional[int] = None  # Official iTunes track duration (ms)
+    itunesExplicit: Optional[bool] = None  # Content explicitness flag
+    itunesPreviewUrl: Optional[str] = None  # Official preview URL
+    itunesArtworkUrls: Optional[list[str]] = None  # [artworkUrl30, artworkUrl60, artworkUrl100]
+
+    # Phase 1B: YouTube "Video Source Context" Fields
+    youtubeDuration: Optional[float] = (
+        None  # Video duration (seconds) - separate from track duration
+    )
+    youtubeThumbnailUrls: Optional[list[str]] = None  # Selected thumbnail URLs
+    youtubeTags: Optional[list[str]] = None  # Video tags for search/categorization
+    youtubeCategories: Optional[list[str]] = None  # Video categories
+    youtubeChannelId: Optional[str] = None  # Channel ID for URL construction
+    youtubeChannelName: Optional[str] = None  # Channel display name
+
     # Phase 1B: Raw JSON Backup Storage
-    itunesRawMetadata: Optional[str] = None      # Complete iTunes response (JSON string)
-    youtubeRawMetadata: Optional[str] = None     # Filtered YouTube response (JSON string)
-    
+    itunesRawMetadata: Optional[str] = None  # Complete iTunes response (JSON string)
+    youtubeRawMetadata: Optional[str] = None  # Filtered YouTube response (JSON string)
+
     class Config:
         model_config = {"json_encoders": {datetime: lambda v: v.isoformat() if v else None}}
+
 
 class Song(BaseModel):
     id: str
@@ -95,9 +102,10 @@ class Song(BaseModel):
     originalPath: Optional[str] = None
     thumbnail: Optional[str] = None
     album: Optional[str] = None  # Alias for releaseTitle for frontend compatibility
-    
+
     class Config:
         model_config = {"json_encoders": {datetime: lambda v: v.isoformat() if v else None}}
+
 
 class DbSong(Base):
     __tablename__ = "songs"
@@ -131,29 +139,32 @@ class DbSong(Base):
     lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
     channel_name = Column(String, nullable=True)  # Legacy field
-    
+
     # Phase 1B: iTunes integration columns
     itunes_track_id = Column(Integer, nullable=True)
-    itunes_artist_id = Column(Integer, nullable=True)  
+    itunes_artist_id = Column(Integer, nullable=True)
     itunes_collection_id = Column(Integer, nullable=True)
     track_time_millis = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
     itunes_preview_url = Column(String, nullable=True)
-    itunes_artwork_urls = Column(Text, nullable=True)    # JSON array as string
+    itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
     # Phase 1B: Enhanced YouTube columns
     youtube_duration = Column(Integer, nullable=True)
-    youtube_thumbnail_urls = Column(Text, nullable=True) # JSON array as string  
-    youtube_tags = Column(Text, nullable=True)           # JSON array as string
-    youtube_categories = Column(Text, nullable=True)     # JSON array as string
+    youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
+    youtube_tags = Column(Text, nullable=True)  # JSON array as string
+    youtube_categories = Column(Text, nullable=True)  # JSON array as string
     youtube_channel_id = Column(String, nullable=True)
     youtube_channel_name = Column(String, nullable=True)
 
     # Phase 1B: Raw metadata storage
-    itunes_raw_metadata = Column(Text, nullable=True)    # JSON string
-    youtube_raw_metadata = Column(Text, nullable=True)   # JSON string
-    
-    queue_items = relationship("KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan")
+    itunes_raw_metadata = Column(Text, nullable=True)  # JSON string
+    youtube_raw_metadata = Column(Text, nullable=True)  # JSON string
+
+    queue_items = relationship(
+        "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
+    )
+
     def to_pydantic(self) -> Song:
         # Extract year from release_date if available
         year_value = None
@@ -161,10 +172,14 @@ class DbSong(Base):
             year_value = self.year
         elif self.release_date:
             try:
-                year_value = int(self.release_date.split('-')[0]) if '-' in str(self.release_date) else int(self.release_date)
+                year_value = (
+                    int(self.release_date.split("-")[0])
+                    if "-" in str(self.release_date)
+                    else int(self.release_date)
+                )
             except (ValueError, AttributeError):
                 year_value = None
-        
+
         return Song(
             id=self.id,
             title=self.title,
@@ -200,6 +215,7 @@ class DbSong(Base):
             thumbnail=self.thumbnail_path,
             album=self.album,
         )
+
     @classmethod
     def from_metadata(
         cls,
@@ -210,7 +226,7 @@ class DbSong(Base):
         original_path: str = None,
     ):
         import json  # Import here to avoid circular imports
-        
+
         return cls(
             id=song_id,
             title=metadata.title or song_id.replace("_", " ").title(),
@@ -236,30 +252,43 @@ class DbSong(Base):
             album=metadata.releaseTitle,
             release_id=metadata.releaseId,
             release_date=metadata.releaseDate,
-            year=getattr(metadata, 'year', None),
+            year=getattr(metadata, "year", None),
             genre=metadata.genre,
             language=metadata.language,
             lyrics=metadata.lyrics,
             synced_lyrics=metadata.syncedLyrics,
-            
             # Phase 1B: iTunes integration fields
-            itunes_track_id=getattr(metadata, 'itunesTrackId', None),
-            itunes_artist_id=getattr(metadata, 'itunesArtistId', None),
-            itunes_collection_id=getattr(metadata, 'itunesCollectionId', None),
-            track_time_millis=getattr(metadata, 'trackTimeMillis', None),
-            itunes_explicit=getattr(metadata, 'itunesExplicit', None),
-            itunes_preview_url=getattr(metadata, 'itunesPreviewUrl', None),
-            itunes_artwork_urls=json.dumps(getattr(metadata, 'itunesArtworkUrls', None)) if getattr(metadata, 'itunesArtworkUrls', None) else None,
-            
+            itunes_track_id=getattr(metadata, "itunesTrackId", None),
+            itunes_artist_id=getattr(metadata, "itunesArtistId", None),
+            itunes_collection_id=getattr(metadata, "itunesCollectionId", None),
+            track_time_millis=getattr(metadata, "trackTimeMillis", None),
+            itunes_explicit=getattr(metadata, "itunesExplicit", None),
+            itunes_preview_url=getattr(metadata, "itunesPreviewUrl", None),
+            itunes_artwork_urls=(
+                json.dumps(getattr(metadata, "itunesArtworkUrls", None))
+                if getattr(metadata, "itunesArtworkUrls", None)
+                else None
+            ),
             # Phase 1B: Enhanced YouTube fields
-            youtube_duration=getattr(metadata, 'youtubeDuration', None),
-            youtube_thumbnail_urls=json.dumps(getattr(metadata, 'youtubeThumbnailUrls', None)) if getattr(metadata, 'youtubeThumbnailUrls', None) else None,
-            youtube_tags=json.dumps(getattr(metadata, 'youtubeTags', None)) if getattr(metadata, 'youtubeTags', None) else None,
-            youtube_categories=json.dumps(getattr(metadata, 'youtubeCategories', None)) if getattr(metadata, 'youtubeCategories', None) else None,
-            youtube_channel_id=getattr(metadata, 'youtubeChannelId', None),
-            youtube_channel_name=getattr(metadata, 'youtubeChannelName', None),
-            
+            youtube_duration=getattr(metadata, "youtubeDuration", None),
+            youtube_thumbnail_urls=(
+                json.dumps(getattr(metadata, "youtubeThumbnailUrls", None))
+                if getattr(metadata, "youtubeThumbnailUrls", None)
+                else None
+            ),
+            youtube_tags=(
+                json.dumps(getattr(metadata, "youtubeTags", None))
+                if getattr(metadata, "youtubeTags", None)
+                else None
+            ),
+            youtube_categories=(
+                json.dumps(getattr(metadata, "youtubeCategories", None))
+                if getattr(metadata, "youtubeCategories", None)
+                else None
+            ),
+            youtube_channel_id=getattr(metadata, "youtubeChannelId", None),
+            youtube_channel_name=getattr(metadata, "youtubeChannelName", None),
             # Phase 1B: Raw metadata storage
-            itunes_raw_metadata=getattr(metadata, 'itunesRawMetadata', None),
-            youtube_raw_metadata=getattr(metadata, 'youtubeRawMetadata', None),
+            itunes_raw_metadata=getattr(metadata, "itunesRawMetadata", None),
+            youtube_raw_metadata=getattr(metadata, "youtubeRawMetadata", None),
         )

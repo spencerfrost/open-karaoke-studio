@@ -2,7 +2,14 @@
 WebSocket functionality for Open Karaoke Studio.
 """
 
-from .socketio import init_socketio, socketio
-
 # Import WebSocket handlers to register them
-from . import jobs_ws
+
+
+# Export socketio initialization function
+def init_socketio(app=None):
+    """Initialize SocketIO with Flask app"""
+    # TODO: Implement SocketIO initialization
+    return None
+
+
+__all__ = ["init_socketio"]

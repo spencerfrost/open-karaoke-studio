@@ -2,22 +2,22 @@
 Celery task definitions for audio processing
 """
 
-from datetime import datetime
-from pathlib import Path
-import traceback
 import shutil
+import traceback
+from datetime import datetime
+
 from celery.utils.log import get_task_logger
-from ..services import audio, file_management, FileService
-from .celery_app import celery
-from ..db.models import JobStatus, JobStore
+
 from ..config.logging import get_structured_logger
+from ..db.models import JobStatus, JobStore
+from ..services import FileService, audio, file_management
+from .celery_app import celery
 
 logger = get_task_logger(__name__)
 # Add structured logging for better job tracking
-structured_logger = get_structured_logger('app.jobs', {
-    'module': 'jobs',
-    'component': 'task_processor'
-})
+structured_logger = get_structured_logger(
+    "app.jobs", {"module": "jobs", "component": "task_processor"}
+)
 job_store = JobStore()
 
 
@@ -30,13 +30,11 @@ def _broadcast_job_event(job, was_created=False):
         was_created: Whether this is a newly created job
     """
     try:
-        from ..websockets.jobs_ws import (
-            broadcast_job_update,
-            broadcast_job_created,
-            broadcast_job_completed,
-            broadcast_job_failed,
-            broadcast_job_cancelled,
-        )
+        from ..websockets.jobs_ws import (broadcast_job_cancelled,
+                                          broadcast_job_completed,
+                                          broadcast_job_created,
+                                          broadcast_job_failed,
+                                          broadcast_job_update)
 
         job_data = job.to_dict()
 
@@ -60,18 +58,17 @@ def _broadcast_job_event(job, was_created=False):
         pass
     except Exception as e:
         # Log the error but don't fail the operation
-        logger.warning(f"Failed to broadcast job event: {e}")
+        logger.warning("Failed to broadcast job event: %s", e)
 
 
 class AudioProcessingError(Exception):
     """Custom exception for audio processing errors"""
 
-    pass
-
 
 def get_filepath_from_job(job):
     """Get the full filepath for a job based on its filename"""
     from pathlib import Path
+
     from ..config import get_config
 
     # Construct the path to the original file based on the job's filename
@@ -90,23 +87,28 @@ def process_audio_job(self, job_id):
     Args:
         job_id: Unique identifier for the job
     """
-    logger.info(f"Starting audio processing job for job {job_id}")
+    logger.info("Starting audio processing job for job %s", job_id)
 
     # Get the job from storage with retry logic
     job = job_store.get_job(job_id)
     if not job:
         if self.request.retries < self.max_retries:
             logger.warning(
-                f"Job {job_id} not found, retrying in {2 ** self.request.retries} seconds (attempt {self.request.retries + 1}/{self.max_retries + 1})"
+                "Job %s not found, retrying in %s seconds (attempt %s/%s)",
+                job_id,
+                2**self.request.retries,
+                self.request.retries + 1,
+                self.max_retries + 1,
             )
             # Exponential backoff: 2, 4, 8 seconds
             raise self.retry(countdown=2**self.request.retries)
-        else:
-            logger.error(f"Job {job_id} not found after {self.max_retries + 1} attempts")
-            return {"status": "error", "message": "Job not found after retries"}
+
+        logger.error("Job %s not found after %s attempts", job_id, self.max_retries + 1)
+        return {"status": "error", "message": "Job not found after retries"}
 
     # Determine the filepath from the job
     from pathlib import Path
+
     from ..config import get_config
 
     config = get_config()
@@ -141,16 +143,18 @@ def process_audio_job(self, job_id):
             )
         # Enhanced logging with structured data
         structured_logger.info(
-            f"Job progress: {progress}% - {message}",
+            "Job progress: %s%% - %s",
+            progress,
+            message,
             extra={
-                'job_id': job_id,
-                'progress': progress,
-                'status': 'processing',
-                'filename': filename,
-                'message': message
-            }
+                "job_id": job_id,
+                "progress": progress,
+                "status": "processing",
+                "filename": filename,
+                "message": message,
+            },
         )
-        logger.info(f"Job {job_id} progress: {progress}% - {message}")
+        logger.info("Job %s progress: %s% - %s", job_id, progress, message)
 
     try:
         file_service = FileService()
@@ -179,14 +183,10 @@ def process_audio_job(self, job_id):
             "job_id": job_id,
             "filename": filename,
             "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(
-                    filepath.suffix
-                )
+                file_management.get_vocals_path_stem(song_dir).with_suffix(filepath.suffix)
             ),
             "instrumental_path": str(
-                file_management.get_instrumental_path_stem(song_dir).with_suffix(
-                    filepath.suffix
-                )
+                file_management.get_instrumental_path_stem(song_dir).with_suffix(filepath.suffix)
             ),
         }
 
@@ -198,12 +198,12 @@ def process_audio_job(self, job_id):
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
-        logger.info(f"Job {job_id} was cancelled")
+        logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
     except Exception as e:
         error_message = str(e)
-        logger.error(f"Error processing job {job_id}: {error_message}")
+        logger.error("Error processing job %s: %s", job_id, error_message)
         traceback.print_exc()
         job.status = JobStatus.FAILED
         job.error = error_message
@@ -237,26 +237,27 @@ def process_youtube_job(self, job_id, video_id, metadata):
         metadata: Dict with artist, title, album, etc.
     """
     logger.info(
-        f"Starting unified YouTube processing job for job {job_id} (video_id: {video_id})"
+        "Starting unified YouTube processing job for job %s (video_id: %s)", job_id, video_id
     )
 
     # Get the job from storage
     job = job_store.get_job(job_id)
     if not job:
-        logger.error(f"Job {job_id} not found for video_id {video_id}")
+        logger.error("Job %s not found for video_id %s", job_id, video_id)
         return {"status": "error", "message": "Job not found"}
 
     # Get the song_id from the job
     song_id = job.song_id
     if not song_id:
-        logger.error(f"Job {job_id} has no associated song_id")
+        logger.error("Job %s has no associated song_id", job_id)
         return {"status": "error", "message": "No song ID associated with job"}
-        
+
     # Verify the song exists
-    from ..db import database
-    db_song = database.get_song(song_id)
+    from ..db.song_operations import get_song
+
+    db_song = get_song(song_id)
     if not db_song:
-        logger.error(f"Song {song_id} not found for job {job_id}")
+        logger.error("Song %s not found for job %s", song_id, job_id)
         # Mark job as failed
         job.status = JobStatus.FAILED
         job.error = f"Song {song_id} not found in database"
@@ -288,12 +289,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
                     "message": message,
                 },
             )
-        logger.info(f"Job {job_id} progress: {progress}% - {message}")
+        logger.info("Job %s progress: %s% - %s", job_id, progress, message)
 
     try:
         # Phase 1: Download (5-30% progress)
-        from ..services.youtube_service import YouTubeService
         from ..services.song_service import SongService
+        from ..services.youtube_service import YouTubeService
 
         file_service = FileService()
         file_service.ensure_library_exists()
@@ -310,50 +311,48 @@ def process_youtube_job(self, job_id, video_id, metadata):
             artist=metadata.get("artist"),
             title=metadata.get("title"),
         )
-        
+
         # Extract enhanced metadata from download result
-        result_song_id, enhanced_metadata = download_result
-        
+        _, enhanced_metadata = download_result
+
+        # Get song directory for file paths
+        song_dir = file_service.get_song_directory(song_id)
+
         # Update the database song with enhanced metadata (including iTunes data)
         try:
             from ..db.models.song import DbSong
-            from ..db import database
-            
+            from ..db.song_operations import update_song_with_metadata
+
             # Create updated song record with enhanced metadata
             updated_song = DbSong.from_metadata(
                 song_id=song_id,
                 metadata=enhanced_metadata,
                 vocals_path=db_song.vocals_path,  # Preserve existing audio paths
                 instrumental_path=db_song.instrumental_path,
-                original_path=str(song_dir / "original.mp3")  # Set original path
+                original_path=str(song_dir / "original.mp3"),  # Set original path
             )
-            
+
             # Update the song in database with enhanced metadata
-            success = database.update_song_with_metadata(song_id, updated_song)
-            
+            success = update_song_with_metadata(song_id, updated_song)
+
             if success:
-                logger.info(f"Successfully updated song {song_id} with enhanced metadata")
+                logger.info("Successfully updated song %s with enhanced metadata", song_id)
                 update_progress(25, "Enhanced metadata saved")
             else:
-                logger.warning(f"Failed to update song {song_id} with enhanced metadata")
-                
+                logger.warning("Failed to update song %s with enhanced metadata", song_id)
+
         except Exception as e:
-            logger.error(f"Error updating song metadata for {song_id}: {e}")
+            logger.error("Error updating song metadata for %s: %s", song_id, e)
             # Continue processing even if metadata update fails
 
-        update_progress(
-            30, "Download complete, starting audio processing", JobStatus.PROCESSING
-        )
+        update_progress(30, "Download complete, starting audio processing", JobStatus.PROCESSING)
 
         # Phase 2: Audio Processing (30-90% progress)
         # IMPORTANT: Use song_id for the directory, not job_id
-        song_dir = file_service.get_song_directory(song_id)  
         original_file = song_dir / "original.mp3"
 
         if not original_file.exists():
-            raise AudioProcessingError(
-                f"Original audio file not found: {original_file}"
-            )
+            raise AudioProcessingError(f"Original audio file not found: {original_file}")
 
         # Create a stop event (for compatibility with audio.separate_audio)
         import threading
@@ -374,26 +373,24 @@ def process_youtube_job(self, job_id, video_id, metadata):
         ):
             raise AudioProcessingError("Audio separation failed")
 
-        update_progress(
-            90, "Audio processing complete, finalizing", JobStatus.FINALIZING
-        )
+        update_progress(90, "Audio processing complete, finalizing", JobStatus.FINALIZING)
 
         # Phase 3: Finalization (90-100% progress)
         update_progress(93, "Downloading thumbnail")
-        
+
         # Phase 3A: Download thumbnail (separate from stepper-sensitive operations)
         try:
-            logger.info(f"Downloading thumbnail for video {video_id}...")
+            logger.info("Downloading thumbnail for video %s...", video_id)
             thumbnail_url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
             if thumbnail_url:
-                logger.info(f"✅ Thumbnail downloaded successfully: {thumbnail_url}")
+                logger.info("✅ Thumbnail downloaded successfully: %s", thumbnail_url)
                 update_progress(95, "Thumbnail download complete")
             else:
-                logger.warning(f"⚠️ Thumbnail download failed for {video_id}")
+                logger.warning("⚠️ Thumbnail download failed for %s", video_id)
                 update_progress(95, "Thumbnail download failed, continuing")
         except Exception as e:
             # Thumbnail failures should not break the job
-            logger.warning(f"⚠️ Thumbnail download failed for {video_id}: {e}")
+            logger.warning("⚠️ Thumbnail download failed for %s: %s", video_id, e)
             update_progress(95, "Thumbnail download failed, continuing")
 
         update_progress(99, "Finalizing processing")
@@ -401,31 +398,40 @@ def process_youtube_job(self, job_id, video_id, metadata):
         # Phase 1A Task 3: Update database with audio file paths after processing
         try:
             vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
-            
+            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+                ".mp3"
+            )
+
             # Verify the files actually exist before updating database
             if vocals_path.exists() and instrumental_path.exists():
                 # Get relative paths from library directory
                 from ..config import get_config
+
                 config = get_config()
-                
+
                 vocals_relative = str(vocals_path.relative_to(config.LIBRARY_DIR))
                 instrumental_relative = str(instrumental_path.relative_to(config.LIBRARY_DIR))
-                
+
                 # Update song with audio file paths
-                from ..db import database
-                success = database.update_song_audio_paths(song_id, vocals_relative, instrumental_relative)
-                
+                from ..db.song_operations import update_song_audio_paths
+
+                success = update_song_audio_paths(song_id, vocals_relative, instrumental_relative)
+
                 if success:
-                    logger.info(f"Successfully updated audio paths for song {song_id}")
+                    logger.info("Successfully updated audio paths for song %s", song_id)
                 else:
-                    logger.warning(f"Failed to update audio paths for song {song_id}")
+                    logger.warning("Failed to update audio paths for song %s", song_id)
             else:
-                logger.warning(f"Audio files not found after processing for song {song_id}: vocals={vocals_path.exists()}, instrumental={instrumental_path.exists()}")
-                
+                logger.warning(
+                    "Audio files not found after processing for song %s: vocals=%s, instrumental=%s",
+                    song_id,
+                    vocals_path.exists(),
+                    instrumental_path.exists(),
+                )
+
         except Exception as e:
             # Don't fail the job for path update issues, just log the error
-            logger.error(f"Error updating audio paths for song {song_id}: {e}")
+            logger.error("Error updating audio paths for song %s: %s", song_id, e)
 
         # Any cleanup or final processing steps can go here
 
@@ -441,9 +447,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
             "status": "success",
             "job_id": job_id,
             "song_id": song_id,
-            "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            ),
+            "vocals_path": str(file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")),
             "instrumental_path": str(
                 file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
             ),
@@ -457,12 +461,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
-        logger.info(f"Job {job_id} was cancelled")
+        logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
         error_message = str(e)
-        logger.error(f"Error processing YouTube job {job_id}: {error_message}")
+        logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()
         job.status = JobStatus.FAILED
         job.error = error_message

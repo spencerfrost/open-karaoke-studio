@@ -121,8 +121,8 @@ class TestSongsAPI:
         assert 'Internal server error' in data['error']
     
     @patch('app.api.songs.SongService')
-    @patch('app.api.songs.database')  # For the legacy compatibility part
-    def test_get_song_details_success(self, mock_database, mock_song_service_class, client):
+    @patch('app.api.songs.get_song')  # Updated to mock the direct import
+    def test_get_song_details_success(self, mock_get_song, mock_song_service_class, client):
         """Test GET /api/songs/<id> endpoint success with service layer"""
         # Setup mock service
         mock_service = Mock()
@@ -150,9 +150,24 @@ class TestSongsAPI:
             source="test",
             source_url="http://test.com",
             lyrics="Test lyrics",
-            synced_lyrics="Test synced lyrics"
+            synced_lyrics="Test synced lyrics",
+            # iTunes metadata
+            itunes_track_id=None,
+            itunes_artist_id=None,
+            itunes_collection_id=None,
+            track_time_millis=None,
+            itunes_explicit=False,
+            itunes_preview_url=None,
+            itunes_artwork_urls=None,
+            # YouTube metadata
+            youtube_duration=None,
+            youtube_thumbnail_urls=None,
+            youtube_tags=None,
+            youtube_categories=None,
+            youtube_channel_id=None,
+            youtube_channel_name=None,
         )
-        mock_database.get_song.return_value = mock_db_song
+        mock_get_song.return_value = mock_db_song
         
         # Make request
         response = client.get('/api/songs/test-song-123')
