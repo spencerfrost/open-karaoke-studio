@@ -15,11 +15,41 @@ Your library contains all processed songs with rich metadata, artwork, and organ
 
 ## 🔍 Search & Discovery
 
-### Quick Search
-- **Global Search Bar** - Search across titles, artists, albums
-- **Real-time Results** - Instant filtering as you type
-- **Fuzzy Matching** - Finds results even with typos
-- **Multi-field Search** - Searches all metadata simultaneously
+### Dual Display Interface
+The library features a modern dual-display interface that combines search and browsing:
+
+**Song Results Section:**
+- **Prominent Search Results** - Large grid view of matching songs
+- **Fuzzy Search** - Finds songs even with typos or partial matches
+- **Infinite Scroll** - Continuously loads more results as you scroll
+- **Real-time Filtering** - Results update instantly as you type
+
+**Artist Browsing Section:**
+- **Alphabetical Organization** - Artists grouped and sorted A-Z
+- **Expandable Sections** - Click to reveal all songs by an artist
+- **Song Counts** - See how many tracks each artist has
+- **Compact View** - Horizontal song cards for efficient browsing
+
+### Intelligent Search
+- **Global Search Bar** - Single search input for the entire library
+- **Multi-field Matching** - Searches titles, artists, albums simultaneously
+- **Fuzzy Matching** - Finds results even with typos or alternative spellings
+- **Debounced Input** - Optimized search performance with smart request timing
+
+### Search Features
+**Smart Matching Examples:**
+```
+"bohemian" → Finds "Bohemian Rhapsody"
+"queen boh" → Finds "Queen - Bohemian Rhapsody"
+"rhapsody bohemian" → Finds "Bohemian Rhapsody" (word order independent)
+"boh rhap" → Finds "Bohemian Rhapsody" (partial matching)
+```
+
+**Performance Optimizations:**
+- **Infinite Pagination** - Large libraries load efficiently
+- **Conditional Loading** - Artist songs load only when expanded
+- **Search Debouncing** - Reduces server load with smart request timing
+- **Result Caching** - Common searches cached for instant results
 
 ### Advanced Search *(Coming Soon)*
 - **Filter by Genre** - Music style categories
@@ -28,19 +58,30 @@ Your library contains all processed songs with rich metadata, artwork, and organ
 - **Import Source** - YouTube vs. local uploads
 
 ### Search Tips
+**Basic Search:**
 ```
 "bohemian" → Finds "Bohemian Rhapsody"
 "queen boh" → Finds "Queen - Bohemian Rhapsody"
-"rock genre:rock" → Future: Genre-based search
+"rock" → Finds all songs with "rock" in title, artist, or album
+```
+
+**Future Advanced Search:**
+```
+"genre:rock" → Future: Genre-based search
 "duration:3-5min" → Future: Duration filtering
+"year:2020-2023" → Future: Year range filtering
 ```
 
 ## 🗂️ Organization Methods
 
 ### By Artist
-- **Alphabetical Browsing** - Artists listed A-Z with song counts
-- **Expandable Sections** - Click artist to see all songs
-- **Artist Grouping** - Handles "The Beatles" vs "Beatles" intelligently
+- **Dual Display Browsing** - Artists listed in expandable sections alongside search results
+- **Alphabetical Organization** - Artists sorted A-Z with clear letter grouping
+- **Song Count Display** - See total tracks per artist at a glance
+- **Expandable Interface** - Click artist name to reveal all songs
+- **Compact Song Cards** - Horizontal layout for efficient artist song browsing
+- **Infinite Scroll** - Large artist collections load progressively
+- **Smart Grouping** - Handles "The Beatles" vs "Beatles" intelligently
 - **Collaboration Handling** - Featured artists and duets properly categorized
 
 ### By Album
