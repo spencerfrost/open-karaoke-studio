@@ -95,7 +95,7 @@ export function useLibraryBrowsing() {
   /**
    * Get paginated songs for a specific artist
    */
-  const useArtistSongs = (artist: string, params: ArtistSongsParams = {}) => {
+  const useArtistSongs = (artist: string, params: ArtistSongsParams = {}, options: { enabled?: boolean } = {}) => {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.set('limit', params.limit.toString());
     if (params.offset) queryParams.set('offset', params.offset.toString());
@@ -106,7 +106,7 @@ export function useLibraryBrowsing() {
       ARTIST_QUERY_KEYS.artistSongs(artist, params),
       `songs/by-artist/${encodeURIComponent(artist)}?${queryParams.toString()}`,
       {
-        enabled: !!artist,
+        enabled: !!artist && (options.enabled !== false),
         staleTime: 2 * 60 * 1000, // 2 minutes
       }
     );

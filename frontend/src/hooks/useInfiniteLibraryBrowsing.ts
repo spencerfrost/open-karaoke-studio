@@ -88,7 +88,7 @@ export const useInfiniteArtists = (
     queryKey: ['artists', 'infinite', { search: searchTerm, pageSize }],
     queryFn: fetchArtists,
     getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage.pagination.hasMore) return undefined;
+      if (!lastPage?.pagination?.hasMore) return undefined;
       return allPages.length;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -96,7 +96,7 @@ export const useInfiniteArtists = (
   });
 
   const artists = useMemo(() => {
-    return data?.pages.flatMap(page => page.artists) ?? [];
+    return data?.pages.flatMap(page => page?.artists ?? []).filter(Boolean) ?? [];
   }, [data]);
 
   return {
@@ -111,7 +111,8 @@ export const useInfiniteArtists = (
 
 export const useInfiniteArtistSongs = (
   artistName: string,
-  pageSize: number = 10
+  pageSize: number = 10,
+  options: { enabled?: boolean } = {}
 ): InfiniteArtistSongsResult => {
   const fetchSongsByArtist = async ({ pageParam = 0 }) => {
     const queryParams = new URLSearchParams();
@@ -136,16 +137,16 @@ export const useInfiniteArtistSongs = (
     queryKey: ['artist-songs', 'infinite', artistName, { pageSize }],
     queryFn: fetchSongsByArtist,
     getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage.pagination.hasMore) return undefined;
+      if (!lastPage?.pagination?.hasMore) return undefined;
       return allPages.length;
     },
-    enabled: !!artistName,
+    enabled: !!artistName && (options.enabled !== false),
     staleTime: 2 * 60 * 1000, // 2 minutes
     initialPageParam: 0,
   });
 
   const songs = useMemo(() => {
-    return data?.pages.flatMap(page => page.songs) ?? [];
+    return data?.pages.flatMap(page => page?.songs ?? []).filter(Boolean) ?? [];
   }, [data]);
 
   return {
