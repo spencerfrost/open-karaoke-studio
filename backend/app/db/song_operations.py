@@ -334,17 +334,18 @@ def get_artists_with_counts(search_term: str = "", limit: int = 100, offset: int
             if search_term:
                 query = query.filter(DbSong.artist.ilike(f'%{search_term}%'))
             
-            # Order by song count (descending) then by artist name
-            query = query.order_by(desc('song_count'), DbSong.artist)
+            # Order alphabetically by artist name for proper grouping
+            query = query.order_by(DbSong.artist)
             
             # Apply pagination
             artists = query.offset(offset).limit(limit).all()
             
-            # Convert to list of dictionaries
+            # Convert to list of dictionaries with proper frontend format
             return [
                 {
-                    "artist": artist,
-                    "songCount": song_count
+                    "name": artist,
+                    "songCount": song_count,
+                    "firstLetter": artist[0].upper() if artist else "?"
                 }
                 for artist, song_count in artists
             ]

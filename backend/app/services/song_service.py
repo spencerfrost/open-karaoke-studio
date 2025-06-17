@@ -8,7 +8,7 @@ from typing import List, Optional
 from .interfaces.song_service import SongServiceInterface
 from ..exceptions import NotFoundError, ServiceError, DatabaseError
 from ..db.models import Song, SongMetadata, DbSong
-from ..db import database
+from ..db import song_operations
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class SongService(SongServiceInterface):
         try:
             # For now, get all songs and filter in memory
             # This can be optimized with database-level search later
-            all_songs = database.get_all_songs()
+            all_songs = song_operations.get_all_songs()
             
             if not query.strip():
                 return [song.to_pydantic() for song in all_songs]
