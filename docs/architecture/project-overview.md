@@ -1,12 +1,15 @@
 # Open Karaoke Studio – Project Overview
 
 ## Project Summary
-Open Karaoke Studio is an open-source, AI-powered web application that enables users to create karaoke tracks by separating vocals from music. It provides a modern, user-friendly interface for uploading songs, processing them with advanced AI models, and managing a personal karaoke library. The project is structured as a monorepo, supporting both a Python/Flask backend and a React/Vite frontend, and is designed for self-hosting and extensibility.
+
+Open Karaoke Studio is an open-source, AI-powered web application that enables users to create karaoke tracks by separating vocals from music. It provides a modern, user-friendly interface for uploading songs, processing them with advanced AI models, and managing a personal karaoke library. The project uses a simplified shared repository structure with independent frontend and backend applications that work together seamlessly.
 
 ---
 
 ## Key Features
+
 ### Current Features
+
 - **Upload & Process:** Users can upload songs and initiate AI-powered vocal separation.
 - **Vocal Separation:** Utilizes Demucs (PyTorch-based) for high-quality extraction of vocals and instrumentals.
 - **Instrumental Creation:** Generates karaoke-ready instrumental tracks.
@@ -17,6 +20,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **Self-Hosting:** Designed for easy deployment and personal use.
 
 ### Planned Features
+
 - **Settings/Configuration:** User-customizable processing and experience options.
 - **Integrated Karaoke Player:** In-app playback with karaoke features.
 - **Vocal Guide:** Adjustable original vocal volume for sing-along.
@@ -27,7 +31,9 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ---
 
 ## Technology Stack
+
 ### Frontend
+
 - **Framework:** React 19 (TypeScript)
 - **Build Tool:** Vite
 - **Styling:** Tailwind CSS, Shadcn/UI (for accessible, consistent UI components)
@@ -35,6 +41,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **Component Structure:** Modular, with feature folders (e.g., `songs/`, `upload/`, `ui/`)
 
 ### Backend
+
 - **Framework:** Python 3.10+, Flask (RESTful API)
 - **Audio Processing:** Demucs (PyTorch), with GPU/CPU support
 - **Async Jobs:** Celery (for background processing)
@@ -46,19 +53,23 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
   - **LRCLIB:** Lyrics fetching
 
 ### Infrastructure & Tooling
+
 - **Monorepo:** Managed with `pnpm` (workspace configuration)
 - **Cross-Package Scripts:** Unified scripts for setup and running
 
 ---
 
 ## Architecture & Component Breakdown
+
 ### Monorepo Structure
+
 - **Root:** Shared configuration, scripts, and documentation
 - **`frontend/`:** React app (Vite, Tailwind, Shadcn, feature-based components)
 - **`backend/`:** Flask API, audio processing, async tasking, and service modules
 - **`karaoke_library/`:** Stores processed songs and metadata
 
 ### Frontend Highlights
+
 - **UI Components:** Modular, reusable (e.g., `Button`, `Alert`, `FileUploader`)
 - **Feature Components:**
   - `SongCard`: Displays song info, cover art, and actions
@@ -68,6 +79,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **UX:** Loading and error states, responsive design, mobile-first approach
 
 ### Backend Highlights
+
 - **Service Modules:**
   - `audio.py`: Handles Demucs-based separation, progress reporting, and error handling
   - `file_management.py`: Manages file storage, directory structure, and metadata
@@ -81,6 +93,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ---
 
 ## Notable Implementation Details
+
 - **AI Audio Separation:** Uses Demucs for state-of-the-art source separation, with GPU acceleration if available
 - **Async Processing:** Designed for background task queuing (Celery), enabling scalable processing
 - **Metadata Enrichment:** Integrates with iTunes Search API and LRCLIB for rich song data and lyrics
@@ -90,6 +103,7 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ---
 
 ## Contribution & Deployment
+
 - **Contributing:** Fork, branch, and submit pull requests. See root README for guidelines.
 - **Setup:**
   - Backend: Python virtualenv, install requirements, run Flask app
@@ -102,18 +116,22 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 ## Deployment Status
 
 ### Current Deployment Options
+
 **Development Mode (Actively Supported)**
+
 - Manual setup with separate frontend/backend servers
-- SQLite database for simple data storage  
+- SQLite database for simple data storage
 - Local file-based job processing
 - See [Getting Started Guide](../getting-started/README.md) for setup instructions
 
 ### Production Deployment (Planned)
+
 **Status:** Not yet implemented - Docker deployment is a planned feature
 
 The following deployment options are on the roadmap but not currently available:
+
 - **Docker Deployment** - Containerized deployment with Docker Compose
-- **Cloud Deployment** - AWS/Digital Ocean deployment guides  
+- **Cloud Deployment** - AWS/Digital Ocean deployment guides
 - **Database Migration** - PostgreSQL support for production scale
 - **Redis Integration** - Background job processing with Celery
 - **Load Balancing** - Multi-instance deployment support
@@ -123,10 +141,11 @@ The following deployment options are on the roadmap but not currently available:
 ---
 
 ## Further Resources
+
 - [Root README](./README.md)
 - [Frontend README](./frontend/README.md)
 - [Backend README](./backend/README.md)
 
 ---
 
-*This document is intended as a high-level overview for onboarding, development, and contribution to Open Karaoke Studio. For detailed setup and API documentation, refer to the respective READMEs and code comments.*
+_This document is intended as a high-level overview for onboarding, development, and contribution to Open Karaoke Studio. For detailed setup and API documentation, refer to the respective READMEs and code comments._

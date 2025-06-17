@@ -1,0 +1,35 @@
+{
+  "include": [
+    "backend"
+  ],
+  "exclude": [
+    "backend/venv",
+    "backend/__pycache__",
+    "backend/**/__pycache__",
+    "backend/logs",
+    "backend/htmlcov",
+    "backend/.pytest_cache",
+    "temp_downloads",
+    "temp_job_cache",
+    "karaoke_library"
+  ],
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.8",
+  "pythonPlatform": "Linux",
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "pythonVersion": "3.8",
+      "pythonPlatform": "Linux",
+      "extraPaths": [
+        "backend",
+        "backend/app"
+      ]
+    }
+  ],
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "autoSearchPaths": true,
+  "stubPath": "backend/typings"
+}

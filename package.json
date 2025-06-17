@@ -2,7 +2,17 @@
   "name": "open-karaoke",
   "private": true,
   "version": "1.0.0",
-  "dependencies": {
-    "pnpm": "^10.9.0"
-  }
+  "description": "Open Karaoke Studio - vocal separation for karaoke creation",
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "dev:frontend": "cd frontend && pnpm dev",
+    "dev:backend": "cd backend && ./run_api.sh",
+    "setup": "./scripts/setup.sh",
+    "build": "cd frontend && pnpm build",
+    "test": "./scripts/test.sh",
+    "lint:frontend": "cd frontend && pnpm lint:check",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "packageManager": "pnpm@10.9.0"
 }
