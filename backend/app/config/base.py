@@ -4,7 +4,6 @@ Base configuration class for Open Karaoke Studio backend.
 
 import os
 from pathlib import Path
-from typing import List
 
 
 class BaseConfig:
@@ -17,9 +16,7 @@ class BaseConfig:
         SECRET_KEY = os.environ.get("SECRET_KEY", "dev-key-please-change-in-production")
 
     # Directory Structure
-    BASE_DIR = (
-        Path(__file__).resolve().parent.parent.parent.parent
-    )  # Points to project root
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent  # Points to project root
 
     # Logging Configuration
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -63,16 +60,12 @@ class BaseConfig:
     DEFAULT_MP3_BITRATE = MP3_BITRATE  # For backwards compatibility
 
     # Upload Configuration
-    MAX_CONTENT_LENGTH = int(
-        os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024)
-    )  # 200MB
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024))  # 200MB
     ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
 
     # Celery Configuration
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND = os.environ.get(
-        "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-    )
+    CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
     # Redis Configuration (fallback support)
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -82,7 +75,7 @@ class BaseConfig:
     PORT = int(os.environ.get("PORT", 5123))
 
     @property
-    def CORS_ORIGINS(self) -> List[str]:
+    def CORS_ORIGINS(self) -> list[str]:
         """
         Get CORS origins from environment variable as a list.
 
@@ -95,7 +88,7 @@ class BaseConfig:
         return [origin.strip() for origin in origins.split(",") if origin.strip()]
 
     @property
-    def DEFAULT_CORS_ORIGINS(self) -> List[str]:
+    def DEFAULT_CORS_ORIGINS(self) -> list[str]:
         """Default CORS origins for this environment. Override in subclasses."""
         return ["*"]  # Will be overridden in specific environments
 
@@ -127,9 +120,7 @@ class BaseConfig:
                 required_vars.append("SECRET_KEY")
 
         if required_vars:
-            raise ValueError(
-                f"Missing required environment variables: {', '.join(required_vars)}"
-            )
+            raise ValueError(f"Missing required environment variables: {', '.join(required_vars)}")
 
     def __init__(self):
         """Initialize and validate configuration."""

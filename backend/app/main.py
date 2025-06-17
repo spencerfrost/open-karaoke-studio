@@ -2,8 +2,9 @@
 Main entry point for the Open Karaoke Studio backend application.
 """
 
-import os
 import logging
+import os
+
 from . import create_app
 from .config import get_config
 from .config.logging import setup_logging
@@ -19,9 +20,9 @@ app = create_app(config)
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 logger.info("Open Karaoke Studio backend starting up")
-logger.info(f"Configuration: {config.__class__.__name__}")
-logger.info(f"Log directory: {config.LOG_DIR}")
-logger.info(f"Debug mode: {config.DEBUG}")
+logger.info("Configuration: %s", config.__class__.__name__)
+logger.info("Log directory: %s", config.LOG_DIR)
+logger.info("Debug mode: %s", config.DEBUG)
 
 # Set Flask app logger to use our configured logging
 app.logger.handlers = []  # Remove default handlers
@@ -29,11 +30,11 @@ app.logger.propagate = True  # Let our loggers handle it
 
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here
-    from .websockets.socketio import init_socketio, socketio
+    from .websockets.karaoke_queue_ws import register_handlers as register_karaoke_queue
     from .websockets.performance_controls_ws import (
         register_handlers as register_performance_controls,
     )
-    from .websockets.karaoke_queue_ws import register_handlers as register_karaoke_queue
+    from .websockets.socketio import init_socketio, socketio
 
     # Initialize SocketIO with the Flask app
     init_socketio(app)

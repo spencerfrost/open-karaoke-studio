@@ -3,7 +3,7 @@ Job management endpoints for the Open Karaoke Studio API.
 These endpoints provide access to job processing and status.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 
 from ..db.models import JobStatus
 from ..services import JobsService
@@ -93,7 +93,8 @@ def dismiss_job(job_id):
         return (
             jsonify(
                 {
-                    "error": f"Cannot dismiss job with status {job.status}. Only completed, failed, or cancelled jobs can be dismissed."
+                    "error": f"Cannot dismiss job with status {
+                        job.status}. Only completed, failed, or cancelled jobs can be dismissed."
                 }
             ),
             400,

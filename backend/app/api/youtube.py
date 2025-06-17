@@ -1,10 +1,9 @@
 # backend/app/api/youtube.py
-from flask import Blueprint, request, current_app
+from flask import Blueprint, current_app, request
 
-from ..services.youtube_service import YouTubeService
-from ..services.song_service import SongService
-from ..api.responses import success_response, error_response
+from ..api.responses import error_response, success_response
 from ..exceptions import ServiceError, ValidationError
+from ..services.youtube_service import YouTubeService
 
 youtube_bp = Blueprint("youtube", __name__, url_prefix="/api/youtube")
 
@@ -21,9 +20,7 @@ def search_youtube_endpoint():
         try:
             max_results = int(max_results_str)
         except ValueError:
-            return error_response(
-                "Invalid maxResults parameter, must be an integer", 400
-            )
+            return error_response("Invalid maxResults parameter, must be an integer", 400)
 
         youtube_service = YouTubeService()
         results = youtube_service.search_videos(query, max_results)
@@ -35,7 +32,7 @@ def search_youtube_endpoint():
     except ServiceError as e:
         return error_response(str(e), 500)
     except Exception as e:
-        current_app.logger.error(f"Unexpected error in YouTube search: {e}")
+        current_app.logger.error("Unexpected error in YouTube search: %s", e)
         return error_response("Internal server error", 500)
 
 
@@ -64,7 +61,7 @@ def download_youtube_endpoint():
         )
 
         current_app.logger.info(
-            f"YouTube processing started for song {song_id}, video {video_id}, job {job_id}"
+            "YouTube processing started for song %s, video %s, job %s", song_id, video_id, job_id
         )
 
         return success_response(
@@ -82,5 +79,5 @@ def download_youtube_endpoint():
     except ServiceError as e:
         return error_response(str(e), 500)
     except Exception as e:
-        current_app.logger.error(f"Unexpected error in YouTube download: {e}")
+        current_app.logger.error("Unexpected error in YouTube download: %s", e)
         return error_response("Internal server error", 500)

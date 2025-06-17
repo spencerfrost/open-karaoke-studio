@@ -1,27 +1,31 @@
 # backend/app/api/songs.py
 
-from flask import Blueprint, jsonify, send_from_directory, current_app, request
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import List, Optional
-from urllib.parse import unquote
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+from urllib.parse import unquote
 
-# Import database and models
-from ..db import database
-from ..db.models import Song, SongMetadata, DbSong
-from ..services import file_management, FileService
-from ..services.song_service import SongService
-from ..exceptions import ServiceError, NotFoundError
+from flask import Blueprint, current_app, jsonify, request, send_from_directory
+
 from ..config import get_config
+# Import database and models
+from ..db.models import SongMetadata
+from ..db.song_operations import get_song
+from ..exceptions import ServiceError
+from ..services import FileService, file_management
 from ..services.lyrics_service import LyricsService
+from ..services.song_service import SongService
 
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 
 
 @song_bp.route("", methods=["GET"])
 def get_songs():
-    """Endpoint to get a list of processed songs with metadata - thin controller using service layer."""
+    """
+    Endpoint to get a list of processed songs with metadata 
+    - thin controller using service layer.
+    """
     current_app.logger.info("Received request for /api/songs")
 
     try:
@@ -34,11 +38,11 @@ def get_songs():
             for song in songs
         ]
 
-        current_app.logger.info(f"Returning {len(response_data)} songs.")
+        current_app.logger.info("Returning %s songs.", len(response_data))
         return jsonify(response_data)
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error in get_songs: {e}")
+        current_app.logger.error("Service error in get_songs: %s", e)
         return jsonify({"error": "Failed to fetch songs", "details": str(e)}), 500
     except Exception as e:
         current_app.logger.error(f"Unexpected error in get_songs: {e}", exc_info=True)
@@ -48,17 +52,18 @@ def get_songs():
 @song_bp.route("/<string:song_id>/download/<string:track_type>", methods=["GET"])
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
-    current_app.logger.info(
-        f"Download request for song '{song_id}', track type '{track_type}'"
-    )
+    current_app.logger.info("Download request for song '%s', track type '%s'", song_id, track_type)
     track_type = track_type.lower()  # Normalize track type
 
     if track_type not in ("vocals", "instrumental", "original"):
-        current_app.logger.warning(f"Invalid track type requested: {track_type}")
+        current_app.logger.warning("Invalid track type requested: %s", track_type)
         return (
             jsonify(
                 {
-                    "error": "Invalid track type specified. Use 'vocals', 'instrumental', or 'original'."
+                    "error": (
+                        "Invalid track type specified. "
+                        "Use 'vocals', 'instrumental', or 'original'."
+                    )
                 }
             ),
             400,
@@ -68,7 +73,7 @@ def download_song_track(song_id: str, track_type: str):
         file_service = FileService()
         song_dir = file_service.get_song_directory(song_id)
         if not song_dir.is_dir():
-            current_app.logger.error(f"Song directory not found: {song_dir}")
+            current_app.logger.error("Song directory not found: %s", song_dir)
             return jsonify({"error": "Song not found"}), 404
 
         track_file: Optional[Path] = song_dir / f"{track_type}.mp3"
@@ -81,26 +86,20 @@ def download_song_track(song_id: str, track_type: str):
 
             if library_base_path not in file_path_resolved.parents:
                 current_app.logger.error(
-                    f"Attempted download outside library bounds: {track_file}"
+                    "Attempted download outside library bounds: %s", track_file
                 )
                 return jsonify({"error": "Access denied"}), 403
 
-            current_app.logger.info(
-                f"Sending {track_type}.mp3 from directory '{song_dir}'"
-            )
+            current_app.logger.info("Sending %s.mp3 from directory '%s'", track_type, song_dir)
             return send_from_directory(
                 song_dir,  # Directory path object
                 track_file.name,  # Just the filename string - use .name to get just the filename
                 as_attachment=True,  # Trigger browser download prompt
             )
         else:
-            current_app.logger.error(f"Track file not found: {track_file}")
+            current_app.logger.error("Track file not found: %s", track_file)
             return (
-                jsonify(
-                    {
-                        "error": f"{track_type.capitalize()} track not found for this song"
-                    }
-                ),
+                jsonify({"error": f"{track_type.capitalize()} track not found for this song"}),
                 404,
             )
 
@@ -116,7 +115,7 @@ def download_song_track(song_id: str, track_type: str):
 @song_bp.route("/<string:song_id>", methods=["GET"])
 def get_song_details(song_id: str):
     """Endpoint to get details for a specific song - thin controller using service layer."""
-    current_app.logger.info(f"Received request for song details: {song_id}")
+    current_app.logger.info("Received request for song details: %s", song_id)
 
     try:
         song_service = SongService()
@@ -126,12 +125,10 @@ def get_song_details(song_id: str):
             return jsonify({"error": f"Song with ID {song_id} not found"}), 404
 
         # Convert to response format
-        response = (
-            song.model_dump(mode="json") if hasattr(song, "model_dump") else song.dict()
-        )
+        response = song.model_dump(mode="json") if hasattr(song, "model_dump") else song.dict()
 
         # Add additional fields from database if needed (legacy compatibility)
-        db_song = database.get_song(song_id)
+        db_song = get_song(song_id)
         if db_song:
             response.update(
                 {
@@ -163,35 +160,34 @@ def get_song_details(song_id: str):
                 }
             )
 
-        current_app.logger.info(f"Returning details for song {song_id}")
+        current_app.logger.info("Returning details for song %s", song_id)
         return jsonify(response), 200
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error getting song {song_id}: {e}")
+        current_app.logger.error("Service error getting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to fetch song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error getting song {song_id}: {e}", exc_info=True
-        )
+        current_app.logger.error(f"Unexpected error getting song {song_id}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route("/<string:song_id>/thumbnail.<string:extension>", methods=["GET"])
 def get_thumbnail(song_id: str, extension: str):
     """Serve the thumbnail image for a song."""
-    from flask import send_file
     import os
+
+    from flask import send_file
 
     # Decode the song ID to handle URL-encoded characters
     song_id = unquote(song_id)
 
     # Validate extension
-    allowed_extensions = {'jpg', 'jpeg', 'png', 'webp'}
+    allowed_extensions = {"jpg", "jpeg", "png", "webp"}
     if extension.lower() not in allowed_extensions:
         return jsonify({"error": "Invalid image format"}), 400
 
     # Get song from database to find thumbnail path
-    db_song = database.get_song(song_id)
+    get_song(song_id)
 
     # Construct the path to the thumbnail
     file_service = FileService()
@@ -206,20 +202,18 @@ def get_thumbnail(song_id: str, extension: str):
 
     # Determine correct mimetype based on extension
     mimetype_map = {
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg', 
-        'png': 'image/png',
-        'webp': 'image/webp'
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
     }
-    mimetype = mimetype_map.get(extension.lower(), 'image/jpeg')
+    mimetype = mimetype_map.get(extension.lower(), "image/jpeg")
 
     try:
         return send_file(thumbnail_path, mimetype=mimetype)
     except Exception:
         return (
-            jsonify(
-                {"error": "An internal error occurred while serving the thumbnail."}
-            ),
+            jsonify({"error": "An internal error occurred while serving the thumbnail."}),
             500,
         )
 
@@ -227,27 +221,28 @@ def get_thumbnail(song_id: str, extension: str):
 @song_bp.route("/<string:song_id>/thumbnail", methods=["GET"])
 def get_thumbnail_auto(song_id: str):
     """Serve the thumbnail image for a song, auto-detecting format."""
-    from flask import send_file
     import os
+
+    from flask import send_file
 
     # Decode the song ID to handle URL-encoded characters
     song_id = unquote(song_id)
 
     # Get song from database to find thumbnail path
-    db_song = database.get_song(song_id)
+    get_song(song_id)
 
     # Construct the path to the thumbnail
     file_service = FileService()
     song_dir = file_service.get_song_directory(song_id)
-    
+
     # Try different formats in order of preference
     formats_to_try = [
-        ('webp', 'image/webp'),      # Best quality/compression
-        ('jpg', 'image/jpeg'),       # Most common
-        ('jpeg', 'image/jpeg'),      # Alternative JPEG extension
-        ('png', 'image/png')         # Lossless fallback
+        ("webp", "image/webp"),  # Best quality/compression
+        ("jpg", "image/jpeg"),  # Most common
+        ("jpeg", "image/jpeg"),  # Alternative JPEG extension
+        ("png", "image/png"),  # Lossless fallback
     ]
-    
+
     for extension, mimetype in formats_to_try:
         thumbnail_path = song_dir / f"thumbnail.{extension}"
         if thumbnail_path.exists() and os.access(thumbnail_path, os.R_OK):
@@ -255,7 +250,7 @@ def get_thumbnail_auto(song_id: str):
                 return send_file(thumbnail_path, mimetype=mimetype)
             except Exception:
                 continue  # Try next format
-    
+
     return jsonify({"error": "Thumbnail not found"}), 404
 
 
@@ -269,38 +264,34 @@ def get_thumbnail_jpg_compat(song_id: str):
 @song_bp.route("/<string:song_id>/lyrics", methods=["GET"])
 def get_song_lyrics(song_id: str):
     """Fetch synchronized or plain lyrics for a song using LRCLIB."""
-    current_app.logger.info(f"Received lyrics request for song {song_id}")
+    current_app.logger.info("Received lyrics request for song %s", song_id)
 
     try:
         lyrics_service = LyricsService()
-        
+
         # Check if we have lyrics stored locally first
         stored_lyrics = lyrics_service.get_lyrics(song_id)
         if stored_lyrics:
-            current_app.logger.info(f"Returning stored lyrics for song {song_id}")
+            current_app.logger.info("Returning stored lyrics for song %s", song_id)
             return jsonify({"plainLyrics": stored_lyrics}), 200
 
         # Try to get from database first
-        db_song = database.get_song(song_id)
+        db_song = get_song(song_id)
 
         if db_song:
             # Use database fields
             title = db_song.title
             artist = (
-                db_song.artist
-                if db_song.artist.lower() != "unknown artist"
-                else db_song.channel
+                db_song.artist if db_song.artist.lower() != "unknown artist" else db_song.channel
             )
             album = db_song.album
         else:
             # Fall back to file-based approach
             metadata = file_management.read_song_metadata(song_id)
             if not metadata or not metadata.title:
-                current_app.logger.warning(f"Metadata incomplete for lyrics: {song_id}")
+                current_app.logger.warning("Metadata incomplete for lyrics: %s", song_id)
                 return (
-                    jsonify(
-                        {"error": "Missing metadata (title) for lyrics lookup"}
-                    ),
+                    jsonify({"error": "Missing metadata (title) for lyrics lookup"}),
                     400,
                 )
 
@@ -311,7 +302,7 @@ def get_song_lyrics(song_id: str):
                 else metadata.channel
             )
             if not artist:
-                current_app.logger.warning(f"Artist unknown for lyrics: {song_id}")
+                current_app.logger.warning("Artist unknown for lyrics: %s", song_id)
                 return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
 
             title = metadata.title
@@ -325,39 +316,39 @@ def get_song_lyrics(song_id: str):
         query_parts = [artist, title]
         if album:
             query_parts.append(album)
-        
+
         query = " ".join(query_parts)
         results = lyrics_service.search_lyrics(query)
-        
+
         if results:
             # Take the first result (best match)
             lyrics_data = results[0]
-            current_app.logger.info(f"Found lyrics for {song_id}")
-            
+            current_app.logger.info("Found lyrics for %s", song_id)
+
             # Optionally save the lyrics locally for future use
             if lyrics_data.get("plainLyrics"):
                 try:
                     lyrics_service.save_lyrics(song_id, lyrics_data["plainLyrics"])
                 except Exception as e:
-                    current_app.logger.warning(f"Failed to save lyrics locally: {e}")
-            
+                    current_app.logger.warning("Failed to save lyrics locally: %s", e)
+
             return jsonify(lyrics_data), 200
         else:
-            current_app.logger.info(f"No lyrics found for {song_id}")
+            current_app.logger.info("No lyrics found for %s", song_id)
             return jsonify({"error": "No lyrics found"}), 404
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error getting lyrics for {song_id}: {e}")
+        current_app.logger.error("Service error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Unexpected error getting lyrics for {song_id}: {e}")
+        current_app.logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": "Failed to fetch lyrics"}), 500
 
 
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
 def delete_song(song_id: str):
     """Endpoint to delete a song by its ID - thin controller using service layer."""
-    current_app.logger.info(f"Received request to delete song: {song_id}")
+    current_app.logger.info("Received request to delete song: %s", song_id)
 
     try:
         song_service = SongService()
@@ -370,16 +361,14 @@ def delete_song(song_id: str):
         file_service = FileService()
         file_service.delete_song_files(song_id)
 
-        current_app.logger.info(f"Successfully deleted song: {song_id}")
+        current_app.logger.info("Successfully deleted song: %s", song_id)
         return jsonify({"message": "Song deleted successfully"}), 200
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error deleting song {song_id}: {e}")
+        current_app.logger.error("Service error deleting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to delete song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error deleting song {song_id}: {e}", exc_info=True
-        )
+        current_app.logger.error(f"Unexpected error deleting song {song_id}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -400,7 +389,7 @@ def create_song():
 
         # Generate a unique ID for the song
         song_id = str(uuid.uuid4())
-        current_app.logger.info(f"Creating new song with ID: {song_id}")
+        current_app.logger.info("Creating new song with ID: %s", song_id)
 
         # Prepare metadata
         metadata = SongMetadata(
@@ -426,9 +415,9 @@ def create_song():
         song = song_service.create_song_from_metadata(song_id, metadata)
 
         # Verify the song was created successfully in the database
-        db_song = database.get_song(song_id)
+        db_song = get_song(song_id)
         if not db_song:
-            current_app.logger.error(f"Failed to create song {song_id} in database")
+            current_app.logger.error("Failed to create song %s in database", song_id)
             return jsonify({"error": "Failed to create song in database"}), 500
 
         # Create the song directory
@@ -438,11 +427,9 @@ def create_song():
             file_service = FileService()
             song_dir = file_service.get_song_directory(song_id)
             song_dir.mkdir(parents=True, exist_ok=True)
-            current_app.logger.info(f"Created directory for song: {song_dir}")
+            current_app.logger.info("Created directory for song: %s", song_dir)
         except Exception as e:
-            current_app.logger.error(
-                f"Error creating directory for song {song_id}: {e}"
-            )
+            current_app.logger.error("Error creating directory for song %s: %s", song_id, e)
             # Continue even if directory creation fails - we'll try again during processing
 
         # Return the song data
@@ -455,11 +442,11 @@ def create_song():
             "status": "pending",
         }
 
-        current_app.logger.info(f"Successfully created song: {song_id}")
+        current_app.logger.info("Successfully created song: %s", song_id)
         return jsonify(response), 201
 
     except ServiceError as e:
-        current_app.logger.error(f"Service error creating song: {e}")
+        current_app.logger.error("Service error creating song: %s", e)
         return jsonify({"error": "Failed to create song", "details": str(e)}), 500
     except Exception as e:
         current_app.logger.error(f"Unexpected error creating song: {e}", exc_info=True)
@@ -469,7 +456,7 @@ def create_song():
 @song_bp.route("/<string:song_id>", methods=["PATCH"])
 def update_song(song_id: str):
     """Update a song with any provided fields - generic update endpoint."""
-    current_app.logger.info(f"Received request to update song {song_id}")
+    current_app.logger.info("Received request to update song %s", song_id)
 
     try:
         # Get request data
@@ -478,7 +465,7 @@ def update_song(song_id: str):
             return jsonify({"error": "No data provided"}), 400
 
         # Get existing song from database first
-        db_song = database.get_song(song_id)
+        db_song = get_song(song_id)
         if not db_song:
             return jsonify({"error": "Song not found"}), 404
 
@@ -524,16 +511,33 @@ def update_song(song_id: str):
             "youtubeChannelId": db_song.youtube_channel_id,
             "youtubeChannelName": db_song.youtube_channel_name,
         }
-        
+
         # Apply updates from request data
         # Handle direct field mappings
-        for field in ["title", "artist", "favorite", "duration", "source", "sourceUrl", 
-                     "videoId", "uploader", "uploaderId", "channel", "channelId", 
-                     "description", "uploadDate", "mbid", "genre", "language", 
-                     "lyrics", "syncedLyrics", "itunesArtworkUrls"]:
+        for field in [
+            "title",
+            "artist",
+            "favorite",
+            "duration",
+            "source",
+            "sourceUrl",
+            "videoId",
+            "uploader",
+            "uploaderId",
+            "channel",
+            "channelId",
+            "description",
+            "uploadDate",
+            "mbid",
+            "genre",
+            "language",
+            "lyrics",
+            "syncedLyrics",
+            "itunesArtworkUrls",
+        ]:
             if field in data:
                 metadata_dict[field] = data[field]
-        
+
         # Handle frontend-to-backend field name mappings
         if "album" in data:
             metadata_dict["releaseTitle"] = data["album"]
@@ -545,13 +549,13 @@ def update_song(song_id: str):
             metadata_dict["coverArt"] = data["coverArt"]
         if "thumbnail" in data:
             metadata_dict["thumbnail"] = data["thumbnail"]
-        
+
         # Create SongMetadata object
         updated_metadata = SongMetadata(**metadata_dict)
-        
+
         # Save to database using file_management function
         file_management.write_song_metadata(song_id, updated_metadata)
-        
+
         # Return updated song details
         return get_song_details(song_id)
 
@@ -563,14 +567,15 @@ def update_song(song_id: str):
 @song_bp.route("/<string:song_id>/cover.<string:extension>", methods=["GET"])
 def get_cover_art(song_id: str, extension: str):
     """Serve the cover art image for a song."""
-    from flask import send_file
     import os
+
+    from flask import send_file
 
     # Decode the song ID to handle URL-encoded characters
     song_id = unquote(song_id)
 
     # Validate extension
-    allowed_extensions = {'jpg', 'jpeg', 'png', 'webp'}
+    allowed_extensions = {"jpg", "jpeg", "png", "webp"}
     if extension.lower() not in allowed_extensions:
         return jsonify({"error": "Invalid image format"}), 400
 
@@ -587,20 +592,18 @@ def get_cover_art(song_id: str, extension: str):
 
     # Determine correct mimetype based on extension
     mimetype_map = {
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg', 
-        'png': 'image/png',
-        'webp': 'image/webp'
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
     }
-    mimetype = mimetype_map.get(extension.lower(), 'image/jpeg')
+    mimetype = mimetype_map.get(extension.lower(), "image/jpeg")
 
     try:
         return send_file(cover_art_path, mimetype=mimetype)
     except Exception:
         return (
-            jsonify(
-                {"error": "An internal error occurred while serving the cover art."}
-            ),
+            jsonify({"error": "An internal error occurred while serving the cover art."}),
             500,
         )
 
@@ -608,8 +611,9 @@ def get_cover_art(song_id: str, extension: str):
 @song_bp.route("/<string:song_id>/cover", methods=["GET"])
 def get_cover_art_auto(song_id: str):
     """Serve the cover art image for a song, auto-detecting format."""
-    from flask import send_file
     import os
+
+    from flask import send_file
 
     # Decode the song ID to handle URL-encoded characters
     song_id = unquote(song_id)
@@ -617,15 +621,15 @@ def get_cover_art_auto(song_id: str):
     # Construct the path to the cover art
     file_service = FileService()
     song_dir = file_service.get_song_directory(song_id)
-    
+
     # Try different formats in order of preference
     formats_to_try = [
-        ('webp', 'image/webp'),      # Best quality/compression
-        ('jpg', 'image/jpeg'),       # Most common
-        ('jpeg', 'image/jpeg'),      # Alternative JPEG extension
-        ('png', 'image/png'),        # High quality
+        ("webp", "image/webp"),  # Best quality/compression
+        ("jpg", "image/jpeg"),  # Most common
+        ("jpeg", "image/jpeg"),  # Alternative JPEG extension
+        ("png", "image/png"),  # High quality
     ]
-    
+
     for ext, mimetype in formats_to_try:
         cover_art_path = song_dir / f"cover.{ext}"
         if cover_art_path.exists() and os.access(cover_art_path, os.R_OK):
@@ -633,5 +637,5 @@ def get_cover_art_auto(song_id: str):
                 return send_file(cover_art_path, mimetype=mimetype)
             except Exception:
                 continue  # Try next format
-    
+
     return jsonify({"error": "Cover art not found"}), 404

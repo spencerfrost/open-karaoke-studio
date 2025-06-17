@@ -13,7 +13,7 @@ from .youtube_service import YouTubeServiceInterface
 __all__ = [
     "AudioServiceInterface",
     "FileServiceInterface",
-    "LyricsServiceInterface", 
+    "LyricsServiceInterface",
     "MetadataServiceInterface",
     "SongServiceInterface",
     "YouTubeServiceInterface",

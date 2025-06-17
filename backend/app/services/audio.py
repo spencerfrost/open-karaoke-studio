@@ -1,18 +1,20 @@
 import os
 import sys
+import time
 import traceback
 from pathlib import Path
-import time
+
 from demucs.api import Separator, save_audio
+
+from ..config import get_config
 
 # Use relative imports
 from . import file_management
-from ..config import get_config
+
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
 
-    pass
 
 def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event=None):
     """
@@ -33,15 +35,19 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         Exception: For other errors during processing.
     """
     if status_callback is None:
-        def status_callback(msg): print(msg)
+
+        def status_callback(msg):
+            print(msg)
 
     if stop_event is None:
         import threading
+
         stop_event = threading.Event()
 
     try:
         # First check if CUDA is available
         import torch
+
         use_cuda = torch.cuda.is_available()
 
         if use_cuda:
@@ -81,9 +87,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 (processed_segments / total_segments) if total_segments > 0 else 0
             )
             overall_progress = (
-                ((model_idx + progress_current_model) / models_count)
-                if models_count > 0
-                else 0
+                ((model_idx + progress_current_model) / models_count) if models_count > 0 else 0
             )
 
             if data["state"] == "end":
@@ -110,7 +114,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 device_str = f"cuda:0 ({device_name})"
             else:
                 device_str = "cpu"
-            
+
             device_msg = f"Using device: {device_str}"
             print(device_msg)
             if status_callback:
@@ -143,9 +147,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             # --- Determine Output Format ---
             input_extension = input_path.suffix.lower()
-            output_extension = (
-                input_extension if input_extension in [".wav", ".mp3"] else ".wav"
-            )
+            output_extension = input_extension if input_extension in [".wav", ".mp3"] else ".wav"
             output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
             format_msg = f"Input: {input_extension}, Output: {output_format_str}"
             print(format_msg)
@@ -209,9 +211,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 output_extension
             )
-            instrumental_path = file_management.get_instrumental_path_stem(
-                song_dir
-            ).with_suffix(output_extension)
+            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+                output_extension
+            )
             vocals_tensor = separated.get("vocals")
 
             save_kwargs = {"samplerate": separator.samplerate}
