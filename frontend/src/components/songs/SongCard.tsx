@@ -12,15 +12,31 @@ import { useNavigate } from "react-router-dom";
 
 interface SongCardProps {
   song: Song;
+  onSelect?: (song: Song) => void;
+  onToggleFavorite?: (song: Song) => void;
+  onAddToQueue?: (song: Song) => void;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ song }) => {
+const SongCard: React.FC<SongCardProps> = ({ 
+  song, 
+  onSelect,
+  onToggleFavorite,
+  onAddToQueue 
+}) => {
   // Local state for dialog
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { getArtworkUrl } = useSongs();
   const navigate = useNavigate();
 
   const artworkUrl = getArtworkUrl(song, "medium");
+
+  const handlePlay = () => {
+    if (onSelect) {
+      onSelect(song);
+    } else {
+      navigate(`/player/${song.id}`);
+    }
+  };
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
@@ -81,7 +97,7 @@ const SongCard: React.FC<SongCardProps> = ({ song }) => {
           size="icon"
           className="text-accent"
           aria-label="Play song"
-          onClick={() => navigate(`/player/${song.id}`)}
+          onClick={handlePlay}
         >
           <Play className="w-5 h-5" />
         </Button>

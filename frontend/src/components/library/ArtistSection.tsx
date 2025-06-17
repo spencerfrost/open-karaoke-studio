@@ -33,7 +33,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
     fetchNextPage,
     isLoading,
     error,
-  } = useInfiniteArtistSongs(artistName);
+  } = useInfiniteArtistSongs(artistName, 10, {
+    enabled: isExpanded, // Only fetch songs when accordion is expanded
+  });
 
   // Infinite scroll hook for songs within this artist
   const sentinelRef = useInfiniteScroll({
