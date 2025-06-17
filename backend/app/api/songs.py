@@ -176,9 +176,6 @@ def get_song_details(song_id: str):
         return jsonify({"error": "Internal server error"}), 500
 
 
-# Removed redundant metadata endpoint - use generic PATCH /api/songs/<song_id> instead
-
-
 @song_bp.route("/<string:song_id>/thumbnail.<string:extension>", methods=["GET"])
 def get_thumbnail(song_id: str, extension: str):
     """Serve the thumbnail image for a song."""
