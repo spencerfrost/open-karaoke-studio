@@ -2,7 +2,12 @@
 
 from flask import Blueprint, jsonify, request, current_app
 from typing import List, Dict, Any, Optional
-from ..db import database
+from ..db.song_operations import (
+    get_artists_with_counts,
+    get_artists_total_count,
+    get_songs_by_artist,
+    search_songs_paginated
+)
 from ..services.song_service import SongService
 from ..exceptions import ServiceError
 
@@ -24,13 +29,13 @@ def get_artists():
         offset = int(request.args.get('offset', 0))
         
         # Get artists with song counts from database
-        artists = database.get_artists_with_counts(
+        artists = get_artists_with_counts(
             search_term=search_term,
             limit=limit,
             offset=offset
         )
         
-        total_count = database.get_artists_total_count(search_term=search_term)
+        total_count = get_artists_total_count(search_term=search_term)
         
         response = {
             "artists": artists,
@@ -51,7 +56,7 @@ def get_artists():
 
 
 @artists_bp.route("/by-artist/<string:artist_name>", methods=["GET"])
-def get_songs_by_artist(artist_name: str):
+def get_songs_by_artist_route(artist_name: str):
     """Get songs for a specific artist with pagination.
     
     Query Parameters:
@@ -67,7 +72,7 @@ def get_songs_by_artist(artist_name: str):
         direction = request.args.get('direction', 'asc')
         
         # Get songs for artist from database
-        songs_data = database.get_songs_by_artist(
+        songs_data = get_songs_by_artist(
             artist_name=artist_name,
             limit=limit,
             offset=offset,
@@ -98,7 +103,7 @@ def get_songs_by_artist(artist_name: str):
 
 
 @artists_bp.route("/search", methods=["GET"])
-def search_songs_paginated():
+def search_songs():
     """Enhanced search with pagination and artist grouping options.
     
     Query Parameters:
@@ -121,7 +126,7 @@ def search_songs_paginated():
         direction = request.args.get('direction', 'desc')
         
         # Get search results from database
-        search_results = database.search_songs_paginated(
+        search_results = search_songs_paginated(
             query=query,
             limit=limit,
             offset=offset,
@@ -152,3 +157,6 @@ def search_songs_paginated():
     except Exception as e:
         current_app.logger.error(f"Error searching songs: {e}", exc_info=True)
         return jsonify({"error": "Failed to search songs"}), 500
+
+
+
