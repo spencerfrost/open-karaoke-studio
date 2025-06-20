@@ -11,7 +11,7 @@ import logging
 from typing import List, Optional, Dict, Any, Union
 
 from app.db.database import get_all_songs, create_or_update_song
-from app.db.models import DbSong, SongMetadata
+from app.db.models import DbSong
 
 logger = logging.getLogger(__name__)
 
@@ -76,30 +76,26 @@ def get_songs_to_process(
         raise
 
 
-def update_song_metadata(song: DbSong, metadata: Union[SongMetadata, Dict[str, Any]], dry_run: bool = False) -> bool:
+def update_song_metadata(song: DbSong, metadata: Dict[str, Any], dry_run: bool = False) -> bool:
     """
     Update song in database with enhanced metadata.
     
     Args:
         song: The song database object
-        metadata: Enhanced metadata to update (can be SongMetadata object or dict)
+        metadata: Enhanced metadata dictionary to update
         dry_run: If True, only simulate the update
         
     Returns:
         True if update was successful (or simulated)
     """
     try:
-        # Convert dictionary to SongMetadata object if needed
-        if isinstance(metadata, dict):
-            metadata = SongMetadata(**metadata)
-        
         if dry_run:
             logger.info(f"[DRY RUN] Would update song {song.id} with enhanced metadata")
             log_metadata_changes(song, metadata)
             return True
         else:
             logger.debug(f"Updating song {song.id} in database")
-            updated_song = create_or_update_song(song.id, metadata)
+            updated_song = create_or_update_song(song.id, **metadata)
 
             if updated_song:
                 log_metadata_changes(song, metadata)
@@ -113,40 +109,37 @@ def update_song_metadata(song: DbSong, metadata: Union[SongMetadata, Dict[str, A
         return False
 
 
-def log_metadata_changes(original_song: DbSong, new_metadata: SongMetadata) -> None:
+def log_metadata_changes(original_song: DbSong, new_metadata: Dict[str, Any]) -> None:
     """
     Log the changes that would be made to song metadata.
     
     Args:
         original_song: Original song data
-        new_metadata: New metadata to apply
+        new_metadata: New metadata dictionary to apply
     """
     changes = []
     
-    # Check for changes in key fields - mapping SongMetadata field names to DbSong field names
-    if original_song.title != new_metadata.title:
-        changes.append(f"title: '{original_song.title}' -> '{new_metadata.title}'")
+    # Check for changes in key fields
+    if 'title' in new_metadata and original_song.title != new_metadata['title']:
+        changes.append(f"title: '{original_song.title}' -> '{new_metadata['title']}'")
     
-    if original_song.artist != new_metadata.artist:
-        changes.append(f"artist: '{original_song.artist}' -> '{new_metadata.artist}'")
+    if 'artist' in new_metadata and original_song.artist != new_metadata['artist']:
+        changes.append(f"artist: '{original_song.artist}' -> '{new_metadata['artist']}'")
     
-    # SongMetadata doesn't have an 'album' field - it uses 'releaseTitle'
-    if hasattr(new_metadata, 'releaseTitle') and original_song.album != new_metadata.releaseTitle:
-        changes.append(f"album: '{original_song.album}' -> '{new_metadata.releaseTitle}'")
+    if 'album' in new_metadata and original_song.album != new_metadata['album']:
+        changes.append(f"album: '{original_song.album}' -> '{new_metadata['album']}'")
     
-    if original_song.genre != new_metadata.genre:
-        changes.append(f"genre: '{original_song.genre}' -> '{new_metadata.genre}'")
+    if 'genre' in new_metadata and original_song.genre != new_metadata['genre']:
+        changes.append(f"genre: '{original_song.genre}' -> '{new_metadata['genre']}'")
     
-    if original_song.release_date != new_metadata.releaseDate:
-        changes.append(f"release_date: '{original_song.release_date}' -> '{new_metadata.releaseDate}'")
+    if 'release_date' in new_metadata and original_song.release_date != new_metadata['release_date']:
+        changes.append(f"release_date: '{original_song.release_date}' -> '{new_metadata['release_date']}'")
     
-    # SongMetadata uses 'coverArt' not 'cover_art_path'
-    if hasattr(new_metadata, 'coverArt') and original_song.cover_art_path != new_metadata.coverArt:
-        changes.append(f"cover_art_path: '{original_song.cover_art_path}' -> '{new_metadata.coverArt}'")
+    if 'cover_art_path' in new_metadata and original_song.cover_art_path != new_metadata['cover_art_path']:
+        changes.append(f"cover_art_path: '{original_song.cover_art_path}' -> '{new_metadata['cover_art_path']}'")
     
-    # SongMetadata uses 'itunesTrackId' not 'itunes_track_id'
-    if hasattr(new_metadata, 'itunesTrackId') and original_song.itunes_track_id != new_metadata.itunesTrackId:
-        changes.append(f"itunes_track_id: '{original_song.itunes_track_id}' -> '{new_metadata.itunesTrackId}'")
+    if 'itunes_track_id' in new_metadata and original_song.itunes_track_id != new_metadata['itunes_track_id']:
+        changes.append(f"itunes_track_id: '{original_song.itunes_track_id}' -> '{new_metadata['itunes_track_id']}'")
     
     if changes:
         logger.info(f"Song {original_song.id} changes: {'; '.join(changes)}")
@@ -192,7 +185,7 @@ def get_database_stats() -> Dict[str, Any]:
         if stats["total_songs"] > 0:
             for key in ["with_itunes_id", "with_cover_art", "with_genre", "with_release_date", "with_album", "unknown_artist"]:
                 percentage = (stats[key] / stats["total_songs"]) * 100
-                stats[f"{key}_percentage"] = round(percentage, 1)
+                stats[f"{key}_percentage"] = float(round(percentage, 1))
         
         return stats
         

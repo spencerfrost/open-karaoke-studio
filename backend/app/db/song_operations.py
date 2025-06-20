@@ -16,7 +16,7 @@ from sqlalchemy import asc, desc, func
 from ..config import get_config
 from ..services import file_management
 from .database import get_db_session
-from .models import DbSong, SongMetadata
+from .models import DbSong
 
 
 def get_all_songs() -> list[DbSong]:
@@ -41,46 +41,132 @@ def get_song(song_id: str) -> Optional[DbSong]:
         return None
 
 
-def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]:
-    """Create or update a song in the database from metadata
+def create_or_update_song(
+    song_id: str,
+    title: str,
+    artist: str,
+    duration: Optional[int] = None,
+    video_id: Optional[str] = None,
+    source: Optional[str] = None,
+    source_url: Optional[str] = None,
+    thumbnail_path: Optional[str] = None,
+    cover_art_path: Optional[str] = None,
+    uploader: Optional[str] = None,
+    uploader_id: Optional[str] = None,
+    channel: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    description: Optional[str] = None,
+    upload_date: Optional[str] = None,
+    album: Optional[str] = None,
+    genre: Optional[str] = None,
+    language: Optional[str] = None,
+    lyrics: Optional[str] = None,
+    synced_lyrics: Optional[str] = None,
+    favorite: bool = False,
+) -> Optional[DbSong]:
+    """Create or update a song in the database with direct parameters
+
+    Args:
+        song_id: Unique identifier for the song
+        title: Song title
+        artist: Artist name
+        duration: Song duration in seconds
+        video_id: YouTube video ID
+        source: Source platform (e.g., 'youtube')
+        source_url: Original source URL
+        thumbnail_path: Path to thumbnail image
+        cover_art_path: Path to cover art image
+        uploader: Channel/uploader name
+        uploader_id: Channel/uploader ID
+        channel: Channel name
+        channel_id: Channel ID
+        description: Song/video description
+        upload_date: Upload date string
+        album: Album name
+        genre: Music genre
+        language: Language code
+        lyrics: Song lyrics
+        synced_lyrics: Time-synced lyrics
+        favorite: Whether song is marked as favorite
 
     Returns:
-        The refreshed DbSong model with all data loaded
+        The refreshed DbSong model with all data loaded, or None if failed
     """
-
     try:
         with get_db_session() as session:
             db_song = session.query(DbSong).filter(DbSong.id == song_id).first()
 
             if not db_song:
-                # Create new song
-                db_song = DbSong(id=song_id)
+                # Create new song with direct parameter assignment
+                db_song = DbSong(
+                    id=song_id,
+                    title=title,
+                    artist=artist,
+                    duration=duration,
+                    video_id=video_id,
+                    source=source,
+                    source_url=source_url,
+                    thumbnail_path=thumbnail_path,
+                    cover_art_path=cover_art_path,
+                    uploader=uploader,
+                    uploader_id=uploader_id,
+                    channel=channel,
+                    channel_id=channel_id,
+                    description=description,
+                    upload_date=upload_date,
+                    album=album,
+                    genre=genre,
+                    language=language,
+                    lyrics=lyrics,
+                    synced_lyrics=synced_lyrics,
+                    favorite=favorite,
+                )
                 session.add(db_song)
-
-            # Update all fields from metadata (using safe attribute access)
-            db_song.title = metadata.title
-            db_song.artist = metadata.artist
-            db_song.album = getattr(metadata, "album", None)
-            db_song.genre = metadata.genre
-            db_song.year = getattr(metadata, "year", None)
-            db_song.track_number = getattr(metadata, "track_number", None)
-            db_song.disc_number = getattr(metadata, "disc_number", None)
-            db_song.duration = metadata.duration
-            db_song.file_path = getattr(metadata, "file_path", None)
-            db_song.file_size = getattr(metadata, "file_size", None)
-            db_song.original_filename = metadata.original_filename
-
-            # Update audio paths if provided
-            if metadata.vocals_path:
-                db_song.vocals_path = metadata.vocals_path
-            if metadata.instrumental_path:
-                db_song.instrumental_path = metadata.instrumental_path
+            else:
+                # Update existing song with direct assignment (only non-None values)
+                if title:
+                    db_song.title = title
+                if artist:
+                    db_song.artist = artist
+                if duration is not None:
+                    db_song.duration = duration
+                if video_id:
+                    db_song.video_id = video_id
+                if source:
+                    db_song.source = source
+                if source_url:
+                    db_song.source_url = source_url
+                if thumbnail_path:
+                    db_song.thumbnail_path = thumbnail_path
+                if cover_art_path:
+                    db_song.cover_art_path = cover_art_path
+                if uploader:
+                    db_song.uploader = uploader
+                if uploader_id:
+                    db_song.uploader_id = uploader_id
+                if channel:
+                    db_song.channel = channel
+                if channel_id:
+                    db_song.channel_id = channel_id
+                if description:
+                    db_song.description = description
+                if upload_date:
+                    db_song.upload_date = upload_date
+                if album:
+                    db_song.album = album
+                if genre:
+                    db_song.genre = genre
+                if language:
+                    db_song.language = language
+                if lyrics:
+                    db_song.lyrics = lyrics
+                if synced_lyrics:
+                    db_song.synced_lyrics = synced_lyrics
+                # Update favorite regardless (boolean field)
+                db_song.favorite = favorite
 
             session.commit()
-
-            # Refresh to get all updated data including auto-generated fields
             session.refresh(db_song)
-
             return db_song
 
     except Exception as e:
@@ -114,12 +200,15 @@ def sync_songs_with_filesystem() -> int:
             # Add new songs
             new_songs_count = 0
             for song_id in filesystem_song_ids - db_song_ids:
-                # Use file_management service to get metadata
-                metadata = file_management.read_song_metadata(song_id)
-                if metadata:
-                    if create_or_update_song(song_id, metadata):
-                        new_songs_count += 1
-                        logging.info("Added new song: %s", song_id)
+                # Create minimal song entry for discovered folders
+                # Metadata will be populated by other services (YouTube, etc.)
+                if create_or_update_song(
+                    song_id=song_id,
+                    title="Unknown Title",  # Will be updated when metadata is available
+                    artist="Unknown Artist",  # Will be updated when metadata is available
+                ):
+                    new_songs_count += 1
+                    logging.info("Added new song folder: %s", song_id)
 
             # Remove songs that no longer exist in filesystem
             deleted_song_ids = db_song_ids - filesystem_song_ids
@@ -163,7 +252,9 @@ def delete_song(song_id: str) -> bool:
         return False
 
 
-def update_song_audio_paths(song_id: str, vocals_path: str, instrumental_path: str) -> bool:
+def update_song_audio_paths(
+    song_id: str, vocals_path: str, instrumental_path: str
+) -> bool:
     """Update the audio paths for a song (after audio separation is complete)
 
     Args:
@@ -225,50 +316,19 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             song.album = updated_song.album or song.album
             song.genre = updated_song.genre or song.genre
             song.year = updated_song.year or song.year
-            song.track_number = updated_song.track_number or song.track_number
-            song.disc_number = updated_song.disc_number or song.disc_number
             song.duration = updated_song.duration or song.duration
             song.lyrics = updated_song.lyrics or song.lyrics
-            song.itunes_artwork_url = updated_song.itunes_artwork_url or song.itunes_artwork_url
-            song.itunes_track_id = updated_song.itunes_track_id or song.itunes_track_id
-            song.youtube_url = updated_song.youtube_url or song.youtube_url
-            song.preview_url = updated_song.preview_url or song.preview_url
-            song.release_date = updated_song.release_date or song.release_date
-            song.apple_music_id = updated_song.apple_music_id or song.apple_music_id
-            song.spotify_id = updated_song.spotify_id or song.spotify_id
-            song.isrc = updated_song.isrc or song.isrc
-            song.explicit = (
-                updated_song.explicit if updated_song.explicit is not None else song.explicit
-            )
-            song.popularity = updated_song.popularity or song.popularity
-            song.energy = updated_song.energy or song.energy
-            song.danceability = updated_song.danceability or song.danceability
-            song.valence = updated_song.valence or song.valence
-            song.acousticness = updated_song.acousticness or song.acousticness
-            song.instrumentalness = updated_song.instrumentalness or song.instrumentalness
-            song.speechiness = updated_song.speechiness or song.speechiness
-            song.liveness = updated_song.liveness or song.liveness
-            song.loudness = updated_song.loudness or song.loudness
-            song.tempo = updated_song.tempo or song.tempo
-            song.time_signature = updated_song.time_signature or song.time_signature
-            song.key_signature = updated_song.key_signature or song.key_signature
-            song.mode = updated_song.mode or song.mode
 
-            # Update file paths if provided
-            if updated_song.file_path:
-                song.file_path = updated_song.file_path
-            if updated_song.vocals_path:
+            # Update file paths if provided - only for fields that exist
+            if hasattr(updated_song, "vocals_path") and updated_song.vocals_path:
                 song.vocals_path = updated_song.vocals_path
-            if updated_song.instrumental_path:
+            if (
+                hasattr(updated_song, "instrumental_path")
+                and updated_song.instrumental_path
+            ):
                 song.instrumental_path = updated_song.instrumental_path
-            if updated_song.thumbnail_path:
+            if hasattr(updated_song, "thumbnail_path") and updated_song.thumbnail_path:
                 song.thumbnail_path = updated_song.thumbnail_path
-
-            # Update status fields if provided
-            if updated_song.processing_status:
-                song.processing_status = updated_song.processing_status
-            if updated_song.has_audio_files is not None:
-                song.has_audio_files = updated_song.has_audio_files
 
             session.commit()
             logging.info("Updated song metadata for %s", song_id)
@@ -456,7 +516,9 @@ def search_songs_paginated(
             if group_by_artist:
                 # Group results by artist
                 artist_query = (
-                    session.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
+                    session.query(
+                        DbSong.artist, func.count(DbSong.id).label("song_count")
+                    )
                     .filter(search_filter)
                     .group_by(DbSong.artist)
                 )
@@ -539,5 +601,10 @@ def search_songs_paginated(
         logging.error("Error searching songs: %s", e)
         return {
             "songs": [],
-            "pagination": {"total": 0, "limit": limit, "offset": offset, "hasMore": False},
+            "pagination": {
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "hasMore": False,
+            },
         }

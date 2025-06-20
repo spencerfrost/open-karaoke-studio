@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import get_config
 from ..services import file_management
-from .models import Base, DbSong, Song, SongMetadata
+from .models import Base, DbSong
 
 # Get configuration and create database engine
 config = get_config()

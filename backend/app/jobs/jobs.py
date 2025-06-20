@@ -30,11 +30,13 @@ def _broadcast_job_event(job, was_created=False):
         was_created: Whether this is a newly created job
     """
     try:
-        from ..websockets.jobs_ws import (broadcast_job_cancelled,
-                                          broadcast_job_completed,
-                                          broadcast_job_created,
-                                          broadcast_job_failed,
-                                          broadcast_job_update)
+        from ..websockets.jobs_ws import (
+            broadcast_job_cancelled,
+            broadcast_job_completed,
+            broadcast_job_created,
+            broadcast_job_failed,
+            broadcast_job_update,
+        )
 
         job_data = job.to_dict()
 
@@ -183,10 +185,14 @@ def process_audio_job(self, job_id):
             "job_id": job_id,
             "filename": filename,
             "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(filepath.suffix)
+                file_management.get_vocals_path_stem(song_dir).with_suffix(
+                    filepath.suffix
+                )
             ),
             "instrumental_path": str(
-                file_management.get_instrumental_path_stem(song_dir).with_suffix(filepath.suffix)
+                file_management.get_instrumental_path_stem(song_dir).with_suffix(
+                    filepath.suffix
+                )
             ),
         }
 
@@ -237,7 +243,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
         metadata: Dict with artist, title, album, etc.
     """
     logger.info(
-        "Starting unified YouTube processing job for job %s (video_id: %s)", job_id, video_id
+        "Starting unified YouTube processing job for job %s (video_id: %s)",
+        job_id,
+        video_id,
     )
 
     # Get the job from storage
@@ -293,14 +301,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
     try:
         # Phase 1: Download (5-30% progress)
-        from ..services.song_service import SongService
         from ..services.youtube_service import YouTubeService
 
         file_service = FileService()
         file_service.ensure_library_exists()
 
-        song_service = SongService()
-        youtube_service = YouTubeService(song_service=song_service)
+        youtube_service = YouTubeService()
 
         update_progress(10, "Starting YouTube download")
 
@@ -336,23 +342,31 @@ def process_youtube_job(self, job_id, video_id, metadata):
             success = update_song_with_metadata(song_id, updated_song)
 
             if success:
-                logger.info("Successfully updated song %s with enhanced metadata", song_id)
+                logger.info(
+                    "Successfully updated song %s with enhanced metadata", song_id
+                )
                 update_progress(25, "Enhanced metadata saved")
             else:
-                logger.warning("Failed to update song %s with enhanced metadata", song_id)
+                logger.warning(
+                    "Failed to update song %s with enhanced metadata", song_id
+                )
 
         except Exception as e:
             logger.error("Error updating song metadata for %s: %s", song_id, e)
             # Continue processing even if metadata update fails
 
-        update_progress(30, "Download complete, starting audio processing", JobStatus.PROCESSING)
+        update_progress(
+            30, "Download complete, starting audio processing", JobStatus.PROCESSING
+        )
 
         # Phase 2: Audio Processing (30-90% progress)
         # IMPORTANT: Use song_id for the directory, not job_id
         original_file = song_dir / "original.mp3"
 
         if not original_file.exists():
-            raise AudioProcessingError(f"Original audio file not found: {original_file}")
+            raise AudioProcessingError(
+                f"Original audio file not found: {original_file}"
+            )
 
         # Create a stop event (for compatibility with audio.separate_audio)
         import threading
@@ -373,7 +387,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
         ):
             raise AudioProcessingError("Audio separation failed")
 
-        update_progress(90, "Audio processing complete, finalizing", JobStatus.FINALIZING)
+        update_progress(
+            90, "Audio processing complete, finalizing", JobStatus.FINALIZING
+        )
 
         # Phase 3: Finalization (90-100% progress)
         update_progress(93, "Downloading thumbnail")
@@ -397,10 +413,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Phase 1A Task 3: Update database with audio file paths after processing
         try:
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 ".mp3"
             )
+            instrumental_path = file_management.get_instrumental_path_stem(
+                song_dir
+            ).with_suffix(".mp3")
 
             # Verify the files actually exist before updating database
             if vocals_path.exists() and instrumental_path.exists():
@@ -410,12 +428,16 @@ def process_youtube_job(self, job_id, video_id, metadata):
                 config = get_config()
 
                 vocals_relative = str(vocals_path.relative_to(config.LIBRARY_DIR))
-                instrumental_relative = str(instrumental_path.relative_to(config.LIBRARY_DIR))
+                instrumental_relative = str(
+                    instrumental_path.relative_to(config.LIBRARY_DIR)
+                )
 
                 # Update song with audio file paths
                 from ..db.song_operations import update_song_audio_paths
 
-                success = update_song_audio_paths(song_id, vocals_relative, instrumental_relative)
+                success = update_song_audio_paths(
+                    song_id, vocals_relative, instrumental_relative
+                )
 
                 if success:
                     logger.info("Successfully updated audio paths for song %s", song_id)
@@ -447,7 +469,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
             "status": "success",
             "job_id": job_id,
             "song_id": song_id,
-            "vocals_path": str(file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")),
+            "vocals_path": str(
+                file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
+            ),
             "instrumental_path": str(
                 file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
             ),

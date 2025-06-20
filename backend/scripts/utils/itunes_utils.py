@@ -69,18 +69,28 @@ def search_itunes_for_song(song: DbSong) -> Optional[Dict[str, Any]]:
     return None
 
 
-def enhance_song_metadata(song: DbSong, itunes_data: Dict[str, Any]) -> Optional[object]:
+def enhance_song_metadata(song: DbSong, itunes_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Create enhanced metadata from iTunes data.
+    DEPRECATED: This function is misleading and redundant.
+    
+    What it ACTUALLY does:
+    1. Converts DbSong to dict
+    2. Calls enhance_metadata_with_itunes() which IGNORES the passed itunes_data 
+       and searches iTunes API again (wasteful!)
+    3. Returns enhanced metadata dict
     
     Args:
         song: The song database object
-        itunes_data: iTunes metadata dictionary
+        itunes_data: iTunes metadata dictionary (IGNORED by this function!)
         
     Returns:
-        Enhanced SongMetadata object or None if failed
+        Enhanced metadata dictionary or None if failed
+        
+    TODO: Replace usage with direct call to enhance_metadata_with_itunes()
     """
     try:
+        logger.warning(f"enhance_song_metadata() for song {song.id} is deprecated - makes redundant iTunes API call")
+        
         # Convert DbSong to metadata dictionary for enhance_metadata_with_itunes
         metadata_dict = {
             'title': song.title,
@@ -103,6 +113,7 @@ def enhance_song_metadata(song: DbSong, itunes_data: Dict[str, Any]) -> Optional
         from pathlib import Path
         song_dir = Path(f"/home/spencer/code/open-karaoke/karaoke_library/{song.id}")
         
+        # NOTE: This ignores the passed itunes_data and searches iTunes again!
         enhanced_metadata = enhance_metadata_with_itunes(metadata_dict, song_dir)
         
         if enhanced_metadata:
@@ -117,7 +128,74 @@ def enhance_song_metadata(song: DbSong, itunes_data: Dict[str, Any]) -> Optional
         return None
 
 
-def validate_itunes_match(song: DbSong, itunes_data: Dict[str, Any]) -> tuple[bool, str]:
+def enhance_song_with_itunes_data(song: DbSong, itunes_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Efficiently enhance song metadata using already-fetched iTunes data.
+    
+    This function ACTUALLY uses the iTunes data you pass in, unlike enhance_song_metadata()
+    which ignores it and makes redundant API calls.
+    
+    Args:
+        song: The song database object
+        itunes_data: Already-fetched iTunes metadata dictionary
+        
+    Returns:
+        Enhanced metadata dictionary ready for database update
+    """
+    try:
+        # Start with current song data
+        enhanced = {
+            'title': song.title or itunes_data.get('trackName'),
+            'artist': song.artist or itunes_data.get('artistName'), 
+            'album': song.album or itunes_data.get('collectionName'),
+            'genre': song.genre or itunes_data.get('primaryGenreName'),
+            'duration': song.duration or itunes_data.get('trackTimeMillis', 0) // 1000,  # Convert ms to seconds
+        }
+        
+        # Add iTunes-specific fields
+        enhanced.update({
+            'itunes_track_id': itunes_data.get('trackId'),
+            'itunes_artist_id': itunes_data.get('artistId'),
+            'itunes_collection_id': itunes_data.get('collectionId'),
+            'track_time_millis': itunes_data.get('trackTimeMillis'),
+            'itunes_explicit': itunes_data.get('trackExplicitness') == 'explicit',
+            'itunes_preview_url': itunes_data.get('previewUrl'),
+        })
+        
+        # Add release information
+        if 'releaseDate' in itunes_data:
+            enhanced['release_date'] = itunes_data['releaseDate']
+            # Extract year from release date
+            try:
+                release_year = int(itunes_data['releaseDate'][:4])
+                enhanced['year'] = release_year
+            except (ValueError, TypeError):
+                pass
+        
+        # Add artwork URLs as JSON
+        artwork_urls = []
+        for size in [30, 60, 100, 600]:  # Include 600x600 for high-res
+            url_key = f'artworkUrl{size}'
+            if url_key in itunes_data:
+                artwork_urls.append(itunes_data[url_key])
+        
+        if artwork_urls:
+            import json
+            enhanced['itunes_artwork_urls'] = json.dumps(artwork_urls)
+        
+        # Store raw iTunes metadata as JSON
+        import json
+        enhanced['itunes_raw_metadata'] = json.dumps(itunes_data)
+        
+        logger.debug(f"Efficiently enhanced song {song.id} metadata using iTunes data")
+        return enhanced
+        
+    except Exception as e:
+        logger.error(f"Error enhancing song {song.id} with iTunes data: {e}")
+        return {}
+
+
+def validate_itunes_match(song: DbSong, itunes_data: Dict[str, Any]) -> "tuple[bool, str]":
     """
     Validate if an iTunes search result is a good match for the song.
     

@@ -1,40 +1,12 @@
 # backend/app/services/interfaces/song_service.py
 """
-Song Service Interface for dependency injection and testing
+DEPRECATED: Song Service Interface - DELETED
+
+This interface was for the fake service layer that we removed.
+Use DbSong model directly instead.
 """
 
-from typing import Optional, Protocol
+# This file intentionally left mostly empty after service layer cleanup
+# Any remaining imports should use DbSong directly from app.db.models
 
-from ...db.models import Song, SongMetadata
-
-
-class SongServiceInterface(Protocol):
-    """Interface for Song Service to enable dependency injection and testing"""
-
-    def get_all_songs(self) -> list[Song]:
-        """Get all songs with automatic filesystem sync if needed"""
-        ...
-
-    def get_song_by_id(self, song_id: str) -> Optional[Song]:
-        """Get song by ID"""
-        ...
-
-    def search_songs(self, query: str) -> list[Song]:
-        """Search songs by title/artist"""
-        ...
-
-    def create_song_from_metadata(self, song_id: str, metadata: SongMetadata) -> Song:
-        """Create song from metadata"""
-        ...
-
-    def update_song_metadata(self, song_id: str, metadata: SongMetadata) -> Optional[Song]:
-        """Update song metadata"""
-        ...
-
-    def delete_song(self, song_id: str) -> bool:
-        """Delete song and associated files"""
-        ...
-
-    def sync_with_filesystem(self) -> int:
-        """Sync database with filesystem, return count of synced songs"""
-        ...
+__all__ = []

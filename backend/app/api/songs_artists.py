@@ -9,6 +9,7 @@ from ..db.song_operations import (
     get_songs_by_artist,
     search_songs_paginated,
 )
+from ..schemas.song import Song
 
 artists_bp = Blueprint("songs_artists", __name__, url_prefix="/api/songs")
 
@@ -75,7 +76,8 @@ def get_songs_by_artist_route(artist_name: str):
             direction=direction,
         )
 
-        songs = [song.to_pydantic().model_dump() for song in songs_data["songs"]]
+        # Convert DbSong objects to Pydantic Song models for API response
+        songs = [Song.model_validate(song.to_dict()).model_dump() for song in songs_data["songs"]]
         total_count = songs_data["total"]
 
         response = {
@@ -145,8 +147,8 @@ def search_songs():
                 "pagination": search_results["pagination"],
             }
         else:
-            # Flat list of songs
-            songs = [song.to_pydantic().model_dump() for song in search_results["songs"]]
+            # Flat list of songs - convert using new pattern
+            songs = [Song.model_validate(song.to_dict()).model_dump() for song in search_results["songs"]]
             response = {"songs": songs, "pagination": search_results["pagination"]}
 
         current_app.logger.info(

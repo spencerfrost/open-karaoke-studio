@@ -8,13 +8,13 @@ from pathlib import Path
 
 # We'll import these when they're available
 try:
-    from app.db.models import DbSong, DbJob, Song, SongMetadata, JobStatus, Job
+    from app.db.models import DbSong, DbJob, Song, JobStatus, Job
+    # SongMetadata has been deleted as part of Phase 5 cleanup
 except ImportError:
     # For when running tests without app context
     DbSong = None
     DbJob = None
     Song = None
-    SongMetadata = None
     JobStatus = None
     Job = None
 
@@ -74,8 +74,8 @@ def create_test_song(data: Optional[Dict[str, Any]] = None) -> 'Song':
         return mock_song
 
 
-def create_test_metadata(data: Optional[Dict[str, Any]] = None) -> 'SongMetadata':
-    """Create test song metadata"""
+def create_test_metadata(data: Optional[Dict[str, Any]] = None) -> dict:
+    """Create test song metadata dictionary (SongMetadata class has been deleted)"""
     default_data = {
         "title": "Test Song",
         "artist": "Test Artist",
@@ -87,18 +87,11 @@ def create_test_metadata(data: Optional[Dict[str, Any]] = None) -> 'SongMetadata
     if data:
         default_data.update(data)
     
-    if SongMetadata:
-        return SongMetadata(**default_data)
-    else:
-        # Return a mock object for when models aren't available
-        from unittest.mock import Mock
-        mock_metadata = Mock()
-        for key, value in default_data.items():
-            setattr(mock_metadata, key, value)
-        return mock_metadata
+    # Return dictionary directly since SongMetadata class was deleted
+    return default_data
 
 
-def create_test_db_job(data: Optional[Dict[str, Any]] = None) -> 'DbJob':
+def create_test_db_job(data: Optional[Dict[str, Any]] = None):
     """Create a test DbJob with default or provided data"""
     default_data = {
         "id": "test-job-123",
@@ -127,7 +120,7 @@ def create_test_db_job(data: Optional[Dict[str, Any]] = None) -> 'DbJob':
         return mock_job
 
 
-def create_test_job(data: Optional[Dict[str, Any]] = None) -> 'Job':
+def create_test_job(data: Optional[Dict[str, Any]] = None):
     """Create a test Job dataclass"""
     default_data = {
         "id": "test-job-123",

@@ -12,7 +12,7 @@ from typing import Optional
 
 import requests
 
-from ..db.models import SongMetadata
+from ..db.models import DbSong
 from .file_service import FileService
 
 # =============================================================================
@@ -74,74 +74,6 @@ def get_processed_songs(library_path: Optional[Path] = None) -> list[str]:
 # =============================================================================
 # METADATA FUNCTIONS - Database and business logic
 # =============================================================================
-
-
-def read_song_metadata(song_id: str, library_path: Optional[Path] = None) -> Optional[SongMetadata]:
-    """
-    Reads song metadata from the database.
-    Falls back to legacy metadata.json if database entry not found.
-    """
-    try:
-        from ..db.song_operations import get_song
-
-        db_song = get_song(song_id)
-
-        if db_song:
-            # Convert DbSong to SongMetadata
-            metadata = SongMetadata(
-                title=db_song.title,
-                artist=db_song.artist,
-                duration=db_song.duration,
-                favorite=db_song.favorite,
-                dateAdded=db_song.date_added,
-                coverArt=db_song.cover_art_path,
-                thumbnail=db_song.thumbnail_path,
-                source=db_song.source,
-                sourceUrl=db_song.source_url,
-                videoId=db_song.video_id,
-                uploader=db_song.uploader,
-                uploaderId=db_song.uploader_id,
-                channel=db_song.channel,
-                channelId=db_song.channel_id,
-                description=db_song.description,
-                uploadDate=db_song.upload_date,
-                mbid=db_song.mbid,
-                releaseTitle=db_song.album,
-                releaseId=db_song.release_id,
-                releaseDate=db_song.release_date,
-                genre=db_song.genre,
-                language=db_song.language,
-                lyrics=db_song.lyrics,
-                syncedLyrics=db_song.synced_lyrics,
-            )
-            return metadata
-
-    except ImportError:
-        logging.error("Cannot read metadata: Database module not available")
-        raise Exception("Database module not available, cannot read metadata")
-
-    except Exception as e:
-        print(f"Error accessing database: {e}")
-        return None
-
-
-def write_song_metadata(song_id: str, metadata: SongMetadata):
-    """
-    Writes song metadata to the database.
-    No longer writes to metadata.json file.
-    """
-    try:
-        from ..db.song_operations import create_or_update_song
-
-        create_or_update_song(song_id, metadata)
-        logging.info("Updated database record for song: %s", song_id)
-    except ImportError:
-        # Database module not available, log error
-        logging.error("Cannot save metadata: Database module not available")
-        raise Exception("Database module not available, cannot save metadata")
-    except Exception as e:
-        logging.error("Error updating database for %s: %s", song_id, e)
-        raise Exception(f"Could not write metadata for {song_id}: {e}") from e
 
 
 def download_image(url: str, save_path: Path) -> bool:

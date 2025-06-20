@@ -14,12 +14,6 @@ import AudioVisualizer from "@/components/player/AudioVisualizer";
 import ProgressBar from "@/components/player/ProgressBar";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
 
 interface UnifiedLyricsDisplayProps {
   lyrics: string;
@@ -45,6 +39,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsError, setFsError] = useState<string | null>(null);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const {
     vocalVolume,
     setVocalVolume,
@@ -217,33 +212,29 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
             {isPlaying ? <Pause size={48} /> : <Play size={48} />}
           </Button>
           {/* Volume control */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  aria-label={
-                    vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"
-                  }
-                  className="px-4"
-                  onClick={() =>
-                    vocalVolume === 0 ? setVocalVolume(1) : setVocalVolume(0)
-                  }
-                >
-                  {vocalVolume === 0 ? (
-                    <VolumeX size={28} />
-                  ) : vocalVolume < 0.5 ? (
-                    <Volume1 size={28} />
-                  ) : (
-                    <Volume2 size={28} />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="center"
-                className="flex flex-col items-center"
-              >
+          <div
+            className="relative"
+            onMouseEnter={() => setShowVolumeSlider(true)}
+            onMouseLeave={() => setShowVolumeSlider(false)}
+          >
+            <Button
+              variant="ghost"
+              aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
+              className="px-4"
+              onClick={() =>
+                vocalVolume === 0 ? setVocalVolume(1) : setVocalVolume(0)
+              }
+            >
+              {vocalVolume === 0 ? (
+                <VolumeX size={28} />
+              ) : vocalVolume < 0.5 ? (
+                <Volume1 size={28} />
+              ) : (
+                <Volume2 size={28} />
+              )}
+            </Button>
+            {showVolumeSlider && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-primary rounded-md px-4 py-2 z-50 flex flex-col items-center">
                 <Slider
                   orientation="vertical"
                   min={0}
@@ -254,10 +245,11 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
                     setVocalVolume(val);
                   }}
                   aria-label="Vocals volume"
+                  className="h-24 w-4"
                 />
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </div>
+            )}
+          </div>
           <div className="flex-1 text-sm text-background/50">
             {new Date(currentTime).toISOString().substr(11, 8)} /{" "}
             {new Date(duration).toISOString().substr(11, 8)}

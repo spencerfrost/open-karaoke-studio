@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 
 from app.services.youtube_service import YouTubeService
 from app.services.interfaces.file_service import FileServiceInterface
-from app.services.interfaces.song_service import SongServiceInterface
-from app.db.models import SongMetadata
+
+# SongMetadata removed in Phase 5 - using dictionaries instead
 
 
 @pytest.fixture
@@ -27,23 +27,19 @@ def mock_file_service():
 
 
 @pytest.fixture
-def mock_song_service():
-    """Mock SongServiceInterface for testing"""
-    return Mock(spec=SongServiceInterface)
-
-
-@pytest.fixture
-def youtube_service(mock_file_service, mock_song_service):
+def youtube_service(mock_file_service):
     """YouTubeService instance with mocked dependencies"""
-    return YouTubeService(
-        file_service=mock_file_service,
-        song_service=mock_song_service
-    )
+    return YouTubeService(file_service=mock_file_service)
 
 
 @pytest.fixture
-def youtube_service_no_song_service(mock_file_service):
-    """YouTubeService instance without song service (for core tests)"""
+def youtube_service_no_deps():
+    """YouTubeService instance without dependencies (for core tests)"""
+    mock_file_service = Mock(spec=FileServiceInterface)
+    mock_file_service.get_song_directory.return_value = Path("/test/song/dir")
+    mock_file_service.get_original_path.return_value = Path(
+        "/test/song/dir/original.mp3"
+    )
     return YouTubeService(file_service=mock_file_service)
 
 
@@ -68,10 +64,10 @@ def complete_youtube_info() -> Dict[str, Any]:
                 "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
                 "preference": 10,
                 "width": 1280,
-                "height": 720
+                "height": 720,
             }
         ],
-        "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+        "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
     }
 
 
@@ -82,7 +78,7 @@ def partial_youtube_info() -> Dict[str, Any]:
         "id": "abc123def45",
         "title": "Sample Video",
         # Missing uploader, channel, duration, etc.
-        "webpage_url": "https://www.youtube.com/watch?v=abc123def45"
+        "webpage_url": "https://www.youtube.com/watch?v=abc123def45",
     }
 
 
@@ -101,7 +97,7 @@ def sample_search_response():
                 "duration": 213,
                 "thumbnails": [
                     {"url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"}
-                ]
+                ],
             },
             {
                 "id": "y6120QOlsfU",
@@ -113,8 +109,8 @@ def sample_search_response():
                 "duration": 234,
                 "thumbnails": [
                     {"url": "https://i.ytimg.com/vi/y6120QOlsfU/maxresdefault.jpg"}
-                ]
-            }
+                ],
+            },
         ]
     }
 
@@ -127,20 +123,20 @@ def sample_thumbnails() -> List[Dict[str, Any]]:
             "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
             "preference": 1,
             "width": 120,
-            "height": 90
+            "height": 90,
         },
         {
-            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", 
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
             "preference": 5,
             "width": 480,
-            "height": 360
+            "height": 360,
         },
         {
             "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
             "preference": 10,
             "width": 1280,
-            "height": 720
-        }
+            "height": 720,
+        },
     ]
 
 
@@ -152,24 +148,24 @@ def sample_webp_thumbnails() -> List[Dict[str, Any]]:
             "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/maxresdefault.webp",
             "preference": 0,  # Highest preference (WebP)
             "width": 1920,
-            "height": 1080
+            "height": 1080,
         },
         {
             "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
             "preference": -1,  # Lower preference (JPEG)
             "width": 1280,
-            "height": 720
+            "height": 720,
         },
         {
             "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/hq720.webp",
             "preference": -2,  # Lower preference WebP
             "width": 1280,
-            "height": 720
-        }
+            "height": 720,
+        },
     ]
 
 
-@pytest.fixture  
+@pytest.fixture
 def mixed_format_thumbnails() -> List[Dict[str, Any]]:
     """Mixed format thumbnails to test format detection"""
     return [
@@ -177,33 +173,33 @@ def mixed_format_thumbnails() -> List[Dict[str, Any]]:
             "url": "https://i.ytimg.com/vi_webp/dQw4w9WgXcQ/maxresdefault.webp",
             "preference": 0,  # WebP highest preference
             "width": 1920,
-            "height": 1080
+            "height": 1080,
         },
         {
-            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", 
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
             "preference": -1,  # JPEG lower preference
             "width": 1280,
-            "height": 720
+            "height": 720,
         },
         {
             "url": "https://example.com/thumbnail.png",
             "preference": -3,  # PNG lowest preference
             "width": 640,
-            "height": 480
-        }
+            "height": 480,
+        },
     ]
 
 
 @pytest.fixture
 def sample_metadata():
-    """Sample metadata for testing"""
-    return SongMetadata(
-        title="Test Song",
-        artist="Test Artist",
-        source="youtube",
-        videoId="test123",
-        duration=213
-    )
+    """Sample metadata dictionary for testing (SongMetadata class was removed)"""
+    return {
+        "title": "Test Song",
+        "artist": "Test Artist",
+        "source": "youtube",
+        "videoId": "test123",
+        "duration": 213,
+    }
 
 
 @pytest.fixture

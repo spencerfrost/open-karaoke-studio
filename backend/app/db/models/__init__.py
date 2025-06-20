@@ -6,7 +6,7 @@ Database models package exports
 from .base import UNKNOWN_ARTIST, Base
 from .job import DbJob, Job, JobStatus, JobStore
 from .queue import KaraokeQueueItem
-from .song import DbSong, Song, SongMetadata
+from .song import DbSong  # Only DbSong now - cancer removed
 from .user import User
 
 # Make all models available when importing from this package
@@ -14,12 +14,10 @@ __all__ = [
     "Base",
     "UNKNOWN_ARTIST",
     "DbJob",
-    "Job",
+    "Job", 
     "JobStatus",
     "JobStore",
     "KaraokeQueueItem",
     "DbSong",
-    "Song",
-    "SongMetadata",
     "User",
 ]

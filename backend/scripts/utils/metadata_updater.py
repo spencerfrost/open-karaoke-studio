@@ -9,7 +9,7 @@ import logging
 from typing import Optional, List
 
 from app.db.models import DbSong
-from .itunes_utils import search_itunes_for_song, enhance_song_metadata
+from .itunes_utils import search_itunes_for_song, enhance_song_with_itunes_data
 from .cover_art_utils import should_download_cover_art, download_high_res_cover_art
 from .database_utils import update_song_metadata
 from .batch_utils import BatchProcessor, ProcessingStats, create_progress_callback
@@ -70,8 +70,8 @@ class MetadataUpdater:
                 logger.info(f"No iTunes match found for song {song.id}: '{song.title}' by '{song.artist}'")
                 return False
             
-            # Create enhanced metadata
-            enhanced_metadata = enhance_song_metadata(song, itunes_data)
+            # Create enhanced metadata using the iTunes data we already fetched
+            enhanced_metadata = enhance_song_with_itunes_data(song, itunes_data)
             if not enhanced_metadata:
                 logger.warning(f"Failed to create enhanced metadata for song {song.id}")
                 return False
