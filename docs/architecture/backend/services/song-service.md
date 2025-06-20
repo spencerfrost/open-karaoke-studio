@@ -14,30 +14,52 @@ The Song Service implements the `SongServiceInterface` protocol, providing a con
 
 ```python
 # backend/app/services/interfaces/song_service.py
+# NOTE: Service layer has been simplified - direct database operations preferred
 from typing import Protocol, List, Optional
-from ...db.models import Song, SongMetadata
+from ...schemas.song import Song
 
 class SongServiceInterface(Protocol):
     def get_all_songs(self) -> List[Song]:
-        """Get all songs with automatic filesystem sync if needed"""
-        
+        """DEPRECATED: Use song_operations.get_all_songs() directly"""
+
     def get_song_by_id(self, song_id: str) -> Optional[Song]:
-        """Get song by ID"""
-        
+        """DEPRECATED: Use song_operations.get_song() directly"""
+
     def search_songs(self, query: str) -> List[Song]:
-        """Search songs by title/artist"""
-        
-    def create_song_from_metadata(self, song_id: str, metadata: SongMetadata) -> Song:
-        """Create song from metadata"""
-        
-    def update_song_metadata(self, song_id: str, metadata: SongMetadata) -> Optional[Song]:
-        """Update song metadata"""
-        
+        """DEPRECATED: Use song_operations.search_songs() directly"""
+
+    def create_song_from_metadata(self, song_id: str, metadata: dict) -> Song:
+        """DEPRECATED: Use song_operations.create_or_update_song() directly"""
+
+    def update_song_metadata(self, song_id: str, metadata: dict) -> Optional[Song]:
+        """DEPRECATED: Use song_operations.create_or_update_song() directly"""
+
     def delete_song(self, song_id: str) -> bool:
-        """Delete song and associated files"""
-        
+        """DEPRECATED: Use song_operations.delete_song() directly"""
+
     def sync_with_filesystem(self) -> int:
-        """Sync database with filesystem, return count of synced songs"""
+        """DEPRECATED: Use song_operations.sync_songs_with_filesystem() directly"""
+```
+
+## ⚠️ IMPORTANT: Service Layer Deprecation
+
+**The service layer has been simplified as part of the Song Model Emergency Surgery.**
+
+**Recommended Pattern:**
+
+```python
+# Instead of service layer, use database operations directly
+from app.db.song_operations import create_or_update_song, get_song, get_all_songs
+
+# Create/update song
+song = create_or_update_song(
+    song_id="song-123",
+    title="Song Title",
+    artist="Artist Name"
+)
+
+# Convert to API format
+api_response = song.to_dict()
 ```
 
 ### Service Implementation
@@ -50,29 +72,29 @@ class SongService(SongServiceInterface):
     def __init__(self):
         """Initialize the song service"""
         pass
-    
+
     def get_all_songs(self) -> List[Song]:
         """
         Get all songs with automatic filesystem sync if needed.
-        
+
         This method implements smart synchronization - if no songs are found
         in the database, it automatically triggers a filesystem sync to
         populate the database with any songs found in the file system.
         """
         try:
             db_songs = database.get_all_songs()
-            
+
             # Smart sync: If no songs found, attempt filesystem sync
             if not db_songs:
                 logger.info("No songs in database, attempting filesystem sync")
                 sync_count = self.sync_with_filesystem()
                 logger.info(f"Synced {sync_count} songs from filesystem")
                 db_songs = database.get_all_songs()
-            
+
             # Convert to Pydantic models for API response
-            songs = [song.to_pydantic() for song in db_songs]
+            songs = [Song.model_validate(song.to_dict()) for song in db_songs]
             return songs
-            
+
         except Exception as e:
             logger.error(f"Error retrieving songs: {e}", exc_info=True)
             raise ServiceError("Failed to retrieve songs")
@@ -93,7 +115,7 @@ def search_songs(self, query: str) -> List[Song]:
     """Search songs by title or artist with proper error handling"""
     try:
         db_songs = database.search_songs(query)
-        return [song.to_pydantic() for song in db_songs]
+        return [Song.model_validate(song.to_dict()) for song in db_songs]
     except Exception as e:
         logger.error(f"Error searching songs with query '{query}': {e}")
         raise ServiceError("Failed to search songs")
@@ -127,14 +149,14 @@ def get_songs():
     try:
         song_service = SongService()
         songs = song_service.get_all_songs()
-        
+
         response_data = [
-            song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() 
+            song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
             for song in songs
         ]
-        
+
         return jsonify(response_data)
-        
+
     except ServiceError as e:
         current_app.logger.error(f"Service error in get_songs: {e}")
         return jsonify({"error": "Failed to fetch songs", "details": str(e)}), 500
@@ -143,12 +165,14 @@ def get_songs():
 ## Dependencies
 
 ### Current Dependencies
-- **Database Layer**: Direct integration with `backend/app/db/database.py`
-- **Models**: Uses `Song`, `SongMetadata`, and `DbSong` models
+
+- **Database Layer**: Direct integration with `backend/app/db/song_operations.py`
+- **Models**: Uses `Song` (Pydantic) and `DbSong` (SQLAlchemy) models
 - **Exceptions**: Relies on `ServiceError` and `NotFoundError` custom exceptions
 - **Logging**: Standard Python logging for operation tracking
 
 ### Future Dependencies
+
 - **Repository Layer**: Will migrate to repository pattern for better testing
 - **Sync Service**: Filesystem sync will be extracted to dedicated service
 - **File Service**: File operations will be delegated to file service
@@ -158,11 +182,13 @@ def get_songs():
 The service layer is designed for comprehensive testing:
 
 ### Unit Testing
+
 - **Service methods**: Each method can be tested independently
 - **Mock dependencies**: Database layer can be mocked for isolated testing
 - **Error scenarios**: Exception handling can be thoroughly tested
 
 ### Integration Testing
+
 - **API integration**: Controllers can be tested with real service instances
 - **Database integration**: Service can be tested with test database
 - **Filesystem integration**: Sync functionality can be tested with test directories
@@ -170,11 +196,13 @@ The service layer is designed for comprehensive testing:
 ## Performance Considerations
 
 ### Smart Caching
+
 - **Automatic sync**: Only triggers when necessary (empty database)
 - **Minimal database calls**: Efficient query patterns
 - **Pydantic conversion**: Performed only when needed for API responses
 
 ### Error Recovery
+
 - **Graceful degradation**: Continues operation even with partial failures
 - **Detailed logging**: Provides information for troubleshooting
 - **Exception isolation**: Individual song failures don't break entire operations
@@ -182,14 +210,17 @@ The service layer is designed for comprehensive testing:
 ## Future Enhancements
 
 ### Repository Pattern
+
 The service will migrate to use repository interfaces for better testability and separation of concerns.
 
 ### Enhanced Search
+
 - **Full-text search**: More sophisticated search capabilities
 - **Metadata search**: Search across extended metadata fields
 - **Performance optimization**: Caching and indexing for large libraries
 
 ### Async Operations
+
 - **Background processing**: Long-running operations moved to background tasks
 - **Real-time updates**: WebSocket integration for live updates
 - **Batch operations**: Efficient handling of multiple song operations
@@ -203,7 +234,7 @@ The service will migrate to use repository interfaces for better testability and
 
 ---
 
-**Implementation Status**: ✅ Implemented  
-**Location**: `backend/app/services/song_service.py`  
-**Interface**: `backend/app/services/interfaces/song_service.py`  
+**Implementation Status**: ✅ Implemented
+**Location**: `backend/app/services/song_service.py`
+**Interface**: `backend/app/services/interfaces/song_service.py`
 **API Integration**: `backend/app/api/songs.py`

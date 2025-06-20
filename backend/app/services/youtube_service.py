@@ -3,47 +3,25 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional, Protocol
+from typing import Any, Optional
 
 import yt_dlp
 
-from ..db.models import SongMetadata
+from ..db import song_operations
 from ..exceptions import ServiceError, ValidationError
 from .file_service import FileService
 from .interfaces.file_service import FileServiceInterface
-from .interfaces.song_service import SongServiceInterface
+from .interfaces.youtube_service import YouTubeServiceInterface
 
 logger = logging.getLogger(__name__)
-
-
-class YouTubeServiceInterface(Protocol):
-    """Interface for YouTube Service to enable dependency injection and testing"""
-
-    def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
-        """Search YouTube for videos matching the query"""
-        ...
-
-    def download_video(
-        self, video_id_or_url: str, song_id: str = None, artist: str = None, title: str = None
-    ) -> tuple[str, SongMetadata]:
-        """Download video and extract metadata, return (song_id, metadata)"""
-        ...
-
-    def download_and_process_async(
-        self, video_id_or_url: str, artist: str = None, title: str = None, song_id: str = None
-    ) -> str:
-        """Download video and queue for audio processing, return job/song ID"""
-        ...
 
 
 class YouTubeService(YouTubeServiceInterface):
     """Handle YouTube video operations"""
 
-    def __init__(
-        self, file_service: FileServiceInterface = None, song_service: SongServiceInterface = None
-    ):
+    def __init__(self, file_service: FileServiceInterface = None):
         self.file_service = file_service or FileService()
-        self.song_service = song_service  # Injected to avoid circular dependency
+        # Note: Removed song_service dependency - use song_operations directly
 
     def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
         """Search YouTube for videos matching the query"""
@@ -92,9 +70,9 @@ class YouTubeService(YouTubeServiceInterface):
             raise ServiceError(f"Failed to search YouTube: {e}")
 
     def download_video(
-        self, video_id_or_url: str, song_id: str = None, artist: str = None, title: str = None
-    ) -> tuple[str, SongMetadata]:
-        """Download video and extract metadata, return (song_id, metadata)"""
+        self, video_id_or_url: str, song_id: Optional[str] = None, artist: Optional[str] = None, title: Optional[str] = None
+    ) -> "tuple[str, dict[str, Any]]":
+        """Download video and extract metadata, return (song_id, metadata_dict)"""
         try:
             # Validate URL and extract video ID
             if not self.validate_video_url(video_id_or_url):
@@ -150,15 +128,15 @@ class YouTubeService(YouTubeServiceInterface):
                 if not original_file.exists():
                     raise ServiceError(f"Download completed but file not found: {original_file}")
 
-            # Extract and create metadata
-            metadata = self._extract_metadata_from_youtube_info(info)
+            # Extract and create metadata dict
+            metadata_dict = self._extract_metadata_from_youtube_info(info)
 
             # Extract duration from downloaded audio file if not available from YouTube
-            if not metadata.duration:
+            if not metadata_dict.get("duration"):
                 try:
                     duration = self._extract_audio_duration(original_file)
                     if duration:
-                        metadata.duration = duration
+                        metadata_dict["duration"] = duration
                         logger.info(
                             "Extracted duration %ss from audio file for song %s", duration, song_id
                         )
@@ -167,93 +145,22 @@ class YouTubeService(YouTubeServiceInterface):
                         "Failed to extract duration from audio file for song %s: %s", song_id, e
                     )
 
-            # Ensure sourceUrl is set correctly
-            if not metadata.sourceUrl:
-                metadata.sourceUrl = url
+            # Ensure source_url is set correctly
+            if not metadata_dict.get("source_url"):
+                metadata_dict["source_url"] = url
 
             # Override with provided metadata if available
             if title:
-                metadata.title = title
+                metadata_dict["title"] = title
             if artist:
-                metadata.artist = artist
-
-            # Enhance metadata with iTunes data (Phase 1A Task 1)
-            try:
-                from .itunes_service import enhance_metadata_with_itunes
-
-                # Convert metadata to dict for iTunes enhancement
-                metadata_dict = {
-                    "artist": metadata.artist,
-                    "title": metadata.title,
-                    "album": getattr(metadata, "releaseTitle", None),
-                    "genre": getattr(metadata, "genre", None),
-                    "duration": metadata.duration,
-                }
-
-                # Call iTunes enhancement
-                enhanced_dict = enhance_metadata_with_itunes(metadata_dict, song_dir)
-
-                # Update metadata with enhanced fields
-                if enhanced_dict != metadata_dict:  # Only update if enhancement returned new data
-                    # Cover art and core metadata
-                    metadata.coverArt = enhanced_dict.get("coverArt")
-                    metadata.genre = enhanced_dict.get("genre") or metadata.genre
-                    metadata.releaseDate = enhanced_dict.get("releaseDate")
-
-                    # Additional metadata fields - use correct field names that exist in
-                    # SongMetadata
-                    if enhanced_dict.get("album"):
-                        metadata.releaseTitle = enhanced_dict.get(
-                            "album"
-                        )  # Map album to releaseTitle
-                    if enhanced_dict.get("itunesTrackId"):
-                        metadata.mbid = str(
-                            enhanced_dict.get("itunesTrackId")
-                        )  # Map iTunes ID to mbid
-
-                    # iTunes enhancement fields
-                    if enhanced_dict.get("itunesTrackId"):
-                        metadata.itunesTrackId = enhanced_dict.get("itunesTrackId")
-                    if enhanced_dict.get("itunesArtistId"):
-                        metadata.itunesArtistId = enhanced_dict.get("itunesArtistId")
-                    if enhanced_dict.get("itunesCollectionId"):
-                        metadata.itunesCollectionId = enhanced_dict.get("itunesCollectionId")
-                    if enhanced_dict.get("trackTimeMillis"):
-                        metadata.trackTimeMillis = enhanced_dict.get("trackTimeMillis")
-                    if enhanced_dict.get("itunesExplicit"):
-                        metadata.itunesExplicit = enhanced_dict.get("itunesExplicit")
-                    if enhanced_dict.get("itunesPreviewUrl"):
-                        metadata.itunesPreviewUrl = enhanced_dict.get("itunesPreviewUrl")
-                    if enhanced_dict.get("itunesArtworkUrls"):
-                        metadata.itunesArtworkUrls = enhanced_dict.get("itunesArtworkUrls")
-                    if enhanced_dict.get("itunesRawMetadata"):
-                        metadata.itunesRawMetadata = enhanced_dict.get("itunesRawMetadata")
-
-                    # Keep original duration for now (YouTube video duration)
-                    # iTunes track duration will be added in Phase 1B
-
-                    logger.info("Successfully enhanced metadata with iTunes for song %s", song_id)
-                else:
-                    logger.info(
-                        "No iTunes enhancement available for %s - %s",
-                        metadata.artist,
-                        metadata.title,
-                    )
-
-            except Exception as e:
-                # iTunes enhancement failure should not break YouTube download
-                logger.warning("iTunes metadata enhancement failed for song %s: %s", song_id, e)
-                # Continue with original metadata
-
-            # NOTE: Thumbnail download removed from download_video() to prevent
-            # stepper interference. Thumbnails are now handled separately in
-            # the Celery job (process_youtube_job) after audio processing completes.
+                metadata_dict["artist"] = artist
 
             logger.info("Successfully downloaded YouTube video %s as song %s", video_id, song_id)
-            return song_id, metadata
+            return song_id, metadata_dict
 
         except Exception as e:
             logger.error("Failed to download YouTube video %s: %s", video_id_or_url, e)
+            raise ServiceError(f"Failed to download YouTube video: {e}")
             raise ServiceError(f"Failed to download YouTube video: {e}")
 
     def extract_video_info(self, video_id_or_url: str) -> dict[str, Any]:
@@ -323,15 +230,14 @@ class YouTubeService(YouTubeServiceInterface):
 
             existing_song = get_song(song_id)
             if not existing_song:
-                # Create song record with basic metadata
-                metadata = SongMetadata(
+                # Create song record with basic metadata using direct parameters
+                created_song = create_or_update_song(
+                    song_id=song_id,
                     title=title or "Unknown Title",
                     artist=artist or "Unknown Artist",
-                    dateAdded=datetime.now(timezone.utc),
                     source="youtube",
-                    videoId=video_id,
+                    video_id=video_id,
                 )
-                created_song = create_or_update_song(song_id, metadata)
                 if created_song:
                     logger.info("Created song record %s in database", song_id)
                 else:
@@ -403,8 +309,8 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error("Failed to queue YouTube processing for %s: %s", video_id_or_url, e)
             raise ServiceError(f"Failed to queue YouTube processing: {e}")
 
-    def _extract_metadata_from_youtube_info(self, video_info: dict[str, Any]) -> SongMetadata:
-        """Extract metadata from YouTube video info"""
+    def _extract_metadata_from_youtube_info(self, video_info: "dict[str, Any]") -> "dict[str, Any]":
+        """Extract metadata from YouTube video info and return as dict for create_or_update_song()"""
         from .metadata_service import filter_youtube_metadata_for_storage
 
         # Extract channel ID with fallback to uploader_id
@@ -425,33 +331,21 @@ class YouTubeService(YouTubeServiceInterface):
 
             return selected[:3] if selected else None  # Limit to 3 thumbnails
 
-        return SongMetadata(
-            title=video_info.get("title", "Unknown Title"),
-            artist=video_info.get("uploader", "Unknown Artist"),
-            # Dual duration strategy
-            duration=video_info.get("duration"),  # Keep as youtubeDuration
-            youtubeDuration=video_info.get("duration"),  # Explicit YouTube duration
-            dateAdded=datetime.now(timezone.utc),
-            source="youtube",
-            sourceUrl=video_info.get("webpage_url"),
-            videoId=video_info.get("id"),
-            videoTitle=video_info.get("title"),
-            uploader=video_info.get("uploader"),
-            uploaderId=video_info.get("uploader_id"),
-            channel=video_info.get("channel"),
-            description=video_info.get("description"),
-            uploadDate=self._parse_upload_date(video_info.get("upload_date")),
-            # Phase 1A Task 2: Focus on Channel ID as the key YouTube field
-            channelId=channel_id,
-            # Phase 1B: Enhanced YouTube fields
-            youtubeThumbnailUrls=_extract_selected_thumbnails(video_info),
-            youtubeTags=video_info.get("tags", []),
-            youtubeCategories=video_info.get("categories", []),
-            youtubeChannelId=channel_id,
-            youtubeChannelName=video_info.get("channel") or video_info.get("uploader"),
-            # Phase 1B: Store filtered raw YouTube metadata
-            youtubeRawMetadata=filter_youtube_metadata_for_storage(video_info),
-        )
+        # Return dict that matches our create_or_update_song() parameters
+        return {
+            "title": video_info.get("title", "Unknown Title"),
+            "artist": video_info.get("uploader", "Unknown Artist"),
+            "duration": video_info.get("duration"),
+            "source": "youtube",
+            "source_url": video_info.get("webpage_url"),
+            "video_id": video_info.get("id"),
+            "uploader": video_info.get("uploader"),
+            "uploader_id": video_info.get("uploader_id"),
+            "channel": video_info.get("channel"),
+            "channel_id": channel_id,
+            "description": video_info.get("description"),
+            "upload_date": self._parse_upload_date(video_info.get("upload_date")) if video_info.get("upload_date") else None,
+        }
 
     def _parse_upload_date(self, upload_date_str: str) -> Optional[datetime]:
         """Parse upload date string to datetime object"""

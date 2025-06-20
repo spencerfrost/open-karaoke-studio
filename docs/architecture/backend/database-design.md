@@ -6,9 +6,9 @@ The database layer implements a repository pattern with consistent session manag
 
 ## Current Implementation Status
 
-**ORM**: SQLAlchemy with declarative models  
-**Migration**: Custom schema management (needs Flask-Migrate)  
-**Pattern**: Mixed patterns - needs repository standardization  
+**ORM**: SQLAlchemy with declarative models
+**Migration**: Custom schema management (needs Flask-Migrate)
+**Pattern**: Mixed patterns - needs repository standardization
 **Status**: Partially implemented, requires refactoring
 
 ## Database Models
@@ -71,17 +71,17 @@ ModelType = TypeVar("ModelType", bound=Base)
 
 class BaseRepository(Generic[ModelType]):
     """Base repository providing common database operations"""
-    
+
     def __init__(self, model_class: Type[ModelType]):
         self.model_class = model_class
-    
+
     def get_by_id(self, id: str) -> Optional[ModelType]:
         """Retrieve entity by ID"""
         with get_db_session() as session:
             return session.query(self.model_class).filter(
                 self.model_class.id == id
             ).first()
-    
+
     def get_all(self, limit: Optional[int] = None, offset: int = 0) -> List[ModelType]:
         """Retrieve all entities with optional pagination"""
         with get_db_session() as session:
@@ -89,7 +89,7 @@ class BaseRepository(Generic[ModelType]):
             if limit:
                 query = query.limit(limit).offset(offset)
             return query.all()
-    
+
     def create(self, **kwargs) -> ModelType:
         """Create new entity"""
         with get_db_session() as session:
@@ -98,7 +98,7 @@ class BaseRepository(Generic[ModelType]):
             session.commit()
             session.refresh(instance)
             return instance
-    
+
     def update(self, id: str, **kwargs) -> Optional[ModelType]:
         """Update existing entity"""
         with get_db_session() as session:
@@ -111,7 +111,7 @@ class BaseRepository(Generic[ModelType]):
                 session.commit()
                 session.refresh(instance)
             return instance
-    
+
     def delete(self, id: str) -> bool:
         """Delete entity by ID"""
         with get_db_session() as session:
@@ -132,17 +132,17 @@ Each domain entity has its own repository with specialized queries:
 ```python
 class SongRepository(BaseRepository[DbSong]):
     """Repository for song-specific database operations"""
-    
+
     def __init__(self):
         super().__init__(DbSong)
-    
+
     def get_all_ordered_by_date(self) -> List[DbSong]:
         """Get all songs ordered by date added (newest first)"""
         with get_db_session() as session:
             return session.query(self.model_class).order_by(
                 desc(self.model_class.date_added)
             ).all()
-    
+
     def search_by_title_or_artist(self, query: str) -> List[DbSong]:
         """Search songs by title or artist"""
         with get_db_session() as session:
@@ -153,21 +153,21 @@ class SongRepository(BaseRepository[DbSong]):
                     self.model_class.artist.ilike(search_term)
                 )
             ).all()
-    
+
     def get_favorites(self) -> List[DbSong]:
         """Get all favorite songs"""
         with get_db_session() as session:
             return session.query(self.model_class).filter(
                 self.model_class.favorite == True
             ).all()
-    
+
     def get_by_source(self, source: str) -> List[DbSong]:
         """Get songs by source (youtube, upload, etc.)"""
         with get_db_session() as session:
             return session.query(self.model_class).filter(
                 self.model_class.source == source
             ).all()
-    
+
     def get_by_youtube_id(self, youtube_id: str) -> Optional[DbSong]:
         """Get song by YouTube video ID"""
         with get_db_session() as session:
@@ -271,36 +271,36 @@ Services use repositories instead of direct database access:
 ```python
 class SongService:
     """Service layer for song operations"""
-    
+
     def __init__(self):
         self.song_repo = SongRepository()
         self.job_repo = JobRepository()
-    
+
     def get_all_songs(self) -> List[Song]:
         """Get all songs with proper error handling"""
         try:
             db_songs = self.song_repo.get_all_ordered_by_date()
-            return [song.to_pydantic() for song in db_songs]
+            return [Song.model_validate(song.to_dict()) for song in db_songs]
         except Exception as e:
             logger.error(f"Error retrieving songs: {e}")
             raise ServiceError("Failed to retrieve songs")
-    
+
     def create_song(self, song_data: CreateSongRequest) -> Song:
         """Create new song with validation"""
         try:
             # Validate input
             if not song_data.title or not song_data.artist:
                 raise ValidationError("Title and artist are required")
-            
+
             # Check for duplicates
             existing = self.song_repo.get_by_youtube_id(song_data.youtube_id)
             if existing:
                 raise ConflictError("Song already exists")
-            
+
             # Create song
             db_song = self.song_repo.create(**song_data.dict())
-            return db_song.to_pydantic()
-            
+            return Song.model_validate(db_song.to_dict())
+
         except Exception as e:
             logger.error(f"Error creating song: {e}")
             raise
@@ -319,17 +319,17 @@ def create_song_with_job(self, song_data: dict, job_data: dict) -> tuple[Song, J
             song = DbSong(**song_data)
             session.add(song)
             session.flush()  # Get song ID
-            
+
             # Create associated job
             job_data['song_id'] = song.id
             job = DbJob(**job_data)
             session.add(job)
-            
+
             # Commit both operations
             session.commit()
-            
-            return song.to_pydantic(), job.to_pydantic()
-            
+
+            return Song.model_validate(song.to_dict()), Job.model_validate(job.to_dict())
+
         except Exception:
             session.rollback()
             raise
@@ -408,7 +408,7 @@ def test_db():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine)
-    
+
     with SessionLocal() as session:
         yield session
 
@@ -420,7 +420,7 @@ def test_song_repository_create(test_db):
         'artist': 'Test Artist',
         'source': 'test'
     }
-    
+
     song = repo.create(**song_data)
     assert song.title == 'Test Song'
     assert song.artist == 'Test Artist'
@@ -434,16 +434,16 @@ Integration tests verify the complete data flow:
 def test_song_service_with_db(test_db):
     """Test song service database integration"""
     service = SongService()
-    
+
     # Create song
     song_data = CreateSongRequest(
         title='Integration Test',
         artist='Test Artist'
     )
-    
+
     created_song = service.create_song(song_data)
     assert created_song.id is not None
-    
+
     # Retrieve song
     retrieved_song = service.get_song(created_song.id)
     assert retrieved_song.title == song_data.title
@@ -452,21 +452,25 @@ def test_song_service_with_db(test_db):
 ## Migration from Current Implementation
 
 ### Phase 1: Repository Implementation
+
 1. Create base repository with common operations
 2. Implement song repository with domain queries
 3. Update song service to use repository
 
 ### Phase 2: Session Management
+
 1. Standardize session management across modules
 2. Remove direct SQLAlchemy usage from services
 3. Implement proper transaction handling
 
 ### Phase 3: Migration System
+
 1. Install and configure Flask-Migrate
 2. Generate initial migration from current schema
 3. Replace custom schema update logic
 
 ### Phase 4: Complete Refactoring
+
 1. Remove custom JobStore implementation
 2. Implement remaining repositories (User, Job)
 3. Update all services to use repository pattern
@@ -474,29 +478,34 @@ def test_song_service_with_db(test_db):
 ## Dependencies
 
 ### Required Packages
+
 - **SQLAlchemy**: ORM and database abstraction
 - **Flask-Migrate**: Database migration management
 - **Alembic**: Migration engine (dependency of Flask-Migrate)
 
 ### Internal Dependencies
+
 - **Configuration Service**: For database URL and settings
 - **Logging Service**: For error tracking and debugging
 
 ## Future Enhancements
 
 ### Advanced Features
+
 - Read/write database splitting
 - Database connection load balancing
 - Automated backup and recovery
 - Query performance monitoring
 
 ### Optimization
+
 - Query result caching
 - Database index optimization
 - Connection pool tuning
 - Async database operations
 
 ### Monitoring
+
 - Database performance metrics
 - Connection pool monitoring
 - Query execution time tracking

@@ -96,14 +96,16 @@ if DATABASE_URL.startswith('sqlite:'):
 The song operations module contains all song-related business logic:
 
 #### CRUD Operations
+
 ```python
 def get_all_songs() -> List[DbSong]
 def get_song(song_id: str) -> Optional[DbSong]
-def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]
+def create_or_update_song(song_id: str, title: str, artist: str, **kwargs) -> Optional[DbSong]
 def delete_song(song_id: str) -> bool
 ```
 
 #### Query Operations
+
 ```python
 def get_artists_with_counts() -> List[Tuple[str, int]]
 def get_songs_by_artist(artist: str) -> List[DbSong]
@@ -111,15 +113,17 @@ def search_songs_paginated(query: str, limit: int, offset: int) -> Tuple[List[Db
 ```
 
 #### File System Integration
+
 ```python
 def sync_songs_with_filesystem() -> int
 def update_song_audio_paths(song_id: str, paths: Dict[str, str]) -> bool
 ```
 
 #### Metadata Management
+
 ```python
 def update_song_with_metadata(song_id: str, metadata: Dict[str, Any]) -> Optional[DbSong]
-def get_song_metadata(song_id: str) -> Optional[SongMetadata]
+def get_song_as_dict(song_id: str) -> Optional[Dict[str, Any]]
 ```
 
 ## Session Management Patterns
@@ -141,26 +145,29 @@ def get_all_songs() -> List[DbSong]:
 ### Transaction Handling
 
 ```python
-def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSong]:
+def create_or_update_song(song_id: str, title: str, artist: str, **kwargs) -> Optional[DbSong]:
     try:
         with get_db_session() as session:
             # Check for existing song
             existing_song = session.query(DbSong).filter(DbSong.id == song_id).first()
-            
+
             if existing_song:
-                # Update existing
-                for key, value in metadata.dict().items():
-                    setattr(existing_song, key, value)
+                # Update existing - direct field assignment
+                existing_song.title = title
+                existing_song.artist = artist
+                for key, value in kwargs.items():
+                    if hasattr(existing_song, key):
+                        setattr(existing_song, key, value)
                 song = existing_song
             else:
                 # Create new
-                song = DbSong(id=song_id, **metadata.dict())
+                song = DbSong(id=song_id, title=title, artist=artist, **kwargs)
                 session.add(song)
-            
+
             session.commit()  # Automatic via context manager
             session.refresh(song)  # Reload from database
             return song
-            
+
     except Exception as e:
         logging.error(f"Error creating/updating song {song_id}: {e}")
         return None
@@ -169,24 +176,24 @@ def create_or_update_song(song_id: str, metadata: SongMetadata) -> Optional[DbSo
 ## Model Integration
 
 ### Pydantic Models
+
 ```python
-from ..db.models import Song, SongMetadata, DbSong
+from ..db.models import Song, DbSong
 
-# Pydantic models for validation and serialization
-metadata = SongMetadata(
-    title="Song Title",
-    artist="Artist Name",
-    album="Album Name"
-)
+# Clean separation: DbSong (database) ↔ Song (API)
+# DbSong.to_dict() provides frontend-friendly format
+song_dict = db_song.to_dict()  # camelCase for frontend
+api_song = Song.model_validate(song_dict)  # Pydantic validation
 
-# SQLAlchemy models for persistence
-db_song = DbSong(id="song-123", **metadata.dict())
+# Direct database operations with parameters
+db_song = DbSong(id="song-123", title="Song Title", artist="Artist Name")
 ```
 
 ### Model Conversion
+
 ```python
 # Convert between Pydantic and SQLAlchemy models
-def to_pydantic(db_song: DbSong) -> Song:
+def to_api_response(db_song: DbSong) -> Song:
     return Song(
         id=db_song.id,
         title=db_song.title,
@@ -234,10 +241,10 @@ def search_songs_paginated(query: str, limit: int, offset: int):
     with get_db_session() as session:
         base_query = session.query(DbSong)\
                            .filter(DbSong.title.contains(query))
-        
+
         total_count = base_query.count()
         songs = base_query.offset(offset).limit(limit).all()
-        
+
         return songs, total_count
 ```
 
@@ -280,12 +287,12 @@ backend/app/db/
 def ensure_db_schema():
     """Ensure database schema matches current models"""
     inspector = inspect(engine)
-    
+
     if not inspector.has_table('songs'):
         logging.info("Creating database schema from scratch")
         Base.metadata.create_all(bind=engine)
         return
-    
+
     # Handle schema migrations
     migrate_schema_if_needed(inspector)
 ```
