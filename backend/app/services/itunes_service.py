@@ -375,7 +375,7 @@ def enhance_metadata_with_itunes(
         Dict[str, Any]: Enhanced metadata
     """
     try:
-        from .metadata_service import filter_itunes_metadata_for_storage
+        from ..utils.metadata import filter_itunes_metadata_for_storage
 
         artist = metadata.get("artist", "")
         title = metadata.get("title", "")

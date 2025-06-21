@@ -270,7 +270,7 @@ class YouTubeService(YouTubeServiceInterface):
             import json
 
             from ..db.models import Job, JobStatus
-            from ..jobs.jobs import job_store, process_youtube_job
+            from ..repositories import JobRepository
 
             # Store video_id in notes for reference
             job_notes = json.dumps({"video_id": video_id})
@@ -288,11 +288,12 @@ class YouTubeService(YouTubeServiceInterface):
                 created_at=datetime.now(timezone.utc),
             )
 
-            # Save job to database and verify it was saved
-            job_store.save_job(job)
+            # Save job to database using repository
+            job_repository = JobRepository()
+            job_repository.create(job)
 
             # Verify job was actually saved before proceeding
-            saved_job = job_store.get_job(job_id)
+            saved_job = job_repository.get_by_id(job_id)
             if not saved_job:
                 raise ServiceError(f"Failed to save job {job_id} to database")
 
@@ -313,11 +314,17 @@ class YouTubeService(YouTubeServiceInterface):
                 video_id,
             )
 
-            task = process_youtube_job.delay(job_id, video_id, metadata_dict)
+            # Use Celery app directly to avoid circular import
+            from ..celery_app import celery_app
+
+            task = celery_app.send_task(
+                "backend.app.jobs.jobs.process_youtube_job",
+                args=[job_id, video_id, metadata_dict],
+            )
 
             # Update job with task ID
             job.task_id = task.id
-            job_store.save_job(job)
+            job_repository.update(job)
 
             logger.info(
                 "Unified YouTube processing job %s queued successfully with task %s",

@@ -9,30 +9,32 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from ..db.models import Job, JobStatus, JobStore
-from . import FileService, file_management
+from ..db.models import Job, JobStatus
+from ..repositories import JobRepository
+from .file_service import FileService
+from . import file_management
 from .interfaces.jobs_service import JobsServiceInterface
 
 
 class JobsService(JobsServiceInterface):
     """Service for managing jobs operations."""
 
-    def __init__(self, job_store: Optional[JobStore] = None):
+    def __init__(self, job_repository: Optional[JobRepository] = None):
         """
         Initialize the Jobs service.
 
         Args:
-            job_store: Optional JobStore instance. If None, creates a new one.
+            job_repository: Optional JobRepository instance. If None, creates a new one.
         """
-        self.job_store = job_store or JobStore()
+        self.job_repository = job_repository or JobRepository()
         self.file_service = FileService()
 
     def get_all_jobs(self, include_dismissed: bool = False) -> list[Job]:
         """Get all jobs sorted by creation time (newest first)."""
         if include_dismissed:
-            jobs = self.job_store.get_all_jobs()
+            jobs = self.job_repository.get_all_jobs()
         else:
-            jobs = self.job_store.get_active_jobs()
+            jobs = self.job_repository.get_active_jobs()
 
         def get_created_time(job):
             if job.created_at is None:
@@ -51,7 +53,7 @@ class JobsService(JobsServiceInterface):
 
     def get_dismissed_jobs(self) -> list[Job]:
         """Get all dismissed jobs."""
-        jobs = self.job_store.get_dismissed_jobs()
+        jobs = self.job_repository.get_dismissed_jobs()
 
         def get_created_time(job):
             if job.created_at is None:
@@ -64,17 +66,17 @@ class JobsService(JobsServiceInterface):
 
     def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
         """Get all jobs with a specific status."""
-        return self.job_store.get_jobs_by_status(status)
+        return self.job_repository.get_jobs_by_status(status)
 
     def get_job(self, job_id: str) -> Optional[Job]:
         """Get a job by its ID."""
-        return self.job_store.get_job(job_id)
+        return self.job_repository.get_job(job_id)
 
     def get_job_with_details(self, job_id: str) -> Optional[dict]:
         """
         Get a job by its ID with additional details like file paths and completion estimates.
         """
-        job = self.job_store.get_job(job_id)
+        job = self.job_repository.get_job(job_id)
         if not job:
             return None
 
@@ -83,10 +85,12 @@ class JobsService(JobsServiceInterface):
         # Add additional info for completed jobs
         if job.status == JobStatus.COMPLETED:
             song_dir = self.file_service.get_song_directory(Path(job.filename).stem)
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 ".mp3"
             )
+            instrumental_path = file_management.get_instrumental_path_stem(
+                song_dir
+            ).with_suffix(".mp3")
 
             response.update(
                 {
@@ -110,7 +114,7 @@ class JobsService(JobsServiceInterface):
         Returns:
             True if job was successfully cancelled, False if job not found or cannot be cancelled
         """
-        job = self.job_store.get_job(job_id)
+        job = self.job_repository.get_job(job_id)
         if not job:
             return False
 
@@ -122,7 +126,7 @@ class JobsService(JobsServiceInterface):
         job.status = JobStatus.CANCELLED
         job.completed_at = datetime.now()
         job.error = "Cancelled by user"
-        self.job_store.save_job(job)
+        self.job_repository.save_job(job)
 
         # TODO: Implement actual job cancellation in Celery
         # This would involve celery.control.revoke(task_id, terminate=True)
@@ -137,16 +141,20 @@ class JobsService(JobsServiceInterface):
         Returns:
             True if job was successfully dismissed, False if job not found or cannot be dismissed
         """
-        job = self.job_store.get_job(job_id)
+        job = self.job_repository.get_job(job_id)
         if not job:
             return False
 
         # Check if job can be dismissed (only final states)
-        if job.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+        if job.status not in [
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        ]:
             return False
 
-        # Use the job store's dismiss method
-        return self.job_store.dismiss_job(job_id)
+        # Use the job repository's dismiss method
+        return self.job_repository.dismiss_job(job_id)
 
     def get_statistics(self) -> dict[str, int]:
         """Get statistics about jobs."""
@@ -178,43 +186,20 @@ class JobsService(JobsServiceInterface):
 
     def _broadcast_job_event(self, job: Job, was_created: bool = False):
         """
-        Broadcast a job event via WebSocket if available.
+        Broadcast a job event via the event system.
 
         Args:
             job: The job object
             was_created: Whether this is a newly created job
         """
         try:
-            from ..websockets.jobs_ws import (
-                broadcast_job_cancelled,
-                broadcast_job_completed,
-                broadcast_job_created,
-                broadcast_job_failed,
-                broadcast_job_update,
-            )
+            from ..utils.events import publish_job_event
 
             job_data = job.to_dict()
 
-            # Determine the appropriate broadcast function
-            if was_created:
-                broadcast_job_created(job_data)
-            else:
-                # Map job status to appropriate event type
-                if job.status == JobStatus.COMPLETED:
-                    broadcast_job_completed(job_data)
-                elif job.status == JobStatus.FAILED:
-                    broadcast_job_failed(job_data)
-                elif job.status == JobStatus.CANCELLED:
-                    broadcast_job_cancelled(job_data)
-                else:
-                    # For PENDING, PROCESSING, or other statuses
-                    broadcast_job_update(job_data)
+            # Publish the job event - the event system will handle broadcasting
+            publish_job_event(job.id, job_data, was_created)
 
-        except ImportError:
-            # WebSocket module not available, skip broadcasting
-            pass
         except Exception as e:
             # Log error but don't fail the operation
-            import logging
-
-            logging.getLogger(__name__).warning(f"Failed to broadcast job event: {e}")
+            logger.warning("Failed to broadcast job event: %s", str(e))

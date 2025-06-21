@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.services.jobs_service import JobsService
-from app.db.models import Job, JobStatus, JobStore
+from app.db.models import Job, JobStatus
+from app.repositories import JobRepository
 
 
 class TestJobsService:
@@ -24,14 +25,14 @@ class TestJobsService:
         assert service.file_service is not None
 
     def test_jobs_service_initialization_with_custom_job_store(self):
-        """Test that JobsService can be initialized with a custom JobStore."""
-        mock_job_store = Mock(spec=JobStore)
+        """Test that JobsService can be initialized with a custom JobRepository."""
+        mock_job_store = Mock(spec=JobRepository)
         service = JobsService(job_store=mock_job_store)
         assert service.job_store is mock_job_store
 
     def test_get_all_jobs_sorting(self):
         """Test that get_all_jobs returns jobs sorted by creation time."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
 
         # Create mock jobs with different creation times
         job1 = Job(
@@ -68,7 +69,7 @@ class TestJobsService:
 
     def test_get_job_with_details_completed_job(self):
         """Test that get_job_with_details adds file paths for completed jobs."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
         mock_file_service = Mock()
 
         completed_job = Job(
@@ -99,7 +100,7 @@ class TestJobsService:
 
     def test_cancel_job_success(self):
         """Test that cancel_job successfully cancels a pending job."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
 
         pending_job = Job(
             id="pending_job", filename="test.mp3", status=JobStatus.PENDING
@@ -118,7 +119,7 @@ class TestJobsService:
 
     def test_cancel_job_already_completed(self):
         """Test that cancel_job returns False for already completed jobs."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
 
         completed_job = Job(
             id="completed_job", filename="test.mp3", status=JobStatus.COMPLETED
@@ -134,7 +135,7 @@ class TestJobsService:
 
     def test_cancel_job_not_found(self):
         """Test that cancel_job returns False for non-existent jobs."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
         mock_job_store.get_job.return_value = None
 
         service = JobsService(job_store=mock_job_store)
@@ -145,7 +146,7 @@ class TestJobsService:
 
     def test_get_statistics_delegates_to_job_store(self):
         """Test that get_statistics properly delegates to the job store."""
-        mock_job_store = Mock(spec=JobStore)
+        mock_job_store = Mock(spec=JobRepository)
         expected_stats = {
             "total": 10,
             "queue_length": 2,
