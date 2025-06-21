@@ -148,13 +148,13 @@ def publish_job_event(
 ) -> None:
     """
     Convenience function to publish job events.
-
     Args:
         job_id: ID of the job
         job_data: Job data dictionary
         was_created: Whether this is a new job creation
     """
     event = JobEvent(job_id=job_id, job_data=job_data, was_created=was_created)
+    print(f"📢 Publishing job event: {job_id} - created={was_created} - status={job_data.get('status', 'unknown')}")
     event_bus.publish(event)
 
 

@@ -82,11 +82,10 @@ class JobRepository:
                     logger.error(
                         "CRITICAL: Job %s failed verification after commit!", job.id
                     )
-                    raise Exception(f"Job {job.id} failed to save properly")
-
-                # Emit event instead of directly calling broadcast function
+                    raise Exception(f"Job {job.id} failed to save properly")                # Emit event instead of directly calling broadcast function
                 from ..utils.events import publish_job_event
 
+                print(f"📝 Job {job.id} saved to database - created={was_created} - status={job.status.value}")
                 publish_job_event(job.id, job.to_dict(), was_created)
 
         except Exception as e:
