@@ -33,6 +33,7 @@ if __name__ == "__main__":
     from .websockets.performance_controls_ws import (
         register_handlers as register_performance_controls,
     )
+    from .websockets.jobs_ws import initialize_jobs_websocket
     from .websockets.socketio import init_socketio, socketio
 
     # Initialize SocketIO with the Flask app
@@ -40,6 +41,9 @@ if __name__ == "__main__":
     # Register websocket event handlers
     register_performance_controls(socketio)
     register_karaoke_queue(socketio)
+    
+    # Initialize jobs WebSocket handlers and event subscriptions
+    initialize_jobs_websocket()
 
     port = int(os.environ.get("PORT", 5123))
     debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"

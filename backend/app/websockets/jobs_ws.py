@@ -62,15 +62,17 @@ def handle_request_jobs_list():
 def broadcast_job_update(job_data: Dict[str, Any]):
     """
     Broadcast a job update to all subscribed clients.
-
     Args:
         job_data: Dictionary containing job information
     """
     try:
         if socketio is None:
+            print("⚠️  SocketIO not available for job_updated broadcast")
             return
+        print(f"📊 Broadcasting job_updated event: {job_data.get('id', 'unknown')} - {job_data.get('status', 'unknown')}")
         socketio.emit("job_updated", job_data, room="jobs_updates", namespace="/jobs")
-    except Exception:
+    except Exception as e:
+        print(f"❌ Failed to broadcast job_updated: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -78,16 +80,17 @@ def broadcast_job_update(job_data: Dict[str, Any]):
 def broadcast_job_created(job_data: Dict[str, Any]):
     """
     Broadcast a new job creation to all subscribed clients.
-
     Args:
         job_data: Dictionary containing job information
     """
     try:
         if socketio is None:
+            print("⚠️  SocketIO not available for job_created broadcast")
             return
-        print(f"Broadcasting job_created event: {job_data}")
+        print(f"🚀 Broadcasting job_created event: {job_data}")
         socketio.emit("job_created", job_data, room="jobs_updates", namespace="/jobs")
-    except Exception:
+    except Exception as e:
+        print(f"❌ Failed to broadcast job_created: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -163,12 +166,15 @@ def _handle_job_event(event) -> None:
     try:
         job_data = event.data.get("job_data", {})
         was_created = event.data.get("was_created", False)
-
+        job_id = job_data.get("id", "unknown")
+        status = job_data.get("status", "unknown")
+        
+        print(f"🎯 WebSocket handler received job event: {job_id} - created={was_created} - status={status}")
+        
         if was_created:
             broadcast_job_created(job_data)
         else:
             # Determine the appropriate broadcast based on job status
-            status = job_data.get("status")
             if status == "completed":
                 broadcast_job_completed(job_data)
             elif status == "failed":
@@ -179,7 +185,7 @@ def _handle_job_event(event) -> None:
                 broadcast_job_update(job_data)
     except Exception as e:
         import logging
-
+        print(f"❌ Failed to handle job event: {e}")
         logging.getLogger(__name__).warning(f"Failed to handle job event: {e}")
 
 
@@ -190,12 +196,24 @@ def _setup_event_subscriptions():
         from ..utils.events import subscribe_to_job_events
 
         subscribe_to_job_events(_handle_job_event)
+        print("✅ Jobs WebSocket event subscriptions initialized")
+        import logging
+        logging.getLogger(__name__).info("Jobs WebSocket event subscriptions initialized")
     except Exception as e:
         import logging
-
+        print(f"❌ Failed to set up job event subscriptions: {e}")
         logging.getLogger(__name__).warning(
             f"Failed to set up job event subscriptions: {e}"
         )
+
+
+def initialize_jobs_websocket():
+    """
+    Initialize the jobs WebSocket handlers and event subscriptions.
+    Should be called after Flask app and SocketIO are fully initialized.
+    """
+    print("🔌 Initializing Jobs WebSocket handlers...")
+    _setup_event_subscriptions()
 
 
 # Initialize event subscriptions when module is imported
