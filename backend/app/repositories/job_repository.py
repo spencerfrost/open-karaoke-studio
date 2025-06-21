@@ -23,8 +23,8 @@ class JobRepository:
 
         DbJob.__table__.create(bind=engine, checkfirst=True)
 
-    def save_job(self, job: Job) -> None:
-        """Save or update a job in the database."""
+    def create(self, job: Job) -> None:
+        """Create or update a job in the database."""
         try:
             was_created = False
 
@@ -126,6 +126,14 @@ class JobRepository:
             logger.error("Error getting job %s: %s", job_id, e)
             traceback.print_exc()
             return None
+
+    def get_by_id(self, job_id: str) -> Optional[Job]:
+        """Retrieve a job from the database by its ID (standard naming convention)."""
+        return self.get_job(job_id)
+
+    def update(self, job: Job) -> None:
+        """Update an existing job in the database (standard naming convention)."""
+        return self.create(job)
 
     def get_all_jobs(self) -> List[Job]:
         """Retrieve all jobs from the database."""

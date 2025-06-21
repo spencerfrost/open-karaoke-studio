@@ -127,6 +127,10 @@ class YouTubeDownloadRequest(BaseModel):
     artist: Optional[str] = Field(
         None, max_length=200, description="Custom artist override"
     )
+    album: Optional[str] = Field(None, max_length=200, description="Album name")
+    searchThumbnailUrl: Optional[str] = Field(
+        None, max_length=500, description="Original search result thumbnail URL"
+    )
 
     @validator("video_id", "song_id")
     def validate_required_ids(cls, v):
@@ -134,11 +138,15 @@ class YouTubeDownloadRequest(BaseModel):
             raise ValueError("Field cannot be empty")
         return v.strip()
 
-    @validator("title", "artist")
+    @validator("title", "artist", "album")
     def validate_optional_strings(cls, v):
-        if v is not None and v.strip() == "":
-            raise ValueError("Field cannot be empty if provided")
-        return v.strip() if v else v
+        # Convert empty strings to None for optional fields
+        if v is not None and isinstance(v, str):
+            stripped = v.strip()
+            if stripped == "":
+                return None
+            return stripped
+        return v
 
 
 class SaveLyricsRequest(BaseModel):

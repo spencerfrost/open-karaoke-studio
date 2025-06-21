@@ -315,10 +315,10 @@ class YouTubeService(YouTubeServiceInterface):
             )
 
             # Use Celery app directly to avoid circular import
-            from ..celery_app import celery_app
+            from ..jobs.celery_app import celery
 
-            task = celery_app.send_task(
-                "backend.app.jobs.jobs.process_youtube_job",
+            task = celery.send_task(
+                "process_youtube_job",
                 args=[job_id, video_id, metadata_dict],
             )
 

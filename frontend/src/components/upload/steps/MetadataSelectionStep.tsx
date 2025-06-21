@@ -1,16 +1,6 @@
 // frontend/src/components/upload/steps/MetadataSelectionStep.tsx
 import { useState } from "react";
-import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -18,9 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Skeleton } from "@/components/ui/skeleton";
-import { MetadataOption } from "@/hooks/useYoutube";
+import { SearchForm, MetadataResults } from "@/components/forms";
+import type { SearchFormData, MetadataOption } from "@/components/forms";
 
 interface MetadataSelectionStepProps {
   metadataOptions: MetadataOption[];
@@ -34,7 +23,12 @@ interface MetadataSelectionStepProps {
   onMetadataSelect: (metadata: MetadataOption) => void;
   onConfirm: () => void;
   onSkip: () => void;
-  onResearch: (query: { artist: string; title: string; album: string; sortBy?: string }) => void;
+  onResearch: (query: {
+    artist: string;
+    title: string;
+    album: string;
+    sortBy?: string;
+  }) => void;
 }
 
 export function MetadataSelectionStep({
@@ -48,25 +42,18 @@ export function MetadataSelectionStep({
   onResearch,
 }: MetadataSelectionStepProps) {
   const [showResearch, setShowResearch] = useState(false);
-  const [researchArtist, setResearchArtist] = useState("");
-  const [researchTitle, setResearchTitle] = useState("");
-  const [researchAlbum, setResearchAlbum] = useState("");
-  const [sortBy, setSortBy] = useState("relevance");
 
-  const handleResearch = () => {
+  const handleResearch = (query: SearchFormData) => {
     onResearch({
-      artist: researchArtist.trim(),
-      title: researchTitle.trim(),
-      album: researchAlbum.trim(),
+      artist: query.artist,
+      title: query.title,
+      album: query.album,
     });
     setShowResearch(false);
   };
 
   const handleNoneOfThese = () => {
     setShowResearch(true);
-    setResearchArtist(initialMetadata.artist);
-    setResearchTitle(initialMetadata.title);
-    setResearchAlbum(initialMetadata.album);
   };
 
   if (showResearch) {
@@ -81,63 +68,21 @@ export function MetadataSelectionStep({
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="research-artist">Artist</Label>
-                <Input
-                  id="research-artist"
-                  value={researchArtist}
-                  onChange={(e) => setResearchArtist(e.target.value)}
-                  placeholder="Artist name"
-                />
-              </div>
+            <SearchForm
+              initialValues={initialMetadata}
+              onSearch={handleResearch}
+              isLoading={isSearching}
+              submitButtonText="Search Metadata"
+              layout="vertical"
+            />
 
-              <div>
-                <Label htmlFor="research-title">Title</Label>
-                <Input
-                  id="research-title"
-                  value={researchTitle}
-                  onChange={(e) => setResearchTitle(e.target.value)}
-                  placeholder="Song title"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="research-album">Album</Label>
-                <Input
-                  id="research-album"
-                  value={researchAlbum}
-                  onChange={(e) => setResearchAlbum(e.target.value)}
-                  placeholder="Album name (optional)"
-                />
-              </div>
+            <div className="flex justify-between mt-6">
+              <Button variant="outline" onClick={() => setShowResearch(false)}>
+                Back
+              </Button>
             </div>
           </CardContent>
         </Card>
-
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => setShowResearch(false)}>
-            Back
-          </Button>
-          <Button
-            onClick={handleResearch}
-            disabled={
-              !researchArtist.trim() || !researchTitle.trim() || isSearching
-            }
-          >
-            {isSearching ? (
-              <>
-                <Search className="h-4 w-4 mr-2 animate-spin" />
-                Searching...
-              </>
-            ) : (
-              <>
-                <Search className="h-4 w-4 mr-2" />
-                Search Metadata
-              </>
-            )}
-          </Button>
-        </div>
       </div>
     );
   }
@@ -153,136 +98,29 @@ export function MetadataSelectionStep({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isSearching && metadataOptions.length === 0 ? (
-            // Loading state
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Searching for metadata...</span>
-              </div>
-              {[1, 2, 3].map((index) => (
-                <div
-                  key={index}
-                  className="border-b border-muted pb-2 last:border-0"
-                >
-                  <div className="flex items-center space-x-2">
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center space-x-2">
-                        <Skeleton className="h-4 w-32" />
-                        <span className="text-muted-foreground">-</span>
-                        <Skeleton className="h-4 w-12" />
-                      </div>
-                      <Skeleton className="h-3 w-48" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : metadataOptions.length > 0 ? (
-            <RadioGroup
-              value={
-                selectedMetadata
-                  ? selectedMetadata.id ||
-                    `metadata-${metadataOptions.findIndex((m) => m === selectedMetadata)}`
-                  : ""
-              }
-              onValueChange={(value) => {
-                // First try to find by id
-                let metadata = metadataOptions.find(
-                  (m) => m.id === value
-                );
-
-                // If not found, it might be a fallback index-based value
-                if (!metadata && value.startsWith("metadata-")) {
-                  const index = parseInt(value.split("-")[1]);
-                  metadata = metadataOptions[index];
-                }
-
-                if (metadata) onMetadataSelect(metadata);
-              }}
-            >
-              {metadataOptions.map((metadata, index) => {
-                const radioValue =
-                  metadata.id || `metadata-${index}`;
-                return (
-                  <div
-                    key={radioValue}
-                    className="border-b border-muted pb-2 last:border-0"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem
-                        value={radioValue}
-                        id={`metadata-${index}`}
-                      />
-                      <label
-                        htmlFor={`metadata-${index}`}
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        <div className="ml-6 text-xs text-muted-foreground space-y-1">
-                          <div className="font-semibold flex items-center space-x-1">
-                            <div className="text-sm">
-                              {metadata.title} by {metadata.artist}
-                            </div>
-                            <div className="">-</div>
-                            <div className="font-semibold italic">
-                              {metadata.year}
-                            </div>
-                          </div>
-                          {metadata.album && (
-                            <div>
-                              Album:{" "}
-                              <span className="font-semibold">
-                                {metadata.album}
-                              </span>
-                            </div>
-                          )}
-                          {metadata.genre && (
-                            <div>
-                              Genre:{" "}
-                              <span className="font-semibold">
-                                {metadata.genre}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-            </RadioGroup>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              No metadata found for this song.
-            </div>
-          )}
+          <MetadataResults
+            options={metadataOptions}
+            selectedOption={selectedMetadata}
+            onSelectionChange={onMetadataSelect}
+            isLoading={isSearching}
+            autoSelectFirst={true}
+            emptyMessage="No metadata found for this search"
+          />
         </CardContent>
       </Card>
 
-      <div className="flex justify-between flex-shrink-0">
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            onClick={handleNoneOfThese}
-            disabled={isSearching}
-          >
+      {/* Action Buttons */}
+      <div className="flex justify-between">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleNoneOfThese}>
             None of these
           </Button>
-          <Button variant="outline" onClick={onSkip} disabled={isSearching}>
-            Skip metadata
+          <Button variant="outline" onClick={onSkip}>
+            Skip Metadata
           </Button>
         </div>
-        <Button onClick={onConfirm} disabled={!selectedMetadata || isSearching}>
-          {isSearching ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Loading...
-            </>
-          ) : (
-            "Confirm & Finish"
-          )}
+        <Button onClick={onConfirm} disabled={!selectedMetadata}>
+          Continue
         </Button>
       </div>
     </div>

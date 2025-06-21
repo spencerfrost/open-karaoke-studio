@@ -170,14 +170,28 @@ class LoggingConfig:
                     "handlers": ["console"],
                     "propagate": False,
                 },
+                "yt_dlp": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "multiprocessing": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
             },
         }
 
         # Environment-specific adjustments
         if environment == "development":
-            log_config["loggers"][""]["level"] = "DEBUG"
-            log_config["handlers"]["console"]["level"] = "DEBUG"
-            log_config["loggers"]["app"]["level"] = "DEBUG"
+            # Development: INFO level for console, DEBUG for files only
+            log_config["loggers"][""]["level"] = "INFO"
+            log_config["handlers"]["console"]["level"] = "INFO"
+            log_config["loggers"]["app"]["level"] = "INFO"
+            
+            # Make console output less verbose - only show important messages
+            log_config["handlers"]["console"]["formatter"] = "simple"
 
         elif environment == "production":
             # Production: Only log to files, reduce console logging
@@ -221,8 +235,18 @@ class LoggingConfig:
         }
 
 
+# Global flag to track if logging has been initialized
+_logging_initialized = False
+
+
 def setup_logging(config: BaseConfig = None):
     """Initialize logging configuration"""
+    global _logging_initialized
+    
+    # Prevent duplicate logging setup
+    if _logging_initialized:
+        return LoggingConfig(config or get_config())
+    
     if config is None:
         from . import get_config
 
@@ -238,12 +262,12 @@ def setup_logging(config: BaseConfig = None):
 
     logging_config_module.dictConfig(log_dict_config)
 
-    # Log that logging has been initialized
+    # Mark logging as initialized
+    _logging_initialized = True
+
+    # Minimal logging initialization message
     log = logging.getLogger(__name__)
-    log.info(
-        "Logging initialized - Environment: %s", os.getenv("FLASK_ENV", "development")
-    )
-    log.info("Log directory: %s", logging_config.log_dir)
+    log.debug("Logging configured for %s", os.getenv("FLASK_ENV", "development"))
 
     return logging_config
 

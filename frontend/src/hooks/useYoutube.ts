@@ -1,19 +1,19 @@
 // frontend/src/hooks/useYoutube.ts
-import { useApiMutation, useApiQuery } from './useApi';
-import { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
+import { useApiMutation, useApiQuery } from "./useApi";
+import { UseMutationOptions, UseQueryOptions } from "@tanstack/react-query";
 
 // --- Types ---
 export interface YouTubeDownloadRequest {
-  videoId: string;
+  video_id: string;
   artist?: string;
   title?: string;
   album?: string;
-  songId?: string;
-  searchThumbnailUrl?: string;  // Add field for original search thumbnail
+  song_id?: string;
+  searchThumbnailUrl?: string; // Add field for original search thumbnail
 }
 
 export interface YouTubeDownloadResponse {
-  jobId: string;  // Changed from tempId to jobId to match new backend response
+  jobId: string; // Changed from tempId to jobId to match new backend response
   status: string;
   message: string;
 }
@@ -117,11 +117,15 @@ export interface SaveMetadataResponse {
  * This hook immediately triggers the download on the server.
  */
 export const useYoutubeDownloadMutation = (
-  options?: UseMutationOptions<YouTubeDownloadResponse, Error, YouTubeDownloadRequest>
+  options?: UseMutationOptions<
+    YouTubeDownloadResponse,
+    Error,
+    YouTubeDownloadRequest
+  >
 ) => {
   return useApiMutation<YouTubeDownloadResponse, YouTubeDownloadRequest>(
-    'youtube/download',
-    'post',
+    "youtube/download",
+    "post",
     options
   );
 };
@@ -132,18 +136,14 @@ export const useLyricsSearch = (
   params: LyricsSearchRequest,
   options?: UseQueryOptions<LyricsOption[], Error>
 ) => {
-  const queryKey = ['lyrics', 'search', params];
+  const queryKey = ["lyrics", "search", params];
   const queryString = new URLSearchParams({
     track_name: params.title,
     artist_name: params.artist,
-    ...(params.album ? { album_name: params.album } : {})
+    ...(params.album ? { album_name: params.album } : {}),
   }).toString();
-  
-  return useApiQuery(
-    queryKey,
-    `lyrics/search?${queryString}`,
-    options
-  );
+
+  return useApiQuery(queryKey, `lyrics/search?${queryString}`, options);
 };
 
 /**
@@ -153,17 +153,13 @@ export const useMetadataSearch = (
   params: MetadataSearchRequest,
   options?: UseQueryOptions<MetadataSearchResponse, Error>
 ) => {
-  const queryKey = ['metadata', 'search', params];
+  const queryKey = ["metadata", "search", params];
   const queryString = new URLSearchParams({
     title: params.title,
-    artist: params.artist
+    artist: params.artist,
   }).toString();
-  
-  return useApiQuery(
-    queryKey,
-    `metadata/search?${queryString}`,
-    options
-  );
+
+  return useApiQuery(queryKey, `metadata/search?${queryString}`, options);
 };
 
 /**
@@ -173,12 +169,11 @@ export const useCreateSongMutation = (
   options?: UseMutationOptions<CreateSongResponse, Error, CreateSongRequest>
 ) => {
   return useApiMutation<CreateSongResponse, CreateSongRequest>(
-    'songs',
-    'post',
+    "songs",
+    "post",
     options
   );
 };
-
 
 /**
  * Hook to save the final metadata and lyrics selection to the song
@@ -189,7 +184,7 @@ export const useSaveMetadataMutation = (
 ) => {
   return useApiMutation<SaveMetadataResponse, SaveMetadataRequest>(
     `songs/${songId}`,
-    'patch',
+    "patch",
     options
   );
 };
