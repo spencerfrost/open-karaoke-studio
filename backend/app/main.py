@@ -9,6 +9,11 @@ from . import create_app
 from .config import get_config
 from .config.logging import setup_logging
 
+# Clean up stuck jobs on startup
+
+# Import the cleanup utility
+from .utils.cleanup_jobs import cleanup_stuck_jobs
+
 # Get the current configuration and create the Flask app
 config = get_config()
 
@@ -20,8 +25,11 @@ app = create_app(config)
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
+
 # Only log essential startup information
 logger.info("Open Karaoke Studio backend starting")
+
+cleanup_stuck_jobs()
 
 # Set Flask app logger to use our configured logging
 app.logger.handlers = []  # Remove default handlers
@@ -41,7 +49,7 @@ if __name__ == "__main__":
     # Register websocket event handlers
     register_performance_controls(socketio)
     register_karaoke_queue(socketio)
-    
+
     # Initialize jobs WebSocket handlers and event subscriptions
     initialize_jobs_websocket()
 
