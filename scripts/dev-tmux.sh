@@ -13,7 +13,7 @@ echo "VITE_BACKEND_URL=http://$HOST_IP:5123" >frontend/.env.local
 echo "✅ Frontend configured to connect to: http://$HOST_IP:5123"
 
 # Session name
-SESSION_NAME="open-karaoke-dev"
+SESSION_NAME="open-karaoke-studio"
 
 # Kill existing session if it exists
 tmux has-session -t $SESSION_NAME 2>/dev/null && tmux kill-session -t $SESSION_NAME
