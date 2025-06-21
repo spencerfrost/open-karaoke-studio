@@ -55,3 +55,13 @@ def create_app(config_class=None):
     register_error_handlers(app)
 
     return app
+
+    # Register WebSocket event handlers for performance controls and karaoke queue
+    from .websockets.performance_controls_ws import register_handlers as register_performance_controls
+    from .websockets.karaoke_queue_ws import register_handlers as register_karaoke_queue
+    from .websockets.jobs_ws import initialize_jobs_websocket
+    from .websockets.socketio import socketio
+
+    register_performance_controls(socketio)
+    register_karaoke_queue(socketio)
+    initialize_jobs_websocket()
