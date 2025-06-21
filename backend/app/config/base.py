@@ -18,6 +18,9 @@ class BaseConfig:
     # Directory Structure
     BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent  # Points to project root
 
+    # Timezone Configuration
+    TIMEZONE = os.environ.get("TIMEZONE", "America/Toronto")
+    
     # Logging Configuration
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_DIR = Path(os.environ.get("LOG_DIR", str(BASE_DIR / "backend" / "logs")))

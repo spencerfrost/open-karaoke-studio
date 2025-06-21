@@ -5,10 +5,28 @@ Provides file-based persistent logging with rotation and proper formatting.
 
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .base import BaseConfig
+
+
+class TimezoneFormatter(logging.Formatter):
+    """Custom formatter that converts timestamps to a specified timezone."""
+    
+    def __init__(self, fmt=None, datefmt=None, timezone="UTC"):
+        super().__init__(fmt, datefmt)
+        self.timezone = ZoneInfo(timezone)
+    
+    def formatTime(self, record, datefmt=None):
+        """Convert the timestamp to the specified timezone."""
+        dt = datetime.fromtimestamp(record.created, tz=self.timezone)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime('%Y-%m-%d %H:%M:%S %Z')
 
 
 class LoggingConfig:
@@ -18,6 +36,7 @@ class LoggingConfig:
         self.config = config
         self.log_dir = Path(config.BASE_DIR) / "backend" / "logs"
         self.log_dir.mkdir(exist_ok=True)
+        self.timezone = getattr(config, 'TIMEZONE', 'America/Toronto')
 
     def setup_logging(self, environment: str = "development") -> dict[str, Any]:
         """Setup logging configuration based on environment"""
@@ -28,22 +47,28 @@ class LoggingConfig:
             "disable_existing_loggers": False,
             "formatters": {
                 "detailed": {
+                    "()": TimezoneFormatter,
                     "format": (
                         "%(asctime)s - %(name)s - %(levelname)s - "
                         "%(filename)s:%(lineno)d - %(funcName)s - %(message)s"
                     ),
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "simple": {
+                    "()": TimezoneFormatter,
                     "format": "%(asctime)s - %(levelname)s - %(message)s",
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "celery": {
+                    "()": TimezoneFormatter,
                     "format": (
                         "%(asctime)s - %(name)s - %(levelname)s - "
                         "%(funcName)s - %(message)s"
                     ),
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "json": {
                     "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
@@ -217,6 +242,9 @@ class LoggingConfig:
 
     def configure_celery_logging(self) -> dict[str, Any]:
         """Configure Celery-specific logging"""
+        # Set timezone for Celery logging
+        os.environ.setdefault('TZ', self.timezone)
+        
         return {
             "task_always_eager": False,
             "worker_log_format": (
