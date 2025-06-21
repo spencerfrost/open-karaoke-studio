@@ -10,12 +10,15 @@ from ..db.song_operations import (
     search_songs_paginated,
 )
 from ..schemas.song import Song
+from ..exceptions import DatabaseError, ValidationError
+from ..utils.error_handlers import handle_api_error
 
 logger = logging.getLogger(__name__)
 artists_bp = Blueprint("songs_artists", __name__, url_prefix="/api/songs")
 
 
 @artists_bp.route("/artists", methods=["GET"])
+@handle_api_error
 def get_artists():
     """Get all unique artists with song counts and optional filtering.
 
@@ -49,12 +52,26 @@ def get_artists():
         logger.info("Returning %s artists (total: %s)", len(artists), total_count)
         return jsonify(response)
 
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
+        )
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed while fetching artists",
+            "DATABASE_CONNECTION_ERROR",
+            {"error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Error getting artists: {e}", exc_info=True)
-        return jsonify({"error": "Failed to fetch artists"}), 500
+        raise DatabaseError(
+            "Unexpected error fetching artists",
+            "ARTISTS_FETCH_ERROR",
+            {"error": str(e)},
+        )
 
 
 @artists_bp.route("/by-artist/<string:artist_name>", methods=["GET"])
+@handle_api_error
 def get_songs_by_artist_route(artist_name: str):
     """Get songs for a specific artist with pagination.
 
@@ -69,6 +86,20 @@ def get_songs_by_artist_route(artist_name: str):
         offset = int(request.args.get("offset", 0))
         sort_by = request.args.get("sort", "title")
         direction = request.args.get("direction", "asc")
+
+        # Validate sort parameters
+        valid_sorts = ["title", "album", "year", "dateAdded"]
+        if sort_by not in valid_sorts:
+            raise ValidationError(
+                f"Invalid sort field: {sort_by}. Must be one of: {', '.join(valid_sorts)}",
+                "INVALID_SORT_FIELD",
+            )
+
+        if direction not in ["asc", "desc"]:
+            raise ValidationError(
+                f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
+                "INVALID_SORT_DIRECTION",
+            )
 
         # Get songs for artist from database
         songs_data = get_songs_by_artist(
@@ -105,14 +136,28 @@ def get_songs_by_artist_route(artist_name: str):
         )
         return jsonify(response)
 
-    except Exception as e:
-        logger.error(
-            f"Error getting songs for artist '{artist_name}': {e}", exc_info=True
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
         )
-        return jsonify({"error": "Failed to fetch songs for artist"}), 500
+    except ConnectionError as e:
+        raise DatabaseError(
+            f"Database connection failed while fetching songs for artist '{artist_name}'",
+            "DATABASE_CONNECTION_ERROR",
+            {"artist": artist_name, "error": str(e)},
+        )
+    except Exception as e:
+        raise DatabaseError(
+            f"Unexpected error fetching songs for artist '{artist_name}'",
+            "ARTIST_SONGS_FETCH_ERROR",
+            {"artist": artist_name, "error": str(e)},
+        )
 
 
 @artists_bp.route("/search", methods=["GET"])
+@handle_api_error
 def search_songs():
     """Enhanced search with pagination and artist grouping options.
 
@@ -144,6 +189,13 @@ def search_songs():
         group_by_artist = request.args.get("group_by_artist", "false").lower() == "true"
         sort_by = request.args.get("sort", "relevance")
         direction = request.args.get("direction", "desc")
+
+        # Validate parameters
+        if direction not in ["asc", "desc"]:
+            raise ValidationError(
+                f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
+                "INVALID_SORT_DIRECTION",
+            )
 
         # Get search results from database
         search_results = search_songs_paginated(
@@ -180,6 +232,21 @@ def search_songs():
         )
         return jsonify(response)
 
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
+        )
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed during song search",
+            "DATABASE_CONNECTION_ERROR",
+            {"query": query, "error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Error searching songs: {e}", exc_info=True)
-        return jsonify({"error": "Failed to search songs"}), 500
+        raise DatabaseError(
+            "Unexpected error searching songs",
+            "SONGS_SEARCH_ERROR",
+            {"query": query, "error": str(e)},
+        )

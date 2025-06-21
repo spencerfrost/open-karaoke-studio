@@ -4,6 +4,8 @@ import logging
 from flask import Blueprint, current_app, jsonify, request
 
 from ..services.metadata_service import MetadataService
+from ..exceptions import ValidationError, NetworkError, ServiceError
+from ..utils.error_handlers import handle_api_error
 
 logger = logging.getLogger(__name__)
 # Create a metadata blueprint with the new, clean URL structure
@@ -11,6 +13,7 @@ metadata_bp = Blueprint("metadata", __name__, url_prefix="/api/metadata")
 
 
 @metadata_bp.route("/search", methods=["GET"])
+@handle_api_error
 def search_metadata_endpoint():
     """Endpoint to search for song metadata using iTunes Search API."""
     logger.info("Received metadata search request")
@@ -27,14 +30,14 @@ def search_metadata_endpoint():
 
         # Validate that at least title or artist is provided
         if not title and not artist:
-            return (
-                jsonify(
-                    {
-                        "error": "At least one of 'title' or 'artist' parameters is required"
-                    }
-                ),
-                400,
+            raise ValidationError(
+                "At least one of 'title' or 'artist' parameters is required",
+                "MISSING_SEARCH_PARAMETERS",
             )
+
+        # Validate limit
+        if limit <= 0 or limit > 50:
+            raise ValidationError("Limit must be between 1 and 50", "INVALID_LIMIT")
 
         logger.info(
             "Metadata search - Artist: '%s', Title: '%s', Album: '%s', Limit: %s",
@@ -66,11 +69,24 @@ def search_metadata_endpoint():
         return jsonify(response_data), 200
 
     except ValueError as e:
-        logger.error("ValueError in metadata search: %s", e)
-        return jsonify({"error": str(e)}), 400
+        raise ValidationError(f"Invalid parameter: {str(e)}", "INVALID_PARAMETERS")
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        raise NetworkError(
+            "Failed to connect to metadata service",
+            "METADATA_CONNECTION_ERROR",
+            {"error": str(e)},
+        )
+    except TimeoutError as e:
+        raise NetworkError(
+            "Metadata service request timed out",
+            "METADATA_TIMEOUT_ERROR",
+            {"error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Error during metadata search: {e}", exc_info=True)
-        return (
-            jsonify({"error": "An internal error occurred during metadata search"}),
-            500,
+        raise ServiceError(
+            "Unexpected error during metadata search",
+            "METADATA_SEARCH_ERROR",
+            {"error": str(e)},
         )

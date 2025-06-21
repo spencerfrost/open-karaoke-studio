@@ -15,15 +15,26 @@ from ..config import get_config
 from ..db.models import DbSong
 from ..db.song_operations import get_song, create_or_update_song
 from ..db.song_operations import delete_song as db_delete_song
-from ..exceptions import ServiceError
+from ..exceptions import (
+    ServiceError,
+    DatabaseError,
+    ResourceNotFoundError,
+    InvalidTrackTypeError,
+    FileOperationError,
+    ValidationError,
+)
 from ..services import FileService, file_management
 from ..services.lyrics_service import LyricsService
+from ..utils.error_handlers import handle_api_error
+from ..utils.validation import validate_json_request, validate_path_params
+from ..schemas.requests import CreateSongRequest, UpdateSongRequest
 
 logger = logging.getLogger(__name__)
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 
 
 @song_bp.route("", methods=["GET"])
+@handle_api_error
 def get_songs():
     """
     Endpoint to get a list of processed songs with metadata
@@ -44,79 +55,95 @@ def get_songs():
         logger.info("Returning %s songs.", len(response_data))
         return jsonify(response_data)
 
+    except ConnectionError as e:
+        # Database connection issues
+        logger.error(
+            "Database connection failed retrieving songs: %s", e, exc_info=True
+        )
+        raise DatabaseError(
+            "Database connection failed while retrieving songs",
+            "DATABASE_CONNECTION_ERROR",
+            {"operation": "select_songs", "error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Unexpected error in get_songs: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        # Unexpected database or serialization errors
+        logger.error("Unexpected error retrieving songs: %s", e, exc_info=True)
+        raise DatabaseError(
+            "Unexpected error retrieving songs from database",
+            "DATABASE_QUERY_ERROR",
+            {"operation": "select_songs", "table": "songs", "error": str(e)},
+        )
 
 
 @song_bp.route("/<string:song_id>/download/<string:track_type>", methods=["GET"])
+@handle_api_error
+@validate_path_params(song_id=str, track_type=str)
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
     logger.info("Download request for song '%s', track type '%s'", song_id, track_type)
     track_type = track_type.lower()  # Normalize track type
 
-    if track_type not in ("vocals", "instrumental", "original"):
-        logger.warning("Invalid track type requested: %s", track_type)
-        return (
-            jsonify(
-                {
-                    "error": (
-                        "Invalid track type specified. "
-                        "Use 'vocals', 'instrumental', or 'original'."
-                    )
-                }
-            ),
-            400,
-        )
+    # Validate track type first
+    valid_track_types = ["vocals", "instrumental", "original"]
+    if track_type not in valid_track_types:
+        raise InvalidTrackTypeError(track_type, valid_track_types)
 
     try:
         file_service = FileService()
         song_dir = file_service.get_song_directory(song_id)
+
         if not song_dir.is_dir():
-            logger.error("Song directory not found: %s", song_dir)
-            return jsonify({"error": "Song not found"}), 404
+            raise ResourceNotFoundError("Song", song_id)
 
         track_file: Optional[Path] = song_dir / f"{track_type}.mp3"
 
-        if track_file and track_file.is_file():
-            # Security Check: Ensure the file is within the base library directory
-            config = get_config()
-            library_base_path = config.LIBRARY_DIR.resolve()
-            file_path_resolved = track_file.resolve()
-
-            if library_base_path not in file_path_resolved.parents:
-                logger.error(
-                    "Attempted download outside library bounds: %s", track_file
-                )
-                return jsonify({"error": "Access denied"}), 403
-
-            logger.info("Sending %s.mp3 from directory '%s'", track_type, song_dir)
-            return send_from_directory(
-                song_dir,  # Directory path object
-                track_file.name,  # Just the filename string - use .name to get just the filename
-                as_attachment=True,  # Trigger browser download prompt
-            )
-        else:
-            logger.error("Track file not found: %s", track_file)
-            return (
-                jsonify(
-                    {
-                        "error": f"{track_type.capitalize()} track not found for this song"
-                    }
-                ),
-                404,
+        if not (track_file and track_file.is_file()):
+            raise FileOperationError(
+                "locate",
+                str(track_file),
+                f"{track_type.capitalize()} track not found for this song",
             )
 
+        # Security Check: Ensure the file is within the base library directory
+        config = get_config()
+        library_base_path = config.LIBRARY_DIR.resolve()
+        file_path_resolved = track_file.resolve()
+
+        if library_base_path not in file_path_resolved.parents:
+            logger.error("Attempted download outside library bounds: %s", track_file)
+            raise ValidationError(
+                "Access denied - file outside library bounds", "SECURITY_VIOLATION"
+            )
+
+        logger.info("Sending %s.mp3 from directory '%s'", track_type, song_dir)
+        return send_from_directory(
+            song_dir,  # Directory path object
+            track_file.name,  # Just the filename string
+            as_attachment=True,  # Trigger browser download prompt
+        )
+
+    except (
+        ResourceNotFoundError,
+        InvalidTrackTypeError,
+        FileOperationError,
+        ValidationError,
+    ):
+        # Re-raise our custom exceptions - they'll be handled by the error handlers
+        raise
     except Exception as e:
         logger.error(
-            f"Error during download for song '{song_id}', track '{track_type}': {e}",
+            f"Unexpected error during download for song '{song_id}', track '{track_type}': {e}",
             exc_info=True,
         )
-        # Use exc_info=True in logger to include traceback
-        return jsonify({"error": "An internal error occurred during download."}), 500
+        raise FileOperationError(
+            "download",
+            f"{song_id}/{track_type}.mp3",
+            f"Internal error during file operation: {str(e)}",
+        )
 
 
 @song_bp.route("/<string:song_id>", methods=["GET"])
+@handle_api_error
 def get_song_details(song_id: str):
     """Endpoint to get details for a specific song - direct database access."""
     logger.info("Received request for song details: %s", song_id)
@@ -126,7 +153,7 @@ def get_song_details(song_id: str):
         db_song = get_song(song_id)
 
         if not db_song:
-            return jsonify({"error": f"Song with ID {song_id} not found"}), 404
+            raise ResourceNotFoundError("Song", song_id)
 
         # Convert to Pydantic response format using our new pattern
         from ..schemas.song import Song
@@ -137,15 +164,24 @@ def get_song_details(song_id: str):
         logger.info("Returning details for song %s", song_id)
         return jsonify(response), 200
 
-    except ServiceError as e:
-        logger.error("Service error getting song %s: %s", song_id, e)
-        return jsonify({"error": "Failed to fetch song", "details": str(e)}), 500
+    except ServiceError:
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed while fetching song details",
+            "DATABASE_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Unexpected error getting song {song_id}: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        raise DatabaseError(
+            "Unexpected error fetching song details",
+            "SONG_DETAILS_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
 
 
 @song_bp.route("/<string:song_id>/thumbnail.<string:extension>", methods=["GET"])
+@handle_api_error
 def get_thumbnail(song_id: str, extension: str):
     """Serve the thumbnail image for a song."""
     import os
@@ -158,10 +194,15 @@ def get_thumbnail(song_id: str, extension: str):
     # Validate extension
     allowed_extensions = {"jpg", "jpeg", "png", "webp"}
     if extension.lower() not in allowed_extensions:
-        return jsonify({"error": "Invalid image format"}), 400
+        raise ValidationError(
+            f"Invalid image format: {extension}. Allowed: {', '.join(allowed_extensions)}",
+            "INVALID_IMAGE_FORMAT",
+        )
 
     # Get song from database to find thumbnail path
-    get_song(song_id)
+    db_song = get_song(song_id)
+    if not db_song:
+        raise ResourceNotFoundError("Song", song_id)
 
     # Construct the path to the thumbnail
     file_service = FileService()
@@ -169,10 +210,12 @@ def get_thumbnail(song_id: str, extension: str):
     thumbnail_path = song_dir / f"thumbnail.{extension}"
 
     if not thumbnail_path.exists():
-        return jsonify({"error": "Thumbnail not found"}), 404
+        raise ResourceNotFoundError(
+            "Thumbnail image", f"{song_id}/thumbnail.{extension}"
+        )
 
     if not os.access(thumbnail_path, os.R_OK):
-        return jsonify({"error": "Thumbnail is not readable"}), 403
+        raise FileOperationError("read", str(thumbnail_path), "File is not readable")
 
     # Determine correct mimetype based on extension
     mimetype_map = {
@@ -185,16 +228,26 @@ def get_thumbnail(song_id: str, extension: str):
 
     try:
         return send_file(thumbnail_path, mimetype=mimetype)
-    except Exception:
-        return (
-            jsonify(
-                {"error": "An internal error occurred while serving the thumbnail."}
-            ),
-            500,
+    except FileNotFoundError as e:
+        raise ResourceNotFoundError(
+            "Thumbnail image", f"{song_id}/thumbnail.{extension}"
+        )
+    except PermissionError as e:
+        raise FileOperationError(
+            "serve",
+            str(thumbnail_path),
+            f"Permission denied accessing thumbnail: {str(e)}",
+        )
+    except Exception as e:
+        raise FileOperationError(
+            "serve",
+            str(thumbnail_path),
+            f"Unexpected error serving thumbnail: {str(e)}",
         )
 
 
 @song_bp.route("/<string:song_id>/thumbnail", methods=["GET"])
+@handle_api_error
 def get_thumbnail_auto(song_id: str):
     """Serve the thumbnail image for a song, auto-detecting format."""
     import os
@@ -205,7 +258,9 @@ def get_thumbnail_auto(song_id: str):
     song_id = unquote(song_id)
 
     # Get song from database to find thumbnail path
-    get_song(song_id)
+    db_song = get_song(song_id)
+    if not db_song:
+        raise ResourceNotFoundError("Song", song_id)
 
     # Construct the path to the thumbnail
     file_service = FileService()
@@ -224,10 +279,11 @@ def get_thumbnail_auto(song_id: str):
         if thumbnail_path.exists() and os.access(thumbnail_path, os.R_OK):
             try:
                 return send_file(thumbnail_path, mimetype=mimetype)
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to serve thumbnail %s: %s", thumbnail_path, e)
                 continue  # Try next format
 
-    return jsonify({"error": "Thumbnail not found"}), 404
+    raise ResourceNotFoundError("Thumbnail image", f"{song_id}/thumbnail.*")
 
 
 # Backward compatibility route
@@ -238,6 +294,7 @@ def get_thumbnail_jpg_compat(song_id: str):
 
 
 @song_bp.route("/<string:song_id>/lyrics", methods=["GET"])
+@handle_api_error
 def get_song_lyrics(song_id: str):
     """Fetch synchronized or plain lyrics for a song using LRCLIB."""
     logger.info("Received lyrics request for song %s", song_id)
@@ -269,9 +326,8 @@ def get_song_lyrics(song_id: str):
             metadata = file_management.read_song_metadata(song_id)
             if not metadata or not metadata.title:
                 logger.warning("Metadata incomplete for lyrics: %s", song_id)
-                return (
-                    jsonify({"error": "Missing metadata (title) for lyrics lookup"}),
-                    400,
+                raise ValidationError(
+                    "Missing metadata (title) for lyrics lookup", "MISSING_METADATA"
                 )
 
             # Determine best artist name: prefer metadata.artist, else channel
@@ -282,14 +338,18 @@ def get_song_lyrics(song_id: str):
             )
             if not artist:
                 logger.warning("Artist unknown for lyrics: %s", song_id)
-                return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
+                raise ValidationError(
+                    "Missing artist name for lyrics lookup", "MISSING_ARTIST"
+                )
 
             title = metadata.title
             album = metadata.releaseTitle
 
         # If missing essential info, return error
         if not title or not artist:
-            return jsonify({"error": "Missing essential info for lyrics lookup"}), 400
+            raise ValidationError(
+                "Missing essential info for lyrics lookup", "MISSING_METADATA"
+            )
 
         # Search for lyrics using the service
         query_parts = [artist, title]
@@ -308,23 +368,46 @@ def get_song_lyrics(song_id: str):
             if lyrics_data.get("plainLyrics"):
                 try:
                     lyrics_service.save_lyrics(song_id, lyrics_data["plainLyrics"])
+                except OSError as e:
+                    logger.warning(
+                        "Failed to save lyrics locally (file system error): %s", e
+                    )
                 except Exception as e:
-                    logger.warning("Failed to save lyrics locally: %s", e)
+                    logger.warning(
+                        "Failed to save lyrics locally (unexpected error): %s", e
+                    )
 
             return jsonify(lyrics_data), 200
         else:
             logger.info("No lyrics found for %s", song_id)
-            return jsonify({"error": "No lyrics found"}), 404
+            raise ResourceNotFoundError("Lyrics", song_id)
 
-    except ServiceError as e:
-        logger.error("Service error getting lyrics for %s: %s", song_id, e)
-        return jsonify({"error": str(e)}), 500
+    except ServiceError:
+        raise  # Let error handlers deal with it
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        raise NetworkError(
+            "Failed to connect to lyrics service",
+            "LYRICS_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
+    except TimeoutError as e:
+        raise NetworkError(
+            "Lyrics service request timed out",
+            "LYRICS_TIMEOUT_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
     except Exception as e:
-        logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
-        return jsonify({"error": "Failed to fetch lyrics"}), 500
+        raise ServiceError(
+            "Unexpected error fetching lyrics",
+            "LYRICS_FETCH_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
 
 
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
+@handle_api_error
 def delete_song(song_id: str):
     """Endpoint to delete a song by its ID - direct database access."""
     logger.info("Received request to delete song: %s", song_id)
@@ -333,12 +416,16 @@ def delete_song(song_id: str):
         # Check if song exists first
         db_song = get_song(song_id)
         if not db_song:
-            return jsonify({"error": "Song not found"}), 404
+            raise ResourceNotFoundError("Song", song_id)
 
         # Delete song from database
         success = db_delete_song(song_id)
         if not success:
-            return jsonify({"error": "Failed to delete song from database"}), 500
+            raise DatabaseError(
+                "Failed to delete song from database",
+                "SONG_DELETE_ERROR",
+                {"song_id": song_id},
+            )
 
         # Also delete files using FileService
         file_service = FileService()
@@ -347,52 +434,56 @@ def delete_song(song_id: str):
         logger.info("Successfully deleted song: %s", song_id)
         return jsonify({"message": "Song deleted successfully"}), 200
 
-    except ServiceError as e:
-        logger.error("Service error deleting song %s: %s", song_id, e)
-        return jsonify({"error": "Failed to delete song", "details": str(e)}), 500
+    except ServiceError:
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed during song deletion",
+            "DATABASE_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
+    except OSError as e:
+        # File deletion errors
+        raise FileOperationError(
+            "delete", f"{song_id}/*", f"Failed to delete song files: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"Unexpected error deleting song {song_id}: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        raise DatabaseError(
+            "Unexpected error deleting song",
+            "SONG_DELETE_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
 
 
 @song_bp.route("", methods=["POST"])
-def create_song():
+@handle_api_error
+@validate_json_request(CreateSongRequest)
+def create_song(validated_data: CreateSongRequest):
     """Create a new song with basic information - thin controller using service layer."""
     logger.info("Received request to create a new song")
 
+    # Generate a unique ID for the song
+    song_id = str(uuid.uuid4())
+    logger.info("Creating new song with ID: %s", song_id)
+
     try:
-        # Get request data
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        # Validate required fields
-        if not data.get("title"):
-            return jsonify({"error": "Song title is required"}), 400
-
-        # Generate a unique ID for the song
-        song_id = str(uuid.uuid4())
-        logger.info("Creating new song with ID: %s", song_id)
-
-        # Create song directly using create_or_update_song
+        # Create song directly using create_or_update_song with validated data
         song = create_or_update_song(
             song_id=song_id,
-            title=data.get("title"),
-            artist=data.get("artist", "Unknown Artist"),
-            source=data.get("source"),
-            source_url=data.get("sourceUrl"),
-            video_id=data.get("videoId"),
-            uploader=data.get("uploader"),
-            uploader_id=data.get("uploaderId"),
-            channel=data.get("channel"),
-            channel_id=data.get("channelId"),
-            album=data.get("album"),
-            genre=data.get("genre"),
-            language=data.get("language"),
+            title=validated_data.title,
+            artist=validated_data.artist,
+            album=validated_data.album,
+            duration=validated_data.duration,
+            source=validated_data.source,
+            video_id=validated_data.video_id,
         )
+
         if not song:
-            logger.error("Failed to create song %s in database", song_id)
-            return jsonify({"error": "Failed to create song in database"}), 500
+            raise DatabaseError(
+                f"Failed to create song {song_id} in database",
+                "SONG_CREATION_FAILED",
+                {"song_id": song_id},
+            )
 
         # Create the song directory
         try:
@@ -402,8 +493,15 @@ def create_song():
             song_dir = file_service.get_song_directory(song_id)
             song_dir.mkdir(parents=True, exist_ok=True)
             logger.info("Created directory for song: %s", song_dir)
+        except OSError as e:
+            logger.warning(
+                "File system error creating directory for song %s: %s", song_id, e
+            )
+            # Continue even if directory creation fails - we'll try again during processing
         except Exception as e:
-            logger.error("Error creating directory for song %s: %s", song_id, e)
+            logger.warning(
+                "Unexpected error creating directory for song %s: %s", song_id, e
+            )
             # Continue even if directory creation fails - we'll try again during processing
 
         # Return the song data using the model's to_dict method
@@ -414,15 +512,25 @@ def create_song():
         logger.info("Successfully created song: %s", song_id)
         return jsonify(response), 201
 
-    except ServiceError as e:
-        logger.error("Service error creating song: %s", e)
-        return jsonify({"error": "Failed to create song", "details": str(e)}), 500
+    except DatabaseError:
+        raise
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed during song creation",
+            "DATABASE_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Unexpected error creating song: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        logger.error("Unexpected error creating song: %s", e, exc_info=True)
+        raise ServiceError(
+            "Unexpected error creating song",
+            "SONG_CREATION_ERROR",
+            {"song_id": song_id, "original_error": str(e)},
+        )
 
 
 @song_bp.route("/<string:song_id>", methods=["PATCH"])
+@handle_api_error
 def update_song(song_id: str):
     """Update a song with any provided fields - generic update endpoint."""
     logger.info("Received request to update song %s", song_id)
@@ -431,12 +539,12 @@ def update_song(song_id: str):
         # Get request data
         data = request.get_json()
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            raise ValidationError("No data provided", "MISSING_REQUEST_DATA")
 
         # Get existing song from database first
         db_song = get_song(song_id)
         if not db_song:
-            return jsonify({"error": "Song not found"}), 404
+            raise ResourceNotFoundError("Song", song_id)
 
         # Update song directly in database using only the provided fields
         updated_song = create_or_update_song(
@@ -452,17 +560,33 @@ def update_song(song_id: str):
         )
 
         if not updated_song:
-            return jsonify({"error": "Failed to update song metadata"}), 500
+            raise DatabaseError(
+                "Failed to update song metadata",
+                "SONG_UPDATE_ERROR",
+                {"song_id": song_id},
+            )
 
         # Return updated song details
         return get_song_details(song_id)
 
+    except (ValidationError, ResourceNotFoundError, DatabaseError):
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed during song update",
+            "DATABASE_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Unexpected error updating song {song_id}: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        raise DatabaseError(
+            "Unexpected error updating song",
+            "SONG_UPDATE_ERROR",
+            {"song_id": song_id, "error": str(e)},
+        )
 
 
 @song_bp.route("/<string:song_id>/cover.<string:extension>", methods=["GET"])
+@handle_api_error
 def get_cover_art(song_id: str, extension: str):
     """Serve the cover art image for a song."""
     import os
@@ -475,7 +599,10 @@ def get_cover_art(song_id: str, extension: str):
     # Validate extension
     allowed_extensions = {"jpg", "jpeg", "png", "webp"}
     if extension.lower() not in allowed_extensions:
-        return jsonify({"error": "Invalid image format"}), 400
+        raise ValidationError(
+            f"Invalid image format: {extension}. Allowed: {', '.join(allowed_extensions)}",
+            "INVALID_IMAGE_FORMAT",
+        )
 
     # Construct the path to the cover art
     file_service = FileService()
@@ -483,10 +610,10 @@ def get_cover_art(song_id: str, extension: str):
     cover_art_path = song_dir / f"cover.{extension}"
 
     if not cover_art_path.exists():
-        return jsonify({"error": "Cover art not found"}), 404
+        raise ResourceNotFoundError("Cover art", f"{song_id}/cover.{extension}")
 
     if not os.access(cover_art_path, os.R_OK):
-        return jsonify({"error": "Cover art is not readable"}), 403
+        raise FileOperationError("read", str(cover_art_path), "File is not readable")
 
     # Determine correct mimetype based on extension
     mimetype_map = {
@@ -499,16 +626,24 @@ def get_cover_art(song_id: str, extension: str):
 
     try:
         return send_file(cover_art_path, mimetype=mimetype)
-    except Exception:
-        return (
-            jsonify(
-                {"error": "An internal error occurred while serving the cover art."}
-            ),
-            500,
+    except FileNotFoundError as e:
+        raise ResourceNotFoundError("Cover art", f"{song_id}/cover.{extension}")
+    except PermissionError as e:
+        raise FileOperationError(
+            "serve",
+            str(cover_art_path),
+            f"Permission denied accessing cover art: {str(e)}",
+        )
+    except Exception as e:
+        raise FileOperationError(
+            "serve",
+            str(cover_art_path),
+            f"Unexpected error serving cover art: {str(e)}",
         )
 
 
 @song_bp.route("/<string:song_id>/cover", methods=["GET"])
+@handle_api_error
 def get_cover_art_auto(song_id: str):
     """Serve the cover art image for a song, auto-detecting format."""
     import os
@@ -535,7 +670,16 @@ def get_cover_art_auto(song_id: str):
         if cover_art_path.exists() and os.access(cover_art_path, os.R_OK):
             try:
                 return send_file(cover_art_path, mimetype=mimetype)
-            except Exception:
+            except FileNotFoundError:
+                logger.warning("Cover art file disappeared: %s", cover_art_path)
+                continue  # Try next format
+            except PermissionError as e:
+                logger.warning(
+                    "Permission denied accessing cover art %s: %s", cover_art_path, e
+                )
+                continue  # Try next format
+            except Exception as e:
+                logger.warning("Failed to serve cover art %s: %s", cover_art_path, e)
                 continue  # Try next format
 
-    return jsonify({"error": "Cover art not found"}), 404
+    raise ResourceNotFoundError("Cover art", f"{song_id}/cover.*")
