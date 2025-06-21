@@ -12,13 +12,13 @@ from pathlib import Path
 try:
     from app.api.songs import song_bp
     from app.db.models import DbSong, Song
-    from app.services.song_service import SongService
+    # SongService removed - no longer needed
     from app.exceptions import ServiceError, NotFoundError
 except ImportError:
     song_bp = Mock()
     DbSong = Mock()
     Song = Mock()
-    SongService = Mock()
+    # SongService = Mock()  # Removed - no longer used
     ServiceError = Exception
     NotFoundError = Exception
 
@@ -71,7 +71,7 @@ class TestSongsAPI:
         assert data[0]['title'] == "Test Song 1"
         assert data[1]['title'] == "Test Song 2"
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_get_songs_service_error(self, mock_song_service_class, client):
         """Test GET /api/songs when service raises ServiceError"""
         # Setup mock service to raise ServiceError
@@ -94,7 +94,7 @@ class TestSongsAPI:
         assert 'Failed to fetch songs' in data['error']
         assert 'Service failed' in data['details']
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_get_songs_unexpected_error(self, mock_song_service_class, client):
         """Test GET /api/songs when unexpected error occurs"""
         # Setup mock service to raise unexpected exception
@@ -116,7 +116,7 @@ class TestSongsAPI:
         assert 'error' in data
         assert 'Internal server error' in data['error']
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     @patch('app.api.songs.get_song')  # Updated to mock the direct import
     def test_get_song_details_success(self, mock_get_song, mock_song_service_class, client):
         """Test GET /api/songs/<id> endpoint success with service layer"""
@@ -181,7 +181,7 @@ class TestSongsAPI:
         assert data['title'] == "Test Song"
         assert data['album'] == "Test Album"  # Added by legacy compatibility
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_get_song_details_not_found(self, mock_song_service_class, client):
         """Test GET /api/songs/<id> when song not found with service layer"""
         # Setup mock service to return None
@@ -204,7 +204,7 @@ class TestSongsAPI:
         assert 'error' in data
         assert 'not found' in data['error']
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_get_song_details_service_error(self, mock_song_service_class, client):
         """Test GET /api/songs/<id> when service raises ServiceError"""
         # Setup mock service to raise ServiceError
@@ -351,7 +351,7 @@ class TestSongsAPI:
 class TestSongsAPISearch:
     """Test the songs search functionality"""
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_search_songs_success(self, mock_song_service_class, client):
         """Test GET /api/songs/search endpoint success with service layer"""
         # Setup mock service
@@ -387,7 +387,7 @@ class TestSongsAPISearch:
         assert len(data) == 1
         assert data[0]['title'] == "Test Song"
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_search_songs_empty_query(self, mock_song_service_class, client):
         """Test search endpoint with empty query returns empty list"""
         # Make request with empty query
@@ -405,7 +405,7 @@ class TestSongsAPISearch:
         # Service should not be called for empty query
         mock_song_service_class.assert_not_called()
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_search_songs_service_error(self, mock_song_service_class, client):
         """Test search endpoint when service raises ServiceError"""
         # Setup mock service to raise ServiceError
@@ -457,8 +457,8 @@ class TestSongsAPIErrorHandling:
         assert response.status_code in [400, 404, 500]
 
 
-    @patch('app.api.songs.SongService')
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
+    @patch('app.db.database.get_db_session')
     @patch('app.api.songs.FileService')
     def test_delete_song_success(self, mock_file_service_class, mock_song_service_class, client):
         """Test DELETE /api/songs/<id> endpoint success with service layer"""
@@ -486,7 +486,7 @@ class TestSongsAPIErrorHandling:
         assert 'message' in data
         assert 'deleted successfully' in data['message']
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_delete_song_not_found(self, mock_song_service_class, client):
         """Test DELETE /api/songs/<id> when song not found with service layer"""
         # Setup mock service to return False (not found)
@@ -509,7 +509,7 @@ class TestSongsAPIErrorHandling:
         assert 'error' in data
         assert 'not found' in data['error']
     
-    @patch('app.api.songs.SongService')
+    @patch('app.db.database.get_db_session')
     def test_delete_song_service_error(self, mock_song_service_class, client):
         """Test DELETE /api/songs/<id> when service raises ServiceError"""
         # Setup mock service to raise ServiceError
