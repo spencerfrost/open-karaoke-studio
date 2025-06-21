@@ -11,7 +11,7 @@ from .interfaces.lyrics_service import LyricsServiceInterface
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke)"
+USER_AGENT = "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke-studio)"
 
 
 class LyricsService(LyricsServiceInterface):

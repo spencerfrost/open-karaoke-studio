@@ -93,8 +93,7 @@ def dismiss_job(job_id):
         return (
             jsonify(
                 {
-                    "error": f"Cannot dismiss job with status {
-                        job.status}. Only completed, failed, or cancelled jobs can be dismissed."
+                    "error": f"Cannot dismiss job with status {job.status}. Only completed, failed, or cancelled jobs can be dismissed."
                 }
             ),
             400,
