@@ -9,7 +9,8 @@ from datetime import datetime
 from celery.utils.log import get_task_logger
 
 from ..config.logging import get_structured_logger
-from ..db.models import JobStatus, JobStore
+from ..db.models import JobStatus
+from ..repositories import JobRepository
 from ..services import FileService, audio, file_management
 from .celery_app import celery
 
@@ -18,7 +19,7 @@ logger = get_task_logger(__name__)
 structured_logger = get_structured_logger(
     "app.jobs", {"module": "jobs", "component": "task_processor"}
 )
-job_store = JobStore()
+job_repository = JobRepository()
 
 
 def _broadcast_job_event(job, was_created=False):
@@ -491,3 +492,54 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.completed_at = datetime.now()
         job_store.save_job(job)
         return {"status": "error", "job_id": job_id, "error": error_message}
+
+
+# Event system integration
+def _handle_job_event(event):
+    """
+    Handle job events from the event system.
+
+    This replaces the direct function calls from models.
+    """
+    try:
+        from ..db.models import Job, JobStatus
+        from ..utils.events import JobEvent
+
+        if isinstance(event, JobEvent):
+            # Reconstruct job object from event data
+            job_data = event.job_data
+            job = Job(
+                id=job_data["id"],
+                status=JobStatus(job_data["status"]),
+                title=job_data.get("title"),
+                artist=job_data.get("artist"),
+                message=job_data.get("message"),
+                progress=job_data.get("progress", 0),
+                error=job_data.get("error"),
+                created_at=job_data.get("created_at"),
+                started_at=job_data.get("started_at"),
+                completed_at=job_data.get("completed_at"),
+                dismissed=job_data.get("dismissed", False),
+            )
+
+            # Use the existing broadcast function
+            _broadcast_job_event(job, event.was_created)
+
+    except Exception as e:
+        logger.error("Error handling job event: %s", e, exc_info=True)
+
+
+# Subscribe to job events when module is imported
+def _setup_event_subscriptions():
+    """Set up event subscriptions for the jobs module."""
+    try:
+        from ..utils.events import subscribe_to_job_events
+
+        subscribe_to_job_events(_handle_job_event)
+        logger.info("Jobs module subscribed to job events")
+    except Exception as e:
+        logger.error("Failed to set up job event subscriptions: %s", e)
+
+
+# Set up subscriptions when module loads
+_setup_event_subscriptions()
