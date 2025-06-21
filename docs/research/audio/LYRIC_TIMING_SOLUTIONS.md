@@ -61,7 +61,7 @@ Recommendation: Shift all lyrics back by 2.67 seconds
 ## Project Structure
 
 ```
-open-karaoke/
+open-karaoke-studio/
 ├── backend/scripts/
 │   ├── lyric_alignment/          # Logic-first approach (ready)
 │   │   ├── USER_GUIDE.md        # How to use the system
