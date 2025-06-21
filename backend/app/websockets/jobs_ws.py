@@ -5,7 +5,7 @@ This module provides real-time job status updates via WebSocket connections,
 replacing the need for HTTP polling.
 """
 
-from typing import Any
+from typing import Any, Dict
 
 from flask import request
 from flask_socketio import emit, join_room, leave_room
@@ -57,55 +57,85 @@ def handle_request_jobs_list():
     emit("jobs_list", {"jobs": [job.to_dict() for job in jobs]}, room=request.sid)
 
 
-def broadcast_job_update(job_data: dict[str, Any]):
+def broadcast_job_update(job_data: Dict[str, Any]):
     """
     Broadcast a job update to all subscribed clients.
 
     Args:
         job_data: Dictionary containing job information
     """
-    socketio.emit("job_updated", job_data, room="jobs_updates", namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        socketio.emit("job_updated", job_data, room="jobs_updates", namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass
 
 
-def broadcast_job_created(job_data: dict[str, Any]):
+def broadcast_job_created(job_data: Dict[str, Any]):
     """
     Broadcast a new job creation to all subscribed clients.
 
     Args:
         job_data: Dictionary containing job information
     """
-    print(f"Broadcasting job_created event: {job_data}")
-    socketio.emit("job_created", job_data, room="jobs_updates", namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        print(f"Broadcasting job_created event: {job_data}")
+        socketio.emit("job_created", job_data, room="jobs_updates", namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass
 
 
-def broadcast_job_completed(job_data: dict[str, Any]):
+def broadcast_job_completed(job_data: Dict[str, Any]):
     """
     Broadcast a job completion to all subscribed clients.
 
     Args:
         job_data: Dictionary containing job information
     """
-    socketio.emit("job_completed", job_data, room="jobs_updates", namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        socketio.emit("job_completed", job_data, room="jobs_updates", namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass
 
 
-def broadcast_job_failed(job_data: dict[str, Any]):
+def broadcast_job_failed(job_data: Dict[str, Any]):
     """
     Broadcast a job failure to all subscribed clients.
 
     Args:
         job_data: Dictionary containing job information
     """
-    socketio.emit("job_failed", job_data, room="jobs_updates", namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        socketio.emit("job_failed", job_data, room="jobs_updates", namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass
 
 
-def broadcast_job_cancelled(job_data: dict[str, Any]):
+def broadcast_job_cancelled(job_data: Dict[str, Any]):
     """
     Broadcast a job cancellation to all subscribed clients.
 
     Args:
         job_data: Dictionary containing job information
     """
-    socketio.emit("job_cancelled", job_data, room="jobs_updates", namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        socketio.emit("job_cancelled", job_data, room="jobs_updates", namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass
 
 
 def broadcast_all_jobs(jobs_data: list, room: str = "jobs_updates"):
@@ -116,4 +146,10 @@ def broadcast_all_jobs(jobs_data: list, room: str = "jobs_updates"):
         jobs_data: List of job dictionaries
         room: The room to broadcast to (defaults to all subscribers)
     """
-    socketio.emit("jobs_list", {"jobs": jobs_data}, room=room, namespace="/jobs")
+    try:
+        if socketio is None:
+            return
+        socketio.emit("jobs_list", {"jobs": jobs_data}, room=room, namespace="/jobs")
+    except Exception:
+        # Silently fail in worker context where socketio may not be available
+        pass

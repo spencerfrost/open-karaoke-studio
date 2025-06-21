@@ -297,7 +297,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
                     "message": message,
                 },
             )
-        logger.info("Job %s progress: %s% - %s", job_id, progress, message)
+        # Only log major progress milestones to reduce noise
+        if progress % 25 == 0 or progress >= 95:
+            logger.info("Job %s: %s%% - %s", job_id, progress, message)
 
     try:
         # Phase 1: Download (5-30% progress)
@@ -396,17 +398,14 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Phase 3A: Download thumbnail (separate from stepper-sensitive operations)
         try:
-            logger.info("Downloading thumbnail for video %s...", video_id)
             thumbnail_url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
             if thumbnail_url:
-                logger.info("✅ Thumbnail downloaded successfully: %s", thumbnail_url)
                 update_progress(95, "Thumbnail download complete")
             else:
-                logger.warning("⚠️ Thumbnail download failed for %s", video_id)
                 update_progress(95, "Thumbnail download failed, continuing")
         except Exception as e:
             # Thumbnail failures should not break the job
-            logger.warning("⚠️ Thumbnail download failed for %s: %s", video_id, e)
+            logger.warning("Thumbnail download failed for %s: %s", video_id, e)
             update_progress(95, "Thumbnail download failed, continuing")
 
         update_progress(99, "Finalizing processing")
@@ -439,16 +438,11 @@ def process_youtube_job(self, job_id, video_id, metadata):
                     song_id, vocals_relative, instrumental_relative
                 )
 
-                if success:
-                    logger.info("Successfully updated audio paths for song %s", song_id)
-                else:
+                if not success:
                     logger.warning("Failed to update audio paths for song %s", song_id)
             else:
                 logger.warning(
-                    "Audio files not found after processing for song %s: vocals=%s, instrumental=%s",
-                    song_id,
-                    vocals_path.exists(),
-                    instrumental_path.exists(),
+                    "Audio files not found after processing for song %s", song_id
                 )
 
         except Exception as e:
