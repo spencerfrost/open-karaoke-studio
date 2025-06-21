@@ -37,21 +37,13 @@ app.logger.propagate = True  # Let our loggers handle it
 
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here
-    from .websockets.karaoke_queue_ws import register_handlers as register_karaoke_queue
-    from .websockets.performance_controls_ws import (
-        register_handlers as register_performance_controls,
-    )
-    from .websockets.jobs_ws import initialize_jobs_websocket
     from .websockets.socketio import init_socketio, socketio
+    from .websockets.handlers import register_websocket_handlers
 
     # Initialize SocketIO with the Flask app
     init_socketio(app)
-    # Register websocket event handlers
-    register_performance_controls(socketio)
-    register_karaoke_queue(socketio)
-
-    # Initialize jobs WebSocket handlers and event subscriptions
-    initialize_jobs_websocket()
+    # Register all websocket event handlers in one place
+    register_websocket_handlers(socketio)
 
     port = int(os.environ.get("PORT", 5123))
     debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
