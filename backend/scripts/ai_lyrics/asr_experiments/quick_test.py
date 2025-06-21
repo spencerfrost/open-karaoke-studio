@@ -13,7 +13,7 @@ def find_sample_vocals():
     
     # Look for the karaoke library
     possible_paths = [
-        Path("/home/spencer/code/open-karaoke/karaoke_library"),
+        Path("/home/spencer/code/open-karaoke-studio/karaoke_library"),
         Path("../../../karaoke_library"),
         Path("../../karaoke_library"),
         Path("./karaoke_library")

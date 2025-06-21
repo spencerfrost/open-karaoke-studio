@@ -22,7 +22,7 @@ Before starting, ensure you have these installed:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/open-karaoke-studio.git
+git clone https://github.com/spencerfrost/open-karaoke-studio.git
 cd open-karaoke-studio
 ```
 

@@ -107,6 +107,6 @@ Found outdated information or want to improve the docs?
 
 ---
 
-**Need help?** If you can't find what you're looking for, check the [Issues](https://github.com/yourusername/open-karaoke/issues) or start with the [Getting Started Guide](getting-started/README.md).
+**Need help?** If you can't find what you're looking for, check the [Issues](https://github.com/spencerfrost/open-karaoke-studio/issues) or start with the [Getting Started Guide](getting-started/README.md).
 
 **Version**: Documentation reorganized June 2025 | **Project Version**: 2025.1

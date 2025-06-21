@@ -1,4 +1,4 @@
-# Suggested Commands (Windows)
+# Suggested Commands (Ubuntu)
 
 ## Development Commands
 
@@ -16,7 +16,7 @@ pnpm run dev:backend   # Backend only
 ```bash
 cd backend
 # Activate virtual environment
-venv\Scripts\activate
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -75,18 +75,18 @@ pnpm type-check
 ## Docker Commands
 ```bash
 # Start with Docker Compose
-docker-compose up -d
+docker compose up -d
 
 # Stop services
-docker-compose down
+docker compose down
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
-## Windows-Specific Commands
-- Use `dir` instead of `ls`
-- Use `type` instead of `cat`
-- Use `findstr` instead of `grep`
-- Use `PowerShell` or `Command Prompt`
-- Virtual environment: `venv\Scripts\activate`
+## Ubuntu-Specific Commands
+- Use `ls` instead of `dir`
+- Use `cat` instead of `type`
+- Use `grep` instead of `findstr`
+- Use Bash or other Unix shells
+- Virtual environment: `source venv/bin/activate`

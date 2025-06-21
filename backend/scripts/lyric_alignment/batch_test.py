@@ -186,8 +186,8 @@ def main():
     print("=" * 50)
 
     # Paths
-    db_path = "/home/spencer/code/open-karaoke/backend/karaoke.db"
-    library_path = Path("/home/spencer/code/open-karaoke/karaoke_library")
+    db_path = "/home/spencer/code/open-karaoke-studio/backend/karaoke.db"
+    library_path = Path("/home/spencer/code/open-karaoke-studio/karaoke_library")
 
     # Get songs to test
     num_songs = 5

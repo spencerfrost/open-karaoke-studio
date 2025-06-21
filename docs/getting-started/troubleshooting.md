@@ -386,8 +386,8 @@ When reporting issues, include:
 - [Development Guide](../development/README.md) - For contributors
 
 **Community Support:**
-- [GitHub Issues](https://github.com/yourusername/open-karaoke/issues) - Bug reports and questions
-- [Discussions](https://github.com/yourusername/open-karaoke/discussions) - General questions
+- [GitHub Issues](https://github.com/spencerfrost/open-karaoke-studio/issues) - Bug reports and questions
+- [Discussions](https://github.com/spencerfrost/open-karaoke-studio/discussions) - General questions
 
 **Before Asking:**
 1. Search existing issues for your problem
@@ -425,5 +425,5 @@ cp -r karaoke_library backup/
 
 **Still having issues?** 
 - 🐛 [Report a Bug](../development/contributing/issue-reporting.md)
-- 💬 [Ask a Question](https://github.com/yourusername/open-karaoke/discussions)
+- 💬 [Ask a Question](https://github.com/spencerfrost/open-karaoke-studio/discussions)
 - 📖 [Check User Guide](../user-guide/README.md)

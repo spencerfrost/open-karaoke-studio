@@ -127,7 +127,7 @@ def enhance_song_metadata(
         # We need the song directory path for cover art processing
         from pathlib import Path
 
-        song_dir = Path(f"/home/spencer/code/open-karaoke/karaoke_library/{song.id}")
+        song_dir = Path(f"/home/spencer/code/open-karaoke-studio/karaoke_library/{song.id}")
 
         # NOTE: This ignores the passed itunes_data and searches iTunes again!
         enhanced_metadata = enhance_metadata_with_itunes(legacy_metadata_dict, song_dir)

@@ -17,7 +17,7 @@ We will test and compare several state-of-the-art ASR models:
 
 ```bash
 # Navigate to the ASR experiments directory
-cd /home/spencer/code/open-karaoke/backend/scripts/ai_lyrics/asr_experiments
+cd /home/spencer/code/open-karaoke-studio/backend/scripts/ai_lyrics/asr_experiments
 
 # Create virtual environment
 python -m venv venv_asr
