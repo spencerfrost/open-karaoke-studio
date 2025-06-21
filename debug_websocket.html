@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Karaoke - WebSocket Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .connected { background: #0d7527; }
+        .disconnected { background: #a91e2c; }
+        .event-log { background: #2a2a2a; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; }
+        .event { padding: 5px 0; border-bottom: 1px solid #444; }
+        .event:last-child { border-bottom: none; }
+        .timestamp { color: #888; font-size: 0.8em; }
+        button { background: #4CAF50; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        input { padding: 8px; margin: 5px; border-radius: 5px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Open Karaoke Studio - WebSocket Debug Tool</h1>
+    
+    <div id="connection-status" class="status disconnected">
+        ❌ Disconnected
+    </div>
+    
+    <div>
+        <button onclick="connectWebSocket()">Connect to WebSocket</button>
+        <button onclick="disconnectWebSocket()">Disconnect</button>
+        <button onclick="requestJobsList()">Request Jobs List</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div>
+        <h3>📡 WebSocket Events Log</h3>
+        <div id="event-log" class="event-log">
+            <div class="event">
+                <span class="timestamp">Waiting for connection...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        const eventLog = document.getElementById('event-log');
+        const statusElement = document.getElementById('connection-status');
+
+        function logEvent(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            eventDiv.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            eventLog.appendChild(eventDiv);
+            eventLog.scrollTop = eventLog.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                statusElement.className = 'status connected';
+                statusElement.textContent = '✅ Connected to /jobs namespace';
+            } else {
+                statusElement.className = 'status disconnected';
+                statusElement.textContent = '❌ Disconnected';
+            }
+        }
+
+        function connectWebSocket() {
+            if (socket && socket.connected) {
+                logEvent('Already connected!', 'warning');
+                return;
+            }
+
+            const backendUrl = 'http://localhost:5123';
+            logEvent(`🔌 Attempting to connect to ${backendUrl}/jobs...`);
+
+            socket = io(`${backendUrl}/jobs`, {
+                transports: ['websocket', 'polling'],
+                autoConnect: true,
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+            });
+
+            socket.on('connect', () => {
+                logEvent('🟢 Connected to jobs WebSocket!');
+                updateConnectionStatus(true);
+                
+                // Subscribe to job updates
+                socket.emit('subscribe_to_jobs');
+                logEvent('📡 Subscribed to job updates');
+            });
+
+            socket.on('disconnect', () => {
+                logEvent('🔴 Disconnected from jobs WebSocket');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                logEvent(`❌ Connection error: ${error.message}`, 'error');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('subscribed', (data) => {
+                logEvent(`✅ Subscription confirmed: ${JSON.stringify(data)}`);
+            });
+
+            // Job event listeners
+            socket.on('job_created', (data) => {
+                logEvent(`🆕 Job Created: ${JSON.stringify(data)}`, 'success');
+            });
+
+            socket.on('job_updated', (data) => {
+                logEvent(`📊 Job Updated: ${JSON.stringify(data)}`, 'info');
+            });
+
+            socket.on('job_completed', (data) => {
+                logEvent(`✅ Job Completed: ${JSON.stringify(data)}`, 'success');
+            });
+
+            socket.on('job_failed', (data) => {
+                logEvent(`❌ Job Failed: ${JSON.stringify(data)}`, 'error');
+            });
+
+            socket.on('job_cancelled', (data) => {
+                logEvent(`⏹️ Job Cancelled: ${JSON.stringify(data)}`, 'warning');
+            });
+
+            socket.on('jobs_list', (data) => {
+                logEvent(`📋 Jobs List: ${data.jobs ? data.jobs.length : 0} jobs`, 'info');
+                if (data.jobs && data.jobs.length > 0) {
+                    data.jobs.forEach(job => {
+                        logEvent(`  - Job ${job.id}: ${job.status} (${job.progress || 0}%)`, 'info');
+                    });
+                }
+            });
+        }
+
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                logEvent('🔌 Manually disconnected');
+                updateConnectionStatus(false);
+            }
+        }
+
+        function requestJobsList() {
+            if (socket && socket.connected) {
+                socket.emit('request_jobs_list');
+                logEvent('📡 Requested jobs list from server');
+            } else {
+                logEvent('❌ Not connected - cannot request jobs list', 'error');
+            }
+        }
+
+        function clearLog() {
+            eventLog.innerHTML = '<div class="event"><span class="timestamp">Log cleared</span></div>';
+        }
+
+        // Auto-connect when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            logEvent('🎤 WebSocket Debug Tool loaded');
+            logEvent('Click "Connect to WebSocket" to test the connection');
+        });
+    </script>
+</body>
+</html>
