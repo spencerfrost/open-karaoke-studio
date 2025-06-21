@@ -11,6 +11,7 @@ from .api import register_blueprints
 from .config import get_config
 from .jobs import init_celery
 from .websockets import init_socketio
+from .utils.error_handlers import register_error_handlers
 
 
 def create_app(config_class=None):
@@ -50,5 +51,7 @@ def create_app(config_class=None):
 
     # Register all blueprints
     register_blueprints(app)
+    # Register global error handlers
+    register_error_handlers(app)
 
     return app
