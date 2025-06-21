@@ -99,7 +99,8 @@ def force_db_sync():
 
                 # Force WAL checkpoint to flush all pending transactions
                 result = connection.execute(text("PRAGMA wal_checkpoint(FULL);"))
-                logging.info(f"WAL checkpoint result: {result.fetchone()}")
+                # Only log checkpoint results at debug level - this is internal housekeeping
+                logging.debug(f"WAL checkpoint result: {result.fetchone()}")
                 connection.commit()
         except Exception as e:
             logging.warning(f"Failed to execute WAL checkpoint: {e}")

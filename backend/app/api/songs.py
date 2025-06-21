@@ -9,6 +9,7 @@ from urllib.parse import unquote
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from ..config import get_config
+
 # Import database and models directly - no fake service layer
 from ..db.models import DbSong
 from ..db.song_operations import get_song, create_or_update_song
@@ -23,7 +24,7 @@ song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 @song_bp.route("", methods=["GET"])
 def get_songs():
     """
-    Endpoint to get a list of processed songs with metadata 
+    Endpoint to get a list of processed songs with metadata
     - direct database access, no fake service layer.
     """
     current_app.logger.info("Received request for /api/songs")
@@ -31,10 +32,10 @@ def get_songs():
     try:
         from ..db.models import DbSong
         from ..db.database import get_db_session
-        
+
         with get_db_session() as session:
             songs = session.query(DbSong).order_by(DbSong.date_added.desc()).all()
-            
+
             # Convert to API response format
             response_data = [song.to_dict() for song in songs]
 
@@ -49,7 +50,9 @@ def get_songs():
 @song_bp.route("/<string:song_id>/download/<string:track_type>", methods=["GET"])
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
-    current_app.logger.info("Download request for song '%s', track type '%s'", song_id, track_type)
+    current_app.logger.info(
+        "Download request for song '%s', track type '%s'", song_id, track_type
+    )
     track_type = track_type.lower()  # Normalize track type
 
     if track_type not in ("vocals", "instrumental", "original"):
@@ -87,7 +90,9 @@ def download_song_track(song_id: str, track_type: str):
                 )
                 return jsonify({"error": "Access denied"}), 403
 
-            current_app.logger.info("Sending %s.mp3 from directory '%s'", track_type, song_dir)
+            current_app.logger.info(
+                "Sending %s.mp3 from directory '%s'", track_type, song_dir
+            )
             return send_from_directory(
                 song_dir,  # Directory path object
                 track_file.name,  # Just the filename string - use .name to get just the filename
@@ -96,7 +101,11 @@ def download_song_track(song_id: str, track_type: str):
         else:
             current_app.logger.error("Track file not found: %s", track_file)
             return (
-                jsonify({"error": f"{track_type.capitalize()} track not found for this song"}),
+                jsonify(
+                    {
+                        "error": f"{track_type.capitalize()} track not found for this song"
+                    }
+                ),
                 404,
             )
 
@@ -123,6 +132,7 @@ def get_song_details(song_id: str):
 
         # Convert to Pydantic response format using our new pattern
         from ..schemas.song import Song
+
         song = Song.model_validate(db_song.to_dict())
         response = song.model_dump(mode="json")
 
@@ -133,7 +143,9 @@ def get_song_details(song_id: str):
         current_app.logger.error("Service error getting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to fetch song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Unexpected error getting song {song_id}: {e}", exc_info=True)
+        current_app.logger.error(
+            f"Unexpected error getting song {song_id}: {e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -179,7 +191,9 @@ def get_thumbnail(song_id: str, extension: str):
         return send_file(thumbnail_path, mimetype=mimetype)
     except Exception:
         return (
-            jsonify({"error": "An internal error occurred while serving the thumbnail."}),
+            jsonify(
+                {"error": "An internal error occurred while serving the thumbnail."}
+            ),
             500,
         )
 
@@ -245,17 +259,22 @@ def get_song_lyrics(song_id: str):
         db_song = get_song(song_id)
 
         if db_song:
-            # Use database fields
-            title = db_song.title
+            # Use to_dict() method for consistent field conversion
+            song_data = db_song.to_dict()
+            title = song_data["title"]
             artist = (
-                db_song.artist if db_song.artist.lower() != "unknown artist" else db_song.channel
+                song_data["artist"]
+                if song_data["artist"].lower() != "unknown artist"
+                else song_data["channel"]
             )
-            album = db_song.album
+            album = song_data["album"]
         else:
             # Fall back to file-based approach
             metadata = file_management.read_song_metadata(song_id)
             if not metadata or not metadata.title:
-                current_app.logger.warning("Metadata incomplete for lyrics: %s", song_id)
+                current_app.logger.warning(
+                    "Metadata incomplete for lyrics: %s", song_id
+                )
                 return (
                     jsonify({"error": "Missing metadata (title) for lyrics lookup"}),
                     400,
@@ -307,21 +326,27 @@ def get_song_lyrics(song_id: str):
         current_app.logger.error("Service error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
+        current_app.logger.error(
+            "Unexpected error getting lyrics for %s: %s", song_id, e
+        )
         return jsonify({"error": "Failed to fetch lyrics"}), 500
 
 
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
 def delete_song(song_id: str):
-    """Endpoint to delete a song by its ID - thin controller using service layer."""
+    """Endpoint to delete a song by its ID - direct database access."""
     current_app.logger.info("Received request to delete song: %s", song_id)
 
     try:
-        song_service = SongService()
-        success = song_service.delete_song(song_id)
-
-        if not success:
+        # Check if song exists first
+        db_song = get_song(song_id)
+        if not db_song:
             return jsonify({"error": "Song not found"}), 404
+
+        # Delete song from database
+        success = db_delete_song(song_id)
+        if not success:
+            return jsonify({"error": "Failed to delete song from database"}), 500
 
         # Also delete files using FileService
         file_service = FileService()
@@ -334,7 +359,9 @@ def delete_song(song_id: str):
         current_app.logger.error("Service error deleting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to delete song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Unexpected error deleting song {song_id}: {e}", exc_info=True)
+        current_app.logger.error(
+            f"Unexpected error deleting song {song_id}: {e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -386,18 +413,15 @@ def create_song():
             song_dir.mkdir(parents=True, exist_ok=True)
             current_app.logger.info("Created directory for song: %s", song_dir)
         except Exception as e:
-            current_app.logger.error("Error creating directory for song %s: %s", song_id, e)
+            current_app.logger.error(
+                "Error creating directory for song %s: %s", song_id, e
+            )
             # Continue even if directory creation fails - we'll try again during processing
 
-        # Return the song data
-        response = {
-            "id": song_id,
-            "title": song.title,
-            "artist": song.artist,
-            "album": data.get("album"),
-            "dateAdded": song.dateAdded.isoformat() if song.dateAdded else None,
-            "status": "pending",
-        }
+        # Return the song data using the model's to_dict method
+        response = song.to_dict()
+        # Override status to pending for newly created songs
+        response["status"] = "pending"
 
         current_app.logger.info("Successfully created song: %s", song_id)
         return jsonify(response), 201
@@ -426,105 +450,19 @@ def update_song(song_id: str):
         if not db_song:
             return jsonify({"error": "Song not found"}), 404
 
-        # Start with existing values from database
-        metadata_dict = {
-            "title": db_song.title,
-            "artist": db_song.artist,
-            "duration": db_song.duration,
-            "favorite": db_song.favorite,
-            "dateAdded": db_song.date_added,
-            "coverArt": db_song.cover_art_path,
-            "thumbnail": db_song.thumbnail_path,
-            "source": db_song.source,
-            "sourceUrl": db_song.source_url,
-            "videoId": db_song.video_id,
-            "uploader": db_song.uploader,
-            "uploaderId": db_song.uploader_id,
-            "channel": db_song.channel,
-            "channelId": db_song.channel_id,
-            "description": db_song.description,
-            "uploadDate": db_song.upload_date,
-            "mbid": db_song.mbid,
-            "releaseTitle": db_song.album,  # Keeping for backwards compatibility
-            "releaseId": db_song.release_id,
-            "releaseDate": db_song.release_date,
-            "genre": db_song.genre,
-            "language": db_song.language,
-            "lyrics": db_song.lyrics,
-            "syncedLyrics": db_song.synced_lyrics,
-            # iTunes metadata
-            "itunesTrackId": db_song.itunes_track_id,
-            "itunesArtistId": db_song.itunes_artist_id,
-            "itunesCollectionId": db_song.itunes_collection_id,
-            "trackTimeMillis": db_song.track_time_millis,
-            "itunesExplicit": db_song.itunes_explicit,
-            "itunesPreviewUrl": db_song.itunes_preview_url,
-            "itunesArtworkUrls": db_song.itunes_artwork_urls,
-            # YouTube metadata
-            "youtubeDuration": db_song.youtube_duration,
-            "youtubeThumbnailUrls": db_song.youtube_thumbnail_urls,
-            "youtubeTags": db_song.youtube_tags,
-            "youtubeCategories": db_song.youtube_categories,
-            "youtubeChannelId": db_song.youtube_channel_id,
-            "youtubeChannelName": db_song.youtube_channel_name,
-        }
-
-        # Apply updates from request data
-        # Handle direct field mappings
-        for field in [
-            "title",
-            "artist",
-            "favorite",
-            "duration",
-            "source",
-            "sourceUrl",
-            "videoId",
-            "uploader",
-            "uploaderId",
-            "channel",
-            "channelId",
-            "description",
-            "uploadDate",
-            "mbid",
-            "genre",
-            "language",
-            "lyrics",
-            "syncedLyrics",
-            "itunesArtworkUrls",
-        ]:
-            if field in data:
-                metadata_dict[field] = data[field]
-
-        # Handle frontend-to-backend field name mappings
-        if "album" in data:
-            metadata_dict["releaseTitle"] = data["album"]
-        if "year" in data:
-            metadata_dict["releaseDate"] = data["year"]
-        if "metadataId" in data:
-            metadata_dict["mbid"] = data["metadataId"]
-        if "coverArt" in data:
-            metadata_dict["coverArt"] = data["coverArt"]
-        if "thumbnail" in data:
-            metadata_dict["thumbnail"] = data["thumbnail"]
-
-        # Get existing song to preserve required fields
-        existing_song = get_song(song_id)
-        if not existing_song:
-            return jsonify({"error": "Song not found"}), 404
-        
-        # Update song directly in database
+        # Update song directly in database using only the provided fields
         updated_song = create_or_update_song(
             song_id=song_id,
-            title=metadata_dict.get("title", existing_song.title),
-            artist=metadata_dict.get("artist", existing_song.artist),
-            album=metadata_dict.get("album", metadata_dict.get("releaseTitle", existing_song.album)),
-            genre=metadata_dict.get("genre", existing_song.genre),
-            language=metadata_dict.get("language", existing_song.language),
-            lyrics=metadata_dict.get("lyrics", existing_song.lyrics),
-            synced_lyrics=metadata_dict.get("syncedLyrics", existing_song.synced_lyrics),
-            favorite=metadata_dict.get("favorite", existing_song.favorite),
+            title=data.get("title", db_song.title),
+            artist=data.get("artist", db_song.artist),
+            album=data.get("album", db_song.album),
+            genre=data.get("genre", db_song.genre),
+            language=data.get("language", db_song.language),
+            lyrics=data.get("lyrics", db_song.lyrics),
+            synced_lyrics=data.get("syncedLyrics", db_song.synced_lyrics),
+            favorite=data.get("favorite", db_song.favorite),
         )
-        
+
         if not updated_song:
             return jsonify({"error": "Failed to update song metadata"}), 500
 
@@ -532,7 +470,9 @@ def update_song(song_id: str):
         return get_song_details(song_id)
 
     except Exception as e:
-        current_app.logger.error(f"Unexpected error updating song {song_id}: {e}", exc_info=True)
+        current_app.logger.error(
+            f"Unexpected error updating song {song_id}: {e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -575,7 +515,9 @@ def get_cover_art(song_id: str, extension: str):
         return send_file(cover_art_path, mimetype=mimetype)
     except Exception:
         return (
-            jsonify({"error": "An internal error occurred while serving the cover art."}),
+            jsonify(
+                {"error": "An internal error occurred while serving the cover art."}
+            ),
             500,
         )
 

@@ -41,7 +41,7 @@ class LoggingConfig:
                 "celery": {
                     "format": (
                         "%(asctime)s - %(name)s - %(levelname)s - "
-                        "%(task_name)s[%(task_id)s] - %(message)s"
+                        "%(funcName)s - %(message)s"
                     ),
                     "datefmt": "%Y-%m-%d %H:%M:%S",
                 },
@@ -155,9 +155,21 @@ class LoggingConfig:
                     "propagate": False,
                 },
                 # Third-party loggers (reduce noise)
-                "urllib3": {"level": "WARNING", "handlers": ["console"], "propagate": False},
-                "requests": {"level": "WARNING", "handlers": ["console"], "propagate": False},
-                "werkzeug": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+                "urllib3": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "requests": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "werkzeug": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
             },
         }
 
@@ -197,8 +209,7 @@ class LoggingConfig:
                 "[%(asctime)s: %(levelname)s/%(processName)s] %(name)s: %(message)s"
             ),
             "worker_task_log_format": (
-                "[%(asctime)s: %(levelname)s/%(processName)s]"
-                "[%(task_name)s(%(task_id)s)] %(message)s"
+                "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
             ),
             "worker_log_color": False,  # Disable color in files
             "worker_redirect_stdouts": True,
@@ -229,7 +240,9 @@ def setup_logging(config: BaseConfig = None):
 
     # Log that logging has been initialized
     log = logging.getLogger(__name__)
-    log.info("Logging initialized - Environment: %s", os.getenv("FLASK_ENV", "development"))
+    log.info(
+        "Logging initialized - Environment: %s", os.getenv("FLASK_ENV", "development")
+    )
     log.info("Log directory: %s", logging_config.log_dir)
 
     return logging_config

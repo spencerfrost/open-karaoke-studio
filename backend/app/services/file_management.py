@@ -65,7 +65,7 @@ def get_processed_songs(library_path: Optional[Path] = None) -> list[str]:
         if not library_path.is_dir():
             return []
         return [d.name for d in library_path.iterdir() if d.is_dir()]
-    
+
     # Use FileService for default library
     file_service = FileService()
     return file_service.get_processed_song_ids()
@@ -91,16 +91,21 @@ def download_image(url: str, save_path: Path) -> bool:
         }
 
         # First make a HEAD request to check content type and handle redirects
-        head_response = session.head(url, headers=headers, timeout=10, allow_redirects=True)
+        head_response = session.head(
+            url, headers=headers, timeout=10, allow_redirects=True
+        )
 
         # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
         if head_response.status_code != 200:
             logging.warning(
-                "HEAD request failed with status %s, trying GET instead", head_response.status_code
+                "HEAD request failed with status %s, trying GET instead",
+                head_response.status_code,
             )
 
         # Make the actual GET request to download the image
-        response = session.get(url, headers=headers, stream=True, timeout=10, allow_redirects=True)
+        response = session.get(
+            url, headers=headers, stream=True, timeout=10, allow_redirects=True
+        )
         response.raise_for_status()  # Raise exception for HTTP errors
 
         # Check if response contains image data
@@ -116,23 +121,26 @@ def download_image(url: str, save_path: Path) -> bool:
                 or first_bytes.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
                 or (first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes[:12])
             ):  # WebP
-                logging.warning("Content doesn't appear to be an image based on file signature")
+                logging.warning(
+                    "Content doesn't appear to be an image based on file signature"
+                )
                 return False
 
         # Ensure the directory exists
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Save the image
-        with open(save_path, "wb", encoding="utf-8") as f:
+        with open(save_path, "wb") as f:  # Binary mode doesn't take encoding
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
         # Verify the file was saved and has content
         if save_path.exists() and save_path.stat().st_size > 0:
-            logging.info("Successfully downloaded and saved image to %s", save_path)
             return True
         else:
-            logging.warning("Image file was saved but appears to be empty: %s", save_path)
+            logging.warning(
+                "Image file was saved but appears to be empty: %s", save_path
+            )
             return False
 
     except requests.exceptions.RequestException as e:
