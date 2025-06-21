@@ -18,6 +18,8 @@ from ..services import file_management
 from .database import get_db_session
 from .models import DbSong
 
+logger = logging.getLogger(__name__)
+
 
 def get_all_songs() -> list[DbSong]:
     """Get all songs from the database, sorted by date_added in descending order (newest first)"""
@@ -26,7 +28,7 @@ def get_all_songs() -> list[DbSong]:
             songs = session.query(DbSong).order_by(DbSong.date_added.desc()).all()
             return songs
     except Exception as e:
-        logging.error("Error getting songs from database: %s", e)
+        logger.error("Error getting songs from database: %s", e, exc_info=True)
         return []
 
 
@@ -37,7 +39,9 @@ def get_song(song_id: str) -> Optional[DbSong]:
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
             return song
     except Exception as e:
-        logging.error("Error getting song %s from database: %s", song_id, e)
+        logger.error(
+            "Error getting song %s from database: %s", song_id, e, exc_info=True
+        )
         return None
 
 
@@ -170,8 +174,7 @@ def create_or_update_song(
             return db_song
 
     except Exception as e:
-        logging.error("Error creating/updating song %s: %s", song_id, e)
-        logging.error(traceback.format_exc())
+        logger.error("Error creating/updating song %s: %s", song_id, e, exc_info=True)
         return None
 
 
@@ -185,7 +188,7 @@ def sync_songs_with_filesystem() -> int:
     karaoke_library_path = Path(config.KARAOKE_LIBRARY_PATH)
 
     if not karaoke_library_path.exists():
-        logging.warning("Karaoke library path does not exist: %s", karaoke_library_path)
+        logger.warning("Karaoke library path does not exist: %s", karaoke_library_path)
         return 0
 
     # Get song folders from filesystem
@@ -208,19 +211,18 @@ def sync_songs_with_filesystem() -> int:
                     artist="Unknown Artist",  # Will be updated when metadata is available
                 ):
                     new_songs_count += 1
-                    logging.info("Added new song folder: %s", song_id)
+                    logger.info("Added new song folder: %s", song_id)
 
             # Remove songs that no longer exist in filesystem
             deleted_song_ids = db_song_ids - filesystem_song_ids
             for song_id in deleted_song_ids:
                 if delete_song(song_id):
-                    logging.info("Removed deleted song: %s", song_id)
+                    logger.info("Removed deleted song: %s", song_id)
 
             return new_songs_count
 
     except Exception as e:
-        logging.error("Error syncing songs with filesystem: %s", e)
-        logging.error(traceback.format_exc())
+        logger.error("Error syncing songs with filesystem: %s", e, exc_info=True)
         return 0
 
 
@@ -240,15 +242,14 @@ def delete_song(song_id: str) -> bool:
             if song:
                 session.delete(song)
                 session.commit()
-                logging.info("Deleted song: %s", song_id)
+                logger.info("Deleted song: %s", song_id)
                 return True
             else:
-                logging.warning("Song not found for deletion: %s", song_id)
+                logger.warning("Song not found for deletion: %s", song_id)
                 return False
 
     except Exception as e:
-        logging.error("Error deleting song %s: %s", song_id, e)
-        logging.error(traceback.format_exc())
+        logger.error("Error deleting song %s: %s", song_id, e, exc_info=True)
         return False
 
 
@@ -270,7 +271,7 @@ def update_song_audio_paths(
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
 
             if not song:
-                logging.error("Song not found: %s", song_id)
+                logger.error("Song not found: %s", song_id)
                 return False
 
             # Update the audio paths
@@ -283,12 +284,13 @@ def update_song_audio_paths(
                 song.has_audio_files = True
 
             session.commit()
-            logging.info("Updated audio paths for song %s", song_id)
+            logger.info("Updated audio paths for song %s", song_id)
             return True
 
     except Exception as e:
-        logging.error("Error updating audio paths for song %s: %s", song_id, e)
-        logging.error(traceback.format_exc())
+        logger.error(
+            "Error updating audio paths for song %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -307,7 +309,7 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
 
             if not song:
-                logging.error("Song not found: %s", song_id)
+                logger.error("Song not found: %s", song_id)
                 return False
 
             # Update all editable metadata fields
@@ -331,12 +333,13 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
                 song.thumbnail_path = updated_song.thumbnail_path
 
             session.commit()
-            logging.info("Updated song metadata for %s", song_id)
+            logger.info("Updated song metadata for %s", song_id)
             return True
 
     except Exception as e:
-        logging.error("Error updating song metadata for %s: %s", song_id, e)
-        logging.error(traceback.format_exc())
+        logger.error(
+            "Error updating song metadata for %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -355,19 +358,20 @@ def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
 
             if not song:
-                logging.error("Song not found: %s", song_id)
+                logger.error("Song not found: %s", song_id)
                 return False
 
             # Update the thumbnail path
             song.thumbnail_path = thumbnail_path
 
             session.commit()
-            logging.info("Updated thumbnail path for song %s", song_id)
+            logger.info("Updated thumbnail path for song %s", song_id)
             return True
 
     except Exception as e:
-        logging.error("Error updating thumbnail for song %s: %s", song_id, e)
-        logging.error(traceback.format_exc())
+        logger.error(
+            "Error updating thumbnail for song %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -412,7 +416,7 @@ def get_artists_with_counts(
             ]
 
     except Exception as e:
-        logging.error("Error getting artists with counts: %s", e)
+        logger.error("Error getting artists with counts: %s", e, exc_info=True)
         return []
 
 
@@ -435,7 +439,7 @@ def get_artists_total_count(search_term: str = "") -> int:
             return query.count()
 
     except Exception as e:
-        logging.error("Error getting total artist count: %s", e)
+        logger.error("Error getting total artist count: %s", e, exc_info=True)
         return 0
 
 
@@ -479,7 +483,9 @@ def get_songs_by_artist(
             return {"songs": songs, "total": total_count}
 
     except Exception as e:
-        logging.error("Error getting songs for artist '%s': %s", artist_name, e)
+        logger.error(
+            "Error getting songs for artist '%s': %s", artist_name, e, exc_info=True
+        )
         return {"songs": [], "total": 0}
 
 
@@ -598,7 +604,7 @@ def search_songs_paginated(
                 }
 
     except Exception as e:
-        logging.error("Error searching songs: %s", e)
+        logger.error("Error searching songs: %s", e, exc_info=True)
         return {
             "songs": [],
             "pagination": {

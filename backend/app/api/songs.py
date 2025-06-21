@@ -1,5 +1,6 @@
 # backend/app/api/songs.py
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from ..exceptions import ServiceError
 from ..services import FileService, file_management
 from ..services.lyrics_service import LyricsService
 
+logger = logging.getLogger(__name__)
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 
 
@@ -27,7 +29,7 @@ def get_songs():
     Endpoint to get a list of processed songs with metadata
     - direct database access, no fake service layer.
     """
-    current_app.logger.info("Received request for /api/songs")
+    logger.info("Received request for /api/songs")
 
     try:
         from ..db.models import DbSong
@@ -39,24 +41,22 @@ def get_songs():
             # Convert to API response format
             response_data = [song.to_dict() for song in songs]
 
-        current_app.logger.info("Returning %s songs.", len(response_data))
+        logger.info("Returning %s songs.", len(response_data))
         return jsonify(response_data)
 
     except Exception as e:
-        current_app.logger.error(f"Unexpected error in get_songs: {e}", exc_info=True)
+        logger.error(f"Unexpected error in get_songs: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route("/<string:song_id>/download/<string:track_type>", methods=["GET"])
 def download_song_track(song_id: str, track_type: str):
     """Downloads a specific track type (vocals, instrumental, original) for a song."""
-    current_app.logger.info(
-        "Download request for song '%s', track type '%s'", song_id, track_type
-    )
+    logger.info("Download request for song '%s', track type '%s'", song_id, track_type)
     track_type = track_type.lower()  # Normalize track type
 
     if track_type not in ("vocals", "instrumental", "original"):
-        current_app.logger.warning("Invalid track type requested: %s", track_type)
+        logger.warning("Invalid track type requested: %s", track_type)
         return (
             jsonify(
                 {
@@ -73,7 +73,7 @@ def download_song_track(song_id: str, track_type: str):
         file_service = FileService()
         song_dir = file_service.get_song_directory(song_id)
         if not song_dir.is_dir():
-            current_app.logger.error("Song directory not found: %s", song_dir)
+            logger.error("Song directory not found: %s", song_dir)
             return jsonify({"error": "Song not found"}), 404
 
         track_file: Optional[Path] = song_dir / f"{track_type}.mp3"
@@ -85,21 +85,19 @@ def download_song_track(song_id: str, track_type: str):
             file_path_resolved = track_file.resolve()
 
             if library_base_path not in file_path_resolved.parents:
-                current_app.logger.error(
+                logger.error(
                     "Attempted download outside library bounds: %s", track_file
                 )
                 return jsonify({"error": "Access denied"}), 403
 
-            current_app.logger.info(
-                "Sending %s.mp3 from directory '%s'", track_type, song_dir
-            )
+            logger.info("Sending %s.mp3 from directory '%s'", track_type, song_dir)
             return send_from_directory(
                 song_dir,  # Directory path object
                 track_file.name,  # Just the filename string - use .name to get just the filename
                 as_attachment=True,  # Trigger browser download prompt
             )
         else:
-            current_app.logger.error("Track file not found: %s", track_file)
+            logger.error("Track file not found: %s", track_file)
             return (
                 jsonify(
                     {
@@ -110,7 +108,7 @@ def download_song_track(song_id: str, track_type: str):
             )
 
     except Exception as e:
-        current_app.logger.error(
+        logger.error(
             f"Error during download for song '{song_id}', track '{track_type}': {e}",
             exc_info=True,
         )
@@ -121,7 +119,7 @@ def download_song_track(song_id: str, track_type: str):
 @song_bp.route("/<string:song_id>", methods=["GET"])
 def get_song_details(song_id: str):
     """Endpoint to get details for a specific song - direct database access."""
-    current_app.logger.info("Received request for song details: %s", song_id)
+    logger.info("Received request for song details: %s", song_id)
 
     try:
         # Get song directly from database
@@ -136,16 +134,14 @@ def get_song_details(song_id: str):
         song = Song.model_validate(db_song.to_dict())
         response = song.model_dump(mode="json")
 
-        current_app.logger.info("Returning details for song %s", song_id)
+        logger.info("Returning details for song %s", song_id)
         return jsonify(response), 200
 
     except ServiceError as e:
-        current_app.logger.error("Service error getting song %s: %s", song_id, e)
+        logger.error("Service error getting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to fetch song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error getting song {song_id}: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error getting song {song_id}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -244,7 +240,7 @@ def get_thumbnail_jpg_compat(song_id: str):
 @song_bp.route("/<string:song_id>/lyrics", methods=["GET"])
 def get_song_lyrics(song_id: str):
     """Fetch synchronized or plain lyrics for a song using LRCLIB."""
-    current_app.logger.info("Received lyrics request for song %s", song_id)
+    logger.info("Received lyrics request for song %s", song_id)
 
     try:
         lyrics_service = LyricsService()
@@ -252,7 +248,7 @@ def get_song_lyrics(song_id: str):
         # Check if we have lyrics stored locally first
         stored_lyrics = lyrics_service.get_lyrics(song_id)
         if stored_lyrics:
-            current_app.logger.info("Returning stored lyrics for song %s", song_id)
+            logger.info("Returning stored lyrics for song %s", song_id)
             return jsonify({"plainLyrics": stored_lyrics}), 200
 
         # Try to get from database first
@@ -272,9 +268,7 @@ def get_song_lyrics(song_id: str):
             # Fall back to file-based approach
             metadata = file_management.read_song_metadata(song_id)
             if not metadata or not metadata.title:
-                current_app.logger.warning(
-                    "Metadata incomplete for lyrics: %s", song_id
-                )
+                logger.warning("Metadata incomplete for lyrics: %s", song_id)
                 return (
                     jsonify({"error": "Missing metadata (title) for lyrics lookup"}),
                     400,
@@ -287,7 +281,7 @@ def get_song_lyrics(song_id: str):
                 else metadata.channel
             )
             if not artist:
-                current_app.logger.warning("Artist unknown for lyrics: %s", song_id)
+                logger.warning("Artist unknown for lyrics: %s", song_id)
                 return jsonify({"error": "Missing artist name for lyrics lookup"}), 400
 
             title = metadata.title
@@ -308,34 +302,32 @@ def get_song_lyrics(song_id: str):
         if results:
             # Take the first result (best match)
             lyrics_data = results[0]
-            current_app.logger.info("Found lyrics for %s", song_id)
+            logger.info("Found lyrics for %s", song_id)
 
             # Optionally save the lyrics locally for future use
             if lyrics_data.get("plainLyrics"):
                 try:
                     lyrics_service.save_lyrics(song_id, lyrics_data["plainLyrics"])
                 except Exception as e:
-                    current_app.logger.warning("Failed to save lyrics locally: %s", e)
+                    logger.warning("Failed to save lyrics locally: %s", e)
 
             return jsonify(lyrics_data), 200
         else:
-            current_app.logger.info("No lyrics found for %s", song_id)
+            logger.info("No lyrics found for %s", song_id)
             return jsonify({"error": "No lyrics found"}), 404
 
     except ServiceError as e:
-        current_app.logger.error("Service error getting lyrics for %s: %s", song_id, e)
+        logger.error("Service error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(
-            "Unexpected error getting lyrics for %s: %s", song_id, e
-        )
+        logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": "Failed to fetch lyrics"}), 500
 
 
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
 def delete_song(song_id: str):
     """Endpoint to delete a song by its ID - direct database access."""
-    current_app.logger.info("Received request to delete song: %s", song_id)
+    logger.info("Received request to delete song: %s", song_id)
 
     try:
         # Check if song exists first
@@ -352,23 +344,21 @@ def delete_song(song_id: str):
         file_service = FileService()
         file_service.delete_song_files(song_id)
 
-        current_app.logger.info("Successfully deleted song: %s", song_id)
+        logger.info("Successfully deleted song: %s", song_id)
         return jsonify({"message": "Song deleted successfully"}), 200
 
     except ServiceError as e:
-        current_app.logger.error("Service error deleting song %s: %s", song_id, e)
+        logger.error("Service error deleting song %s: %s", song_id, e)
         return jsonify({"error": "Failed to delete song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error deleting song {song_id}: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error deleting song {song_id}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route("", methods=["POST"])
 def create_song():
     """Create a new song with basic information - thin controller using service layer."""
-    current_app.logger.info("Received request to create a new song")
+    logger.info("Received request to create a new song")
 
     try:
         # Get request data
@@ -382,7 +372,7 @@ def create_song():
 
         # Generate a unique ID for the song
         song_id = str(uuid.uuid4())
-        current_app.logger.info("Creating new song with ID: %s", song_id)
+        logger.info("Creating new song with ID: %s", song_id)
 
         # Create song directly using create_or_update_song
         song = create_or_update_song(
@@ -401,7 +391,7 @@ def create_song():
             language=data.get("language"),
         )
         if not song:
-            current_app.logger.error("Failed to create song %s in database", song_id)
+            logger.error("Failed to create song %s in database", song_id)
             return jsonify({"error": "Failed to create song in database"}), 500
 
         # Create the song directory
@@ -411,11 +401,9 @@ def create_song():
             file_service = FileService()
             song_dir = file_service.get_song_directory(song_id)
             song_dir.mkdir(parents=True, exist_ok=True)
-            current_app.logger.info("Created directory for song: %s", song_dir)
+            logger.info("Created directory for song: %s", song_dir)
         except Exception as e:
-            current_app.logger.error(
-                "Error creating directory for song %s: %s", song_id, e
-            )
+            logger.error("Error creating directory for song %s: %s", song_id, e)
             # Continue even if directory creation fails - we'll try again during processing
 
         # Return the song data using the model's to_dict method
@@ -423,21 +411,21 @@ def create_song():
         # Override status to pending for newly created songs
         response["status"] = "pending"
 
-        current_app.logger.info("Successfully created song: %s", song_id)
+        logger.info("Successfully created song: %s", song_id)
         return jsonify(response), 201
 
     except ServiceError as e:
-        current_app.logger.error("Service error creating song: %s", e)
+        logger.error("Service error creating song: %s", e)
         return jsonify({"error": "Failed to create song", "details": str(e)}), 500
     except Exception as e:
-        current_app.logger.error(f"Unexpected error creating song: {e}", exc_info=True)
+        logger.error(f"Unexpected error creating song: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
 @song_bp.route("/<string:song_id>", methods=["PATCH"])
 def update_song(song_id: str):
     """Update a song with any provided fields - generic update endpoint."""
-    current_app.logger.info("Received request to update song %s", song_id)
+    logger.info("Received request to update song %s", song_id)
 
     try:
         # Get request data
@@ -470,9 +458,7 @@ def update_song(song_id: str):
         return get_song_details(song_id)
 
     except Exception as e:
-        current_app.logger.error(
-            f"Unexpected error updating song {song_id}: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error updating song {song_id}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 

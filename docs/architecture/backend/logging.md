@@ -1,237 +1,215 @@
-# Open Karaoke Studio - Persistent Logging Implementation
+# Open Karaoke Studio - Logging Standards & Implementation
 
 ## Overview
 
-This document describes the persistent logging system implemented for Open Karaoke Studio, including log configuration, monitoring, and maintenance tools.
+This document describes the centralized logging system implemented for Open Karaoke Studio. The system provides both console and file output using a standardized pattern across all backend modules.
 
-## Logging Configuration
+## Current Implementation
 
-### **Log Files Structure**
+### **Centralized Configuration**
+
+All logging is configured through `backend/app/config/logging.py` which provides:
+
+- **Console logging** for development (with colors)
+- **File logging** to `backend/logs/errors.log` for all ERROR+ messages
+- **Dual output** - both console and file simultaneously
+- **Automatic log rotation** to prevent disk space issues
+
+### **File Structure**
+
 ```
 backend/logs/
-├── app.log              # Main application logs
-├── celery.log           # Celery worker logs
-├── jobs.log             # Job processing logs
-├── errors.log           # All error-level logs
-├── youtube.log          # YouTube service logs
-└── audio_processing.log # Audio processing logs
+├── errors.log           # All ERROR and CRITICAL level messages
+├── errors.log.1         # Rotated log files (automatic)
+├── errors.log.2
+└── ...
 ```
 
-### **Configuration**
-Logging is configured via environment variables in `.env`:
+## **REQUIRED CODING PATTERN**
 
-```bash
-# Logging Configuration
-LOG_LEVEL=INFO                    # DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_DIR=./backend/logs           # Directory for log files
-LOG_MAX_BYTES=10485760           # Maximum log file size (10MB)
-LOG_BACKUP_COUNT=5               # Number of backup files to keep
-LOG_FORMAT=detailed              # simple, detailed, json
-```
+### **Every Python Module Must Use This Pattern:**
 
-### **Log Levels by Environment**
-- **Development**: DEBUG level, console + file logging
-- **Production**: INFO level, primarily file logging with JSON format
-- **Testing**: WARNING level, minimal logging
-
-## Current Logging Features
-
-### **✅ Implemented**
-- **File-based persistent logging** with automatic rotation
-- **Structured logging** with consistent formats
-- **Service-specific log files** (app, celery, jobs, etc.)
-- **Error aggregation** in dedicated error.log
-- **Celery integration** with task-specific logging
-- **WebSocket event logging** for real-time updates
-
-### **🔧 Enhanced Job Logging**
-Jobs now include structured logging with context:
 ```python
-# Example enhanced job log entry
-structured_logger.info(
-    f"Job progress: {progress}% - {message}",
-    extra={
-        'job_id': job_id,
-        'progress': progress,
-        'status': 'processing',
-        'filename': filename,
-        'message': message
-    }
-)
+import logging
+
+# At the top of every .py file, after imports
+logger = logging.getLogger(__name__)
+
+# Usage throughout the module:
+logger.info("Informational message")
+logger.warning("Warning message")
+logger.error("Error message", exc_info=True)  # Include stack trace for errors
 ```
 
-## Monitoring Tools
+### **❌ NEVER Use These (Legacy Patterns):**
 
-### **1. Log Monitor Script**
-Location: `backend/scripts/log_monitor.py`
+```python
+# DON'T - Direct logging module calls
+logging.info("message")
+logging.error("message")
+logging.warning("message")
 
-**Usage:**
+# DON'T - Print statements in production code
+print("debug message")
+print(f"Error: {e}")
+
+# DON'T - Flask current_app.logger (inconsistent)
+current_app.logger.info("message")
+```
+
+### **✅ Correct Implementation Examples:**
+
+```python
+# backend/app/services/audio.py
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+def separate_audio(input_path: Path, song_dir: Path, status_callback):
+    try:
+        logger.info(f"Starting audio separation for {input_path.name}")
+        # ... processing logic
+        logger.info(f"Audio separation completed successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Audio separation failed for {input_path.name}: {e}", exc_info=True)
+        raise
+```
+
+## Code Review Checklist
+
+### **Before Merging Any Backend Code:**
+
+- [ ] **Logger Import**: Does the file have `import logging` and `logger = logging.getLogger(__name__)`?
+- [ ] **No Print Statements**: Are there any `print()` calls in production code?
+- [ ] **No Direct Logging**: Are there any `logging.info/error/warning()` calls?
+- [ ] **No current_app.logger**: Are there any Flask `current_app.logger` calls?
+- [ ] **Proper Error Logging**: Do error handlers use `logger.error(..., exc_info=True)`?
+- [ ] **Status Callbacks**: If using status callbacks, do they also call logger?
+
+### **Log Level Guidelines:**
+
+- **`logger.debug()`**: Detailed debugging information, only in development
+- **`logger.info()`**: General information about program execution
+- **`logger.warning()`**: Something unexpected happened, but program continues
+- **`logger.error()`**: Serious problem occurred, use `exc_info=True` for exceptions
+- **`logger.critical()`**: Very serious error, program may not continue
+
+## Testing Your Logging
+
+### **Verify Dual Output:**
+
 ```bash
-# Show overall status
-python3 backend/scripts/log_monitor.py status
+# 1. Start the application
+./scripts/dev.sh
 
-# Watch logs in real-time
-python3 backend/scripts/log_monitor.py watch
+# 2. Trigger some operations (upload song, process audio, etc.)
 
-# Show recent log entries
-python3 backend/scripts/log_monitor.py tail --lines 100
-
-# Analyze errors from last 24 hours
-python3 backend/scripts/log_monitor.py errors --hours 24
-
-# Job processing summary
-python3 backend/scripts/log_monitor.py jobs --hours 6
-
-# Check disk usage
-python3 backend/scripts/log_monitor.py disk
+# 3. Check both outputs:
+# Console: Should see logs in terminal
+# File: Should see errors in backend/logs/errors.log
+cat backend/logs/errors.log
 ```
-
-**Features:**
-- Real-time log watching
-- Error pattern analysis
-- Job processing statistics
-- Disk usage monitoring
-- Configurable time windows
-
-### **2. Log Cleanup Script**
-Location: `backend/scripts/log_cleanup.py`
-
-**Usage:**
-```bash
-# Show current status
-python3 backend/scripts/log_cleanup.py status
-
-# Rotate large log files
-python3 backend/scripts/log_cleanup.py rotate --max-size 10 --keep 5
-
-# Clean up old logs
-python3 backend/scripts/log_cleanup.py cleanup --days 30
-
-# Auto maintenance (good for cron)
-python3 backend/scripts/log_cleanup.py auto
-```
-
-**Features:**
-- Automatic log rotation with compression
-- Old log cleanup
-- Configurable retention policies
-- Disk space management
 
 ## Integration Points
 
 ### **Flask Application**
+
 Logging is initialized in `backend/app/main.py`:
+
 ```python
 from .config.logging import setup_logging
-logging_config = setup_logging(config)
+setup_logging()
 ```
 
-### **Celery Workers**
-Celery logging is configured in `backend/app/jobs/celery_app.py`:
-```python
-from ..config.logging import setup_logging
-logging_config = setup_logging(config)
-celery_logging_config = logging_config.configure_celery_logging()
-```
+### **Key Configuration File**
 
-### **Job Processing**
-Enhanced job logging in `backend/app/jobs/jobs.py`:
-```python
-from ..config.logging import get_structured_logger
-structured_logger = get_structured_logger('app.jobs', {
-    'module': 'jobs',
-    'component': 'task_processor'
-})
-```
+`backend/app/config/logging.py` contains the centralized logging setup that:
 
-## Production Deployment
-
-### **Systemd Service (Optional)**
-For automated log maintenance, you can install the systemd service:
-
-```bash
-# Copy service files
-sudo cp backend/scripts/karaoke-log-cleanup.service /etc/systemd/system/
-sudo cp backend/scripts/karaoke-log-cleanup.timer /etc/systemd/system/
-
-# Enable the timer
-sudo systemctl enable karaoke-log-cleanup.timer
-sudo systemctl start karaoke-log-cleanup.timer
-
-# Check status
-sudo systemctl status karaoke-log-cleanup.timer
-```
-
-### **Manual Cron Setup**
-Alternative to systemd, add to crontab:
-```bash
-# Run log cleanup daily at 2 AM
-0 2 * * * /usr/bin/python3 /home/spencer/code/open-karaoke/backend/scripts/log_cleanup.py auto
-```
+- Configures both console and file handlers
+- Sets up log rotation to prevent disk space issues
+- Provides consistent formatting across all modules
+- Ensures all modules use the same logging configuration
 
 ## Troubleshooting
 
 ### **Common Issues**
 
-1. **Log directory not found**
+1. **Logs not appearing in file**
+
    ```bash
+   # Check if logs directory exists
+   ls -la backend/logs/
+
+   # If missing, create it
    mkdir -p backend/logs
    ```
 
-2. **Permission issues**
-   ```bash
-   chmod 755 backend/logs
-   chmod +x backend/scripts/log_*.py
+2. **ImportError with logging**
+
+   ```python
+   # Make sure you have this at the top of every Python file:
+   import logging
+   logger = logging.getLogger(__name__)
    ```
 
-3. **Large log files**
+3. **Still seeing print statements**
    ```bash
-   # Check disk usage
-   python3 backend/scripts/log_monitor.py disk
-
-   # Rotate large files
-   python3 backend/scripts/log_cleanup.py rotate
+   # Search for remaining print statements in production code:
+   grep -r "print(" backend/app/ --exclude-dir=__pycache__
    ```
 
-### **Monitoring Commands**
+### **Debugging Commands**
+
 ```bash
-# Quick health check
-python3 backend/scripts/log_monitor.py status
+# Check recent errors
+tail -50 backend/logs/errors.log
 
-# Real-time monitoring
-python3 backend/scripts/log_monitor.py watch --file "jobs.log"
+# Watch logs in real-time
+tail -f backend/logs/errors.log
 
-# Error investigation
-python3 backend/scripts/log_monitor.py errors --hours 6
+# Search for specific patterns
+grep "ERROR" backend/logs/errors.log | tail -20
 ```
 
 ## Benefits of This Implementation
 
 ### **For Development**
-- **Better debugging** with structured, searchable logs
-- **Real-time monitoring** of job processing
-- **Error pattern detection** for quick issue resolution
-- **Performance insights** through job timing data
+
+- **Consistent debugging** - all modules log the same way
+- **Dual output** - see logs in console AND file simultaneously
+- **Better error tracking** - stack traces captured with `exc_info=True`
+- **No lost messages** - nothing disappears like print statements did
 
 ### **For Production**
-- **Persistent audit trail** of all system activities
-- **Automated log rotation** prevents disk space issues
-- **Structured data** for log aggregation tools (ELK, Splunk, etc.)
-- **Service health monitoring** through log analysis
 
-### **For Operations**
-- **Simple command-line tools** for log analysis
-- **Automated maintenance** through cron/systemd
-- **Configurable retention** policies
-- **Disk space management** with cleanup tools
+- **Persistent error logs** - all errors saved to files
+- **Automatic rotation** - prevents disk space issues
+- **Centralized configuration** - easy to modify logging behavior
+- **Standardized format** - easy to parse and analyze
 
-## Next Steps (Optional)
+### **For Code Quality**
 
-If you need more advanced monitoring:
+- **Enforced standards** - consistent logging across all modules
+- **Easy code reviews** - clear pattern to check against
+- **No debugging remnants** - no print statements left in production code
+- **Proper error handling** - encourages better exception handling
 
-1. **ELK Stack Integration** - Send JSON logs to Elasticsearch
-2. **Prometheus Metrics** - Extract metrics from logs
-3. **Alerting** - Set up alerts for error patterns
-4. **Grafana Dashboards** - Visualize log data
+## Migration Notes
 
-But for your current development and small-scale production needs, this implementation provides comprehensive logging without over-engineering!
+All backend modules have been updated to use this pattern:
+
+- ✅ **API endpoints** (`backend/app/api/`)
+- ✅ **Services** (`backend/app/services/`)
+- ✅ **Database operations** (`backend/app/db/`)
+- ✅ **Job processing** (`backend/app/jobs/`)
+- ✅ **WebSocket handlers** (`backend/app/websockets/`)
+
+**Print statements remain only in:**
+
+- Test functions (e.g., `test_itunes_search()`)
+- Server startup messages (`main.py`)
+- Migration scripts (`migrate.py`)
+
+This ensures production code is clean while preserving appropriate console output for debugging and system startup.

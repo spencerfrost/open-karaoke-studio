@@ -2,6 +2,7 @@
 Job-related models: Enum, dataclass, SQLAlchemy, and store.
 """
 
+import logging
 import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -11,6 +12,8 @@ from typing import Any, Optional
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 
 from .base import Base
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(str, Enum):
@@ -239,7 +242,7 @@ class JobStore:
                 db_jobs = session.query(DbJob).all()
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
-            print(f"Error getting all jobs: {e}")
+            logger.error("Error getting all jobs: %s", e, exc_info=True)
             return []
 
     def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
@@ -250,7 +253,9 @@ class JobStore:
                 )
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
-            print(f"Error getting jobs by status {status}: {e}")
+            logger.error(
+                "Error getting jobs by status %s: %s", status, e, exc_info=True
+            )
             return []
 
     def delete_job(self, job_id: str) -> bool:
@@ -263,7 +268,7 @@ class JobStore:
                     return True
                 return False
         except Exception as e:
-            print(f"Error deleting job {job_id}: {e}")
+            logger.error("Error deleting job %s: %s", job_id, e, exc_info=True)
             return False
 
     def dismiss_job(self, job_id: str) -> bool:
@@ -282,7 +287,7 @@ class JobStore:
                     return True
                 return False
         except Exception as e:
-            print(f"Error dismissing job {job_id}: {e}")
+            logger.error("Error dismissing job %s: %s", job_id, e, exc_info=True)
             return False
 
     def get_stats(self) -> dict[str, int]:
@@ -324,7 +329,7 @@ class JobStore:
                     "raw_cancelled": cancelled,
                 }
         except Exception as e:
-            print(f"Error getting job statistics: {e}")
+            logger.error("Error getting job statistics: %s", e, exc_info=True)
             return {
                 "total": 0,
                 "queue_length": 0,
@@ -342,7 +347,7 @@ class JobStore:
                 db_jobs = session.query(DbJob).filter(DbJob.dismissed is False).all()
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
-            print(f"Error getting active jobs: {e}")
+            logger.error("Error getting active jobs: %s", e, exc_info=True)
             return []
 
     def get_dismissed_jobs(self) -> list[Job]:
@@ -352,5 +357,5 @@ class JobStore:
                 db_jobs = session.query(DbJob).filter(DbJob.dismissed is True).all()
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
-            print(f"Error getting dismissed jobs: {e}")
+            logger.error("Error getting dismissed jobs: %s", e, exc_info=True)
             return []
