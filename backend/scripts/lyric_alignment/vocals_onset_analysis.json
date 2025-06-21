@@ -1,5 +1,5 @@
 {
-  "audio_file": "/home/spencer/code/open-karaoke/karaoke_library/cef0e5e2-e26f-4ee1-881b-368089a25efe/vocals.mp3",
+  "audio_file": "/home/spencer/code/open-karaoke-studio/karaoke_library/cef0e5e2-e26f-4ee1-881b-368089a25efe/vocals.mp3",
   "analyzed_duration": 30.0,
   "sample_rate": 22050,
   "onset_methods": {

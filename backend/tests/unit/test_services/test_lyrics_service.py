@@ -279,6 +279,6 @@ class TestLegacyMakeRequest:
 
     def test_user_agent_constant(self):
         """Test that USER_AGENT constant is properly defined."""
-        assert USER_AGENT == "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke)"
+        assert USER_AGENT == "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke-studio)"
         assert isinstance(USER_AGENT, str)
         assert len(USER_AGENT) > 0
