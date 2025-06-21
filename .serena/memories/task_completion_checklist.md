@@ -1,69 +1,89 @@
-# Task Completion Checklist
+# Open Karaoke Studio - Task Completion Checklist
 
-## After Completing Any Backend Task
+## After Completing Any Coding Task
 
-### Code Quality Checks (MANDATORY)
+### 1. Code Quality Checks
+**Frontend:**
 ```bash
-# 1. Check for forbidden print statements
-findstr /R /S "print(" backend\app\
-# Should return NO results (except test files)
-
-# 2. Check for direct logging usage
-findstr /R /S "logging\." backend\app\ | findstr /V "getLogger"
-# Should return NO results
-
-# 3. Check for missing logger declarations
-# Manually verify each file has: logger = logging.getLogger(__name__)
+cd frontend/
+pnpm run check           # Format + lint + type check
+pnpm run type-check      # TypeScript validation
 ```
 
-### Automated Validation
+**Backend:**
 ```bash
-# Run backend tests
-cd backend
-pytest
-
-# Run code formatting
-black app
-isort app
-
-# Run linting
-pylint app
+cd backend/
+pylint app/              # Code quality check
+black app/               # Format code
+isort app/               # Sort imports
 ```
 
-### Frontend Validation
+### 2. Testing
+**Backend:**
 ```bash
-cd frontend
-# Type checking
-pnpm type-check
-
-# Linting
-pnpm lint:check
-
-# Formatting check
-pnpm format:check
-
-# All checks at once
-pnpm check
+pytest                   # Run all tests
+pytest --cov            # With coverage report
+pytest tests/unit/       # Unit tests only
 ```
 
-## Before Submitting PR
+**Frontend:**
+```bash
+# Currently no automated tests set up
+# Manual testing in browser required
+```
 
-### Backend Requirements
-- [ ] All files have proper logging setup
-- [ ] No print() statements in production code
-- [ ] All API endpoints use @handle_api_error decorator
-- [ ] Proper exception handling with specific error types
-- [ ] Type hints on all functions
-- [ ] Tests pass with >80% coverage
+### 3. Verification
+```bash
+# Full system verification
+./verify-setup.sh
 
-### Frontend Requirements
-- [ ] TypeScript compilation successful
-- [ ] ESLint passes with 0 warnings
-- [ ] Prettier formatting applied
-- [ ] Components properly typed
+# Quick verification
+./verify-setup-simple.sh
 
-### Integration Testing
-- [ ] Manual testing of changed functionality
-- [ ] Verify WebSocket connections work
-- [ ] Check API error responses are properly formatted
-- [ ] Ensure logging output is structured and informative
+# Test API health
+curl http://localhost:5123/api/health
+```
+
+### 4. Documentation Updates
+- Update relevant README files if architecture changed
+- Add/update docstrings for new functions
+- Update API documentation if endpoints changed
+- Update type definitions if data models changed
+
+### 5. Logging Compliance
+- Ensure all new Python modules have proper logging setup
+- Verify no `print()` statements in production code
+- Check exception handling includes `exc_info=True`
+
+### 6. Git Workflow
+```bash
+git add .
+git commit -m "descriptive commit message"
+git push origin main
+```
+
+## Pre-Production Deployment Checklist
+
+### 1. Environment Configuration
+- Verify production environment variables
+- Check database configuration
+- Validate Redis connection settings
+- Confirm Docker configuration
+
+### 2. Security Review
+- Check for hardcoded secrets
+- Verify API authentication (when implemented)
+- Review file upload restrictions
+- Check CORS configuration
+
+### 3. Performance Validation
+- Test with large audio files
+- Verify Celery worker performance
+- Check memory usage during processing
+- Test concurrent job processing
+
+### 4. Backup & Recovery
+- Database backup procedures
+- Karaoke library backup
+- Configuration backup
+- Recovery testing

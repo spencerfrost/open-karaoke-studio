@@ -1,92 +1,114 @@
-# Suggested Commands (Ubuntu)
+# Open Karaoke Studio - Essential Commands
 
-## Development Commands
-
-### Start Development Environment
+## Development Environment Setup
 ```bash
-# Start all services (frontend, backend, celery)
+# Complete automated setup
+./setup.sh
+
+# Start all services (frontend + backend + celery)
 ./scripts/dev.sh
 
 # Start individual services
-pnpm run dev:frontend  # Frontend only
-pnpm run dev:backend   # Backend only
+pnpm run dev                    # All services
+pnpm run dev:frontend          # Frontend only
+pnpm run dev:backend           # Backend only
+cd backend && ./run_celery.sh  # Celery worker
 ```
 
-### Backend Development
+## Frontend Commands
 ```bash
-cd backend
-# Activate virtual environment
-source venv/bin/activate
+cd frontend/
 
-# Install dependencies
-pip install -r requirements.txt
+# Development
+pnpm dev                    # Local development
+pnpm run host              # Network accessible (0.0.0.0)
 
-# Run backend API
-python -m app.main
-# OR
-./run_api.sh
+# Code Quality
+pnpm run check             # Run all checks
+pnpm run format:check      # Check formatting
+pnpm run lint:check        # Check linting  
+pnpm run type-check        # Check TypeScript
 
-# Run Celery worker
-./run_celery.sh
+# Fixes
+pnpm run fix               # Fix formatting + linting
+pnpm run format            # Auto-format code
+pnpm run lint:fix          # Auto-fix linting issues
+
+# Build
+pnpm build                 # Production build
+pnpm preview               # Preview production build
 ```
 
-### Frontend Development
+## Backend Commands
 ```bash
-cd frontend
-# Install dependencies
-pnpm install
+cd backend/
 
-# Start dev server
-pnpm dev
+# Development
+./run_api.sh               # Start Flask API server
+./run_celery.sh            # Start Celery worker
 
-# Build for production
-pnpm build
+# Testing (ALWAYS activate venv first)
+source venv/bin/activate   # REQUIRED: Activate virtual environment
+pytest                     # Run all tests
+pytest tests/unit/         # Unit tests only
+pytest tests/integration/  # Integration tests only
+pytest --cov              # With coverage report
+
+# Code Quality (with venv activated)
+source venv/bin/activate   # REQUIRED: Activate virtual environment
+pylint app/                # Lint Python code
+black app/                 # Format Python code
+isort app/                 # Sort imports
+
+# Database (with venv activated)
+source venv/bin/activate   # REQUIRED: Activate virtual environment
+alembic upgrade head       # Run migrations
+alembic revision --autogenerate -m "description"  # Create migration
+
+# Python Module Testing (with venv activated)
+source venv/bin/activate   # REQUIRED: Activate virtual environment
+python -c "import app.services.youtube_service; print('Import successful')"
+python -m py_compile app/services/youtube_service.py
 ```
 
-## Testing Commands
+## System Utilities (Linux/WSL)
 ```bash
-# Backend tests
-cd backend
-pytest
-pytest --cov=app --cov-report=html
-
-# Frontend tests
-cd frontend
-pnpm test
-```
-
-## Code Quality Commands
-```bash
-# Backend linting/formatting
-cd backend
-pylint app
-black app
-isort app
-
-# Frontend linting/formatting
-cd frontend
-pnpm lint:check
-pnpm lint:fix
-pnpm format
-pnpm format:check
-pnpm type-check
+# Common commands for project maintenance
+git status                 # Check git status
+git log --oneline -10      # Recent commits
+find . -name "*.py" | head # Find Python files
+grep -r "search_term" .    # Search in files
+ps aux | grep celery       # Check Celery processes
 ```
 
 ## Docker Commands
 ```bash
-# Start with Docker Compose
-docker compose up -d
-
-# Stop services
-docker compose down
-
-# View logs
-docker compose logs -f
+# Container management
+docker-compose up -d       # Start all services
+docker-compose down        # Stop all services
+docker-compose logs -f     # Follow logs
 ```
 
-## Ubuntu-Specific Commands
-- Use `ls` instead of `dir`
-- Use `cat` instead of `type`
-- Use `grep` instead of `findstr`
-- Use Bash or other Unix shells
-- Virtual environment: `source venv/bin/activate`
+## Verification Commands
+```bash
+# Health checks
+./verify-setup.sh          # Complete system verification
+./verify-setup-simple.sh   # Basic verification
+curl http://localhost:5123/api/health  # Backend health check
+```
+
+## IMPORTANT: Virtual Environment Usage
+**ALWAYS activate the virtual environment before running Python commands in the backend:**
+
+```bash
+cd backend
+source venv/bin/activate
+# Now run your Python commands
+```
+
+This is especially critical for:
+- Running tests with pytest
+- Using Python linting tools
+- Running database migrations
+- Importing/testing Python modules
+- Any Python-related development tasks
