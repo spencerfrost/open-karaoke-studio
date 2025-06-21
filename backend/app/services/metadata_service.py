@@ -6,19 +6,25 @@ currently using iTunes as the backend but designed to be extensible.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 from flask import current_app
 
+logger = logging.getLogger(__name__)
+
 from .interfaces.metadata_service import MetadataServiceInterface
-from .itunes_service import (enhance_metadata_with_itunes,
-                             get_itunes_cover_art, search_itunes)
+from .itunes_service import (
+    enhance_metadata_with_itunes,
+    get_itunes_cover_art,
+    search_itunes,
+)
 
 
 def filter_youtube_metadata_for_storage(raw_data: dict[str, Any]) -> str:
     """
-    Filter YouTube metadata for storage, removing massive formats array 
+    Filter YouTube metadata for storage, removing massive formats array
     and non-serializable objects.
 
     Args:
@@ -94,7 +100,7 @@ class MetadataService(MetadataServiceInterface):
             List[Dict[str, Any]]: List of song metadata
         """
         try:
-            current_app.logger.info(
+            logger.info(
                 "MetadataService: Searching for artist='%s', title='%s', album='%s', limit=%s",
                 artist,
                 title,
@@ -105,11 +111,11 @@ class MetadataService(MetadataServiceInterface):
             # Use iTunes service as the backend
             results = search_itunes(artist, title, album, limit)
 
-            current_app.logger.info("MetadataService: Found %s results", len(results))
+            logger.info("MetadataService: Found %s results", len(results))
             return results
 
         except Exception as e:
-            current_app.logger.error("MetadataService search error: %s", e)
+            logger.error("MetadataService search error: %s", e)
             raise
 
     def format_metadata_response(
@@ -169,7 +175,9 @@ class MetadataService(MetadataServiceInterface):
             "success": True,
         }
 
-    def enhance_song_metadata(self, metadata: dict[str, Any], song_dir: Path) -> dict[str, Any]:
+    def enhance_song_metadata(
+        self, metadata: dict[str, Any], song_dir: Path
+    ) -> dict[str, Any]:
         """
         Enhance existing song metadata with additional information.
 
@@ -181,7 +189,7 @@ class MetadataService(MetadataServiceInterface):
             Dict[str, Any]: Enhanced metadata
         """
         try:
-            current_app.logger.info(
+            logger.info(
                 "MetadataService: Enhancing metadata for '%s' by '%s'",
                 metadata.get("title", "Unknown"),
                 metadata.get("artist", "Unknown"),
@@ -190,14 +198,16 @@ class MetadataService(MetadataServiceInterface):
             # Use iTunes service to enhance metadata
             enhanced = enhance_metadata_with_itunes(metadata, song_dir)
 
-            current_app.logger.info("MetadataService: Metadata enhancement completed")
+            logger.info("MetadataService: Metadata enhancement completed")
             return enhanced
 
         except Exception as e:
-            current_app.logger.error("MetadataService enhancement error: %s", e)
+            logger.error("MetadataService enhancement error: %s", e)
             return metadata
 
-    def download_cover_art(self, track_data: dict[str, Any], song_dir: Path) -> Optional[str]:
+    def download_cover_art(
+        self, track_data: dict[str, Any], song_dir: Path
+    ) -> Optional[str]:
         """
         Download cover art for a track.
 
@@ -209,7 +219,7 @@ class MetadataService(MetadataServiceInterface):
             str: Relative path to downloaded cover art or None
         """
         try:
-            current_app.logger.info(
+            logger.info(
                 "MetadataService: Downloading cover art for track ID %s",
                 track_data.get("id", "Unknown"),
             )
@@ -218,16 +228,16 @@ class MetadataService(MetadataServiceInterface):
             cover_path = get_itunes_cover_art(track_data, song_dir)
 
             if cover_path:
-                current_app.logger.info("MetadataService: Cover art downloaded to %s", cover_path)
+                logger.info("MetadataService: Cover art downloaded to %s", cover_path)
             else:
-                current_app.logger.warning(
+                logger.warning(
                     "MetadataService: No cover art available or download failed"
                 )
 
             return cover_path
 
         except Exception as e:
-            current_app.logger.error("MetadataService cover art download error: %s", e)
+            logger.error("MetadataService cover art download error: %s", e)
             return None
 
 

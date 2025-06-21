@@ -1,6 +1,6 @@
 # backend/app/api/songs_artists.py
 
-
+import logging
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db.song_operations import (
@@ -11,6 +11,7 @@ from ..db.song_operations import (
 )
 from ..schemas.song import Song
 
+logger = logging.getLogger(__name__)
 artists_bp = Blueprint("songs_artists", __name__, url_prefix="/api/songs")
 
 
@@ -29,7 +30,9 @@ def get_artists():
         offset = int(request.args.get("offset", 0))
 
         # Get artists with song counts from database
-        artists = get_artists_with_counts(search_term=search_term, limit=limit, offset=offset)
+        artists = get_artists_with_counts(
+            search_term=search_term, limit=limit, offset=offset
+        )
 
         total_count = get_artists_total_count(search_term=search_term)
 
@@ -43,11 +46,11 @@ def get_artists():
             },
         }
 
-        current_app.logger.info("Returning %s artists (total: %s)", len(artists), total_count)
+        logger.info("Returning %s artists (total: %s)", len(artists), total_count)
         return jsonify(response)
 
     except Exception as e:
-        current_app.logger.error(f"Error getting artists: {e}", exc_info=True)
+        logger.error(f"Error getting artists: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch artists"}), 500
 
 
@@ -77,7 +80,10 @@ def get_songs_by_artist_route(artist_name: str):
         )
 
         # Convert DbSong objects to Pydantic Song models for API response
-        songs = [Song.model_validate(song.to_dict()).model_dump() for song in songs_data["songs"]]
+        songs = [
+            Song.model_validate(song.to_dict()).model_dump()
+            for song in songs_data["songs"]
+        ]
         total_count = songs_data["total"]
 
         response = {
@@ -91,13 +97,16 @@ def get_songs_by_artist_route(artist_name: str):
             },
         }
 
-        current_app.logger.info(
-            "Returning %s songs for artist '%s' (total: %s)", len(songs), artist_name, total_count
+        logger.info(
+            "Returning %s songs for artist '%s' (total: %s)",
+            len(songs),
+            artist_name,
+            total_count,
         )
         return jsonify(response)
 
     except Exception as e:
-        current_app.logger.error(
+        logger.error(
             f"Error getting songs for artist '{artist_name}': {e}", exc_info=True
         )
         return jsonify({"error": "Failed to fetch songs for artist"}), 500
@@ -119,7 +128,15 @@ def search_songs():
         query = request.args.get("q", "").strip()
         if not query:
             return jsonify(
-                {"songs": [], "pagination": {"total": 0, "limit": 0, "offset": 0, "hasMore": False}}
+                {
+                    "songs": [],
+                    "pagination": {
+                        "total": 0,
+                        "limit": 0,
+                        "offset": 0,
+                        "hasMore": False,
+                    },
+                }
             )
 
         limit = min(int(request.args.get("limit", 20)), 100)
@@ -141,21 +158,28 @@ def search_songs():
         if group_by_artist:
             # Group results by artist
             response = {
-                "artists": search_results["artists"],  # [{artist: "...", songs: [...], count: N}]
+                "artists": search_results[
+                    "artists"
+                ],  # [{artist: "...", songs: [...], count: N}]
                 "totalSongs": search_results["total_songs"],
                 "totalArtists": search_results["total_artists"],
                 "pagination": search_results["pagination"],
             }
         else:
             # Flat list of songs - convert using new pattern
-            songs = [Song.model_validate(song.to_dict()).model_dump() for song in search_results["songs"]]
+            songs = [
+                Song.model_validate(song.to_dict()).model_dump()
+                for song in search_results["songs"]
+            ]
             response = {"songs": songs, "pagination": search_results["pagination"]}
 
-        current_app.logger.info(
-            "Search '%s' returned %s results", query, search_results["pagination"]["total"]
+        logger.info(
+            "Search '%s' returned %s results",
+            query,
+            search_results["pagination"]["total"],
         )
         return jsonify(response)
 
     except Exception as e:
-        current_app.logger.error(f"Error searching songs: {e}", exc_info=True)
+        logger.error(f"Error searching songs: {e}", exc_info=True)
         return jsonify({"error": "Failed to search songs"}), 500

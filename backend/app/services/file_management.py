@@ -15,6 +15,8 @@ import requests
 from ..db.models import DbSong
 from .file_service import FileService
 
+logger = logging.getLogger(__name__)
+
 # =============================================================================
 # PATH CONSTRUCTION HELPERS - These provide useful path construction logic
 # =============================================================================
@@ -50,7 +52,7 @@ def save_original_file(input_path: Path, song_dir: Path) -> Optional[Path]:
         shutil.copy2(input_path, destination)
         return destination
     except OSError as e:
-        print(f"Error copying original file: {e}")
+        logger.error("Error copying original file: %s", e, exc_info=True)
         return None
 
 
@@ -97,7 +99,7 @@ def download_image(url: str, save_path: Path) -> bool:
 
         # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
         if head_response.status_code != 200:
-            logging.warning(
+            logger.warning(
                 "HEAD request failed with status %s, trying GET instead",
                 head_response.status_code,
             )
@@ -111,7 +113,7 @@ def download_image(url: str, save_path: Path) -> bool:
         # Check if response contains image data
         content_type = response.headers.get("content-type", "")
         if not content_type.startswith("image/"):
-            logging.warning("Downloaded content is not an image: %s", content_type)
+            logger.warning("Downloaded content is not an image: %s", content_type)
             # Some YouTube thumbnails might not correctly report content-type
             # Check if it at least looks like an image based on first few bytes
             first_bytes = next(response.iter_content(128), b"")
@@ -121,7 +123,7 @@ def download_image(url: str, save_path: Path) -> bool:
                 or first_bytes.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
                 or (first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes[:12])
             ):  # WebP
-                logging.warning(
+                logger.warning(
                     "Content doesn't appear to be an image based on file signature"
                 )
                 return False
@@ -138,16 +140,16 @@ def download_image(url: str, save_path: Path) -> bool:
         if save_path.exists() and save_path.stat().st_size > 0:
             return True
         else:
-            logging.warning(
+            logger.warning(
                 "Image file was saved but appears to be empty: %s", save_path
             )
             return False
 
     except requests.exceptions.RequestException as e:
-        logging.error("Network error downloading image from %s: %s", url, e)
+        logger.error("Network error downloading image from %s: %s", url, e)
         return False
     except Exception as e:
-        logging.error("Error downloading image from %s: %s", url, e)
+        logger.error("Error downloading image from %s: %s", url, e)
         return False
 
 

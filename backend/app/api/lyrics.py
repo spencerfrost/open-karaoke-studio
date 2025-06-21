@@ -1,8 +1,10 @@
+import logging
 from flask import Blueprint, current_app, jsonify, request
 
 from ..exceptions import ServiceError, ValidationError
 from ..services.lyrics_service import LyricsService
 
+logger = logging.getLogger(__name__)
 lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
 
 
@@ -37,14 +39,14 @@ def search_lyrics():
         query = " ".join(query_parts)
         results = lyrics_service.search_lyrics(query)
 
-        current_app.logger.info("Found %s lyrics results for query: %s", len(results), query)
+        logger.info("Found %s lyrics results for query: %s", len(results), query)
         return jsonify(results), 200
 
     except ServiceError as e:
-        current_app.logger.error("Service error searching lyrics: %s", e)
+        logger.error("Service error searching lyrics: %s", e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error("Error searching lyrics: %s", str(e))
+        logger.error("Error searching lyrics: %s", str(e))
         return jsonify({"error": f"Failed to search lyrics: {str(e)}"}), 500
 
 
@@ -77,19 +79,19 @@ def save_song_lyrics(song_id: str):
         success = lyrics_service.save_lyrics(song_id, lyrics_text)
 
         if success:
-            current_app.logger.info("Successfully saved lyrics for song %s", song_id)
+            logger.info("Successfully saved lyrics for song %s", song_id)
             return jsonify({"message": "Lyrics saved successfully"}), 200
         else:
             return jsonify({"error": "Failed to save lyrics"}), 500
 
     except ValidationError as e:
-        current_app.logger.warning("Validation error saving lyrics for %s: %s", song_id, e)
+        logger.warning("Validation error saving lyrics for %s: %s", song_id, e)
         return jsonify({"error": f"Invalid lyrics: {str(e)}"}), 400
     except ServiceError as e:
-        current_app.logger.error("Service error saving lyrics for %s: %s", song_id, e)
+        logger.error("Service error saving lyrics for %s: %s", song_id, e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error("Unexpected error saving lyrics for %s: %s", song_id, e)
+        logger.error("Unexpected error saving lyrics for %s: %s", song_id, e)
         return jsonify({"error": "Failed to save lyrics"}), 500
 
 
@@ -109,15 +111,15 @@ def get_song_lyrics_local(song_id: str):
         lyrics_text = lyrics_service.get_lyrics(song_id)
 
         if lyrics_text:
-            current_app.logger.info("Retrieved local lyrics for song %s", song_id)
+            logger.info("Retrieved local lyrics for song %s", song_id)
             return jsonify({"lyrics": lyrics_text}), 200
         else:
-            current_app.logger.info("No local lyrics found for song %s", song_id)
+            logger.info("No local lyrics found for song %s", song_id)
             return jsonify({"error": "No lyrics found"}), 404
 
     except ServiceError as e:
-        current_app.logger.error("Service error getting lyrics for %s: %s", song_id, e)
+        logger.error("Service error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": str(e)}), 500
     except Exception as e:
-        current_app.logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
+        logger.error("Unexpected error getting lyrics for %s: %s", song_id, e)
         return jsonify({"error": "Failed to get lyrics"}), 500

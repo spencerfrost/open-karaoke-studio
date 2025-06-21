@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import time
@@ -10,6 +11,8 @@ from ..config import get_config
 
 # Use relative imports
 from . import file_management
+
+logger = logging.getLogger(__name__)
 
 
 class StopProcessingError(Exception):
@@ -37,7 +40,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
     if status_callback is None:
 
         def status_callback(msg):
-            print(msg)
+            logger.info(msg)
 
     if stop_event is None:
         import threading
@@ -61,7 +64,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 os.environ["CUDA_VISIBLE_DEVICES"] = ""
                 use_cuda = False
         else:
-            status_callback("Looking for CUDA: No GPU detected. Using CPU for processing.")
+            status_callback(
+                "Looking for CUDA: No GPU detected. Using CPU for processing."
+            )
 
         # --- Define the Progress Callback ---
         # This function will be called by the Demucs Separator during processing
@@ -87,7 +92,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 (processed_segments / total_segments) if total_segments > 0 else 0
             )
             overall_progress = (
-                ((model_idx + progress_current_model) / models_count) if models_count > 0 else 0
+                ((model_idx + progress_current_model) / models_count)
+                if models_count > 0
+                else 0
             )
 
             if data["state"] == "end":
@@ -116,15 +123,17 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 device_str = "cpu"
 
             device_msg = f"Using device: {device_str}"
-            print(device_msg)
+            logger.info(device_msg)
             if status_callback:
                 status_callback(device_msg)
 
             # --- Initialization ---
             config = get_config()
             model_name = config.DEFAULT_MODEL
-            init_msg = f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
-            print(init_msg)
+            init_msg = (
+                f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
+            )
+            logger.info(init_msg)
             if status_callback:
                 status_callback(init_msg)
 
@@ -147,10 +156,12 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             # --- Determine Output Format ---
             input_extension = input_path.suffix.lower()
-            output_extension = input_extension if input_extension in [".wav", ".mp3"] else ".wav"
+            output_extension = (
+                input_extension if input_extension in [".wav", ".mp3"] else ".wav"
+            )
             output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
             format_msg = f"Input: {input_extension}, Output: {output_format_str}"
-            print(format_msg)
+            logger.info(format_msg)
             if status_callback:
                 status_callback(format_msg)
 
@@ -159,7 +170,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             # --- Separation (This is the long part) ---
             loading_msg = f"Loading audio file: {input_path.name}..."
-            print(loading_msg)
+            logger.info(loading_msg)
             if status_callback:
                 status_callback(loading_msg)
 
@@ -181,13 +192,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 raise Exception(error_msg)
 
             sep_msg = "Separation models finished."
-            print(sep_msg)
+            logger.info(sep_msg)
             if status_callback:
                 status_callback(sep_msg)
 
             # --- Calculate Instrumental ---
             instr_msg = "Calculating instrumental track..."
-            print(instr_msg)
+            logger.info(instr_msg)
             if status_callback:
                 status_callback(instr_msg)
 
@@ -211,9 +222,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 output_extension
             )
-            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
-                output_extension
-            )
+            instrumental_path = file_management.get_instrumental_path_stem(
+                song_dir
+            ).with_suffix(output_extension)
             vocals_tensor = separated.get("vocals")
 
             save_kwargs = {"samplerate": separator.samplerate}
@@ -231,13 +242,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             # --- Save Vocals ---
             if vocals_tensor is not None:
                 vocal_msg = f"Saving vocals ({output_format_str})..."
-                print(vocal_msg)
+                logger.info(vocal_msg)
                 if status_callback:
                     status_callback(vocal_msg)
                 save_audio(vocals_tensor, str(vocals_path), **save_kwargs)
             else:
                 warning_msg = "** Warning: Vocals stem not found in model output. **"
-                print(warning_msg)
+                logger.warning(warning_msg)
                 if status_callback:
                     status_callback(warning_msg)
 
@@ -246,13 +257,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             # --- Save Instrumental ---
             instr_save_msg = f"Saving instrumental ({output_format_str})..."
-            print(instr_save_msg)
+            logger.info(instr_save_msg)
             if status_callback:
                 status_callback(instr_save_msg)
             save_audio(instrumental_tensor, str(instrumental_path), **save_kwargs)
 
             complete_msg = f"Processing complete for {input_path.name}!"
-            print(complete_msg)
+            logger.info(complete_msg)
             if status_callback:
                 status_callback(complete_msg)
             return True
@@ -260,8 +271,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         except StopProcessingError:
             raise  # Re-raise
         except Exception as e:
-            print(f"Error during separation for {input_path.name}: {e}", file=sys.stderr)
-            traceback.print_exc()
+            logger.error(
+                f"Error during separation for {input_path.name}: {e}", exc_info=True
+            )
             if status_callback:
                 status_callback(f"** Error during separation: {e} **")
             raise

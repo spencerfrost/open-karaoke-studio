@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+logger = logging.getLogger(__name__)
+
 from sqlalchemy import (
     Boolean,
     Column,
@@ -32,19 +34,19 @@ from .models import Base, DbSong
 # Get configuration and create database engine
 config = get_config()
 DATABASE_URL = config.DATABASE_URL
-logging.info(f"Database URL: {DATABASE_URL}")
+logger.info(f"Database URL: {DATABASE_URL}")
 
 # Log the actual database file path for SQLite debugging
 if DATABASE_URL.startswith("sqlite:"):
     db_file_path = DATABASE_URL.replace("sqlite:///", "")
-    logging.info(f"SQLite database file path: {db_file_path}")
-    logging.info(f"Database file exists: {Path(db_file_path).exists()}")
+    logger.info(f"SQLite database file path: {db_file_path}")
+    logger.info(f"Database file exists: {Path(db_file_path).exists()}")
 
     # Log current working directory for debugging path resolution
     import os
 
-    logging.info(f"Current working directory: {os.getcwd()}")
-    logging.info(f"Absolute database path: {Path(db_file_path).resolve()}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Absolute database path: {Path(db_file_path).resolve()}")
 
 # Configure SQLite engine for better concurrency and cross-process reliability
 if DATABASE_URL.startswith("sqlite:"):
@@ -85,9 +87,9 @@ def init_db():
                 # Set synchronous mode for better reliability
                 connection.execute(text("PRAGMA synchronous=FULL;"))
                 connection.commit()
-                logging.info("SQLite configured with WAL mode for better concurrency")
+                logger.info("SQLite configured with WAL mode for better concurrency")
         except Exception as e:
-            logging.warning(f"Failed to configure SQLite pragmas: {e}")
+            logger.warning(f"Failed to configure SQLite pragmas: {e}")
 
 
 def force_db_sync():
@@ -103,7 +105,7 @@ def force_db_sync():
                 logging.debug(f"WAL checkpoint result: {result.fetchone()}")
                 connection.commit()
         except Exception as e:
-            logging.warning(f"Failed to execute WAL checkpoint: {e}")
+            logger.warning(f"Failed to execute WAL checkpoint: {e}")
 
 
 # SQLAlchemy session middleware for route handlers (placeholder, can be implemented if needed)
@@ -122,7 +124,7 @@ def ensure_db_schema():
         db_path = Path(db_path_str)
 
         if not db_path.exists():
-            logging.info("Creating database schema from scratch")
+            logger.info("Creating database schema from scratch")
             Base.metadata.create_all(bind=engine)
             return
     else:
@@ -142,7 +144,7 @@ def ensure_db_schema():
                 missing_columns.add(column.name)
 
         if missing_columns:
-            logging.info(f"Missing columns in {table_name}: {missing_columns}")
+            logger.info(f"Missing columns in {table_name}: {missing_columns}")
             # Add columns using direct SQL
             with engine.connect() as connection:
                 for col_name in missing_columns:
@@ -169,9 +171,9 @@ def ensure_db_schema():
 
                         connection.execute(text(sql))
                         connection.commit()
-                        logging.info(f"Added column: {sql}")
+                        logger.info(f"Added column: {sql}")
                     except Exception as e:
-                        logging.error(f"Error adding column {col_name}: {e}")
+                        logger.error(f"Error adding column {col_name}: {e}")
 
 
 @contextmanager

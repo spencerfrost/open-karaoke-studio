@@ -1,9 +1,11 @@
 # backend/app/api/metadata.py
 
+import logging
 from flask import Blueprint, current_app, jsonify, request
 
 from ..services.metadata_service import MetadataService
 
+logger = logging.getLogger(__name__)
 # Create a metadata blueprint with the new, clean URL structure
 metadata_bp = Blueprint("metadata", __name__, url_prefix="/api/metadata")
 
@@ -11,7 +13,7 @@ metadata_bp = Blueprint("metadata", __name__, url_prefix="/api/metadata")
 @metadata_bp.route("/search", methods=["GET"])
 def search_metadata_endpoint():
     """Endpoint to search for song metadata using iTunes Search API."""
-    current_app.logger.info("Received metadata search request")
+    logger.info("Received metadata search request")
 
     try:
         # Get search terms from query parameters
@@ -19,16 +21,22 @@ def search_metadata_endpoint():
         artist = request.args.get("artist", "").strip()
         album = request.args.get("album", "").strip()
         limit = int(request.args.get("limit", 5))
-        sort_by = request.args.get("sort_by", "relevance")  # For backwards compatibility
+        sort_by = request.args.get(
+            "sort_by", "relevance"
+        )  # For backwards compatibility
 
         # Validate that at least title or artist is provided
         if not title and not artist:
             return (
-                jsonify({"error": "At least one of 'title' or 'artist' parameters is required"}),
+                jsonify(
+                    {
+                        "error": "At least one of 'title' or 'artist' parameters is required"
+                    }
+                ),
                 400,
             )
 
-        current_app.logger.info(
+        logger.info(
             "Metadata search - Artist: '%s', Title: '%s', Album: '%s', Limit: %s",
             artist,
             title,
@@ -50,14 +58,19 @@ def search_metadata_endpoint():
             "limit": limit,
             "sort_by": sort_by,
         }
-        response_data = metadata_service.format_metadata_response(results, search_params)
+        response_data = metadata_service.format_metadata_response(
+            results, search_params
+        )
 
-        current_app.logger.info("Metadata search returned %s results", len(results))
+        logger.info("Metadata search returned %s results", len(results))
         return jsonify(response_data), 200
 
     except ValueError as e:
-        current_app.logger.error("ValueError in metadata search: %s", e)
+        logger.error("ValueError in metadata search: %s", e)
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        current_app.logger.error(f"Error during metadata search: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred during metadata search"}), 500
+        logger.error(f"Error during metadata search: {e}", exc_info=True)
+        return (
+            jsonify({"error": "An internal error occurred during metadata search"}),
+            500,
+        )
