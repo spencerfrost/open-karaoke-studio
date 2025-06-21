@@ -2,13 +2,10 @@
 Job-related models: Enum, dataclass, SQLAlchemy, and store.
 """
 
-import json
-import tempfile
 import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 from typing import Any, Optional
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
@@ -18,6 +15,7 @@ from .base import Base
 
 class JobStatus(str, Enum):
     """Enumeration of possible job statuses."""
+
     PENDING = "pending"
     DOWNLOADING = "downloading"
     PROCESSING = "processing"
@@ -30,6 +28,7 @@ class JobStatus(str, Enum):
 @dataclass
 class Job:
     """Data class representing a job with its current status and progress."""
+
     id: str
     filename: str
     status: JobStatus
@@ -66,7 +65,7 @@ class Job:
 
 class DbJob(Base):
     """Database model for storing job information and status."""
-    
+
     __tablename__ = "jobs"
     id = Column(String, primary_key=True)
     filename = Column(String, nullable=False)
@@ -112,7 +111,7 @@ class DbJob(Base):
 
 class JobStore:
     """Service class for managing job persistence in the database."""
-    
+
     def __init__(self):
         from ..database import SessionLocal, get_db_session
 
@@ -122,55 +121,6 @@ class JobStore:
 
         DbJob.__table__.create(bind=engine, checkfirst=True)
 
-        # Initialize fallback file cache for emergency job storage
-        self._init_fallback_cache()
-
-    def _init_fallback_cache(self):
-        """Initialize a file-based fallback cache for jobs"""
-        try:
-            from ...config import get_config
-
-            config = get_config()
-            self.fallback_dir = Path(config.BASE_DIR) / "temp_job_cache"
-            self.fallback_dir.mkdir(exist_ok=True)
-        except Exception:
-            # Use system temp directory as last resort
-            self.fallback_dir = Path(tempfile.gettempdir()) / "karaoke_job_cache"
-            self.fallback_dir.mkdir(exist_ok=True)
-
-    def _save_job_to_fallback(self, job: Job):
-        """Save job to file-based fallback cache"""
-        try:
-            cache_file = self.fallback_dir / f"{job.id}.json"
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(job.to_dict(), f)
-            return True
-        except Exception as e:
-            print(f"Failed to save job {job.id} to fallback cache: {e}")
-            return False
-
-    def _get_job_from_fallback(self, job_id: str) -> Optional[Job]:
-        """Retrieve job from file-based fallback cache"""
-        try:
-            cache_file = self.fallback_dir / f"{job_id}.json"
-            if cache_file.exists():
-                with open(cache_file, encoding="utf-8") as f:
-                    job_data = json.load(f)
-                # Convert back to Job object
-                job_data["status"] = JobStatus(job_data["status"])
-                # Handle datetime fields
-                for date_field in ["created_at", "started_at", "completed_at"]:
-                    if job_data.get(date_field):
-                        from datetime import datetime
-
-                        job_data[date_field] = datetime.fromisoformat(
-                            job_data[date_field].replace("Z", "+00:00")
-                        )
-                return Job(**job_data)
-        except Exception as e:
-            print(f"Failed to get job {job_id} from fallback cache: {e}")
-        return None
-
     def save_job(self, job: Job) -> None:
         """Save or update a job in the database."""
         import logging
@@ -179,16 +129,11 @@ class JobStore:
 
         try:
             was_created = False
-            logger.info("Attempting to save job %s to database", job.id)
 
             with self.get_db_session() as session:
-                # Log database connection info
-                logger.info("Database engine URL: %s", session.bind.url)
-
                 db_job = session.query(DbJob).filter(DbJob.id == job.id).first()
                 if not db_job:
                     was_created = True
-                    logger.info("Creating new job %s", job.id)
                     db_job = DbJob(
                         id=job.id,
                         filename=job.filename,
@@ -208,7 +153,6 @@ class JobStore:
                     )
                     session.add(db_job)
                 else:
-                    logger.info("Updating existing job %s", job.id)
                     db_job.filename = job.filename
                     db_job.status = job.status.value
                     db_job.progress = job.progress
@@ -223,51 +167,32 @@ class JobStore:
                     db_job.notes = job.notes
                     db_job.dismissed = job.dismissed
 
-                # Ensure the data is flushed to database before commit
-                logger.info("Flushing session for job %s", job.id)
                 session.flush()
-
-                logger.info("Committing session for job %s", job.id)
                 session.commit()
 
                 # Force database synchronization for SQLite
                 try:
                     from ..database import force_db_sync
 
-                    logger.info("Forcing database sync for job %s", job.id)
                     force_db_sync()
                 except Exception as sync_error:
                     logger.warning("Failed to force database sync: %s", sync_error)
 
-                # Additional verification that the job was saved properly
-                logger.info("Verifying job %s was saved", job.id)
+                # Verify the job was saved properly
                 verification = session.query(DbJob).filter(DbJob.id == job.id).first()
                 if not verification:
-                    logger.error("CRITICAL: Job %s failed verification after commit!", job.id)
-                    raise Exception(f"Job {job.id} failed to save properly")
-                else:
-                    logger.info(
-                        "SUCCESS: Job %s verified in database with status %s",
-                        job.id,
-                        verification.status,
+                    logger.error(
+                        "CRITICAL: Job %s failed verification after commit!", job.id
                     )
+                    raise Exception(f"Job {job.id} failed to save properly")
 
                 from ...jobs.jobs import _broadcast_job_event
 
                 _broadcast_job_event(job, was_created)
 
-                # Also save to fallback cache as emergency backup
-                self._save_job_to_fallback(job)
-
         except Exception as e:
             logger.error("Error saving job %s: %s", job.id, e)
             traceback.print_exc()
-
-            # Try to save to fallback cache if database save failed
-            logger.warning("Attempting to save job %s to fallback cache", job.id)
-            if self._save_job_to_fallback(job):
-                logger.info("Job %s saved to fallback cache successfully", job.id)
-
             raise  # Re-raise to ensure calling code knows about the failure
 
     def get_job(self, job_id):
@@ -290,22 +215,16 @@ class JobStore:
                 # Check for jobs with similar IDs (for debugging)
                 all_job_ids = session.query(DbJob.id).all()
                 logger.info(
-                    "All job IDs in database: %s...", [job.id for job in all_job_ids[:5]]
+                    "All job IDs in database: %s...",
+                    [job.id for job in all_job_ids[:5]],
                 )  # Log first 5
 
                 db_job = session.query(DbJob).filter(DbJob.id == job_id).first()
                 if not db_job:
-                    logger.warning("Job %s NOT FOUND in database, checking fallback cache", job_id)
-                    # Try fallback cache
-                    fallback_job = self._get_job_from_fallback(job_id)
-                    if fallback_job:
-                        logger.info("SUCCESS: Found job %s in fallback cache", job_id)
-                        return fallback_job
-                    else:
-                        logger.warning("Job %s not found in fallback cache either", job_id)
-                        return None
+                    logger.debug("Job %s not found in database", job_id)
+                    return None
                 else:
-                    logger.info("SUCCESS: Found job %s with status %s", job_id, db_job.status)
+                    logger.debug("Found job %s with status %s", job_id, db_job.status)
                     return db_job.to_job()
 
         except Exception as e:
@@ -326,7 +245,9 @@ class JobStore:
     def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
         try:
             with self.get_db_session() as session:
-                db_jobs = session.query(DbJob).filter(DbJob.status == status.value).all()
+                db_jobs = (
+                    session.query(DbJob).filter(DbJob.status == status.value).all()
+                )
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
             print(f"Error getting jobs by status {status}: {e}")
@@ -369,17 +290,29 @@ class JobStore:
             with self.get_db_session() as session:
                 total = session.query(DbJob).count()
                 pending = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.PENDING.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PENDING.value)
+                    .count()
                 )
                 processing = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.PROCESSING.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PROCESSING.value)
+                    .count()
                 )
                 completed = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.COMPLETED.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.COMPLETED.value)
+                    .count()
                 )
-                failed = session.query(DbJob).filter(DbJob.status == JobStatus.FAILED.value).count()
+                failed = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.FAILED.value)
+                    .count()
+                )
                 cancelled = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.CANCELLED.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.CANCELLED.value)
+                    .count()
                 )
                 return {
                     "total": total,

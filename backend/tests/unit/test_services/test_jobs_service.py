@@ -32,32 +32,34 @@ class TestJobsService:
     def test_get_all_jobs_sorting(self):
         """Test that get_all_jobs returns jobs sorted by creation time."""
         mock_job_store = Mock(spec=JobStore)
-        
+
         # Create mock jobs with different creation times
         job1 = Job(
-            id="job1", 
-            filename="test1.mp3", 
+            id="job1",
+            filename="test1.mp3",
             status=JobStatus.PENDING,
-            created_at=datetime(2023, 1, 1, tzinfo=timezone.utc)
+            created_at=datetime(2023, 1, 1, tzinfo=timezone.utc),
         )
         job2 = Job(
-            id="job2", 
-            filename="test2.mp3", 
+            id="job2",
+            filename="test2.mp3",
             status=JobStatus.PENDING,
-            created_at=datetime(2023, 1, 2, tzinfo=timezone.utc)
+            created_at=datetime(2023, 1, 2, tzinfo=timezone.utc),
         )
         job3 = Job(
-            id="job3", 
-            filename="test3.mp3", 
+            id="job3",
+            filename="test3.mp3",
             status=JobStatus.PENDING,
-            created_at=datetime(2022, 12, 31, tzinfo=timezone.utc)  # Older date
+            created_at=datetime(2022, 12, 31, tzinfo=timezone.utc),  # Older date
         )
-        
+
+        # Mock both methods that could be called
+        mock_job_store.get_active_jobs.return_value = [job1, job3, job2]
         mock_job_store.get_all_jobs.return_value = [job1, job3, job2]
-        
+
         service = JobsService(job_store=mock_job_store)
         result = service.get_all_jobs()
-        
+
         # Should be sorted newest first
         assert len(result) == 3
         assert result[0].id == "job2"  # Most recent (2023-01-02)
@@ -68,25 +70,27 @@ class TestJobsService:
         """Test that get_job_with_details adds file paths for completed jobs."""
         mock_job_store = Mock(spec=JobStore)
         mock_file_service = Mock()
-        
+
         completed_job = Job(
-            id="completed_job",
-            filename="test.mp3",
-            status=JobStatus.COMPLETED
+            id="completed_job", filename="test.mp3", status=JobStatus.COMPLETED
         )
-        
+
         mock_job_store.get_job.return_value = completed_job
         mock_file_service.get_song_directory.return_value = Path("/test/library/test")
-        
-        with patch('app.services.jobs_service.file_management') as mock_file_mgmt:
-            mock_file_mgmt.get_vocals_path_stem.return_value = Path("/test/library/test/vocals")
-            mock_file_mgmt.get_instrumental_path_stem.return_value = Path("/test/library/test/instrumental")
-            
+
+        with patch("app.services.jobs_service.file_management") as mock_file_mgmt:
+            mock_file_mgmt.get_vocals_path_stem.return_value = Path(
+                "/test/library/test/vocals"
+            )
+            mock_file_mgmt.get_instrumental_path_stem.return_value = Path(
+                "/test/library/test/instrumental"
+            )
+
             service = JobsService(job_store=mock_job_store)
             service.file_service = mock_file_service
-            
+
             result = service.get_job_with_details("completed_job")
-            
+
             assert result is not None
             assert "vocals_path" in result
             assert "instrumental_path" in result
@@ -96,18 +100,16 @@ class TestJobsService:
     def test_cancel_job_success(self):
         """Test that cancel_job successfully cancels a pending job."""
         mock_job_store = Mock(spec=JobStore)
-        
+
         pending_job = Job(
-            id="pending_job",
-            filename="test.mp3",
-            status=JobStatus.PENDING
+            id="pending_job", filename="test.mp3", status=JobStatus.PENDING
         )
-        
+
         mock_job_store.get_job.return_value = pending_job
-        
+
         service = JobsService(job_store=mock_job_store)
         result = service.cancel_job("pending_job")
-        
+
         assert result is True
         assert pending_job.status == JobStatus.CANCELLED
         assert pending_job.error == "Cancelled by user"
@@ -117,18 +119,16 @@ class TestJobsService:
     def test_cancel_job_already_completed(self):
         """Test that cancel_job returns False for already completed jobs."""
         mock_job_store = Mock(spec=JobStore)
-        
+
         completed_job = Job(
-            id="completed_job",
-            filename="test.mp3",
-            status=JobStatus.COMPLETED
+            id="completed_job", filename="test.mp3", status=JobStatus.COMPLETED
         )
-        
+
         mock_job_store.get_job.return_value = completed_job
-        
+
         service = JobsService(job_store=mock_job_store)
         result = service.cancel_job("completed_job")
-        
+
         assert result is False
         mock_job_store.save_job.assert_not_called()
 
@@ -136,10 +136,10 @@ class TestJobsService:
         """Test that cancel_job returns False for non-existent jobs."""
         mock_job_store = Mock(spec=JobStore)
         mock_job_store.get_job.return_value = None
-        
+
         service = JobsService(job_store=mock_job_store)
         result = service.cancel_job("nonexistent_job")
-        
+
         assert result is False
         mock_job_store.save_job.assert_not_called()
 
@@ -151,12 +151,12 @@ class TestJobsService:
             "queue_length": 2,
             "active_jobs": 1,
             "completed_jobs": 7,
-            "failed_jobs": 0
+            "failed_jobs": 0,
         }
         mock_job_store.get_stats.return_value = expected_stats
-        
+
         service = JobsService(job_store=mock_job_store)
         result = service.get_statistics()
-        
+
         assert result == expected_stats
         mock_job_store.get_stats.assert_called_once()
