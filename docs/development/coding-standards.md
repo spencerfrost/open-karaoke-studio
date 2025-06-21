@@ -63,11 +63,55 @@ Every backend file must have:
 - [ ] No direct `logging.info/error/warning()` calls
 - [ ] No `current_app.logger` usage
 - [ ] Proper error handling with `logger.error(..., exc_info=True)`
+- [ ] **NEW:** Consistent error handling decorators and patterns
+- [ ] **NEW:** Specific exception types instead of generic `Exception` catches
+- [ ] **NEW:** Structured error responses with error codes
+
+### **API Error Handling Standards (UPDATED June 2025):**
+
+All API endpoints must follow the standardized error handling pattern:
+
+```python
+from ..utils.error_handlers import handle_api_error
+from ..utils.validation import validate_json_request
+from ..exceptions import DatabaseError, ValidationError, ServiceError
+
+@bp.route("/endpoint", methods=["POST"])
+@handle_api_error  # REQUIRED - Provides consistent error responses
+@validate_json_request(RequestSchema)  # For POST/PUT endpoints
+def endpoint_function(validated_data: RequestSchema):
+    try:
+        # Endpoint logic here
+        logger.info("Processing request for %s", resource_id)
+        return jsonify({"success": True})
+
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ConnectionError as e:
+        # Specific database connection errors
+        raise DatabaseError(
+            "Database connection failed during operation",
+            "DATABASE_CONNECTION_ERROR",
+            {"resource_id": resource_id, "error": str(e)}
+        )
+    except OSError as e:
+        # File system errors
+        raise FileOperationError(
+            "operation", "file_path", f"File system error: {str(e)}"
+        )
+    except Exception as e:
+        # Final fallback with context
+        raise ServiceError(
+            "Unexpected error in endpoint",
+            "ENDPOINT_ERROR",
+            {"resource_id": resource_id, "error": str(e)}
+        )
+```
 
 ### **Exception Handling Standards:**
 
 ```python
-# ✅ CORRECT - Proper error handling
+# ✅ CORRECT - Specific error handling with context
 def process_song(song_id: str) -> bool:
     try:
         logger.info("Processing song: %s", song_id)
@@ -76,11 +120,61 @@ def process_song(song_id: str) -> bool:
         return True
     except ValidationError as e:
         logger.warning("Validation failed for song %s: %s", song_id, e)
+        raise  # Re-raise specific exceptions
+    except ConnectionError as e:
+        # Handle specific error types with context
+        logger.error("Database connection failed for song %s: %s", song_id, e, exc_info=True)
+        raise DatabaseError(
+            "Database connection failed during song processing",
+            "DATABASE_CONNECTION_ERROR",
+            {"song_id": song_id, "error": str(e)}
+        )
+    except Exception as e:
+        logger.error("Unexpected error processing song %s: %s", song_id, e, exc_info=True)
+        raise ServiceError(
+            "Unexpected error during song processing",
+            "SONG_PROCESSING_ERROR",
+            {"song_id": song_id, "error": str(e)}
+        )
+
+# ❌ FORBIDDEN - Generic exception handling without context
+def bad_process_song(song_id: str):
+    try:
+        # ... logic
+        pass
+    except Exception as e:
+        logger.error("Error: %s", e)  # No context, generic handling
+        return False  # Silent failure
+```
+
+### **Error Response Standards:**
+
+All API errors must return structured JSON responses:
+
+```python
+# ✅ CORRECT - Structured error response (handled automatically by decorators)
+{
+    "error": "Human-readable error message",
+    "code": "MACHINE_READABLE_ERROR_CODE",
+    "details": {
+        "contextual_field": "value",
+        "resource_id": "affected_resource"
+    }
+}
+
+# ❌ FORBIDDEN - Inconsistent error responses
+return {"error": "Something went wrong"}  # No error code
+return "Error message", 500  # Not JSON
+```
+
+    except ValidationError as e:
+        logger.warning("Validation failed for song %s: %s", song_id, e)
         raise
     except Exception as e:
         logger.error("Unexpected error processing song %s: %s", song_id, e, exc_info=True)
         raise
-```
+
+````
 
 ## Function Documentation Standards
 
@@ -103,7 +197,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback=None) -> bo
         AudioProcessingError: If audio processing fails
         FileNotFoundError: If input file doesn't exist
     """
-```
+````
 
 ## Type Hints Requirements
 
