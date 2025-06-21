@@ -26,32 +26,28 @@ except ImportError:
 class TestSongsAPI:
     """Test the songs API endpoints with service layer integration"""
     
-    @patch('app.api.songs.SongService')
-    def test_get_songs_success(self, mock_song_service_class, client):
-        """Test GET /api/songs endpoint success with service layer"""
-        # Setup mock service
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        
-        # Mock service response
-        mock_songs = [
-            Mock(
-                model_dump=Mock(return_value={
-                    "id": "song-1",
-                    "title": "Test Song 1",
-                    "artist": "Test Artist 1",
-                    "duration": 180,
-                    "status": "processed"
-                })
-            ),
-            Mock(
-                model_dump=Mock(return_value={
-                    "id": "song-2",
-                    "title": "Test Song 2",
-                    "artist": "Test Artist 2",
-                    "duration": 200,
-                    "status": "processed"
-                })
+    @patch('app.db.song_operations.get_all_songs')
+    def test_get_songs_success(self, mock_get_all_songs, client):
+        """Test GET /api/songs endpoint success with direct function calls"""
+        # Mock the direct function call
+        mock_db_song = Mock()
+        mock_db_song.to_dict.return_value = {
+            "id": "song-1",
+            "title": "Test Song 1",
+            "artist": "Test Artist 1",
+            "duration": 180,
+            "status": "processed"
+        }
+        mock_get_all_songs.return_value = [mock_db_song]
+
+        # Make the API request
+        response = client.get('/api/songs')
+
+        # Verify response
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) == 1
+        assert data[0]["title"] == "Test Song 1"
             )
         ]
         mock_service.get_all_songs.return_value = mock_songs

@@ -19,10 +19,9 @@ app = create_app(config)
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
-logger.info("Open Karaoke Studio backend starting up")
-logger.info("Configuration: %s", config.__class__.__name__)
-logger.info("Log directory: %s", config.LOG_DIR)
-logger.info("Debug mode: %s", config.DEBUG)
+
+# Only log essential startup information
+logger.info("Open Karaoke Studio backend starting")
 
 # Set Flask app logger to use our configured logging
 app.logger.handlers = []  # Remove default handlers

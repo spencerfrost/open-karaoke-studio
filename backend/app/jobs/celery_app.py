@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 try:
     if multiprocessing.get_start_method(allow_none=True) != "spawn":
         multiprocessing.set_start_method("spawn", force=True)
-    logger.info("Multiprocessing start method set to 'spawn' for CUDA compatibility")
-except RuntimeError as e:
-    logger.warning("Could not set multiprocessing start method: %s", e)
+except RuntimeError:
+    pass  # Method already set, ignore
 
 load_dotenv()
 
@@ -31,8 +30,6 @@ logging_config = setup_logging(config)
 # Use centralized configuration
 broker_url = config.CELERY_BROKER_URL
 result_backend = config.CELERY_RESULT_BACKEND
-
-logger.info("Configuring Celery with broker: %s, backend: %s", broker_url, result_backend)
 
 # Create Celery app - this name is what forms the beginning of task names
 celery = Celery("app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"])

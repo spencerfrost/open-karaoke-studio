@@ -93,7 +93,8 @@ def process_audio_job(self, job_id):
     logger.info("Starting audio processing job for job %s", job_id)
 
     # Get the job from storage with retry logic
-    job = job_store.get_job(job_id)
+    job_repository = JobRepository()
+    job = job_repository.get_by_id(job_id)
     if not job:
         if self.request.retries < self.max_retries:
             logger.warning(
@@ -122,7 +123,7 @@ def process_audio_job(self, job_id):
     # Update job status to processing
     job.status = JobStatus.PROCESSING
     job.started_at = datetime.now()
-    job_store.save_job(job)
+    job_repository.update(job)
 
     # Create a stop event (for compatibility with audio.separate_audio)
     import threading
@@ -132,7 +133,7 @@ def process_audio_job(self, job_id):
     def update_progress(progress, message):
         """Update job progress and log the message."""
         job.progress = progress
-        job_store.save_job(job)
+        job_repository.update(job)
         if hasattr(self, "update_state"):
             self.update_state(
                 state="PROGRESS",
@@ -177,7 +178,7 @@ def process_audio_job(self, job_id):
         job.status = JobStatus.COMPLETED
         job.progress = 100
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
 
         _broadcast_job_event(job)
 
@@ -201,7 +202,7 @@ def process_audio_job(self, job_id):
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
@@ -215,7 +216,7 @@ def process_audio_job(self, job_id):
         job.status = JobStatus.FAILED
         job.error = error_message
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
         return {
             "status": "error",
             "job_id": job_id,
@@ -249,8 +250,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
         video_id,
     )
 
-    # Get the job from storage
-    job = job_store.get_job(job_id)
+    # Get the job from storage using repository
+    job_repository = JobRepository()
+    job = job_repository.get_by_id(job_id)
     if not job:
         logger.error("Job %s not found for video_id %s", job_id, video_id)
         return {"status": "error", "message": "Job not found"}
@@ -271,7 +273,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.status = JobStatus.FAILED
         job.error = f"Song {song_id} not found in database"
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
         return {"status": "error", "message": f"Song {song_id} not found"}
 
     # Update job status to downloading
@@ -279,7 +281,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
     job.status_message = "Downloading video from YouTube"
     job.started_at = datetime.now()
     job.progress = 5
-    job_store.save_job(job)
+    job_repository.update(job)
 
     def update_progress(progress, message, status=None):
         """Update job progress and status."""
@@ -287,7 +289,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.status_message = message
         if status:
             job.status = status
-        job_store.save_job(job)
+        job_repository.update(job)
         if hasattr(self, "update_state"):
             self.update_state(
                 state="PROGRESS",
@@ -456,7 +458,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.progress = 100
         job.status_message = "Processing complete"
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
 
         _broadcast_job_event(job)
 
@@ -476,7 +478,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
@@ -490,7 +492,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job.status = JobStatus.FAILED
         job.error = error_message
         job.completed_at = datetime.now()
-        job_store.save_job(job)
+        job_repository.update(job)
         return {"status": "error", "job_id": job_id, "error": error_message}
 
 
@@ -510,12 +512,16 @@ def _handle_job_event(event):
             job_data = event.job_data
             job = Job(
                 id=job_data["id"],
+                filename=job_data.get("filename", ""),
                 status=JobStatus(job_data["status"]),
                 title=job_data.get("title"),
                 artist=job_data.get("artist"),
-                message=job_data.get("message"),
+                status_message=job_data.get("message"),  # Use status_message instead of message
                 progress=job_data.get("progress", 0),
                 error=job_data.get("error"),
+                task_id=job_data.get("task_id"),
+                song_id=job_data.get("song_id"),
+                notes=job_data.get("notes"),
                 created_at=job_data.get("created_at"),
                 started_at=job_data.get("started_at"),
                 completed_at=job_data.get("completed_at"),
