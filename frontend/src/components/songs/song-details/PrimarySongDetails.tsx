@@ -16,10 +16,6 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
   song,
   className = "",
 }) => {
-  const { getAlbumName } = useSongs();
-  
-  const albumName = getAlbumName(song);
-  
   return (
     <div className={cn("space-y-4", className)}>
       {/* Song Title - Large and prominent */}
@@ -31,12 +27,12 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
       {/* Primary metadata grid */}
       <div className="grid grid-cols-2 gap-4 text-sm">
         {/* Album */}
-        {albumName && albumName !== 'Unknown Album' && (
+        {song.album && song.album !== "Unknown Album" && (
           <div className="flex items-center gap-2">
             <Music size={16} className="text-muted-foreground flex-shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">Album</p>
-              <p className="font-medium">{albumName}</p>
+              <p className="font-medium">{song.album}</p>
             </div>
           </div>
         )}
@@ -64,7 +60,10 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
         {/* Year */}
         {song.year && (
           <div className="flex items-center gap-2">
-            <Calendar size={16} className="text-muted-foreground flex-shrink-0" />
+            <Calendar
+              size={16}
+              className="text-muted-foreground flex-shrink-0"
+            />
             <div>
               <p className="text-xs text-muted-foreground">Year</p>
               <p className="font-medium">{song.year}</p>

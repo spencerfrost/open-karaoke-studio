@@ -579,15 +579,12 @@ export function useSongs() {
       song: Song,
       size: "small" | "medium" | "large" = "medium"
     ): string | null => {
-      // Priority: Downloaded thumbnail > iTunes artwork > YouTube thumbnail URLs
-      // This fixes the issue where new songs have coverArt pointing to non-existent files
-
-      // First priority: Downloaded thumbnail (works for both old and new songs)
+      // Priority: Backend API thumbnail endpoint > iTunes artwork > YouTube thumbnail URLs
       if (song.thumbnail) {
+        // Use the backend API endpoint for thumbnails (auto-detects format)
         return `/api/songs/${song.id}/thumbnail`;
       }
-
-      // Second priority: iTunes artwork URLs (external)
+      // iTunes artwork URLs (external)
       if (song.itunesArtworkUrls) {
         switch (size) {
           case "large":
@@ -607,8 +604,7 @@ export function useSongs() {
             break;
         }
       }
-
-      // Third priority: YouTube thumbnail URLs (external)
+      // YouTube thumbnail URLs (external)
       if (song.youtubeThumbnailUrls) {
         switch (size) {
           case "large":
@@ -643,78 +639,14 @@ export function useSongs() {
             break;
         }
       }
-
       // Last resort: Try cover art path (but this probably won't work due to missing backend endpoint)
       if (song.coverArt) {
-        // NOTE: This URL pattern doesn't exist in the backend - coverArt files aren't served
-        // We should either add a backend endpoint or remove this fallback
         return `/api/songs/${song.id}/cover`;
       }
-
       return null;
     },
     []
   );
-
-  /**
-   * Calculate metadata quality score for a song
-   */
-  const getMetadataQuality = useCallback((song: Song) => {
-    let score = 0;
-    let maxScore = 0;
-
-    // Core metadata (always required)
-    maxScore += 30;
-    if (song.title) score += 10;
-    if (song.artist) score += 10;
-    if (song.album || song.releaseTitle) score += 10;
-
-    // iTunes metadata
-    maxScore += 25;
-    if (song.itunesTrackId) score += 5;
-    if (
-      song.itunesArtworkUrls &&
-      Object.keys(song.itunesArtworkUrls).length > 0
-    )
-      score += 10;
-    if (song.itunesPreviewUrl) score += 5;
-    if (song.trackTimeMillis) score += 5;
-
-    // YouTube metadata
-    maxScore += 20;
-    if (song.videoId) score += 5;
-    if (
-      song.youtubeThumbnailUrls &&
-      Object.keys(song.youtubeThumbnailUrls).length > 0
-    )
-      score += 5;
-    if (song.youtubeTags && song.youtubeTags.length > 0) score += 5;
-    if (song.youtubeChannelName) score += 5;
-
-    // Additional metadata
-    maxScore += 25;
-    if (song.genre) score += 8;
-    if (song.language) score += 7;
-    if (song.lyrics || song.syncedLyrics) score += 10;
-
-    return {
-      score,
-      maxScore,
-      percentage: Math.round((score / maxScore) * 100),
-      hasItunes: !!(song.itunesTrackId || song.itunesArtworkUrls),
-      hasYoutube: !!(song.videoId || song.youtubeThumbnailUrls),
-      hasArtwork: !!(song.itunesArtworkUrls || song.coverArt),
-      hasThumbnails: !!(song.youtubeThumbnailUrls || song.thumbnail),
-      hasLyrics: !!(song.lyrics || song.syncedLyrics),
-    };
-  }, []);
-
-  /**
-   * Get display name for album field with backwards compatibility
-   */
-  const getAlbumName = useCallback((song: Song): string => {
-    return song.album || "Unknown Album";
-  }, []);
 
   /**
    * Get a playback URL for a given song track type
@@ -724,6 +656,7 @@ export function useSongs() {
       songId: string,
       trackType: "vocals" | "instrumental" | "original"
     ): string => {
+      // Use the backend API endpoint for audio
       return `/api/songs/${songId}/download/${trackType}`;
     },
     []
@@ -808,8 +741,6 @@ export function useSongs() {
     downloadOriginal,
     fetchAudioBuffer,
     getArtworkUrl,
-    getMetadataQuality,
-    getAlbumName,
   };
 }
 
