@@ -89,6 +89,62 @@ export function useSongs() {
   };
 
   // ===== Mutations =====
+  /**
+   * Create a new song
+   */
+  const useCreateSong = () => {
+    return useApiMutation<Song, Partial<Song>>("songs", "post", {
+      onMutate: async (newSong) => {
+        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
+
+        // Save previous songs list
+        const previousSongs = queryClient.getQueryData<Song[]>(
+          QUERY_KEYS.songs
+        );
+
+        // Only optimistically add if newSong has a valid id (required for Song type)
+        if (newSong.id) {
+          queryClient.setQueryData<Song[]>(QUERY_KEYS.songs, (oldSongs) =>
+            oldSongs ? [...oldSongs, newSong as Song] : [newSong as Song]
+          );
+          // Also set the new song in its own query
+          queryClient.setQueryData<Song>(
+            QUERY_KEYS.song(newSong.id),
+            newSong as Song
+          );
+        }
+        return { previousSongs };
+      },
+      onError: (_err, _variables, context: unknown) => {
+        // If the mutation fails, roll back to the previous songs list
+        const ctx = context as { previousSongs?: Song[] } | undefined;
+        if (ctx?.previousSongs) {
+          queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
+        }
+      },
+      onSettled: () => {
+        // Refetch to ensure server state
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+      },
+      mutationFn: async (data) => {
+        const response = await fetch("/api/songs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || `Failed to create song: ${response.status}`
+          );
+        }
+        return response.json();
+      },
+    });
+  };
 
   /**
    * Update a song
@@ -726,6 +782,7 @@ export function useSongs() {
     useRichSongMetadata,
 
     // Mutations
+    useCreateSong,
     useUpdateSong,
     useUpdateSongMetadata,
     useUpdateItunesMetadata,

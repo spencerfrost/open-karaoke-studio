@@ -32,3 +32,4 @@ black>=22.0.0
 isort>=5.10.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
+ytmusicapi>=1.3.0

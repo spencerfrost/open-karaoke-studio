@@ -2,17 +2,15 @@
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
 
-from flask import Blueprint, current_app, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, request, send_from_directory
 
 from ..config import get_config
 
 # Import database and models directly - no fake service layer
-from ..db.models import DbSong
 from ..db.song_operations import create_or_update_song
 from ..db.song_operations import delete_song as db_delete_song
 from ..db.song_operations import get_song
@@ -25,14 +23,69 @@ from ..exceptions import (
     ServiceError,
     ValidationError,
 )
-from ..schemas.requests import CreateSongRequest, UpdateSongRequest
-from ..services import FileService, file_management
+from ..schemas.requests import CreateSongRequest
+from ..services import FileService
 from ..services.lyrics_service import LyricsService
 from ..utils.error_handlers import handle_api_error
 from ..utils.validation import validate_json_request, validate_path_params
 
 logger = logging.getLogger(__name__)
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
+
+
+@song_bp.route("/metadata/auto", methods=["POST"])
+@handle_api_error
+def auto_save_itunes_metadata() -> tuple:
+    """
+    Accepts artist, title, album, and song_id. Fetches iTunes metadata and saves the first result to the song. Returns only success/failure JSON.
+    """
+    from ..db.song_operations import get_song, update_song_with_metadata
+    from ..services.metadata_service import MetadataService
+
+    data = request.get_json()
+    artist = data.get("artist")
+    title = data.get("title")
+    album = data.get("album")
+    song_id = data.get("song_id")
+    if not (artist and title and song_id):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Missing required fields: artist, title, song_id",
+                }
+            ),
+            400,
+        )
+    try:
+        metadata_service = MetadataService()
+        results = metadata_service.search_metadata(
+            artist=artist, title=title, album=album, limit=1
+        )
+        if not results:
+            logger.warning(f"No iTunes metadata found for {artist} - {title} - {album}")
+            return jsonify({"success": False, "error": "No iTunes metadata found"}), 404
+        # Get the song from DB
+        song = get_song(song_id)
+        if not song:
+            logger.error(f"Song not found: {song_id}")
+            return jsonify({"success": False, "error": "Song not found"}), 404
+        # Update song with new metadata (using DB model)
+        for k, v in results[0].items():
+            if hasattr(song, k):
+                setattr(song, k, v)
+        success = update_song_with_metadata(song_id, song)
+        if not success:
+            logger.error(f"Failed to update song metadata for {song_id}")
+            return (
+                jsonify({"success": False, "error": "Failed to update song metadata"}),
+                500,
+            )
+        logger.info(f"Auto-saved iTunes metadata for song {song_id}")
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error(f"Failed to auto-save iTunes metadata: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @song_bp.route("", methods=["GET"])
@@ -473,11 +526,7 @@ def create_song(validated_data: CreateSongRequest):
             title=validated_data.title,
             artist=validated_data.artist,
             album=validated_data.album,
-            duration=(
-                int(validated_data.duration)
-                if validated_data.duration is not None
-                else None
-            ),
+            duration_ms=validated_data.duration_ms,
             source=validated_data.source,
             video_id=validated_data.video_id,
         )
