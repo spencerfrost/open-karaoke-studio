@@ -6,8 +6,7 @@ from celery import Celery
 from dotenv import load_dotenv
 
 from ..config import get_config  # pylint: disable=wrong-import-position
-from ..config.logging import \
-    setup_logging  # pylint: disable=wrong-import-position
+from ..config.logging import setup_logging  # pylint: disable=wrong-import-position
 
 # Setup logging first
 logger = logging.getLogger(__name__)

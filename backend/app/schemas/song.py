@@ -13,20 +13,21 @@ from pydantic import BaseModel
 
 class Song(BaseModel):
     """Main Song API model - matches frontend expectations"""
+
     id: str
     title: str
     artist: str
     duration: Optional[float] = None
     favorite: bool = False
     dateAdded: Optional[datetime] = None
-    
+
     # File paths (API URLs)
     vocalPath: Optional[str] = None
     instrumentalPath: Optional[str] = None
     originalPath: Optional[str] = None
     coverArt: Optional[str] = None
     thumbnail: Optional[str] = None
-    
+
     # YouTube data
     videoId: Optional[str] = None
     sourceUrl: Optional[str] = None
@@ -37,7 +38,7 @@ class Song(BaseModel):
     channelName: Optional[str] = None
     description: Optional[str] = None
     uploadDate: Optional[datetime] = None
-    
+
     # Metadata
     mbid: Optional[str] = None
     metadataId: Optional[str] = None  # Alias for mbid
@@ -48,11 +49,11 @@ class Song(BaseModel):
     year: Optional[int] = None
     genre: Optional[str] = None
     language: Optional[str] = None
-    
+
     # Lyrics
     lyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    
+
     # System
     source: Optional[str] = None
     status: str = "processed"
@@ -60,15 +61,17 @@ class Song(BaseModel):
 
 class SongCreate(BaseModel):
     """Song creation schema - for new songs"""
+
     title: str
     artist: str = "Unknown Artist"
     video_id: Optional[str] = None
     source_url: Optional[str] = None
     duration: Optional[float] = None
-    
-    
+
+
 class SongUpdate(BaseModel):
     """Song update schema - only updatable fields"""
+
     title: Optional[str] = None
     artist: Optional[str] = None
     favorite: Optional[bool] = None

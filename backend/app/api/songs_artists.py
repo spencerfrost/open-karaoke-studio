@@ -33,9 +33,7 @@ def get_artists():
         offset = int(request.args.get("offset", 0))
 
         # Get artists with song counts from database
-        artists = get_artists_with_counts(
-            search_term=search_term, limit=limit, offset=offset
-        )
+        artists = get_artists_with_counts(search_term=search_term, limit=limit, offset=offset)
 
         total_count = get_artists_total_count(search_term=search_term)
 
@@ -53,9 +51,7 @@ def get_artists():
         return jsonify(response)
 
     except ValueError as e:
-        raise ValidationError(
-            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
-        )
+        raise ValidationError(f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS")
     except ConnectionError as e:
         raise DatabaseError(
             "Database connection failed while fetching artists",
@@ -111,10 +107,7 @@ def get_songs_by_artist_route(artist_name: str):
         )
 
         # Convert DbSong objects to Pydantic Song models for API response
-        songs = [
-            Song.model_validate(song.to_dict()).model_dump()
-            for song in songs_data["songs"]
-        ]
+        songs = [Song.model_validate(song.to_dict()).model_dump() for song in songs_data["songs"]]
         total_count = songs_data["total"]
 
         response = {
@@ -139,9 +132,7 @@ def get_songs_by_artist_route(artist_name: str):
     except ValidationError:
         raise  # Let error handlers deal with it
     except ValueError as e:
-        raise ValidationError(
-            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
-        )
+        raise ValidationError(f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS")
     except ConnectionError as e:
         raise DatabaseError(
             f"Database connection failed while fetching songs for artist '{artist_name}'",
@@ -210,9 +201,7 @@ def search_songs():
         if group_by_artist:
             # Group results by artist
             response = {
-                "artists": search_results[
-                    "artists"
-                ],  # [{artist: "...", songs: [...], count: N}]
+                "artists": search_results["artists"],  # [{artist: "...", songs: [...], count: N}]
                 "totalSongs": search_results["total_songs"],
                 "totalArtists": search_results["total_artists"],
                 "pagination": search_results["pagination"],
@@ -220,8 +209,7 @@ def search_songs():
         else:
             # Flat list of songs - convert using new pattern
             songs = [
-                Song.model_validate(song.to_dict()).model_dump()
-                for song in search_results["songs"]
+                Song.model_validate(song.to_dict()).model_dump() for song in search_results["songs"]
             ]
             response = {"songs": songs, "pagination": search_results["pagination"]}
 
@@ -235,9 +223,7 @@ def search_songs():
     except ValidationError:
         raise  # Let error handlers deal with it
     except ValueError as e:
-        raise ValidationError(
-            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
-        )
+        raise ValidationError(f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS")
     except ConnectionError as e:
         raise DatabaseError(
             "Database connection failed during song search",

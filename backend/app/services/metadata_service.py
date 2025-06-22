@@ -120,9 +120,7 @@ class MetadataService(MetadataServiceInterface):
             "success": True,
         }
 
-    def enhance_song_metadata(
-        self, metadata: dict[str, Any], song_dir: Path
-    ) -> dict[str, Any]:
+    def enhance_song_metadata(self, metadata: dict[str, Any], song_dir: Path) -> dict[str, Any]:
         """
         Enhance existing song metadata with additional information.
 
@@ -150,9 +148,7 @@ class MetadataService(MetadataServiceInterface):
             logger.error("MetadataService enhancement error: %s", e)
             return metadata
 
-    def download_cover_art(
-        self, track_data: dict[str, Any], song_dir: Path
-    ) -> Optional[str]:
+    def download_cover_art(self, track_data: dict[str, Any], song_dir: Path) -> Optional[str]:
         """
         Download cover art for a track.
 
@@ -175,9 +171,7 @@ class MetadataService(MetadataServiceInterface):
             if cover_path:
                 logger.info("MetadataService: Cover art downloaded to %s", cover_path)
             else:
-                logger.warning(
-                    "MetadataService: No cover art available or download failed"
-                )
+                logger.warning("MetadataService: No cover art available or download failed")
 
             return cover_path
 

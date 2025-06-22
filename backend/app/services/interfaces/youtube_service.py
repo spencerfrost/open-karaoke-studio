@@ -11,14 +11,14 @@ class YouTubeServiceInterface(Protocol):
         ...
 
     def download_video(
-        self, 
-        video_id_or_url: str, 
-        song_id: Optional[str] = None, 
-        artist: Optional[str] = None, 
-        title: Optional[str] = None
+        self,
+        video_id_or_url: str,
+        song_id: Optional[str] = None,
+        artist: Optional[str] = None,
+        title: Optional[str] = None,
     ) -> "tuple[str, dict[str, Any]]":
         """Download video and extract metadata, return (song_id, metadata_dict)
-        
+
         Returns:
             tuple: (song_id, metadata_dict) where metadata_dict contains raw metadata
                    that can be passed directly to create_or_update_song()
@@ -38,11 +38,11 @@ class YouTubeServiceInterface(Protocol):
         ...
 
     def download_and_process_async(
-        self, 
-        video_id_or_url: str, 
-        artist: Optional[str] = None, 
-        title: Optional[str] = None, 
-        song_id: Optional[str] = None
+        self,
+        video_id_or_url: str,
+        artist: Optional[str] = None,
+        title: Optional[str] = None,
+        song_id: Optional[str] = None,
     ) -> str:
         """Download video and queue for audio processing, return job/song ID"""
         ...

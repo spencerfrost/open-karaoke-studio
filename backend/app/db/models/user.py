@@ -11,7 +11,7 @@ from .base import Base
 
 class User(Base):
     """User model for storing user information and authentication data."""
-    
+
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)

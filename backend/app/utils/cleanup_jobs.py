@@ -10,6 +10,7 @@ from ..repositories.job_repository import JobRepository
 
 logger = logging.getLogger(__name__)
 
+
 def cleanup_stuck_jobs():
     repo = JobRepository()
     jobs = repo.get_all_jobs()  # List[Job]

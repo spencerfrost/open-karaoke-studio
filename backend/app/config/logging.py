@@ -15,18 +15,18 @@ from .base import BaseConfig
 
 class TimezoneFormatter(logging.Formatter):
     """Custom formatter that converts timestamps to a specified timezone."""
-    
+
     def __init__(self, fmt=None, datefmt=None, timezone="UTC"):
         super().__init__(fmt, datefmt)
         self.timezone = ZoneInfo(timezone)
-    
+
     def formatTime(self, record, datefmt=None):
         """Convert the timestamp to the specified timezone."""
         dt = datetime.fromtimestamp(record.created, tz=self.timezone)
         if datefmt:
             return dt.strftime(datefmt)
         else:
-            return dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+            return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
 class LoggingConfig:
@@ -36,7 +36,7 @@ class LoggingConfig:
         self.config = config
         self.log_dir = Path(config.BASE_DIR) / "backend" / "logs"
         self.log_dir.mkdir(exist_ok=True)
-        self.timezone = getattr(config, 'TIMEZONE', 'America/Toronto')
+        self.timezone = getattr(config, "TIMEZONE", "America/Toronto")
 
     def setup_logging(self, environment: str = "development") -> dict[str, Any]:
         """Setup logging configuration based on environment"""
@@ -64,8 +64,7 @@ class LoggingConfig:
                 "celery": {
                     "()": TimezoneFormatter,
                     "format": (
-                        "%(asctime)s - %(name)s - %(levelname)s - "
-                        "%(funcName)s - %(message)s"
+                        "%(asctime)s - %(name)s - %(levelname)s - " "%(funcName)s - %(message)s"
                     ),
                     "datefmt": "%Y-%m-%d %H:%M:%S %Z",
                     "timezone": self.timezone,
@@ -214,7 +213,7 @@ class LoggingConfig:
             log_config["loggers"][""]["level"] = "INFO"
             log_config["handlers"]["console"]["level"] = "INFO"
             log_config["loggers"]["app"]["level"] = "INFO"
-            
+
             # Make console output less verbose - only show important messages
             log_config["handlers"]["console"]["formatter"] = "simple"
 
@@ -243,16 +242,14 @@ class LoggingConfig:
     def configure_celery_logging(self) -> dict[str, Any]:
         """Configure Celery-specific logging"""
         # Set timezone for Celery logging
-        os.environ.setdefault('TZ', self.timezone)
-        
+        os.environ.setdefault("TZ", self.timezone)
+
         return {
             "task_always_eager": False,
             "worker_log_format": (
                 "[%(asctime)s: %(levelname)s/%(processName)s] %(name)s: %(message)s"
             ),
-            "worker_task_log_format": (
-                "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
-            ),
+            "worker_task_log_format": ("[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"),
             "worker_log_color": False,  # Disable color in files
             "worker_redirect_stdouts": True,
             "worker_redirect_stdouts_level": "INFO",
@@ -270,11 +267,11 @@ _logging_initialized = False
 def setup_logging(config: BaseConfig = None):
     """Initialize logging configuration"""
     global _logging_initialized
-    
+
     # Prevent duplicate logging setup
     if _logging_initialized:
         return LoggingConfig(config or get_config())
-    
+
     if config is None:
         from . import get_config
 

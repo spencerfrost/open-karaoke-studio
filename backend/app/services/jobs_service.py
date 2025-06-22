@@ -85,12 +85,10 @@ class JobsService(JobsServiceInterface):
         # Add additional info for completed jobs
         if job.status == JobStatus.COMPLETED:
             song_dir = self.file_service.get_song_directory(Path(job.filename).stem)
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
+            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
+            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
                 ".mp3"
             )
-            instrumental_path = file_management.get_instrumental_path_stem(
-                song_dir
-            ).with_suffix(".mp3")
 
             response.update(
                 {
@@ -163,7 +161,13 @@ class JobsService(JobsServiceInterface):
         jobs = self.job_repository.get_all_jobs()
         stats = {
             "total": len(jobs),
-            "active": len([j for j in jobs if j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]]),
+            "active": len(
+                [
+                    j
+                    for j in jobs
+                    if j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+                ]
+            ),
             "completed": len([j for j in jobs if j.status == JobStatus.COMPLETED]),
             "failed": len([j for j in jobs if j.status == JobStatus.FAILED]),
             "cancelled": len([j for j in jobs if j.status == JobStatus.CANCELLED]),

@@ -64,9 +64,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 os.environ["CUDA_VISIBLE_DEVICES"] = ""
                 use_cuda = False
         else:
-            status_callback(
-                "Looking for CUDA: No GPU detected. Using CPU for processing."
-            )
+            status_callback("Looking for CUDA: No GPU detected. Using CPU for processing.")
 
         # --- Define the Progress Callback ---
         # This function will be called by the Demucs Separator during processing
@@ -92,9 +90,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
                 (processed_segments / total_segments) if total_segments > 0 else 0
             )
             overall_progress = (
-                ((model_idx + progress_current_model) / models_count)
-                if models_count > 0
-                else 0
+                ((model_idx + progress_current_model) / models_count) if models_count > 0 else 0
             )
 
             if data["state"] == "end":
@@ -130,9 +126,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             # --- Initialization ---
             config = get_config()
             model_name = config.DEFAULT_MODEL
-            init_msg = (
-                f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
-            )
+            init_msg = f"Initializing Demucs (Model: {model_name}, Device: {device_str})..."
             logger.info(init_msg)
             if status_callback:
                 status_callback(init_msg)
@@ -156,9 +150,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
 
             # --- Determine Output Format ---
             input_extension = input_path.suffix.lower()
-            output_extension = (
-                input_extension if input_extension in [".wav", ".mp3"] else ".wav"
-            )
+            output_extension = input_extension if input_extension in [".wav", ".mp3"] else ".wav"
             output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
             format_msg = f"Input: {input_extension}, Output: {output_format_str}"
             logger.info(format_msg)
@@ -222,9 +214,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 output_extension
             )
-            instrumental_path = file_management.get_instrumental_path_stem(
-                song_dir
-            ).with_suffix(output_extension)
+            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+                output_extension
+            )
             vocals_tensor = separated.get("vocals")
 
             save_kwargs = {"samplerate": separator.samplerate}
@@ -271,9 +263,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         except StopProcessingError:
             raise  # Re-raise
         except Exception as e:
-            logger.error(
-                f"Error during separation for {input_path.name}: {e}", exc_info=True
-            )
+            logger.error(f"Error during separation for {input_path.name}: {e}", exc_info=True)
             if status_callback:
                 status_callback(f"** Error during separation: {e} **")
             raise

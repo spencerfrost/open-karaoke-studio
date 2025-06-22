@@ -58,9 +58,7 @@ def validate_json_request(schema_class: Type[BaseModel], location: str = "json")
                     extra={
                         "endpoint": func.__name__,
                         "schema": schema_class.__name__,
-                        "fields": (
-                            list(raw_data.keys()) if isinstance(raw_data, dict) else []
-                        ),
+                        "fields": (list(raw_data.keys()) if isinstance(raw_data, dict) else []),
                     },
                 )
 

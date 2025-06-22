@@ -12,13 +12,9 @@ class CreateSongRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Song title")
     artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
-    duration: Optional[float] = Field(
-        None, ge=0, description="Song duration in seconds"
-    )
+    duration: Optional[float] = Field(None, ge=0, description="Song duration in seconds")
     source: Optional[str] = Field(None, max_length=50, description="Source of the song")
-    video_id: Optional[str] = Field(
-        None, max_length=100, description="YouTube video ID"
-    )
+    video_id: Optional[str] = Field(None, max_length=100, description="YouTube video ID")
 
     @validator("title", "artist")
     def validate_non_empty_strings(cls, v):
@@ -66,9 +62,7 @@ class YouTubeProcessRequest(BaseModel):
 class BulkDeleteRequest(BaseModel):
     """Schema for bulk delete operations"""
 
-    song_ids: List[str] = Field(
-        ..., min_items=1, description="List of song IDs to delete"
-    )
+    song_ids: List[str] = Field(..., min_items=1, description="List of song IDs to delete")
 
     @validator("song_ids")
     def validate_song_ids(cls, v):
@@ -115,18 +109,10 @@ class MetadataUpdateRequest(BaseModel):
 class YouTubeDownloadRequest(BaseModel):
     """Schema for YouTube download requests"""
 
-    video_id: str = Field(
-        ..., min_length=1, max_length=100, description="YouTube video ID"
-    )
-    song_id: str = Field(
-        ..., min_length=1, max_length=100, description="Song ID to associate with"
-    )
-    title: Optional[str] = Field(
-        None, max_length=200, description="Custom title override"
-    )
-    artist: Optional[str] = Field(
-        None, max_length=200, description="Custom artist override"
-    )
+    video_id: str = Field(..., min_length=1, max_length=100, description="YouTube video ID")
+    song_id: str = Field(..., min_length=1, max_length=100, description="Song ID to associate with")
+    title: Optional[str] = Field(None, max_length=200, description="Custom title override")
+    artist: Optional[str] = Field(None, max_length=200, description="Custom artist override")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
     searchThumbnailUrl: Optional[str] = Field(
         None, max_length=500, description="Original search result thumbnail URL"

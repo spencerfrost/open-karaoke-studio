@@ -140,30 +140,30 @@ def ensure_db_schema():
         logger.warning(f"Could not inspect existing database, recreating schema: {e}")
         Base.metadata.create_all(bind=engine)
         return
-    
+
     # First, create any missing tables
     tables_to_create = []
     for table in Base.metadata.tables.values():
         if table.name not in existing_tables:
             tables_to_create.append(table)
-    
+
     if tables_to_create:
         logger.info(f"Creating missing tables: {[t.name for t in tables_to_create]}")
         Base.metadata.create_all(bind=engine, tables=tables_to_create)
         return  # If we created tables, we're done
-    
+
     # Check for missing columns in existing tables
     for table in Base.metadata.tables.values():
         table_name = table.name
         if table_name not in existing_tables:
             continue  # Skip if table doesn't exist (shouldn't happen after above check)
-            
+
         try:
             existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
         except Exception as e:
             logger.warning(f"Could not inspect table {table_name}, skipping: {e}")
             continue
-            
+
         missing_columns = set()
 
         for column in table.columns:
