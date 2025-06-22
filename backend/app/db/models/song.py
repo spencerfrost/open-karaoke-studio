@@ -95,14 +95,16 @@ class DbSong(Base):
             "status": "processed",
             "favorite": self.favorite,
             "dateAdded": self.date_added.isoformat() if self.date_added is not None else None,
-            
             # File paths for API
             "vocalPath": f"/api/songs/{self.id}/vocal" if self.vocals_path is not None else None,
-            "instrumentalPath": f"/api/songs/{self.id}/instrumental" if self.instrumental_path is not None else None,
-            "originalPath": f"/api/songs/{self.id}/original" if self.original_path is not None else None,
+            "instrumentalPath": (
+                f"/api/songs/{self.id}/instrumental" if self.instrumental_path is not None else None
+            ),
+            "originalPath": (
+                f"/api/songs/{self.id}/original" if self.original_path is not None else None
+            ),
             "coverArt": self.cover_art_path,
             "thumbnail": self.thumbnail_path,
-            
             # YouTube data (convert to camelCase)
             "videoId": self.video_id,
             "sourceUrl": self.source_url,
@@ -113,7 +115,6 @@ class DbSong(Base):
             "channelName": self.youtube_channel_name or self.channel_name,
             "description": self.description,
             "uploadDate": self.upload_date.isoformat() if self.upload_date is not None else None,
-            
             # Metadata
             "mbid": self.mbid,
             "metadataId": self.mbid,  # Alias for frontend compatibility
@@ -124,11 +125,9 @@ class DbSong(Base):
             "year": year_value,
             "genre": self.genre,
             "language": self.language,
-            
             # Lyrics
             "lyrics": self.lyrics,
             "syncedLyrics": self.synced_lyrics,
-            
             # System
             "source": self.source,
         }

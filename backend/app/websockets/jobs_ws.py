@@ -69,7 +69,9 @@ def broadcast_job_update(job_data: Dict[str, Any]):
         if socketio is None:
             print("⚠️  SocketIO not available for job_updated broadcast")
             return
-        print(f"📊 Broadcasting job_updated event: {job_data.get('id', 'unknown')} - {job_data.get('status', 'unknown')}")
+        print(
+            f"📊 Broadcasting job_updated event: {job_data.get('id', 'unknown')} - {job_data.get('status', 'unknown')}"
+        )
         socketio.emit("job_updated", job_data, room="jobs_updates", namespace="/jobs")
     except Exception as e:
         print(f"❌ Failed to broadcast job_updated: {e}")
@@ -168,9 +170,11 @@ def _handle_job_event(event) -> None:
         was_created = event.data.get("was_created", False)
         job_id = job_data.get("id", "unknown")
         status = job_data.get("status", "unknown")
-        
-        print(f"🎯 WebSocket handler received job event: {job_id} - created={was_created} - status={status}")
-        
+
+        print(
+            f"🎯 WebSocket handler received job event: {job_id} - created={was_created} - status={status}"
+        )
+
         if was_created:
             broadcast_job_created(job_data)
         else:
@@ -185,6 +189,7 @@ def _handle_job_event(event) -> None:
                 broadcast_job_update(job_data)
     except Exception as e:
         import logging
+
         print(f"❌ Failed to handle job event: {e}")
         logging.getLogger(__name__).warning(f"Failed to handle job event: {e}")
 
@@ -198,13 +203,13 @@ def _setup_event_subscriptions():
         subscribe_to_job_events(_handle_job_event)
         print("✅ Jobs WebSocket event subscriptions initialized")
         import logging
+
         logging.getLogger(__name__).info("Jobs WebSocket event subscriptions initialized")
     except Exception as e:
         import logging
+
         print(f"❌ Failed to set up job event subscriptions: {e}")
-        logging.getLogger(__name__).warning(
-            f"Failed to set up job event subscriptions: {e}"
-        )
+        logging.getLogger(__name__).warning(f"Failed to set up job event subscriptions: {e}")
 
 
 def initialize_jobs_websocket():

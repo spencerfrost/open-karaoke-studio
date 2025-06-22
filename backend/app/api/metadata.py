@@ -24,9 +24,7 @@ def search_metadata_endpoint():
         artist = request.args.get("artist", "").strip()
         album = request.args.get("album", "").strip()
         limit = int(request.args.get("limit", 5))
-        sort_by = request.args.get(
-            "sort_by", "relevance"
-        )  # For backwards compatibility
+        sort_by = request.args.get("sort_by", "relevance")  # For backwards compatibility
 
         # Validate that at least title or artist is provided
         if not title and not artist:
@@ -61,9 +59,7 @@ def search_metadata_endpoint():
             "limit": limit,
             "sort_by": sort_by,
         }
-        response_data = metadata_service.format_metadata_response(
-            results, search_params
-        )
+        response_data = metadata_service.format_metadata_response(results, search_params)
 
         logger.info("Metadata search returned %s results", len(results))
         return jsonify(response_data), 200

@@ -93,9 +93,7 @@ def download_image(url: str, save_path: Path) -> bool:
         }
 
         # First make a HEAD request to check content type and handle redirects
-        head_response = session.head(
-            url, headers=headers, timeout=10, allow_redirects=True
-        )
+        head_response = session.head(url, headers=headers, timeout=10, allow_redirects=True)
 
         # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
         if head_response.status_code != 200:
@@ -105,9 +103,7 @@ def download_image(url: str, save_path: Path) -> bool:
             )
 
         # Make the actual GET request to download the image
-        response = session.get(
-            url, headers=headers, stream=True, timeout=10, allow_redirects=True
-        )
+        response = session.get(url, headers=headers, stream=True, timeout=10, allow_redirects=True)
         response.raise_for_status()  # Raise exception for HTTP errors
 
         # Check if response contains image data
@@ -123,9 +119,7 @@ def download_image(url: str, save_path: Path) -> bool:
                 or first_bytes.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
                 or (first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes[:12])
             ):  # WebP
-                logger.warning(
-                    "Content doesn't appear to be an image based on file signature"
-                )
+                logger.warning("Content doesn't appear to be an image based on file signature")
                 return False
 
         # Ensure the directory exists
@@ -140,9 +134,7 @@ def download_image(url: str, save_path: Path) -> bool:
         if save_path.exists() and save_path.stat().st_size > 0:
             return True
         else:
-            logger.warning(
-                "Image file was saved but appears to be empty: %s", save_path
-            )
+            logger.warning("Image file was saved but appears to be empty: %s", save_path)
             return False
 
     except requests.exceptions.RequestException as e:

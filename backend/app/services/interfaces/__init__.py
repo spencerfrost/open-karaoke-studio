@@ -11,7 +11,7 @@ from .youtube_service import YouTubeServiceInterface
 
 __all__ = [
     "AudioServiceInterface",
-    "FileServiceInterface", 
+    "FileServiceInterface",
     "LyricsServiceInterface",
     "MetadataServiceInterface",
     "YouTubeServiceInterface",

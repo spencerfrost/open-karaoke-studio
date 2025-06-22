@@ -30,9 +30,7 @@ class JobEvent(Event):
     job_data: Dict[str, Any] = None
     was_created: bool = False
 
-    def __init__(
-        self, job_id: str, job_data: Dict[str, Any], was_created: bool = False
-    ):
+    def __init__(self, job_id: str, job_data: Dict[str, Any], was_created: bool = False):
         """Initialize JobEvent with proper parent initialization."""
         self.job_id = job_id
         self.job_data = job_data or {}
@@ -109,16 +107,12 @@ class EventBus:
             subscribers = self._subscribers.get(event.name, []).copy()
 
         if subscribers:
-            logger.debug(
-                f"Publishing '{event.name}' event to {len(subscribers)} subscribers"
-            )
+            logger.debug(f"Publishing '{event.name}' event to {len(subscribers)} subscribers")
             for handler in subscribers:
                 try:
                     handler(event)
                 except Exception as e:
-                    logger.error(
-                        f"Error in event handler for '{event.name}': {e}", exc_info=True
-                    )
+                    logger.error(f"Error in event handler for '{event.name}': {e}", exc_info=True)
         else:
             logger.debug(f"No subscribers for '{event.name}' event")
 
@@ -143,9 +137,7 @@ event_bus = EventBus()
 
 
 # Convenience functions for common operations
-def publish_job_event(
-    job_id: str, job_data: Dict[str, Any], was_created: bool = False
-) -> None:
+def publish_job_event(job_id: str, job_data: Dict[str, Any], was_created: bool = False) -> None:
     """
     Convenience function to publish job events.
     Args:
@@ -154,7 +146,9 @@ def publish_job_event(
         was_created: Whether this is a new job creation
     """
     event = JobEvent(job_id=job_id, job_data=job_data, was_created=was_created)
-    print(f"📢 Publishing job event: {job_id} - created={was_created} - status={job_data.get('status', 'unknown')}")
+    print(
+        f"📢 Publishing job event: {job_id} - created={was_created} - status={job_data.get('status', 'unknown')}"
+    )
     event_bus.publish(event)
 
 

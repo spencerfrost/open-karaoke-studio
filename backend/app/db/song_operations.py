@@ -39,9 +39,7 @@ def get_song(song_id: str) -> Optional[DbSong]:
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
             return song
     except Exception as e:
-        logger.error(
-            "Error getting song %s from database: %s", song_id, e, exc_info=True
-        )
+        logger.error("Error getting song %s from database: %s", song_id, e, exc_info=True)
         return None
 
 
@@ -253,9 +251,7 @@ def delete_song(song_id: str) -> bool:
         return False
 
 
-def update_song_audio_paths(
-    song_id: str, vocals_path: str, instrumental_path: str
-) -> bool:
+def update_song_audio_paths(song_id: str, vocals_path: str, instrumental_path: str) -> bool:
     """Update the audio paths for a song (after audio separation is complete)
 
     Args:
@@ -288,9 +284,7 @@ def update_song_audio_paths(
             return True
 
     except Exception as e:
-        logger.error(
-            "Error updating audio paths for song %s: %s", song_id, e, exc_info=True
-        )
+        logger.error("Error updating audio paths for song %s: %s", song_id, e, exc_info=True)
         return False
 
 
@@ -324,10 +318,7 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             # Update file paths if provided - only for fields that exist
             if hasattr(updated_song, "vocals_path") and updated_song.vocals_path:
                 song.vocals_path = updated_song.vocals_path
-            if (
-                hasattr(updated_song, "instrumental_path")
-                and updated_song.instrumental_path
-            ):
+            if hasattr(updated_song, "instrumental_path") and updated_song.instrumental_path:
                 song.instrumental_path = updated_song.instrumental_path
             if hasattr(updated_song, "thumbnail_path") and updated_song.thumbnail_path:
                 song.thumbnail_path = updated_song.thumbnail_path
@@ -337,9 +328,7 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             return True
 
     except Exception as e:
-        logger.error(
-            "Error updating song metadata for %s: %s", song_id, e, exc_info=True
-        )
+        logger.error("Error updating song metadata for %s: %s", song_id, e, exc_info=True)
         return False
 
 
@@ -369,9 +358,7 @@ def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
             return True
 
     except Exception as e:
-        logger.error(
-            "Error updating thumbnail for song %s: %s", song_id, e, exc_info=True
-        )
+        logger.error("Error updating thumbnail for song %s: %s", song_id, e, exc_info=True)
         return False
 
 
@@ -483,9 +470,7 @@ def get_songs_by_artist(
             return {"songs": songs, "total": total_count}
 
     except Exception as e:
-        logger.error(
-            "Error getting songs for artist '%s': %s", artist_name, e, exc_info=True
-        )
+        logger.error("Error getting songs for artist '%s': %s", artist_name, e, exc_info=True)
         return {"songs": [], "total": 0}
 
 
@@ -522,9 +507,7 @@ def search_songs_paginated(
             if group_by_artist:
                 # Group results by artist
                 artist_query = (
-                    session.query(
-                        DbSong.artist, func.count(DbSong.id).label("song_count")
-                    )
+                    session.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
                     .filter(search_filter)
                     .group_by(DbSong.artist)
                 )

@@ -20,7 +20,7 @@ class BaseConfig:
 
     # Timezone Configuration
     TIMEZONE = os.environ.get("TIMEZONE", "America/Toronto")
-    
+
     # Logging Configuration
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_DIR = Path(os.environ.get("LOG_DIR", str(BASE_DIR / "backend" / "logs")))
