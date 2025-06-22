@@ -2,10 +2,11 @@
 Cleanup utility for stuck jobs on startup.
 """
 
-from .repositories import JobRepository
-from .db.models import JobStatus
-from datetime import datetime
 import logging
+from datetime import datetime
+
+from ..db.models import JobStatus
+from ..repositories.job_repository import JobRepository
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def cleanup_stuck_jobs():
             job.error = "Job was stuck in non-terminal state on startup."
             job.completed_at = now
             repo.update(job)
+            repo.dismiss_job(job.id)
             cleaned += 1
     if cleaned:
         logger.info(f"Marked {cleaned} stuck jobs as failed on startup.")

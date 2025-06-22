@@ -11,8 +11,8 @@ from typing import Optional
 
 from ..db.models import Job, JobStatus
 from ..repositories import JobRepository
-from .file_service import FileService
 from . import file_management
+from .file_service import FileService
 from .interfaces.jobs_service import JobsServiceInterface
 
 
@@ -156,9 +156,20 @@ class JobsService(JobsServiceInterface):
         # Use the job repository's dismiss method
         return self.job_repository.dismiss_job(job_id)
 
-    def get_statistics(self) -> dict[str, int]:
+    def get_statistics(self) -> "dict[str, int]":
         """Get statistics about jobs."""
-        return self.job_store.get_stats()
+        # Return basic statistics using the job repository
+        # If JobRepository does not have get_stats, implement basic stats here
+        jobs = self.job_repository.get_all_jobs()
+        stats = {
+            "total": len(jobs),
+            "active": len([j for j in jobs if j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]]),
+            "completed": len([j for j in jobs if j.status == JobStatus.COMPLETED]),
+            "failed": len([j for j in jobs if j.status == JobStatus.FAILED]),
+            "cancelled": len([j for j in jobs if j.status == JobStatus.CANCELLED]),
+            "dismissed": len([j for j in jobs if getattr(j, "dismissed", False)]),
+        }
+        return stats
 
     def _estimate_completion_time(self, job: Job) -> Optional[datetime]:
         """
