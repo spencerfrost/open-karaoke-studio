@@ -12,6 +12,7 @@ from .songs import song_bp
 from .songs_artists import artists_bp
 from .users import user_bp
 from .youtube import youtube_bp
+from .youtube_music import youtube_music_bp
 
 # List of all blueprints to register with the app
 all_blueprints = [
@@ -23,6 +24,7 @@ all_blueprints = [
     user_bp,
     metadata_bp,
     youtube_bp,
+    youtube_music_bp,
 ]
 
 
