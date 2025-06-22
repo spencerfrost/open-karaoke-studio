@@ -13,21 +13,23 @@ from ..config import get_config
 
 # Import database and models directly - no fake service layer
 from ..db.models import DbSong
-from ..db.song_operations import get_song, create_or_update_song
+from ..db.song_operations import create_or_update_song
 from ..db.song_operations import delete_song as db_delete_song
+from ..db.song_operations import get_song
 from ..exceptions import (
-    ServiceError,
     DatabaseError,
-    ResourceNotFoundError,
-    InvalidTrackTypeError,
     FileOperationError,
+    InvalidTrackTypeError,
+    NetworkError,
+    ResourceNotFoundError,
+    ServiceError,
     ValidationError,
 )
+from ..schemas.requests import CreateSongRequest, UpdateSongRequest
 from ..services import FileService, file_management
 from ..services.lyrics_service import LyricsService
 from ..utils.error_handlers import handle_api_error
 from ..utils.validation import validate_json_request, validate_path_params
-from ..schemas.requests import CreateSongRequest, UpdateSongRequest
 
 logger = logging.getLogger(__name__)
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
@@ -37,19 +39,41 @@ song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 @handle_api_error
 def get_songs():
     """
-    Endpoint to get a list of processed songs with metadata
-    - direct database access, no fake service layer.
+    Endpoint to get a list of processed songs with metadata.
+    Supports query params: limit, offset, sort_by, direction.
     """
     logger.info("Received request for /api/songs")
 
     try:
-        from ..db.models import DbSong
+        from flask import request
+
         from ..db.database import get_db_session
+        from ..db.models import DbSong
 
+        # Query params
+        limit = request.args.get("limit", type=int)
+        offset = request.args.get("offset", type=int, default=0)
+        sort_by = request.args.get("sort_by", default="date_added")
+        direction = request.args.get("direction", default="desc").lower()
+
+        # Validate sort_by
+        valid_sort_fields = {"date_added", "title", "artist", "album", "year"}
+        if sort_by not in valid_sort_fields:
+            sort_by = "date_added"
+
+        # Build query
         with get_db_session() as session:
-            songs = session.query(DbSong).order_by(DbSong.date_added.desc()).all()
-
-            # Convert to API response format
+            base_query = session.query(DbSong)
+            sort_column = getattr(DbSong, sort_by, DbSong.date_added)
+            if direction == "asc":
+                base_query = base_query.order_by(sort_column.asc())
+            else:
+                base_query = base_query.order_by(sort_column.desc())
+            if offset:
+                base_query = base_query.offset(offset)
+            if limit:
+                base_query = base_query.limit(limit)
+            songs = base_query.all()
             response_data = [song.to_dict() for song in songs]
 
         logger.info("Returning %s songs.", len(response_data))
@@ -308,42 +332,20 @@ def get_song_lyrics(song_id: str):
             logger.info("Returning stored lyrics for song %s", song_id)
             return jsonify({"plainLyrics": stored_lyrics}), 200
 
-        # Try to get from database first
+        # Get song from database only
         db_song = get_song(song_id)
+        if not db_song:
+            raise ResourceNotFoundError("Song", song_id)
 
-        if db_song:
-            # Use to_dict() method for consistent field conversion
-            song_data = db_song.to_dict()
-            title = song_data["title"]
-            artist = (
-                song_data["artist"]
-                if song_data["artist"].lower() != "unknown artist"
-                else song_data["channel"]
-            )
-            album = song_data["album"]
-        else:
-            # Fall back to file-based approach
-            metadata = file_management.read_song_metadata(song_id)
-            if not metadata or not metadata.title:
-                logger.warning("Metadata incomplete for lyrics: %s", song_id)
-                raise ValidationError(
-                    "Missing metadata (title) for lyrics lookup", "MISSING_METADATA"
-                )
-
-            # Determine best artist name: prefer metadata.artist, else channel
-            artist = (
-                metadata.artist
-                if metadata.artist and metadata.artist.lower() != "unknown artist"
-                else metadata.channel
-            )
-            if not artist:
-                logger.warning("Artist unknown for lyrics: %s", song_id)
-                raise ValidationError(
-                    "Missing artist name for lyrics lookup", "MISSING_ARTIST"
-                )
-
-            title = metadata.title
-            album = metadata.releaseTitle
+        # Use to_dict() method for consistent field conversion
+        song_data = db_song.to_dict()
+        title = song_data["title"]
+        artist = (
+            song_data["artist"]
+            if song_data["artist"].lower() != "unknown artist"
+            else song_data["channel"]
+        )
+        album = song_data["album"]
 
         # If missing essential info, return error
         if not title or not artist:
@@ -383,8 +385,6 @@ def get_song_lyrics(song_id: str):
             raise ResourceNotFoundError("Lyrics", song_id)
 
     except ServiceError:
-        raise  # Let error handlers deal with it
-    except ValidationError:
         raise  # Let error handlers deal with it
     except ConnectionError as e:
         raise NetworkError(
@@ -473,7 +473,11 @@ def create_song(validated_data: CreateSongRequest):
             title=validated_data.title,
             artist=validated_data.artist,
             album=validated_data.album,
-            duration=validated_data.duration,
+            duration=(
+                int(validated_data.duration)
+                if validated_data.duration is not None
+                else None
+            ),
             source=validated_data.source,
             video_id=validated_data.video_id,
         )
