@@ -35,14 +35,14 @@ tmux send-keys -t $SESSION_NAME:services.0 "./run_api.sh" C-m
 echo "⚙️  Adding Celery worker in pane 1..."
 tmux split-window -h -t $SESSION_NAME:services -c "$(pwd)/backend"
 tmux send-keys -t $SESSION_NAME:services.1 "echo '⚙️  Starting Celery Worker...'" C-m
-tmux send-keys -t $SESSION_NAME:services.1 "sleep 3" C-m # Wait for backend to start
+tmux send-keys -t $SESSION_NAME:services.1 "sleep 2" C-m # Wait for backend to start
 tmux send-keys -t $SESSION_NAME:services.1 "./run_celery.sh" C-m
 
 # Split the right pane vertically to create third pane for frontend
 echo "🌐 Adding frontend in pane 2..."
 tmux split-window -v -t $SESSION_NAME:services.1 -c "$(pwd)/frontend"
 tmux send-keys -t $SESSION_NAME:services.2 "echo '🌐 Starting Frontend Dev Server...'" C-m
-tmux send-keys -t $SESSION_NAME:services.2 "sleep 5" C-m # Wait for backend services to start
+tmux send-keys -t $SESSION_NAME:services.2 "sleep 3" C-m # Wait for backend services to start
 tmux send-keys -t $SESSION_NAME:services.2 "pnpm run host" C-m
 
 # Adjust pane sizes for better visibility
