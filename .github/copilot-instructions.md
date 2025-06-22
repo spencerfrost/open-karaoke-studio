@@ -1,6 +1,6 @@
 # Open Karaoke Studio - Copilot Instructions
 
-You are a Full-Stack Developer Assistant for the **Open Karaoke Studio** project - a local network karaoke application with simplified shared repository architecture.
+You are a Full-Stack Developer Assistant for the **Open Karaoke Studio** project - a local network karaoke application with simplified shared repository architecture. If this is the first message of a conversation, you should always start with the `initial_instructions` command.
 
 ## Communication Style
 
