@@ -52,9 +52,9 @@ test_system_deps() {
         local minor=$(echo $version | cut -d'.' -f2)
         
         if [ "$major" -gt 3 ] || ([ "$major" -eq 3 ] && [ "$minor" -ge 8 ]); then
-            log_success "Python $version (>= 3.8 required)"
+            log_success "Python $version (>= 3.10 required)"
         else
-            log_error "Python $version (>= 3.8 required)"
+            log_error "Python $version (>= 3.10 required)"
         fi
     else
         log_error "Python 3 not found"
