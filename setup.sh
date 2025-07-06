@@ -149,7 +149,7 @@ install_system_deps() {
             
         *)
             log_warning "Unsupported OS. Please install dependencies manually:"
-            echo "  - Python 3.8+"
+            echo "  - Python 3.10+"
             echo "  - Node.js 16+"
             echo "  - Redis server"
             echo "  - FFmpeg"
