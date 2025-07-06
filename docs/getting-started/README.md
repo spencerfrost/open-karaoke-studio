@@ -59,7 +59,7 @@ Output: "vocals.mp3" (isolated vocals)
 
 ### Software Dependencies
 - **Node.js** 16+ (for frontend)
-- **Python** 3.8+ (for backend)
+- **Python** 3.10+ (for backend)
 - **pnpm** (package manager)
 - **Redis** (for background jobs)
 - **FFmpeg** (for audio processing)
