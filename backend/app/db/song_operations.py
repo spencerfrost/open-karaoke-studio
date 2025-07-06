@@ -14,7 +14,7 @@ from sqlalchemy import asc, desc, func
 
 from ..config import get_config
 from .database import get_db_session
-from .models import DbSong
+from .models import DbSong  # DbSong is a SQLAlchemy ORM model defined in models/song.py
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def create_or_update_song(
                     channel=channel,
                     channel_id=channel_id,
                     description=description,
-                    upload_date=upload_date,
+                    upload_date=None,
                     album=album,
                     genre=genre,
                     language=language,
@@ -123,6 +123,13 @@ def create_or_update_song(
                     synced_lyrics=synced_lyrics,
                     favorite=favorite,
                 )
+                if upload_date:
+                    try:
+                        from datetime import datetime
+
+                        db_song.upload_date = datetime.fromisoformat(upload_date)
+                    except Exception:
+                        db_song.upload_date = None
                 session.add(db_song)
             else:
                 # Update existing song with direct assignment (only non-None values)
@@ -153,7 +160,12 @@ def create_or_update_song(
                 if description:
                     db_song.description = description
                 if upload_date:
-                    db_song.upload_date = upload_date
+                    try:
+                        from datetime import datetime
+
+                        db_song.upload_date = datetime.fromisoformat(upload_date)
+                    except Exception:
+                        db_song.upload_date = None
                 if album:
                     db_song.album = album
                 if genre:
@@ -196,7 +208,7 @@ def sync_songs_with_filesystem() -> int:
     # Get song IDs from database
     try:
         with get_db_session() as session:
-            db_song_ids = {song.id for song in session.query(DbSong.id).all()}
+            db_song_ids = {song.id for song in session.query(DbSong).all()}
 
             # Add new songs
             new_songs_count = 0
@@ -359,7 +371,7 @@ def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
                 logger.error("Song not found: %s", song_id)
                 return False
 
-            # Update the thumbnail path
+                # Update the thumbnail path
             song.thumbnail_path = thumbnail_path
 
             session.commit()
@@ -511,10 +523,12 @@ def search_songs_paginated(
     try:
         with get_db_session() as session:
             # Build base search query
-            search_filter = (
-                DbSong.title.ilike(f"%{query}%")
-                | DbSong.artist.ilike(f"%{query}%")
-                | DbSong.album.ilike(f"%{query}%")
+            from sqlalchemy import or_
+
+            search_filter = or_(
+                DbSong.title.ilike(f"%{query}%"),
+                DbSong.artist.ilike(f"%{query}%"),
+                DbSong.album.ilike(f"%{query}%"),
             )
 
             if group_by_artist:
@@ -538,9 +552,7 @@ def search_songs_paginated(
                 for artist, count in artist_results:
                     # Get a sample of songs for this artist
                     songs_query = (
-                        session.query(DbSong)
-                        .filter(search_filter, DbSong.artist == artist)
-                        .limit(5)
+                        session.query(DbSong).filter(DbSong.artist == artist).limit(5)
                     )  # Show max 5 songs per artist in grouped view
 
                     songs = songs_query.all()
@@ -574,9 +586,7 @@ def search_songs_paginated(
                 if sort_by == "relevance":
                     # Simple relevance: title matches first, then artist matches
                     base_query = base_query.order_by(
-                        DbSong.title.ilike(f"%{query}%").desc(),
-                        DbSong.artist.ilike(f"%{query}%").desc(),
-                        DbSong.date_added.desc(),
+                        DbSong.title, DbSong.artist, DbSong.date_added.desc()
                     )
                 else:
                     sort_field = getattr(DbSong, sort_by, DbSong.title)
@@ -612,3 +622,6 @@ def search_songs_paginated(
                 "hasMore": False,
             },
         }
+
+
+# type: ignore  # type: ignore  # type: ignore  # type: ignore

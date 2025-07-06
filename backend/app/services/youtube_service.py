@@ -49,8 +49,10 @@ class YouTubeService(YouTubeServiceInterface):
                                 "id": entry.get("id"),
                                 "title": entry.get("title"),
                                 "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
-                                "channel": entry.get("channel") or entry.get("uploader"),
-                                "channelId": entry.get("channel_id") or entry.get("uploader_id"),
+                                "channel": entry.get("channel")
+                                or entry.get("uploader"),
+                                "channelId": entry.get("channel_id")
+                                or entry.get("uploader_id"),
                                 "thumbnail": (
                                     entry.get("thumbnails")[0]["url"]
                                     if entry.get("thumbnails")
@@ -117,7 +119,10 @@ class YouTubeService(YouTubeServiceInterface):
 
             # Download video
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                logger.info(f"[YTDLP DEBUG] yt_dlp.YoutubeDL options: {ydl_opts}")
+                logger.info(f"[YTDLP DEBUG] Downloading URL: {url}")
                 info = ydl.extract_info(url, download=True)
+                logger.info(f"[YTDLP DEBUG] yt_dlp extract_info returned: {info}")
                 if info is None:
                     raise ServiceError(f"Could not download video info from {url}")
 
@@ -130,7 +135,9 @@ class YouTubeService(YouTubeServiceInterface):
                 # Try the configured path as fallback
                 original_file = self.file_service.get_original_path(song_id, ".mp3")
                 if not original_file.exists():
-                    raise ServiceError(f"Download completed but file not found: {original_file}")
+                    raise ServiceError(
+                        f"Download completed but file not found: {original_file}"
+                    )
 
             # Extract and create metadata dict
             metadata_dict = self._extract_metadata_from_youtube_info(info)
@@ -163,11 +170,16 @@ class YouTubeService(YouTubeServiceInterface):
             if artist:
                 metadata_dict["artist"] = artist
 
-            logger.info("Successfully downloaded YouTube video %s as song %s", video_id, song_id)
+            logger.info(
+                "Successfully downloaded YouTube video %s as song %s", video_id, song_id
+            )
             return song_id, metadata_dict
 
         except Exception as e:
             logger.error("Failed to download YouTube video %s: %s", video_id_or_url, e)
+            logger.error(
+                f"[YTDLP DEBUG] Exception occurred during yt-dlp download: {e}"
+            )
             raise ServiceError(f"Failed to download YouTube video: {e}")
             raise ServiceError(f"Failed to download YouTube video: {e}")
 
@@ -231,7 +243,9 @@ class YouTubeService(YouTubeServiceInterface):
             else:
                 video_id = self.get_video_id_from_url(video_id_or_url)
                 if not video_id:
-                    raise ValidationError(f"Could not extract video ID from URL: {video_id_or_url}")
+                    raise ValidationError(
+                        f"Could not extract video ID from URL: {video_id_or_url}"
+                    )
 
             # Validate song_id is provided
             if not song_id:
@@ -327,10 +341,14 @@ class YouTubeService(YouTubeServiceInterface):
             return job_id
 
         except Exception as e:
-            logger.error("Failed to queue YouTube processing for %s: %s", video_id_or_url, e)
+            logger.error(
+                "Failed to queue YouTube processing for %s: %s", video_id_or_url, e
+            )
             raise ServiceError(f"Failed to queue YouTube processing: {e}")
 
-    def _extract_metadata_from_youtube_info(self, video_info: "dict[str, Any]") -> "dict[str, Any]":
+    def _extract_metadata_from_youtube_info(
+        self, video_info: "dict[str, Any]"
+    ) -> "dict[str, Any]":
         """Extract metadata from YouTube video info and return as dict for create_or_update_song()"""
         from .metadata_service import filter_youtube_metadata_for_storage
 
@@ -347,7 +365,9 @@ class YouTubeService(YouTubeServiceInterface):
             selected = []
             for thumb in thumbnails:
                 url = thumb.get("url")
-                if url and any(res in str(thumb.get("height", 0)) for res in ["120", "320", "640"]):
+                if url and any(
+                    res in str(thumb.get("height", 0)) for res in ["120", "320", "640"]
+                ):
                     selected.append(url)
 
             return selected[:3] if selected else None  # Limit to 3 thumbnails
@@ -380,7 +400,9 @@ class YouTubeService(YouTubeServiceInterface):
         try:
             # yt-dlp typically provides dates in YYYYMMDD format
             if len(upload_date_str) == 8:
-                return datetime.strptime(upload_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+                return datetime.strptime(upload_date_str, "%Y%m%d").replace(
+                    tzinfo=timezone.utc
+                )
         except (ValueError, TypeError):
             pass
 
@@ -402,7 +424,9 @@ class YouTubeService(YouTubeServiceInterface):
 
         # Final fallback: construct maxresdefault URL
         if video_info.get("id"):
-            return f"https://i.ytimg.com/vi_webp/{video_info.get('id')}/maxresdefault.webp"
+            return (
+                f"https://i.ytimg.com/vi_webp/{video_info.get('id')}/maxresdefault.webp"
+            )
 
         return None
 
@@ -424,7 +448,9 @@ class YouTubeService(YouTubeServiceInterface):
         except ServiceError:
             raise
         except Exception as e:
-            logger.error("Failed to fetch and save thumbnail for video %s: %s", video_id, e)
+            logger.error(
+                "Failed to fetch and save thumbnail for video %s: %s", video_id, e
+            )
             raise ServiceError(f"Failed to fetch thumbnail: {e}")
 
     def _download_thumbnail_with_fallback(
@@ -453,16 +479,24 @@ class YouTubeService(YouTubeServiceInterface):
                 url = thumb.get("url")
                 if url:
                     logger.info("Trying yt-dlp thumbnail: %s", url)
-                    success, thumbnail_filename = self._download_and_save_thumbnail(song_id, url)
+                    success, thumbnail_filename = self._download_and_save_thumbnail(
+                        song_id, url
+                    )
                     if success:
-                        logger.info("✅ Successfully downloaded yt-dlp thumbnail: %s", url)
+                        logger.info(
+                            "✅ Successfully downloaded yt-dlp thumbnail: %s", url
+                        )
                         self._update_song_thumbnail_in_db(song_id, thumbnail_filename)
                         return url
                     else:
-                        logger.warning("❌ Failed to download yt-dlp thumbnail: %s", url)
+                        logger.warning(
+                            "❌ Failed to download yt-dlp thumbnail: %s", url
+                        )
 
         # Strategy 2: Systematic URL construction fallback
-        logger.info("Falling back to systematic URL construction for video %s", video_id)
+        logger.info(
+            "Falling back to systematic URL construction for video %s", video_id
+        )
         formats_to_try = [
             ("maxresdefault", "webp"),  # 1920x1080 WebP
             ("maxresdefault", "jpg"),  # 1920x1080 JPG
@@ -476,11 +510,15 @@ class YouTubeService(YouTubeServiceInterface):
 
         for format_name, format_ext in formats_to_try:
             if format_ext == "webp":
-                url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+                url = (
+                    f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+                )
             else:
                 url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
 
-            success, thumbnail_filename = self._download_and_save_thumbnail(song_id, url)
+            success, thumbnail_filename = self._download_and_save_thumbnail(
+                song_id, url
+            )
             if success:
                 logger.info("Downloaded thumbnail: %s (%s)", format_name, format_ext)
                 self._update_song_thumbnail_in_db(song_id, thumbnail_filename)
@@ -524,7 +562,9 @@ class YouTubeService(YouTubeServiceInterface):
         # Fallback to systematic URL construction
         for format_name, format_ext in formats_to_try:
             if format_ext == "webp":
-                url = f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+                url = (
+                    f"https://i.ytimg.com/vi_webp/{video_id}/{format_name}.{format_ext}"
+                )
             else:
                 url = f"https://i.ytimg.com/vi/{video_id}/{format_name}.{format_ext}"
 
@@ -551,7 +591,9 @@ class YouTubeService(YouTubeServiceInterface):
         except Exception:
             return False  # Return False if we can't check
 
-    def _download_and_save_thumbnail(self, song_id: str, thumbnail_url: str) -> tuple[bool, str]:
+    def _download_and_save_thumbnail(
+        self, song_id: str, thumbnail_url: str
+    ) -> tuple[bool, str]:
         """Download and save thumbnail to file system, returns (success, filename)"""
         try:
             # Determine file extension from URL (prefer WebP, fallback to JPG)
@@ -586,7 +628,9 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error("Error downloading thumbnail for song %s: %s", song_id, e)
             return False, ""
 
-    def _update_song_thumbnail_in_db(self, song_id: str, thumbnail_filename: str) -> None:
+    def _update_song_thumbnail_in_db(
+        self, song_id: str, thumbnail_filename: str
+    ) -> None:
         """Update database with thumbnail information"""
         try:
             from ..db.song_operations import update_song_thumbnail
@@ -599,10 +643,14 @@ class YouTubeService(YouTubeServiceInterface):
             success = update_song_thumbnail(song_id, thumbnail_path)
 
             if not success:
-                logger.warning("Failed to update thumbnail in database for song %s", song_id)
+                logger.warning(
+                    "Failed to update thumbnail in database for song %s", song_id
+                )
 
         except Exception as e:
-            logger.error("Failed to update database thumbnail for song %s: %s", song_id, e)
+            logger.error(
+                "Failed to update database thumbnail for song %s: %s", song_id, e
+            )
 
     def _extract_audio_duration(self, audio_path) -> Optional[float]:
         """Extract duration from audio file using librosa"""
@@ -612,5 +660,7 @@ class YouTubeService(YouTubeServiceInterface):
             duration = librosa.get_duration(path=str(audio_path))
             return float(duration)
         except Exception as e:
-            logger.warning("Failed to extract duration from audio file %s: %s", audio_path, e)
+            logger.warning(
+                "Failed to extract duration from audio file %s: %s", audio_path, e
+            )
             return None

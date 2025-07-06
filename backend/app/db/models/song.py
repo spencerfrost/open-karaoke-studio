@@ -33,9 +33,9 @@ class DbSong(Base):
     uploader_id = Column(String, nullable=True)
     channel = Column(String, nullable=True)
     channel_id = Column(String, nullable=True)
+    description = Column(Text, nullable=True)  # Song/video description
 
-    # Phase 1A: Key YouTube field for karaoke
-    description = Column(Text, nullable=True)
+    # Phase 1A = Column(Text, nullable=True)
     upload_date = Column(DateTime, nullable=True)
     mbid = Column(String, nullable=True)
     album = Column(String, nullable=True)  # Renamed from release_title for better UX
@@ -48,8 +48,7 @@ class DbSong(Base):
     synced_lyrics = Column(Text, nullable=True)
     channel_name = Column(String, nullable=True)  # Legacy field
 
-    # Phase 1B: iTunes integration columns
-    itunes_track_id = Column(Integer, nullable=True)
+    # Phase 1B = Column(Integer, nullable=True)
     itunes_artist_id = Column(Integer, nullable=True)
     itunes_collection_id = Column(Integer, nullable=True)
     track_time_millis = Column(Integer, nullable=True)
@@ -57,16 +56,14 @@ class DbSong(Base):
     itunes_preview_url = Column(String, nullable=True)
     itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
-    # Phase 1B: Enhanced YouTube columns
-    youtube_duration = Column(Integer, nullable=True)
+    # Phase 1B = Column(Integer, nullable=True)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
     youtube_tags = Column(Text, nullable=True)  # JSON array as string
     youtube_categories = Column(Text, nullable=True)  # JSON array as string
     youtube_channel_id = Column(String, nullable=True)
     youtube_channel_name = Column(String, nullable=True)
 
-    # Phase 1B: Raw metadata storage
-    itunes_raw_metadata = Column(Text, nullable=True)  # JSON string
+    # Phase 1B = Column(Text, nullable=True)  # JSON string
     youtube_raw_metadata = Column(Text, nullable=True)  # JSON string
 
     queue_items = relationship(
