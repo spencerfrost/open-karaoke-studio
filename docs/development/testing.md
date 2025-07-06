@@ -146,10 +146,10 @@ class TestSongService:
     def song_service(self):
         return SongService()
 
-    def test_get_all_songs_success(self, song_service, mock_db_songs):
+    def test_get_songs_success(self, song_service, mock_db_songs):
         """Test successful retrieval of all songs"""
-        with patch('app.db.song_operations.get_all_songs', return_value=mock_db_songs):
-            songs = song_service.get_all_songs()
+        with patch('app.db.song_operations.get_songs', return_value=mock_db_songs):
+            songs = song_service.get_songs()
 
             assert len(songs) == 2
             assert all(hasattr(song, 'id') for song in songs)
@@ -230,7 +230,7 @@ class TestSongsAPIErrorHandling:
 
     def test_internal_server_error_handling(self, client):
         """Test that internal server errors are handled gracefully"""
-        with patch('app.db.database.get_all_songs', side_effect=Exception("Unexpected error")):
+        with patch('app.db.database.get_songs', side_effect=Exception("Unexpected error")):
             response = client.get('/api/songs')
 
             assert response.status_code == 500

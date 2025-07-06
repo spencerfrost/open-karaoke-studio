@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Music, Play, Heart, Plus, MoreVertical } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
-import { formatTime } from "@/utils/formatters";
+import { formatTimeMs } from "@/utils/formatters";
 import { useSongs } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
 
@@ -52,7 +52,7 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
 
   return (
     <>
-      <Card 
+      <Card
         className="overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer group border-orange-peel/25 bg-lemon-chiffon/5"
         onClick={() => onSongSelect?.(song)}
       >
@@ -61,14 +61,14 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
             {/* Album Artwork */}
             <div className="relative flex-shrink-0 rounded overflow-hidden w-[60px] h-[60px]">
               {song.syncedLyrics && (
-                <Badge 
-                  className="absolute -top-1 -right-1 z-10 text-xs px-1 py-0 bg-orange-peel text-dark-cyan text-[0.6rem]" 
+                <Badge
+                  className="absolute -top-1 -right-1 z-10 text-xs px-1 py-0 bg-orange-peel text-dark-cyan text-[0.6rem]"
                   variant="accent"
                 >
                   ♪
                 </Badge>
               )}
-              
+
               {artworkUrl ? (
                 <img
                   src={artworkUrl}
@@ -89,14 +89,14 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
                   {song.title}
                 </h4>
                 <span className="text-xs ml-2 flex-shrink-0 text-lemon-chiffon/80">
-                  {formatTime(song.duration)}
+                  {formatTimeMs(song.duration)}
                 </span>
               </div>
-              
+
               <p className="text-xs truncate mb-1 text-lemon-chiffon/90">
                 {song.artist}
               </p>
-              
+
               {song.album && (
                 <p className="text-xs truncate text-lemon-chiffon/60">
                   {song.album}
@@ -114,21 +114,21 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
               >
                 <Play size={14} />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
                 className={`h-8 w-8 p-0 bg-transparent ${
-                  song.favorite ? 'text-orange-peel' : 'text-lemon-chiffon/60'
+                  song.favorite ? "text-orange-peel" : "text-lemon-chiffon/60"
                 }`}
                 onClick={handleFavoriteClick}
               >
-                <Heart 
-                  size={14} 
-                  fill={song.favorite ? 'currentColor' : 'none'} 
+                <Heart
+                  size={14}
+                  fill={song.favorite ? "currentColor" : "none"}
                 />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -137,7 +137,7 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
               >
                 <Plus size={14} />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"

@@ -276,7 +276,7 @@ class SongService:
         self.song_repo = SongRepository()
         self.job_repo = JobRepository()
 
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """Get all songs with proper error handling"""
         try:
             db_songs = self.song_repo.get_all_ordered_by_date()

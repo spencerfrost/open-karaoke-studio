@@ -30,7 +30,7 @@ sys.path.insert(0, str(backend_dir))
 
 from app.config import get_config
 from app.db.database import get_db_session
-from app.db.song_operations import delete_song, get_all_songs
+from app.db.song_operations import delete_song, get_songs
 from app.services.file_service import FileService
 
 # File extensions to check for thumbnails
@@ -65,7 +65,7 @@ class KaraokeLibraryCleanup:
     def get_database_songs_info(self) -> Dict[str, Dict]:
         """Get all song information from the database."""
         try:
-            songs = get_all_songs()
+            songs = get_songs()
             return {
                 str(song.id): {
                     "song": song,

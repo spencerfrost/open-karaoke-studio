@@ -98,7 +98,7 @@ The song operations module contains all song-related business logic:
 #### CRUD Operations
 
 ```python
-def get_all_songs() -> List[DbSong]
+def get_songs() -> List[DbSong]
 def get_song(song_id: str) -> Optional[DbSong]
 def create_or_update_song(song_id: str, title: str, artist: str, **kwargs) -> Optional[DbSong]
 def delete_song(song_id: str) -> bool
@@ -132,7 +132,7 @@ def get_song_as_dict(song_id: str) -> Optional[Dict[str, Any]]
 
 ```python
 # Recommended pattern for database operations
-def get_all_songs() -> List[DbSong]:
+def get_songs() -> List[DbSong]:
     try:
         with get_db_session() as session:
             songs = session.query(DbSong).order_by(DbSong.date_added.desc()).all()
@@ -230,7 +230,7 @@ def get_song(song_id: str) -> Optional[DbSong]:
 
 ```python
 # Efficient ordering and limiting
-def get_all_songs() -> List[DbSong]:
+def get_songs() -> List[DbSong]:
     with get_db_session() as session:
         return session.query(DbSong)\
                      .order_by(DbSong.date_added.desc())\

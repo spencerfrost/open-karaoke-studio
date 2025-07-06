@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Dict, Optional, Set
 
 from app.config import get_config
-from app.db.song_operations import get_all_songs
+from app.db.song_operations import get_songs
 from app.services.file_service import FileService
 
 # Add the backend directory to the Python path
@@ -50,7 +50,7 @@ class DataIntegrityChecker:
     def get_database_song_ids(self) -> Set[str]:
         """Get all song IDs from the database."""
         try:
-            songs = get_all_songs()
+            songs = get_songs()
             return {str(song.id) for song in songs}
         except Exception as e:
             print(f"Error fetching songs from database: {e}")
@@ -59,7 +59,7 @@ class DataIntegrityChecker:
     def get_database_songs_info(self) -> Dict[str, Dict[str, str]]:
         """Get song info from database including title and artist."""
         try:
-            songs = get_all_songs()
+            songs = get_songs()
             return {
                 str(song.id): {
                     "title": str(song.title) if song.title is not None else "Unknown",

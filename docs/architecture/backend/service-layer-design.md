@@ -53,7 +53,7 @@ from typing import Protocol, List, Optional
 from ...db.models import Song
 
 class SongServiceInterface(Protocol):
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """Get all songs with automatic sync if needed"""
 
     def get_song_by_id(self, song_id: str) -> Optional[Song]:
@@ -84,7 +84,7 @@ class SongService(SongServiceInterface):
 Consistent error handling across all services with proper logging:
 
 ```python
-def get_all_songs(self) -> List[Song]:
+def get_songs(self) -> List[Song]:
     try:
         # Business logic here
         return songs
@@ -183,7 +183,7 @@ def get_songs():
     """Get all songs - thin controller"""
     try:
         song_service = SongService()
-        songs = song_service.get_all_songs()
+        songs = song_service.get_songs()
 
         response_data = [song.model_dump(mode='json') for song in songs]
         return jsonify(response_data)

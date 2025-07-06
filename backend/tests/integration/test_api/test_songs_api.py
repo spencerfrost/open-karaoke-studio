@@ -26,8 +26,8 @@ except ImportError:
 class TestSongsAPI:
     """Test the songs API endpoints with service layer integration"""
     
-    @patch('app.db.song_operations.get_all_songs')
-    def test_get_songs_success(self, mock_get_all_songs, client):
+    @patch('app.db.song_operations.get_songs')
+    def test_get_songs_success(self, mock_get_songs, client):
         """Test GET /api/songs endpoint success with direct function calls"""
         # Mock the direct function call
         mock_db_song = Mock()
@@ -38,7 +38,7 @@ class TestSongsAPI:
             "duration": 180,
             "status": "processed"
         }
-        mock_get_all_songs.return_value = [mock_db_song]
+        mock_get_songs.return_value = [mock_db_song]
 
         # Make the API request
         response = client.get('/api/songs')
@@ -50,7 +50,7 @@ class TestSongsAPI:
         assert data[0]["title"] == "Test Song 1"
             )
         ]
-        mock_service.get_all_songs.return_value = mock_songs
+        mock_service.get_songs.return_value = mock_songs
         
         # Make request
         response = client.get('/api/songs')
@@ -58,7 +58,7 @@ class TestSongsAPI:
         # Assertions
         assert response.status_code == 200
         mock_song_service_class.assert_called_once()
-        mock_service.get_all_songs.assert_called_once()
+        mock_service.get_songs.assert_called_once()
         
         # Parse response data
         if hasattr(response, 'get_json'):
@@ -77,7 +77,7 @@ class TestSongsAPI:
         # Setup mock service to raise ServiceError
         mock_service = Mock()
         mock_song_service_class.return_value = mock_service
-        mock_service.get_all_songs.side_effect = ServiceError("Service failed")
+        mock_service.get_songs.side_effect = ServiceError("Service failed")
         
         # Make request
         response = client.get('/api/songs')
@@ -100,7 +100,7 @@ class TestSongsAPI:
         # Setup mock service to raise unexpected exception
         mock_service = Mock()
         mock_song_service_class.return_value = mock_service
-        mock_service.get_all_songs.side_effect = Exception("Unexpected error")
+        mock_service.get_songs.side_effect = Exception("Unexpected error")
         
         # Make request
         response = client.get('/api/songs')
@@ -433,7 +433,7 @@ class TestSongsAPIErrorHandling:
     
     def test_internal_server_error_handling(self, client):
         """Test that internal server errors are handled gracefully"""
-        with patch('app.db.database.get_all_songs', side_effect=Exception("Unexpected error")):
+        with patch('app.db.database.get_songs', side_effect=Exception("Unexpected error")):
             response = client.get('/api/songs')
             
             assert response.status_code == 500

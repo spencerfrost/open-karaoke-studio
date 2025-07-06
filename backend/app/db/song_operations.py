@@ -7,21 +7,19 @@ file system synchronization, and other song-specific business logic.
 """
 
 import logging
-import traceback
 from pathlib import Path
 from typing import Any, Optional
 
 from sqlalchemy import asc, desc, func
 
 from ..config import get_config
-from ..services import file_management
 from .database import get_db_session
 from .models import DbSong
 
 logger = logging.getLogger(__name__)
 
 
-def get_all_songs() -> list[DbSong]:
+def get_songs() -> list[DbSong]:
     """Get all songs from the database, sorted by date_added in descending order (newest first)"""
     try:
         with get_db_session() as session:
@@ -39,7 +37,9 @@ def get_song(song_id: str) -> Optional[DbSong]:
             song = session.query(DbSong).filter(DbSong.id == song_id).first()
             return song
     except Exception as e:
-        logger.error("Error getting song %s from database: %s", song_id, e, exc_info=True)
+        logger.error(
+            "Error getting song %s from database: %s", song_id, e, exc_info=True
+        )
         return None
 
 
@@ -47,7 +47,7 @@ def create_or_update_song(
     song_id: str,
     title: str,
     artist: str,
-    duration: Optional[int] = None,
+    duration_ms: Optional[int] = None,
     video_id: Optional[str] = None,
     source: Optional[str] = None,
     source_url: Optional[str] = None,
@@ -72,7 +72,7 @@ def create_or_update_song(
         song_id: Unique identifier for the song
         title: Song title
         artist: Artist name
-        duration: Song duration in seconds
+        duration_ms: Song duration_ms in milliseconds
         video_id: YouTube video ID
         source: Source platform (e.g., 'youtube')
         source_url: Original source URL
@@ -104,7 +104,7 @@ def create_or_update_song(
                     id=song_id,
                     title=title,
                     artist=artist,
-                    duration=duration,
+                    duration_ms=duration_ms,
                     video_id=video_id,
                     source=source,
                     source_url=source_url,
@@ -130,8 +130,8 @@ def create_or_update_song(
                     db_song.title = title
                 if artist:
                     db_song.artist = artist
-                if duration is not None:
-                    db_song.duration = duration
+                if duration_ms is not None:
+                    db_song.duration_ms = duration_ms
                 if video_id:
                     db_song.video_id = video_id
                 if source:
@@ -251,7 +251,9 @@ def delete_song(song_id: str) -> bool:
         return False
 
 
-def update_song_audio_paths(song_id: str, vocals_path: str, instrumental_path: str) -> bool:
+def update_song_audio_paths(
+    song_id: str, vocals_path: str, instrumental_path: str
+) -> bool:
     """Update the audio paths for a song (after audio separation is complete)
 
     Args:
@@ -284,7 +286,9 @@ def update_song_audio_paths(song_id: str, vocals_path: str, instrumental_path: s
             return True
 
     except Exception as e:
-        logger.error("Error updating audio paths for song %s: %s", song_id, e, exc_info=True)
+        logger.error(
+            "Error updating audio paths for song %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -312,13 +316,16 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             song.album = updated_song.album or song.album
             song.genre = updated_song.genre or song.genre
             song.year = updated_song.year or song.year
-            song.duration = updated_song.duration or song.duration
+            song.duration_ms = updated_song.duration_ms or song.duration_ms
             song.lyrics = updated_song.lyrics or song.lyrics
 
             # Update file paths if provided - only for fields that exist
             if hasattr(updated_song, "vocals_path") and updated_song.vocals_path:
                 song.vocals_path = updated_song.vocals_path
-            if hasattr(updated_song, "instrumental_path") and updated_song.instrumental_path:
+            if (
+                hasattr(updated_song, "instrumental_path")
+                and updated_song.instrumental_path
+            ):
                 song.instrumental_path = updated_song.instrumental_path
             if hasattr(updated_song, "thumbnail_path") and updated_song.thumbnail_path:
                 song.thumbnail_path = updated_song.thumbnail_path
@@ -328,7 +335,9 @@ def update_song_with_metadata(song_id: str, updated_song: DbSong) -> bool:
             return True
 
     except Exception as e:
-        logger.error("Error updating song metadata for %s: %s", song_id, e, exc_info=True)
+        logger.error(
+            "Error updating song metadata for %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -358,7 +367,9 @@ def update_song_thumbnail(song_id: str, thumbnail_path: str) -> bool:
             return True
 
     except Exception as e:
-        logger.error("Error updating thumbnail for song %s: %s", song_id, e, exc_info=True)
+        logger.error(
+            "Error updating thumbnail for song %s: %s", song_id, e, exc_info=True
+        )
         return False
 
 
@@ -470,7 +481,9 @@ def get_songs_by_artist(
             return {"songs": songs, "total": total_count}
 
     except Exception as e:
-        logger.error("Error getting songs for artist '%s': %s", artist_name, e, exc_info=True)
+        logger.error(
+            "Error getting songs for artist '%s': %s", artist_name, e, exc_info=True
+        )
         return {"songs": [], "total": 0}
 
 
@@ -507,7 +520,9 @@ def search_songs_paginated(
             if group_by_artist:
                 # Group results by artist
                 artist_query = (
-                    session.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
+                    session.query(
+                        DbSong.artist, func.count(DbSong.id).label("song_count")
+                    )
                     .filter(search_filter)
                     .group_by(DbSong.artist)
                 )

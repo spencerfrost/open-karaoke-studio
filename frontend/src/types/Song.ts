@@ -6,7 +6,7 @@ export interface Song {
   title: string;
   artist: string;
   album: string; // Primary field (was releaseTitle)
-  duration: number; // in seconds
+  duration_ms: number; // in milliseconds
   status: SongStatus;
   
   // Media files

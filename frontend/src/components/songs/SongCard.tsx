@@ -1,12 +1,23 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Music, Play } from "lucide-react";
+import { Music, Play, Trash } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
-import { formatTime } from "@/utils/formatters";
+import { formatTimeMs } from "@/utils/formatters";
 import { useSongs } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -17,16 +28,13 @@ interface SongCardProps {
   onAddToQueue?: (song: Song) => void;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ 
-  song, 
-  onSelect,
-  onToggleFavorite,
-  onAddToQueue 
-}) => {
-  // Local state for dialog
+const SongCard: React.FC<SongCardProps> = ({ song, onSelect }) => {
+  // Local state for dialogs
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { getArtworkUrl } = useSongs();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const { getArtworkUrl, useDeleteSong } = useSongs();
   const navigate = useNavigate();
+  const deleteSongMutation = useDeleteSong();
 
   const artworkUrl = getArtworkUrl(song, "medium");
 
@@ -40,6 +48,17 @@ const SongCard: React.FC<SongCardProps> = ({
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
+  };
+
+  const handleDelete = () => {
+    deleteSongMutation.mutate(
+      { id: song.id },
+      {
+        onSuccess: () => {
+          setIsDeleteDialogOpen(false);
+        },
+      }
+    );
   };
 
   // Grid view (default)
@@ -74,7 +93,7 @@ const SongCard: React.FC<SongCardProps> = ({
         <div className="flex justify-between items-start">
           <h3 className="font-medium truncate">{song.title}</h3>
           <span className="text-xs opacity-60">
-            {formatTime(song.duration)}
+            {formatTimeMs(song.duration_ms)}
           </span>
         </div>
 
@@ -85,9 +104,7 @@ const SongCard: React.FC<SongCardProps> = ({
           <p className="text-xs text-secondary">{song.album}</p>
 
           {/* Show genre if available */}
-          {song.genre && (
-            <p className="text-xs text-secondary">{song.genre}</p>
-          )}
+          {song.genre && <p className="text-xs text-secondary">{song.genre}</p>}
         </div>
       </CardContent>
 
@@ -110,6 +127,57 @@ const SongCard: React.FC<SongCardProps> = ({
         >
           <Pencil className="w-5 h-5" />
         </Button>
+        {/* Delete Song Button with AlertDialog */}
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+        >
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive"
+              aria-label="Delete song"
+              onClick={() => setIsDeleteDialogOpen(true)}
+            >
+              <Trash className="w-5 h-5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !deleteSongMutation.isLoading) {
+                e.preventDefault();
+                handleDelete();
+              }
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this song?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. Are you sure you want to
+                permanently delete{" "}
+                <span className="font-semibold">{song.title}</span>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteSongMutation.isLoading}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleteSongMutation.isLoading}
+                autoFocus
+              >
+                {deleteSongMutation.isLoading ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+            {deleteSongMutation.isError && (
+              <div className="text-destructive text-xs mt-2">
+                Error deleting song. Please try again.
+              </div>
+            )}
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* Song Details Dialog */}

@@ -18,7 +18,7 @@ class DbSong(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
-    duration = Column(Float, nullable=True)
+    duration_ms = Column(Integer, nullable=False)
     favorite = Column(Boolean, default=False)
     date_added = Column(DateTime, default=datetime.now(timezone.utc))
     vocals_path = Column(String, nullable=True)
@@ -32,7 +32,9 @@ class DbSong(Base):
     uploader = Column(String, nullable=True)
     uploader_id = Column(String, nullable=True)
     channel = Column(String, nullable=True)
-    channel_id = Column(String, nullable=True)  # Phase 1A: Key YouTube field for karaoke
+    channel_id = Column(String, nullable=True)
+
+    # Phase 1A: Key YouTube field for karaoke
     description = Column(Text, nullable=True)
     upload_date = Column(DateTime, nullable=True)
     mbid = Column(String, nullable=True)
@@ -91,17 +93,25 @@ class DbSong(Base):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
-            "duration": self.duration,
+            "duration_ms": self.duration_ms,
             "status": "processed",
             "favorite": self.favorite,
-            "dateAdded": self.date_added.isoformat() if self.date_added is not None else None,
+            "dateAdded": (
+                self.date_added.isoformat() if self.date_added is not None else None
+            ),
             # File paths for API
-            "vocalPath": f"/api/songs/{self.id}/vocal" if self.vocals_path is not None else None,
+            "vocalPath": (
+                f"/api/songs/{self.id}/vocal" if self.vocals_path is not None else None
+            ),
             "instrumentalPath": (
-                f"/api/songs/{self.id}/instrumental" if self.instrumental_path is not None else None
+                f"/api/songs/{self.id}/instrumental"
+                if self.instrumental_path is not None
+                else None
             ),
             "originalPath": (
-                f"/api/songs/{self.id}/original" if self.original_path is not None else None
+                f"/api/songs/{self.id}/original"
+                if self.original_path is not None
+                else None
             ),
             "coverArt": self.cover_art_path,
             "thumbnail": self.thumbnail_path,
@@ -114,7 +124,10 @@ class DbSong(Base):
             "channelId": self.channel_id,
             "channelName": self.youtube_channel_name or self.channel_name,
             "description": self.description,
-            "uploadDate": self.upload_date.isoformat() if self.upload_date is not None else None,
+            "uploadDate": (
+                self.upload_date.isoformat() if self.upload_date is not None else None
+            ),
+            
             # Metadata
             "mbid": self.mbid,
             "metadataId": self.mbid,  # Alias for frontend compatibility

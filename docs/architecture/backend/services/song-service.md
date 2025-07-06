@@ -19,8 +19,8 @@ from typing import Protocol, List, Optional
 from ...schemas.song import Song
 
 class SongServiceInterface(Protocol):
-    def get_all_songs(self) -> List[Song]:
-        """DEPRECATED: Use song_operations.get_all_songs() directly"""
+    def get_songs(self) -> List[Song]:
+        """DEPRECATED: Use song_operations.get_songs() directly"""
 
     def get_song_by_id(self, song_id: str) -> Optional[Song]:
         """DEPRECATED: Use song_operations.get_song() directly"""
@@ -49,7 +49,7 @@ class SongServiceInterface(Protocol):
 
 ```python
 # Instead of service layer, use database operations directly
-from app.db.song_operations import create_or_update_song, get_song, get_all_songs
+from app.db.song_operations import create_or_update_song, get_song, get_songs
 
 # Create/update song
 song = create_or_update_song(
@@ -73,7 +73,7 @@ class SongService(SongServiceInterface):
         """Initialize the song service"""
         pass
 
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """
         Get all songs with automatic filesystem sync if needed.
 
@@ -82,14 +82,14 @@ class SongService(SongServiceInterface):
         populate the database with any songs found in the file system.
         """
         try:
-            db_songs = database.get_all_songs()
+            db_songs = database.get_songs()
 
             # Smart sync: If no songs found, attempt filesystem sync
             if not db_songs:
                 logger.info("No songs in database, attempting filesystem sync")
                 sync_count = self.sync_with_filesystem()
                 logger.info(f"Synced {sync_count} songs from filesystem")
-                db_songs = database.get_all_songs()
+                db_songs = database.get_songs()
 
             # Convert to Pydantic models for API response
             songs = [Song.model_validate(song.to_dict()) for song in db_songs]
@@ -148,7 +148,7 @@ def get_songs():
     """Get all songs - thin controller using service layer"""
     try:
         song_service = SongService()
-        songs = song_service.get_all_songs()
+        songs = song_service.get_songs()
 
         response_data = [
             song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
