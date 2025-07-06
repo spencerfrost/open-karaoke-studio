@@ -32,7 +32,7 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.config import get_config
-from app.db.song_operations import delete_song, get_all_songs
+from app.db.song_operations import delete_song, get_songs
 from app.services.file_service import FileService
 
 # Import the data integrity checker class
@@ -110,7 +110,7 @@ class DuplicateManager:
         print("Fetching all songs from database...")
 
         try:
-            songs = get_all_songs()
+            songs = get_songs()
             print(f"Found {len(songs)} songs in database")
         except Exception as e:
             print(f"Error fetching songs: {e}")

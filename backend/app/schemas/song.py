@@ -17,7 +17,7 @@ class Song(BaseModel):
     id: str
     title: str
     artist: str
-    duration: Optional[float] = None
+    duration_ms: Optional[int] = None
     favorite: bool = False
     dateAdded: Optional[datetime] = None
 

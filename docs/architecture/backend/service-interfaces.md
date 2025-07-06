@@ -56,7 +56,7 @@ from ...db.models import Song
 class SongServiceInterface(Protocol):
     """Interface for Song Service to enable dependency injection and testing"""
 
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """Get all songs with automatic filesystem sync if needed"""
         ...
 
@@ -177,13 +177,13 @@ Interfaces enable easy mocking for unit tests:
 # Test with mock service
 def test_song_controller_with_mock():
     mock_service = Mock(spec=SongServiceInterface)
-    mock_service.get_all_songs.return_value = [test_song]
+    mock_service.get_songs.return_value = [test_song]
 
     controller = SongController(song_service=mock_service)
     result = controller.get_songs()
 
     assert result == expected_response
-    mock_service.get_all_songs.assert_called_once()
+    mock_service.get_songs.assert_called_once()
 ```
 
 ### Dependency Injection Support
@@ -222,10 +222,10 @@ class SongService(SongServiceInterface):
     def service_name(self) -> str:
         return "SongService"
 
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """Implementation following interface contract"""
         try:
-            db_songs = song_operations.get_all_songs()
+            db_songs = song_operations.get_songs()
             return [self._convert_to_api_response(song) for song in db_songs]
         except Exception as e:
             self.logger.error(f"Error getting all songs: {e}")
@@ -317,7 +317,7 @@ class MockSongService:
     def __init__(self):
         self.songs = []
 
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         return self.songs
 
     def get_song_by_id(self, song_id: str) -> Optional[Song]:
@@ -339,7 +339,7 @@ def test_service_implements_interface():
     assert isinstance(service, SongServiceInterface)
 
     # Test all interface methods exist
-    assert hasattr(service, 'get_all_songs')
+    assert hasattr(service, 'get_songs')
     assert hasattr(service, 'get_song_by_id')
     assert hasattr(service, 'search_songs')
 ```
@@ -375,7 +375,7 @@ class SongController:
 
     def get_songs(self):
         """Controller method using injected service"""
-        songs = self.song_service.get_all_songs()
+        songs = self.song_service.get_songs()
         return [song.dict() for song in songs]
 ```
 

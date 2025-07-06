@@ -47,7 +47,7 @@ Current state varies across endpoints:
 ```python
 # songs.py - Basic try/catch without proper error responses
 try:
-    db_songs = database.get_all_songs()
+    db_songs = database.get_songs()
     # ... processing
 except Exception as e:
     # No proper error response format
@@ -398,7 +398,7 @@ def get_songs():
     """Get all songs with proper error handling and logging"""
     try:
         song_service = SongService()
-        songs = song_service.get_all_songs()
+        songs = song_service.get_songs()
 
         logger.info(f"Retrieved {len(songs)} songs successfully")
         return success_response(

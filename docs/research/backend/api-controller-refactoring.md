@@ -19,13 +19,13 @@ Current API controllers contain business logic that should be in services:
 @song_bp.route('', methods=['GET'])
 def get_songs():
     # Database logic
-    db_songs = database.get_all_songs()
+    db_songs = database.get_songs()
 
     # Business logic - should be in service
     if not db_songs:
         current_app.logger.info("No songs found in database, syncing from filesystem")
         songs_added = database.sync_songs_with_filesystem()
-        db_songs = database.get_all_songs()
+        db_songs = database.get_songs()
 
     # Transformation logic - should be in service
     songs_list = [Song.model_validate(song.to_dict()) for song in db_songs]
@@ -299,7 +299,7 @@ def get_songs(query_params):
     song_service: SongServiceInterface = get_song_service()
 
     # Get songs through service layer
-    songs = song_service.get_all_songs(
+    songs = song_service.get_songs(
         limit=query_params.get('limit'),
         offset=query_params.get('offset')
     )

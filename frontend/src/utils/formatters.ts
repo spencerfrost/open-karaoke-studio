@@ -1,11 +1,17 @@
 /**
  * Format seconds into MM:SS format
  */
-export const formatTime = (seconds: number): string => {
-  if (isNaN(seconds) || seconds < 0) return "0:00";
-
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
+// Format milliseconds into MM:SS or MM:SS.SSS
+export const formatTimeMs = (ms: number, showMs: boolean = false): string => {
+  console.log("formatTimeMs called with:", ms, showMs);
+  if (isNaN(ms) || ms < 0) return "0:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (showMs) {
+    const msPart = ms % 1000;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}.${msPart.toString().padStart(3, "0")}`;
+  }
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 

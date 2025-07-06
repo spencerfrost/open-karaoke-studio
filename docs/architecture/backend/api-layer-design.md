@@ -13,24 +13,28 @@ The API Layer provides a clean HTTP interface to the application's business logi
 ## Core Responsibilities
 
 ### 1. HTTP Request/Response Handling
+
 - Route requests to appropriate service methods
 - Validate incoming request data and parameters
 - Transform service responses to standardized HTTP format
 - Handle HTTP-specific concerns (headers, status codes, content types)
 
 ### 2. Request Validation and Security
+
 - Validate request payloads using schemas
 - Sanitize input data before passing to services
 - Implement authentication and authorization checks
 - Handle CORS and other security headers
 
 ### 3. Standardized Response Formatting
+
 - Consistent JSON response structure across all endpoints
 - Standardized error response formats
 - Pagination support for list endpoints
 - Meta information inclusion (timing, pagination, etc.)
 
 ### 4. Error Handling and Logging
+
 - Convert service exceptions to appropriate HTTP status codes
 - Log all API requests and responses for debugging
 - Provide detailed error information in development
@@ -50,13 +54,13 @@ Controllers should be thin and focus only on HTTP concerns:
 def get_songs(query_params):
     """Thin controller that delegates to service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     # Delegate business logic to service
-    songs = song_service.get_all_songs(
+    songs = song_service.get_songs(
         limit=query_params.get('limit'),
         offset=query_params.get('offset')
     )
-    
+
     # Transform to HTTP response
     response_data = [song.dict() for song in songs]
     return APIResponse.success(
@@ -101,7 +105,7 @@ The `APIResponse` class provides standardized response creation:
 ```python
 class APIResponse:
     """Standardized API response utilities"""
-    
+
     @staticmethod
     def success(data=None, message="Success", status_code=200, meta=None):
         """Create standardized success response"""
@@ -113,7 +117,7 @@ class APIResponse:
         if meta:
             response_data["meta"] = meta
         return jsonify(response_data), status_code
-    
+
     @staticmethod
     def error(message, details=None, status_code=500, error_code=None):
         """Create standardized error response"""
@@ -127,7 +131,7 @@ class APIResponse:
         if details:
             response_data["error"]["details"] = details
         return jsonify(response_data), status_code
-    
+
     @staticmethod
     def paginated(data, page, per_page, total, message="Success"):
         """Create paginated response with meta information"""
@@ -263,40 +267,43 @@ POST   /api/queue/clear        # Clear entire queue
 ### Successful Song Retrieval
 
 **Request:**
+
 ```http
 GET /api/songs?limit=10&offset=0
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Retrieved 10 songs",
-    "data": [
-        {
-            "id": "song-123",
-            "title": "Example Song",
-            "artist": "Example Artist",
-            "duration": 180,
-            "favorite": false,
-            "hasVocals": true,
-            "hasInstrumental": true
-        }
-    ],
-    "meta": {
-        "pagination": {
-            "page": 1,
-            "per_page": 10,
-            "total": 45,
-            "pages": 5
-        }
+  "success": true,
+  "message": "Retrieved 10 songs",
+  "data": [
+    {
+      "id": "song-123",
+      "title": "Example Song",
+      "artist": "Example Artist",
+      "duration": 180,
+      "favorite": false,
+      "hasVocals": true,
+      "hasInstrumental": true
     }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "per_page": 10,
+      "total": 45,
+      "pages": 5
+    }
+  }
 }
 ```
 
 ### Validation Error Example
 
 **Request:**
+
 ```http
 POST /api/songs/search
 Content-Type: application/json
@@ -308,36 +315,39 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
-    "success": false,
-    "error": {
-        "message": "Validation failed",
-        "code": "VALIDATION_ERROR",
-        "details": {
-            "q": ["Field cannot be empty"],
-            "limit": ["Must be between 1 and 100"]
-        }
+  "success": false,
+  "error": {
+    "message": "Validation failed",
+    "code": "VALIDATION_ERROR",
+    "details": {
+      "q": ["Field cannot be empty"],
+      "limit": ["Must be between 1 and 100"]
     }
+  }
 }
 ```
 
 ### Service Error Example
 
 **Request:**
+
 ```http
 GET /api/songs/invalid-id
 ```
 
 **Response:**
+
 ```json
 {
-    "success": false,
-    "error": {
-        "message": "Song not found",
-        "code": "NOT_FOUND",
-        "details": "Song with ID 'invalid-id' does not exist"
-    }
+  "success": false,
+  "error": {
+    "message": "Song not found",
+    "code": "NOT_FOUND",
+    "details": "Song with ID 'invalid-id' does not exist"
+  }
 }
 ```
 
@@ -410,7 +420,7 @@ from ..services import get_song_service, get_youtube_service
 
 def get_songs():
     song_service = get_song_service()
-    return song_service.get_all_songs()
+    return song_service.get_songs()
 ```
 
 ### WebSocket Integration
@@ -438,7 +448,7 @@ def download_youtube_video(validated_data):
         video_id=validated_data['video_id'],
         metadata=validated_data
     )
-    
+
     return APIResponse.success(
         data={'job_id': job_id},
         message="YouTube download started",
@@ -529,7 +539,7 @@ def get_paginated_songs(page=1, per_page=50):
         offset=offset
     )
     total = song_service.count_songs()
-    
+
     return APIResponse.paginated(
         data=[song.dict() for song in songs],
         page=page,
@@ -546,10 +556,10 @@ Controllers are tested in isolation with mocked services:
 
 ```python
 def test_get_songs_success(mock_song_service):
-    mock_song_service.get_all_songs.return_value = [mock_song]
-    
+    mock_song_service.get_songs.return_value = [mock_song]
+
     response = client.get('/api/songs')
-    
+
     assert response.status_code == 200
     assert response.json['success'] is True
     assert len(response.json['data']) == 1
@@ -567,10 +577,10 @@ def test_youtube_download_workflow():
         'title': 'Test Song',
         'artist': 'Test Artist'
     })
-    
+
     assert response.status_code == 202
     job_id = response.json['data']['job_id']
-    
+
     # Verify job was created
     job_response = client.get(f'/api/jobs/{job_id}')
     assert job_response.status_code == 200
@@ -579,21 +589,25 @@ def test_youtube_download_workflow():
 ## Migration from Current Implementation
 
 ### Phase 1: Response Standardization
+
 1. Implement `APIResponse` utility class
 2. Update all endpoints to use standardized responses
 3. Ensure backward compatibility during transition
 
 ### Phase 2: Request Validation
+
 1. Implement validation decorators and schemas
 2. Add validation to all endpoints
 3. Improve error messages and codes
 
 ### Phase 3: Error Handling
+
 1. Implement centralized error handling decorator
 2. Map service exceptions to HTTP status codes
 3. Add comprehensive logging
 
 ### Phase 4: Thin Controllers
+
 1. Move business logic from controllers to services
 2. Implement service dependency injection
 3. Add controller-level testing
@@ -601,6 +615,7 @@ def test_youtube_download_workflow():
 ## Dependencies
 
 ### Required Libraries
+
 - **Flask**: Web framework and routing
 - **Marshmallow**: Request/response serialization and validation
 - **Flask-CORS**: Cross-origin resource sharing
@@ -608,6 +623,7 @@ def test_youtube_download_workflow():
 - **Flask-Caching**: Response caching
 
 ### Internal Dependencies
+
 - **Service Layer**: All business logic delegation
 - **WebSocket Service**: Real-time communication
 - **Configuration Service**: API settings and limits
@@ -615,18 +631,21 @@ def test_youtube_download_workflow():
 ## Future Enhancements
 
 ### Advanced Features
+
 - **API Versioning**: Support multiple API versions
 - **GraphQL Integration**: Alternative query interface
 - **OpenAPI Documentation**: Auto-generated API docs
 - **Webhook Support**: Outbound notifications
 
 ### Performance Improvements
+
 - **Response Compression**: Gzip compression for large responses
 - **CDN Integration**: Static asset optimization
 - **Database Query Optimization**: Eager loading and query tuning
 - **Async Endpoints**: Non-blocking request handling
 
 ### Security Enhancements
+
 - **JWT Authentication**: Stateless authentication
 - **API Key Management**: Service-to-service authentication
 - **Request Signing**: Tamper detection

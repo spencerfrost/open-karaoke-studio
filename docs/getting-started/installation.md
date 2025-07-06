@@ -8,7 +8,7 @@ Before starting, ensure you have these installed:
 
 ### Required Software
 - **Node.js** 16+ ([Download](https://nodejs.org/))
-- **Python** 3.8+ ([Download](https://python.org/))
+- **Python** 3.10+ ([Download](https://python.org/))
 - **pnpm** ([Install Guide](https://pnpm.io/installation))
 - **Git** ([Download](https://git-scm.com/))
 
@@ -95,7 +95,7 @@ source venv/bin/activate  # Linux/macOS
 venv\Scripts\activate     # Windows
 
 # Verify Python version
-python --version  # Should be 3.8+
+python --version  # Should be 3.10+
 ```
 
 #### 2. Install Dependencies
