@@ -12,7 +12,7 @@ The Open Karaoke Studio backend is a sophisticated Flask-based Python applicatio
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - Redis (for background jobs)
 - FFmpeg (for audio processing)
 - Optional: CUDA-capable GPU (for faster audio processing)
