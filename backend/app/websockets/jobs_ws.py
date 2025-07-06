@@ -59,6 +59,9 @@ def handle_request_jobs_list():
     emit("jobs_list", {"jobs": [job.to_dict() for job in jobs]}, room=request.sid)
 
 
+import logging
+logger = logging.getLogger(__name__)
+
 def broadcast_job_update(job_data: Dict[str, Any]):
     """
     Broadcast a job update to all subscribed clients.
@@ -67,14 +70,11 @@ def broadcast_job_update(job_data: Dict[str, Any]):
     """
     try:
         if socketio is None:
-            print("⚠️  SocketIO not available for job_updated broadcast")
+            logger.warning("SocketIO not available for job_updated broadcast")
             return
-        print(
-            f"📊 Broadcasting job_updated event: {job_data.get('id', 'unknown')} - {job_data.get('status', 'unknown')}"
-        )
         socketio.emit("job_updated", job_data, room="jobs_updates", namespace="/jobs")
     except Exception as e:
-        print(f"❌ Failed to broadcast job_updated: {e}")
+        logger.warning(f"Failed to broadcast job_updated: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -87,12 +87,11 @@ def broadcast_job_created(job_data: Dict[str, Any]):
     """
     try:
         if socketio is None:
-            print("⚠️  SocketIO not available for job_created broadcast")
+            logger.warning("SocketIO not available for job_created broadcast")
             return
-        print(f"🚀 Broadcasting job_created event: {job_data}")
         socketio.emit("job_created", job_data, room="jobs_updates", namespace="/jobs")
     except Exception as e:
-        print(f"❌ Failed to broadcast job_created: {e}")
+        logger.warning(f"Failed to broadcast job_created: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -106,9 +105,11 @@ def broadcast_job_completed(job_data: Dict[str, Any]):
     """
     try:
         if socketio is None:
+            logger.warning("SocketIO not available for job_completed broadcast")
             return
         socketio.emit("job_completed", job_data, room="jobs_updates", namespace="/jobs")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to broadcast job_completed: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -122,9 +123,11 @@ def broadcast_job_failed(job_data: Dict[str, Any]):
     """
     try:
         if socketio is None:
+            logger.warning("SocketIO not available for job_failed broadcast")
             return
         socketio.emit("job_failed", job_data, room="jobs_updates", namespace="/jobs")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to broadcast job_failed: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -138,9 +141,11 @@ def broadcast_job_cancelled(job_data: Dict[str, Any]):
     """
     try:
         if socketio is None:
+            logger.warning("SocketIO not available for job_cancelled broadcast")
             return
         socketio.emit("job_cancelled", job_data, room="jobs_updates", namespace="/jobs")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to broadcast job_cancelled: {e}")
         # Silently fail in worker context where socketio may not be available
         pass
 
@@ -171,9 +176,8 @@ def _handle_job_event(event) -> None:
         job_id = job_data.get("id", "unknown")
         status = job_data.get("status", "unknown")
 
-        print(
-            f"🎯 WebSocket handler received job event: {job_id} - created={was_created} - status={status}"
-        )
+        # Only log at debug level for event receipt
+        logger.debug(f"WebSocket handler received job event: {job_id} - created={was_created} - status={status}")
 
         if was_created:
             broadcast_job_created(job_data)
@@ -188,10 +192,7 @@ def _handle_job_event(event) -> None:
             else:
                 broadcast_job_update(job_data)
     except Exception as e:
-        import logging
-
-        print(f"❌ Failed to handle job event: {e}")
-        logging.getLogger(__name__).warning(f"Failed to handle job event: {e}")
+        logger.warning(f"Failed to handle job event: {e}")
 
 
 # Set up event subscription

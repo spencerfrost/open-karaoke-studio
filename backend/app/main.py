@@ -2,17 +2,25 @@
 Main entry point for the Open Karaoke Studio backend application.
 """
 
+import eventlet
+
+# Monkey patch as early as possible for eventlet compatibility
+# (must be before any other imports that use networking)
+eventlet.monkey_patch()
+
+
 import logging
 import os
 
-from . import create_app
-from .config import get_config
-from .config.logging import setup_logging
+from app import create_app
+from app.config import get_config
+from app.config.logging import setup_logging
+
+# Import the cleanup utility
+from app.utils.cleanup_jobs import cleanup_stuck_jobs
 
 # Clean up stuck jobs on startup
 
-# Import the cleanup utility
-from .utils.cleanup_jobs import cleanup_stuck_jobs
 
 # Get the current configuration and create the Flask app
 config = get_config()
@@ -37,8 +45,9 @@ app.logger.propagate = True  # Let our loggers handle it
 
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here
-    from .websockets.socketio import init_socketio, socketio
-    from .websockets.handlers import register_websocket_handlers
+
+    from app.websockets.handlers import register_websocket_handlers
+    from app.websockets.socketio import init_socketio, socketio
 
     # Initialize SocketIO with the Flask app
     init_socketio(app)
