@@ -1,8 +1,9 @@
 // frontend/src/components/YouTubeMusicSearch.tsx
-import { useState } from "react";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useYouTubeMusicSearch } from "../hooks/useYouTubeMusic";
 import { YouTubeMusicSong } from "../types/YouTubeMusic";
 import { useSongs } from "../hooks/useSongs";
+import React, { useState } from "react";
 import LyricsFetchDialog from "./lyrics/LyricsFetchDialog";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
 
 export function YouTubeMusicSearch() {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 1000);
   const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
   const [lyricsDialogData, setLyricsDialogData] = useState<{
     artist: string;
@@ -21,7 +23,10 @@ export function YouTubeMusicSearch() {
     album?: string;
     duration?: string;
   } | null>(null);
-  const { data, isLoading, error } = useYouTubeMusicSearch(query, !!query);
+  const { data, isLoading, error } = useYouTubeMusicSearch(
+    debouncedQuery,
+    !!debouncedQuery
+  );
   const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
 
@@ -38,12 +43,12 @@ export function YouTubeMusicSearch() {
       {
         onSuccess: (createdSong) => {
           // Now you have the real song ID
-          fetch("/api/songs/download", {
+          fetch("/api/youtube/download", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               song_id: createdSong.id,
-              videoId: song.videoId,
+              video_id: song.videoId,
               artist: song.artist,
               title: song.title,
               album: song.album,
