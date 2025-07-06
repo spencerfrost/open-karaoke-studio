@@ -807,8 +807,7 @@ export function useSongs() {
 async function downloadFile(endpoint: string, filename: string): Promise<void> {
   try {
     const response = await fetch(endpoint, {
-      method: "GET",
-      credentials: "include",
+      method: "POST",
     });
 
     if (!response.ok) {

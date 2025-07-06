@@ -23,6 +23,18 @@ const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
     direction: "desc",
   });
 
+  // Log dateAdded values for debugging
+  React.useEffect(() => {
+    if (recentSongs) {
+      console.log(
+        "RecentlyAddedRow dateAdded values:",
+        recentSongs.map((s) => s.dateAdded)
+      );
+    }
+  }, [recentSongs]);
+
+  const sortedSongs = recentSongs || [];
+
   if (isLoading || !recentSongs || recentSongs.length === 0) return null;
 
   return (
@@ -33,7 +45,7 @@ const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
         </span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 overflow-hidden">
-        {recentSongs.map((song: Song) => (
+        {sortedSongs.map((song: Song) => (
           <SongCard
             key={song.id}
             song={song}
