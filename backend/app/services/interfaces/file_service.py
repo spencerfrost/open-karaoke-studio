@@ -1,4 +1,5 @@
 # backend/app/services/interfaces/file_service.py
+# pylint: disable=unnecessary-ellipsis
 from pathlib import Path
 from typing import Optional, Protocol
 

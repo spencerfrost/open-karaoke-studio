@@ -1,4 +1,5 @@
 # backend/app/services/interfaces/youtube_service.py
+# pylint: disable=unnecessary-ellipsis
 from typing import Any, Optional, Protocol, runtime_checkable
 
 
@@ -6,7 +7,9 @@ from typing import Any, Optional, Protocol, runtime_checkable
 class YouTubeServiceInterface(Protocol):
     """Interface for YouTube Service to enable dependency injection and testing"""
 
-    def search_videos(self, query: str, max_results: int = 10) -> "list[dict[str, Any]]":
+    def search_videos(
+        self, query: str, max_results: int = 10
+    ) -> "list[dict[str, Any]]":
         """Search YouTube for videos matching the query"""
         ...
 

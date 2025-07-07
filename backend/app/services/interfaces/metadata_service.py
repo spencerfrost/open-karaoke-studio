@@ -1,4 +1,5 @@
 # backend/app/services/interfaces/metadata_service.py
+# pylint: disable=unnecessary-ellipsis
 """
 Metadata Service Interface for dependency injection and testing
 """
@@ -43,7 +44,9 @@ class MetadataServiceInterface(Protocol):
         """
         ...
 
-    def enhance_song_metadata(self, metadata: dict[str, Any], song_dir: Path) -> dict[str, Any]:
+    def enhance_song_metadata(
+        self, metadata: dict[str, Any], song_dir: Path
+    ) -> dict[str, Any]:
         """
         Enhance existing song metadata with additional information.
 
@@ -56,7 +59,9 @@ class MetadataServiceInterface(Protocol):
         """
         ...
 
-    def download_cover_art(self, track_data: dict[str, Any], song_dir: Path) -> Optional[str]:
+    def download_cover_art(
+        self, track_data: dict[str, Any], song_dir: Path
+    ) -> Optional[str]:
         """
         Download cover art for a track.
 
