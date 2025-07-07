@@ -10,9 +10,7 @@
     "setup": "./scripts/setup.sh",
     "build": "cd frontend && pnpm build",
     "test": "./scripts/test.sh",
-    "lint:frontend": "cd frontend && pnpm lint:check",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down"
+    "lint:frontend": "cd frontend && pnpm lint:check"
   },
   "packageManager": "pnpm@10.9.0"
 }
