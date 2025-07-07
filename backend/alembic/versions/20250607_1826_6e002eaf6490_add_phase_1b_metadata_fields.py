@@ -1,3 +1,4 @@
+# pylint: skip-file
 """Add Phase 1B metadata fields
 
 Revision ID: 6e002eaf6490
@@ -9,7 +10,6 @@ Create Date: 2025-06-07 18:26:50.168870
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.

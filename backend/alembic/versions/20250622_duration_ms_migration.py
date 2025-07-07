@@ -1,3 +1,4 @@
+# pylint: skip-file
 """
 Alembic migration: migrate song duration from float seconds (duration) to integer milliseconds (duration_ms).
 - Adds duration_ms column (Integer, nullable)
@@ -7,7 +8,6 @@ Alembic migration: migrate song duration from float seconds (duration) to intege
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.

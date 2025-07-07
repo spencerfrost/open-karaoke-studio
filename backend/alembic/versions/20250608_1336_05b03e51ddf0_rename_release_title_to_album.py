@@ -1,3 +1,4 @@
+# pylint: skip-file
 """rename_release_title_to_album
 
 Revision ID: 05b03e51ddf0
@@ -9,7 +10,6 @@ Create Date: 2025-06-08 13:36:21.244514
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
