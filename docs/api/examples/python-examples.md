@@ -254,13 +254,6 @@ class MetadataService:
         response.raise_for_status()
         return response.json()
 
-    def get_songs_by_artist(self, artist_name: str) -> List[Dict[str, Any]]:
-        """Get all songs by a specific artist."""
-        encoded_name = requests.utils.quote(artist_name)
-        response = self.session.get(f"{self.base_url}/songs/by-artist/{encoded_name}")
-        response.raise_for_status()
-        return response.json()
-
 # Usage examples
 metadata_service = MetadataService()
 

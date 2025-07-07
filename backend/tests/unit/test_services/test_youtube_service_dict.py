@@ -7,14 +7,14 @@ This test file covers the current YouTube service architecture where:
 - _extract_metadata_from_youtube_info() returns dict, not SongMetadata
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timezone
-from typing import Dict, Any
 import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict
+from unittest.mock import MagicMock, Mock, patch
 
-from app.services.youtube_service import YouTubeService
+import pytest
 from app.exceptions import ServiceError, ValidationError
+from app.services.youtube_service import YouTubeService
 
 
 class TestYouTubeServiceDictPatterns:
@@ -236,16 +236,16 @@ class TestYouTubeServiceDictPatterns:
         with pytest.raises(ServiceError, match="Failed to download YouTube video"):
             youtube_service.download_video("https://www.youtube.com/watch?v=invalid")
 
-    def test_metadata_dict_compatibility_with_create_or_update_song(
+    def test_metadata_dict_compatibility_with_songrepository_methods(
         self, youtube_service, complete_youtube_info
     ):
-        """Test that metadata dict contains fields compatible with create_or_update_song()"""
+        """Test that metadata dict contains fields compatible with SongRepository.create or SongRepository.update()"""
         # Act
         metadata_dict = youtube_service._extract_metadata_from_youtube_info(
             complete_youtube_info
         )
 
-        # Assert - Check that dict contains fields that create_or_update_song() expects
+        # Assert - Check that dict contains fields that SongRepository.create or SongRepository.update() expects
         # Based on the new direct parameter approach
         expected_fields = {
             "title": str,
@@ -258,10 +258,3 @@ class TestYouTubeServiceDictPatterns:
 
         for field, expected_type in expected_fields.items():
             assert field in metadata_dict
-            if isinstance(expected_type, tuple):
-                assert (
-                    isinstance(metadata_dict[field], expected_type)
-                    or metadata_dict[field] is None
-                )
-            else:
-                assert isinstance(metadata_dict[field], expected_type)

@@ -93,7 +93,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, onSelect }) => {
         <div className="flex justify-between items-start">
           <h3 className="font-medium truncate">{song.title}</h3>
           <span className="text-xs opacity-60">
-            {formatTimeMs(song.duration_ms)}
+            {formatTimeMs(song.durationMs)}
           </span>
         </div>
 

@@ -71,5 +71,5 @@ temp_job_cache
 backend/karaoke.db-shm
 backend/karaoke.db-wal
 docs/archived/
-.serena/cache/python/document_symbols_cache_v20-05-25.pkl
-.github/copilot-instructions-not-included.md
+.github/copilot-instructions.md
+htmlcov

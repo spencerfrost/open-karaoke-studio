@@ -32,7 +32,10 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.config import get_config
-from app.db.song_operations import delete_song, get_songs
+from app.repositories.song_repository import SongRepository
+from app.db.database import get_db_session
+from app.db.database import get_db_session
+from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 
 # Import the data integrity checker class
@@ -110,7 +113,9 @@ class DuplicateManager:
         print("Fetching all songs from database...")
 
         try:
-            songs = get_songs()
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                songs = repo.fetch_all()
             print(f"Found {len(songs)} songs in database")
         except Exception as e:
             print(f"Error fetching songs: {e}")
@@ -358,6 +363,8 @@ class DuplicateManager:
     def delete_song(self, song_id: str, dry_run: bool = False) -> bool:
         """Delete a song from both database and filesystem."""
         try:
+            from app.repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
             if dry_run:
                 print(f"  [DRY RUN] Would delete song {song_id}")
                 return True
@@ -371,7 +378,9 @@ class DuplicateManager:
                 print(f"  ⚠️ Directory not found: {song_dir}")
 
             # Delete from database
-            success = delete_song(song_id)
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                success = repo.delete(song_id)
             if success:
                 print(f"  ✅ Deleted from database: {song_id}")
                 return True

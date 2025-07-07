@@ -1,7 +1,6 @@
 import pytest
+from app.api.youtube_music import youtube_music_bp
 from flask import Flask
-
-from backend.app.api.youtube_music import youtube_music_bp
 
 
 @pytest.fixture
@@ -30,9 +29,7 @@ def test_search_youtube_music_success(monkeypatch, client):
                 }
             ]
 
-    monkeypatch.setattr(
-        "backend.app.api.youtube_music.YouTubeMusicService", DummyService
-    )
+    monkeypatch.setattr("app.api.youtube_music.YouTubeMusicService", DummyService)
     resp = client.get("/api/youtube-music/search?q=test")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -54,9 +51,7 @@ def test_search_youtube_music_service_error(monkeypatch, client):
         def search_songs(self, query, limit=10):
             raise Exception("ytmusicapi error")
 
-    monkeypatch.setattr(
-        "backend.app.api.youtube_music.YouTubeMusicService", FailingService
-    )
+    monkeypatch.setattr("app.api.youtube_music.YouTubeMusicService", FailingService)
     resp = client.get("/api/youtube-music/search?q=test")
     assert resp.status_code == 500
     data = resp.get_json()

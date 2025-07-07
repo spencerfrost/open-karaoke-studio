@@ -58,10 +58,18 @@ class MockDatabase:
         self.songs.append(song_data)
 
     def get_songs(self):
-        return self.songs
+    # Use SongRepository for test DB
+    from app.repositories.song_repository import SongRepository
+    with self.session() as session:
+        repo = SongRepository(session)
+        return repo.fetch_all()
 
-    def get_song(self, song_id):
-        return next((s for s in self.songs if s.get("id") == song_id), None)
+def get_song(self, song_id):
+    # Use SongRepository for test DB
+    from app.repositories.song_repository import SongRepository
+    with self.session() as session:
+        repo = SongRepository(session)
+        return repo.fetch(song_id)
 
     def add_job(self, job_data):
         self.jobs.append(job_data)

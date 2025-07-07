@@ -146,7 +146,7 @@ def _extract_metadata_from_youtube_info(self, info: dict) -> dict:
 **What to Test**:
 
 ```python
-def create_or_update_song(
+def SongRepository.create or SongRepository.update(
     song_id: str,
     title: str,
     artist: str,

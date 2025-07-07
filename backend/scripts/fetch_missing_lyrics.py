@@ -18,7 +18,8 @@ sys.path.insert(0, str(backend_dir))
 import requests
 from app.db.database import get_db_session
 from app.db.models.song import DbSong
-from app.db.song_operations import get_songs
+from app.db.database import get_db_session
+from app.repositories.song_repository import SongRepository
 from app.services.lyrics_service import LyricsService
 
 # Configuration
@@ -30,7 +31,7 @@ SONG_PATCH_URL = (
 )
 
 
-def find_best_lyrics_result(results, target_duration_ms):
+def find_best_lyrics_result(results, target_durationMs):
     """
     Given a list of results and a target duration (ms), return the result with the closest duration.
     Assumes result['duration'] is in milliseconds or seconds (try both).
@@ -44,8 +45,8 @@ def find_best_lyrics_result(results, target_duration_ms):
         if dur is None:
             continue
         # Try both ms and s
-        diff_ms = abs(dur - target_duration_ms)
-        diff_s = abs(dur * 1000 - target_duration_ms)
+        diff_ms = abs(dur - target_durationMs)
+        diff_s = abs(dur * 1000 - target_durationMs)
         if diff_ms < best_diff:
             best = r
             best_diff = diff_ms
@@ -56,7 +57,9 @@ def find_best_lyrics_result(results, target_duration_ms):
 
 
 def fetch_and_save_lyrics():
-    songs = get_songs()
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        songs = repo.fetch_all()
     total = len(songs)
     missing = [s for s in songs if not s.synced_lyrics or not s.synced_lyrics.strip()]
     print(f"Found {len(missing)} songs missing lyrics out of {total} total.")
@@ -74,7 +77,7 @@ def fetch_and_save_lyrics():
                 results = resp.json()
                 if results:
                     # Pick the result with the closest duration to our song
-                    best_result = find_best_lyrics_result(results, song.duration_ms)
+                    best_result = find_best_lyrics_result(results, song.durationMs)
                     if best_result:
                         plain_lyrics = (
                             best_result.get("plainLyrics")
