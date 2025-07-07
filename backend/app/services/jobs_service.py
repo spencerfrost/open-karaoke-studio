@@ -156,22 +156,18 @@ class JobsService(JobsServiceInterface):
 
     def get_statistics(self) -> "dict[str, int]":
         """Get statistics about jobs."""
-        # Return basic statistics using the job repository
-        # If JobRepository does not have get_stats, implement basic stats here
+        # If JobRepository has get_stats, use it; otherwise, compute manually
+        if hasattr(self.job_repository, "get_stats"):
+            return self.job_repository.get_stats()
         jobs = self.job_repository.get_all_jobs()
         stats = {
             "total": len(jobs),
-            "active": len(
-                [
-                    j
-                    for j in jobs
-                    if j.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
-                ]
-            ),
-            "completed": len([j for j in jobs if j.status == JobStatus.COMPLETED]),
-            "failed": len([j for j in jobs if j.status == JobStatus.FAILED]),
-            "cancelled": len([j for j in jobs if j.status == JobStatus.CANCELLED]),
-            "dismissed": len([j for j in jobs if getattr(j, "dismissed", False)]),
+            "queue_length": len([j for j in jobs if j.status == JobStatus.PENDING]),
+            "active_jobs": len([j for j in jobs if j.status == JobStatus.PROCESSING]),
+            "completed_jobs": len([j for j in jobs if j.status == JobStatus.COMPLETED]),
+            "failed_jobs": len([j for j in jobs if j.status in [JobStatus.FAILED, JobStatus.CANCELLED]]),
+            "raw_failed": len([j for j in jobs if j.status == JobStatus.FAILED]),
+            "raw_cancelled": len([j for j in jobs if j.status == JobStatus.CANCELLED]),
         }
         return stats
 

@@ -32,9 +32,6 @@ class MetadataServiceInterface(Protocol):
     def format_search_results(self, raw_results: List[Dict]) -> List[Dict]:
         """Format metadata results for frontend consumption"""
 
-    # NOTE: File-based metadata operations removed - database is source of truth
-    # def read_song_metadata() - REMOVED: Use song_operations.get_song() instead
-    # def write_song_metadata() - REMOVED: Use song_operations.create_or_update_song() instead
 ```
 
 ## ⚠️ Post-Emergency Surgery Changes
@@ -275,12 +272,12 @@ def _find_best_itunes_match(self, target: Dict[str, Any], candidates: List[Dict]
 
 ```python
 # Metadata is stored and retrieved directly via song_operations
-from ...db.song_operations import create_or_update_song, get_song
+from ...db.song_operations import SongRepository.create or SongRepository.update, get_song
 
 def store_enhanced_metadata(self, song_id: str, metadata_dict: Dict[str, Any]) -> None:
     """Store enhanced metadata directly in database"""
     try:
-        create_or_update_song(
+        SongRepository.create or SongRepository.update(
             song_id=song_id,
             title=metadata_dict.get("title"),
             artist=metadata_dict.get("artist"),
@@ -318,7 +315,7 @@ def get_song_metadata(self, song_id: str) -> Optional[Dict[str, Any]]:
 - **Scalability**: Database indexing and querying capabilities
 - **Reliability**: Transactional updates, no partial write issues
   )
-        logger.debug(f"Database metadata synced for song {song_id}")
+  logger.debug(f"Database metadata synced for song {song_id}")
 
   except Exception as e:
   logger.error(f"Failed to sync metadata to database: {e}") # Continue - file system is primary storage

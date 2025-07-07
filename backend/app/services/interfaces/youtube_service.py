@@ -21,7 +21,7 @@ class YouTubeServiceInterface(Protocol):
 
         Returns:
             tuple: (song_id, metadata_dict) where metadata_dict contains raw metadata
-                   that can be passed directly to create_or_update_song()
+                   that can be passed directly to SongRepository.create or SongRepository.update()
         """
         ...
 

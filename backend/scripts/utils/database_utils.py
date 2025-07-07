@@ -10,7 +10,8 @@ This module handles database operations including:
 import logging
 from typing import List, Optional, Dict, Any, Union
 
-from app.db.database import get_songs, create_or_update_song
+from app.repositories.song_repository import SongRepository
+from app.db.database import get_db_session
 from app.db.models import DbSong
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,9 @@ def get_songs_to_process(
     logger.info("Fetching songs from database...")
 
     try:
-        all_songs = get_songs()
+        with get_db_session() as session:
+        repo = SongRepository(session)
+        all_songs = repo.fetch_all()
         logger.info(f"Found {len(all_songs)} total songs in database")
 
         # Filter based on resume_from if specified
@@ -103,15 +106,17 @@ def update_song_metadata(
             return True
         else:
             logger.debug(f"Updating song {song.id} in database")
-            updated_song = create_or_update_song(song.id, **metadata)
-
-            if updated_song:
-                log_metadata_changes(song, metadata)
-                return True
-            else:
-                logger.error(f"Failed to update song {song.id} in database")
-                return False
-
+            from app.repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                updated_song = repo.update(song.id, **metadata)
+                if updated_song:
+                    log_metadata_changes(song, metadata)
+                    return True
+                else:
+                    logger.error(f"Failed to update song {song.id} in database")
+                    return False
     except Exception as e:
         logger.error(f"Error updating song {song.id} in database: {e}")
         return False
@@ -180,7 +185,9 @@ def get_database_stats() -> Dict[str, Any]:
         Dictionary with database statistics
     """
     try:
-        songs = get_songs()
+        with get_db_session() as session:
+        repo = SongRepository(session)
+        songs = repo.fetch_all()
 
         stats = {
             "total_songs": len(songs),

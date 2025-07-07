@@ -67,7 +67,7 @@ class TestDbSong:
             "id": "test-123",
             "title": "Test Song",
             "artist": "Test Artist",
-            "duration": 180,
+            "duration_ms": 180,
             "favorite": False,
             "source": "upload",
         }
@@ -77,7 +77,7 @@ class TestDbSong:
         assert song.id == "test-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.duration == 180
+        assert song.duration_ms == 180
         assert song.favorite is False
         assert song.source == "upload"
 
@@ -88,7 +88,7 @@ class TestDbSong:
             id="test-song-123",
             title="Test Song",
             artist="Test Artist",
-            duration=180.5,
+            duration_ms=180500,
             favorite=True,
             source="youtube",
             video_id="abc123",
@@ -103,7 +103,7 @@ class TestDbSong:
         assert song.id == "test-song-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.duration == 180.5
+        assert song.durationMs == 180500
         assert song.favorite is True
         assert song.videoId == "abc123"
 
@@ -327,7 +327,7 @@ class TestMetadataDictionary:
             "genre": "Rock",
         }
 
-        # This simulates how we now pass metadata to create_or_update_song
+        # This simulates how we now pass metadata to SongRepository.create or SongRepository.update
         song_params = {"song_id": "test-123", **metadata}
 
         assert song_params["song_id"] == "test-123"

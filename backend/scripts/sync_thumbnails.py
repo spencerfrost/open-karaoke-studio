@@ -31,7 +31,9 @@ def sync_thumbnails():
     logger.info("Starting thumbnail sync...")
 
     # Get all songs
-    songs = database.get_songs()
+    songs = with get_db_session() as session:
+    repo = SongRepository(session)
+    songs = repo.fetch_all()
     logger.info(f"Found {len(songs)} songs in database")
 
     updated_count = 0
@@ -65,7 +67,7 @@ def sync_thumbnails():
         if thumbnail_found:
             # Update database with relative path
             relative_path = f"{song.id}/{thumbnail_found}"
-            success = database.update_song_thumbnail(song.id, relative_path)
+            success = repo.update(song.id, relative_path)
 
             if success:
                 updated_count += 1

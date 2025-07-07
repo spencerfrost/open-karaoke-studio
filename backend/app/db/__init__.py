@@ -9,11 +9,8 @@ from .database import SessionLocal, get_db_session
 from .models import *
 
 # Song operations and business logic
-from .song_operations import create_or_update_song, get_song
 
 __all__ = [
     "SessionLocal",
     "get_db_session",
-    "create_or_update_song",
-    "get_song",
 ]

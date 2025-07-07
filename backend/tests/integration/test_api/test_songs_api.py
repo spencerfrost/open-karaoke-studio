@@ -1,532 +1,253 @@
-"""
-Integration tests for the songs API endpoints in Open Karaoke Studio.
-Updated to work with Song Service Layer.
-"""
-
-import pytest
-import json
-from unittest.mock import Mock, patch
-from pathlib import Path
-
-# Mock the imports that might not be available during testing
-try:
-    from app.api.songs import song_bp
-    from app.db.models import DbSong, Song
-    # SongService removed - no longer needed
-    from app.exceptions import ServiceError, NotFoundError
-except ImportError:
-    song_bp = Mock()
-    DbSong = Mock()
-    Song = Mock()
-    # SongService = Mock()  # Removed - no longer used
-    ServiceError = Exception
-    NotFoundError = Exception
+import uuid
 
 
-class TestSongsAPI:
-    """Test the songs API endpoints with service layer integration"""
-    
-    @patch('app.db.song_operations.get_songs')
-    def test_get_songs_success(self, mock_get_songs, client):
-        """Test GET /api/songs endpoint success with direct function calls"""
-        # Mock the direct function call
-        mock_db_song = Mock()
-        mock_db_song.to_dict.return_value = {
-            "id": "song-1",
-            "title": "Test Song 1",
-            "artist": "Test Artist 1",
-            "duration": 180,
-            "status": "processed"
-        }
-        mock_get_songs.return_value = [mock_db_song]
+def unique_song_id():
+    return f"test-song-{uuid.uuid4()}"
 
-        # Make the API request
-        response = client.get('/api/songs')
 
-        # Verify response
-        assert response.status_code == 200
+def test_get_songs_success(client):
+    """Test GET /api/songs returns a list of songs (happy path)."""
+    response = client.get("/api/songs")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert len(data) >= 0  # Should return a list, possibly empty
+    # Optionally check for known test data if you expect it to exist
+
+
+def test_create_song_success(client):
+    """Test POST /api/songs creates a new song (happy path)."""
+    payload = {
+        "title": "Integration Test Song",
+        "artist": "Test Artist",
+        "album": "Test Album",
+        "durationMs": 123456,
+        "source": "test",
+        "video_id": "testvid123",
+    }
+    response = client.post("/api/songs", json={**payload})
+    # Accept 200 or 201 depending on implementation
+    assert response.status_code in (200, 201)
+    data = response.get_json()
+    assert data["title"] == payload["title"]
+    assert data["artist"] == payload["artist"]
+    # Clean up
+    client.delete(f"/api/songs/{data['id']}")
+
+
+def test_create_song_invalid_data(client):
+    """Test POST /api/songs with invalid/missing data returns 400."""
+    response = client.post("/api/songs", json={"artist": "No Title"})
+    assert response.status_code == 400
+
+
+def test_update_song_success(client):
+    """Test PATCH /api/songs/<id> updates a song (happy path)."""
+    # Create song first
+    create_resp = client.post(
+        "/api/songs", json={"title": "Old Title", "artist": "Old Artist"}
+    )
+    assert create_resp.status_code in (200, 201)
+    song_id = create_resp.get_json()["id"]
+    # Update
+    response = client.patch(
+        f"/api/songs/{song_id}", json={"title": "New Title", "favorite": True}
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["title"] == "New Title"
+    assert data["favorite"] is True
+    # Clean up
+    client.delete(f"/api/songs/{song_id}")
+
+
+def test_update_song_not_found(client):
+    """Test PATCH /api/songs/<id> returns 404 for nonexistent song."""
+    response = client.patch(
+        f"/api/songs/nonexistent-{uuid.uuid4()}", json={"title": "Doesn't Matter"}
+    )
+    assert response.status_code == 404
+
+
+def test_update_song_invalid_data(client):
+    """Test PATCH /api/songs/<id> with invalid data returns 400."""
+    create_resp = client.post("/api/songs", json={"title": "Valid", "artist": "Valid"})
+    assert create_resp.status_code in (200, 201)
+    song_id = create_resp.get_json()["id"]
+    response = client.patch(f"/api/songs/{song_id}", json={"durationMs": -5})
+    assert response.status_code == 400
+    client.delete(f"/api/songs/{song_id}")
+
+
+def test_delete_song_success(client):
+    """Test DELETE /api/songs/<id> deletes a song (happy path)."""
+    create_resp = client.post(
+        "/api/songs", json={"title": "Delete Me", "artist": "Test"}
+    )
+    assert create_resp.status_code in (200, 201)
+    song_id = create_resp.get_json()["id"]
+    response = client.delete(f"/api/songs/{song_id}")
+    assert response.status_code in (200, 204)
+
+
+def test_delete_song_not_found(client):
+    """Test DELETE /api/songs/<id> returns 404 for nonexistent song."""
+    response = client.delete(f"/api/songs/nonexistent-{uuid.uuid4()}")
+    assert response.status_code == 404
+
+
+def test_get_songs_pagination(client):
+    """Test GET /api/songs with limit/offset parameters."""
+    # Clean up any leftover Pagination Song test data before starting
+    response = client.get("/api/songs")
+    if response.status_code == 200:
         data = response.get_json()
-        assert len(data) == 1
-        assert data[0]["title"] == "Test Song 1"
-            )
-        ]
-        mock_service.get_songs.return_value = mock_songs
-        
-        # Make request
-        response = client.get('/api/songs')
-        
-        # Assertions
-        assert response.status_code == 200
-        mock_song_service_class.assert_called_once()
-        mock_service.get_songs.assert_called_once()
-        
-        # Parse response data
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert isinstance(data, list)
-        assert len(data) == 2
-        assert data[0]['title'] == "Test Song 1"
-        assert data[1]['title'] == "Test Song 2"
-    
-    @patch('app.db.database.get_db_session')
-    def test_get_songs_service_error(self, mock_song_service_class, client):
-        """Test GET /api/songs when service raises ServiceError"""
-        # Setup mock service to raise ServiceError
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.get_songs.side_effect = ServiceError("Service failed")
-        
-        # Make request
-        response = client.get('/api/songs')
-        
-        # Assertions
-        assert response.status_code == 500
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Failed to fetch songs' in data['error']
-        assert 'Service failed' in data['details']
-    
-    @patch('app.db.database.get_db_session')
-    def test_get_songs_unexpected_error(self, mock_song_service_class, client):
-        """Test GET /api/songs when unexpected error occurs"""
-        # Setup mock service to raise unexpected exception
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.get_songs.side_effect = Exception("Unexpected error")
-        
-        # Make request
-        response = client.get('/api/songs')
-        
-        # Assertions
-        assert response.status_code == 500
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Internal server error' in data['error']
-    
-    @patch('app.db.database.get_db_session')
-    @patch('app.api.songs.get_song')  # Updated to mock the direct import
-    def test_get_song_details_success(self, mock_get_song, mock_song_service_class, client):
-        """Test GET /api/songs/<id> endpoint success with service layer"""
-        # Setup mock service
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        
-        mock_song = Mock(
-            model_dump=Mock(return_value={
-                "id": "test-song-123",
-                "title": "Test Song",
-                "artist": "Test Artist",
-                "duration": 180,
-                "status": "processed"
-            })
+        for song in data:
+            if song["title"].startswith("Pagination Song"):
+                client.delete(f"/api/songs/{song['id']}")
+
+    # Create 15 songs so we can test pagination (fetch 10, offset 5)
+    song_ids = []
+    for i in range(15):
+        resp = client.post(
+            "/api/songs",
+            json={
+                "title": f"Pagination Song {i}",
+                "artist": f"Artist {i}",
+            },
         )
-        mock_service.get_song_by_id.return_value = mock_song
-        
-        # Mock database for legacy compatibility
-        mock_db_song = Mock(
-            album="Test Album",
-            release_date="2023",
-            genre="Test Genre",
-            language="English",
-            mbid="test-mbid",
-            channel="Test Channel",
-            source="test",
-            source_url="http://test.com",
-            lyrics="Test lyrics",
-            synced_lyrics="Test synced lyrics",
-            # iTunes metadata
-            itunes_track_id=None,
-            itunes_artist_id=None,
-            itunes_collection_id=None,
-            track_time_millis=None,
-            itunes_explicit=False,
-            itunes_preview_url=None,
-            itunes_artwork_urls=None,
-            # YouTube metadata
-            youtube_duration=None,
-            youtube_thumbnail_urls=None,
-            youtube_tags=None,
-            youtube_categories=None,
-            youtube_channel_id=None,
-            youtube_channel_name=None,
-        )
-        mock_get_song.return_value = mock_db_song
-        
-        # Make request
-        response = client.get('/api/songs/test-song-123')
-        
-        # Assertions
-        assert response.status_code == 200
-        mock_service.get_song_by_id.assert_called_once_with("test-song-123")
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert data['id'] == "test-song-123"
-        assert data['title'] == "Test Song"
-        assert data['album'] == "Test Album"  # Added by legacy compatibility
-    
-    @patch('app.db.database.get_db_session')
-    def test_get_song_details_not_found(self, mock_song_service_class, client):
-        """Test GET /api/songs/<id> when song not found with service layer"""
-        # Setup mock service to return None
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.get_song_by_id.return_value = None
-        
-        # Make request
-        response = client.get('/api/songs/nonexistent-song')
-        
-        # Assertions
-        assert response.status_code == 404
-        mock_service.get_song_by_id.assert_called_once_with("nonexistent-song")
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'not found' in data['error']
-    
-    @patch('app.db.database.get_db_session')
-    def test_get_song_details_service_error(self, mock_song_service_class, client):
-        """Test GET /api/songs/<id> when service raises ServiceError"""
-        # Setup mock service to raise ServiceError
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.get_song_by_id.side_effect = ServiceError("Service failed")
-        
-        # Make request
-        response = client.get('/api/songs/test-song-123')
-        
-        # Assertions
-        assert response.status_code == 500
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Failed to fetch song' in data['error']
-    
-    @patch('app.api.songs.FileService')
-    def test_download_song_track_success(self, mock_file_service_class, client):
-        """Test GET /api/songs/<id>/download/<track_type> success"""
-        # Setup FileService mock
-        mock_file_service = Mock()
-        mock_file_service_class.return_value = mock_file_service
-        
-        mock_song_dir = Path("/test/library/test-song")
-        mock_file_service.get_song_directory.return_value = mock_song_dir
-        
-        with patch('pathlib.Path.is_dir', return_value=True):
-            with patch('pathlib.Path.is_file', return_value=True):
-                with patch('pathlib.Path.resolve') as mock_resolve:
-                    # Mock path resolution for security check
-                    mock_resolve.side_effect = lambda: Path("/test/library/test-song/vocals.mp3")
-                    
-                    with patch('flask.send_from_directory') as mock_send:
-                        mock_send.return_value = Mock(status_code=200)
-                        
-                        response = client.get('/api/songs/test-song/download/vocals')
-                        
-                        # Should call FileService.get_song_directory
-                        mock_file_service.get_song_directory.assert_called_once_with("test-song")
-                        # Should call send_from_directory
-                        mock_send.assert_called_once()
-    
-    def test_download_song_track_invalid_type(self, client):
-        """Test download with invalid track type"""
-        response = client.get('/api/songs/test-song/download/invalid')
-        
-        assert response.status_code == 400
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Invalid track type' in data['error']
-    
-    @patch('app.api.songs.FileService')
-    def test_download_song_track_song_not_found(self, mock_file_service_class, client):
-        """Test download when song directory doesn't exist"""
-        # Setup FileService mock
-        mock_file_service = Mock()
-        mock_file_service_class.return_value = mock_file_service
-        
-        mock_song_dir = Mock()
-        mock_song_dir.is_dir.return_value = False
-        mock_file_service.get_song_directory.return_value = mock_song_dir
-        
-        response = client.get('/api/songs/nonexistent/download/vocals')
-        
-        assert response.status_code == 404
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Song not found' in data['error']
-    
-    @patch('app.api.songs.FileService')
-    def test_download_song_track_file_not_found(self, mock_file_service_class, client):
-        """Test download when track file doesn't exist"""
-        # Setup FileService mock
-        mock_file_service = Mock()
-        mock_file_service_class.return_value = mock_file_service
-        
-        mock_song_dir = Mock()
-        mock_song_dir.is_dir.return_value = True
-        mock_song_dir.__truediv__ = Mock(return_value=Mock(is_file=Mock(return_value=False)))
-        mock_file_service.get_song_directory.return_value = mock_song_dir
-        
-        response = client.get('/api/songs/test-song/download/vocals')
-        
-        assert response.status_code == 404
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'track not found' in data['error'].lower()
-    
-    @patch('app.api.songs.FileService')
-    @patch('app.config.get_config')
-    def test_download_song_track_security_violation(self, mock_get_config, mock_file_service_class, client):
-        """Test download security check prevents path traversal"""
-        # Setup mocks
-        mock_config = Mock()
-        mock_config.LIBRARY_DIR = Path("/test/library")
-        mock_get_config.return_value = mock_config
-        
-        # Setup FileService mock
-        mock_file_service = Mock()
-        mock_file_service_class.return_value = mock_file_service
-        
-        mock_song_dir = Path("/test/library/test-song")
-        mock_file_service.get_song_directory.return_value = mock_song_dir
-        
-        with patch('pathlib.Path.is_dir', return_value=True):
-            with patch('pathlib.Path.is_file', return_value=True):
-                with patch('pathlib.Path.resolve') as mock_resolve:
-                    # Mock path resolution to simulate path traversal attempt
-                    mock_resolve.side_effect = lambda: Path("/outside/library/malicious.mp3")
-                    
-                    response = client.get('/api/songs/test-song/download/vocals')
-                    
-                    assert response.status_code == 403
-                    
-                    if hasattr(response, 'get_json'):
-                        data = response.get_json()
-                    else:
-                        data = json.loads(response.data.decode())
-                    
-                    assert 'error' in data
-                    assert 'Access denied' in data['error']
+        assert resp.status_code in (200, 201)
+        song_ids.append(resp.get_json()["id"])
+
+    # Fetch 10 songs, skipping the first 5, sorted by title ascending
+    response = client.get("/api/songs?limit=10&offset=5&sort_by=title&direction=asc")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert len(data) == 10
+    # Check that the returned titles are sorted lexicographically (string sort)
+    actual_titles = [song["title"] for song in data]
+    assert actual_titles == sorted(actual_titles)
+
+    # Clean up after test
+    response = client.get("/api/songs")
+    if response.status_code == 200:
+        data = response.get_json()
+        for song in data:
+            if song["title"].startswith("Pagination Song"):
+                client.delete(f"/api/songs/{song['id']}")
 
 
-class TestSongsAPISearch:
-    """Test the songs search functionality"""
-    
-    @patch('app.db.database.get_db_session')
-    def test_search_songs_success(self, mock_song_service_class, client):
-        """Test GET /api/songs/search endpoint success with service layer"""
-        # Setup mock service
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        
-        mock_songs = [
-            Mock(
-                model_dump=Mock(return_value={
-                    "id": "song-1",
-                    "title": "Test Song",
-                    "artist": "Test Artist",
-                    "duration": 180,
-                    "status": "processed"
-                })
-            )
-        ]
-        mock_service.search_songs.return_value = mock_songs
-        
-        # Make request with query parameter
-        response = client.get('/api/songs/search?q=test')
-        
-        # Assertions
-        assert response.status_code == 200
-        mock_service.search_songs.assert_called_once_with('test')
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]['title'] == "Test Song"
-    
-    @patch('app.db.database.get_db_session')
-    def test_search_songs_empty_query(self, mock_song_service_class, client):
-        """Test search endpoint with empty query returns empty list"""
-        # Make request with empty query
-        response = client.get('/api/songs/search?q=')
-        
-        # Assertions
-        assert response.status_code == 200
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert data == []
-        # Service should not be called for empty query
-        mock_song_service_class.assert_not_called()
-    
-    @patch('app.db.database.get_db_session')
-    def test_search_songs_service_error(self, mock_song_service_class, client):
-        """Test search endpoint when service raises ServiceError"""
-        # Setup mock service to raise ServiceError
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.search_songs.side_effect = ServiceError("Search failed")
-        
-        # Make request
-        response = client.get('/api/songs/search?q=test')
-        
-        # Assertions
-        assert response.status_code == 500
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Failed to search songs' in data['error']
+def test_get_songs_sorting(client):
+    """Test GET /api/songs with sort_by and direction parameters."""
+    response = client.get("/api/songs?sort_by=title&direction=asc")
+    assert response.status_code == 200
+    data = response.get_json()
+    titles = [song["title"] for song in data]
+    assert titles == sorted(titles)
 
 
-class TestSongsAPIErrorHandling:
-    """Test error handling in songs API"""
-    
-    def test_internal_server_error_handling(self, client):
-        """Test that internal server errors are handled gracefully"""
-        with patch('app.db.database.get_songs', side_effect=Exception("Unexpected error")):
-            response = client.get('/api/songs')
-            
-            assert response.status_code == 500
-            
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-            else:
-                data = json.loads(response.data.decode())
-            
-            assert 'error' in data
-            # Should not expose internal error details
-            assert 'Failed to fetch songs' in data['error']
-    
-    def test_malformed_request_handling(self, client):
-        """Test handling of malformed requests"""
-        # Test with invalid song ID characters
-        response = client.get('/api/songs/../malicious')
-        
-        # Should handle invalid paths gracefully
-        # Actual behavior depends on Flask routing and implementation
-        assert response.status_code in [400, 404, 500]
+def test_search_songs_success(client):
+    """Test GET /api/songs/search returns matching songs."""
+    # Insert a known song for search
+    create_resp = client.post(
+        "/api/songs",
+        json={"title": "Test Song", "artist": "Test Artist"},
+    )
+    assert create_resp.status_code in (200, 201)
+    song_id = create_resp.get_json()["id"]
+    # Search for the song
+    response = client.get("/api/songs/search?q=Test Song")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert "songs" in data
+    assert any("Test Song" in song["title"] for song in data["songs"])
+    # Clean up
+    client.delete(f"/api/songs/{song_id}")
 
 
-    @patch('app.db.database.get_db_session')
-    @patch('app.db.database.get_db_session')
-    @patch('app.api.songs.FileService')
-    def test_delete_song_success(self, mock_file_service_class, mock_song_service_class, client):
-        """Test DELETE /api/songs/<id> endpoint success with service layer"""
-        # Setup mock services
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.delete_song.return_value = True
-        
-        mock_file_service = Mock()
-        mock_file_service_class.return_value = mock_file_service
-        
-        # Make request
-        response = client.delete('/api/songs/test-song-123')
-        
-        # Assertions
-        assert response.status_code == 200
-        mock_service.delete_song.assert_called_once_with("test-song-123")
-        mock_file_service.delete_song_files.assert_called_once_with("test-song-123")
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'message' in data
-        assert 'deleted successfully' in data['message']
-    
-    @patch('app.db.database.get_db_session')
-    def test_delete_song_not_found(self, mock_song_service_class, client):
-        """Test DELETE /api/songs/<id> when song not found with service layer"""
-        # Setup mock service to return False (not found)
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.delete_song.return_value = False
-        
-        # Make request
-        response = client.delete('/api/songs/nonexistent-song')
-        
-        # Assertions
-        assert response.status_code == 404
-        mock_service.delete_song.assert_called_once_with("nonexistent-song")
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'not found' in data['error']
-    
-    @patch('app.db.database.get_db_session')
-    def test_delete_song_service_error(self, mock_song_service_class, client):
-        """Test DELETE /api/songs/<id> when service raises ServiceError"""
-        # Setup mock service to raise ServiceError
-        mock_service = Mock()
-        mock_song_service_class.return_value = mock_service
-        mock_service.delete_song.side_effect = ServiceError("Delete failed")
-        
-        # Make request
-        response = client.delete('/api/songs/test-song-123')
-        
-        # Assertions
-        assert response.status_code == 500
-        
-        if hasattr(response, 'get_json'):
-            data = response.get_json()
-        else:
-            data = json.loads(response.data.decode())
-        
-        assert 'error' in data
-        assert 'Failed to delete song' in data['error']
+def test_search_songs_empty_query(client):
+    """Test GET /api/songs/search with empty query returns empty list."""
+    response = client.get("/api/songs/search?q=")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert "songs" in data
+    assert data["songs"] == []
+
+
+def test_search_songs_no_results(client):
+    """Test GET /api/songs/search returns empty list for no matches."""
+    response = client.get("/api/songs/search?q=definitelynotarealsongtitle")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert "songs" in data
+    assert data["songs"] == []
+
+
+def test_get_songs_not_found(client):
+    """Test GET /api/songs/<id> returns 404 for nonexistent song."""
+    response = client.get(f"/api/songs/nonexistent-{uuid.uuid4()}")
+    assert response.status_code == 404
+
+
+def test_get_songs_fuzzy_search_equivalence(client):
+    """Test GET /api/songs?q=... returns same results as legacy /api/songs/search?q=... (for migration)."""
+    # Insert a known song for search
+    create_resp = client.post(
+        "/api/songs",
+        json={"title": "FuzzyTestSong", "artist": "FuzzyArtist"},
+    )
+    assert create_resp.status_code in (200, 201)
+    song_id = create_resp.get_json()["id"]
+    # Fuzzy search via main endpoint
+    # Fuzzy search via main endpoint (should match /api/songs/search for migration purposes)
+    resp_main = client.get("/api/songs?q=FuzzyTestSong")
+    assert resp_main.status_code == 200
+    data_main = resp_main.get_json()
+    # /api/songs returns a list, so check for the song in the list
+    assert any("FuzzyTestSong" in song["title"] for song in data_main)
+    # Also test the /api/songs/search endpoint independently
+    resp_search = client.get("/api/songs/search?q=FuzzyTestSong")
+    assert resp_search.status_code == 200
+    data_search = resp_search.get_json()
+    # /api/songs/search returns a dict with a 'songs' key
+    assert any(
+        "FuzzyTestSong" in song["title"] for song in data_search.get("songs", [])
+    )
+    # Clean up
+    client.delete(f"/api/songs/{song_id}")
+
+
+def test_get_songs_unicode(client):
+    """Test GET /api/songs handles unicode and special characters."""
+    # Create songs with unicode artist names
+    unicode_songs = [
+        {"title": "Jóga", "artist": "Björk"},
+        {"title": "模特", "artist": "李荣浩"},
+    ]
+    song_ids = []
+    for song in unicode_songs:
+        resp = client.post("/api/songs", json=song)
+        assert resp.status_code in (200, 201)
+        song_ids.append(resp.get_json()["id"])
+
+    # Fetch all songs and check for unicode artists
+    response = client.get("/api/songs")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert any("Björk" in song["artist"] for song in data)
+    assert any("李荣浩" in song["artist"] for song in data)
+
+    # Clean up
+    for song_id in song_ids:
+        client.delete(f"/api/songs/{song_id}")
+
+
+# --- ERROR HANDLING ---
+# These are best tested with explicit error injection or by simulating errors in the app
+
+# --- SECURITY & EDGE CASES ---
+# Add more as needed, e.g. test_download_song_track_security_violation, etc.

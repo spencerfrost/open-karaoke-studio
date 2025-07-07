@@ -5,14 +5,13 @@ This module verifies that the JobsService correctly implements the business logi
 that was extracted from the API controllers.
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from app.services.jobs_service import JobsService
 from app.db.models import Job, JobStatus
 from app.repositories import JobRepository
+from app.services.jobs_service import JobsService
 
 
 class TestJobsService:
@@ -21,14 +20,14 @@ class TestJobsService:
     def test_jobs_service_initialization(self):
         """Test that JobsService can be initialized correctly."""
         service = JobsService()
-        assert service.job_store is not None
+        assert service.job_repository is not None
         assert service.file_service is not None
 
     def test_jobs_service_initialization_with_custom_job_store(self):
         """Test that JobsService can be initialized with a custom JobRepository."""
         mock_job_store = Mock(spec=JobRepository)
-        service = JobsService(job_store=mock_job_store)
-        assert service.job_store is mock_job_store
+        service = JobsService(job_repository=mock_job_store)
+        assert service.job_repository is mock_job_store
 
     def test_get_all_jobs_sorting(self):
         """Test that get_all_jobs returns jobs sorted by creation time."""
@@ -58,14 +57,14 @@ class TestJobsService:
         mock_job_store.get_active_jobs.return_value = [job1, job3, job2]
         mock_job_store.get_all_jobs.return_value = [job1, job3, job2]
 
-        service = JobsService(job_store=mock_job_store)
+        service = JobsService(job_repository=mock_job_store)
         result = service.get_all_jobs()
 
         # Should be sorted newest first
         assert len(result) == 3
         assert result[0].id == "job2"  # Most recent (2023-01-02)
         assert result[1].id == "job1"  # Older (2023-01-01)
-        assert result[2].id == "job3"  # Oldest (2022-12-31)
+        assert result[2].id == "job3"  # Oldest (2022-12-31)  # Oldest (2022-12-31)
 
     def test_get_job_with_details_completed_job(self):
         """Test that get_job_with_details adds file paths for completed jobs."""
@@ -87,7 +86,7 @@ class TestJobsService:
                 "/test/library/test/instrumental"
             )
 
-            service = JobsService(job_store=mock_job_store)
+            service = JobsService(job_repository=mock_job_store)
             service.file_service = mock_file_service
 
             result = service.get_job_with_details("completed_job")
@@ -101,6 +100,7 @@ class TestJobsService:
     def test_cancel_job_success(self):
         """Test that cancel_job successfully cancels a pending job."""
         mock_job_store = Mock(spec=JobRepository)
+        mock_job_store.save_job = Mock()
 
         pending_job = Job(
             id="pending_job", filename="test.mp3", status=JobStatus.PENDING
@@ -108,7 +108,7 @@ class TestJobsService:
 
         mock_job_store.get_job.return_value = pending_job
 
-        service = JobsService(job_store=mock_job_store)
+        service = JobsService(job_repository=mock_job_store)
         result = service.cancel_job("pending_job")
 
         assert result is True
@@ -120,6 +120,7 @@ class TestJobsService:
     def test_cancel_job_already_completed(self):
         """Test that cancel_job returns False for already completed jobs."""
         mock_job_store = Mock(spec=JobRepository)
+        mock_job_store.save_job = Mock()
 
         completed_job = Job(
             id="completed_job", filename="test.mp3", status=JobStatus.COMPLETED
@@ -127,7 +128,7 @@ class TestJobsService:
 
         mock_job_store.get_job.return_value = completed_job
 
-        service = JobsService(job_store=mock_job_store)
+        service = JobsService(job_repository=mock_job_store)
         result = service.cancel_job("completed_job")
 
         assert result is False
@@ -136,9 +137,10 @@ class TestJobsService:
     def test_cancel_job_not_found(self):
         """Test that cancel_job returns False for non-existent jobs."""
         mock_job_store = Mock(spec=JobRepository)
+        mock_job_store.save_job = Mock()
         mock_job_store.get_job.return_value = None
 
-        service = JobsService(job_store=mock_job_store)
+        service = JobsService(job_repository=mock_job_store)
         result = service.cancel_job("nonexistent_job")
 
         assert result is False
@@ -150,13 +152,15 @@ class TestJobsService:
         expected_stats = {
             "total": 10,
             "queue_length": 2,
-            "active_jobs": 1,
-            "completed_jobs": 7,
-            "failed_jobs": 0,
+            "active_jobs": 3,
+            "completed_jobs": 4,
+            "failed_jobs": 1,
+            "raw_failed": 1,
+            "raw_cancelled": 0,
         }
         mock_job_store.get_stats.return_value = expected_stats
 
-        service = JobsService(job_store=mock_job_store)
+        service = JobsService(job_repository=mock_job_store)
         result = service.get_statistics()
 
         assert result == expected_stats

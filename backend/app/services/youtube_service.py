@@ -7,7 +7,6 @@ from typing import Any, Optional
 
 import yt_dlp
 
-from ..db import song_operations
 from ..exceptions import ServiceError, ValidationError
 from .file_service import FileService
 from .interfaces.file_service import FileServiceInterface
@@ -21,7 +20,6 @@ class YouTubeService(YouTubeServiceInterface):
 
     def __init__(self, file_service: FileServiceInterface = None):
         self.file_service = file_service or FileService()
-        # Note: Removed song_service dependency - use song_operations directly
 
     def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
         """Search YouTube for videos matching the query"""
@@ -147,7 +145,7 @@ class YouTubeService(YouTubeServiceInterface):
                 try:
                     duration = self._extract_audio_duration(original_file)
                     if duration:
-                        metadata_dict["duration"] = duration
+                        metadata_dict["duration_ms"] = int(duration * 1000)
                         logger.info(
                             "Extracted duration %ss from audio file for song %s",
                             duration,
@@ -159,7 +157,17 @@ class YouTubeService(YouTubeServiceInterface):
                         song_id,
                         e,
                     )
-
+            else:
+                # If duration is present (in seconds), also convert to ms
+                try:
+                    duration = float(metadata_dict["duration"])
+                    metadata_dict["duration_ms"] = int(duration * 1000)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to convert duration to ms for song %s: %s",
+                        song_id,
+                        e,
+                    )
             # Ensure source_url is set correctly
             if not metadata_dict.get("source_url"):
                 metadata_dict["source_url"] = url
@@ -180,7 +188,6 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error(
                 f"[YTDLP DEBUG] Exception occurred during yt-dlp download: {e}"
             )
-            raise ServiceError(f"Failed to download YouTube video: {e}")
             raise ServiceError(f"Failed to download YouTube video: {e}")
 
     def extract_video_info(self, video_id_or_url: str) -> dict[str, Any]:
@@ -252,22 +259,25 @@ class YouTubeService(YouTubeServiceInterface):
                 raise ValidationError("song_id is required for YouTube processing")
 
             # Ensure song exists in database before creating job
-            from ..db.song_operations import create_or_update_song, get_song
+            from ..db.database import get_db_session
+            from ..repositories.song_repository import SongRepository
 
-            existing_song = get_song(song_id)
-            if not existing_song:
-                # Create song record with basic metadata using direct parameters
-                created_song = create_or_update_song(
-                    song_id=song_id,
-                    title=title or "Unknown Title",
-                    artist=artist or "Unknown Artist",
-                    source="youtube",
-                    video_id=video_id,
-                )
-                if created_song:
-                    logger.info("Created song record %s in database", song_id)
-                else:
-                    raise ServiceError(f"Failed to create song record {song_id}")
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                existing_song = repo.fetch(song_id)
+                if not existing_song:
+                    # Create song record with basic metadata using direct parameters
+                    created_song = repo.create(
+                        song_id=song_id,
+                        title=title or "Unknown Title",
+                        artist=artist or "Unknown Artist",
+                        source="youtube",
+                        video_id=video_id,
+                    )
+                    if created_song:
+                        logger.info("Created song record %s in database", song_id)
+                    else:
+                        raise ServiceError(f"Failed to create song record {song_id}")
 
             # Generate unique job ID
             job_id = str(uuid.uuid4())
@@ -349,7 +359,7 @@ class YouTubeService(YouTubeServiceInterface):
     def _extract_metadata_from_youtube_info(
         self, video_info: "dict[str, Any]"
     ) -> "dict[str, Any]":
-        """Extract metadata from YouTube video info and return as dict for create_or_update_song()"""
+        """Extract metadata from YouTube video info and return as dict for SongRepository.create or SongRepository.update()"""
         from .metadata_service import filter_youtube_metadata_for_storage
 
         # Extract channel ID with fallback to uploader_id
@@ -372,7 +382,7 @@ class YouTubeService(YouTubeServiceInterface):
 
             return selected[:3] if selected else None  # Limit to 3 thumbnails
 
-        # Return dict that matches our create_or_update_song() parameters
+        # Return dict that matches our SongRepository.create or SongRepository.update() parameters
         return {
             "title": video_info.get("title", "Unknown Title"),
             "artist": video_info.get("uploader", "Unknown Artist"),
@@ -633,34 +643,48 @@ class YouTubeService(YouTubeServiceInterface):
     ) -> None:
         """Update database with thumbnail information"""
         try:
-            from ..db.song_operations import update_song_thumbnail
+            from ..db.database import get_db_session
+            from ..repositories.song_repository import SongRepository
 
-            # Update thumbnail path in database
-            # Use the actual filename that was saved (includes correct extension)
             thumbnail_path = f"{song_id}/{thumbnail_filename}"
-
-            # Call database update function
-            success = update_song_thumbnail(song_id, thumbnail_path)
-
-            if not success:
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                updated_song = repo.update(song_id, thumbnail_path=thumbnail_path)
+            if not updated_song:
                 logger.warning(
                     "Failed to update thumbnail in database for song %s", song_id
                 )
+        except Exception as e:
+            logger.error(
+                "Failed to update database thumbnail for song %s: %s", song_id, e
+            )
+        """Update database with thumbnail information"""
+        try:
+            from ..db.database import get_db_session
+            from ..repositories.song_repository import SongRepository
 
+            thumbnail_path = f"{song_id}/{thumbnail_filename}"
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                updated_song = repo.update(song_id, thumbnail_path=thumbnail_path)
+            if not updated_song:
+                logger.warning(
+                    "Failed to update thumbnail in database for song %s", song_id
+                )
         except Exception as e:
             logger.error(
                 "Failed to update database thumbnail for song %s: %s", song_id, e
             )
 
-    def _extract_audio_duration(self, audio_path) -> Optional[float]:
-        """Extract duration from audio file using librosa"""
-        try:
-            import librosa
+        def _extract_audio_duration(self, audio_path) -> Optional[float]:
+            """Extract duration from audio file using librosa"""
+            try:
+                import librosa
 
-            duration = librosa.get_duration(path=str(audio_path))
-            return float(duration)
-        except Exception as e:
-            logger.warning(
-                "Failed to extract duration from audio file %s: %s", audio_path, e
-            )
-            return None
+                duration = librosa.get_duration(path=str(audio_path))
+                return float(duration)
+            except Exception as e:
+                logger.warning(
+                    "Failed to extract duration from audio file %s: %s", audio_path, e
+                )
+                return None

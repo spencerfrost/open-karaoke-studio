@@ -18,7 +18,7 @@ class DbSong(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
-    duration_ms = Column(Integer, nullable=False)
+    duration_ms = Column(Integer, nullable=True)
     favorite = Column(Boolean, default=False)
     date_added = Column(DateTime, default=datetime.now(timezone.utc))
     vocals_path = Column(String, nullable=True)
@@ -90,7 +90,7 @@ class DbSong(Base):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
-            "duration_ms": self.duration_ms,
+            "durationMs": self.duration_ms,
             "status": "processed",
             "favorite": self.favorite,
             "dateAdded": (
@@ -124,7 +124,6 @@ class DbSong(Base):
             "uploadDate": (
                 self.upload_date.isoformat() if self.upload_date is not None else None
             ),
-            
             # Metadata
             "mbid": self.mbid,
             "metadataId": self.mbid,  # Alias for frontend compatibility

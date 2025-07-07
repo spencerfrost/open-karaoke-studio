@@ -160,10 +160,13 @@ def get_cover_art_stats() -> Dict[str, int]:
     Returns:
         Dictionary with cover art statistics
     """
-    from app.db.database import get_songs
+    from app.repositories.song_repository import SongRepository
+from app.db.database import get_db_session
 
     config = get_config()
-    songs = get_songs()
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        songs = repo.fetch_all()
 
     stats = {
         "total_songs": len(songs),

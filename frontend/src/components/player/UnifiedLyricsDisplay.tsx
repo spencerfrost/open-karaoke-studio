@@ -20,7 +20,7 @@ interface UnifiedLyricsDisplayProps {
   lyrics: string;
   isSynced: boolean;
   currentTime: number;
-  duration_ms: number;
+  durationMs: number;
   title: string;
   artist: string;
   onSeek: (val: number) => void;
@@ -31,7 +31,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
   lyrics,
   isSynced,
   currentTime,
-  duration_ms,
+  durationMs,
   title,
   artist,
   onSeek,
@@ -199,7 +199,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
 
         <ProgressBar
           currentTime={currentTime / 1000}
-          duration_ms={duration_ms}
+          durationMs={durationMs}
           onSeek={onSeek}
         />
         <div className="flex items-center">
@@ -253,7 +253,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
           </div>
           <div className="flex-1 text-sm text-background/50">
             {new Date(currentTime).toISOString().substr(11, 8)} /{" "}
-            {formatTimeMs(duration_ms)}
+            {formatTimeMs(durationMs)}
           </div>
 
           <Button

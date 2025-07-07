@@ -89,34 +89,23 @@ if DATABASE_URL.startswith('sqlite:'):
     )
 ```
 
-## Song Operations (`song_operations.py`)
+## Song Operations (`song_repository.py`)
 
 ### Core Business Logic
 
 The song operations module contains all song-related business logic:
 
-#### CRUD Operations
+#### CRUD Operations (Post-Migration)
 
 ```python
-def get_songs() -> List[DbSong]
-def get_song(song_id: str) -> Optional[DbSong]
-def create_or_update_song(song_id: str, title: str, artist: str, **kwargs) -> Optional[DbSong]
-def delete_song(song_id: str) -> bool
-```
-
-#### Query Operations
-
-```python
-def get_artists_with_counts() -> List[Tuple[str, int]]
-def get_songs_by_artist(artist: str) -> List[DbSong]
-def search_songs_paginated(query: str, limit: int, offset: int) -> Tuple[List[DbSong], int]
-```
-
-#### File System Integration
-
-```python
-def sync_songs_with_filesystem() -> int
-def update_song_audio_paths(song_id: str, paths: Dict[str, str]) -> bool
+# Legacy functions (get_songs, get_song, delete_song) are deprecated.
+# Use SongRepository for all song CRUD and updates:
+repo = SongRepository(session)
+repo.create(song_data: dict) -> Optional[DbSong]
+repo.fetch(song_id: str) -> Optional[DbSong]
+repo.fetch_all(**filters) -> List[DbSong]
+repo.update(song_id: str, **fields) -> Optional[DbSong]
+repo.delete(song_id: str) -> bool
 ```
 
 #### Metadata Management
@@ -145,7 +134,8 @@ def get_songs() -> List[DbSong]:
 ### Transaction Handling
 
 ```python
-def create_or_update_song(song_id: str, title: str, artist: str, **kwargs) -> Optional[DbSong]:
+def SongRepository.create(song_data: dict) -> Optional[DbSong]
+def SongRepository.update(song_id: str, **fields) -> Optional[DbSong]:
     try:
         with get_db_session() as session:
             # Check for existing song

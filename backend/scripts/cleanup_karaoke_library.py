@@ -30,7 +30,10 @@ sys.path.insert(0, str(backend_dir))
 
 from app.config import get_config
 from app.db.database import get_db_session
-from app.db.song_operations import delete_song, get_songs
+from app.repositories.song_repository import SongRepository
+from app.db.database import get_db_session
+from app.db.database import get_db_session
+from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 
 # File extensions to check for thumbnails
@@ -65,7 +68,9 @@ class KaraokeLibraryCleanup:
     def get_database_songs_info(self) -> Dict[str, Dict]:
         """Get all song information from the database."""
         try:
-            songs = get_songs()
+            with get_db_session() as session:
+            repo = SongRepository(session)
+            songs = repo.fetch_all()
             return {
                 str(song.id): {
                     "song": song,
@@ -362,6 +367,9 @@ class KaraokeLibraryCleanup:
         success = True
 
         try:
+            from app.repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            # ...existing code...
             if item.item_type == "orphaned_db":
                 # Delete database entry only
                 if self.dry_run:
@@ -369,11 +377,13 @@ class KaraokeLibraryCleanup:
                         f"🔄 [DRY RUN] Would delete database entry for song ID: {item.song_id}"
                     )
                 else:
-                    if delete_song(item.song_id):
-                        print(f"✅ Deleted database entry for song ID: {item.song_id}")
-                    else:
-                        print(f"❌ Failed to delete database entry for {item.song_id}")
-                        success = False
+                    with get_db_session() as session:
+                        repo = SongRepository(session)
+                        if repo.delete(item.song_id):
+                            print(f"✅ Deleted database entry for song ID: {item.song_id}")
+                        else:
+                            print(f"❌ Failed to delete database entry for {item.song_id}")
+                            success = False
 
             elif item.item_type == "orphaned_fs":
                 # Delete filesystem directory only
@@ -398,11 +408,13 @@ class KaraokeLibraryCleanup:
                     )
                     print(f"🔄 [DRY RUN] Would delete directory: {directory_path}")
                 else:
-                    if delete_song(item.song_id):
-                        print(f"✅ Deleted database entry for song ID: {item.song_id}")
-                    else:
-                        print(f"❌ Failed to delete database entry for {item.song_id}")
-                        success = False
+                    with get_db_session() as session:
+                        repo = SongRepository(session)
+                        if repo.delete(item.song_id):
+                            print(f"✅ Deleted database entry for song ID: {item.song_id}")
+                        else:
+                            print(f"❌ Failed to delete database entry for {item.song_id}")
+                            success = False
 
                     # Delete filesystem directory
                     if directory_path.exists():

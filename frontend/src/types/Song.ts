@@ -1,73 +1,49 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
 export interface Song {
-  // Core fields
   id: string;
   title: string;
   artist: string;
-  album: string; // Primary field (was releaseTitle)
-  duration_ms: number; // in milliseconds
-  status: SongStatus;
-  
-  // Media files
-  coverArt?: string;
-  thumbnail?: string;
+  durationMs?: number;
+  favorite: boolean;
+  dateAdded?: string;
+
+  // File paths (API URLs)
   vocalPath?: string;
   instrumentalPath?: string;
   originalPath?: string;
-  
-  // iTunes metadata
-  itunesTrackId?: number;
-  itunesArtistId?: number;
-  itunesCollectionId?: number;
-  trackTimeMillis?: number;
-  itunesExplicit?: boolean;
-  itunesPreviewUrl?: string;
-  itunesArtworkUrls?: {
-    60?: string;
-    100?: string;
-    600?: string;
-  };
-  
-  // YouTube metadata (enhanced)
+  coverArt?: string;
+  thumbnail?: string;
+
+  // YouTube data
   videoId?: string;
-  youtubeDuration?: number;
-  youtubeThumbnailUrls?: {
-    default?: string;
-    medium?: string;
-    high?: string;
-    standard?: string;
-    maxres?: string;
-  };
-  youtubeTags?: string[];
-  youtubeCategories?: string[];
-  youtubeChannelId?: string;
-  youtubeChannelName?: string;
-  
-  // Existing fields (maintained for compatibility)
+  sourceUrl?: string;
   uploader?: string;
   uploaderId?: string;
   channel?: string;
   channelId?: string;
+  channelName?: string;
   description?: string;
   uploadDate?: string;
-  favorite: boolean;
-  dateAdded: string;
-  genre?: string;
-  language?: string;
-  lyrics?: string; // Plain text lyrics
-  syncedLyrics?: string; // LRC format synchronized lyrics
-  
-  // Legacy/compatibility (for transition period)
-  releaseTitle?: string; // Backwards compatibility, maps to album
-  year?: string;
-  uploadId?: string;
-  metadataId?: string;
-  
-  // MusicBrainz metadata (maintained)
+
+  // Metadata
   mbid?: string;
+  metadataId?: string;
+  album?: string;
+  releaseTitle?: string;
   releaseId?: string;
   releaseDate?: string;
+  year?: number;
+  genre?: string;
+  language?: string;
+
+  // Lyrics
+  lyrics?: string;
+  syncedLyrics?: string;
+
+  // System
+  source?: string;
+  status: SongStatus;
 }
 
 export interface SongProcessingRequest {

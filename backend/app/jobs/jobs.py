@@ -187,10 +187,14 @@ def process_audio_job(self, job_id):
             "job_id": job_id,
             "filename": filename,
             "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(filepath.suffix)
+                file_management.get_vocals_path_stem(song_dir).with_suffix(
+                    filepath.suffix
+                )
             ),
             "instrumental_path": str(
-                file_management.get_instrumental_path_stem(song_dir).with_suffix(filepath.suffix)
+                file_management.get_instrumental_path_stem(song_dir).with_suffix(
+                    filepath.suffix
+                )
             ),
         }
 
@@ -260,9 +264,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
         return {"status": "error", "message": "No song ID associated with job"}
 
     # Verify the song exists
-    from ..db.song_operations import get_song
+    from ..db.database import get_db_session
+    from ..repositories.song_repository import SongRepository
 
-    db_song = get_song(song_id)
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        db_song = repo.fetch(song_id)
     if not db_song:
         logger.error("Song %s not found for job %s", song_id, job_id)
         # Mark job as failed
@@ -327,39 +334,50 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Update the database song with enhanced metadata (including iTunes data)
         try:
-            from ..db.models.song import DbSong
-            from ..db.song_operations import update_song_with_metadata
+            from ..db.database import get_db_session
+            from ..repositories.song_repository import SongRepository
 
-            # Create updated song record with enhanced metadata
-            updated_song = DbSong.from_metadata(
-                song_id=song_id,
-                metadata=enhanced_metadata,
-                vocals_path=db_song.vocals_path,  # Preserve existing audio paths
-                instrumental_path=db_song.instrumental_path,
-                original_path=str(song_dir / "original.mp3"),  # Set original path
-            )
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                update_fields = {
+                    "title": enhanced_metadata.get("title") or db_song.title,
+                    "artist": enhanced_metadata.get("artist") or db_song.artist,
+                    "duration_ms": enhanced_metadata.get("duration_ms"),
+                    "album": enhanced_metadata.get("album") or db_song.album,
+                    "genre": enhanced_metadata.get("genre") or db_song.genre,
+                    "year": enhanced_metadata.get("year") or db_song.year,
+                    "lyrics": enhanced_metadata.get("lyrics") or db_song.lyrics,
+                    # add more fields as needed
+                }
+                updated_song = repo.update(song_id, **update_fields)
+                if updated_song:
+                    logger.info(
+                        "Successfully updated song %s with enhanced metadata", song_id
+                    )
+                    update_progress(25, "Enhanced metadata saved")
+                else:
+                    logger.warning(
+                        "Failed to update song %s with enhanced metadata", song_id
+                    )
 
-            # Update the song in database with enhanced metadata
-            success = update_song_with_metadata(song_id, updated_song)
-
-            if success:
-                logger.info("Successfully updated song %s with enhanced metadata", song_id)
-                update_progress(25, "Enhanced metadata saved")
-            else:
-                logger.warning("Failed to update song %s with enhanced metadata", song_id)
+            # Success/failure handling is now above using updated_song
 
         except Exception as e:
             logger.error("Error updating song metadata for %s: %s", song_id, e)
             # Continue processing even if metadata update fails
 
-        update_progress(30, "Download complete, starting audio processing", JobStatus.PROCESSING)
+        update_progress(
+            30, "Download complete, starting audio processing", JobStatus.PROCESSING
+        )
 
         # Phase 2: Audio Processing (30-90% progress)
         # IMPORTANT: Use song_id for the directory, not job_id
         original_file = song_dir / "original.mp3"
 
         if not original_file.exists():
-            raise AudioProcessingError(f"Original audio file not found: {original_file}")
+            raise AudioProcessingError(
+                f"Original audio file not found: {original_file}"
+            )
 
         # Create a stop event (for compatibility with audio.separate_audio)
         import threading
@@ -380,7 +398,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
         ):
             raise AudioProcessingError("Audio separation failed")
 
-        update_progress(90, "Audio processing complete, finalizing", JobStatus.FINALIZING)
+        update_progress(
+            90, "Audio processing complete, finalizing", JobStatus.FINALIZING
+        )
 
         # Phase 3: Finalization (90-100% progress)
         update_progress(93, "Downloading thumbnail")
@@ -401,10 +421,12 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Phase 1A Task 3: Update database with audio file paths after processing
         try:
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(
+            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
                 ".mp3"
             )
+            instrumental_path = file_management.get_instrumental_path_stem(
+                song_dir
+            ).with_suffix(".mp3")
 
             # Verify the files actually exist before updating database
             if vocals_path.exists() and instrumental_path.exists():
@@ -414,17 +436,27 @@ def process_youtube_job(self, job_id, video_id, metadata):
                 config = get_config()
 
                 vocals_relative = str(vocals_path.relative_to(config.LIBRARY_DIR))
-                instrumental_relative = str(instrumental_path.relative_to(config.LIBRARY_DIR))
+                instrumental_relative = str(
+                    instrumental_path.relative_to(config.LIBRARY_DIR)
+                )
 
-                # Update song with audio file paths
-                from ..db.song_operations import update_song_audio_paths
-
-                success = update_song_audio_paths(song_id, vocals_relative, instrumental_relative)
+                with get_db_session() as session:
+                    repo = SongRepository(session)
+                    update_fields = {
+                        "vocals_path": vocals_relative,
+                        "instrumental_path": instrumental_relative,
+                        "processing_status": "completed",
+                        "has_audio_files": True,
+                    }
+                    updated_song = repo.update(song_id, **update_fields)
+                    success = updated_song is not None
 
                 if not success:
                     logger.warning("Failed to update audio paths for song %s", song_id)
             else:
-                logger.warning("Audio files not found after processing for song %s", song_id)
+                logger.warning(
+                    "Audio files not found after processing for song %s", song_id
+                )
 
         except Exception as e:
             # Don't fail the job for path update issues, just log the error
@@ -444,7 +476,9 @@ def process_youtube_job(self, job_id, video_id, metadata):
             "status": "success",
             "job_id": job_id,
             "song_id": song_id,
-            "vocals_path": str(file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")),
+            "vocals_path": str(
+                file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
+            ),
             "instrumental_path": str(
                 file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
             ),
@@ -492,7 +526,9 @@ def _handle_job_event(event):
                 status=JobStatus(job_data["status"]),
                 title=job_data.get("title"),
                 artist=job_data.get("artist"),
-                status_message=job_data.get("message"),  # Use status_message instead of message
+                status_message=job_data.get(
+                    "message"
+                ),  # Use status_message instead of message
                 progress=job_data.get("progress", 0),
                 error=job_data.get("error"),
                 task_id=job_data.get("task_id"),

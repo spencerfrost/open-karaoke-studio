@@ -13,8 +13,8 @@ class CreateSongRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Song title")
     artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
-    duration_ms: Optional[int] = Field(
-        None, ge=0, description="Song duration_ms in milliseconds"
+    durationMs: Optional[int] = Field(
+        None, ge=0, description="Song duration in milliseconds"
     )
     source: Optional[str] = Field(None, max_length=50, description="Source of the song")
     video_id: Optional[str] = Field(
@@ -34,7 +34,7 @@ class UpdateSongRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
-    duration_ms: Optional[int] = Field(None, ge=0)
+    durationMs: Optional[int] = Field(None, ge=0)
     favorite: Optional[bool] = Field(None)
 
     @validator("title", "artist")

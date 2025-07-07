@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
 
+from app.schemas.requests import UpdateSongRequest
+from app.schemas.song import Song
 from flask import Blueprint, jsonify, request, send_from_directory
 
 from ..config import get_config
 
 # Import database and models directly - no fake service layer
-from ..db.song_operations import create_or_update_song
-from ..db.song_operations import delete_song as db_delete_song
-from ..db.song_operations import get_song
+from ..db.database import get_db_session
 from ..exceptions import (
     DatabaseError,
     FileOperationError,
@@ -23,6 +23,7 @@ from ..exceptions import (
     ServiceError,
     ValidationError,
 )
+from ..repositories.song_repository import SongRepository
 from ..schemas.requests import CreateSongRequest
 from ..services import FileService
 from ..services.lyrics_service import LyricsService
@@ -32,6 +33,343 @@ from ..utils.validation import validate_json_request, validate_path_params
 logger = logging.getLogger(__name__)
 song_bp = Blueprint("songs", __name__, url_prefix="/api/songs")
 
+# --- Consolidated artist and search routes from songs_artists.py ---
+
+from app.db.models.song import DbSong
+from app.schemas.requests import UpdateSongRequest
+
+
+@song_bp.route("/artists", methods=["GET"])
+@handle_api_error
+def get_artists():
+    """Get all unique artists with song counts and optional filtering.
+
+    Query Parameters:
+        search: Optional search term to filter artists
+        limit: Maximum number of artists to return (default: 100)
+        offset: Number of artists to skip (default: 0)
+    """
+    try:
+        search_term = request.args.get("search", "").strip()
+        limit = min(int(request.args.get("limit", 100)), 200)  # Cap at 200
+        offset = int(request.args.get("offset", 0))
+
+        # Get artists with song counts from database
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            from sqlalchemy import func
+
+            artists_query = session.query(
+                DbSong.artist, func.count(DbSong.id).label("song_count")
+            )
+            if search_term:
+                artists_query = artists_query.filter(
+                    DbSong.artist.ilike(f"%{search_term}%")
+                )
+            artists_query = artists_query.group_by(DbSong.artist).order_by(
+                DbSong.artist
+            )
+            artists = artists_query.offset(offset).limit(limit).all()
+            artists = [
+                {
+                    "name": artist,
+                    "songCount": song_count,
+                    "firstLetter": artist[0].upper() if artist else "?",
+                }
+                for artist, song_count in artists
+            ]
+
+        total_count = 0
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            from sqlalchemy import func
+
+            total_query = session.query(DbSong.artist).distinct()
+            if search_term:
+                total_query = total_query.filter(
+                    DbSong.artist.ilike(f"%{search_term}%")
+                )
+            total_count = total_query.count()
+
+        response = {
+            "artists": artists,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "hasMore": offset + limit < total_count,
+            },
+        }
+
+        logger.info("Returning %s artists (total: %s)", len(artists), total_count)
+        return jsonify(response)
+
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
+        )
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed while fetching artists",
+            "DATABASE_CONNECTION_ERROR",
+            {"error": str(e)},
+        )
+    except Exception as e:
+        raise DatabaseError(
+            "Unexpected error fetching artists",
+            "ARTISTS_FETCH_ERROR",
+            {"error": str(e)},
+        )
+
+
+@song_bp.route("/by-artist/<string:artist_name>", methods=["GET"])
+@handle_api_error
+def get_songs_by_artist_route(artist_name: str):
+    """Get songs for a specific artist with pagination.
+
+    Query Parameters:
+        limit: Maximum number of songs to return (default: 20)
+        offset: Number of songs to skip (default: 0)
+        sort: Sort order - 'title', 'album', 'year', 'dateAdded' (default: 'title')
+        direction: 'asc' or 'desc' (default: 'asc')
+    """
+    try:
+        limit = min(int(request.args.get("limit", 20)), 100)  # Cap at 100 per page
+        offset = int(request.args.get("offset", 0))
+        sort_by = request.args.get("sort", "title")
+        direction = request.args.get("direction", "asc")
+
+        # Validate sort parameters
+        valid_sorts = ["title", "album", "year", "dateAdded"]
+        if sort_by not in valid_sorts:
+            raise ValidationError(
+                f"Invalid sort field: {sort_by}. Must be one of: {', '.join(valid_sorts)}",
+                "INVALID_SORT_FIELD",
+            )
+
+        if direction not in ["asc", "desc"]:
+            raise ValidationError(
+                f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
+                "INVALID_SORT_DIRECTION",
+            )
+
+        # Get songs for artist from database
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            base_query = session.query(DbSong).filter(DbSong.artist == artist_name)
+            sort_field = getattr(DbSong, sort_by, DbSong.title)
+            if direction.lower() == "desc":
+                base_query = base_query.order_by(sort_field.desc())
+            else:
+                base_query = base_query.order_by(sort_field.asc())
+            total_count = base_query.count()
+            songs = base_query.offset(offset).limit(limit).all()
+            songs_data = {"songs": songs, "total": total_count}
+
+            # Convert DbSong objects to Pydantic Song models for API response
+            songs = [
+                Song.model_validate(song.to_dict()).model_dump()
+                for song in songs_data["songs"]
+            ]
+            total_count = songs_data["total"]
+
+            response = {
+                "songs": songs,
+                "artist": artist_name,
+                "pagination": {
+                    "total": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "hasMore": offset + limit < total_count,
+                },
+            }
+
+            logger.info(
+                "Returning %s songs for artist '%s' (total: %s)",
+                len(songs),
+                artist_name,
+                total_count,
+            )
+            return jsonify(response)
+
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
+        )
+    except ConnectionError as e:
+        raise DatabaseError(
+            f"Database connection failed while fetching songs for artist '{artist_name}'",
+            "DATABASE_CONNECTION_ERROR",
+            {"artist": artist_name, "error": str(e)},
+        )
+    except Exception as e:
+        raise DatabaseError(
+            f"Unexpected error fetching songs for artist '{artist_name}'",
+            "ARTIST_SONGS_FETCH_ERROR",
+            {"artist": artist_name, "error": str(e)},
+        )
+
+
+@song_bp.route("/search", methods=["GET"])
+@handle_api_error
+def search_songs():
+    """Enhanced search with pagination and artist grouping options.
+
+    Query Parameters:
+        q: Search query (required)
+        limit: Maximum number of songs to return (default: 20)
+        offset: Number of songs to skip (default: 0)
+        group_by_artist: If true, group results by artist (default: false)
+        sort: Sort order (default: 'relevance')
+        direction: 'asc' or 'desc' (default: 'desc')
+    """
+    try:
+        query = request.args.get("q", "").strip()
+        if not query:
+            return jsonify(
+                {
+                    "songs": [],
+                    "pagination": {
+                        "total": 0,
+                        "limit": 0,
+                        "offset": 0,
+                        "hasMore": False,
+                    },
+                }
+            )
+
+        limit = min(int(request.args.get("limit", 20)), 100)
+        offset = int(request.args.get("offset", 0))
+        group_by_artist = request.args.get("group_by_artist", "false").lower() == "true"
+        sort_by = request.args.get("sort", "relevance")
+        direction = request.args.get("direction", "desc")
+
+        # Validate parameters
+        if direction not in ["asc", "desc"]:
+            raise ValidationError(
+                f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
+                "INVALID_SORT_DIRECTION",
+            )
+
+        # Get search results from database
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            from sqlalchemy import func, or_
+
+            search_filter = or_(
+                DbSong.title.ilike(f"%{query}%"),
+                DbSong.artist.ilike(f"%{query}%"),
+                DbSong.album.ilike(f"%{query}%"),
+            )
+            if group_by_artist:
+                artist_query = (
+                    session.query(
+                        DbSong.artist,
+                        func.count(DbSong.id).label("song_count"),
+                    )
+                    .filter(search_filter)
+                    .group_by(DbSong.artist)
+                )
+                total_artists = artist_query.count()
+                artist_results = artist_query.offset(offset).limit(limit).all()
+                artists_data = []
+                total_songs = 0
+                for artist, count in artist_results:
+                    songs_query = (
+                        session.query(DbSong).filter(DbSong.artist == artist).limit(5)
+                    )
+                    songs = songs_query.all()
+                    total_songs += count
+                    artists_data.append(
+                        {
+                            "artist": artist,
+                            "songCount": count,
+                            "songs": songs,
+                        }
+                    )
+                search_results = {
+                    "artists": artists_data,
+                    "total_songs": total_songs,
+                    "total_artists": total_artists,
+                    "pagination": {
+                        "total": total_artists,
+                        "limit": limit,
+                        "offset": offset,
+                        "hasMore": offset + limit < total_artists,
+                    },
+                }
+            else:
+                base_query = session.query(DbSong).filter(search_filter)
+                if sort_by == "relevance":
+                    base_query = base_query.order_by(
+                        DbSong.title,
+                        DbSong.artist,
+                        DbSong.date_added.desc(),
+                    )
+                else:
+                    sort_field = getattr(DbSong, sort_by, DbSong.title)
+                    if direction.lower() == "desc":
+                        base_query = base_query.order_by(sort_field.desc())
+                    else:
+                        base_query = base_query.order_by(sort_field.asc())
+                total_count = base_query.count()
+                songs = base_query.offset(offset).limit(limit).all()
+                search_results = {
+                    "songs": songs,
+                    "pagination": {
+                        "total": total_count,
+                        "limit": limit,
+                        "offset": offset,
+                        "hasMore": offset + limit < total_count,
+                    },
+                }
+
+        if group_by_artist:
+            # Group results by artist
+            response = {
+                "artists": search_results[
+                    "artists"
+                ],  # [{artist: "...", songs: [...], count: N}]
+                "totalSongs": search_results["total_songs"],
+                "totalArtists": search_results["total_artists"],
+                "pagination": search_results["pagination"],
+            }
+        else:
+            # Flat list of songs - convert using new pattern
+            songs = [
+                Song.model_validate(song.to_dict()).model_dump()
+                for song in search_results["songs"]
+            ]
+            response = {"songs": songs, "pagination": search_results["pagination"]}
+
+        logger.info(
+            "Search '%s' returned %s results",
+            query,
+            search_results["pagination"]["total"],
+        )
+        return jsonify(response)
+
+    except ValidationError:
+        raise  # Let error handlers deal with it
+    except ValueError as e:
+        raise ValidationError(
+            f"Invalid query parameters: {str(e)}", "INVALID_PARAMETERS"
+        )
+    except ConnectionError as e:
+        raise DatabaseError(
+            "Database connection failed during song search",
+            "DATABASE_CONNECTION_ERROR",
+            {"query": query, "error": str(e)},
+        )
+    except Exception as e:
+        raise DatabaseError(
+            "Unexpected error searching songs",
+            "SONGS_SEARCH_ERROR",
+            {"query": query, "error": str(e)},
+        )
+
 
 @song_bp.route("/metadata/auto", methods=["POST"])
 @handle_api_error
@@ -39,7 +377,6 @@ def auto_save_itunes_metadata() -> tuple:
     """
     Accepts artist, title, album, and song_id. Fetches iTunes metadata and saves the first result to the song. Returns only success/failure JSON.
     """
-    from ..db.song_operations import get_song, update_song_with_metadata
     from ..services.metadata_service import MetadataService
 
     data = request.get_json()
@@ -66,16 +403,18 @@ def auto_save_itunes_metadata() -> tuple:
             logger.warning(f"No iTunes metadata found for {artist} - {title} - {album}")
             return jsonify({"success": False, "error": "No iTunes metadata found"}), 404
         # Get the song from DB
-        song = get_song(song_id)
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            song = repo.fetch(song_id)
         if not song:
             logger.error(f"Song not found: {song_id}")
             return jsonify({"success": False, "error": "Song not found"}), 404
         # Update song with new metadata (using DB model)
-        for k, v in results[0].items():
-            if hasattr(song, k):
-                setattr(song, k, v)
-        success = update_song_with_metadata(song_id, song)
-        if not success:
+        update_fields = {k: v for k, v in results[0].items() if hasattr(song, k)}
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            updated_song = repo.update(song_id, **update_fields)
+        if not updated_song:
             logger.error(f"Failed to update song metadata for {song_id}")
             return (
                 jsonify({"success": False, "error": "Failed to update song metadata"}),
@@ -101,7 +440,7 @@ def get_songs():
         from flask import request
 
         from ..db.database import get_db_session
-        from ..db.models import DbSong
+        from ..repositories.song_repository import SongRepository
 
         # Query params
         limit = request.args.get("limit", type=int)
@@ -114,26 +453,27 @@ def get_songs():
         if sort_by not in valid_sort_fields:
             sort_by = "date_added"
 
-        # Build query
         with get_db_session() as session:
-            base_query = session.query(DbSong)
-            sort_column = getattr(DbSong, sort_by, DbSong.date_added)
-            if direction == "asc":
-                base_query = base_query.order_by(sort_column.asc())
-            else:
-                base_query = base_query.order_by(sort_column.desc())
+            repo = SongRepository(session)
+            # Build filters dict if needed (currently none)
+            songs = repo.fetch_all()
+            # Sorting and pagination (if needed)
+            if sort_by != "date_added" or direction != "desc":
+                songs = sorted(
+                    songs,
+                    key=lambda s: getattr(s, sort_by, None),
+                    reverse=(direction == "desc"),
+                )
             if offset:
-                base_query = base_query.offset(offset)
+                songs = songs[offset:]
             if limit:
-                base_query = base_query.limit(limit)
-            songs = base_query.all()
+                songs = songs[:limit]
             response_data = [song.to_dict() for song in songs]
 
         logger.info("Returning %s songs.", len(response_data))
         return jsonify(response_data)
 
     except ConnectionError as e:
-        # Database connection issues
         logger.error(
             "Database connection failed retrieving songs: %s", e, exc_info=True
         )
@@ -143,7 +483,6 @@ def get_songs():
             {"operation": "select_songs", "error": str(e)},
         )
     except Exception as e:
-        # Unexpected database or serialization errors
         logger.error("Unexpected error retrieving songs: %s", e, exc_info=True)
         raise DatabaseError(
             "Unexpected error retrieving songs from database",
@@ -227,8 +566,9 @@ def get_song_details(song_id: str):
 
     try:
         # Get song directly from database
-        db_song = get_song(song_id)
-
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            db_song = repo.fetch(song_id)
         if not db_song:
             raise ResourceNotFoundError("Song", song_id)
 
@@ -277,7 +617,9 @@ def get_thumbnail(song_id: str, extension: str):
         )
 
     # Get song from database to find thumbnail path
-    db_song = get_song(song_id)
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        db_song = repo.fetch(song_id)
     if not db_song:
         raise ResourceNotFoundError("Song", song_id)
 
@@ -335,7 +677,9 @@ def get_thumbnail_auto(song_id: str):
     song_id = unquote(song_id)
 
     # Get song from database to find thumbnail path
-    db_song = get_song(song_id)
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        db_song = repo.fetch(song_id)
     if not db_song:
         raise ResourceNotFoundError("Song", song_id)
 
@@ -386,7 +730,9 @@ def get_song_lyrics(song_id: str):
             return jsonify({"plainLyrics": stored_lyrics}), 200
 
         # Get song from database only
-        db_song = get_song(song_id)
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            db_song = repo.fetch(song_id)
         if not db_song:
             raise ResourceNotFoundError("Song", song_id)
 
@@ -462,23 +808,26 @@ def get_song_lyrics(song_id: str):
 @song_bp.route("/<string:song_id>", methods=["DELETE"])
 @handle_api_error
 def delete_song(song_id: str):
-    """Endpoint to delete a song by its ID - direct database access."""
+    """Endpoint to delete a song by its ID using SongRepository."""
     logger.info("Received request to delete song: %s", song_id)
 
     try:
-        # Check if song exists first
-        db_song = get_song(song_id)
-        if not db_song:
-            raise ResourceNotFoundError("Song", song_id)
+        from ..db.database import get_db_session
+        from ..repositories.song_repository import SongRepository
+        from ..services.file_service import FileService
 
-        # Delete song from database
-        success = db_delete_song(song_id)
-        if not success:
-            raise DatabaseError(
-                "Failed to delete song from database",
-                "SONG_DELETE_ERROR",
-                {"song_id": song_id},
-            )
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            db_song = repo.fetch(song_id)
+            if not db_song:
+                raise ResourceNotFoundError("Song", song_id)
+            success = repo.delete(song_id)
+            if not success:
+                raise DatabaseError(
+                    "Failed to delete song from database",
+                    "SONG_DELETE_ERROR",
+                    {"song_id": song_id},
+                )
 
         # Also delete files using FileService
         file_service = FileService()
@@ -515,21 +864,24 @@ def create_song(validated_data: CreateSongRequest):
     """Create a new song with basic information - thin controller using service layer."""
     logger.info("Received request to create a new song")
 
-    # Generate a unique ID for the song
-    song_id = str(uuid.uuid4())
+    # Use provided ID if present, else generate a new one
+    song_id = getattr(validated_data, "id", None) or str(uuid.uuid4())
     logger.info("Creating new song with ID: %s", song_id)
 
     try:
-        # Create song directly using create_or_update_song with validated data
-        song = create_or_update_song(
-            song_id=song_id,
-            title=validated_data.title,
-            artist=validated_data.artist,
-            album=validated_data.album,
-            duration_ms=validated_data.duration_ms,
-            source=validated_data.source,
-            video_id=validated_data.video_id,
-        )
+        # Create song using SongRepository
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            song_data = {
+                "id": song_id,
+                "title": validated_data.title,
+                "artist": validated_data.artist,
+                "album": validated_data.album,
+                "duration_ms": validated_data.durationMs,
+                "source": validated_data.source,
+                "video_id": validated_data.video_id,
+            }
+            song = repo.create(song_data)
 
         if not song:
             raise DatabaseError(
@@ -594,33 +946,51 @@ def update_song(song_id: str):
         if not data:
             raise ValidationError("No data provided", "MISSING_REQUEST_DATA")
 
-        # Get existing song from database first
-        db_song = get_song(song_id)
-        if not db_song:
-            raise ResourceNotFoundError("Song", song_id)
+        # Validate using UpdateSongRequest
+        try:
+            validated = UpdateSongRequest(**data)
+        except Exception as e:
+            raise ValidationError(str(e), "INVALID_UPDATE_DATA")
 
-        # Update song directly in database using only the provided fields
-        updated_song = create_or_update_song(
-            song_id=song_id,
-            title=data.get("title", db_song.title),
-            artist=data.get("artist", db_song.artist),
-            album=data.get("album", db_song.album),
-            genre=data.get("genre", db_song.genre),
-            language=data.get("language", db_song.language),
-            lyrics=data.get("lyrics", db_song.lyrics),
-            synced_lyrics=data.get("syncedLyrics", db_song.synced_lyrics),
-            favorite=data.get("favorite", db_song.favorite),
-        )
-
-        if not updated_song:
-            raise DatabaseError(
-                "Failed to update song metadata",
-                "SONG_UPDATE_ERROR",
-                {"song_id": song_id},
-            )
-
-        # Return updated song details
-        return get_song_details(song_id)
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            db_song = repo.fetch(song_id)
+            if not db_song:
+                raise ResourceNotFoundError("Song", song_id)
+            # Only update provided fields
+            update_fields = {}
+            for field in [
+                "title",
+                "artist",
+                "album",
+                "genre",
+                "language",
+                "lyrics",
+                "synced_lyrics",
+                "favorite",
+                "durationMs",
+            ]:
+                # Map camelCase to snake_case for synced_lyrics and durationMs
+                if field == "synced_lyrics":
+                    val = data.get("syncedLyrics", getattr(db_song, field))
+                elif field == "durationMs":
+                    val = data.get("durationMs", getattr(db_song, "duration_ms", None))
+                    # Validation already done by pydantic
+                    if val is not None:
+                        update_fields["duration_ms"] = val
+                    continue
+                else:
+                    val = data.get(field, getattr(db_song, field))
+                update_fields[field] = val
+            updated_song = repo.update(song_id, **update_fields)
+            if not updated_song:
+                raise DatabaseError(
+                    "Failed to update song metadata",
+                    "SONG_UPDATE_ERROR",
+                    {"song_id": song_id},
+                )
+            # Return updated song details
+            return get_song_details(song_id)
 
     except (ValidationError, ResourceNotFoundError, DatabaseError):
         raise  # Let error handlers deal with it
