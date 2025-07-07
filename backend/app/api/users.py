@@ -33,10 +33,14 @@ def login_user():
     session = SessionLocal()
     try:
         user = session.query(User).filter(User.username == data["username"]).first()
-        if not user or (user.password_hash and not user.check_password(data["password"])):
+        if not user or (
+            user.password_hash and not user.check_password(data["password"])
+        ):
             return jsonify({"error": "Invalid username or password"}), 401
 
-        return jsonify({"success": True, "id": user.id, "display_name": user.display_name})
+        return jsonify(
+            {"success": True, "id": user.id, "display_name": user.display_name}
+        )
     finally:
         session.close()
 

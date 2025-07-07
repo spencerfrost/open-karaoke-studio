@@ -1,6 +1,7 @@
 import random
 
 import pytest
+
 from app.db.models import DbSong
 
 

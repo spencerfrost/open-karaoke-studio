@@ -8,6 +8,4 @@ WebSocket functionality for Open Karaoke Studio.
 # Export socketio initialization function
 from .socketio import init_socketio
 
-
-
 __all__ = ["init_socketio"]

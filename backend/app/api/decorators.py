@@ -15,7 +15,9 @@ def log_api_call(logger: logging.Logger):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            logger.info("API call to %s: %s %s", func.__name__, request.method, request.path)
+            logger.info(
+                "API call to %s: %s %s", func.__name__, request.method, request.path
+            )
             try:
                 result = func(*args, **kwargs)
                 logger.info("API call to %s completed successfully", func.__name__)

@@ -31,9 +31,6 @@ sys.path.insert(0, str(backend_dir))
 from app.config import get_config
 from app.db.database import get_db_session
 from app.repositories.song_repository import SongRepository
-from app.db.database import get_db_session
-from app.db.database import get_db_session
-from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 
 # File extensions to check for thumbnails
@@ -69,7 +66,7 @@ class KaraokeLibraryCleanup:
         """Get all song information from the database."""
         try:
             with get_db_session() as session:
-            repo = SongRepository(session)
+                repo = SongRepository(session)
             songs = repo.fetch_all()
             return {
                 str(song.id): {
@@ -367,8 +364,9 @@ class KaraokeLibraryCleanup:
         success = True
 
         try:
-            from app.repositories.song_repository import SongRepository
             from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
+
             # ...existing code...
             if item.item_type == "orphaned_db":
                 # Delete database entry only
@@ -380,9 +378,13 @@ class KaraokeLibraryCleanup:
                     with get_db_session() as session:
                         repo = SongRepository(session)
                         if repo.delete(item.song_id):
-                            print(f"✅ Deleted database entry for song ID: {item.song_id}")
+                            print(
+                                f"✅ Deleted database entry for song ID: {item.song_id}"
+                            )
                         else:
-                            print(f"❌ Failed to delete database entry for {item.song_id}")
+                            print(
+                                f"❌ Failed to delete database entry for {item.song_id}"
+                            )
                             success = False
 
             elif item.item_type == "orphaned_fs":
@@ -411,9 +413,13 @@ class KaraokeLibraryCleanup:
                     with get_db_session() as session:
                         repo = SongRepository(session)
                         if repo.delete(item.song_id):
-                            print(f"✅ Deleted database entry for song ID: {item.song_id}")
+                            print(
+                                f"✅ Deleted database entry for song ID: {item.song_id}"
+                            )
                         else:
-                            print(f"❌ Failed to delete database entry for {item.song_id}")
+                            print(
+                                f"❌ Failed to delete database entry for {item.song_id}"
+                            )
                             success = False
 
                     # Delete filesystem directory

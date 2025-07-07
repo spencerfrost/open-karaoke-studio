@@ -5,10 +5,12 @@ This script tests the HuggingFace Transformers-based implementation.
 """
 
 import json
-import time
-import torch
-from pathlib import Path
 import sys
+import time
+from pathlib import Path
+
+import torch
+
 
 def get_device():
     """Detect the best available device (CUDA > CPU)"""
@@ -21,6 +23,7 @@ def get_device():
         print("💻 Using CPU (CUDA not available)")
         return "cpu"
 
+
 def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
     """Test Insanely Fast Whisper with word-level timestamps"""
     print(f"🎤 Testing Insanely Fast Whisper (model: {model_size})")
@@ -31,8 +34,12 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
 
     try:
         # Import here to catch import errors
-        from transformers import AutomaticSpeechRecognitionPipeline, WhisperProcessor, WhisperForConditionalGeneration
         import torch
+        from transformers import (
+            AutomaticSpeechRecognitionPipeline,
+            WhisperForConditionalGeneration,
+            WhisperProcessor,
+        )
 
         print(f"Loading model ({model_size})...")
         device = get_device()
@@ -51,16 +58,14 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
             torch_dtype=torch.float32,
-            device=device
+            device=device,
         )
 
         print("Transcribing audio...")
 
         # Transcribe with word-level timestamps
         result = pipe(
-            audio_path,
-            return_timestamps="word",
-            generate_kwargs={"language": "en"}
+            audio_path, return_timestamps="word", generate_kwargs={"language": "en"}
         )
 
         # Process results
@@ -68,7 +73,7 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
             "model": f"insanely-fast-whisper-{model_size.split('/')[-1]}",
             "text": result.get("text", ""),
             "segments": [],
-            "words": []
+            "words": [],
         }
 
         print(f"Full transcription: {result.get('text', '')}")
@@ -78,17 +83,27 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
         if "chunks" in result:
             for chunk in result["chunks"]:
                 if chunk.get("timestamp"):
-                    start_time_chunk = chunk["timestamp"][0] if chunk["timestamp"][0] is not None else 0.0
-                    end_time_chunk = chunk["timestamp"][1] if chunk["timestamp"][1] is not None else 0.0
+                    start_time_chunk = (
+                        chunk["timestamp"][0]
+                        if chunk["timestamp"][0] is not None
+                        else 0.0
+                    )
+                    end_time_chunk = (
+                        chunk["timestamp"][1]
+                        if chunk["timestamp"][1] is not None
+                        else 0.0
+                    )
 
                     word_data = {
                         "word": chunk["text"],
                         "start": start_time_chunk,
                         "end": end_time_chunk,
-                        "probability": 1.0  # Not available in this implementation
+                        "probability": 1.0,  # Not available in this implementation
                     }
                     results["words"].append(word_data)
-                    print(f"🗣️  '{chunk['text']}' [{start_time_chunk:.2f}s - {end_time_chunk:.2f}s]")
+                    print(
+                        f"🗣️  '{chunk['text']}' [{start_time_chunk:.2f}s - {end_time_chunk:.2f}s]"
+                    )
 
         # Group words into segments (approximate)
         if results["words"]:
@@ -99,17 +114,21 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
                 segment_words.append(word)
 
                 # Create new segment every 5 seconds or at sentence boundaries
-                if (word["end"] - segment_start > 5.0) or word["word"].strip().endswith(('.', '!', '?')):
+                if (word["end"] - segment_start > 5.0) or word["word"].strip().endswith(
+                    (".", "!", "?")
+                ):
                     segment_data = {
                         "start": segment_start,
                         "end": word["end"],
                         "text": " ".join([w["word"] for w in segment_words]),
-                        "words": segment_words.copy()
+                        "words": segment_words.copy(),
                     }
                     results["segments"].append(segment_data)
                     segment_words = []
                     if results["words"].index(word) + 1 < len(results["words"]):
-                        segment_start = results["words"][results["words"].index(word) + 1]["start"]
+                        segment_start = results["words"][
+                            results["words"].index(word) + 1
+                        ]["start"]
 
             # Add remaining words as final segment
             if segment_words:
@@ -117,7 +136,7 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
                     "start": segment_start,
                     "end": segment_words[-1]["end"],
                     "text": " ".join([w["word"] for w in segment_words]),
-                    "words": segment_words
+                    "words": segment_words,
                 }
                 results["segments"].append(segment_data)
 
@@ -133,7 +152,9 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
         print(f"Total words detected: {len(results['words'])}")
         print(f"Total segments: {len(results['segments'])}")
         if results["words"]:
-            print(f"🎯 First word starts at: {results['words'][0]['start']:.2f} seconds")
+            print(
+                f"🎯 First word starts at: {results['words'][0]['start']:.2f} seconds"
+            )
             print(f"First word: '{results['words'][0]['word']}'")
         else:
             print("❌ No words detected in the audio")
@@ -148,19 +169,24 @@ def test_insanely_fast_whisper(audio_path, model_size="openai/whisper-base"):
     except Exception as e:
         print(f"❌ Error with Insanely Fast Whisper: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
+
 def save_results(results, output_path):
     """Save results to JSON file"""
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python test_insanely_fast_whisper.py <audio_file> [model_size]")
         print("Example: python test_insanely_fast_whisper.py /path/to/vocals.mp3")
-        print("Model sizes: openai/whisper-tiny, openai/whisper-base, openai/whisper-small, etc.")
+        print(
+            "Model sizes: openai/whisper-tiny, openai/whisper-base, openai/whisper-small, etc."
+        )
         sys.exit(1)
 
     audio_file = sys.argv[1]
@@ -183,6 +209,7 @@ def main():
     else:
         print("❌ Failed to get results from Insanely Fast Whisper")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

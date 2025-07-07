@@ -60,7 +60,9 @@ def handle_request_jobs_list():
 
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 def broadcast_job_update(job_data: Dict[str, Any]):
     """
@@ -177,7 +179,9 @@ def _handle_job_event(event) -> None:
         status = job_data.get("status", "unknown")
 
         # Only log at debug level for event receipt
-        logger.debug(f"WebSocket handler received job event: {job_id} - created={was_created} - status={status}")
+        logger.debug(
+            f"WebSocket handler received job event: {job_id} - created={was_created} - status={status}"
+        )
 
         if was_created:
             broadcast_job_created(job_data)
@@ -205,12 +209,16 @@ def _setup_event_subscriptions():
         print("✅ Jobs WebSocket event subscriptions initialized")
         import logging
 
-        logging.getLogger(__name__).info("Jobs WebSocket event subscriptions initialized")
+        logging.getLogger(__name__).info(
+            "Jobs WebSocket event subscriptions initialized"
+        )
     except Exception as e:
         import logging
 
         print(f"❌ Failed to set up job event subscriptions: {e}")
-        logging.getLogger(__name__).warning(f"Failed to set up job event subscriptions: {e}")
+        logging.getLogger(__name__).warning(
+            f"Failed to set up job event subscriptions: {e}"
+        )
 
 
 def initialize_jobs_websocket():

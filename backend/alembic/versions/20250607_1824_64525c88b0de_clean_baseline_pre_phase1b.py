@@ -1,18 +1,19 @@
 """Clean baseline pre-Phase1B
 
 Revision ID: 64525c88b0de
-Revises: 
+Revises:
 Create Date: 2025-06-07 18:24:11.461836
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '64525c88b0de'
+revision: str = "64525c88b0de"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

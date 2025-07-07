@@ -4,21 +4,22 @@ Standardized error handling utilities for consistent API responses
 """
 
 import logging
-from typing import Optional, Dict, Any
-from flask import jsonify, Flask
+from typing import Any, Dict, Optional
+
+from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException
 
 from ..exceptions import (
-    KaraokeBaseError,
-    ValidationError,
-    DatabaseError,
-    NotFoundError,
-    ServiceError,
     AudioProcessingError,
-    YouTubeError,
+    ConfigurationError,
+    DatabaseError,
     FileSystemError,
     JobError,
-    ConfigurationError,
+    KaraokeBaseError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+    YouTubeError,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,9 @@ def create_error_response(
 
     else:
         # Unexpected errors - always log as error with full traceback
-        logger.error("Unexpected error: %s", str(error), extra=log_context, exc_info=True)
+        logger.error(
+            "Unexpected error: %s", str(error), extra=log_context, exc_info=True
+        )
 
         return (
             jsonify(
@@ -192,7 +195,9 @@ def handle_api_error(func):
             raise
         except Exception as e:
             # Convert unexpected exceptions to ServiceError
-            logger.error("Unhandled exception in %s: %s", func.__name__, str(e), exc_info=True)
+            logger.error(
+                "Unhandled exception in %s: %s", func.__name__, str(e), exc_info=True
+            )
             raise ServiceError(
                 f"Unexpected error in {func.__name__}",
                 "UNEXPECTED_SERVICE_ERROR",

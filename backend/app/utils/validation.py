@@ -5,10 +5,11 @@ Request validation utilities using Pydantic schemas
 
 import logging
 from functools import wraps
-from typing import Type, Optional, Dict, Any
+from typing import Any, Dict, Optional, Type
 
-from flask import request, jsonify
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from flask import jsonify, request
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from ..exceptions import RequestValidationError
 
@@ -58,7 +59,9 @@ def validate_json_request(schema_class: Type[BaseModel], location: str = "json")
                     extra={
                         "endpoint": func.__name__,
                         "schema": schema_class.__name__,
-                        "fields": (list(raw_data.keys()) if isinstance(raw_data, dict) else []),
+                        "fields": (
+                            list(raw_data.keys()) if isinstance(raw_data, dict) else []
+                        ),
                     },
                 )
 

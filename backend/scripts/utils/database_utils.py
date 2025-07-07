@@ -8,11 +8,11 @@ This module handles database operations including:
 """
 
 import logging
-from typing import List, Optional, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
-from app.repositories.song_repository import SongRepository
 from app.db.database import get_db_session
 from app.db.models import DbSong
+from app.repositories.song_repository import SongRepository
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ def get_songs_to_process(
 
     try:
         with get_db_session() as session:
-        repo = SongRepository(session)
-        all_songs = repo.fetch_all()
+            repo = SongRepository(session)
+            all_songs = repo.fetch_all()
         logger.info(f"Found {len(all_songs)} total songs in database")
 
         # Filter based on resume_from if specified
@@ -106,8 +106,9 @@ def update_song_metadata(
             return True
         else:
             logger.debug(f"Updating song {song.id} in database")
-            from app.repositories.song_repository import SongRepository
             from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
+
             with get_db_session() as session:
                 repo = SongRepository(session)
                 updated_song = repo.update(song.id, **metadata)
@@ -186,8 +187,8 @@ def get_database_stats() -> Dict[str, Any]:
     """
     try:
         with get_db_session() as session:
-        repo = SongRepository(session)
-        songs = repo.fetch_all()
+            repo = SongRepository(session)
+            songs = repo.fetch_all()
 
         stats = {
             "total_songs": len(songs),

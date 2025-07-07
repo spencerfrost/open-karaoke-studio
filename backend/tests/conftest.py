@@ -8,11 +8,12 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app import create_app
 from app.config.testing import TestingConfig
 from app.db.models import Base, DbSong
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from tests.fixtures.test_data import create_test_db_song, create_test_song
 
 
@@ -31,7 +32,6 @@ def populate_test_songs(test_db_session):
             artist=random.choice(artists),
             album=random.choice(albums),
             duration_ms=180000 + i * 1000,
-            i % 7 == 0),
             date_added=None,
             vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
             instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",

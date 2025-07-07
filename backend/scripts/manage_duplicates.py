@@ -31,15 +31,13 @@ from typing import Dict, List, Optional, Set, Tuple
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
+# Import the data integrity checker class
+from check_data_integrity import DataIntegrityChecker
+
 from app.config import get_config
-from app.repositories.song_repository import SongRepository
-from app.db.database import get_db_session
 from app.db.database import get_db_session
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
-
-# Import the data integrity checker class
-from check_data_integrity import DataIntegrityChecker
 
 
 class DuplicateManager:
@@ -363,8 +361,9 @@ class DuplicateManager:
     def delete_song(self, song_id: str, dry_run: bool = False) -> bool:
         """Delete a song from both database and filesystem."""
         try:
-            from app.repositories.song_repository import SongRepository
             from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
+
             if dry_run:
                 print(f"  [DRY RUN] Would delete song {song_id}")
                 return True

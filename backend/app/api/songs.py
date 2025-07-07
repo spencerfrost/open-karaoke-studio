@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
 
+from flask import Blueprint, jsonify, request, send_from_directory
+
 from app.schemas.requests import UpdateSongRequest
 from app.schemas.song import Song
-from flask import Blueprint, jsonify, request, send_from_directory
 
 from ..config import get_config
 

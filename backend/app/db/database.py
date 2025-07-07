@@ -159,7 +159,9 @@ def ensure_db_schema():
             continue  # Skip if table doesn't exist (shouldn't happen after above check)
 
         try:
-            existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+            existing_columns = {
+                col["name"] for col in inspector.get_columns(table_name)
+            }
         except Exception as e:
             logger.warning(f"Could not inspect table {table_name}, skipping: {e}")
             continue

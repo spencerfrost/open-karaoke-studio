@@ -12,10 +12,11 @@ from pathlib import Path
 # Add the backend app to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from app.db import database
-from app.services.file_service import FileService
-from app.config import get_config
 import logging
+
+from app.db import database
+from app.db.database import get_db_session
+from app.services.file_service import FileService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,10 +32,10 @@ def sync_thumbnails():
     logger.info("Starting thumbnail sync...")
 
     # Get all songs
-    songs = with get_db_session() as session:
-    repo = SongRepository(session)
-    songs = repo.fetch_all()
-    logger.info(f"Found {len(songs)} songs in database")
+    with get_db_session() as session:
+        repo = SongRepository(session)
+        songs = repo.fetch_all()
+        logger.info(f"Found {len(songs)} songs in database")
 
     updated_count = 0
     found_count = 0
