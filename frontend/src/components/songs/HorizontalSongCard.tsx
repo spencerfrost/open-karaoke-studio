@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Music, Play, Heart, Plus, MoreVertical } from "lucide-react";
+import { Music, Play, Plus, MoreVertical } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
 import { formatTimeMs } from "@/utils/formatters";
@@ -11,14 +11,12 @@ import { Button } from "@/components/ui/button";
 interface HorizontalSongCardProps {
   song: Song;
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
 }
 
 const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
   song,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -33,11 +31,6 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSongSelect?.(song);
-  };
-
-  const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleFavorite?.(song);
   };
 
   const handleQueueClick = (e: React.MouseEvent) => {
@@ -89,7 +82,7 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
                   {song.title}
                 </h4>
                 <span className="text-xs ml-2 flex-shrink-0 text-lemon-chiffon/80">
-                  {formatTimeMs(song.duration)}
+                  {formatTimeMs(song.durationMs ?? 0)}
                 </span>
               </div>
 
@@ -113,20 +106,6 @@ const HorizontalSongCard: React.FC<HorizontalSongCardProps> = ({
                 onClick={handlePlayClick}
               >
                 <Play size={14} />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`h-8 w-8 p-0 bg-transparent ${
-                  song.favorite ? "text-orange-peel" : "text-lemon-chiffon/60"
-                }`}
-                onClick={handleFavoriteClick}
-              >
-                <Heart
-                  size={14}
-                  fill={song.favorite ? "currentColor" : "none"}
-                />
               </Button>
 
               <Button

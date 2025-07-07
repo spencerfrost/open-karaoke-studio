@@ -1,7 +1,7 @@
-import React from 'react';
-import { Music2 } from 'lucide-react';
-import { Song } from '@/types/Song';
-import SongResultsGrid from './SongResultsGrid';
+import React from "react";
+import { Music2 } from "lucide-react";
+import { Song } from "@/types/Song";
+import SongResultsGrid from "./SongResultsGrid";
 
 interface SongResultsSectionProps {
   songs: Song[];
@@ -9,7 +9,6 @@ interface SongResultsSectionProps {
   isFetchingNextPage: boolean;
   fetchNextPage: () => void;
   onSongSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   searchTerm: string;
 }
@@ -20,7 +19,6 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
   searchTerm,
 }) => {
@@ -34,11 +32,9 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
       {/* Section Header */}
       <div className="flex items-center gap-3 mb-6">
         <Music2 size={24} className="text-orange-peel" />
-        <h2 className="text-xl font-semibold text-orange-peel">
-          Songs
-        </h2>
+        <h2 className="text-xl font-semibold text-orange-peel">Songs</h2>
         <span className="text-lemon-chiffon/60 text-sm">
-          {songs.length} result{songs.length !== 1 ? 's' : ''}
+          {songs.length} result{songs.length !== 1 ? "s" : ""}
         </span>
       </div>
 
@@ -49,7 +45,6 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
       />
     </div>

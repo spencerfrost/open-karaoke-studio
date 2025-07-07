@@ -181,6 +181,19 @@ class YouTubeService(YouTubeServiceInterface):
             logger.info(
                 "Successfully downloaded YouTube video %s as song %s", video_id, song_id
             )
+            try:
+                # Update song with duration_ms if available
+                if metadata_dict.get("duration_ms"):
+                    from ..db.database import get_db_session
+                    from ..repositories.song_repository import SongRepository
+
+                    with get_db_session() as session:
+                        repo = SongRepository(session)
+                        repo.update(song_id, duration_ms=metadata_dict["duration_ms"])
+            except Exception as e:
+                logger.warning(
+                    "Failed to update duration_ms for song %s: %s", song_id, e
+                )
             return song_id, metadata_dict
 
         except Exception as e:
@@ -267,13 +280,16 @@ class YouTubeService(YouTubeServiceInterface):
                 existing_song = repo.fetch(song_id)
                 if not existing_song:
                     # Create song record with basic metadata using direct parameters
-                    created_song = repo.create(
-                        song_id=song_id,
-                        title=title or "Unknown Title",
-                        artist=artist or "Unknown Artist",
-                        source="youtube",
-                        video_id=video_id,
-                    )
+                    song_data = {
+                        "id": song_id,
+                        "title": title or "Unknown Title",
+                        "artist": artist or "Unknown Artist",
+                        "source": "youtube",
+                        "video_id": video_id,
+                        # Try to fetch duration_ms from YouTube metadata if available
+                        "duration_ms": None,  # Will be updated after download if possible
+                    }
+                    created_song = repo.create(song_data)
                     if created_song:
                         logger.info("Created song record %s in database", song_id)
                     else:

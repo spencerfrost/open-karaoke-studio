@@ -5,14 +5,12 @@ import { Song } from "@/types/Song";
 
 interface RecentlyAddedRowProps {
   onSongSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   limit?: number;
 }
 
 const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
   limit = 6,
 }) => {
@@ -50,7 +48,6 @@ const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
             key={song.id}
             song={song}
             onSelect={onSongSelect}
-            onToggleFavorite={onToggleFavorite}
             onAddToQueue={onAddToQueue}
           />
         ))}

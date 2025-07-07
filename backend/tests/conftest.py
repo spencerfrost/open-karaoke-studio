@@ -31,7 +31,7 @@ def populate_test_songs(test_db_session):
             artist=random.choice(artists),
             album=random.choice(albums),
             duration_ms=180000 + i * 1000,
-            favorite=(i % 7 == 0),
+            i % 7 == 0),
             date_added=None,
             vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
             instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",
@@ -110,7 +110,6 @@ def sample_song_data():
         "artist": "Test Artist",
         "duration": 180,
         "source": "upload",
-        "favorite": False,
     }
 
 

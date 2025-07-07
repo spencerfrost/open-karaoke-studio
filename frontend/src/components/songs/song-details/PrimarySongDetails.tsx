@@ -83,11 +83,6 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
             Explicit
           </Badge>
         )}
-        {song.favorite && (
-          <Badge variant="secondary" className="bg-pink-100 text-pink-800">
-            Favorite
-          </Badge>
-        )}
       </div>
 
       {/* iTunes Preview Player */}

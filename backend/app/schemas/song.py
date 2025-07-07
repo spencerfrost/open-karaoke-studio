@@ -1,24 +1,14 @@
-"""
-Song API schemas for Open Karaoke Studio.
-
-These are used for API validation and serialization only.
-The actual database model is DbSong in db/models/song.py
-"""
-
 from datetime import datetime
-from typing import Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
 
 class Song(BaseModel):
-    """Main Song API model - matches frontend expectations"""
-
     id: str
     title: str
     artist: str
     durationMs: Optional[int] = None
-    favorite: bool = False
     dateAdded: Optional[datetime] = None
 
     # File paths (API URLs)
@@ -28,9 +18,12 @@ class Song(BaseModel):
     coverArt: Optional[str] = None
     thumbnail: Optional[str] = None
 
-    # YouTube data
-    videoId: Optional[str] = None
+    # Source
+    source: Optional[str] = None
     sourceUrl: Optional[str] = None
+    videoId: Optional[str] = None
+
+    # YouTube data
     uploader: Optional[str] = None
     uploaderId: Optional[str] = None
     channel: Optional[str] = None
@@ -38,12 +31,16 @@ class Song(BaseModel):
     channelName: Optional[str] = None
     description: Optional[str] = None
     uploadDate: Optional[datetime] = None
+    youtubeThumbnailUrls: Optional[List[str]] = None
+    youtubeTags: Optional[List[str]] = None
+    youtubeCategories: Optional[List[str]] = None
+    youtubeChannelId: Optional[str] = None
+    youtubeChannelName: Optional[str] = None
+    youtubeRawMetadata: Optional[Any] = None  # JSON object
 
     # Metadata
     mbid: Optional[str] = None
-    metadataId: Optional[str] = None  # Alias for mbid
     album: Optional[str] = None
-    releaseTitle: Optional[str] = None  # Legacy alias for album
     releaseId: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
@@ -54,9 +51,18 @@ class Song(BaseModel):
     lyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
 
-    # System
-    source: Optional[str] = None
+    # iTunes data
+    itunesArtistId: Optional[int] = None
+    itunesCollectionId: Optional[int] = None
+    trackTimeMillis: Optional[int] = None
+    itunesExplicit: Optional[bool] = None
+    itunesPreviewUrl: Optional[str] = None
+    itunesArtworkUrls: Optional[List[str]] = None  # JSON array
+
     status: str = "processed"
+
+    class Config:
+        orm_mode = True
 
 
 class SongCreate(BaseModel):
@@ -74,7 +80,6 @@ class SongUpdate(BaseModel):
 
     title: Optional[str] = None
     artist: Optional[str] = None
-    favorite: Optional[bool] = None
     lyrics: Optional[str] = None
     synced_lyrics: Optional[str] = None
     album: Optional[str] = None

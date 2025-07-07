@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Song } from '@/types/Song';
-import SongCard from '@/components/songs/SongCard';
+import React, { useEffect, useRef } from "react";
+import { Song } from "@/types/Song";
+import SongCard from "@/components/songs/SongCard";
 
 interface SongResultsGridProps {
   songs: Song[];
@@ -8,7 +8,6 @@ interface SongResultsGridProps {
   isFetchingNextPage: boolean;
   fetchNextPage: () => void;
   onSongSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
 }
 
@@ -18,7 +17,6 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
 }) => {
   const loadingRef = useRef<HTMLDivElement>(null);
@@ -59,7 +57,6 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
             key={song.id}
             song={song}
             onSelect={onSongSelect}
-            onToggleFavorite={onToggleFavorite}
             onAddToQueue={onAddToQueue}
           />
         ))}
@@ -67,10 +64,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
 
       {/* Loading indicator for infinite scroll */}
       {(hasNextPage || isFetchingNextPage) && (
-        <div
-          ref={loadingRef}
-          className="flex justify-center py-4"
-        >
+        <div ref={loadingRef} className="flex justify-center py-4">
           {isFetchingNextPage ? (
             <div className="flex items-center gap-2 text-orange-peel">
               <div className="animate-spin h-4 w-4 border-2 border-orange-peel border-t-transparent rounded-full"></div>

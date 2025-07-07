@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Music, Users } from 'lucide-react';
-import { Song } from '@/types/Song';
-import { useLibraryBrowsing } from '@/hooks/useLibraryBrowsing';
-import HorizontalSongCard from '@/components/songs/HorizontalSongCard';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import React, { useState } from "react";
+import { ChevronDown, ChevronRight, Music, Users } from "lucide-react";
+import { Song } from "@/types/Song";
+import { useLibraryBrowsing } from "@/hooks/useLibraryBrowsing";
+import HorizontalSongCard from "@/components/songs/HorizontalSongCard";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ArtistAccordionProps {
   searchTerm?: string;
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
   className?: string;
 }
@@ -20,7 +19,6 @@ interface ArtistSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
 }
 
@@ -30,29 +28,32 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   isExpanded,
   onToggle,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
 }) => {
   const [songsPage, setSongsPage] = useState(0);
   const PAGE_SIZE = 10;
 
   const { useArtistSongs } = useLibraryBrowsing();
-  
+
   const {
     data: songsData,
     isLoading: songsLoading,
     error: songsError,
-  } = useArtistSongs(artistName, {
-    limit: PAGE_SIZE,
-    offset: songsPage * PAGE_SIZE,
-    sort: 'title',
-    direction: 'asc',
-  }, {
-    enabled: isExpanded, // Only fetch songs when accordion is expanded
-  });
+  } = useArtistSongs(
+    artistName,
+    {
+      limit: PAGE_SIZE,
+      offset: songsPage * PAGE_SIZE,
+      sort: "title",
+      direction: "asc",
+    },
+    {
+      enabled: isExpanded, // Only fetch songs when accordion is expanded
+    }
+  );
 
   const handleLoadMore = () => {
-    setSongsPage(prev => prev + 1);
+    setSongsPage((prev) => prev + 1);
   };
 
   return (
@@ -72,7 +73,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           <div>
             <h3 className="font-semibold text-lg">{artistName}</h3>
             <p className="text-sm opacity-75">
-              {songCount} {songCount === 1 ? 'song' : 'songs'}
+              {songCount} {songCount === 1 ? "song" : "songs"}
             </p>
           </div>
         </div>
@@ -92,7 +93,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             </div>
           ) : songsError ? (
             <div className="p-4 text-center text-red-500">
-              Error loading songs: {songsError instanceof Error ? songsError.message : 'Unknown error'}
+              Error loading songs:{" "}
+              {songsError instanceof Error
+                ? songsError.message
+                : "Unknown error"}
             </div>
           ) : (
             <div className="p-2">
@@ -101,7 +105,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                   <HorizontalSongCard
                     song={song}
                     onSongSelect={onSongSelect}
-                    onToggleFavorite={onToggleFavorite}
                     onAddToQueue={onAddToQueue}
                   />
                 </div>
@@ -116,7 +119,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                     disabled={songsLoading}
                     className="border-orange-peel text-orange-peel"
                   >
-                    {songsLoading ? 'Loading...' : `Load More (${songsData.pagination.total - songsData.songs.length} remaining)`}
+                    {songsLoading
+                      ? "Loading..."
+                      : `Load More (${songsData.pagination.total - songsData.songs.length} remaining)`}
                   </Button>
                 </div>
               )}
@@ -124,7 +129,8 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
               {/* Songs count summary */}
               {songsData && !songsLoading && (
                 <div className="mt-3 pt-3 border-t border-orange-peel text-center text-sm opacity-60">
-                  Showing {songsData.songs.length} of {songsData.pagination.total} songs
+                  Showing {songsData.songs.length} of{" "}
+                  {songsData.pagination.total} songs
                 </div>
               )}
             </div>
@@ -136,13 +142,14 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
 };
 
 const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
-  searchTerm = '',
+  searchTerm = "",
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
-  className = '',
+  className = "",
 }) => {
-  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set());
+  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
+    new Set()
+  );
   const [artistsPage, setArtistsPage] = useState(0);
   const ARTISTS_PAGE_SIZE = 20;
 
@@ -159,7 +166,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   });
 
   const toggleArtist = (artistName: string) => {
-    setExpandedArtists(prev => {
+    setExpandedArtists((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(artistName)) {
         newSet.delete(artistName);
@@ -171,21 +178,24 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   };
 
   const handleLoadMoreArtists = () => {
-    setArtistsPage(prev => prev + 1);
+    setArtistsPage((prev) => prev + 1);
   };
 
   // Group artists by first letter for better navigation
   const groupedArtists = React.useMemo(() => {
     if (!artistsData?.artists) return {};
-    
-    return artistsData.artists.reduce((groups, artist) => {
-      const letter = artist.firstLetter;
-      if (!groups[letter]) {
-        groups[letter] = [];
-      }
-      groups[letter].push(artist);
-      return groups;
-    }, {} as Record<string, typeof artistsData.artists>);
+
+    return artistsData.artists.reduce(
+      (groups, artist) => {
+        const letter = artist.firstLetter;
+        if (!groups[letter]) {
+          groups[letter] = [];
+        }
+        groups[letter].push(artist);
+        return groups;
+      },
+      {} as Record<string, typeof artistsData.artists>
+    );
   }, [artistsData]);
 
   if (artistsError) {
@@ -193,7 +203,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
       <div className={`text-center py-8 ${className}`}>
         <div className="text-red-500 mb-2">Error loading artists</div>
         <div className="text-sm opacity-60">
-          {artistsError instanceof Error ? artistsError.message : 'Unknown error'}
+          {artistsError instanceof Error
+            ? artistsError.message
+            : "Unknown error"}
         </div>
       </div>
     );
@@ -215,10 +227,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             <div className="text-center py-12 rounded-lg bg-lemon-chiffon/10 text-lemon-chiffon">
               <Music size={48} className="mx-auto mb-4 text-orange-peel" />
               <p>
-                {searchTerm 
+                {searchTerm
                   ? `No artists found matching "${searchTerm}"`
-                  : 'No artists found in your library'
-                }
+                  : "No artists found in your library"}
               </p>
             </div>
           ) : (
@@ -230,7 +241,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                   <div className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10">
                     {letter}
                   </div>
-                  
+
                   {/* Artists in this letter group */}
                   <div className="space-y-2">
                     {artists.map((artist) => (
@@ -241,7 +252,6 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                         isExpanded={expandedArtists.has(artist.name)}
                         onToggle={() => toggleArtist(artist.name)}
                         onSongSelect={onSongSelect}
-                        onToggleFavorite={onToggleFavorite}
                         onAddToQueue={onAddToQueue}
                       />
                     ))}
@@ -258,7 +268,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                     disabled={artistsLoading}
                     className="px-6 py-3 border-orange-peel text-orange-peel"
                   >
-                    {artistsLoading ? 'Loading...' : 'Load More Artists'}
+                    {artistsLoading ? "Loading..." : "Load More Artists"}
                   </Button>
                 </div>
               )}
@@ -266,7 +276,8 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
               {/* Summary */}
               {artistsData && !artistsLoading && (
                 <div className="mt-6 text-center text-sm opacity-60">
-                  Showing {artistsData.artists.length} of {artistsData.pagination.total} artists
+                  Showing {artistsData.artists.length} of{" "}
+                  {artistsData.pagination.total} artists
                 </div>
               )}
             </div>

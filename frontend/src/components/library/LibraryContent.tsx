@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 interface LibraryContentProps {
   searchResults: FuzzySearchResult;
   onSongSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   searchTerm: string;
 }
@@ -20,7 +19,6 @@ const RECENT_LIMIT = 12;
 const LibraryContent: React.FC<LibraryContentProps> = ({
   searchResults,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
   searchTerm,
 }) => {
@@ -49,7 +47,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ({
       <RecentlyAddedRow
         songs={recentSongs}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
       />
 
@@ -60,7 +57,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ({
         isFetchingNextPage={songsPagination.isFetchingNextPage}
         fetchNextPage={songsPagination.fetchNextPage}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
         searchTerm={searchTerm}
       />
@@ -72,7 +68,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ({
         isFetchingNextPage={artistsPagination.isFetchingNextPage}
         fetchNextPage={artistsPagination.fetchNextPage}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
         searchTerm={searchTerm}
       />
