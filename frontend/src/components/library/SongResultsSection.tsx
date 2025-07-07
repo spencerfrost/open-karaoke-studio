@@ -20,13 +20,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
   fetchNextPage,
   onSongSelect,
   onAddToQueue,
-  searchTerm,
 }) => {
-  // Don't show section if no search term or no songs
-  if (!searchTerm.trim() || songs.length === 0) {
-    return null;
-  }
-
   return (
     <div className="mb-8">
       {/* Section Header */}

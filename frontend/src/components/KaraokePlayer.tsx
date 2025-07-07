@@ -9,11 +9,12 @@ interface KaraokePlayerProps {
   isPlaying: boolean;
   isReady: boolean;
   vocalVolume: number;
-  currentTime: number;
-  duration: number;
+  currentTime: number; // seconds
+  duration: number; // seconds
+  durationMs?: number; // milliseconds
   play: () => void;
   pause: () => void;
-  seek: (time: number) => void;
+  seek: (timeMs: number) => void;
   setVocalVolume: (volume: number) => void;
 }
 
@@ -25,6 +26,7 @@ const KaraokePlayer = ({
   vocalVolume,
   currentTime,
   duration,
+  durationMs,
   play,
   pause,
   seek,
@@ -64,9 +66,9 @@ const KaraokePlayer = ({
       >
         {/* Progress bar */}
         <ProgressBar
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={(val) => seek(val)}
+          currentTime={currentTime * 1000}
+          durationMs={durationMs !== undefined ? durationMs : duration * 1000}
+          onSeek={seek}
           className="mb-4"
         />
 
