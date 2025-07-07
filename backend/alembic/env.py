@@ -12,6 +12,8 @@ from sqlalchemy import engine_from_config, pool
 # Add the app to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from app.config import get_config
+
 # Import application models and config
 from app.db.models import Base
 

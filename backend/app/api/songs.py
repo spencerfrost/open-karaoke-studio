@@ -965,13 +965,15 @@ def update_song(song_id: str):
                 "album",
                 "genre",
                 "language",
-                "lyrics",
+                "plain_lyrics",
                 "synced_lyrics",
                 "durationMs",
             ]:
                 # Map camelCase to snake_case for synced_lyrics and durationMs
                 if field == "synced_lyrics":
                     val = data.get("syncedLyrics", getattr(db_song, field))
+                elif field == "plain_lyrics":
+                    val = data.get("plainLyrics", getattr(db_song, field))
                 elif field == "durationMs":
                     val = data.get("durationMs", getattr(db_song, "duration_ms", None))
                     # Validation already done by pydantic

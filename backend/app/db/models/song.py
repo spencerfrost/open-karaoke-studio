@@ -43,7 +43,7 @@ class DbSong(Base):
     year = Column(Integer, nullable=True)
     genre = Column(String, nullable=True)
     language = Column(String, nullable=True)
-    lyrics = Column(Text, nullable=True)
+    plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
     channel_name = Column(String, nullable=True)  # Legacy field
 
@@ -133,7 +133,7 @@ class DbSong(Base):
             "genre": self.genre,
             "language": self.language,
             # Lyrics
-            "lyrics": self.lyrics,
+            "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
             # System
             "source": self.source,

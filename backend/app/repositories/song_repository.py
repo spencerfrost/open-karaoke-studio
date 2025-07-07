@@ -66,6 +66,25 @@ class SongRepository:
         """
         Create a new song record.
         """
+        # Always normalize date_added to ISO 8601 (YYYY-MM-DDTHH:MM:SS)
+        if "date_added" in song_data and song_data["date_added"]:
+            from datetime import datetime
+
+            dt = song_data["date_added"]
+            if isinstance(dt, str):
+                # Try to parse known formats
+                for fmt in (
+                    "%Y-%m-%dT%H:%M:%S",
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                ):
+                    try:
+                        dt = datetime.strptime(dt, fmt)
+                        break
+                    except Exception:
+                        continue
+            if isinstance(dt, datetime):
+                song_data["date_added"] = dt.strftime("%Y-%m-%dT%H:%M:%S")
         song = DbSong(**song_data)
         self.db.add(song)
         self.db.commit()

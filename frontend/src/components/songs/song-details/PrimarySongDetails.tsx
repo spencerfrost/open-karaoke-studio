@@ -41,7 +41,7 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
           <Clock size={16} className="text-muted-foreground flex-shrink-0" />
           <div>
             <p className="text-xs text-muted-foreground">Duration</p>
-            <p className="font-medium">{formatTimeMs(song.durationMs)}</p>
+            <p className="font-medium">{formatTimeMs(song.durationMs ?? 0)}</p>
           </div>
         </div>
 

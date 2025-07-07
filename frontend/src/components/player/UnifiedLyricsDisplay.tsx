@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import {
   Play,
   Pause,
@@ -198,7 +198,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
         <AudioVisualizer className="w-full" />
 
         <ProgressBar
-          currentTime={currentTime / 1000}
+          currentTime={currentTime}
           durationMs={durationMs}
           onSeek={onSeek}
         />
@@ -252,8 +252,15 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
             )}
           </div>
           <div className="flex-1 text-sm text-background/50">
-            {new Date(currentTime).toISOString().substr(11, 8)} /{" "}
-            {formatTimeMs(durationMs)}
+            {useMemo(() => {
+              // Memoize formatted current time
+              return formatTimeMs(currentTime);
+            }, [currentTime])}{" "}
+            /{" "}
+            {useMemo(() => {
+              // Memoize formatted duration
+              return formatTimeMs(durationMs);
+            }, [durationMs])}
           </div>
 
           <Button
