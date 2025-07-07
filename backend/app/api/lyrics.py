@@ -1,11 +1,12 @@
 import logging
+
 from flask import Blueprint, current_app, jsonify, request
 
-from ..exceptions import ServiceError, ValidationError, NetworkError, FileSystemError
+from ..exceptions import FileSystemError, NetworkError, ServiceError, ValidationError
+from ..schemas.requests import SaveLyricsRequest
 from ..services.lyrics_service import LyricsService
 from ..utils.error_handlers import handle_api_error
 from ..utils.validation import validate_json_request
-from ..schemas.requests import SaveLyricsRequest
 
 logger = logging.getLogger(__name__)
 lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
@@ -30,7 +31,9 @@ def search_lyrics():
     album_name = request.args.get("album_name")
 
     if not track_name or not artist_name:
-        raise ValidationError("Missing track_name/artist_name information", "MISSING_PARAMETERS")
+        raise ValidationError(
+            "Missing track_name/artist_name information", "MISSING_PARAMETERS"
+        )
 
     try:
         lyrics_service = LyricsService()
@@ -94,7 +97,9 @@ def save_song_lyrics(song_id: str, validated_data: SaveLyricsRequest = None):
             logger.info("Successfully saved lyrics for song %s", song_id)
             return jsonify({"message": "Lyrics saved successfully"}), 200
         else:
-            raise ServiceError("Failed to save lyrics", "LYRICS_SAVE_ERROR", {"song_id": song_id})
+            raise ServiceError(
+                "Failed to save lyrics", "LYRICS_SAVE_ERROR", {"song_id": song_id}
+            )
 
     except ValidationError:
         raise  # Let error handlers deal with it

@@ -5,12 +5,14 @@ This script runs all available ASR models on the same audio file and compares re
 """
 
 import json
-import time
-import torch
-import pandas as pd
-from pathlib import Path
 import sys
-from typing import Dict, Any, Optional
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import pandas as pd
+import torch
+
 
 def get_device_info():
     """Get device information for consistent reporting"""
@@ -23,10 +25,12 @@ def get_device_info():
         print("💻 Using CPU (CUDA not available)")
         return "cpu", "CPU"
 
+
 def run_faster_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
     """Run Faster Whisper test"""
     try:
         from test_faster_whisper import test_faster_whisper
+
         print("🚀 Testing Faster Whisper...")
         result = test_faster_whisper(audio_path)  # Fixed: only one argument
         result["model_name"] = "faster-whisper"
@@ -35,10 +39,12 @@ def run_faster_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
         print(f"❌ Faster Whisper failed: {e}")
         return None
 
+
 def run_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
     """Run Original Whisper test"""
     try:
         from test_whisper import test_whisper
+
         print("🚀 Testing Original Whisper...")
         result = test_whisper(audio_path, "base")
         result["model_name"] = "whisper"
@@ -47,10 +53,12 @@ def run_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
         print(f"❌ Original Whisper failed: {e}")
         return None
 
+
 def run_insanely_fast_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
     """Run Insanely Fast Whisper test"""
     try:
         from test_insanely_fast_whisper import test_insanely_fast_whisper
+
         print("🚀 Testing Insanely Fast Whisper...")
         result = test_insanely_fast_whisper(audio_path)  # Simplified call
         result["model_name"] = "insanely-fast-whisper"
@@ -58,6 +66,7 @@ def run_insanely_fast_whisper(audio_path: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"❌ Insanely Fast Whisper failed: {e}")
         return None
+
 
 def run_all_models(audio_path: str) -> Dict[str, Any]:
     """Run all available ASR models on the same audio file"""
@@ -86,6 +95,7 @@ def run_all_models(audio_path: str) -> Dict[str, Any]:
 
     return results
 
+
 def analyze_results(results: Dict[str, Any]) -> pd.DataFrame:
     """Analyze and compare results from different models"""
     comparison_data = []
@@ -108,18 +118,23 @@ def analyze_results(results: Dict[str, Any]) -> pd.DataFrame:
         # Get text length
         text_length = len(result.get("text", ""))
 
-        comparison_data.append({
-            "Model": model_name.replace("_", " ").title(),
-            "Processing Time (s)": round(processing_time, 2),
-            "Total Words": total_words,
-            "Total Segments": total_segments,
-            "Avg Words/Segment": round(avg_words_per_segment, 1),
-            "First Word (s)": round(first_word_time, 2) if first_word_time else "N/A",
-            "Text Length": text_length,
-            "Language": result.get("detected_language", "unknown")
-        })
+        comparison_data.append(
+            {
+                "Model": model_name.replace("_", " ").title(),
+                "Processing Time (s)": round(processing_time, 2),
+                "Total Words": total_words,
+                "Total Segments": total_segments,
+                "Avg Words/Segment": round(avg_words_per_segment, 1),
+                "First Word (s)": (
+                    round(first_word_time, 2) if first_word_time else "N/A"
+                ),
+                "Text Length": text_length,
+                "Language": result.get("detected_language", "unknown"),
+            }
+        )
 
     return pd.DataFrame(comparison_data)
+
 
 def compare_transcriptions(results: Dict[str, Any]) -> None:
     """Compare the actual transcription text between models"""
@@ -131,6 +146,7 @@ def compare_transcriptions(results: Dict[str, Any]) -> None:
             text = result.get("text", "")
             print(f"\n{model_name.replace('_', ' ').title()}:")
             print(f"'{text}'")
+
 
 def analyze_timing_precision(results: Dict[str, Any]) -> None:
     """Analyze timing precision across models"""
@@ -150,17 +166,24 @@ def analyze_timing_precision(results: Dict[str, Any]) -> None:
                 word_durations.append(duration)
 
                 if i > 0:
-                    gap = word.get("start", 0) - words[i-1].get("end", 0)
+                    gap = word.get("start", 0) - words[i - 1].get("end", 0)
                     gaps_between_words.append(gap)
 
             if word_durations:
                 avg_duration = sum(word_durations) / len(word_durations)
-                avg_gap = sum(gaps_between_words) / len(gaps_between_words) if gaps_between_words else 0
+                avg_gap = (
+                    sum(gaps_between_words) / len(gaps_between_words)
+                    if gaps_between_words
+                    else 0
+                )
 
                 print(f"\n{model_name.replace('_', ' ').title()}:")
                 print(f"  Average word duration: {avg_duration:.3f}s")
                 print(f"  Average gap between words: {avg_gap:.3f}s")
-                print(f"  Total audio span: {words[-1].get('end', 0) - words[0].get('start', 0):.2f}s")
+                print(
+                    f"  Total audio span: {words[-1].get('end', 0) - words[0].get('start', 0):.2f}s"
+                )
+
 
 def save_detailed_comparison(results: Dict[str, Any], output_path: str):
     """Save detailed comparison results"""
@@ -168,10 +191,10 @@ def save_detailed_comparison(results: Dict[str, Any], output_path: str):
         "summary": {
             "total_models_tested": len([r for r in results.values() if r is not None]),
             "successful_models": list(results.keys()),
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         },
         "detailed_results": results,
-        "word_level_comparison": {}
+        "word_level_comparison": {},
     }
 
     # Create word-level comparison
@@ -179,8 +202,9 @@ def save_detailed_comparison(results: Dict[str, Any], output_path: str):
         if result and "words" in result:
             comparison["word_level_comparison"][model_name] = result["words"]
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(comparison, f, indent=2, ensure_ascii=False)
+
 
 def main():
     if len(sys.argv) < 2:
@@ -229,13 +253,25 @@ def main():
     print("\n💡 RECOMMENDATIONS")
     print("=" * 60)
     if len(results) > 1:
-        fastest_model = min(results.items(), key=lambda x: x[1].get("processing_time", float('inf')) if x[1] else float('inf'))
-        most_words_model = max(results.items(), key=lambda x: len(x[1].get("words", [])) if x[1] else 0)
+        fastest_model = min(
+            results.items(),
+            key=lambda x: (
+                x[1].get("processing_time", float("inf")) if x[1] else float("inf")
+            ),
+        )
+        most_words_model = max(
+            results.items(), key=lambda x: len(x[1].get("words", [])) if x[1] else 0
+        )
 
-        print(f"🏃 Fastest model: {fastest_model[0]} ({fastest_model[1].get('processing_time', 0):.2f}s)")
-        print(f"🎯 Most detailed transcription: {most_words_model[0]} ({len(most_words_model[1].get('words', []))} words)")
+        print(
+            f"🏃 Fastest model: {fastest_model[0]} ({fastest_model[1].get('processing_time', 0):.2f}s)"
+        )
+        print(
+            f"🎯 Most detailed transcription: {most_words_model[0]} ({len(most_words_model[1].get('words', []))} words)"
+        )
     else:
         print("Run with multiple working models for recommendations.")
+
 
 if __name__ == "__main__":
     main()

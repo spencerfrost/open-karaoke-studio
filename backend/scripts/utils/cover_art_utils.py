@@ -8,13 +8,13 @@ This module handles all cover art related operations including:
 """
 
 import logging
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional
 
+from app.config import get_config
 from app.db.models import DbSong
 from app.services.file_management import get_cover_art_path
 from app.services.itunes_service import get_itunes_cover_art
-from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -161,12 +161,14 @@ def get_cover_art_stats() -> Dict[str, int]:
         Dictionary with cover art statistics
     """
     from app.repositories.song_repository import SongRepository
+
+
 from app.db.database import get_db_session
 
-    config = get_config()
-    with get_db_session() as session:
-        repo = SongRepository(session)
-        songs = repo.fetch_all()
+config = get_config()
+with get_db_session() as session:
+    repo = SongRepository(session)
+    songs = repo.fetch_all()
 
     stats = {
         "total_songs": len(songs),

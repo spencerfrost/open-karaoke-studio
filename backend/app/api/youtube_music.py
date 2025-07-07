@@ -1,7 +1,8 @@
 import logging
 
-from app.services.youtube_music_service import YouTubeMusicService
 from flask import Blueprint, jsonify, request
+
+from app.services.youtube_music_service import YouTubeMusicService
 
 logger = logging.getLogger(__name__)
 

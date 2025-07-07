@@ -11,7 +11,9 @@ from .file_management import download_image, get_cover_art_path
 logger = logging.getLogger(__name__)
 
 
-def search_itunes(artist: str, title: str, album: str = "", limit: int = 5) -> list[dict[str, Any]]:
+def search_itunes(
+    artist: str, title: str, album: str = "", limit: int = 5
+) -> list[dict[str, Any]]:
     """
     Search iTunes for song metadata with sorting by release date.
 
@@ -89,7 +91,9 @@ def search_itunes(artist: str, title: str, album: str = "", limit: int = 5) -> l
                     "albumId": track.get("collectionId"),
                     "releaseDate": track.get("releaseDate"),
                     "genre": track.get("primaryGenreName"),
-                    "duration": track.get("trackTimeMillis"),  # Duration in milliseconds
+                    "duration": track.get(
+                        "trackTimeMillis"
+                    ),  # Duration in milliseconds
                     "trackNumber": track.get("trackNumber"),
                     "discNumber": track.get("discNumber"),
                     "country": track.get("country"),
@@ -112,7 +116,9 @@ def search_itunes(artist: str, title: str, album: str = "", limit: int = 5) -> l
                             track_data["releaseDate"].replace("Z", "+00:00")
                         )
                         track_data["releaseYear"] = release_dt.year
-                        track_data["releaseDateFormatted"] = release_dt.strftime("%Y-%m-%d")
+                        track_data["releaseDateFormatted"] = release_dt.strftime(
+                            "%Y-%m-%d"
+                        )
                     except (ValueError, AttributeError):
                         track_data["releaseYear"] = None
                         track_data["releaseDateFormatted"] = None
@@ -167,7 +173,9 @@ def search_itunes(artist: str, title: str, album: str = "", limit: int = 5) -> l
                 logger.error("  - This may indicate rate limiting by Apple")
                 logger.error("  - Your IP might be temporarily blocked")
                 logger.error("  - Apple may have changed their API access policies")
-                logger.error("  - Consider adding delays between requests or changing User-Agent")
+                logger.error(
+                    "  - Consider adding delays between requests or changing User-Agent"
+                )
             elif response.status_code == 429:
                 logger.error("  429 Too Many Requests - Rate limit exceeded")
                 retry_after = response.headers.get("Retry-After")
@@ -326,7 +334,9 @@ def get_itunes_cover_art(track_data: dict[str, Any], song_dir: Path) -> Optional
             return relative_path
 
         # High-res failed, try the original URL as fallback
-        logger.warning("iTunes cover art - High-res failed, trying original URL: %s", artwork_url)
+        logger.warning(
+            "iTunes cover art - High-res failed, trying original URL: %s", artwork_url
+        )
 
         if download_image(artwork_url, cover_path):
             if cover_path.exists():
@@ -351,7 +361,9 @@ def get_itunes_cover_art(track_data: dict[str, Any], song_dir: Path) -> Optional
     return None
 
 
-def enhance_metadata_with_itunes(metadata: dict[str, Any], song_dir: Path) -> dict[str, Any]:
+def enhance_metadata_with_itunes(
+    metadata: dict[str, Any], song_dir: Path
+) -> dict[str, Any]:
     """
     Enhance song metadata with iTunes data.
 
@@ -415,7 +427,9 @@ def enhance_metadata_with_itunes(metadata: dict[str, Any], song_dir: Path) -> di
                 "itunesTrackId": itunes_data.get("id"),
                 "itunesArtistId": itunes_data.get("artistId"),
                 "itunesCollectionId": itunes_data.get("albumId"),
-                "trackTimeMillis": itunes_data.get("duration"),  # milliseconds from iTunes
+                "trackTimeMillis": itunes_data.get(
+                    "duration"
+                ),  # milliseconds from iTunes
                 "itunesExplicit": itunes_data.get("trackExplicitness") == "explicit",
                 "itunesPreviewUrl": itunes_data.get("previewUrl"),
                 "itunesArtworkUrls": (
@@ -501,7 +515,9 @@ def test_itunes_api_access():
         print(f"\n--- Test {i}: User-Agent: {ua[:50]}... ---")
 
         try:
-            response = requests.get(url, params=params, headers={"User-Agent": ua}, timeout=10)
+            response = requests.get(
+                url, params=params, headers={"User-Agent": ua}, timeout=10
+            )
 
             print(f"Status Code: {response.status_code}")
             print(f"Response Headers: {dict(response.headers)}")
@@ -512,7 +528,9 @@ def test_itunes_api_access():
                 print(f"Results found: {len(data.get('results', []))}")
                 if data.get("results"):
                     track = data["results"][0]
-                    print(f"First result: {track.get('trackName')} by {track.get('artistName')}")
+                    print(
+                        f"First result: {track.get('trackName')} by {track.get('artistName')}"
+                    )
             else:
                 print(f"Error response body: {response.text[:500]}")
 

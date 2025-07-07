@@ -10,8 +10,8 @@ from flask_cors import CORS
 from .api import register_blueprints
 from .config import get_config
 from .jobs import init_celery
-from .websockets import init_socketio
 from .utils.error_handlers import register_error_handlers
+from .websockets import init_socketio
 
 
 def create_app(config_class=None):

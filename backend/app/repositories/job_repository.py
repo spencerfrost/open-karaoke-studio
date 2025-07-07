@@ -79,7 +79,9 @@ class JobRepository:
                 # Verify the job was saved properly
                 verification = session.query(DbJob).filter(DbJob.id == job.id).first()
                 if not verification:
-                    logger.error("CRITICAL: Job %s failed verification after commit!", job.id)
+                    logger.error(
+                        "CRITICAL: Job %s failed verification after commit!", job.id
+                    )
                     raise Exception(
                         f"Job {job.id} failed to save properly"
                     )  # Emit event instead of directly calling broadcast function
@@ -150,10 +152,14 @@ class JobRepository:
         """Get jobs filtered by status."""
         try:
             with self.get_db_session() as session:
-                db_jobs = session.query(DbJob).filter(DbJob.status == status.value).all()
+                db_jobs = (
+                    session.query(DbJob).filter(DbJob.status == status.value).all()
+                )
                 return [db_job.to_job() for db_job in db_jobs]
         except Exception as e:
-            logger.error("Error getting jobs by status %s: %s", status, e, exc_info=True)
+            logger.error(
+                "Error getting jobs by status %s: %s", status, e, exc_info=True
+            )
             return []
 
     def delete_job(self, job_id: str) -> bool:
@@ -195,17 +201,29 @@ class JobRepository:
             with self.get_db_session() as session:
                 total = session.query(DbJob).count()
                 pending = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.PENDING.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PENDING.value)
+                    .count()
                 )
                 processing = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.PROCESSING.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.PROCESSING.value)
+                    .count()
                 )
                 completed = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.COMPLETED.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.COMPLETED.value)
+                    .count()
                 )
-                failed = session.query(DbJob).filter(DbJob.status == JobStatus.FAILED.value).count()
+                failed = (
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.FAILED.value)
+                    .count()
+                )
                 cancelled = (
-                    session.query(DbJob).filter(DbJob.status == JobStatus.CANCELLED.value).count()
+                    session.query(DbJob)
+                    .filter(DbJob.status == JobStatus.CANCELLED.value)
+                    .count()
                 )
                 return {
                     "total": total,

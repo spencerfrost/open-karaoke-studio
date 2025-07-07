@@ -4,15 +4,16 @@ Shared fixtures for YouTube Service tests
 This file contains common fixtures used across multiple test modules.
 """
 
-import pytest
 import uuid
-from unittest.mock import Mock
-from typing import Dict, Any, List
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+from unittest.mock import Mock
 
-from app.services.youtube_service import YouTubeService
+import pytest
+
 from app.services.interfaces.file_service import FileServiceInterface
+from app.services.youtube_service import YouTubeService
 
 # SongMetadata removed in Phase 5 - using dictionaries instead
 

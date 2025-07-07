@@ -64,7 +64,8 @@ class LoggingConfig:
                 "celery": {
                     "()": TimezoneFormatter,
                     "format": (
-                        "%(asctime)s - %(name)s - %(levelname)s - " "%(funcName)s - %(message)s"
+                        "%(asctime)s - %(name)s - %(levelname)s - "
+                        "%(funcName)s - %(message)s"
                     ),
                     "datefmt": "%Y-%m-%d %H:%M:%S %Z",
                     "timezone": self.timezone,
@@ -249,7 +250,9 @@ class LoggingConfig:
             "worker_log_format": (
                 "[%(asctime)s: %(levelname)s/%(processName)s] %(name)s: %(message)s"
             ),
-            "worker_task_log_format": ("[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"),
+            "worker_task_log_format": (
+                "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+            ),
             "worker_log_color": False,  # Disable color in files
             "worker_redirect_stdouts": True,
             "worker_redirect_stdouts_level": "INFO",

@@ -31,7 +31,9 @@ broker_url = config.CELERY_BROKER_URL
 result_backend = config.CELERY_RESULT_BACKEND
 
 # Create Celery app - this name is what forms the beginning of task names
-celery = Celery("app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"])
+celery = Celery(
+    "app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"]
+)
 
 # Configure Celery with enhanced logging
 celery_logging_config = logging_config.configure_celery_logging()

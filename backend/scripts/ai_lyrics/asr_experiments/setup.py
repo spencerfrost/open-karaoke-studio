@@ -7,6 +7,7 @@ Run this script first to set up the required packages.
 import subprocess
 import sys
 
+
 def install_package(package):
     """Install a package using pip."""
     try:
@@ -17,26 +18,24 @@ def install_package(package):
         print(f"❌ Failed to install {package}: {e}")
         return False
 
+
 def main():
     print("🔧 Installing ASR experiment dependencies...")
     print("=" * 50)
-    
-    packages = [
-        "faster-whisper",
-        "librosa", 
-        "soundfile",
-        "numpy"
-    ]
-    
+
+    packages = ["faster-whisper", "librosa", "soundfile", "numpy"]
+
     success_count = 0
     for package in packages:
         print(f"\n📦 Installing {package}...")
         if install_package(package):
             success_count += 1
-    
+
     print("\n" + "=" * 50)
-    print(f"📊 Installation Summary: {success_count}/{len(packages)} packages installed successfully")
-    
+    print(
+        f"📊 Installation Summary: {success_count}/{len(packages)} packages installed successfully"
+    )
+
     if success_count == len(packages):
         print("🎉 All dependencies installed! You can now run the ASR test scripts.")
         print("\nNext steps:")
@@ -46,8 +45,9 @@ def main():
     else:
         print("⚠️  Some packages failed to install. Please check the errors above.")
         return 1
-    
+
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

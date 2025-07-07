@@ -4,8 +4,9 @@ Database utilities for testing.
 
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 from unittest.mock import Mock
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -58,18 +59,20 @@ class MockDatabase:
         self.songs.append(song_data)
 
     def get_songs(self):
-    # Use SongRepository for test DB
-    from app.repositories.song_repository import SongRepository
-    with self.session() as session:
-        repo = SongRepository(session)
-        return repo.fetch_all()
+        # Use SongRepository for test DB
+        from app.repositories.song_repository import SongRepository
 
-def get_song(self, song_id):
-    # Use SongRepository for test DB
-    from app.repositories.song_repository import SongRepository
-    with self.session() as session:
-        repo = SongRepository(session)
-        return repo.fetch(song_id)
+        with self.session() as session:
+            repo = SongRepository(session)
+            return repo.fetch_all()
+
+    def get_song(self, song_id):
+        # Use SongRepository for test DB
+        from app.repositories.song_repository import SongRepository
+
+        with self.session() as session:
+            repo = SongRepository(session)
+            return repo.fetch(song_id)
 
     def add_job(self, job_data):
         self.jobs.append(job_data)

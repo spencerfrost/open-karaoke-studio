@@ -11,7 +11,9 @@ def get_queue():
     """Retrieve the current karaoke queue."""
     session = SessionLocal()
     try:
-        queue = session.query(KaraokeQueueItem).order_by(KaraokeQueueItem.position).all()
+        queue = (
+            session.query(KaraokeQueueItem).order_by(KaraokeQueueItem.position).all()
+        )
         return jsonify(
             [
                 {
@@ -40,7 +42,9 @@ def add_to_queue():
         )
         new_position = (max_position[0] + 1) if max_position else 1
         new_item = KaraokeQueueItem(
-            singer_name=data["singer_name"], song_id=data["song_id"], position=new_position
+            singer_name=data["singer_name"],
+            song_id=data["song_id"],
+            position=new_position,
         )
         session.add(new_item)
         session.commit()
@@ -54,7 +58,11 @@ def remove_from_queue(item_id):
     """Remove an item from the karaoke queue."""
     session = SessionLocal()
     try:
-        item = session.query(KaraokeQueueItem).filter(KaraokeQueueItem.id == item_id).first()
+        item = (
+            session.query(KaraokeQueueItem)
+            .filter(KaraokeQueueItem.id == item_id)
+            .first()
+        )
         if not item:
             return jsonify({"error": "Item not found"}), 404
         session.delete(item)
@@ -72,7 +80,9 @@ def reorder_queue():
     try:
         for item in data["queue"]:
             queue_item = (
-                session.query(KaraokeQueueItem).filter(KaraokeQueueItem.id == item["id"]).first()
+                session.query(KaraokeQueueItem)
+                .filter(KaraokeQueueItem.id == item["id"])
+                .first()
             )
             if queue_item:
                 queue_item.position = item["position"]
