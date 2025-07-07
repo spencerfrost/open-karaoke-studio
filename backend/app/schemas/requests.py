@@ -35,7 +35,6 @@ class UpdateSongRequest(BaseModel):
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
     durationMs: Optional[int] = Field(None, ge=0)
-    favorite: Optional[bool] = Field(None)
 
     @validator("title", "artist")
     def validate_non_empty_strings(cls, v):

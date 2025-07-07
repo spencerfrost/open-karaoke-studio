@@ -8,10 +8,10 @@ This module handles iTunes Search API operations including:
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from app.db.models import DbSong
-from app.services.itunes_service import search_itunes, enhance_metadata_with_itunes
+from app.services.itunes_service import enhance_metadata_with_itunes, search_itunes
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +121,14 @@ def enhance_song_metadata(
             "source": metadata_dict["source"],
             "source_url": metadata_dict["sourceUrl"],
             "video_id": metadata_dict["videoId"],
-            "favorite": metadata_dict["favorite"],
         }
 
         # We need the song directory path for cover art processing
         from pathlib import Path
 
-        song_dir = Path(f"/home/spencer/code/open-karaoke-studio/karaoke_library/{song.id}")
+        song_dir = Path(
+            f"/home/spencer/code/open-karaoke-studio/karaoke_library/{song.id}"
+        )
 
         # NOTE: This ignores the passed itunes_data and searches iTunes again!
         enhanced_metadata = enhance_metadata_with_itunes(legacy_metadata_dict, song_dir)

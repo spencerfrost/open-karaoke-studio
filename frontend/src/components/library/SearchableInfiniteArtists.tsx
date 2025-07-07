@@ -1,24 +1,22 @@
-import React, { useState } from 'react';
-import { Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import InfiniteArtistAccordion from './InfiniteArtistAccordion';
-import { Song } from '@/types/Song';
+import React, { useState } from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import InfiniteArtistAccordion from "./InfiniteArtistAccordion";
+import { Song } from "@/types/Song";
 
 interface SearchableInfiniteArtistsProps {
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
   className?: string;
 }
 
 const SearchableInfiniteArtists: React.FC<SearchableInfiniteArtistsProps> = ({
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
-  className = '',
+  className = "",
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
 
   return (
@@ -41,7 +39,6 @@ const SearchableInfiniteArtists: React.FC<SearchableInfiniteArtistsProps> = ({
       <InfiniteArtistAccordion
         searchTerm={debouncedSearch}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
       />
     </div>

@@ -19,7 +19,6 @@ class DbSong(Base):
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
     duration_ms = Column(Integer, nullable=True)
-    favorite = Column(Boolean, default=False)
     date_added = Column(DateTime, default=datetime.now(timezone.utc))
     vocals_path = Column(String, nullable=True)
     instrumental_path = Column(String, nullable=True)
@@ -92,7 +91,6 @@ class DbSong(Base):
             "artist": self.artist,
             "durationMs": self.duration_ms,
             "status": "processed",
-            "favorite": self.favorite,
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),

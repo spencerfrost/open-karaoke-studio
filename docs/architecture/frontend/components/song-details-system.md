@@ -11,6 +11,7 @@ The Song Details System provides a comprehensive interface for viewing song meta
 ## 🏗️ Architecture Overview
 
 ### Component Hierarchy
+
 ```
 SongDetailsDialog (Main Container)
 ├── DialogHeader (Song Title & Artist)
@@ -23,6 +24,7 @@ SongDetailsDialog (Main Container)
 ```
 
 ### Key Integration Points
+
 - **Song Cards** trigger dialog opening instead of direct navigation
 - **Artwork Display** component reused for large cover art
 - **Source Badges** and **Metadata Quality Indicators** integrated
@@ -31,6 +33,7 @@ SongDetailsDialog (Main Container)
 ## 🎵 Core Components
 
 ### SongDetailsDialog
+
 **File**: `/frontend/src/components/songs/SongDetailsDialog.tsx`
 
 Main dialog container that orchestrates the song details display:
@@ -47,16 +50,16 @@ function SongDetailsDialog({ song, open, onClose }: SongDetailsDialogProps) {
   useEffect(() => {
     if (!open) {
       // Stop any playing preview audio
-      const audioElements = document.querySelectorAll('audio');
-      audioElements.forEach(audio => {
+      const audioElements = document.querySelectorAll("audio");
+      audioElements.forEach((audio) => {
         audio.pause();
         audio.currentTime = 0;
       });
     }
   }, [open]);
-  
+
   if (!song) return null;
-  
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
@@ -68,41 +71,41 @@ function SongDetailsDialog({ song, open, onClose }: SongDetailsDialogProps) {
             {song.artist}
           </DialogDescription>
         </DialogHeader>
-        
+
         {/* Main content grid - responsive layout */}
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 py-4">
           {/* Left column: Artwork */}
           <div className="flex justify-center lg:justify-start">
-            <ArtworkDisplay 
-              song={song} 
-              size="lg" 
-              className="w-full max-w-[300px] aspect-square rounded-lg shadow-lg" 
+            <ArtworkDisplay
+              song={song}
+              size="lg"
+              className="w-full max-w-[300px] aspect-square rounded-lg shadow-lg"
             />
           </div>
-          
+
           {/* Right column: Metadata */}
           <div className="space-y-4">
             <PrimarySongDetails song={song} />
           </div>
         </div>
-        
+
         {/* Full-width sections */}
         {song.lyrics && (
           <div className="border-t border-border pt-4">
             <SongLyricsSection lyrics={song.lyrics} />
           </div>
         )}
-        
+
         {song.itunesPreviewUrl && (
           <div className="border-t border-border pt-4">
-            <SongPreviewPlayer 
+            <SongPreviewPlayer
               previewUrl={song.itunesPreviewUrl}
               title={song.title}
               artist={song.artist}
             />
           </div>
         )}
-        
+
         <DialogFooter className="border-t border-border pt-4">
           <Button variant="outline" onClick={onClose}>
             Close
@@ -119,6 +122,7 @@ function SongDetailsDialog({ song, open, onClose }: SongDetailsDialogProps) {
 ```
 
 **Key Features**:
+
 - **Large Responsive Layout** - Optimized for desktop and tablet viewing
 - **Auto-cleanup** - Stops audio when dialog closes
 - **ESC Key Support** - Standard dialog behavior
@@ -126,6 +130,7 @@ function SongDetailsDialog({ song, open, onClose }: SongDetailsDialogProps) {
 - **Modular Content** - Each section can be conditionally rendered
 
 ### SongPreviewPlayer
+
 **File**: `/frontend/src/components/songs/SongPreviewPlayer.tsx`
 
 iTunes 30-second preview player with progress tracking:
@@ -137,19 +142,23 @@ interface SongPreviewPlayerProps {
   artist: string;
 }
 
-function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps) {
+function SongPreviewPlayer({
+  previewUrl,
+  title,
+  artist,
+}: SongPreviewPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(30); // iTunes previews are 30 seconds
   const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  
+
   const handlePlayPause = useCallback(async () => {
     if (!audioRef.current) return;
-    
+
     try {
       setLoading(true);
-      
+
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
@@ -158,28 +167,28 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
         setIsPlaying(true);
       }
     } catch (error) {
-      console.error('Audio playback error:', error);
-      toast.error('Unable to play preview');
+      console.error("Audio playback error:", error);
+      toast.error("Unable to play preview");
     } finally {
       setLoading(false);
     }
   }, [isPlaying]);
-  
+
   const handleSeek = useCallback((newTime: number) => {
     if (!audioRef.current) return;
-    
+
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   }, []);
-  
+
   // Auto-stop at 30 seconds
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    
+
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
-      
+
       // Auto-stop at 30 seconds (iTunes preview limit)
       if (audio.currentTime >= 30) {
         audio.pause();
@@ -188,20 +197,20 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
         setCurrentTime(0);
       }
     };
-    
+
     const handleLoadedData = () => {
       setDuration(Math.min(audio.duration, 30));
     };
-    
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadeddata', handleLoadedData);
-    
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadeddata", handleLoadedData);
+
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadeddata', handleLoadedData);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadeddata", handleLoadedData);
     };
   }, []);
-  
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -210,7 +219,7 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
           iTunes • 30s
         </Badge>
       </div>
-      
+
       <div className="flex items-center gap-3">
         <Button
           size="sm"
@@ -227,10 +236,10 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
             <Play className="h-4 w-4" />
           )}
         </Button>
-        
+
         <div className="flex-1 space-y-1">
-          <Progress 
-            value={(currentTime / duration) * 100} 
+          <Progress
+            value={(currentTime / duration) * 100}
             className="h-2 cursor-pointer"
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -240,21 +249,17 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
               handleSeek(newTime);
             }}
           />
-          
+
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
         </div>
       </div>
-      
+
       {/* Hidden audio element */}
-      <audio
-        ref={audioRef}
-        src={previewUrl}
-        preload="metadata"
-      />
-      
+      <audio ref={audioRef} src={previewUrl} preload="metadata" />
+
       {/* Mobile-friendly note */}
       <p className="text-xs text-muted-foreground md:hidden">
         💡 For best audio quality, hold phone to your ear
@@ -265,6 +270,7 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
 ```
 
 **Key Features**:
+
 - **30-Second Auto-Stop** - Enforces iTunes preview limits
 - **Click-to-Seek** - Users can click progress bar to jump
 - **Loading States** - Visual feedback during audio loading
@@ -272,6 +278,7 @@ function SongPreviewPlayer({ previewUrl, title, artist }: SongPreviewPlayerProps
 - **Mobile Optimization** - Special messaging for mobile users
 
 ### PrimarySongDetails
+
 **File**: `/frontend/src/components/songs/PrimarySongDetails.tsx`
 
 Organized metadata display in CSS Grid layout:
@@ -283,7 +290,7 @@ interface PrimarySongDetailsProps {
 
 function PrimarySongDetails({ song }: PrimarySongDetailsProps) {
   const { getAlbumName, getMetadataQuality, formatDuration } = useSongs();
-  
+
   return (
     <div className="space-y-6">
       {/* Primary metadata grid */}
@@ -292,55 +299,48 @@ function PrimarySongDetails({ song }: PrimarySongDetailsProps) {
           <span className="font-medium text-muted-foreground">Album</span>
           <p className="text-foreground">{getAlbumName(song)}</p>
         </div>
-        
+
         <div>
           <span className="font-medium text-muted-foreground">Duration</span>
           <p className="text-foreground">{formatDuration(song.duration)}</p>
         </div>
-        
+
         <div>
           <span className="font-medium text-muted-foreground">Genre</span>
-          <p className="text-foreground">{song.genre || 'Unknown'}</p>
+          <p className="text-foreground">{song.genre || "Unknown"}</p>
         </div>
-        
+
         <div>
           <span className="font-medium text-muted-foreground">Year</span>
-          <p className="text-foreground">{song.year || 'Unknown'}</p>
+          <p className="text-foreground">{song.year || "Unknown"}</p>
         </div>
-        
+
         <div>
           <span className="font-medium text-muted-foreground">Artist</span>
           <p className="text-foreground">{song.artist}</p>
         </div>
-        
+
         <div>
           <span className="font-medium text-muted-foreground">Track #</span>
           <p className="text-foreground">
-            {song.trackNumber ? `${song.trackNumber}` : 'Unknown'}
+            {song.trackNumber ? `${song.trackNumber}` : "Unknown"}
             {song.totalTracks && ` of ${song.totalTracks}`}
           </p>
         </div>
       </div>
-      
+
       {/* Quality and source indicators */}
       <div className="flex items-center gap-2 flex-wrap">
         <MetadataQualityIndicator quality={getMetadataQuality(song)} />
         <SourceBadges song={song} />
-        
+
         {song.explicit && (
           <Badge variant="destructive" className="text-xs">
             Explicit
           </Badge>
         )}
-        
-        {song.favorite && (
-          <Badge variant="outline" className="text-xs">
-            <Heart className="h-3 w-3 mr-1 fill-current" />
-            Favorite
-          </Badge>
-        )}
       </div>
-      
+
       {/* Additional metadata */}
       {(song.fileSize || song.bitrate || song.sampleRate) && (
         <div className="border-t border-border pt-4">
@@ -348,28 +348,38 @@ function PrimarySongDetails({ song }: PrimarySongDetailsProps) {
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {song.fileSize && (
               <div>
-                <span className="font-medium text-muted-foreground">File Size</span>
-                <p className="text-foreground">{formatFileSize(song.fileSize)}</p>
+                <span className="font-medium text-muted-foreground">
+                  File Size
+                </span>
+                <p className="text-foreground">
+                  {formatFileSize(song.fileSize)}
+                </p>
               </div>
             )}
-            
+
             {song.bitrate && (
               <div>
-                <span className="font-medium text-muted-foreground">Bitrate</span>
+                <span className="font-medium text-muted-foreground">
+                  Bitrate
+                </span>
                 <p className="text-foreground">{song.bitrate} kbps</p>
               </div>
             )}
-            
+
             {song.sampleRate && (
               <div>
-                <span className="font-medium text-muted-foreground">Sample Rate</span>
+                <span className="font-medium text-muted-foreground">
+                  Sample Rate
+                </span>
                 <p className="text-foreground">{song.sampleRate} Hz</p>
               </div>
             )}
-            
+
             {song.format && (
               <div>
-                <span className="font-medium text-muted-foreground">Format</span>
+                <span className="font-medium text-muted-foreground">
+                  Format
+                </span>
                 <p className="text-foreground">{song.format.toUpperCase()}</p>
               </div>
             )}
@@ -382,6 +392,7 @@ function PrimarySongDetails({ song }: PrimarySongDetailsProps) {
 ```
 
 **Key Features**:
+
 - **CSS Grid Layout** - Organized, scannable metadata display
 - **Conditional Rendering** - Only shows available metadata
 - **Quality Indicators** - Visual feedback for metadata completeness
@@ -389,6 +400,7 @@ function PrimarySongDetails({ song }: PrimarySongDetailsProps) {
 - **Badge Integration** - Visual indicators for special attributes
 
 ### SongLyricsSection
+
 **File**: `/frontend/src/components/songs/SongLyricsSection.tsx`
 
 Comprehensive lyrics display with formatting and indicators:
@@ -408,10 +420,10 @@ function SongLyricsSection({ lyrics, synced = false }: SongLyricsSectionProps) {
       </div>
     );
   }
-  
-  const lines = lyrics.split('\n').filter(line => line.trim());
+
+  const lines = lyrics.split("\n").filter((line) => line.trim());
   const lineCount = lines.length;
-  
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -424,18 +436,13 @@ function SongLyricsSection({ lyrics, synced = false }: SongLyricsSectionProps) {
             </Badge>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">
-          {lineCount} lines
-        </span>
+        <span className="text-xs text-muted-foreground">{lineCount} lines</span>
       </div>
-      
+
       <div className="bg-muted/30 rounded-lg p-4 max-h-60 overflow-y-auto">
         <div className="space-y-1">
           {lines.map((line, index) => (
-            <p 
-              key={index}
-              className="text-sm text-foreground leading-relaxed"
-            >
+            <p key={index} className="text-sm text-foreground leading-relaxed">
               {line}
             </p>
           ))}
@@ -447,6 +454,7 @@ function SongLyricsSection({ lyrics, synced = false }: SongLyricsSectionProps) {
 ```
 
 **Key Features**:
+
 - **Graceful Fallback** - Handles missing lyrics elegantly
 - **Line Processing** - Properly formats and displays lyrics
 - **Synced Indicator** - Shows if lyrics are time-synchronized
@@ -456,11 +464,13 @@ function SongLyricsSection({ lyrics, synced = false }: SongLyricsSectionProps) {
 ## 🔄 User Experience Flow
 
 ### Previous Behavior
+
 ```
 Song Card Click → Direct Navigation to Player
 ```
 
 ### Current Behavior
+
 ```
 Song Card Click → Song Details Dialog → User Choice:
 ├── Play Now (direct to karaoke player)
@@ -471,15 +481,16 @@ Song Card Click → Song Details Dialog → User Choice:
 ```
 
 ### Enhanced Navigation Pattern
+
 ```typescript
 // Updated SongCard click handling
 function SongCard({ song, onSelect }: SongCardProps) {
   const handleCardClick = useCallback(() => {
     onSelect(song);
   }, [song, onSelect]);
-  
+
   return (
-    <Card 
+    <Card
       className="cursor-pointer group hover:shadow-md transition-shadow"
       onClick={handleCardClick}
       role="button"
@@ -494,14 +505,11 @@ function SongCard({ song, onSelect }: SongCardProps) {
 // Library page integration
 function LibraryPage() {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  
+
   return (
     <>
-      <SongGrid 
-        songs={songs}
-        onSongSelect={setSelectedSong}
-      />
-      
+      <SongGrid songs={songs} onSongSelect={setSelectedSong} />
+
       <SongDetailsDialog
         song={selectedSong}
         open={!!selectedSong}
@@ -515,26 +523,32 @@ function LibraryPage() {
 ## 📱 Responsive Design Implementation
 
 ### Desktop Layout (lg and above)
+
 ```css
 /* Two-column grid with fixed artwork width */
-.grid.grid-cols-1.lg:grid-cols-[300px_1fr].gap-6
+.grid.grid-cols-1.lg: grid-cols-[300px_1fr].gap-6;
 ```
 
 ### Tablet Layout (md to lg)
+
 ```css
 /* Single column with centered artwork */
-.grid.grid-cols-1.gap-6
-.flex.justify-center
+.grid.grid-cols-1.gap-6 .flex.justify-center;
 ```
 
 ### Mobile Layout (sm and below)
+
 ```css
 /* Full-width dialog with optimized spacing */
 .max-w-4xl /* Becomes full-width on mobile */
-.p-4       /* Reduced padding */
+/* Becomes full-width on mobile */
+/* Becomes full-width on mobile */
+/* Becomes full-width on mobile */
+.p-4; /* Reduced padding */
 ```
 
 ### Touch-Friendly Interactions
+
 - **Larger touch targets** for preview controls
 - **Simplified navigation** with clear action buttons
 - **Optimized scrolling** for lyrics sections
@@ -543,6 +557,7 @@ function LibraryPage() {
 ## 🔌 Integration Points
 
 ### Backend API Integration
+
 ```typescript
 // Uses existing song data structure
 interface Song {
@@ -560,12 +575,14 @@ interface Song {
 ```
 
 ### Component Reuse Strategy
+
 - **ArtworkDisplay** - Reused for large cover art display
 - **SourceBadges** - Integrated for iTunes/YouTube indicators
 - **MetadataQualityIndicator** - Shows data completeness
 - **Existing hooks** - `useSongs()` for data access and formatting
 
 ### State Management Integration
+
 ```typescript
 // Global song selection state
 const { selectedSong, setSelectedSong } = useSongsStore();
@@ -580,36 +597,37 @@ const [previewPlaying, setPreviewPlaying] = useState(false);
 ## 🧪 Testing Strategy
 
 ### Component Testing
+
 ```typescript
-describe('SongDetailsDialog', () => {
-  it('displays song information correctly', () => {
+describe("SongDetailsDialog", () => {
+  it("displays song information correctly", () => {
     const mockSong = createMockSong();
     render(
       <SongDetailsDialog song={mockSong} open={true} onClose={jest.fn()} />
     );
-    
+
     expect(screen.getByText(mockSong.title)).toBeInTheDocument();
     expect(screen.getByText(mockSong.artist)).toBeInTheDocument();
   });
-  
-  it('stops audio when dialog closes', () => {
-    const mockSong = createMockSong({ itunesPreviewUrl: 'test.mp3' });
+
+  it("stops audio when dialog closes", () => {
+    const mockSong = createMockSong({ itunesPreviewUrl: "test.mp3" });
     const { rerender } = render(
       <SongDetailsDialog song={mockSong} open={true} onClose={jest.fn()} />
     );
-    
+
     // Start audio playback
-    const playButton = screen.getByRole('button', { name: /play/i });
+    const playButton = screen.getByRole("button", { name: /play/i });
     fireEvent.click(playButton);
-    
+
     // Close dialog
     rerender(
       <SongDetailsDialog song={mockSong} open={false} onClose={jest.fn()} />
     );
-    
+
     // Verify audio stopped
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach(audio => {
+    const audioElements = document.querySelectorAll("audio");
+    audioElements.forEach((audio) => {
       expect(audio.paused).toBe(true);
       expect(audio.currentTime).toBe(0);
     });
@@ -618,17 +636,18 @@ describe('SongDetailsDialog', () => {
 ```
 
 ### Integration Testing
+
 ```typescript
-describe('Song Details System Integration', () => {
-  it('opens dialog when song card is clicked', async () => {
+describe("Song Details System Integration", () => {
+  it("opens dialog when song card is clicked", async () => {
     const mockSongs = [createMockSong()];
     render(<LibraryPageWithDialog songs={mockSongs} />);
-    
+
     const songCard = screen.getByLabelText(/view details/i);
     fireEvent.click(songCard);
-    
+
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
   });
 });
@@ -637,20 +656,24 @@ describe('Song Details System Integration', () => {
 ## 📊 Performance Considerations
 
 ### Lazy Loading
+
 - **Dialog Content** - Only renders when dialog is open
 - **Audio Elements** - Created only when preview URL exists
 - **Lyrics Processing** - Deferred until lyrics section is accessed
 
 ### Memory Management
+
 - **Audio Cleanup** - Automatic audio stopping on dialog close
 - **Component Unmounting** - Proper cleanup of event listeners
 - **State Reset** - Clears component state when dialog closes
 
 ### Optimization Patterns
+
 ```typescript
 // Memoized expensive computations
-const formattedDuration = useMemo(() => 
-  formatDuration(song.duration), [song.duration]
+const formattedDuration = useMemo(
+  () => formatDuration(song.duration),
+  [song.duration]
 );
 
 // Debounced audio seeking

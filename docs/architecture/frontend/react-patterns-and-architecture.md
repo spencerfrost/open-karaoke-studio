@@ -256,7 +256,6 @@ export function useJobsWebSocket() {
 interface SongCardProps {
   song: Song;
   onSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (songId: string, singerName: string) => void;
   isSelected?: boolean;
   variant?: "default" | "compact";

@@ -60,7 +60,6 @@ Controls (/controls) ← Settings (/settings)
 - ✅ **Advanced fuzzy search** with debouncing (300ms)
 - ✅ **Infinite scroll** pagination
 - ✅ **Dual display mode** (browse/search)
-- ✅ **Favorite toggle functionality**
 - ✅ **Add to queue** integration
 - ✅ **Advanced filters** (placeholder for expansion)
 - ✅ **Mobile-responsive** artist accordion layout

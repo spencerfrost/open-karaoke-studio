@@ -1,7 +1,7 @@
-import React from 'react';
-import { Users } from 'lucide-react';
-import { Song } from '@/types/Song';
-import InfiniteArtistAccordion from './InfiniteArtistAccordion';
+import React from "react";
+import { Users } from "lucide-react";
+import { Song } from "@/types/Song";
+import InfiniteArtistAccordion from "./InfiniteArtistAccordion";
 
 interface Artist {
   name: string;
@@ -12,24 +12,22 @@ interface Artist {
 interface ArtistResultsSectionProps {
   artists: Artist[]; // Not used directly, but kept for consistency
   hasNextPage: boolean; // Not used - InfiniteArtistAccordion handles its own pagination
-  isFetchingNextPage: boolean; // Not used - InfiniteArtistAccordion handles its own pagination  
+  isFetchingNextPage: boolean; // Not used - InfiniteArtistAccordion handles its own pagination
   fetchNextPage: () => void; // Not used - InfiniteArtistAccordion handles its own pagination
   onSongSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   searchTerm: string;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
   searchTerm,
   // Unused props (handled internally by InfiniteArtistAccordion):
   // artists, hasNextPage, isFetchingNextPage, fetchNextPage
 }) => {
   // Show section header
-  const sectionTitle = searchTerm.trim() ? 'Artists' : 'Browse All Artists';
+  const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
 
   return (
     <div>
@@ -46,7 +44,6 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
       <InfiniteArtistAccordion
         searchTerm={searchTerm}
         onSongSelect={onSongSelect}
-        onToggleFavorite={onToggleFavorite}
         onAddToQueue={onAddToQueue}
       />
     </div>

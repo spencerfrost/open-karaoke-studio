@@ -120,7 +120,6 @@ Content-Type: application/json
 
 {
   "title": "Updated Title",
-  "favorite": true
 }
 ```
 

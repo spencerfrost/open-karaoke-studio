@@ -5,6 +5,7 @@ Complete cURL examples for all Open Karaoke Studio API endpoints, based on the a
 ## 🎵 Songs API
 
 ### Get All Songs
+
 ```bash
 # Get all processed songs in the library
 curl -X GET "http://localhost:5123/api/songs" \
@@ -12,6 +13,7 @@ curl -X GET "http://localhost:5123/api/songs" \
 ```
 
 ### Get Song Details
+
 ```bash
 # Get detailed information for a specific song
 curl -X GET "http://localhost:5123/api/songs/{song_id}" \
@@ -19,6 +21,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}" \
 ```
 
 ### Search Songs
+
 ```bash
 # Search songs by title, artist, or content
 curl -X GET "http://localhost:5123/api/songs/search?q=bohemian+rhapsody" \
@@ -26,6 +29,7 @@ curl -X GET "http://localhost:5123/api/songs/search?q=bohemian+rhapsody" \
 ```
 
 ### Create New Song
+
 ```bash
 # Create a new song record
 curl -X POST "http://localhost:5123/api/songs" \
@@ -42,6 +46,7 @@ curl -X POST "http://localhost:5123/api/songs" \
 ```
 
 ### Update Song Metadata
+
 ```bash
 # Update any song fields
 curl -X PATCH "http://localhost:5123/api/songs/{song_id}" \
@@ -49,21 +54,13 @@ curl -X PATCH "http://localhost:5123/api/songs/{song_id}" \
   -d '{
     "title": "Updated Title",
     "artist": "Updated Artist",
-    "favorite": true,
     "genre": "Rock",
     "language": "English"
   }'
 ```
 
-### Toggle Favorite Status
-```bash
-# Mark/unmark a song as favorite
-curl -X PATCH "http://localhost:5123/api/songs/{song_id}" \
-  -H "Content-Type: application/json" \
-  -d '{"favorite": true}'
-```
-
 ### Delete Song
+
 ```bash
 # Delete a song and all its files
 curl -X DELETE "http://localhost:5123/api/songs/{song_id}"
@@ -72,6 +69,7 @@ curl -X DELETE "http://localhost:5123/api/songs/{song_id}"
 ## 📥 File Downloads
 
 ### Download Instrumental Track
+
 ```bash
 # Download the instrumental (music-only) version
 curl -X GET "http://localhost:5123/api/songs/{song_id}/download/instrumental" \
@@ -79,6 +77,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/download/instrumental" \
 ```
 
 ### Download Vocals Track
+
 ```bash
 # Download the vocals-only version
 curl -X GET "http://localhost:5123/api/songs/{song_id}/download/vocals" \
@@ -86,6 +85,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/download/vocals" \
 ```
 
 ### Download Original Track
+
 ```bash
 # Download the original audio file
 curl -X GET "http://localhost:5123/api/songs/{song_id}/download/original" \
@@ -95,6 +95,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/download/original" \
 ## 🖼️ Media Assets
 
 ### Get Thumbnail (Auto-detect Format)
+
 ```bash
 # Get thumbnail, automatically detecting format (webp, jpg, png)
 curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail" \
@@ -102,6 +103,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail" \
 ```
 
 ### Get Thumbnail (Specific Format)
+
 ```bash
 # Get thumbnail in specific format
 curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail.webp" \
@@ -109,6 +111,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail.webp" \
 ```
 
 ### Get Cover Art
+
 ```bash
 # Get high-quality cover art
 curl -X GET "http://localhost:5123/api/songs/{song_id}/cover.jpg" \
@@ -118,6 +121,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/cover.jpg" \
 ## 🎤 Lyrics API
 
 ### Search Lyrics
+
 ```bash
 # Search for lyrics using LRCLIB
 curl -X GET "http://localhost:5123/api/lyrics/search?artist=Queen&title=Bohemian+Rhapsody" \
@@ -125,6 +129,7 @@ curl -X GET "http://localhost:5123/api/lyrics/search?artist=Queen&title=Bohemian
 ```
 
 ### Get Song Lyrics
+
 ```bash
 # Get saved lyrics for a song
 curl -X GET "http://localhost:5123/api/lyrics/{song_id}" \
@@ -132,6 +137,7 @@ curl -X GET "http://localhost:5123/api/lyrics/{song_id}" \
 ```
 
 ### Save Lyrics
+
 ```bash
 # Save lyrics to a song
 curl -X POST "http://localhost:5123/api/lyrics/{song_id}" \
@@ -145,6 +151,7 @@ curl -X POST "http://localhost:5123/api/lyrics/{song_id}" \
 ## 🔍 Metadata & Search
 
 ### Search Metadata
+
 ```bash
 # Search for song metadata using iTunes
 curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen&title=Bohemian+Rhapsody" \
@@ -152,6 +159,7 @@ curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen&title=Bohemi
 ```
 
 ### Get Artists List
+
 ```bash
 # Get all artists in the library with pagination
 curl -X GET "http://localhost:5123/api/songs/artists?page=1&limit=20" \
@@ -159,6 +167,7 @@ curl -X GET "http://localhost:5123/api/songs/artists?page=1&limit=20" \
 ```
 
 ### Get Songs by Artist
+
 ```bash
 # Get all songs by a specific artist
 curl -X GET "http://localhost:5123/api/songs/by-artist/Queen" \
@@ -168,6 +177,7 @@ curl -X GET "http://localhost:5123/api/songs/by-artist/Queen" \
 ## 🎬 YouTube Integration
 
 ### Search YouTube
+
 ```bash
 # Search for videos on YouTube
 curl -X GET "http://localhost:5123/api/youtube/search?q=Queen+Bohemian+Rhapsody" \
@@ -175,6 +185,7 @@ curl -X GET "http://localhost:5123/api/youtube/search?q=Queen+Bohemian+Rhapsody"
 ```
 
 ### Download from YouTube
+
 ```bash
 # Download and process a YouTube video
 curl -X POST "http://localhost:5123/api/youtube/download" \
@@ -189,6 +200,7 @@ curl -X POST "http://localhost:5123/api/youtube/download" \
 ## 🔄 Jobs & Processing
 
 ### Get Job Status Overview
+
 ```bash
 # Get overall processing status
 curl -X GET "http://localhost:5123/api/jobs/status" \
@@ -196,6 +208,7 @@ curl -X GET "http://localhost:5123/api/jobs/status" \
 ```
 
 ### List All Jobs
+
 ```bash
 # Get all background jobs
 curl -X GET "http://localhost:5123/api/jobs" \
@@ -203,6 +216,7 @@ curl -X GET "http://localhost:5123/api/jobs" \
 ```
 
 ### Get Specific Job Details
+
 ```bash
 # Get detailed information about a job
 curl -X GET "http://localhost:5123/api/jobs/{job_id}" \
@@ -210,6 +224,7 @@ curl -X GET "http://localhost:5123/api/jobs/{job_id}" \
 ```
 
 ### Cancel Job
+
 ```bash
 # Cancel a running or pending job
 curl -X POST "http://localhost:5123/api/jobs/{job_id}/cancel" \
@@ -217,6 +232,7 @@ curl -X POST "http://localhost:5123/api/jobs/{job_id}/cancel" \
 ```
 
 ### Dismiss Completed Job
+
 ```bash
 # Remove a completed job from the UI
 curl -X POST "http://localhost:5123/api/jobs/{job_id}/dismiss" \
@@ -226,6 +242,7 @@ curl -X POST "http://localhost:5123/api/jobs/{job_id}/dismiss" \
 ## 🎵 Karaoke Queue
 
 ### Get Current Queue
+
 ```bash
 # Get the current karaoke queue
 curl -X GET "http://localhost:5123/karaoke-queue/" \
@@ -233,6 +250,7 @@ curl -X GET "http://localhost:5123/karaoke-queue/" \
 ```
 
 ### Add Song to Queue
+
 ```bash
 # Add a song to the karaoke queue
 curl -X POST "http://localhost:5123/karaoke-queue/" \
@@ -244,12 +262,14 @@ curl -X POST "http://localhost:5123/karaoke-queue/" \
 ```
 
 ### Remove from Queue
+
 ```bash
 # Remove a song from the queue
 curl -X DELETE "http://localhost:5123/karaoke-queue/{item_id}"
 ```
 
 ### Reorder Queue
+
 ```bash
 # Reorder the entire queue
 curl -X PUT "http://localhost:5123/karaoke-queue/reorder" \
@@ -266,6 +286,7 @@ curl -X PUT "http://localhost:5123/karaoke-queue/reorder" \
 ## 👥 User Management
 
 ### Register User
+
 ```bash
 # Register a new user (if authentication is enabled)
 curl -X POST "http://localhost:5123/api/users/register" \
@@ -278,17 +299,19 @@ curl -X POST "http://localhost:5123/api/users/register" \
 ```
 
 ### Login User
+
 ```bash
 # Login with credentials
 curl -X POST "http://localhost:5123/api/users/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "john_doe", 
+    "username": "john_doe",
     "password": "secure_password"
   }'
 ```
 
 ### Update User Profile
+
 ```bash
 # Update user preferences
 curl -X PATCH "http://localhost:5123/api/users/{user_id}" \
@@ -302,6 +325,7 @@ curl -X PATCH "http://localhost:5123/api/users/{user_id}" \
 ## 🔧 Advanced Examples
 
 ### Complete Song Processing Workflow
+
 ```bash
 # 1. Create a song record
 SONG_ID=$(curl -s -X POST "http://localhost:5123/api/songs" \
@@ -323,6 +347,7 @@ curl -X GET "http://localhost:5123/api/songs/$SONG_ID/download/instrumental" \
 ```
 
 ### Batch Operations
+
 ```bash
 # Get all songs and process metadata
 curl -s -X GET "http://localhost:5123/api/songs" | \
@@ -338,6 +363,7 @@ curl -s -X GET "http://localhost:5123/api/songs" | \
 All API responses follow a consistent JSON format:
 
 ### Success Response
+
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -349,6 +375,7 @@ All API responses follow a consistent JSON format:
 ```
 
 ### Error Response
+
 ```json
 {
   "error": "Song not found",
@@ -357,6 +384,7 @@ All API responses follow a consistent JSON format:
 ```
 
 ### Paginated Response
+
 ```json
 {
   "data": [...],
@@ -372,6 +400,7 @@ All API responses follow a consistent JSON format:
 ## 🚀 Production Considerations
 
 ### Rate Limiting
+
 ```bash
 # Respect rate limits for external APIs
 curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen" \
@@ -380,6 +409,7 @@ curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen" \
 ```
 
 ### Error Handling
+
 ```bash
 # Always check HTTP status codes
 HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
@@ -393,6 +423,7 @@ fi
 ```
 
 ### File Upload Handling
+
 ```bash
 # Upload large files with progress
 curl -X POST "http://localhost:5123/api/songs/upload" \

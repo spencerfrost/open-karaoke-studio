@@ -284,7 +284,6 @@ GET /api/songs?limit=10&offset=0
       "title": "Example Song",
       "artist": "Example Artist",
       "duration": 180,
-      "favorite": false,
       "hasVocals": true,
       "hasInstrumental": true
     }
@@ -365,7 +364,6 @@ class SongUpdateSchema(Schema):
     title = fields.Str(validate=lambda x: len(x.strip()) > 0)
     artist = fields.Str(validate=lambda x: len(x.strip()) > 0)
     album = fields.Str()
-    favorite = fields.Bool()
     genre = fields.Str()
 ```
 

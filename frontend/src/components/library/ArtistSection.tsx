@@ -1,11 +1,11 @@
-import React from 'react';
-import { ChevronDown, ChevronRight, Users } from 'lucide-react';
-import { Song } from '@/types/Song';
-import { useInfiniteArtistSongs } from '@/hooks/useInfiniteLibraryBrowsing';
-import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
-import HorizontalSongCard from '@/components/songs/HorizontalSongCard';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { Skeleton } from '@/components/ui/skeleton';
+import React from "react";
+import { ChevronDown, ChevronRight, Users } from "lucide-react";
+import { Song } from "@/types/Song";
+import { useInfiniteArtistSongs } from "@/hooks/useInfiniteLibraryBrowsing";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import HorizontalSongCard from "@/components/songs/HorizontalSongCard";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ArtistSectionProps {
   artistName: string;
@@ -13,7 +13,6 @@ interface ArtistSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
 }
 
@@ -23,7 +22,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   isExpanded,
   onToggle,
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
 }) => {
   const {
@@ -43,7 +41,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
     hasMore: hasNextPage,
     onLoadMore: fetchNextPage,
     threshold: 0.1,
-    rootMargin: '100px',
+    rootMargin: "100px",
   });
 
   return (
@@ -63,7 +61,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           <div>
             <h3 className="font-semibold text-lg">{artistName}</h3>
             <p className="text-sm opacity-75">
-              {songCount} {songCount === 1 ? 'song' : 'songs'}
+              {songCount} {songCount === 1 ? "song" : "songs"}
             </p>
           </div>
         </div>
@@ -92,7 +90,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                   <HorizontalSongCard
                     song={song}
                     onSongSelect={onSongSelect}
-                    onToggleFavorite={onToggleFavorite}
                     onAddToQueue={onAddToQueue}
                   />
                 </div>
@@ -103,7 +100,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 {isFetchingNextPage && (
                   <div className="flex justify-center items-center py-2">
                     <LoadingSpinner size={16} />
-                    <span className="ml-2 text-sm opacity-60">Loading more songs...</span>
+                    <span className="ml-2 text-sm opacity-60">
+                      Loading more songs...
+                    </span>
                   </div>
                 )}
               </div>

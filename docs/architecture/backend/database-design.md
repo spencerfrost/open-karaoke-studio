@@ -30,7 +30,6 @@ CREATE TABLE songs (
     vocals_path VARCHAR,
     instrumental_path VARCHAR,
     lyrics TEXT,
-    favorite BOOLEAN DEFAULT FALSE,
     date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -152,13 +151,6 @@ class SongRepository(BaseRepository[DbSong]):
                     self.model_class.title.ilike(search_term),
                     self.model_class.artist.ilike(search_term)
                 )
-            ).all()
-
-    def get_favorites(self) -> List[DbSong]:
-        """Get all favorite songs"""
-        with get_db_session() as session:
-            return session.query(self.model_class).filter(
-                self.model_class.favorite == True
             ).all()
 
     def get_by_source(self, source: str) -> List[DbSong]:

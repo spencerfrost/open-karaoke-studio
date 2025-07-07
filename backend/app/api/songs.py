@@ -967,7 +967,6 @@ def update_song(song_id: str):
                 "language",
                 "lyrics",
                 "synced_lyrics",
-                "favorite",
                 "durationMs",
             ]:
                 # Map camelCase to snake_case for synced_lyrics and durationMs

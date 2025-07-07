@@ -62,10 +62,6 @@ class SongService:
         except Exception:
             return False
 
-    def toggle_favorite(self, song_id: str, is_favorite: bool) -> Dict[str, Any]:
-        """Toggle favorite status for a song."""
-        return self.update_song(song_id, {"favorite": is_favorite})
-
 # Usage examples
 song_service = SongService()
 
@@ -92,7 +88,6 @@ new_song = song_service.create_song({
 updated_song = song_service.update_song(new_song["id"], {
     "genre": "Rock",
     "language": "English",
-    "favorite": True
 })
 ```
 

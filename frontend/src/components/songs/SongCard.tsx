@@ -24,7 +24,6 @@ import { useNavigate } from "react-router-dom";
 interface SongCardProps {
   song: Song;
   onSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
 }
 

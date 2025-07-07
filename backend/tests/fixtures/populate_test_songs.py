@@ -1,6 +1,8 @@
 import random
+
 import pytest
 from app.db.models import DbSong
+
 
 @pytest.fixture(scope="function")
 def populate_test_songs(db_session):
@@ -17,7 +19,6 @@ def populate_test_songs(db_session):
             artist=random.choice(artists),
             album=random.choice(albums),
             duration_ms=180000 + i * 1000,
-            favorite=(i % 7 == 0),
             date_added=None,
             vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
             instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",

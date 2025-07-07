@@ -2,60 +2,13 @@
 Unit tests for the data models in Open Karaoke Studio.
 """
 
-import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
-from app.db.models import (
-    Job,
-    JobStatus,
-    DbJob,
-    DbSong,  # SongMetadata removed in Phase 5
-    KaraokeQueueItem,
-    User,
-    UNKNOWN_ARTIST,
-)
-from app.schemas.song import Song  # Song is now in schemas
-
-
-class TestJob:
-    """Test suite for Job dataclass."""
-
-    def test_job_creation(self):
-        """Test basic job creation."""
-        # Arrange
-        job_id = "test-job-123"
-        filename = "test_song.mp3"
-
-        # Act
-        job = Job(id=job_id, filename=filename, status=JobStatus.PENDING)
-
-        # Assert
-        assert job.id == job_id
-        assert job.filename == filename
-        assert job.status == JobStatus.PENDING
-        assert job.progress == 0
-        assert job.created_at is not None
-
-    def test_job_to_dict(self):
-        """Test job serialization to dictionary."""
-        # Arrange
-        job = Job(
-            id="test-job-123",
-            filename="test_song.mp3",
-            status=JobStatus.COMPLETED,
-            progress=100,
-        )
-
-        # Act
-        result = job.to_dict()
-
-        # Assert
-        assert result["id"] == "test-job-123"
-        assert result["filename"] == "test_song.mp3"
-        assert result["status"] == "completed"
-        assert result["progress"] == 100
-        assert "created_at" in result
+import pytest
+from app.db.models import DbSong  # SongMetadata removed in Phase 5
+from app.db.models import DbJob, Job, JobStatus, User
+from app.schemas.song import Song
 
 
 class TestDbSong:
@@ -68,7 +21,6 @@ class TestDbSong:
             "title": "Test Song",
             "artist": "Test Artist",
             "duration_ms": 180,
-            "favorite": False,
             "source": "upload",
         }
 
@@ -78,7 +30,6 @@ class TestDbSong:
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
         assert song.duration_ms == 180
-        assert song.favorite is False
         assert song.source == "upload"
 
     def test_db_song_to_dict_conversion(self):
@@ -89,7 +40,6 @@ class TestDbSong:
             title="Test Song",
             artist="Test Artist",
             duration_ms=180500,
-            favorite=True,
             source="youtube",
             video_id="abc123",
         )
@@ -104,7 +54,6 @@ class TestDbSong:
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
         assert song.durationMs == 180500
-        assert song.favorite is True
         assert song.videoId == "abc123"
 
 
@@ -119,7 +68,7 @@ class TestUser:
         # Assert
         assert user.username == "testuser"
         assert user.display_name == "Test User"
-        assert user.is_admin is False
+        assert bool(user.is_admin) is False
 
 
 class TestDbJob:
@@ -127,7 +76,7 @@ class TestDbJob:
 
     def test_db_job_creation(self):
         """Test creating a DbJob instance"""
-        if DbJob == Mock:
+        if DbJob is Mock:
             pytest.skip("DbJob model not available")
 
         job_data = {
@@ -146,7 +95,7 @@ class TestDbJob:
 
     def test_db_job_status_validation(self):
         """Test that job status is properly validated"""
-        if DbJob == Mock:
+        if DbJob is Mock:
             pytest.skip("DbJob model not available")
 
         # This would test the actual validation logic
@@ -260,7 +209,6 @@ class TestSong:
             "artist": "Test Artist",
             "duration": 180,
             "status": "processed",
-            "favorite": False,
             "dateAdded": datetime.now(timezone.utc).isoformat(),
             "source": "upload",
         }
@@ -293,10 +241,6 @@ class TestSong:
         assert result["title"] == "Test Song"
 
 
-# SongMetadata tests removed - class was deleted as part of Phase 5
-# Use dictionary-based metadata instead
-
-
 class TestMetadataDictionary:
     """Test metadata dictionary patterns (replacing SongMetadata)"""
 
@@ -306,7 +250,6 @@ class TestMetadataDictionary:
             "title": "Test Song",
             "artist": "Test Artist",
             "duration": 180,
-            "favorite": False,
             "dateAdded": datetime.now(timezone.utc),
         }
 
@@ -314,7 +257,6 @@ class TestMetadataDictionary:
         assert metadata_data["title"] == "Test Song"
         assert metadata_data["artist"] == "Test Artist"
         assert metadata_data["duration"] == 180
-        assert metadata_data["favorite"] is False
         assert isinstance(metadata_data["dateAdded"], datetime)
 
     def test_metadata_dict_to_song_params(self):

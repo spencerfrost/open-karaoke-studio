@@ -524,87 +524,6 @@ export function useSongs() {
   };
 
   /**
-   * Toggle favorite status of a song
-   */
-  const useToggleFavorite = () => {
-    return useApiMutation<Song, { id: string; favorite: boolean }>(
-      "songs/:id/favorite",
-      "patch",
-      {
-        onMutate: async (variables) => {
-          const { id, favorite } = variables;
-          await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-
-          // Save previous song
-          const previousSong = queryClient.getQueryData<Song>(
-            QUERY_KEYS.song(id)
-          );
-
-          // Optimistically update the song
-          if (previousSong) {
-            queryClient.setQueryData<Song>(QUERY_KEYS.song(id), {
-              ...previousSong,
-              favorite,
-            });
-
-            // Also update the song in the list of all songs
-            const previousSongs = queryClient.getQueryData<Song[]>(
-              QUERY_KEYS.songs
-            );
-            if (previousSongs) {
-              queryClient.setQueryData<Song[]>(
-                QUERY_KEYS.songs,
-                previousSongs.map((song) =>
-                  song.id === id ? { ...song, favorite } : song
-                )
-              );
-            }
-          }
-
-          return { previousSong };
-        },
-        onError: (_err, variables, context: unknown) => {
-          const ctx = context as { previousSong?: Song } | undefined;
-          if (ctx?.previousSong) {
-            queryClient.setQueryData(
-              QUERY_KEYS.song(variables.id),
-              ctx.previousSong
-            );
-          }
-        },
-        onSettled: (_data, _error, variables) => {
-          // Refetch to ensure server state
-          queryClient.invalidateQueries({
-            queryKey: QUERY_KEYS.song(variables.id),
-          });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
-        },
-        mutationFn: async (data) => {
-          const { id, favorite } = data;
-          const url = formatUrl("songs/:id/favorite", { id });
-          const response = await fetch(`/api/${url}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ favorite }),
-            credentials: "include",
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(
-              errorData.error || `Failed to toggle favorite: ${response.status}`
-            );
-          }
-
-          return response.json();
-        },
-      }
-    );
-  };
-
-  /**
    * Get rich metadata for a song (includes all iTunes/YouTube metadata)
    */
   const useRichSongMetadata = (id: string, options = {}) => {
@@ -788,7 +707,6 @@ export function useSongs() {
     useUpdateItunesMetadata,
     useUpdateYoutubeMetadata,
     useDeleteSong,
-    useToggleFavorite,
 
     // Utility functions
     getAudioUrl,

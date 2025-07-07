@@ -50,13 +50,10 @@ def test_update_song_success(client):
     assert create_resp.status_code in (200, 201)
     song_id = create_resp.get_json()["id"]
     # Update
-    response = client.patch(
-        f"/api/songs/{song_id}", json={"title": "New Title", "favorite": True}
-    )
+    response = client.patch(f"/api/songs/{song_id}", json={"title": "New Title"})
     assert response.status_code == 200
     data = response.get_json()
     assert data["title"] == "New Title"
-    assert data["favorite"] is True
     # Clean up
     client.delete(f"/api/songs/{song_id}")
 
