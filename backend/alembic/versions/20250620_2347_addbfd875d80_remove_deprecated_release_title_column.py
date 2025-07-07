@@ -1,3 +1,4 @@
+# pylint: skip-file
 """Remove deprecated release_title column
 
 Revision ID: addbfd875d80
@@ -9,7 +10,6 @@ Create Date: 2025-06-20 23:47:16.513943
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.

@@ -1,3 +1,4 @@
+# pylint: skip-file
 """
 Make duration_ms nullable in songs table
 
@@ -7,7 +8,6 @@ Create Date: 2025-07-06 19:35:00
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
