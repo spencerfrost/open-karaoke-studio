@@ -1,3 +1,4 @@
+# pylint: disable=unnecessary-ellipsis
 """
 Jobs Service operations.
 
