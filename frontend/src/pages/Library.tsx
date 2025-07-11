@@ -1,29 +1,24 @@
-import React, { useState } from 'react';
-import { Filter, Music } from 'lucide-react';
-import AppLayout from '@/components/layout/AppLayout';
-import LibrarySearchInput from '../components/library/LibrarySearchInput';
-import LibraryContent from '../components/library/LibraryContent';
-import { useSongs } from '@/hooks/useSongs';
-import { Song } from '@/types/Song';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { useInfiniteFuzzySearch } from '@/hooks/useInfiniteFuzzySearch';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import React, { useState } from "react";
+import { Filter, Music } from "lucide-react";
+import AppLayout from "@/components/layout/AppLayout";
+import LibrarySearchInput from "../components/library/LibrarySearchInput";
+import LibraryContent from "../components/library/LibraryContent";
+import { Song } from "@/types/Song";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useInfiniteFuzzySearch } from "@/hooks/useInfiniteFuzzySearch";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
-  
+
   // State
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Debounce search to avoid excessive API calls
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
 
-  // Hooks
-  const { useToggleFavorite } = useSongs();
-  const toggleFavorite = useToggleFavorite();
-  
   // Fuzzy search with dual display
   const searchResults = useInfiniteFuzzySearch(debouncedSearch);
 
@@ -32,19 +27,8 @@ const LibraryPage: React.FC = () => {
     navigate(`/player/${song.id}`);
   };
 
-  const handleToggleFavorite = async (song: Song) => {
-    try {
-      await toggleFavorite.mutateAsync({
-        id: song.id,
-        favorite: !song.favorite,
-      });
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  };
-
   const handleAddToQueue = (song: Song) => {
-    navigate('/queue', { state: { songId: song.id } });
+    navigate("/queue", { state: { songId: song.id } });
   };
 
   return (
@@ -60,7 +44,7 @@ const LibraryPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Music size={20} className="text-orange-peel" />
               <span className="text-lemon-chiffon">
-                {searchTerm ? 'Search Results' : 'Browse Library'}
+                {searchTerm ? "Search Results" : "Browse Library"}
               </span>
             </div>
           </div>
@@ -100,7 +84,6 @@ const LibraryPage: React.FC = () => {
         <LibraryContent
           searchResults={searchResults}
           onSongSelect={handleSongSelect}
-          onToggleFavorite={handleToggleFavorite}
           onAddToQueue={handleAddToQueue}
           searchTerm={searchTerm}
         />

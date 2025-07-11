@@ -50,18 +50,18 @@ All services implement well-defined interfaces using Python protocols:
 ```python
 # Example: Song Service Interface
 from typing import Protocol, List, Optional
-from ...db.models import Song, SongMetadata
+from app..db.models import Song
 
 class SongServiceInterface(Protocol):
-    def get_all_songs(self) -> List[Song]:
+    def get_songs(self) -> List[Song]:
         """Get all songs with automatic sync if needed"""
-        
+
     def get_song_by_id(self, song_id: str) -> Optional[Song]:
         """Get song by ID"""
-        
+
     def search_songs(self, query: str) -> List[Song]:
         """Search songs by title/artist"""
-        
+
     def sync_with_filesystem(self) -> int:
         """Sync database with filesystem"""
 ```
@@ -72,7 +72,7 @@ Services use constructor injection for dependencies, enabling testing and modula
 
 ```python
 class SongService(SongServiceInterface):
-    def __init__(self, 
+    def __init__(self,
                  file_service: FileServiceInterface = None,
                  metadata_service: MetadataServiceInterface = None):
         self.file_service = file_service or FileService()
@@ -84,7 +84,7 @@ class SongService(SongServiceInterface):
 Consistent error handling across all services with proper logging:
 
 ```python
-def get_all_songs(self) -> List[Song]:
+def get_songs(self) -> List[Song]:
     try:
         # Business logic here
         return songs
@@ -107,54 +107,66 @@ Each service has a focused responsibility:
 ## Service Implementations
 
 ### Song Service
-**Location**: `backend/app/services/song_service.py`  
-**Purpose**: Core song operations, search, and automatic synchronization  
+
+**Location**: `backend/app/services/song_service.py`
+**Purpose**: Core song operations, search, and automatic synchronization
 **Key Features**:
+
 - Smart filesystem synchronization
 - Comprehensive search functionality
 - Metadata transformation and validation
 - Integration with other services for complex operations
 
 ### File Service
-**Location**: `backend/app/services/file_service.py`  
-**Purpose**: File system operations and directory management  
+
+**Location**: `backend/app/services/file_service.py`
+**Purpose**: File system operations and directory management
 **Key Features**:
+
 - Song directory creation and management
 - File path resolution and validation
 - Safe file operations with error handling
 - Integration with library structure
 
 ### Metadata Service
-**Location**: `backend/app/services/metadata_service.py`  
-**Purpose**: Metadata processing and external API coordination  
+
+**Location**: `backend/app/services/metadata_service.py`
+**Purpose**: Metadata processing and external API coordination
 **Key Features**:
+
 - iTunes API integration for rich metadata
 - Metadata validation and normalization
 - Cover art and thumbnail handling
 - Multi-source metadata aggregation
 
 ### Audio Service
-**Location**: `backend/app/services/audio_service.py`  
-**Purpose**: Audio processing workflow coordination  
+
+**Location**: `backend/app/services/audio_service.py`
+**Purpose**: Audio processing workflow coordination
 **Key Features**:
+
 - Demucs audio separation orchestration
 - Progress tracking and status updates
 - Quality validation and error recovery
 - Background job integration
 
 ### YouTube Service
-**Location**: `backend/app/services/youtube_service.py`  
-**Purpose**: YouTube integration and video processing  
+
+**Location**: `backend/app/services/youtube_service.py`
+**Purpose**: YouTube integration and video processing
 **Key Features**:
+
 - Video search and metadata extraction
 - Download coordination with quality selection
 - Thumbnail processing and storage
 - Integration with audio processing pipeline
 
 ### Sync Service
-**Location**: `backend/app/services/sync_service.py`  
-**Purpose**: Database and filesystem synchronization  
+
+**Location**: `backend/app/services/sync_service.py`
+**Purpose**: Database and filesystem synchronization
 **Key Features**:
+
 - Bi-directional sync between database and filesystem
 - Conflict resolution and error handling
 - Batch processing for large libraries
@@ -171,11 +183,11 @@ def get_songs():
     """Get all songs - thin controller"""
     try:
         song_service = SongService()
-        songs = song_service.get_all_songs()
-        
+        songs = song_service.get_songs()
+
         response_data = [song.model_dump(mode='json') for song in songs]
         return jsonify(response_data)
-        
+
     except ServiceError as e:
         logger.error(f"Service error: {e}")
         return jsonify({"error": "Failed to fetch songs"}), 500
@@ -184,16 +196,19 @@ def get_songs():
 ## Testing Strategy
 
 ### Unit Testing
+
 - **Service isolation**: Each service can be tested independently
 - **Mock dependencies**: Interfaces enable easy mocking
 - **Business logic focus**: Tests focus on business rules, not infrastructure
 
 ### Integration Testing
+
 - **Service composition**: Test how services work together
 - **Real dependencies**: Test with actual database and file system
 - **End-to-end workflows**: Test complete user scenarios
 
 ### API Testing
+
 - **Controller testing**: Test thin controllers with mocked services
 - **Error handling**: Verify proper error response formatting
 - **Response validation**: Ensure API contracts are maintained
@@ -201,11 +216,13 @@ def get_songs():
 ## Performance Considerations
 
 ### Caching Strategy
+
 - **Service-level caching**: Intelligent caching within services
 - **Cross-service coordination**: Shared cache invalidation strategies
 - **Memory management**: Efficient resource usage patterns
 
 ### Async Operations
+
 - **Background processing**: Long operations delegated to Celery
 - **Progress tracking**: Real-time status updates via WebSockets
 - **Error recovery**: Robust failure handling and retry logic
@@ -213,6 +230,7 @@ def get_songs():
 ## Current Implementation Status
 
 ### ✅ Implemented Services
+
 - **Song Service**: Full implementation with filesystem sync
 - **File Service**: Complete file system operations
 - **Metadata Service**: iTunes integration and processing
@@ -222,6 +240,7 @@ def get_songs():
 - **Sync Service**: Database/filesystem synchronization
 
 ### 🔄 Ongoing Improvements
+
 - **Repository Pattern**: Migrating to repository interfaces for data access
 - **Enhanced Error Handling**: Standardizing error responses across services
 - **Performance Optimization**: Caching and batch operation improvements
@@ -230,16 +249,19 @@ def get_songs():
 ## Benefits Achieved
 
 ### Code Organization
+
 - **Clear separation**: Business logic separated from HTTP concerns
 - **Modular design**: Services can be developed and maintained independently
 - **Reusability**: Services can be used across different API endpoints
 
 ### Testability
+
 - **Isolated testing**: Each service can be tested without external dependencies
 - **Mock-friendly**: Interfaces enable comprehensive mocking strategies
 - **Business logic focus**: Tests validate business rules, not infrastructure
 
 ### Maintainability
+
 - **Single responsibility**: Each service has a focused purpose
 - **Dependency injection**: Easy to modify and extend functionality
 - **Error handling**: Consistent error patterns across the application
@@ -255,6 +277,6 @@ def get_songs():
 
 ---
 
-**Implementation Status**: ✅ Mostly Complete  
-**Remaining Work**: Repository pattern migration, enhanced error handling  
+**Implementation Status**: ✅ Mostly Complete
+**Remaining Work**: Repository pattern migration, enhanced error handling
 **Location**: `backend/app/services/`

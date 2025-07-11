@@ -1,4 +1,5 @@
 # backend/app/services/interfaces/lyrics_service.py
+# pylint: disable=unnecessary-ellipsis
 from typing import Any, Optional, Protocol
 
 

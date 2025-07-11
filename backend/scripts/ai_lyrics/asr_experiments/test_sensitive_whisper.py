@@ -3,11 +3,13 @@
 Enhanced Whisper test with more sensitive parameters for catching early/quiet vocals.
 """
 
-import sys
 import json
-import torch
+import sys
 from pathlib import Path
+
+import torch
 from faster_whisper import WhisperModel
+
 
 def test_sensitive_whisper(audio_path):
     """Test faster-whisper with more sensitive parameters."""
@@ -50,10 +52,12 @@ def test_sensitive_whisper(audio_path):
             threshold=0.3,  # Lower threshold
             min_speech_duration_ms=100,  # Catch shorter speech
             min_silence_duration_ms=500,  # Shorter silence gaps
-        )
+        ),
     )
 
-    print(f"Detected language: {info.language} (confidence: {info.language_probability:.2f})")
+    print(
+        f"Detected language: {info.language} (confidence: {info.language_probability:.2f})"
+    )
     print(f"Audio duration: {info.duration:.2f} seconds")
     print()
 
@@ -70,17 +74,17 @@ def test_sensitive_whisper(audio_path):
             "start": segment.start,
             "end": segment.end,
             "text": segment.text,
-            "words": []
+            "words": [],
         }
 
         # Extract word-level timestamps
-        if hasattr(segment, 'words') and segment.words:
+        if hasattr(segment, "words") and segment.words:
             for word in segment.words:
                 word_data = {
                     "word": word.word.strip(),
                     "start": word.start,
                     "end": word.end,
-                    "probability": word.probability
+                    "probability": word.probability,
                 }
                 all_words.append(word_data)
                 segment_data["words"].append(word_data)
@@ -89,7 +93,9 @@ def test_sensitive_whisper(audio_path):
                 if first_word_time is None:
                     first_word_time = word.start
 
-                print(f"  🗣️  '{word.word}' [{word.start:.2f}s - {word.end:.2f}s] (confidence: {word.probability:.2f})")
+                print(
+                    f"  🗣️  '{word.word}' [{word.start:.2f}s - {word.end:.2f}s] (confidence: {word.probability:.2f})"
+                )
 
         all_segments.append(segment_data)
         print()
@@ -104,7 +110,11 @@ def test_sensitive_whisper(audio_path):
     print(f"Total words detected: {len(all_words)}")
     if first_word_time is not None:
         print(f"🎯 First word starts at: {first_word_time:.2f} seconds")
-        print(f"First word: '{all_words[0]['word']}'" if all_words else "No words detected")
+        print(
+            f"First word: '{all_words[0]['word']}'"
+            if all_words
+            else "No words detected"
+        )
     else:
         print("❌ No words detected in the audio")
 
@@ -117,11 +127,11 @@ def test_sensitive_whisper(audio_path):
             "language": info.language,
             "language_probability": info.language_probability,
             "duration": info.duration,
-            "processing_time": processing_time
-        }
+            "processing_time": processing_time,
+        },
     }
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
 
     print(f"💾 Detailed results saved to: {output_file}")
@@ -132,6 +142,7 @@ def test_sensitive_whisper(audio_path):
     else:
         print("❌ No vocals detected")
         return False
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

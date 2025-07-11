@@ -75,12 +75,33 @@ Open Karaoke Studio uses modern web technologies for performance and maintainabi
 
 ## Contributing
 
-We welcome contributions to Open Karaoke Studio! If you're interested in contributing, please:
+We welcome contributions to Open Karaoke Studio! Please follow our standards for code quality and consistency.
+
+### Development Standards
+
+**🚨 Important:** All backend code must follow our [coding standards](./docs/development/coding-standards.md):
+
+- **Logging:** Every Python file must use `logger = logging.getLogger(__name__)`
+- **No Print Statements:** Use logger calls instead of `print()` in production code
+- **Type Hints:** All functions must have proper type annotations
+- **Error Handling:** Use `logger.error(..., exc_info=True)` for exceptions
+
+**Before submitting a PR:**
+
+1. ✅ Check your code follows the [logging standards](./docs/architecture/backend/logging.md)
+2. ✅ Run the automated checks: `grep -r "print(" backend/app/ --exclude-dir=__pycache__`
+3. ✅ Verify tests pass and logging works correctly
+
+### Contribution Process
 
 1.  Fork the repository.
 2.  Create a branch for your changes.
-3.  Implement your feature or bug fix.
-4.  Submit a pull request.
+3.  Implement your feature or bug fix following our standards.
+
+**📖 Detailed guides:**
+
+- **[Backend Development](./docs/development/README.md)** - Architecture and patterns
+- **[Code Review Guidelines](./docs/development/coding-standards.md)** - What reviewers check for
 
 ## License
 

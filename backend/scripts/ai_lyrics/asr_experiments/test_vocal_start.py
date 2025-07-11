@@ -4,15 +4,17 @@ Detect the start of vocals in an isolated vocal track.
 This script is specifically designed for aligning synced lyrics with vocal timing.
 """
 
-import sys
 import json
+import sys
 from pathlib import Path
+
 from faster_whisper import WhisperModel
+
 
 def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
     """
     Detect the start of meaningful vocals in an audio track.
-    
+
     Args:
         audio_path: Path to the audio file
         min_word_length: Minimum length for a word to be considered meaningful
@@ -24,25 +26,20 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
 
     print(f"🔍 Analyzing vocal start in: {audio_path}")
     print("=" * 50)
-    
+
     # Common filler words to potentially ignore
-    filler_words = {
-        'oh', 'ah', 'uh', 'um', 'mm', 'hmm', 'ooh', 'aah', 'yeah', 'hey'
-    }
+    filler_words = {"oh", "ah", "uh", "um", "mm", "hmm", "ooh", "aah", "yeah", "hey"}
 
     # Initialize model
     print("Loading Whisper model...")
     model = WhisperModel("small", device="cpu", compute_type="int8")
-    
+
     # Transcribe
     print("Transcribing and analyzing...")
     segments, info = model.transcribe(
-        audio_path, 
-        beam_size=5,
-        word_timestamps=True,
-        language="en"
+        audio_path, beam_size=5, word_timestamps=True, language="en"
     )
-    
+
     # Analyze results
     results = {
         "audio_file": str(audio_path),
@@ -55,18 +52,18 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
             "first_word": None,
             "first_meaningful_word": None,
             "all_early_words": [],
-            "recommended_start_time": None
-        }
+            "recommended_start_time": None,
+        },
     }
-    
+
     early_words = []  # Words in the first 10 seconds
-    
+
     for segment in segments:
-        if hasattr(segment, 'words') and segment.words:
+        if hasattr(segment, "words") and segment.words:
             for word in segment.words:
                 word_text = word.word.strip().lower()
-                word_clean = word_text.strip('.,!?;:()[]{}"\'-')
-                
+                word_clean = word_text.strip(".,!?;:()[]{}\"'-")
+
                 # Collect words from first 10 seconds for analysis
                 if word.start <= 10.0:
                     word_info = {
@@ -75,7 +72,7 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
                         "end": word.end,
                         "probability": word.probability,
                         "is_filler": word_clean in filler_words,
-                        "is_short": len(word_clean) < min_word_length
+                        "is_short": len(word_clean) < min_word_length,
                     }
                     early_words.append(word_info)
 
@@ -86,31 +83,37 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
                         results["analysis"]["first_word_time"] = word.start
 
                     # Track first meaningful word
-                    if (results["analysis"]["first_meaningful_word_time"] is None and
-                        len(word_clean) >= min_word_length and
-                        (not ignore_filler_words or word_clean not in filler_words)):
+                    if (
+                        results["analysis"]["first_meaningful_word_time"] is None
+                        and len(word_clean) >= min_word_length
+                        and (not ignore_filler_words or word_clean not in filler_words)
+                    ):
 
                         results["analysis"]["first_meaningful_word_time"] = word.start
                         results["analysis"]["first_meaningful_word"] = word.word.strip()
-    
+
     results["analysis"]["all_early_words"] = early_words
 
     # Determine recommended start time
     if results["analysis"]["first_meaningful_word_time"] is not None:
-        results["analysis"]["recommended_start_time"] = results["analysis"]["first_meaningful_word_time"]
+        results["analysis"]["recommended_start_time"] = results["analysis"][
+            "first_meaningful_word_time"
+        ]
         recommendation_reason = "first meaningful word"
     elif results["analysis"]["first_word_time"] is not None:
-        results["analysis"]["recommended_start_time"] = results["analysis"]["first_word_time"]
+        results["analysis"]["recommended_start_time"] = results["analysis"][
+            "first_word_time"
+        ]
         recommendation_reason = "first detected word"
     else:
         results["analysis"]["recommended_start_time"] = 0.0
         recommendation_reason = "no words detected"
-    
+
     # Print analysis
     print(f"🎵 Audio duration: {info.duration:.2f} seconds")
     print(f"🗣️  Language detected: {info.language}")
     print()
-    
+
     print("📊 VOCAL START ANALYSIS")
     print("-" * 30)
 
@@ -137,7 +140,9 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
 
     print("🎯 RECOMMENDATION")
     print("-" * 20)
-    print(f"Recommended vocal start: {results['analysis']['recommended_start_time']:.2f}s")
+    print(
+        f"Recommended vocal start: {results['analysis']['recommended_start_time']:.2f}s"
+    )
     print(f"Reason: {recommendation_reason}")
 
     if results["analysis"]["first_meaningful_word"]:
@@ -145,25 +150,28 @@ def detect_vocal_start(audio_path, min_word_length=2, ignore_filler_words=True):
 
     # Save results
     output_file = Path(audio_path).stem + "_vocal_start_analysis.json"
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
-    
+
     print(f"\n💾 Analysis saved to: {output_file}")
-    
+
     return results
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python test_vocal_start.py <audio_file> [options]")
         print("Options:")
         print("  --include-fillers  Include filler words (oh, ah, um) in analysis")
-        print("  --min-length N     Minimum word length to consider meaningful (default: 2)")
+        print(
+            "  --min-length N     Minimum word length to consider meaningful (default: 2)"
+        )
         print()
         print("Example: python test_vocal_start.py /path/to/vocals.mp3")
         sys.exit(1)
-    
+
     audio_path = sys.argv[1]
-    
+
     # Parse options
     include_fillers = "--include-fillers" in sys.argv
     ignore_fillers = not include_fillers
@@ -177,22 +185,24 @@ def main():
     if not Path(audio_path).exists():
         print(f"❌ Error: Audio file not found: {audio_path}")
         sys.exit(1)
-    
+
     try:
         results = detect_vocal_start(
-            audio_path,
-            min_word_length=min_length,
-            ignore_filler_words=ignore_fillers
+            audio_path, min_word_length=min_length, ignore_filler_words=ignore_fillers
         )
-        
+
         recommended_time = results["analysis"]["recommended_start_time"]
-        print(f"\n✅ Analysis complete! Recommended vocal start: {recommended_time:.2f}s")
+        print(
+            f"\n✅ Analysis complete! Recommended vocal start: {recommended_time:.2f}s"
+        )
 
     except Exception as e:
         print(f"❌ Error analyzing audio: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

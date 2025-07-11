@@ -1,14 +1,17 @@
 # API Controller Refactoring
 
 ## Issue Type
+
 🏗️ **Architecture** | **Priority: Medium** | **Effort: Small**
 
 ## Summary
+
 Refactor API controllers to be thin and only handle HTTP concerns, removing all business logic and delegating to the service layer. Establish consistent patterns for error handling, request validation, and response formatting across all API endpoints.
 
 ## Current Problems
 
 ### Fat Controllers with Business Logic
+
 Current API controllers contain business logic that should be in services:
 
 ```python
@@ -16,30 +19,34 @@ Current API controllers contain business logic that should be in services:
 @song_bp.route('', methods=['GET'])
 def get_songs():
     # Database logic
-    db_songs = database.get_all_songs()
-    
+    db_songs = database.get_songs()
+
     # Business logic - should be in service
     if not db_songs:
         current_app.logger.info("No songs found in database, syncing from filesystem")
         songs_added = database.sync_songs_with_filesystem()
-        db_songs = database.get_all_songs()
-    
+        db_songs = database.get_songs()
+
     # Transformation logic - should be in service
-    songs_list = [song.to_pydantic() for song in db_songs]
+    songs_list = [Song.model_validate(song.to_dict()) for song in db_songs]
 ```
 
 ### Inconsistent Error Handling
+
 Different endpoints handle errors differently:
+
 - Some return different error formats
 - Inconsistent HTTP status codes
 - Mixed logging approaches
 
 ### No Request Validation
+
 Controllers don't validate incoming requests consistently.
 
 ## Proposed Solution
 
 ### 1. Create API Response Standards
+
 ```python
 # backend/app/api/responses.py - Enhanced response utilities
 from typing import Any, Optional, Dict, List
@@ -50,10 +57,10 @@ logger = logging.getLogger(__name__)
 
 class APIResponse:
     """Standardized API response format"""
-    
+
     @staticmethod
     def success(
-        data: Any = None, 
+        data: Any = None,
         message: str = "Success",
         status_code: int = 200,
         meta: Optional[Dict[str, Any]] = None
@@ -64,12 +71,12 @@ class APIResponse:
             "message": message,
             "data": data
         }
-        
+
         if meta:
             response_data["meta"] = meta
-            
+
         return jsonify(response_data), status_code
-    
+
     @staticmethod
     def error(
         message: str = "An error occurred",
@@ -85,25 +92,25 @@ class APIResponse:
                 "code": error_code or f"HTTP_{status_code}"
             }
         }
-        
+
         if details:
             response_data["error"]["details"] = details
-            
+
         return jsonify(response_data), status_code
-    
+
     @staticmethod
     def not_found(resource: str = "Resource", identifier: str = "") -> Response:
         """Create standardized not found response"""
         message = f"{resource} not found"
         if identifier:
             message += f": {identifier}"
-            
+
         return APIResponse.error(
             message=message,
             status_code=404,
             error_code="NOT_FOUND"
         )
-    
+
     @staticmethod
     def validation_error(errors: Dict[str, List[str]]) -> Response:
         """Create standardized validation error response"""
@@ -113,7 +120,7 @@ class APIResponse:
             status_code=400,
             error_code="VALIDATION_ERROR"
         )
-    
+
     @staticmethod
     def paginated(
         data: List[Any],
@@ -131,7 +138,7 @@ class APIResponse:
                 "pages": (total + per_page - 1) // per_page
             }
         }
-        
+
         return APIResponse.success(
             data=data,
             message=message,
@@ -140,6 +147,7 @@ class APIResponse:
 ```
 
 ### 2. Create Request Validation Decorators
+
 ```python
 # backend/app/api/validation.py
 from functools import wraps
@@ -189,13 +197,14 @@ def require_auth(f):
 ```
 
 ### 3. Create Exception Handling Decorator
+
 ```python
 # backend/app/api/decorators.py
 from functools import wraps
 from typing import Callable
 import logging
 from flask import current_app
-from ..exceptions import ServiceError, NotFoundError, ValidationError
+from app.exceptions import ServiceError, NotFoundError, ValidationError
 from .responses import APIResponse
 
 logger = logging.getLogger(__name__)
@@ -236,7 +245,7 @@ def log_api_call(custom_logger: logging.Logger = None) -> Callable:
         def wrapper(*args, **kwargs):
             api_logger = custom_logger or logger
             api_logger.info(f"API call: {f.__name__} - {request.method} {request.path}")
-            
+
             try:
                 result = f(*args, **kwargs)
                 api_logger.info(f"API call completed: {f.__name__}")
@@ -249,14 +258,15 @@ def log_api_call(custom_logger: logging.Logger = None) -> Callable:
 ```
 
 ### 4. Refactored Songs API Controller
+
 ```python
 # backend/app/api/songs.py - Refactored thin controller
 import logging
 from flask import Blueprint, request
 from marshmallow import Schema, fields
 
-from ..services import get_song_service
-from ..services.interfaces.song_service import SongServiceInterface
+from app.services import get_song_service
+from app.services.interfaces.song_service import SongServiceInterface
 from .responses import APIResponse
 from .decorators import handle_api_errors, log_api_call
 from .validation import validate_query_params, validate_json
@@ -287,35 +297,35 @@ class SongUpdateSchema(Schema):
 def get_songs(query_params):
     """Get all songs - thin controller using service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     # Get songs through service layer
-    songs = song_service.get_all_songs(
+    songs = song_service.get_songs(
         limit=query_params.get('limit'),
         offset=query_params.get('offset')
     )
-    
+
     # Convert to response format
     response_data = [
-        song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() 
+        song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
         for song in songs
     ]
-    
+
     return APIResponse.success(
         data=response_data,
         message=f"Retrieved {len(response_data)} songs"
     )
 
-@song_bp.route('/<song_id>', methods=['GET']) 
+@song_bp.route('/<song_id>', methods=['GET'])
 @handle_api_errors
 @log_api_call(logger)
 def get_song(song_id: str):
     """Get single song - thin controller using service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     song = song_service.get_song_by_id(song_id)
     if not song:
         return APIResponse.not_found("Song", song_id)
-    
+
     response_data = song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
     return APIResponse.success(data=response_data)
 
@@ -326,17 +336,17 @@ def get_song(song_id: str):
 def search_songs(query_params):
     """Search songs - thin controller using service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     songs = song_service.search_songs(
         query=query_params['q'],
         limit=query_params.get('limit')
     )
-    
+
     response_data = [
-        song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict() 
+        song.model_dump(mode='json') if hasattr(song, 'model_dump') else song.dict()
         for song in songs
     ]
-    
+
     return APIResponse.success(
         data=response_data,
         message=f"Found {len(response_data)} songs matching '{query_params['q']}'"
@@ -349,19 +359,19 @@ def search_songs(query_params):
 def update_song(song_id: str, validated_data):
     """Update song metadata - thin controller using service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     # Check if song exists
     existing_song = song_service.get_song_by_id(song_id)
     if not existing_song:
         return APIResponse.not_found("Song", song_id)
-    
+
     # Update through service layer
     # This would require implementing update methods in service
     updated_song = song_service.update_song_metadata(song_id, validated_data)
-    
+
     if not updated_song:
         return APIResponse.error("Failed to update song", status_code=500)
-    
+
     response_data = updated_song.model_dump(mode='json') if hasattr(updated_song, 'model_dump') else updated_song.dict()
     return APIResponse.success(
         data=response_data,
@@ -374,29 +384,32 @@ def update_song(song_id: str, validated_data):
 def delete_song(song_id: str):
     """Delete song - thin controller using service layer"""
     song_service: SongServiceInterface = get_song_service()
-    
+
     # Check if song exists
     existing_song = song_service.get_song_by_id(song_id)
     if not existing_song:
         return APIResponse.not_found("Song", song_id)
-    
+
     # Delete through service layer
     success = song_service.delete_song(song_id, cleanup_files=True)
-    
+
     if not success:
         return APIResponse.error("Failed to delete song", status_code=500)
-    
+
     return APIResponse.success(message=f"Successfully deleted song {song_id}")
 ```
 
 ### 5. Apply Same Pattern to Other Controllers
+
 Apply the same thin controller pattern to other API modules:
+
 - `youtube.py` - Use YouTube service
-- `lyrics.py` - Use Lyrics service  
+- `lyrics.py` - Use Lyrics service
 - `queue.py` - Use Queue service
 - `users.py` - Use User service
 
 ## Acceptance Criteria
+
 - [ ] All API controllers are thin and only handle HTTP concerns
 - [ ] Business logic removed from all API endpoints
 - [ ] Standardized response format across all endpoints
@@ -408,6 +421,7 @@ Apply the same thin controller pattern to other API modules:
 - [ ] Existing API functionality preserved (no breaking changes)
 
 ## Implementation Steps
+
 1. Create standardized response utilities
 2. Create request validation decorators
 3. Create error handling decorators
@@ -418,10 +432,12 @@ Apply the same thin controller pattern to other API modules:
 8. Update API documentation
 
 ## Files to Create
+
 - `backend/app/api/validation.py`
 - `backend/app/api/decorators.py`
 
 ## Files to Modify
+
 - `backend/app/api/responses.py` (enhance with standards)
 - `backend/app/api/songs.py` (refactor to thin controller)
 - `backend/app/api/youtube.py` (refactor to thin controller)
@@ -430,25 +446,30 @@ Apply the same thin controller pattern to other API modules:
 - `backend/app/api/users.py` (refactor to thin controller)
 
 ## Dependencies
+
 - Requires all service layers to be implemented
 - Requires service container for dependency injection
 - Requires proper exception classes
 - May require marshmallow for request validation
 
 ## Testing Benefits
+
 - Controllers become much easier to test
 - Service layer can be mocked for API testing
 - Request validation can be tested independently
 - Error handling can be tested consistently
 
 ## API Documentation
+
 After refactoring, API documentation should be updated to reflect:
+
 - Standardized response formats
 - Consistent error responses
 - Request validation requirements
 - Proper HTTP status code usage
 
 ## Related Issues
+
 - Issue #004a (Song Service) - API controllers will use Song Service
 - Issue #004e (Service Interfaces) - Controllers will use service container
 - Issue #003 (Error Handling) - Controllers will use standardized error handling

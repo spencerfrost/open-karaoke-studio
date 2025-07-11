@@ -9,6 +9,7 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 **Supported Formats**: MP3, WAV, FLAC, M4A, AAC, OGG
 
 **Steps:**
+
 1. Navigate to the **Add** tab in the application
 2. Click **"Choose Audio File"** or drag and drop your file
 3. Fill in song metadata:
@@ -23,6 +24,7 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ### 2. YouTube Import
 
 **Quick Import:**
+
 1. Go to the **Add** tab
 2. Paste a YouTube URL in the **YouTube URL** field
 3. Click **"Import from YouTube"**
@@ -32,12 +34,14 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
    - Begin vocal separation processing
 
 **Bulk Import:**
+
 - Paste multiple YouTube URLs (one per line)
 - Click **"Import All"** to process multiple songs
 
 ### 3. iTunes Metadata Enhancement
 
 **Automatic Enhancement:**
+
 - When uploading any song, the system searches iTunes for matching metadata
 - If found, it automatically adds:
   - Official artwork
@@ -46,6 +50,7 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
   - Genre classification
 
 **Manual Enhancement:**
+
 1. Upload your song normally
 2. In the song library, click on a song
 3. Click **"Edit Metadata"**
@@ -54,21 +59,25 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ## 📊 Processing Workflow
 
 ### Stage 1: Upload & Validation
+
 - File format validation
 - Basic metadata extraction
 - Audio quality check
 
 ### Stage 2: Metadata Enhancement
+
 - iTunes API search
 - YouTube metadata extraction (if applicable)
 - Thumbnail generation
 
 ### Stage 3: Vocal Separation
+
 - AI-powered processing with Demucs
 - Creates separate vocal and instrumental tracks
 - Quality optimization
 
 ### Stage 4: Library Integration
+
 - Final metadata application
 - File organization
 - Search index update
@@ -76,16 +85,19 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ## 🎯 Best Practices
 
 ### Audio Quality
+
 - **Recommended**: 320kbps MP3 or higher
 - **Minimum**: 128kbps for acceptable results
 - **Optimal**: WAV or FLAC for best vocal separation
 
 ### Metadata Tips
+
 - Use consistent artist naming (e.g., "The Beatles" not "Beatles")
 - Include album names for better organization
 - Add genre tags when available
 
 ### Batch Processing
+
 - Upload multiple songs simultaneously
 - Monitor the Jobs queue for processing status
 - Processing happens in the background - you can continue using the app
@@ -93,21 +105,25 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ## 🔍 Troubleshooting
 
 ### Upload Fails
+
 - **Check file format** - Ensure it's a supported audio format
 - **File size** - Very large files (>100MB) may timeout
 - **Connection** - Ensure stable internet connection
 
 ### Processing Stuck
+
 - Check the **Jobs** section for error details
 - Some files may fail due to unusual audio encoding
 - Retry with a different file format if needed
 
 ### Poor Separation Quality
+
 - Higher quality input files produce better results
 - Songs with heavy reverb or compression may not separate cleanly
 - Live recordings typically produce mixed results
 
 ### YouTube Import Issues
+
 - **Invalid URL** - Ensure the URL is accessible and not private/restricted
 - **Copyright restrictions** - Some videos may be blocked from download
 - **Age restrictions** - Sign-in required videos cannot be processed
@@ -115,11 +131,13 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ## 📱 Mobile Usage
 
 ### Uploading from Mobile
+
 - Use the file picker to select audio files from your device
 - Cloud storage integration works (Google Drive, iCloud, etc.)
 - Processing happens on the server - your device won't be slowed down
 
 ### YouTube Import on Mobile
+
 - Copy YouTube URLs from the YouTube app
 - Paste directly into Open Karaoke Studio
 - Processing status is available in real-time
@@ -127,16 +145,18 @@ Learn how to add songs to your Open Karaoke Studio library through multiple meth
 ## 🚀 Advanced Features
 
 ### Custom Metadata
+
 - Edit any song's metadata after upload
 - Add custom tags and categories
-- Set favorites for quick access
 
 ### Library Organization
+
 - Songs are automatically organized by artist and album
 - Use search to find specific tracks quickly
-- Filter by processing status, favorites, or custom tags
+- Filter by processing status, or custom tags
 
 ### Background Processing
+
 - Multiple songs can be processed simultaneously
 - Background jobs continue even if you close the browser
 - Real-time progress updates via WebSocket connections

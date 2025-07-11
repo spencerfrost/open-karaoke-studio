@@ -4,8 +4,9 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from ..config import get_config
-from ..exceptions import ServiceError
+from app.config import get_config
+from app.exceptions import ServiceError
+
 from .interfaces.file_service import FileServiceInterface
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,9 @@ class FileService(FileServiceInterface):
             self.base_library_dir.mkdir(parents=True, exist_ok=True)
             logger.debug("Ensured library directory exists: %s", self.base_library_dir)
         except Exception as e:
-            logger.error("Failed to create library directory %s: %s", self.base_library_dir, e)
+            logger.error(
+                "Failed to create library directory %s: %s", self.base_library_dir, e
+            )
             raise ServiceError(f"Failed to create library directory: {e}")
 
     def get_song_directory(self, song_id: str) -> Path:

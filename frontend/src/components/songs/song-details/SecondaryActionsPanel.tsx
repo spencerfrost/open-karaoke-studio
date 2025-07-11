@@ -1,13 +1,21 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Edit, FileText, MoreHorizontal, Download, Share, Trash2 } from "lucide-react";
+import {
+  Edit,
+  FileText,
+  MoreHorizontal,
+  Download,
+  Share,
+  Trash2,
+} from "lucide-react";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
+import { LyricsFetchDialog } from "@/components/lyrics";
 
 interface SecondaryActionsPanelProps {
   song: Song;
@@ -17,6 +25,7 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
   song,
 }) => {
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
+  const [isLyricsFetchDialogOpen, setIsLyricsFetchDialogOpen] = useState(false);
 
   const handleEditMetadata = () => {
     // For 016E: Show "Coming Soon" message
@@ -25,9 +34,19 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
   };
 
   const handleEditLyrics = () => {
-    // For 016E: Show "Coming Soon" message  
-    toast.info("Lyrics editing coming soon!");
-    // For 016F: Open lyrics editing interface
+    setIsLyricsFetchDialogOpen(true);
+  };
+
+  const handleLyricsFetched = (results: LyricsResult[]) => {
+    console.log("Lyrics fetched:", results);
+  };
+
+  const handleLyricsSelected = (selectedLyrics: LyricsResult) => {
+    console.log("Lyrics selected:", selectedLyrics);
+    toast.success(
+      `Lyrics selected: ${selectedLyrics.trackName} by ${selectedLyrics.artistName}`
+    );
+    setIsLyricsFetchDialogOpen(false);
   };
 
   const handleDownload = () => {
@@ -53,7 +72,7 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
       <h3 className="text-sm font-medium text-muted-foreground mb-4">
         Actions
       </h3>
-      
+
       <div className="flex flex-col gap-2">
         <Button
           variant="outline"
@@ -119,6 +138,15 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
           </PopoverContent>
         </Popover>
       </div>
+
+      {/* Lyrics Fetch Dialog */}
+      <LyricsFetchDialog
+        isOpen={isLyricsFetchDialogOpen}
+        onClose={() => setIsLyricsFetchDialogOpen(false)}
+        song={song}
+        onLyricsFetched={handleLyricsFetched}
+        onLyricsSelected={handleLyricsSelected}
+      />
     </div>
   );
 };

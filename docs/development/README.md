@@ -48,6 +48,11 @@ Welcome to the Open Karaoke Studio development documentation! This guide covers 
 
 ### Reference Materials
 
+- **[Coding Standards](coding-standards.md)** - Backend coding practices and error handling patterns
+- **[Configuration Guide](configuration.md)** - Environment and app configuration
+- **[Testing Documentation](testing.md)** - Test suite and coverage
+- **[Architectural Cleanup Plan](ARCHITECTURAL_CLEANUP_PLAN.md)** - Recent infrastructure improvements
+
 - **[Coding Patterns](reference/coding-patterns.md)** - _Coming Soon_ - Established patterns and practices
 - **[Error Handling](reference/error-handling.md)** - _Coming Soon_ - Error management strategies
 - **[Performance Guidelines](reference/performance.md)** - _Coming Soon_ - Optimization best practices

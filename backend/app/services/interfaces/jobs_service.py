@@ -1,3 +1,4 @@
+# pylint: disable=unnecessary-ellipsis
 """
 Jobs Service operations.
 
@@ -7,7 +8,7 @@ behavior across different implementations.
 
 from typing import Optional, Protocol
 
-from ...db.models import Job, JobStatus
+from app.db.models import Job, JobStatus
 
 
 class JobsServiceInterface(Protocol):

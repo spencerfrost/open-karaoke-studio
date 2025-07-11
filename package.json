@@ -1,5 +1,5 @@
 {
-  "name": "open-karaoke",
+  "name": "open-karaoke-studio",
   "private": true,
   "version": "1.0.0",
   "description": "Open Karaoke Studio - vocal separation for karaoke creation",
@@ -11,8 +11,9 @@
     "build": "cd frontend && pnpm build",
     "test": "./scripts/test.sh",
     "lint:frontend": "cd frontend && pnpm lint:check",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down"
+    "format:backend": "cd backend && isort . && black .",
+    "lint:backend": "cd backend && flake8 .",
+    "check:backend": "cd backend && isort . && black . && flake8 ."
   },
   "packageManager": "pnpm@10.9.0"
 }

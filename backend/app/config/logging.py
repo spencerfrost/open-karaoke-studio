@@ -5,10 +5,30 @@ Provides file-based persistent logging with rotation and proper formatting.
 
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+from zoneinfo import ZoneInfo
+
+from app.config import get_config
 
 from .base import BaseConfig
+
+
+class TimezoneFormatter(logging.Formatter):
+    """Custom formatter that converts timestamps to a specified timezone."""
+
+    def __init__(self, fmt=None, datefmt=None, timezone="UTC"):
+        super().__init__(fmt, datefmt)
+        self.timezone = ZoneInfo(timezone)
+
+    def formatTime(self, record, datefmt=None):
+        """Convert the timestamp to the specified timezone."""
+        dt = datetime.fromtimestamp(record.created, tz=self.timezone)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
 class LoggingConfig:
@@ -18,6 +38,7 @@ class LoggingConfig:
         self.config = config
         self.log_dir = Path(config.BASE_DIR) / "backend" / "logs"
         self.log_dir.mkdir(exist_ok=True)
+        self.timezone = getattr(config, "TIMEZONE", "America/Toronto")
 
     def setup_logging(self, environment: str = "development") -> dict[str, Any]:
         """Setup logging configuration based on environment"""
@@ -28,22 +49,28 @@ class LoggingConfig:
             "disable_existing_loggers": False,
             "formatters": {
                 "detailed": {
+                    "()": TimezoneFormatter,
                     "format": (
                         "%(asctime)s - %(name)s - %(levelname)s - "
                         "%(filename)s:%(lineno)d - %(funcName)s - %(message)s"
                     ),
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "simple": {
+                    "()": TimezoneFormatter,
                     "format": "%(asctime)s - %(levelname)s - %(message)s",
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "celery": {
+                    "()": TimezoneFormatter,
                     "format": (
                         "%(asctime)s - %(name)s - %(levelname)s - "
-                        "%(task_name)s[%(task_id)s] - %(message)s"
+                        "%(funcName)s - %(message)s"
                     ),
-                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                    "timezone": self.timezone,
                 },
                 "json": {
                     "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
@@ -155,17 +182,43 @@ class LoggingConfig:
                     "propagate": False,
                 },
                 # Third-party loggers (reduce noise)
-                "urllib3": {"level": "WARNING", "handlers": ["console"], "propagate": False},
-                "requests": {"level": "WARNING", "handlers": ["console"], "propagate": False},
-                "werkzeug": {"level": "WARNING", "handlers": ["console"], "propagate": False},
+                "urllib3": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "requests": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "werkzeug": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "yt_dlp": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "multiprocessing": {
+                    "level": "WARNING",
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
             },
         }
 
         # Environment-specific adjustments
         if environment == "development":
-            log_config["loggers"][""]["level"] = "DEBUG"
-            log_config["handlers"]["console"]["level"] = "DEBUG"
-            log_config["loggers"]["app"]["level"] = "DEBUG"
+            # Development: INFO level for console, DEBUG for files only
+            log_config["loggers"][""]["level"] = "INFO"
+            log_config["handlers"]["console"]["level"] = "INFO"
+            log_config["loggers"]["app"]["level"] = "INFO"
+
+            # Make console output less verbose - only show important messages
+            log_config["handlers"]["console"]["formatter"] = "simple"
 
         elif environment == "production":
             # Production: Only log to files, reduce console logging
@@ -191,14 +244,16 @@ class LoggingConfig:
 
     def configure_celery_logging(self) -> dict[str, Any]:
         """Configure Celery-specific logging"""
+        # Set timezone for Celery logging
+        os.environ.setdefault("TZ", self.timezone)
+
         return {
             "task_always_eager": False,
             "worker_log_format": (
                 "[%(asctime)s: %(levelname)s/%(processName)s] %(name)s: %(message)s"
             ),
             "worker_task_log_format": (
-                "[%(asctime)s: %(levelname)s/%(processName)s]"
-                "[%(task_name)s(%(task_id)s)] %(message)s"
+                "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
             ),
             "worker_log_color": False,  # Disable color in files
             "worker_redirect_stdouts": True,
@@ -210,11 +265,19 @@ class LoggingConfig:
         }
 
 
-def setup_logging(config: BaseConfig = None):
-    """Initialize logging configuration"""
-    if config is None:
-        from . import get_config
+# Module-level variable to track logging initialization
+_logging_initialized = False
 
+
+def setup_logging(config: BaseConfig):
+    """Initialize logging configuration"""
+    global _logging_initialized
+
+    # Prevent duplicate logging setup
+    if _logging_initialized:
+        return LoggingConfig(config or get_config())
+
+    if config is None:
         config = get_config()
 
     logging_config = LoggingConfig(config)
@@ -227,15 +290,17 @@ def setup_logging(config: BaseConfig = None):
 
     logging_config_module.dictConfig(log_dict_config)
 
-    # Log that logging has been initialized
+    # Mark logging as initialized
+    _logging_initialized = True
+
+    # Minimal logging initialization message
     log = logging.getLogger(__name__)
-    log.info("Logging initialized - Environment: %s", os.getenv("FLASK_ENV", "development"))
-    log.info("Log directory: %s", logging_config.log_dir)
+    log.debug("Logging configured for %s", os.getenv("FLASK_ENV", "development"))
 
     return logging_config
 
 
-def get_structured_logger(name: str, extra_fields: dict[str, Any] = None):
+def get_structured_logger(name: str, extra_fields: Optional[dict[str, Any]] = None):
     """Get a logger with structured logging support"""
     logger = logging.getLogger(name)
 

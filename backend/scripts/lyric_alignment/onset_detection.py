@@ -4,11 +4,13 @@ Audio onset detection for finding the start of vocals.
 Uses librosa for lightweight, fast onset detection without heavy AI models.
 """
 
-import sys
 import json
+import sys
 from pathlib import Path
-import numpy as np
+
 import librosa
+import numpy as np
+
 
 def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     """
@@ -36,7 +38,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
         "audio_file": str(audio_path),
         "analyzed_duration": total_duration,
         "sample_rate": sr,
-        "onset_methods": {}
+        "onset_methods": {},
     }
 
     # Method 1: Energy-based onset detection
@@ -45,7 +47,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     rms_times = librosa.frames_to_time(range(len(rms_energy)), sr=sr, hop_length=512)
 
     # Find first significant energy increase
-    avg_energy = np.mean(rms_energy[:int(sr/512)])  # First second average
+    avg_energy = np.mean(rms_energy[: int(sr / 512)])  # First second average
     energy_threshold = avg_energy + (np.std(rms_energy) * 2)  # 2 std devs above mean
 
     significant_energy_frames = rms_energy > energy_threshold
@@ -57,7 +59,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     results["onset_methods"]["energy_based"] = {
         "first_onset": first_energy_onset,
         "threshold_used": float(energy_threshold),
-        "avg_energy": float(avg_energy)
+        "avg_energy": float(avg_energy),
     }
 
     # Method 2: Spectral onset detection
@@ -66,9 +68,9 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     onset_frames = librosa.onset.onset_detect(
         onset_envelope=onset_envelope,
         sr=sr,
-        units='time',
+        units="time",
         delta=min_onset_strength,
-        wait=1.0  # Minimum 1 second between onsets
+        wait=1.0,  # Minimum 1 second between onsets
     )
 
     first_spectral_onset = float(onset_frames[0]) if len(onset_frames) > 0 else None
@@ -76,7 +78,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     results["onset_methods"]["spectral"] = {
         "first_onset": first_spectral_onset,
         "all_onsets": [float(t) for t in onset_frames[:10]],  # First 10 onsets
-        "total_onsets": len(onset_frames)
+        "total_onsets": len(onset_frames),
     }
 
     # Method 3: Complex domain onset detection (good for vocals)
@@ -87,17 +89,19 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     complex_onset_frames = librosa.onset.onset_detect(
         onset_envelope=complex_onset_envelope,
         sr=sr,
-        units='time',
+        units="time",
         delta=min_onset_strength * 0.8,  # Slightly more sensitive
-        wait=0.5
+        wait=0.5,
     )
 
-    first_complex_onset = float(complex_onset_frames[0]) if len(complex_onset_frames) > 0 else None
+    first_complex_onset = (
+        float(complex_onset_frames[0]) if len(complex_onset_frames) > 0 else None
+    )
 
     results["onset_methods"]["complex"] = {
         "first_onset": first_complex_onset,
         "all_onsets": [float(t) for t in complex_onset_frames[:10]],
-        "total_onsets": len(complex_onset_frames)
+        "total_onsets": len(complex_onset_frames),
     }
 
     # Method 4: High-frequency content analysis (vocal-specific)
@@ -112,7 +116,9 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     vocal_times = librosa.frames_to_time(range(len(vocal_energy)), sr=sr)
 
     # Find first significant vocal frequency content
-    vocal_threshold = np.mean(vocal_energy[:int(sr/2048)]) + (np.std(vocal_energy) * 1.5)
+    vocal_threshold = np.mean(vocal_energy[: int(sr / 2048)]) + (
+        np.std(vocal_energy) * 1.5
+    )
     significant_vocal_frames = vocal_energy > vocal_threshold
 
     first_vocal_onset = None
@@ -123,7 +129,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
     results["onset_methods"]["vocal_frequency"] = {
         "first_onset": first_vocal_onset,
         "threshold_used": float(vocal_threshold),
-        "avg_vocal_energy": float(np.mean(vocal_energy))
+        "avg_vocal_energy": float(np.mean(vocal_energy)),
     }
 
     # Calculate consensus recommendation
@@ -131,7 +137,7 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
         first_energy_onset,
         first_spectral_onset,
         first_complex_onset,
-        first_vocal_onset
+        first_vocal_onset,
     ]
 
     # Filter out None values
@@ -141,7 +147,9 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
         # Use median of valid onsets as consensus
         consensus_onset = float(np.median(valid_onsets))
         onset_std = float(np.std(valid_onsets))
-        confidence = "high" if onset_std < 0.5 else "medium" if onset_std < 1.0 else "low"
+        confidence = (
+            "high" if onset_std < 0.5 else "medium" if onset_std < 1.0 else "low"
+        )
     else:
         consensus_onset = None
         onset_std = None
@@ -156,11 +164,12 @@ def detect_vocal_onsets(audio_path, min_onset_strength=0.1, search_window=30.0):
             "energy": first_energy_onset,
             "spectral": first_spectral_onset,
             "complex": first_complex_onset,
-            "vocal_freq": first_vocal_onset
-        }
+            "vocal_freq": first_vocal_onset,
+        },
     }
 
     return results
+
 
 def print_onset_analysis(results):
     """Print formatted onset analysis results."""
@@ -188,6 +197,7 @@ def print_onset_analysis(results):
             print(f"  {method_name:15s}: {onset_time:.2f}s")
         else:
             print(f"  {method_name:15s}: No onset detected")
+
 
 def main():
     if len(sys.argv) < 2:
@@ -234,7 +244,7 @@ def main():
 
         # Save results
         output_file = Path(audio_path).stem + "_onset_analysis.json"
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
 
         print(f"\n💾 Analysis saved to: {output_file}")
@@ -244,13 +254,17 @@ def main():
             print(f"\n✅ Detected vocal start at {onset_time:.2f}s")
         else:
             print(f"\n⚠️  Could not reliably detect vocal start")
-            print("💡 Try adjusting sensitivity or check if audio contains clear vocals")
+            print(
+                "💡 Try adjusting sensitivity or check if audio contains clear vocals"
+            )
 
     except Exception as e:
         print(f"❌ Error during onset detection: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

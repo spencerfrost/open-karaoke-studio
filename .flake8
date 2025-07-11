@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 88
+exclude = backend/venv,backend/__pycache__,backend/**/__pycache__,backend/logs,backend/htmlcov,backend/.pytest_cache,temp_downloads,temp_job_cache,karaoke_library
+ignore = E203,W503

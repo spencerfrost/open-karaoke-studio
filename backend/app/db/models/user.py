@@ -11,7 +11,7 @@ from .base import Base
 
 class User(Base):
     """User model for storing user information and authentication data."""
-    
+
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
@@ -28,8 +28,8 @@ class User(Base):
 
     def check_password(self, password):
         """Check if the provided password matches the stored hash."""
-        if self.password_hash:
-            return check_password_hash(self.password_hash, password)
+        if self.password_hash:  # type: ignore[unreachable]
+            return check_password_hash(self.password_hash, password)  # type: ignore[return-value]
         return False
 
     @validates("username")

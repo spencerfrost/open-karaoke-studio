@@ -72,7 +72,7 @@ testpaths = tests
 python_files = test_*.py
 python_classes = Test*
 python_functions = test_*
-addopts = 
+addopts =
     --verbose
     --tb=short
     --strict-markers
@@ -106,7 +106,7 @@ from app.db.models import Base
 def app():
     """Create test Flask app"""
     app = create_app(TestingConfig)
-    
+
     with app.app_context():
         # Create test database
         Base.metadata.create_all(bind=engine)
@@ -141,32 +141,32 @@ from app.exceptions import ServiceError, NotFoundError
 
 class TestSongService:
     """Unit tests for SongService"""
-    
+
     @pytest.fixture
     def song_service(self):
         return SongService()
-    
-    def test_get_all_songs_success(self, song_service, mock_db_songs):
+
+    def test_get_songs_success(self, song_service, mock_db_songs):
         """Test successful retrieval of all songs"""
-        with patch('app.db.song_operations.get_all_songs', return_value=mock_db_songs):
-            songs = song_service.get_all_songs()
-            
+        with patch('app.db.song_operations.get_songs', return_value=mock_db_songs):
+            songs = song_service.get_songs()
+
             assert len(songs) == 2
             assert all(hasattr(song, 'id') for song in songs)
-    
+
     def test_get_song_by_id_not_found(self, song_service):
         """Test get_song_by_id with non-existent song"""
         with patch('app.db.song_operations.get_song', return_value=None):
             result = song_service.get_song_by_id("nonexistent")
-            
+
             assert result is None
-    
+
     def test_delete_song_with_cleanup(self, song_service):
         """Test song deletion with file cleanup"""
         with patch('app.db.song_operations.delete_song', return_value=True):
             with patch('app.services.FileService.delete_song_files', return_value=True):
                 result = song_service.delete_song("test-song-123")
-                
+
                 assert result is True
 ```
 
@@ -176,19 +176,19 @@ class TestSongService:
 # tests/unit/test_services/youtube_service/test_error_handling.py
 class TestAdvancedErrorHandling:
     """Test advanced error handling scenarios in YouTube Service"""
-    
+
     def test_network_error_user_friendly_message(self, youtube_service):
         """Test that network errors produce user-friendly messages"""
         with patch('app.services.youtube_service.yt_dlp.YoutubeDL') as mock_ytdl:
             mock_ydl_instance = Mock()
             mock_ytdl.return_value.__enter__.return_value = mock_ydl_instance
             mock_ydl_instance.extract_info.side_effect = Exception("HTTP Error 403: Forbidden")
-            
+
             with pytest.raises(ServiceError) as exc_info:
                 youtube_service.download_video("dQw4w9WgXcQ")
-            
+
             assert "Failed to download YouTube video" in str(exc_info.value)
-    
+
     def test_partial_failure_download_succeeds_task_queue_fails(self, youtube_service):
         """Test partial failure: Download succeeds but task queue fails"""
         with pytest.raises(ServiceError, match="Failed to queue YouTube processing.*song_id is required"):
@@ -203,36 +203,36 @@ class TestAdvancedErrorHandling:
 # tests/integration/test_api/test_songs_api.py
 class TestSongsAPI:
     """Integration tests for Songs API endpoints"""
-    
+
     def test_get_songs_endpoint(self, client, sample_songs):
         """Test GET /api/songs endpoint"""
         response = client.get('/api/songs')
-        
+
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
         assert len(data) >= 0
-    
+
     @patch('app.api.songs.SongService')
     def test_delete_song_success(self, mock_song_service_class, client):
         """Test DELETE /api/songs/<id> endpoint success"""
         mock_service = Mock()
         mock_song_service_class.return_value = mock_service
         mock_service.delete_song.return_value = True
-        
+
         response = client.delete('/api/songs/test-song-123')
-        
+
         assert response.status_code == 200
         mock_service.delete_song.assert_called_once_with("test-song-123")
 
 class TestSongsAPIErrorHandling:
     """Test error handling in songs API"""
-    
+
     def test_internal_server_error_handling(self, client):
         """Test that internal server errors are handled gracefully"""
-        with patch('app.db.database.get_all_songs', side_effect=Exception("Unexpected error")):
+        with patch('app.db.database.get_songs', side_effect=Exception("Unexpected error")):
             response = client.get('/api/songs')
-            
+
             assert response.status_code == 500
             data = response.get_json()
             assert 'error' in data
@@ -244,26 +244,26 @@ class TestSongsAPIErrorHandling:
 # tests/integration/test_celery/test_audio_processing.py
 class TestAudioProcessingTasks:
     """Integration tests for Celery audio processing tasks"""
-    
+
     def test_process_audio_job_success(self, sample_job, temp_audio_file):
         """Test successful audio processing job"""
         from app.jobs.jobs import process_audio_job
-        
+
         # Create test job
         job_id = sample_job.id
-        
+
         # Run task synchronously for testing
         result = process_audio_job.apply(args=[job_id])
-        
+
         assert result.successful()
         assert result.result == "completed"
-    
+
     def test_process_audio_job_file_not_found(self):
         """Test audio processing with missing file"""
         from app.jobs.jobs import process_audio_job
-        
+
         result = process_audio_job.apply(args=["nonexistent-job"])
-        
+
         assert result.failed()
         assert "Job not found" in str(result.result)
 ```
@@ -287,7 +287,7 @@ def clean_database(app):
 def sample_songs(db_session):
     """Create sample songs for testing"""
     from tests.utils.mock_factories import create_mock_song
-    
+
     songs = []
     for i in range(3):
         song = create_mock_song(
@@ -297,7 +297,7 @@ def sample_songs(db_session):
         )
         db_session.add(song)
         songs.append(song)
-    
+
     db_session.commit()
     return songs
 ```
@@ -319,12 +319,12 @@ def mock_song_directory(temp_directory):
     song_id = "test-song-123"
     song_dir = temp_directory / song_id
     song_dir.mkdir()
-    
+
     # Create mock audio files
     (song_dir / "original.mp3").touch()
     (song_dir / "vocals.mp3").touch()
     (song_dir / "instrumental.mp3").touch()
-    
+
     return song_dir
 ```
 
@@ -333,7 +333,8 @@ def mock_song_directory(temp_directory):
 ```python
 # tests/utils/mock_factories.py
 from unittest.mock import Mock
-from app.db.models import DbSong, SongMetadata
+from app.db.models import DbSong
+from app.schemas.song import Song
 
 def create_mock_song(
     id: str = "test-song-123",
@@ -352,9 +353,20 @@ def create_mock_song(
         **kwargs
     )
 
-def create_mock_metadata(**kwargs) -> SongMetadata:
-    """Create mock SongMetadata for testing"""
-    return SongMetadata(
+def create_mock_metadata(**kwargs) -> dict:
+    """Create mock metadata dictionary for testing (SongMetadata class was removed)"""
+    return {
+        'title': kwargs.get('title', 'Test Song'),
+        'artist': kwargs.get('artist', 'Test Artist'),
+        'album': kwargs.get('album', 'Test Album'),
+        'duration': kwargs.get('duration', 180),
+        **kwargs
+    }
+
+def create_mock_song_api(**kwargs) -> Song:
+    """Create mock Song for API testing"""
+    return Song(
+        id=kwargs.get('id', 'test-song-123'),
         title=kwargs.get('title', 'Test Song'),
         artist=kwargs.get('artist', 'Test Artist'),
         album=kwargs.get('album', 'Test Album'),
@@ -377,7 +389,7 @@ def assert_successful_response(response_data: Dict[str, Any]):
 def assert_error_response(response_data: Dict[str, Any], expected_error_message: str = None):
     """Assert that response indicates an error"""
     assert 'error' in response_data or ('success' in response_data and not response_data['success'])
-    
+
     if expected_error_message:
         error_msg = response_data.get('error', {}).get('message', response_data.get('error', ''))
         assert expected_error_message.lower() in str(error_msg).lower()
@@ -447,7 +459,7 @@ pytest --ff                       # Failed first
 # .coveragerc
 [run]
 source = app
-omit = 
+omit =
     */tests/*
     */venv/*
     */migrations/*
@@ -482,23 +494,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-    
-    - name: Install dependencies
-      run: |
-        pip install -r backend/requirements.txt
-        pip install -r backend/requirements-test.txt
-    
-    - name: Run tests
-      run: |
-        cd backend
-        pytest --cov=app --cov-report=xml
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v1
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-test.txt
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest --cov=app --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v1
 ```
 
 ### Test Environment Variables
@@ -514,6 +526,7 @@ TESTING=True
 ## Best Practices
 
 ### Test Organization
+
 1. **Separate unit and integration tests** clearly
 2. **Use descriptive test names** that explain what is being tested
 3. **Group related tests** in classes
@@ -521,18 +534,21 @@ TESTING=True
 5. **Keep tests independent** and idempotent
 
 ### Test Data Management
+
 1. **Use factories** for test data creation
 2. **Clean up after tests** with proper fixtures
 3. **Avoid hardcoded values** in test data
 4. **Use realistic test data** that represents actual usage
 
 ### Mocking Strategy
+
 1. **Mock external dependencies** (APIs, file system, databases)
 2. **Use interface mocking** for service dependencies
 3. **Verify mock interactions** where appropriate
 4. **Keep mocks simple** and focused
 
 ### Performance Considerations
+
 1. **Use fast test databases** (in-memory SQLite)
 2. **Minimize I/O operations** in unit tests
 3. **Parallel test execution** for faster feedback

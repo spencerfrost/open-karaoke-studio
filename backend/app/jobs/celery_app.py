@@ -2,42 +2,30 @@
 import logging
 import multiprocessing
 
-from celery import Celery
+from app.config import get_config
+from app.config.logging import setup_logging
+from celery import Celery  # type: ignore
 from dotenv import load_dotenv
 
-from ..config import get_config  # pylint: disable=wrong-import-position
-from ..config.logging import \
-    setup_logging  # pylint: disable=wrong-import-position
-
-# Setup logging first
 logger = logging.getLogger(__name__)
 
 try:
     if multiprocessing.get_start_method(allow_none=True) != "spawn":
         multiprocessing.set_start_method("spawn", force=True)
-    logger.info("Multiprocessing start method set to 'spawn' for CUDA compatibility")
-except RuntimeError as e:
-    logger.warning("Could not set multiprocessing start method: %s", e)
+except RuntimeError:
+    pass
 
 load_dotenv()
-
-# Import configuration for centralized settings
-
 config = get_config()
-
-# Setup logging for Celery
 logging_config = setup_logging(config)
 
-# Use centralized configuration
 broker_url = config.CELERY_BROKER_URL
 result_backend = config.CELERY_RESULT_BACKEND
 
-logger.info("Configuring Celery with broker: %s, backend: %s", broker_url, result_backend)
+celery = Celery(
+    "app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"]
+)
 
-# Create Celery app - this name is what forms the beginning of task names
-celery = Celery("app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"])
-
-# Configure Celery with enhanced logging
 celery_logging_config = logging_config.configure_celery_logging()
 celery.conf.update(
     task_serializer="json",
@@ -51,7 +39,6 @@ celery.conf.update(
 )
 
 
-# For Flask integration (optional)
 def init_celery(app):
     """Initialize Celery with Flask app context."""
     if not app:
