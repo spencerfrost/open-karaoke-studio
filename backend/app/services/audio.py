@@ -99,9 +99,25 @@ def calculate_instrumental(separated: Dict[str, torch.Tensor], status_callback: 
         first_stem_name = str(first_stem_name)
     if stop_event and stop_event.is_set():
         raise StopProcessingError("Processing stopped by user")
-    instrumental_tensor = torch.zeros_like(separated[first_stem_name])
+    # Patch: handle nested dict structure
+    value = separated[first_stem_name]
+    if isinstance(value, dict):
+        logger.warning(f"Stem '{first_stem_name}' is a nested dict, keys: {list(value.keys())}")
+        tensor = value.get(first_stem_name)
+        if tensor is None:
+            raise TypeError(f"Could not find tensor in nested dict for stem '{first_stem_name}'. Keys: {list(value.keys())}")
+    else:
+        tensor = value
+    instrumental_tensor = torch.zeros_like(tensor)
     for stem_name in instrumental_stems:
-        instrumental_tensor += separated[stem_name]
+        stem_value = separated[stem_name]
+        if isinstance(stem_value, dict):
+            stem_tensor = stem_value.get(stem_name)
+            if stem_tensor is None:
+                raise TypeError(f"Could not find tensor in nested dict for stem '{stem_name}'. Keys: {list(stem_value.keys())}")
+        else:
+            stem_tensor = stem_value
+        instrumental_tensor += stem_tensor
     return instrumental_tensor
 
 def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]:
@@ -223,7 +239,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         status_callback(format_msg)
         # Separation
         status_callback(f"Loading audio file: {input_path.name}...")
-        separated = separator.separate_audio_file(input_path)
+        separated_result = separator.separate_audio_file(input_path)
+        # If result is a tuple, convert to dict with default Demucs stem names
+        if isinstance(separated_result, tuple):
+            stem_names = ["vocals", "drums", "bass", "other"]  # Adjust as needed for your model
+            separated = {name: tensor for name, tensor in zip(stem_names, separated_result)}
+        else:
+            separated = separated_result
         status_callback("Separation models finished.")
         # Instrumental
         instrumental_tensor = calculate_instrumental(separated, status_callback, stop_event)
