@@ -26,9 +26,8 @@ Song repository for managing song records in the database.
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy.orm import Session
-
 from app.db.models import DbSong
+from sqlalchemy.orm import Session
 
 
 class SongRepository:

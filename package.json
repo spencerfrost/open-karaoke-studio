@@ -10,7 +10,10 @@
     "setup": "./scripts/setup.sh",
     "build": "cd frontend && pnpm build",
     "test": "./scripts/test.sh",
-    "lint:frontend": "cd frontend && pnpm lint:check"
+    "lint:frontend": "cd frontend && pnpm lint:check",
+    "format:backend": "cd backend && isort . && black .",
+    "lint:backend": "cd backend && flake8 .",
+    "check:backend": "cd backend && isort . && black . && flake8 ."
   },
   "packageManager": "pnpm@10.9.0"
 }

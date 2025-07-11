@@ -6,10 +6,7 @@ Standardized error handling utilities for consistent API responses
 import logging
 from typing import Any, Dict, Optional
 
-from flask import Flask, jsonify
-from werkzeug.exceptions import HTTPException
-
-from ..exceptions import (
+from app.exceptions import (
     AudioProcessingError,
     ConfigurationError,
     DatabaseError,
@@ -21,6 +18,8 @@ from ..exceptions import (
     ValidationError,
     YouTubeError,
 )
+from flask import Flask, jsonify
+from werkzeug.exceptions import HTTPException
 
 logger = logging.getLogger(__name__)
 

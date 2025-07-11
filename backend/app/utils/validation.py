@@ -7,11 +7,10 @@ import logging
 from functools import wraps
 from typing import Any, Dict, Optional, Type
 
+from app.exceptions import RequestValidationError
 from flask import jsonify, request
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
-
-from ..exceptions import RequestValidationError
 
 logger = logging.getLogger(__name__)
 

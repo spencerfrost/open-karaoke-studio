@@ -1,6 +1,7 @@
 {
   "include": [
-    "backend"
+    "backend",
+    "backend/app",
   ],
   "exclude": [
     "backend/venv",

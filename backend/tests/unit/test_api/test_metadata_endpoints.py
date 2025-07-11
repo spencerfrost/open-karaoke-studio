@@ -6,9 +6,8 @@ Unit tests for Metadata API endpoints
 from unittest.mock import Mock, patch
 
 import pytest
-from flask import Flask
-
 from app.api.metadata import metadata_bp
+from flask import Flask
 
 
 @pytest.fixture

@@ -204,7 +204,7 @@ from functools import wraps
 from typing import Callable
 import logging
 from flask import current_app
-from ..exceptions import ServiceError, NotFoundError, ValidationError
+from app.exceptions import ServiceError, NotFoundError, ValidationError
 from .responses import APIResponse
 
 logger = logging.getLogger(__name__)
@@ -265,8 +265,8 @@ import logging
 from flask import Blueprint, request
 from marshmallow import Schema, fields
 
-from ..services import get_song_service
-from ..services.interfaces.song_service import SongServiceInterface
+from app.services import get_song_service
+from app.services.interfaces.song_service import SongServiceInterface
 from .responses import APIResponse
 from .decorators import handle_api_errors, log_api_call
 from .validation import validate_query_params, validate_json

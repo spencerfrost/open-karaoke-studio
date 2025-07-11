@@ -168,7 +168,7 @@ def SongRepository.update(song_id: str, **fields) -> Optional[DbSong]:
 ### Pydantic Models
 
 ```python
-from ..db.models import Song, DbSong
+from app.db.models import Song, DbSong
 
 # Clean separation: DbSong (database) ↔ Song (API)
 # DbSong.to_dict() provides frontend-friendly format

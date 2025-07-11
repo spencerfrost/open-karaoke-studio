@@ -384,10 +384,10 @@ def log_api_call(logger: logging.Logger = None):
 # api/songs.py - Updated with proper error handling
 import logging
 from flask import Blueprint, request
-from ..exceptions import NotFoundError, ServiceError
-from ..api.responses import success_response, paginated_response
-from ..api.decorators import log_api_call
-from ..services.song_service import SongService
+from app.exceptions import NotFoundError, ServiceError
+from app.api.responses import success_response, paginated_response
+from app.api.decorators import log_api_call
+from app.services.song_service import SongService
 
 logger = logging.getLogger(__name__)
 song_bp = Blueprint('songs', __name__, url_prefix='/api/songs')

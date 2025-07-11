@@ -9,11 +9,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import requests
-from requests.exceptions import ConnectionError, Timeout
-
 from app.exceptions import ServiceError, ValidationError
 from app.services.file_service import FileService
 from app.services.lyrics_service import USER_AGENT, LyricsService, make_request
+from requests.exceptions import ConnectionError, Timeout
 
 
 class TestLyricsService:

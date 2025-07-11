@@ -1,5 +1,28 @@
 # API Layer Architecture
 
+## Service Layer & Repository Overview
+
+| Domain/Feature      | Service Layer Present? | Repository Present? | Current Usage Pattern                | Recommendation                                      |
+|---------------------|------------------------|---------------------|--------------------------------------|-----------------------------------------------------|
+| Songs               | Partial (legacy, not used) | Yes                | Controllers use `SongRepository` directly | **Use repository only.** No service layer needed for CRUD. |
+| Jobs                | Yes (`JobsService`)    | Yes                | Controllers use `JobsService` (orchestrates jobs, uses repo) | **Keep service layer** for orchestration/business logic. |
+| Karaoke Queue       | No                     | Yes                | Controllers use `KaraokeQueueItem`/repo directly | **Use repository only.** No service layer needed.         |
+| Users               | No                     | Yes                | Controllers use `User` model/repo directly | **Use repository only.** No service layer needed.         |
+| Lyrics              | Yes (`LyricsService`)  | No                 | Controllers use `LyricsService` (external API) | **Keep service layer** for API integration.               |
+| Metadata            | Yes (`MetadataService`)| No                 | Controllers use `MetadataService` (external API) | **Keep service layer** for API integration.               |
+| YouTube             | Yes (`YouTubeService`) | No                 | Controllers use `YouTubeService` (external API, jobs) | **Keep service layer** for orchestration/API.             |
+| YouTube Music       | Yes (`YouTubeMusicService`)| No              | Controllers use `YouTubeMusicService` (external API) | **Keep service layer** for API integration.               |
+
+**Legend:**
+- "Service Layer Present?" = Is there a dedicated service class for this domain?
+- "Repository Present?" = Is there a repository or model abstraction for CRUD?
+- "Current Usage Pattern" = How do controllers interact with data/business logic?
+- "Recommendation" = Should you use a service, a repository, or both?
+
+> **Summary:** Use repositories for CRUD and simple logic. Use service layers only for orchestration, external APIs, or complex business rules.
+
+
+
 ## Overview
 
 The API Layer provides a clean HTTP interface to the application's business logic through thin controllers that handle only HTTP concerns. It implements standardized response formats, request validation, error handling, and logging patterns across all endpoints while delegating all business logic to the service layer.
@@ -8,38 +31,45 @@ The API Layer provides a clean HTTP interface to the application's business logi
 
 **Framework**: Flask with Blueprint architecture  
 **Endpoints**: 35+ REST endpoints across 8 blueprints  
-**Status**: Partially refactored, needs thin controller pattern implementation
+**Blueprints**: `songs`, `jobs`, `karaoke_queue`, `users`, `lyrics`, `metadata`, `youtube`, `youtube_music`  
+**Status**: Partially refactored. Some endpoints use thin controller pattern and standardized responses, but others (notably users, queue, and some legacy endpoints) use direct model access and do not always use the `APIResponse` utility or validation decorators. Full standardization is in progress.
+
+### Decorators and Response Utilities
+- The `APIResponse` utility is defined in `backend/app/api/responses.py` but not all endpoints use it yet. Some use `success_response`/`error_response`, others return raw `jsonify`.
+- Logging and error handling decorators exist (`log_api_call`, `handle_api_error`), but are inconsistently applied.
+- Request validation is handled by custom decorators in some endpoints, but not all.
+
+### Service Layer Usage
+- Many endpoints delegate to service classes, but some (notably in `songs.py`, `users.py`, and `karaoke_queue.py`) access the database or models directly, bypassing the service layer.
+- Migration to a fully interface-driven, thin-controller pattern is ongoing.
 
 ## Core Responsibilities
 
-### 1. HTTP Request/Response Handling
+1. **HTTP Request/Response Handling**
+    - Route requests to appropriate service methods (where implemented)
+    - Validate incoming request data and parameters (in progress)
+    - Transform service responses to standardized HTTP format (in progress)
+    - Handle HTTP-specific concerns (headers, status codes, content types)
 
-- Route requests to appropriate service methods
-- Validate incoming request data and parameters
-- Transform service responses to standardized HTTP format
-- Handle HTTP-specific concerns (headers, status codes, content types)
+2. **Request Validation and Security**
+    - Validate request payloads using schemas (in progress)
+    - Sanitize input data before passing to services
+    - Implement authentication and authorization checks (minimal, only for users)
+    - Handle CORS and other security headers
 
-### 2. Request Validation and Security
+3. **Standardized Response Formatting**
+    - Consistent JSON response structure across all endpoints (in progress)
+    - Standardized error response formats (in progress)
+    - Pagination support for list endpoints (where implemented)
+    - Meta information inclusion (timing, pagination, etc.)
 
-- Validate request payloads using schemas
-- Sanitize input data before passing to services
-- Implement authentication and authorization checks
-- Handle CORS and other security headers
+4. **Error Handling and Logging**
+    - Convert service exceptions to appropriate HTTP status codes (in progress)
+    - Log all API requests and responses for debugging (in progress)
+    - Provide detailed error information in development
+    - Sanitize error messages for production
 
-### 3. Standardized Response Formatting
-
-- Consistent JSON response structure across all endpoints
-- Standardized error response formats
-- Pagination support for list endpoints
-- Meta information inclusion (timing, pagination, etc.)
-
-### 4. Error Handling and Logging
-
-- Convert service exceptions to appropriate HTTP status codes
-- Log all API requests and responses for debugging
-- Provide detailed error information in development
-- Sanitize error messages for production
-
+> **Note:** Not all endpoints currently meet these responsibilities. See migration plan for details.
 ## API Architecture Pattern
 
 ### Thin Controller Design
@@ -99,122 +129,38 @@ All API responses follow a consistent structure:
 ## Implementation Components
 
 ### Response Utilities
-
-The `APIResponse` class provides standardized response creation:
-
-```python
-class APIResponse:
-    """Standardized API response utilities"""
-
-    @staticmethod
-    def success(data=None, message="Success", status_code=200, meta=None):
-        """Create standardized success response"""
-        response_data = {
-            "success": True,
-            "message": message,
-            "data": data
-        }
-        if meta:
-            response_data["meta"] = meta
-        return jsonify(response_data), status_code
-
-    @staticmethod
-    def error(message, details=None, status_code=500, error_code=None):
-        """Create standardized error response"""
-        response_data = {
-            "success": False,
-            "error": {
-                "message": message,
-                "code": error_code or f"HTTP_{status_code}"
-            }
-        }
-        if details:
-            response_data["error"]["details"] = details
-        return jsonify(response_data), status_code
-
-    @staticmethod
-    def paginated(data, page, per_page, total, message="Success"):
-        """Create paginated response with meta information"""
-        meta = {
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "pages": (total + per_page - 1) // per_page
-            }
-        }
-        return APIResponse.success(data=data, message=message, meta=meta)
-```
+- `APIResponse` (as described) is not universally used. Many endpoints use `success_response`/`error_response` from `api/responses.py`, and some return raw `jsonify`.
+- Standardized response structure is the goal, but not all endpoints are migrated yet.
 
 ### Request Validation
-
-Input validation is handled through decorators and schemas:
-
-```python
-def validate_json(schema: Schema):
-    """Decorator to validate JSON request body"""
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            try:
-                data = schema.load(request.get_json() or {})
-                return f(validated_data=data, *args, **kwargs)
-            except MarshmallowValidationError as e:
-                return APIResponse.validation_error(e.messages)
-        return wrapper
-    return decorator
-
-def validate_query_params(schema: Schema):
-    """Decorator to validate query parameters"""
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            try:
-                data = schema.load(request.args.to_dict())
-                return f(query_params=data, *args, **kwargs)
-            except MarshmallowValidationError as e:
-                return APIResponse.validation_error(e.messages)
-        return wrapper
-    return decorator
-```
+- Decorators for validation exist, but are inconsistently applied. Some endpoints validate manually or not at all.
+- Marshmallow schemas are used for some request validation, but not all endpoints use them.
 
 ### Error Handling
+- Centralized error handling is implemented via decorators (e.g., `handle_api_error`), but not all endpoints use them.
+- Some endpoints return raw error JSON or HTTP status codes directly.
 
-Centralized error handling through decorators:
+### Logging
+- Logging decorators exist (`log_api_call`), but are not consistently applied across all endpoints.
 
-```python
-def handle_api_errors(f):
-    """Decorator to handle service layer errors consistently"""
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except NotFoundError as e:
-            return APIResponse.not_found(details=str(e))
-        except ValidationError as e:
-            return APIResponse.validation_error({"validation": [str(e)]})
-        except ServiceError as e:
-            return APIResponse.error(
-                message="Service error occurred",
-                details=str(e),
-                status_code=500,
-                error_code="SERVICE_ERROR"
-            )
-        except Exception as e:
-            logger.error(f"Unexpected error in {f.__name__}: {e}", exc_info=True)
-            return APIResponse.error(
-                message="Internal server error",
-                status_code=500,
-                error_code="INTERNAL_ERROR"
-            )
-    return wrapper
-```
-
+> **Summary:**
+> The API layer is in transition: some endpoints are fully standardized, while others use legacy patterns. Full migration to thin controllers, standardized responses, and validation is ongoing.
 ## Blueprint Organization
 
-### Songs API Blueprint
+The following blueprints are currently registered in the application:
 
-Handles all song-related operations:
+- **Songs API** (`/api/songs`): Song management, search, artist listing, file download, lyrics, cover art, etc.
+- **Jobs API** (`/api/jobs`): Background job management, job status, job details, cancel/dismiss jobs.
+- **Karaoke Queue API** (`/karaoke-queue`): Real-time queue management (add, remove, reorder, clear queue).
+- **Users API** (`/users`): User registration, login, and profile update (minimal authentication, not fully standardized).
+- **Lyrics API** (`/api/lyrics`): Lyrics search, save, and retrieval.
+- **Metadata API** (`/api/metadata`): Song metadata search (iTunes, MusicBrainz, etc.).
+- **YouTube API** (`/api/youtube`): YouTube video search and download.
+- **YouTube Music API** (`/api/youtube-music`): YouTube Music search (experimental).
+
+> **Note:** Some endpoints (notably in `users` and `karaoke_queue`) do not use the thin controller/service pattern and return raw `jsonify` responses. Migration to full standardization is ongoing.
+
+### Example Endpoints
 
 ```python
 # /api/songs endpoints
@@ -224,44 +170,43 @@ PUT    /api/songs/<id>         # Update song metadata
 DELETE /api/songs/<id>         # Delete song and files
 GET    /api/songs/search       # Search songs by query
 POST   /api/songs/sync         # Sync filesystem with database
-```
+GET    /api/songs/artists      # List artists with song counts
 
-### YouTube API Blueprint
-
-Manages YouTube video processing:
-
-```python
-# /api/youtube endpoints
-POST   /api/youtube/search     # Search YouTube videos
-POST   /api/youtube/download   # Download and process video
-GET    /api/youtube/info       # Get video information
-```
-
-### Jobs API Blueprint
-
-Background job management:
-
-```python
 # /api/jobs endpoints
 GET    /api/jobs               # List all jobs with status
 GET    /api/jobs/<id>          # Get specific job details
 POST   /api/jobs/<id>/cancel   # Cancel running job
 DELETE /api/jobs/<id>          # Delete completed job
+GET    /api/jobs/status        # Get job system status
+GET    /api/jobs/dismissed     # List dismissed jobs
+
+# /karaoke-queue endpoints
+GET    /karaoke-queue/         # Get current queue state
+POST   /karaoke-queue/         # Add song to queue
+PUT    /karaoke-queue/reorder  # Reorder queue items
+DELETE /karaoke-queue/<id>     # Remove song from queue
+POST   /karaoke-queue/clear    # Clear entire queue
+
+# /users endpoints
+POST   /users/register         # Register new user
+POST   /users/login            # User login
+PATCH  /users/<id>             # Update user profile
+
+# /api/lyrics endpoints
+GET    /api/lyrics/search      # Search for lyrics
+POST   /api/lyrics/save        # Save lyrics for a song
+GET    /api/lyrics/<song_id>   # Get lyrics for a song
+
+# /api/metadata endpoints
+GET    /api/metadata/search    # Search for song metadata
+
+# /api/youtube endpoints
+GET    /api/youtube/search     # Search YouTube videos
+POST   /api/youtube/download   # Download and process video
+
+# /api/youtube-music endpoints
+GET    /api/youtube-music/search # Search YouTube Music
 ```
-
-### Queue API Blueprint
-
-Real-time karaoke queue management:
-
-```python
-# /api/queue endpoints
-GET    /api/queue              # Get current queue state
-POST   /api/queue              # Add song to queue
-PUT    /api/queue/reorder      # Reorder queue items
-DELETE /api/queue/<id>         # Remove song from queue
-POST   /api/queue/clear        # Clear entire queue
-```
-
 ## Request/Response Examples
 
 ### Successful Song Retrieval
@@ -414,7 +359,7 @@ Controllers depend on service interfaces for business logic:
 
 ```python
 # Dependency injection pattern
-from ..services import get_song_service, get_youtube_service
+from app.services import get_song_service, get_youtube_service
 
 def get_songs():
     song_service = get_song_service()
@@ -587,29 +532,24 @@ def test_youtube_download_workflow():
 ## Migration from Current Implementation
 
 ### Phase 1: Response Standardization
-
-1. Implement `APIResponse` utility class
-2. Update all endpoints to use standardized responses
-3. Ensure backward compatibility during transition
+- Implement and use `APIResponse` or `success_response`/`error_response` utilities in all endpoints.
+- Update endpoints in `users.py`, `karaoke_queue.py`, and legacy routes to use standardized responses.
 
 ### Phase 2: Request Validation
-
-1. Implement validation decorators and schemas
-2. Add validation to all endpoints
-3. Improve error messages and codes
+- Apply validation decorators to all endpoints (currently inconsistent).
+- Ensure all input is validated and sanitized before processing.
 
 ### Phase 3: Error Handling
+- Apply centralized error handling decorators (`handle_api_error`) to all endpoints.
+- Map exceptions to appropriate HTTP status codes and error codes.
 
-1. Implement centralized error handling decorator
-2. Map service exceptions to HTTP status codes
-3. Add comprehensive logging
+### Phase 4: Thin Controllers and Service Layer
+- Refactor endpoints to delegate all business logic to service classes.
+- Remove direct model/database access from controllers.
+- Add/expand controller-level and integration tests.
 
-### Phase 4: Thin Controllers
-
-1. Move business logic from controllers to services
-2. Implement service dependency injection
-3. Add controller-level testing
-
+> **Current Status:**
+> - Some endpoints (notably in `songs.py`, `users.py`, and `karaoke_queue.py`) still use direct model/database access and do not use the thin controller pattern or full validation/error handling. Migration is ongoing.
 ## Dependencies
 
 ### Required Libraries

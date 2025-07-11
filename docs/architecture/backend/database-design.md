@@ -63,8 +63,8 @@ The base repository provides common CRUD operations for all entities:
 from typing import TypeVar, Generic, List, Optional, Type
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
-from ..db.database import get_db_session
-from ..db.models import Base
+from app.db.database import get_db_session
+from app.db.models import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
 

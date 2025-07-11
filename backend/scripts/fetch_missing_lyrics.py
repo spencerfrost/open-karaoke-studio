@@ -16,7 +16,6 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 import requests
-
 from app.db.database import get_db_session
 from app.db.models.song import DbSong
 from app.repositories.song_repository import SongRepository

@@ -4,10 +4,13 @@ Custom exception classes for the application
 """
 
 
+from typing import Optional
+
+
 class KaraokeBaseError(Exception):
     """Base exception for all karaoke application errors"""
 
-    def __init__(self, message: str, error_code: str = None, details: dict = None):
+    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[dict] = None):
         self.message = message
         self.error_code = error_code
         self.details = details or {}
@@ -58,7 +61,7 @@ class NetworkError(ServiceError):
 class RequestValidationError(ValidationError):
     """Raised when API request validation fails"""
 
-    def __init__(self, message: str, field: str = None, value: str = None):
+    def __init__(self, message: str, field: Optional[str] = None, value: Optional[str] = None):
         details = {}
         if field:
             details["field"] = field
@@ -88,7 +91,7 @@ class DuplicateResourceError(ValidationError):
 class FileOperationError(FileSystemError):
     """Raised when file operations fail"""
 
-    def __init__(self, operation: str, file_path: str, reason: str = None):
+    def __init__(self, operation: str, file_path: str, reason: Optional[str] = None):
         message = f"Failed to {operation} file: {file_path}"
         if reason:
             message += f" - {reason}"
@@ -101,7 +104,7 @@ class FileOperationError(FileSystemError):
 class InvalidTrackTypeError(ValidationError):
     """Raised when an invalid track type is requested"""
 
-    def __init__(self, requested_type: str, valid_types: list = None):
+    def __init__(self, requested_type: str, valid_types: Optional[list[str]] = None):
         valid_types = valid_types or ["vocals", "instrumental", "original"]
         message = f"Invalid track type '{requested_type}'. Valid types: {', '.join(valid_types)}"
         details = {"requested_type": requested_type, "valid_types": valid_types}

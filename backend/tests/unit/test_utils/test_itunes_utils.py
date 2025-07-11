@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 import pytest
-
 from scripts.utils.itunes_utils import (
     enhance_song_with_itunes_data,
     search_itunes_for_song,

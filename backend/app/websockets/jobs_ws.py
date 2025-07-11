@@ -34,7 +34,7 @@ def handle_subscribe_to_jobs():
 
     # Send the current jobs list to the newly subscribed client
     # Use lazy import to avoid circular dependency
-    from ..services.jobs_service import JobsService
+    from app.services.jobs_service import JobsService
 
     jobs_service = JobsService()
     jobs = jobs_service.get_all_jobs()
@@ -52,7 +52,7 @@ def handle_unsubscribe_from_jobs():
 def handle_request_jobs_list():
     """Handle client request for the current jobs list."""
     # Use lazy import to avoid circular dependency
-    from ..services.jobs_service import JobsService
+    from app.services.jobs_service import JobsService
 
     jobs_service = JobsService()
     jobs = jobs_service.get_all_jobs()
@@ -203,7 +203,7 @@ def _handle_job_event(event) -> None:
 def _setup_event_subscriptions():
     """Set up event subscriptions for job events."""
     try:
-        from ..utils.events import subscribe_to_job_events
+        from app.utils.events import subscribe_to_job_events
 
         subscribe_to_job_events(_handle_job_event)
         print("✅ Jobs WebSocket event subscriptions initialized")

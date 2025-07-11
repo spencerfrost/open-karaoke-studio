@@ -272,7 +272,7 @@ def _find_best_itunes_match(self, target: Dict[str, Any], candidates: List[Dict]
 
 ```python
 # Metadata is stored and retrieved directly via song_operations
-from ...db.song_operations import SongRepository.create or SongRepository.update, get_song
+from app..db.song_operations import SongRepository.create or SongRepository.update, get_song
 
 def store_enhanced_metadata(self, song_id: str, metadata_dict: Dict[str, Any]) -> None:
     """Store enhanced metadata directly in database"""

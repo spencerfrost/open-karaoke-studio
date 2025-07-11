@@ -9,8 +9,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from ..db.models import Job, JobStatus
-from ..repositories import JobRepository
+from app.db.models import Job, JobStatus
+from app.repositories import JobRepository
+
 from . import file_management
 from .file_service import FileService
 from .interfaces.jobs_service import JobsServiceInterface
@@ -208,7 +209,7 @@ class JobsService(JobsServiceInterface):
             was_created: Whether this is a newly created job
         """
         try:
-            from ..utils.events import publish_job_event
+            from app.utils.events import publish_job_event
 
             job_data = job.to_dict()
 
