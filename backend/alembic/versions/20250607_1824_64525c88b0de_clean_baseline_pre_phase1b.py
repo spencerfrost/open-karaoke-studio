@@ -1,5 +1,5 @@
 # pylint: skip-file
-""" clean_baseline_pre_phase1b
+"""clean_baseline_pre_phase1b
 
 Revision ID: 64525c88b0de
 Revises:

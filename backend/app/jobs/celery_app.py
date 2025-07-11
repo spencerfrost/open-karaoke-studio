@@ -2,11 +2,10 @@
 import logging
 import multiprocessing
 
-from dotenv import load_dotenv
-from celery import Celery  # type: ignore
-
 from app.config import get_config
 from app.config.logging import setup_logging
+from celery import Celery  # type: ignore
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 

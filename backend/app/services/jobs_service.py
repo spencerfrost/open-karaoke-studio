@@ -199,23 +199,3 @@ class JobsService(JobsServiceInterface):
         estimated_remaining = remaining_percent * time_per_percent
 
         return datetime.now() + timedelta(seconds=estimated_remaining)
-
-    def _broadcast_job_event(self, job: Job, was_created: bool = False):
-        """
-        Broadcast a job event via the event system.
-
-        Args:
-            job: The job object
-            was_created: Whether this is a newly created job
-        """
-        try:
-            from app.utils.events import publish_job_event
-
-            job_data = job.to_dict()
-
-            # Publish the job event - the event system will handle broadcasting
-            publish_job_event(job.id, job_data, was_created)
-
-        except Exception as e:
-            # Log error but don't fail the operation
-            logger.warning("Failed to broadcast job event: %s", str(e))

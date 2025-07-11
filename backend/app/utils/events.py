@@ -155,7 +155,8 @@ def publish_job_event(
     """
     event = JobEvent(job_id=job_id, job_data=job_data, was_created=was_created)
     print(
-        f"📢 Publishing job event: {job_id} - created={was_created} - status={job_data.get('status', 'unknown')}"
+        f"📢 Publishing job event: {job_id} - created={was_created} - "
+        f"status={job_data.get('status', 'unknown')}"
     )
     event_bus.publish(event)
 

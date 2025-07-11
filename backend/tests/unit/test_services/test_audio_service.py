@@ -2,7 +2,6 @@
 Unit tests for the audio service in Open Karaoke Studio.
 """
 
-
 import threading
 import time
 from pathlib import Path
@@ -29,8 +28,12 @@ class TestAudioService:
     @patch("app.services.audio.Separator")
     def test_separate_audio_success_with_cuda(self, mock_separator):
         """Test successful audio separation with CUDA available"""
-        with patch("app.services.audio.torch.cuda.is_available", return_value=True), \
-             patch("app.services.audio.torch.cuda.get_device_name", return_value="GeForce RTX 3080"):
+        with patch(
+            "app.services.audio.torch.cuda.is_available", return_value=True
+        ), patch(
+            "app.services.audio.torch.cuda.get_device_name",
+            return_value="GeForce RTX 3080",
+        ):
             mock_separator_instance = Mock()
             mock_separator_instance.separate_audio_file.return_value = {
                 "vocals": torch.zeros(1, 100),
@@ -50,8 +53,12 @@ class TestAudioService:
     @patch("app.services.audio.Separator")
     def test_separate_audio_fallback_to_cpu(self, mock_separator):
         """Test audio separation falls back to CPU when CUDA fails"""
-        with patch("app.services.audio.torch.cuda.is_available", return_value=True), \
-             patch("app.services.audio.torch.cuda.get_device_name", side_effect=RuntimeError("CUDA init failed")):
+        with patch(
+            "app.services.audio.torch.cuda.is_available", return_value=True
+        ), patch(
+            "app.services.audio.torch.cuda.get_device_name",
+            side_effect=RuntimeError("CUDA init failed"),
+        ):
             mock_separator_instance = Mock()
             mock_separator_instance.separate_audio_file.return_value = {
                 "vocals": torch.zeros(1, 100),

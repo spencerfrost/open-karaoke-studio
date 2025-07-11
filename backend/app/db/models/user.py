@@ -28,8 +28,8 @@ class User(Base):
 
     def check_password(self, password):
         """Check if the provided password matches the stored hash."""
-        if self.password_hash: # type: ignore[unreachable]
-            return check_password_hash(self.password_hash, password) # type: ignore[return-value]
+        if self.password_hash:  # type: ignore[unreachable]
+            return check_password_hash(self.password_hash, password)  # type: ignore[return-value]
         return False
 
     @validates("username")

@@ -66,9 +66,7 @@ class YouTubeProcessRequest(BaseModel):
 class BulkDeleteRequest(BaseModel):
     """Schema for bulk delete operations"""
 
-    song_ids: List[str] = Field(
-        ..., description="List of song IDs to delete"
-    )
+    song_ids: List[str] = Field(..., description="List of song IDs to delete")
 
     @field_validator("song_ids")
     def validate_song_ids(cls, v):

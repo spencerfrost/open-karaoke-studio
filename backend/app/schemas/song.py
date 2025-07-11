@@ -62,7 +62,7 @@ class Song(BaseModel):
     status: str = "processed"
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SongCreate(BaseModel):

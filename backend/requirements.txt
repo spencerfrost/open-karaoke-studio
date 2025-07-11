@@ -1,6 +1,5 @@
 # Python version requirement: 3.10+
 Flask
-# Python version requirement: 3.10+
 Flask-CORS
 numpy<2.0.0
 torch>=2.0.0

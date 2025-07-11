@@ -47,10 +47,7 @@ def get_songs():
             repo = SongRepository(session)
             # Build filters dict if needed (currently none)
             songs = repo.fetch_all(
-                sort_by=sort_by,
-                direction=direction,
-                limit=limit,
-                offset=offset
+                sort_by=sort_by, direction=direction, limit=limit, offset=offset
             )
             response_data = [song.to_dict() for song in songs]
 
