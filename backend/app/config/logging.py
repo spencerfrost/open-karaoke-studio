@@ -11,6 +11,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from app.config import get_config
+
 from .base import BaseConfig
 
 
@@ -267,6 +268,7 @@ class LoggingConfig:
 # Module-level variable to track logging initialization
 _logging_initialized = False
 
+
 def setup_logging(config: BaseConfig):
     """Initialize logging configuration"""
     global _logging_initialized
@@ -296,6 +298,7 @@ def setup_logging(config: BaseConfig):
     log.debug("Logging configured for %s", os.getenv("FLASK_ENV", "development"))
 
     return logging_config
+
 
 def get_structured_logger(name: str, extra_fields: Optional[dict[str, Any]] = None):
     """Get a logger with structured logging support"""

@@ -1,5 +1,6 @@
 """Song API Files Module"""
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -21,10 +22,6 @@ from flask import send_file, send_from_directory
 
 from . import logger, song_bp
 
-
-import logging
-
-print("songs/files.py loaded")
 
 def get_thumbnail(song_id: str, extension: str):
     """Serve the thumbnail image for a song."""

@@ -10,7 +10,12 @@ from typing import Optional
 class KaraokeBaseError(Exception):
     """Base exception for all karaoke application errors"""
 
-    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
         self.message = message
         self.error_code = error_code
         self.details = details or {}
@@ -61,7 +66,9 @@ class NetworkError(ServiceError):
 class RequestValidationError(ValidationError):
     """Raised when API request validation fails"""
 
-    def __init__(self, message: str, field: Optional[str] = None, value: Optional[str] = None):
+    def __init__(
+        self, message: str, field: Optional[str] = None, value: Optional[str] = None
+    ):
         details = {}
         if field:
             details["field"] = field

@@ -54,6 +54,7 @@ class Job:
             self.status = JobStatus(self.status)
 
     """Convert the job to a dictionary representation for serialization."""
+
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         for key in ["created_at", "started_at", "completed_at"]:
@@ -94,19 +95,19 @@ class DbJob(Base):
     def to_job(self) -> Job:
         """Convert database job to domain job object."""
         return Job(
-            id=self.id, # type: ignore[assignment]
-            filename=self.filename, # type: ignore[assignment]
-            status=JobStatus(self.status), # type: ignore[assignment]
-            progress=self.progress, # type: ignore[assignment]
-            status_message=self.status_message, # type: ignore[assignment]
-            task_id=self.task_id, # type: ignore[assignment]
-            song_id=self.song_id, # type: ignore[assignment]
-            title=self.title, # type: ignore[assignment]
-            artist=self.artist, # type: ignore[assignment]
-            created_at=self.created_at, # type: ignore[assignment]
-            started_at=self.started_at, # type: ignore[assignment]
-            completed_at=self.completed_at, # type: ignore[assignment]
-            error=self.error, # type: ignore[assignment]
-            notes=self.notes, # type: ignore[assignment]
-            dismissed=self.dismissed or False, # type: ignore[assignment]
+            id=self.id,  # type: ignore[assignment]
+            filename=self.filename,  # type: ignore[assignment]
+            status=JobStatus(self.status),  # type: ignore[assignment]
+            progress=self.progress,  # type: ignore[assignment]
+            status_message=self.status_message,  # type: ignore[assignment]
+            task_id=self.task_id,  # type: ignore[assignment]
+            song_id=self.song_id,  # type: ignore[assignment]
+            title=self.title,  # type: ignore[assignment]
+            artist=self.artist,  # type: ignore[assignment]
+            created_at=self.created_at,  # type: ignore[assignment]
+            started_at=self.started_at,  # type: ignore[assignment]
+            completed_at=self.completed_at,  # type: ignore[assignment]
+            error=self.error,  # type: ignore[assignment]
+            notes=self.notes,  # type: ignore[assignment]
+            dismissed=self.dismissed or False,  # type: ignore[assignment]
         )

@@ -101,7 +101,7 @@ class JobRepository:
 
             with self.get_db_session() as session:
                 from app.db.database import engine
-                
+
                 logger.info("Database engine URL: %s", engine.url)
 
                 # First, let's check how many jobs exist in total
