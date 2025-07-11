@@ -2,11 +2,10 @@
 
 import logging
 
+from app.exceptions import NetworkError, ServiceError, ValidationError
+from app.services.metadata_service import MetadataService
+from app.utils.error_handlers import handle_api_error
 from flask import Blueprint, current_app, jsonify, request
-
-from ..exceptions import NetworkError, ServiceError, ValidationError
-from ..services.metadata_service import MetadataService
-from ..utils.error_handlers import handle_api_error
 
 logger = logging.getLogger(__name__)
 # Create a metadata blueprint with the new, clean URL structure

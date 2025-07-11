@@ -72,9 +72,9 @@ Every backend file must have:
 All API endpoints must follow the standardized error handling pattern:
 
 ```python
-from ..utils.error_handlers import handle_api_error
-from ..utils.validation import validate_json_request
-from ..exceptions import DatabaseError, ValidationError, ServiceError
+from app.utils.error_handlers import handle_api_error
+from app.utils.validation import validate_json_request
+from app.exceptions import DatabaseError, ValidationError, ServiceError
 
 @bp.route("/endpoint", methods=["POST"])
 @handle_api_error  # REQUIRED - Provides consistent error responses
@@ -249,9 +249,9 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine
 
 # 3. Local application imports
-from ..config import get_config
-from ..db.models import DbSong
-from ..services.song_service import SongService
+from app.config import get_config
+from app.db.models import DbSong
+from app.services.song_service import SongService
 
 # 4. Logger setup (ALWAYS after imports)
 logger = logging.getLogger(__name__)

@@ -10,6 +10,8 @@ from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
+from app.config import get_config
+from app.services import file_management
 from sqlalchemy import (
     Boolean,
     Column,
@@ -27,8 +29,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import get_config
-from ..services import file_management
 from .models import Base, DbSong
 
 # Get configuration and create database engine

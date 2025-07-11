@@ -50,7 +50,7 @@ All services implement well-defined interfaces using Python protocols:
 ```python
 # Example: Song Service Interface
 from typing import Protocol, List, Optional
-from ...db.models import Song
+from app..db.models import Song
 
 class SongServiceInterface(Protocol):
     def get_songs(self) -> List[Song]:

@@ -1,7 +1,6 @@
+from app.db import SessionLocal
+from app.db.models import KaraokeQueueItem
 from flask import Blueprint, jsonify, request
-
-from ..db import SessionLocal
-from ..db.models import KaraokeQueueItem
 
 karaoke_queue_bp = Blueprint("karaoke_queue", __name__, url_prefix="/karaoke-queue")
 
@@ -33,6 +32,17 @@ def get_queue():
 def add_to_queue():
     """Add a new item to the karaoke queue."""
     data = request.json
+    if not data or "singer_name" not in data or "song_id" not in data:
+        return (
+            jsonify(
+                {
+                    "error": "Missing required fields",
+                    "code": "MISSING_PARAMETERS",
+                    "details": {"required": ["singer_name", "song_id"]},
+                }
+            ),
+            400,
+        )
     session = SessionLocal()
     try:
         max_position = (
@@ -76,6 +86,17 @@ def remove_from_queue(item_id):
 def reorder_queue():
     """Reorder the karaoke queue."""
     data = request.json
+    if not data or "queue" not in data or not isinstance(data["queue"], list):
+        return (
+            jsonify(
+                {
+                    "error": "Missing or invalid queue data",
+                    "code": "MISSING_PARAMETERS",
+                    "details": {"required": ["queue"]},
+                }
+            ),
+            400,
+        )
     session = SessionLocal()
     try:
         for item in data["queue"]:

@@ -7,9 +7,10 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+from app.config import get_config
 from .base import BaseConfig
 
 
@@ -263,11 +264,10 @@ class LoggingConfig:
         }
 
 
-# Global flag to track if logging has been initialized
+# Module-level variable to track logging initialization
 _logging_initialized = False
 
-
-def setup_logging(config: BaseConfig = None):
+def setup_logging(config: BaseConfig):
     """Initialize logging configuration"""
     global _logging_initialized
 
@@ -276,8 +276,6 @@ def setup_logging(config: BaseConfig = None):
         return LoggingConfig(config or get_config())
 
     if config is None:
-        from . import get_config
-
         config = get_config()
 
     logging_config = LoggingConfig(config)
@@ -299,8 +297,7 @@ def setup_logging(config: BaseConfig = None):
 
     return logging_config
 
-
-def get_structured_logger(name: str, extra_fields: dict[str, Any] = None):
+def get_structured_logger(name: str, extra_fields: Optional[dict[str, Any]] = None):
     """Get a logger with structured logging support"""
     logger = logging.getLogger(name)
 

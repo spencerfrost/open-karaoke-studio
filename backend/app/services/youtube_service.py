@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import yt_dlp
+from app.exceptions import ServiceError, ValidationError
 
-from ..exceptions import ServiceError, ValidationError
 from .file_service import FileService
 from .interfaces.file_service import FileServiceInterface
 from .interfaces.youtube_service import YouTubeServiceInterface
@@ -184,8 +184,8 @@ class YouTubeService(YouTubeServiceInterface):
             try:
                 # Update song with duration_ms if available
                 if metadata_dict.get("duration_ms"):
-                    from ..db.database import get_db_session
-                    from ..repositories.song_repository import SongRepository
+                    from app.db.database import get_db_session
+                    from app.repositories.song_repository import SongRepository
 
                     with get_db_session() as session:
                         repo = SongRepository(session)
@@ -272,8 +272,8 @@ class YouTubeService(YouTubeServiceInterface):
                 raise ValidationError("song_id is required for YouTube processing")
 
             # Ensure song exists in database before creating job
-            from ..db.database import get_db_session
-            from ..repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
 
             with get_db_session() as session:
                 repo = SongRepository(session)
@@ -301,8 +301,8 @@ class YouTubeService(YouTubeServiceInterface):
             # Create and save job to database FIRST, before queuing Celery task
             import json
 
-            from ..db.models import Job, JobStatus
-            from ..repositories import JobRepository
+            from app.db.models import Job, JobStatus
+            from app.repositories import JobRepository
 
             # Store video_id in notes for reference
             job_notes = json.dumps({"video_id": video_id})
@@ -347,7 +347,7 @@ class YouTubeService(YouTubeServiceInterface):
             )
 
             # Use Celery app directly to avoid circular import
-            from ..jobs.celery_app import celery
+            from app.jobs.celery_app import celery
 
             task = celery.send_task(
                 "process_youtube_job",
@@ -376,7 +376,7 @@ class YouTubeService(YouTubeServiceInterface):
         self, video_info: "dict[str, Any]"
     ) -> "dict[str, Any]":
         """Extract metadata from YouTube video info and return as dict for SongRepository.create or SongRepository.update()"""
-        from .metadata_service import filter_youtube_metadata_for_storage
+        from app.utils.metadata import filter_youtube_metadata_for_storage
 
         # Extract channel ID with fallback to uploader_id
         channel_id = video_info.get("channel_id") or video_info.get("uploader_id")
@@ -659,8 +659,8 @@ class YouTubeService(YouTubeServiceInterface):
     ) -> None:
         """Update database with thumbnail information"""
         try:
-            from ..db.database import get_db_session
-            from ..repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
 
             thumbnail_path = f"{song_id}/{thumbnail_filename}"
             with get_db_session() as session:
@@ -676,8 +676,8 @@ class YouTubeService(YouTubeServiceInterface):
             )
         """Update database with thumbnail information"""
         try:
-            from ..db.database import get_db_session
-            from ..repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
 
             thumbnail_path = f"{song_id}/{thumbnail_filename}"
             with get_db_session() as session:

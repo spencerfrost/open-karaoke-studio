@@ -4,7 +4,7 @@ Request validation schemas for the karaoke application.
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class CreateSongRequest(BaseModel):
@@ -21,7 +21,7 @@ class CreateSongRequest(BaseModel):
         None, max_length=100, description="YouTube video ID"
     )
 
-    @validator("title", "artist")
+    @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
         if not v or v.strip() == "":
             raise ValueError("Field cannot be empty")
@@ -36,7 +36,7 @@ class UpdateSongRequest(BaseModel):
     album: Optional[str] = Field(None, max_length=200)
     durationMs: Optional[int] = Field(None, ge=0)
 
-    @validator("title", "artist")
+    @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
         if v is not None and (not v or v.strip() == ""):
             raise ValueError("Field cannot be empty")
@@ -50,7 +50,7 @@ class YouTubeProcessRequest(BaseModel):
     title: Optional[str] = Field(None, max_length=200, description="Custom title")
     artist: Optional[str] = Field(None, max_length=200, description="Custom artist")
 
-    @validator("url")
+    @field_validator("url")
     def validate_youtube_url(cls, v):
         if not v:
             raise ValueError("URL is required")
@@ -67,10 +67,10 @@ class BulkDeleteRequest(BaseModel):
     """Schema for bulk delete operations"""
 
     song_ids: List[str] = Field(
-        ..., min_items=1, description="List of song IDs to delete"
+        ..., description="List of song IDs to delete"
     )
 
-    @validator("song_ids")
+    @field_validator("song_ids")
     def validate_song_ids(cls, v):
         if not v:
             raise ValueError("At least one song ID is required")
@@ -89,7 +89,7 @@ class LyricsSearchRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
 
-    @validator("title", "artist")
+    @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
         if not v or v.strip() == "":
             raise ValueError("Field cannot be empty")
@@ -105,7 +105,7 @@ class MetadataUpdateRequest(BaseModel):
     year: Optional[int] = Field(None, ge=1800, le=2100)
     genre: Optional[str] = Field(None, max_length=100)
 
-    @validator("title", "artist", "album", "genre")
+    @field_validator("title", "artist", "album", "genre")
     def validate_non_empty_strings(cls, v):
         if v is not None and (not v or v.strip() == ""):
             raise ValueError("Field cannot be empty")
@@ -132,13 +132,13 @@ class YouTubeDownloadRequest(BaseModel):
         None, max_length=500, description="Original search result thumbnail URL"
     )
 
-    @validator("video_id", "song_id")
+    @field_validator("video_id", "song_id")
     def validate_required_ids(cls, v):
         if not v or v.strip() == "":
             raise ValueError("Field cannot be empty")
         return v.strip()
 
-    @validator("title", "artist", "album")
+    @field_validator("title", "artist", "album")
     def validate_optional_strings(cls, v):
         # Convert empty strings to None for optional fields
         if v is not None and isinstance(v, str):
@@ -154,7 +154,7 @@ class SaveLyricsRequest(BaseModel):
 
     lyrics: str = Field(..., min_length=1, max_length=50000, description="Lyrics text")
 
-    @validator("lyrics")
+    @field_validator("lyrics")
     def validate_lyrics_content(cls, v):
         if not v or v.strip() == "":
             raise ValueError("Lyrics cannot be empty")

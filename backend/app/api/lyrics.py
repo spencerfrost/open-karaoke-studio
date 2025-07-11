@@ -1,12 +1,11 @@
 import logging
 
-from flask import Blueprint, current_app, jsonify, request
-
-from ..exceptions import FileSystemError, NetworkError, ServiceError, ValidationError
-from ..schemas.requests import SaveLyricsRequest
-from ..services.lyrics_service import LyricsService
-from ..utils.error_handlers import handle_api_error
-from ..utils.validation import validate_json_request
+from app.exceptions import FileSystemError, NetworkError, ServiceError, ValidationError
+from app.schemas.requests import SaveLyricsRequest
+from app.services.lyrics_service import LyricsService
+from app.utils.error_handlers import handle_api_error
+from app.utils.validation import validate_json_request
+from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
 lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
@@ -56,25 +55,25 @@ def search_lyrics():
             "Failed to connect to lyrics service",
             "LYRICS_CONNECTION_ERROR",
             {"query": query, "error": str(e)},
-        )
+        ) from e
     except TimeoutError as e:
         raise NetworkError(
             "Lyrics service request timed out",
             "LYRICS_TIMEOUT_ERROR",
             {"query": query, "error": str(e)},
-        )
+        ) from e
     except Exception as e:
         raise ServiceError(
             "Unexpected error during lyrics search",
             "LYRICS_SEARCH_ERROR",
             {"query": query, "error": str(e)},
-        )
+        ) from e
 
 
 @lyrics_bp.route("/<string:song_id>", methods=["POST"])
 @handle_api_error
 @validate_json_request(SaveLyricsRequest)
-def save_song_lyrics(song_id: str, validated_data: SaveLyricsRequest = None):
+def save_song_lyrics(song_id: str, validated_data: SaveLyricsRequest):
     """
     Save lyrics for a specific song.
 
@@ -111,13 +110,13 @@ def save_song_lyrics(song_id: str, validated_data: SaveLyricsRequest = None):
             "Failed to save lyrics to file system",
             "LYRICS_FILE_ERROR",
             {"song_id": song_id, "error": str(e)},
-        )
+        ) from e
     except Exception as e:
         raise ServiceError(
             "Unexpected error saving lyrics",
             "LYRICS_SAVE_ERROR",
             {"song_id": song_id, "error": str(e)},
-        )
+        ) from e
 
 
 @lyrics_bp.route("/<string:song_id>", methods=["GET"])
@@ -141,7 +140,7 @@ def get_song_lyrics_local(song_id: str):
             return jsonify({"lyrics": lyrics_text}), 200
         else:
             logger.info("No local lyrics found for song %s", song_id)
-            from ..exceptions import ResourceNotFoundError
+            from app.exceptions import ResourceNotFoundError
 
             raise ResourceNotFoundError("Song lyrics", song_id)
 
@@ -153,10 +152,10 @@ def get_song_lyrics_local(song_id: str):
             "Failed to read lyrics from file system",
             "LYRICS_FILE_READ_ERROR",
             {"song_id": song_id, "error": str(e)},
-        )
+        ) from e
     except Exception as e:
         raise ServiceError(
             "Unexpected error retrieving lyrics",
             "LYRICS_GET_ERROR",
             {"song_id": song_id, "error": str(e)},
-        )
+        ) from e

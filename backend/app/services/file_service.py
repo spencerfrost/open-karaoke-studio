@@ -4,8 +4,9 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from ..config import get_config
-from ..exceptions import ServiceError
+from app.config import get_config
+from app.exceptions import ServiceError
+
 from .interfaces.file_service import FileServiceInterface
 
 logger = logging.getLogger(__name__)

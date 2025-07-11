@@ -191,9 +191,9 @@ async function handleApiCall<T>(apiCall: () => Promise<T>): Promise<T> {
 When creating new API endpoints, follow this error handling pattern:
 
 ```python
-from ..utils.error_handlers import handle_api_error
-from ..utils.validation import validate_json_request
-from ..exceptions import DatabaseError, ValidationError, ResourceNotFoundError
+from app.utils.error_handlers import handle_api_error
+from app.utils.validation import validate_json_request
+from app.exceptions import DatabaseError, ValidationError, ResourceNotFoundError
 
 @bp.route("/new-endpoint", methods=["POST"])
 @handle_api_error

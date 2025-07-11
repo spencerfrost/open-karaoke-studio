@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 import requests
+from app.exceptions import ServiceError, ValidationError
 
-from ..exceptions import ServiceError, ValidationError
 from .file_service import FileService
 from .interfaces.lyrics_service import LyricsServiceInterface
 

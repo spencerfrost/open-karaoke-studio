@@ -5,19 +5,12 @@ This provides a clean abstraction for metadata search and formatting,
 currently using iTunes as the backend but designed to be extensible.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from flask import current_app
-
 logger = logging.getLogger(__name__)
 
-from ..utils.metadata import (
-    filter_itunes_metadata_for_storage,
-    filter_youtube_metadata_for_storage,
-)
 from .interfaces.metadata_service import MetadataServiceInterface
 from .itunes_service import (
     enhance_metadata_with_itunes,

@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from app.exceptions import ServiceError
 from app.services.file_service import FileService
 

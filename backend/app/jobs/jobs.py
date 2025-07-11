@@ -6,12 +6,12 @@ import shutil
 import traceback
 from datetime import datetime
 
+from app.config.logging import get_structured_logger
+from app.db.models import JobStatus
+from app.repositories import JobRepository
+from app.services import FileService, audio, file_management
 from celery.utils.log import get_task_logger
 
-from ..config.logging import get_structured_logger
-from ..db.models import JobStatus
-from ..repositories import JobRepository
-from ..services import FileService, audio, file_management
 from .celery_app import celery
 
 logger = get_task_logger(__name__)
@@ -31,7 +31,7 @@ def _broadcast_job_event(job, was_created=False):
         was_created: Whether this is a newly created job
     """
     try:
-        from ..websockets.jobs_ws import (
+        from app.websockets.jobs_ws import (
             broadcast_job_cancelled,
             broadcast_job_completed,
             broadcast_job_created,
@@ -72,7 +72,7 @@ def get_filepath_from_job(job):
     """Get the full filepath for a job based on its filename"""
     from pathlib import Path
 
-    from ..config import get_config
+    from app.config import get_config
 
     # Construct the path to the original file based on the job's filename
     config = get_config()
@@ -113,7 +113,7 @@ def process_audio_job(self, job_id):
     # Determine the filepath from the job
     from pathlib import Path
 
-    from ..config import get_config
+    from app.config import get_config
 
     config = get_config()
     song_dir = Path(config.BASE_LIBRARY_DIR) / job.id
@@ -264,8 +264,8 @@ def process_youtube_job(self, job_id, video_id, metadata):
         return {"status": "error", "message": "No song ID associated with job"}
 
     # Verify the song exists
-    from ..db.database import get_db_session
-    from ..repositories.song_repository import SongRepository
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
 
     with get_db_session() as session:
         repo = SongRepository(session)
@@ -309,7 +309,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
     try:
         # Phase 1: Download (5-30% progress)
-        from ..services.youtube_service import YouTubeService
+        from app.services.youtube_service import YouTubeService
 
         file_service = FileService()
         file_service.ensure_library_exists()
@@ -334,8 +334,8 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
         # Update the database song with enhanced metadata (including iTunes data)
         try:
-            from ..db.database import get_db_session
-            from ..repositories.song_repository import SongRepository
+            from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
 
             with get_db_session() as session:
                 repo = SongRepository(session)
@@ -431,7 +431,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
             # Verify the files actually exist before updating database
             if vocals_path.exists() and instrumental_path.exists():
                 # Get relative paths from library directory
-                from ..config import get_config
+                from app.config import get_config
 
                 config = get_config()
 
@@ -514,8 +514,8 @@ def _handle_job_event(event):
     This replaces the direct function calls from models.
     """
     try:
-        from ..db.models import Job, JobStatus
-        from ..utils.events import JobEvent
+        from app.db.models import Job, JobStatus
+        from app.utils.events import JobEvent
 
         if isinstance(event, JobEvent):
             # Reconstruct job object from event data
@@ -551,7 +551,7 @@ def _handle_job_event(event):
 def _setup_event_subscriptions():
     """Set up event subscriptions for the jobs module."""
     try:
-        from ..utils.events import subscribe_to_job_events
+        from app.utils.events import subscribe_to_job_events
 
         subscribe_to_job_events(_handle_job_event)
         logger.info("Jobs module subscribed to job events")

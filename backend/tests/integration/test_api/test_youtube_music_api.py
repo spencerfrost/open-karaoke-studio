@@ -1,7 +1,6 @@
 import pytest
-from flask import Flask
-
 from app.api.youtube_music import youtube_music_bp
+from flask import Flask
 
 
 @pytest.fixture

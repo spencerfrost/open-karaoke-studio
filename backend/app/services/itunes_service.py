@@ -326,7 +326,7 @@ def get_itunes_cover_art(track_data: dict[str, Any], song_dir: Path) -> Optional
                     file_size,
                 )
 
-            from ..config import get_config
+            from app.config import get_config
 
             config = get_config()
             relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
@@ -346,7 +346,7 @@ def get_itunes_cover_art(track_data: dict[str, Any], song_dir: Path) -> Optional
                     file_size,
                 )
 
-            from ..config import get_config
+            from app.config import get_config
 
             config = get_config()
             relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
@@ -375,7 +375,7 @@ def enhance_metadata_with_itunes(
         Dict[str, Any]: Enhanced metadata
     """
     try:
-        from ..utils.metadata import filter_itunes_metadata_for_storage
+        from app.utils.metadata import filter_itunes_metadata_for_storage
 
         artist = metadata.get("artist", "")
         title = metadata.get("title", "")

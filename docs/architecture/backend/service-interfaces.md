@@ -51,7 +51,7 @@ class BaseServiceInterface(Protocol):
 
 ```python
 from typing import Protocol, List, Optional, Dict, Any
-from ...db.models import Song
+from app..db.models import Song
 
 class SongServiceInterface(Protocol):
     """Interface for Song Service to enable dependency injection and testing"""
@@ -242,7 +242,7 @@ class SongService(SongServiceInterface):
 All services follow consistent error handling:
 
 ```python
-from ..exceptions import ServiceError, NotFoundError, ValidationError
+from app.exceptions import ServiceError, NotFoundError, ValidationError
 
 class StandardServiceErrorHandling:
     """Standard error handling patterns for all services"""

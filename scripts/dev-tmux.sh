@@ -4,13 +4,13 @@
 
 echo "🎤 Starting Open Karaoke Studio with tmux (Local Network Mode)..."
 
-# Auto-detect the machine's IP address for external access
-HOST_IP=$(hostname -I | awk '{print $1}')
-echo "📡 Detected host IP: $HOST_IP"
+# # Auto-detect the machine's IP address for external access
+# HOST_IP=$(hostname -I | awk '{print $1}')
+# echo "📡 Detected host IP: $HOST_IP"
 
-# Create/update the frontend .env.local file with the correct backend URL
-echo "VITE_BACKEND_URL=http://$HOST_IP:5123" >frontend/.env.local
-echo "✅ Frontend configured to connect to: http://$HOST_IP:5123"
+# # Create/update the frontend .env.local file with the correct backend URL
+# echo "VITE_BACKEND_URL=http://$HOST_IP:5123" >frontend/.env.local
+# echo "✅ Frontend configured to connect to: http://$HOST_IP:5123"
 
 # Session name
 SESSION_NAME="open-karaoke-studio"

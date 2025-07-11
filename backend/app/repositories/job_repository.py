@@ -6,7 +6,7 @@ import logging
 import traceback
 from typing import List, Optional
 
-from ..db.models import DbJob, Job, JobStatus
+from app.db.models import DbJob, Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +15,10 @@ class JobRepository:
     """Repository class for managing job persistence in the database."""
 
     def __init__(self):
-        from ..db.database import SessionLocal, get_db_session
+        from app.db.database import SessionLocal, engine, get_db_session
 
         self.get_db_session = get_db_session
         self.SessionLocal = SessionLocal
-        from ..db.database import engine
 
         DbJob.__table__.create(bind=engine, checkfirst=True)
 
@@ -51,26 +50,26 @@ class JobRepository:
                     )
                     session.add(db_job)
                 else:
-                    db_job.filename = job.filename
-                    db_job.status = job.status.value
-                    db_job.progress = job.progress
-                    db_job.status_message = job.status_message
-                    db_job.task_id = job.task_id
-                    db_job.song_id = job.song_id
-                    db_job.title = job.title
-                    db_job.artist = job.artist
-                    db_job.started_at = job.started_at
-                    db_job.completed_at = job.completed_at
-                    db_job.error = job.error
-                    db_job.notes = job.notes
-                    db_job.dismissed = job.dismissed
+                    db_job.filename = job.filename  # type: ignore
+                    db_job.status = job.status.value  # type: ignore
+                    db_job.progress = job.progress  # type: ignore
+                    db_job.status_message = job.status_message  # type: ignore
+                    db_job.task_id = job.task_id  # type: ignore
+                    db_job.song_id = job.song_id  # type: ignore
+                    db_job.title = job.title  # type: ignore
+                    db_job.artist = job.artist  # type: ignore
+                    db_job.started_at = job.started_at  # type: ignore
+                    db_job.completed_at = job.completed_at  # type: ignore
+                    db_job.error = job.error  # type: ignore
+                    db_job.notes = job.notes  # type: ignore
+                    db_job.dismissed = job.dismissed  # type: ignore
 
                 session.flush()
                 session.commit()
 
                 # Force database synchronization for SQLite
                 try:
-                    from ..db.database import force_db_sync
+                    from app.db.database import force_db_sync
 
                     force_db_sync()
                 except Exception as sync_error:
@@ -82,10 +81,8 @@ class JobRepository:
                     logger.error(
                         "CRITICAL: Job %s failed verification after commit!", job.id
                     )
-                    raise Exception(
-                        f"Job {job.id} failed to save properly"
-                    )  # Emit event instead of directly calling broadcast function
-                from ..utils.events import publish_job_event
+                    raise Exception(f"Job {job.id} failed to save properly")
+                from app.utils.events import publish_job_event
 
                 print(
                     f"📝 Job {job.id} saved to database - created={was_created} - status={job.status.value}"
@@ -103,8 +100,9 @@ class JobRepository:
             logger.info("Attempting to retrieve job %s from database", job_id)
 
             with self.get_db_session() as session:
-                # Log database connection info
-                logger.info("Database engine URL: %s", session.bind.url)
+                from app.db.database import engine
+                
+                logger.info("Database engine URL: %s", engine.url)
 
                 # First, let's check how many jobs exist in total
                 total_jobs = session.query(DbJob).count()
@@ -182,11 +180,11 @@ class JobRepository:
             with self.get_db_session() as session:
                 db_job = session.query(DbJob).filter(DbJob.id == job_id).first()
                 if db_job:
-                    db_job.dismissed = True
+                    db_job.dismissed = True  # type: ignore
                     session.commit()
                     # Emit event instead of directly calling broadcast function
                     job = db_job.to_job()
-                    from ..utils.events import publish_job_event
+                    from app.utils.events import publish_job_event
 
                     publish_job_event(job.id, job.to_dict(), False)
                     return True

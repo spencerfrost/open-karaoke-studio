@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
-
 from app.services.file_management import download_image
 
 

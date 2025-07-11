@@ -5,8 +5,8 @@ Cleanup utility for stuck jobs on startup.
 import logging
 from datetime import datetime
 
-from ..db.models import JobStatus
-from ..repositories.job_repository import JobRepository
+from app.db.models import JobStatus
+from app.repositories.job_repository import JobRepository
 
 logger = logging.getLogger(__name__)
 

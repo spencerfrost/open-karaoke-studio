@@ -9,7 +9,6 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 import requests
-
 from app.services.file_management import download_image
 
 

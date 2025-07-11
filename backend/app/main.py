@@ -43,6 +43,17 @@ cleanup_stuck_jobs()
 app.logger.handlers = []  # Remove default handlers
 app.logger.propagate = True  # Let our loggers handle it
 
+# Check log directory and write a test log entry
+log_dir = os.path.join(config.BASE_DIR, "backend", "logs")
+os.makedirs(log_dir, exist_ok=True)
+test_log_path = os.path.join(log_dir, "test_logging_setup.log")
+try:
+    with open(test_log_path, "a") as f:
+        f.write("Logging setup test entry\n")
+    logger.info(f"Successfully wrote to {test_log_path}")
+except Exception as e:
+    logger.error(f"Failed to write to log directory {log_dir}: {e}")
+
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here
 

@@ -142,7 +142,7 @@ jobs_service → db.models (imports Job, JobStatus, JobStore)
 
 ```python
 # In db/models/job.py - BAD ARCHITECTURE
-from ...jobs.jobs import _broadcast_job_event
+from app..jobs.jobs import _broadcast_job_event
 _broadcast_job_event(job, was_created)
 ```
 
