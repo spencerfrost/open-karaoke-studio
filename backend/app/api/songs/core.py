@@ -46,18 +46,12 @@ def get_songs():
         with get_db_session() as session:
             repo = SongRepository(session)
             # Build filters dict if needed (currently none)
-            songs = repo.fetch_all()
-            # Sorting and pagination (if needed)
-            if sort_by != "date_added" or direction != "desc":
-                songs = sorted(
-                    songs,
-                    key=lambda s: getattr(s, sort_by, ""),
-                    reverse=(direction == "desc"),
-                )
-            if offset:
-                songs = songs[offset:]
-            if limit:
-                songs = songs[:limit]
+            songs = repo.fetch_all(
+                sort_by=sort_by,
+                direction=direction,
+                limit=limit,
+                offset=offset
+            )
             response_data = [song.to_dict() for song in songs]
 
         logger.info("Returning %s songs.", len(response_data))
