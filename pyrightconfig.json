@@ -1,6 +1,7 @@
 {
   "include": [
-    "backend"
+    "backend",
+    "backend/app",
   ],
   "exclude": [
     "backend/venv",
@@ -15,12 +16,12 @@
   ],
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,
-  "pythonVersion": "3.8",
+  "pythonVersion": "3.10",
   "pythonPlatform": "Linux",
   "executionEnvironments": [
     {
       "root": "backend",
-      "pythonVersion": "3.8",
+      "pythonVersion": "3.10",
       "pythonPlatform": "Linux",
       "extraPaths": [
         "backend",

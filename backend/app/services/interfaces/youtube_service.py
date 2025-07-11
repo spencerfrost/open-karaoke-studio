@@ -1,24 +1,34 @@
 # backend/app/services/interfaces/youtube_service.py
+# pylint: disable=unnecessary-ellipsis
 from typing import Any, Optional, Protocol, runtime_checkable
-
-from ...db.models import SongMetadata
 
 
 @runtime_checkable
 class YouTubeServiceInterface(Protocol):
     """Interface for YouTube Service to enable dependency injection and testing"""
 
-    def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
+    def search_videos(
+        self, query: str, max_results: int = 10
+    ) -> "list[dict[str, Any]]":
         """Search YouTube for videos matching the query"""
         ...
 
     def download_video(
-        self, video_id_or_url: str, song_id: str = None, artist: str = None, title: str = None
-    ) -> tuple[str, SongMetadata]:
-        """Download video and extract metadata, return (song_id, metadata)"""
+        self,
+        video_id_or_url: str,
+        song_id: Optional[str] = None,
+        artist: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> "tuple[str, dict[str, Any]]":
+        """Download video and extract metadata, return (song_id, metadata_dict)
+
+        Returns:
+            tuple: (song_id, metadata_dict) where metadata_dict contains raw metadata
+                   that can be passed directly to SongRepository.create or SongRepository.update()
+        """
         ...
 
-    def extract_video_info(self, video_id_or_url: str) -> dict[str, Any]:
+    def extract_video_info(self, video_id_or_url: str) -> "dict[str, Any]":
         """Extract video information without downloading"""
         ...
 
@@ -31,7 +41,11 @@ class YouTubeServiceInterface(Protocol):
         ...
 
     def download_and_process_async(
-        self, video_id_or_url: str, artist: str = None, title: str = None, song_id: str = None
+        self,
+        video_id_or_url: str,
+        artist: Optional[str] = None,
+        title: Optional[str] = None,
+        song_id: Optional[str] = None,
     ) -> str:
         """Download video and queue for audio processing, return job/song ID"""
         ...

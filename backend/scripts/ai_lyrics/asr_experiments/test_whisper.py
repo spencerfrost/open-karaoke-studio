@@ -5,18 +5,20 @@ This script tests the original OpenAI Whisper implementation for comparison.
 """
 
 import json
-import time
 import os
+import sys
+import time
+from pathlib import Path
+
 import torch
 import whisper
-from pathlib import Path
-import sys
 
 # Fix for Triton compatibility issue
 os.environ["TRITON_CACHE_DIR"] = "/tmp/triton_cache"
 os.environ["TORCH_COMPILE_DEBUG"] = "0"
 # Disable Triton optimization that causes the error
 os.environ["TORCH_TRITON_ENABLE"] = "0"
+
 
 def get_device():
     """Detect the best available device (CUDA > CPU)"""
@@ -29,6 +31,7 @@ def get_device():
         print("💻 Using CPU (CUDA not available)")
         return "cpu"
 
+
 def test_whisper(audio_path, model_size="base"):
     """Test original OpenAI Whisper with word-level timestamps"""
     print(f"🎤 Testing OpenAI Whisper (model: {model_size})")
@@ -40,7 +43,7 @@ def test_whisper(audio_path, model_size="base"):
     # Load model
     print(f"Loading Whisper model ({model_size})...")
     device = get_device()
-    
+
     try:
         # Load model with detected device
         model = whisper.load_model(model_size, device=device)
@@ -65,7 +68,7 @@ def test_whisper(audio_path, model_size="base"):
             audio_path,
             word_timestamps=True,  # Enable word-level timestamps
             language="en",
-            verbose=False  # Reduce verbosity to avoid potential issues
+            verbose=False,  # Reduce verbosity to avoid potential issues
         )
     except Exception as e:
         print(f"Error during transcription with word timestamps: {e}")
@@ -73,10 +76,7 @@ def test_whisper(audio_path, model_size="base"):
         print("Retrying without word timestamps...")
         try:
             result = model.transcribe(
-                audio_path,
-                word_timestamps=False,
-                language="en",
-                verbose=False
+                audio_path, word_timestamps=False, language="en", verbose=False
             )
             print("⚠️  Warning: Word-level timestamps not available")
         except Exception as e2:
@@ -89,7 +89,7 @@ def test_whisper(audio_path, model_size="base"):
         "detected_language": result["language"],
         "text": result["text"],
         "segments": [],
-        "words": []
+        "words": [],
     }
 
     print(f"Detected language: {result['language']}")
@@ -97,13 +97,15 @@ def test_whisper(audio_path, model_size="base"):
     print()
 
     for segment in result["segments"]:
-        print(f"Segment [{segment['start']:.2f}s - {segment['end']:.2f}s]: {segment['text']}")
+        print(
+            f"Segment [{segment['start']:.2f}s - {segment['end']:.2f}s]: {segment['text']}"
+        )
 
         segment_data = {
             "start": segment["start"],
             "end": segment["end"],
             "text": segment["text"],
-            "words": []
+            "words": [],
         }
 
         # Word-level timestamps may not be available
@@ -113,11 +115,13 @@ def test_whisper(audio_path, model_size="base"):
                     "word": word["word"],
                     "start": word["start"],
                     "end": word["end"],
-                    "probability": word.get("probability", 0.0)
+                    "probability": word.get("probability", 0.0),
                 }
                 segment_data["words"].append(word_data)
                 results["words"].append(word_data)
-                print(f"  🗣️  '{word['word']}' [{word['start']:.2f}s - {word['end']:.2f}s]")
+                print(
+                    f"  🗣️  '{word['word']}' [{word['start']:.2f}s - {word['end']:.2f}s]"
+                )
         else:
             print(f"  (No word-level timestamps available)")
         print()
@@ -142,10 +146,12 @@ def test_whisper(audio_path, model_size="base"):
 
     return results
 
+
 def save_results(results, output_path):
     """Save results to JSON file"""
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
+
 
 def main():
     if len(sys.argv) < 2:
@@ -175,8 +181,10 @@ def main():
     except Exception as e:
         print(f"❌ Error processing audio: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

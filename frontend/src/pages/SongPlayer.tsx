@@ -26,7 +26,7 @@ const SongPlayer: React.FC = () => {
     disconnect,
     connected,
     currentTime,
-    duration,
+    durationMs,
     isReady,
     isPlaying,
     lyricsOffset,
@@ -45,7 +45,7 @@ const SongPlayer: React.FC = () => {
 
   useEffect(() => {
     if (song) {
-      setSongAndLoad(song.id);
+      setSongAndLoad(song.id, song.durationMs);
     }
     return () => cleanup();
   }, [song, setSongAndLoad, cleanup]);
@@ -58,7 +58,7 @@ const SongPlayer: React.FC = () => {
     isPlaying,
     currentTime,
     lyricsOffset,
-    duration,
+    durationMs,
     isReady,
     connected,
   };
@@ -125,7 +125,7 @@ const SongPlayer: React.FC = () => {
             currentTime={currentTime * 1000}
             title={song.title}
             artist={song.artist}
-            duration={duration}
+            durationMs={durationMs}
             onSeek={seek}
           />
         </div>

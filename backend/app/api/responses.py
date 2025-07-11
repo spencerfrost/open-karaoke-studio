@@ -8,7 +8,9 @@ from typing import Any, Optional
 from flask import jsonify
 
 
-def success_response(data: Any = None, message: str = "Success", status_code: int = 200):
+def success_response(
+    data: Any = None, message: str = "Success", status_code: int = 200
+):
     """Create a standard success response"""
     response_data = {"success": True, "message": message}
 
@@ -19,7 +21,9 @@ def success_response(data: Any = None, message: str = "Success", status_code: in
 
 
 def error_response(
-    message: str = "An error occurred", status_code: int = 500, errors: Optional[dict] = None
+    message: str = "An error occurred",
+    status_code: int = 500,
+    errors: Optional[dict] = None,
 ):
     """Create a standard error response"""
     response_data = {"success": False, "error": message}

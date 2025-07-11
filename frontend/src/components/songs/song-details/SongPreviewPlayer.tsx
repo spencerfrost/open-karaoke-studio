@@ -21,7 +21,7 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
   const [duration, setDuration] = useState(30); // iTunes previews are 30 seconds
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -60,11 +60,12 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
 
   const handlePlay = () => {
     if (!audioRef.current) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
-    audioRef.current.play()
+
+    audioRef.current
+      .play()
       .then(() => {
         setIsPlaying(true);
         setIsLoading(false);
@@ -94,21 +95,21 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !progressRef.current) return;
-    
+
     const rect = progressRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const progressWidth = rect.width;
     const clickRatio = clickX / progressWidth;
     const newTime = Math.min(clickRatio * duration, 30);
-    
+
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
 
-  const formatTime = (seconds: number) => {
+  const formatTimeMs = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const progressPercentage = (currentTime / duration) * 100;
@@ -124,7 +125,7 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
         onEnded={handleEnded}
         preload="metadata"
       />
-      
+
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -148,10 +149,10 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
               {title} - {artist}
             </span>
             <span className="text-xs text-muted-foreground">
-              {formatTime(currentTime)} / {formatTime(duration)}
+              {formatTimeMs(currentTime)} / {formatTimeMs(duration)}
             </span>
           </div>
-          
+
           <div
             ref={progressRef}
             className="w-full h-2 bg-muted rounded-full cursor-pointer"
@@ -162,15 +163,13 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
               style={{ width: `${Math.min(progressPercentage, 100)}%` }}
             />
           </div>
-          
-          {error && (
-            <p className="text-xs text-destructive mt-1">{error}</p>
-          )}
+
+          {error && <p className="text-xs text-destructive mt-1">{error}</p>}
         </div>
 
         <Volume2 size={16} className="text-muted-foreground flex-shrink-0" />
       </div>
-      
+
       <p className="text-xs text-muted-foreground mt-2 leading-tight">
         30-second preview from iTunes. Hold phone to ear for best experience.
       </p>

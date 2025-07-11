@@ -1,27 +1,27 @@
-import React, { useState } from 'react';
-import { useInfiniteArtists } from '@/hooks/useInfiniteLibraryBrowsing';
-import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
-import ArtistSection from './ArtistSection';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Song } from '@/types/Song';
+import React, { useState } from "react";
+import { useInfiniteArtists } from "@/hooks/useInfiniteLibraryBrowsing";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import ArtistSection from "./ArtistSection";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Song } from "@/types/Song";
 
 interface InfiniteArtistAccordionProps {
   searchTerm?: string;
   onSongSelect?: (song: Song) => void;
-  onToggleFavorite?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
   className?: string;
 }
 
 const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
-  searchTerm = '',
+  searchTerm = "",
   onSongSelect,
-  onToggleFavorite,
   onAddToQueue,
-  className = '',
+  className = "",
 }) => {
-  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set());
+  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
+    new Set()
+  );
 
   const {
     artists,
@@ -38,11 +38,11 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
     hasMore: hasNextPage,
     onLoadMore: fetchNextPage,
     threshold: 0.1,
-    rootMargin: '200px', // Start loading when 200px away
+    rootMargin: "200px", // Start loading when 200px away
   });
 
   const toggleArtist = (artistName: string) => {
-    setExpandedArtists(prev => {
+    setExpandedArtists((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(artistName)) {
         newSet.delete(artistName);
@@ -55,14 +55,17 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
 
   // Group artists alphabetically
   const groupedArtists = React.useMemo(() => {
-    return artists.reduce((groups, artist) => {
-      const letter = artist.firstLetter;
-      if (!groups[letter]) {
-        groups[letter] = [];
-      }
-      groups[letter].push(artist);
-      return groups;
-    }, {} as Record<string, typeof artists>);
+    return artists.reduce(
+      (groups, artist) => {
+        const letter = artist.firstLetter;
+        if (!groups[letter]) {
+          groups[letter] = [];
+        }
+        groups[letter].push(artist);
+        return groups;
+      },
+      {} as Record<string, typeof artists>
+    );
   }, [artists]);
 
   if (error) {
@@ -87,9 +90,7 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
           {/* Alphabetical artist sections */}
           {Object.entries(groupedArtists).map(([letter, letterArtists]) => (
             <div key={letter}>
-              <div
-                className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10"
-              >
+              <div className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10">
                 {letter}
               </div>
 
@@ -102,7 +103,6 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
                     isExpanded={expandedArtists.has(artist.name)}
                     onToggle={() => toggleArtist(artist.name)}
                     onSongSelect={onSongSelect}
-                    onToggleFavorite={onToggleFavorite}
                     onAddToQueue={onAddToQueue}
                   />
                 ))}
@@ -115,7 +115,9 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
             {isFetchingNextPage && (
               <div className="flex justify-center items-center py-4">
                 <LoadingSpinner />
-                <span className="ml-2 text-sm opacity-60">Loading more artists...</span>
+                <span className="ml-2 text-sm opacity-60">
+                  Loading more artists...
+                </span>
               </div>
             )}
           </div>
@@ -130,7 +132,9 @@ const InfiniteArtistAccordion: React.FC<InfiniteArtistAccordionProps> = ({
           {/* Empty state */}
           {!isLoading && artists.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              {searchTerm ? `No artists found for "${searchTerm}"` : 'No artists found'}
+              {searchTerm
+                ? `No artists found for "${searchTerm}"`
+                : "No artists found"}
             </div>
           )}
         </>

@@ -135,7 +135,7 @@ class FileService:
 
 ```python
 # Automatic configuration in database.py
-from ..config import get_config
+from app.config import get_config
 
 config = get_config()
 DATABASE_URL = config.DATABASE_URL

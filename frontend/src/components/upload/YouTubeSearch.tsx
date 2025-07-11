@@ -47,27 +47,30 @@ const YouTubeSearch: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<string[]>([]);
-  const [selectedResult, setSelectedResult] = useState<YouTubeSearchResult | null>(null);
-  
+  const [selectedResult, setSelectedResult] =
+    useState<YouTubeSearchResult | null>(null);
+
   // Stepper dialog state
   const [isStepperDialogOpen, setIsStepperDialogOpen] = useState(false);
-  const [createdSong, setCreatedSong] = useState<CreateSongResponse | null>(null);
+  const [createdSong, setCreatedSong] = useState<CreateSongResponse | null>(
+    null
+  );
 
   // --- API Hooks ---
   const createSongMutation = useCreateSongMutation({
     onSuccess: (data) => {
       console.log("Song created in database:", data);
-      setCreatedSong(data);        // After song creation, start YouTube download with the song ID
-        if (selectedResult) {
-          youtubeDownloadMutation.mutate({
-            videoId: selectedResult.id,
-            title: data.title,
-            artist: data.artist,
-            album: data.album,
-            songId: data.id,
-            searchThumbnailUrl: selectedResult.thumbnail, // Pass the original search thumbnail
-          });
-        }
+      setCreatedSong(data); // After song creation, start YouTube download with the song ID
+      if (selectedResult) {
+        youtubeDownloadMutation.mutate({
+          video_id: selectedResult.id,
+          title: data.title,
+          artist: data.artist,
+          album: data.album,
+          song_id: data.id,
+          searchThumbnailUrl: selectedResult.thumbnail, // Pass the original search thumbnail
+        });
+      }
 
       // Show stepper dialog
       setIsStepperDialogOpen(true);
@@ -178,7 +181,7 @@ const YouTubeSearch: React.FC = () => {
         <div className="w-full">
           {/* Search Form */}
           <div className="flex flex-col gap-3 mb-6">
-            <div className="flex flex-col md:flex-row gap-2">
+            <div className="flex flex-col gap-2">
               <div className="flex-1">
                 <Label htmlFor="artist" className="mb-1 block text-sm">
                   Artist

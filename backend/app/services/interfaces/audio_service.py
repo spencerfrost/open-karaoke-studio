@@ -1,3 +1,4 @@
+# pylint: disable=unnecessary-ellipsis
 """
 Audio Service Interface for dependency injection and testing
 """

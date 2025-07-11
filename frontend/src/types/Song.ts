@@ -1,73 +1,61 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
 export interface Song {
-  // Core fields
   id: string;
   title: string;
   artist: string;
-  album: string; // Primary field (was releaseTitle)
-  duration: number; // in seconds
-  status: SongStatus;
-  
-  // Media files
-  coverArt?: string;
-  thumbnail?: string;
+  durationMs?: number;
+  dateAdded?: string;
+
+  // File paths (API URLs)
   vocalPath?: string;
   instrumentalPath?: string;
   originalPath?: string;
-  
-  // iTunes metadata
-  itunesTrackId?: number;
+  coverArt?: string;
+  thumbnail?: string;
+
+  // Source
+  source?: string;
+  sourceUrl?: string;
+  videoId?: string;
+
+  // YouTube data
+  uploader?: string;
+  uploaderId?: string;
+  channel?: string;
+  channelId?: string;
+  channelName?: string;
+  description?: string;
+  uploadDate?: string;
+  youtubeThumbnailUrls?: string[];
+  youtubeTags?: string[];
+  youtubeCategories?: string[];
+  youtubeChannelId?: string;
+  youtubeChannelName?: string;
+  youtubeRawMetadata?: Record<string, unknown>;
+
+  // Metadata
+  mbid?: string;
+  album?: string;
+  releaseId?: string;
+  releaseDate?: string;
+  year?: number;
+  genre?: string;
+  language?: string;
+
+  // Lyrics
+  plainLyrics?: string;
+  syncedLyrics?: string;
+
+  // iTunes data
   itunesArtistId?: number;
   itunesCollectionId?: number;
   trackTimeMillis?: number;
   itunesExplicit?: boolean;
   itunesPreviewUrl?: string;
-  itunesArtworkUrls?: {
-    60?: string;
-    100?: string;
-    600?: string;
-  };
-  
-  // YouTube metadata (enhanced)
-  videoId?: string;
-  youtubeDuration?: number;
-  youtubeThumbnailUrls?: {
-    default?: string;
-    medium?: string;
-    high?: string;
-    standard?: string;
-    maxres?: string;
-  };
-  youtubeTags?: string[];
-  youtubeCategories?: string[];
-  youtubeChannelId?: string;
-  youtubeChannelName?: string;
-  
-  // Existing fields (maintained for compatibility)
-  uploader?: string;
-  uploaderId?: string;
-  channel?: string;
-  channelId?: string;
-  description?: string;
-  uploadDate?: string;
-  favorite: boolean;
-  dateAdded: string;
-  genre?: string;
-  language?: string;
-  lyrics?: string; // Plain text lyrics
-  syncedLyrics?: string; // LRC format synchronized lyrics
-  
-  // Legacy/compatibility (for transition period)
-  releaseTitle?: string; // Backwards compatibility, maps to album
-  year?: string;
-  uploadId?: string;
-  metadataId?: string;
-  
-  // MusicBrainz metadata (maintained)
-  mbid?: string;
-  releaseId?: string;
-  releaseDate?: string;
+  itunesArtworkUrls?: string[];
+
+  status: SongStatus;
 }
 
 export interface SongProcessingRequest {

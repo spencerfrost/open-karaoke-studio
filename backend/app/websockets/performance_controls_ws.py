@@ -63,7 +63,9 @@ def register_handlers(socketio):
             room=GLOBAL_CONTROLS_ROOM,
             include_self=False,
         )
-        logger.info("Updated %s=%s for global performance controls", control_name, value)
+        logger.info(
+            "Updated %s=%s for global performance controls", control_name, value
+        )
 
     @socketio.on("update_player_state")
     def handle_player_state_update(data):

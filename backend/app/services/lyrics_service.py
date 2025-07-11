@@ -4,14 +4,16 @@ from pathlib import Path
 from typing import Any, Optional
 
 import requests
+from app.exceptions import ServiceError, ValidationError
 
-from ..exceptions import ServiceError, ValidationError
 from .file_service import FileService
 from .interfaces.lyrics_service import LyricsServiceInterface
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke)"
+USER_AGENT = (
+    "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke-studio)"
+)
 
 
 class LyricsService(LyricsServiceInterface):
@@ -74,7 +76,9 @@ class LyricsService(LyricsServiceInterface):
             status, results = self._make_request("/api/search", search_params)
 
             if status == 200 and isinstance(results, list):
-                logger.info("Found %s lyrics results for query: %s", len(results), query)
+                logger.info(
+                    "Found %s lyrics results for query: %s", len(results), query
+                )
                 return results
 
             logger.info("No lyrics found for query: %s", query)
@@ -101,7 +105,9 @@ class LyricsService(LyricsServiceInterface):
 
             if status == 200 and isinstance(results, list):
                 logger.info(
-                    "Found %s structured lyrics results for params: %s", len(results), params
+                    "Found %s structured lyrics results for params: %s",
+                    len(results),
+                    params,
                 )
                 return results
 

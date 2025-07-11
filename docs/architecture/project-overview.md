@@ -108,7 +108,6 @@ Open Karaoke Studio is an open-source, AI-powered web application that enables u
 - **Setup:**
   - Backend: Python virtualenv, install requirements, run Flask app
   - Frontend: `pnpm install`, `pnpm run dev`
-  - Docker: Use provided Dockerfiles for containerized deployment
 - **License:** MIT
 
 ---

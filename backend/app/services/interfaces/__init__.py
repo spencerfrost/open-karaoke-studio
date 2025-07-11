@@ -7,7 +7,6 @@ from .audio_service import AudioServiceInterface
 from .file_service import FileServiceInterface
 from .lyrics_service import LyricsServiceInterface
 from .metadata_service import MetadataServiceInterface
-from .song_service import SongServiceInterface
 from .youtube_service import YouTubeServiceInterface
 
 __all__ = [
@@ -15,6 +14,5 @@ __all__ = [
     "FileServiceInterface",
     "LyricsServiceInterface",
     "MetadataServiceInterface",
-    "SongServiceInterface",
     "YouTubeServiceInterface",
 ]

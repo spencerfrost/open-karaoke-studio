@@ -8,6 +8,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+logger = logging.getLogger(__name__)
+
+from app.config import get_config
+from app.services import file_management
 from sqlalchemy import (
     Boolean,
     Column,
@@ -25,26 +29,24 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..config import get_config
-from ..services import file_management
-from .models import Base, DbSong, Song, SongMetadata
+from .models import Base, DbSong
 
 # Get configuration and create database engine
 config = get_config()
 DATABASE_URL = config.DATABASE_URL
-logging.info(f"Database URL: {DATABASE_URL}")
+logger.info(f"Database URL: {DATABASE_URL}")
 
 # Log the actual database file path for SQLite debugging
 if DATABASE_URL.startswith("sqlite:"):
     db_file_path = DATABASE_URL.replace("sqlite:///", "")
-    logging.info(f"SQLite database file path: {db_file_path}")
-    logging.info(f"Database file exists: {Path(db_file_path).exists()}")
+    logger.info(f"SQLite database file path: {db_file_path}")
+    logger.info(f"Database file exists: {Path(db_file_path).exists()}")
 
     # Log current working directory for debugging path resolution
     import os
 
-    logging.info(f"Current working directory: {os.getcwd()}")
-    logging.info(f"Absolute database path: {Path(db_file_path).resolve()}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Absolute database path: {Path(db_file_path).resolve()}")
 
 # Configure SQLite engine for better concurrency and cross-process reliability
 if DATABASE_URL.startswith("sqlite:"):
@@ -85,9 +87,9 @@ def init_db():
                 # Set synchronous mode for better reliability
                 connection.execute(text("PRAGMA synchronous=FULL;"))
                 connection.commit()
-                logging.info("SQLite configured with WAL mode for better concurrency")
+                logger.info("SQLite configured with WAL mode for better concurrency")
         except Exception as e:
-            logging.warning(f"Failed to configure SQLite pragmas: {e}")
+            logger.warning(f"Failed to configure SQLite pragmas: {e}")
 
 
 def force_db_sync():
@@ -99,10 +101,11 @@ def force_db_sync():
 
                 # Force WAL checkpoint to flush all pending transactions
                 result = connection.execute(text("PRAGMA wal_checkpoint(FULL);"))
-                logging.info(f"WAL checkpoint result: {result.fetchone()}")
+                # Only log checkpoint results at debug level - this is internal housekeeping
+                logging.debug(f"WAL checkpoint result: {result.fetchone()}")
                 connection.commit()
         except Exception as e:
-            logging.warning(f"Failed to execute WAL checkpoint: {e}")
+            logger.warning(f"Failed to execute WAL checkpoint: {e}")
 
 
 # SQLAlchemy session middleware for route handlers (placeholder, can be implemented if needed)
@@ -120,8 +123,8 @@ def ensure_db_schema():
         db_path_str = config.DATABASE_URL.replace("sqlite:///", "")
         db_path = Path(db_path_str)
 
-        if not db_path.exists():
-            logging.info("Creating database schema from scratch")
+        if not db_path.exists() or db_path.stat().st_size == 0:
+            logger.info("Creating database schema from scratch")
             Base.metadata.create_all(bind=engine)
             return
     else:
@@ -129,11 +132,40 @@ def ensure_db_schema():
         Base.metadata.create_all(bind=engine)
         return
 
-    # If DB exists, check for missing columns
-    inspector = inspect(engine)
+    # If DB exists, check for missing tables and columns
+    try:
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+    except Exception as e:
+        logger.warning(f"Could not inspect existing database, recreating schema: {e}")
+        Base.metadata.create_all(bind=engine)
+        return
+
+    # First, create any missing tables
+    tables_to_create = []
+    for table in Base.metadata.tables.values():
+        if table.name not in existing_tables:
+            tables_to_create.append(table)
+
+    if tables_to_create:
+        logger.info(f"Creating missing tables: {[t.name for t in tables_to_create]}")
+        Base.metadata.create_all(bind=engine, tables=tables_to_create)
+        return  # If we created tables, we're done
+
+    # Check for missing columns in existing tables
     for table in Base.metadata.tables.values():
         table_name = table.name
-        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+        if table_name not in existing_tables:
+            continue  # Skip if table doesn't exist (shouldn't happen after above check)
+
+        try:
+            existing_columns = {
+                col["name"] for col in inspector.get_columns(table_name)
+            }
+        except Exception as e:
+            logger.warning(f"Could not inspect table {table_name}, skipping: {e}")
+            continue
+
         missing_columns = set()
 
         for column in table.columns:
@@ -141,7 +173,7 @@ def ensure_db_schema():
                 missing_columns.add(column.name)
 
         if missing_columns:
-            logging.info(f"Missing columns in {table_name}: {missing_columns}")
+            logger.info(f"Missing columns in {table_name}: {missing_columns}")
             # Add columns using direct SQL
             with engine.connect() as connection:
                 for col_name in missing_columns:
@@ -168,9 +200,9 @@ def ensure_db_schema():
 
                         connection.execute(text(sql))
                         connection.commit()
-                        logging.info(f"Added column: {sql}")
+                        logger.info(f"Added column: {sql}")
                     except Exception as e:
-                        logging.error(f"Error adding column {col_name}: {e}")
+                        logger.error(f"Error adding column {col_name}: {e}")
 
 
 @contextmanager

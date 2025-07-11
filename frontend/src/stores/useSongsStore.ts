@@ -5,8 +5,7 @@ import { Song, SongStatus } from "@/types/Song";
 const filterSongs = (
   songs: Song[],
   term: string,
-  status: SongStatus | "all",
-  favorites: boolean,
+  status: SongStatus | "all"
 ): Song[] => {
   return songs.filter((song) => {
     // Filter by search term
@@ -18,10 +17,7 @@ const filterSongs = (
     // Filter by status
     const matchesStatus = status === "all" || song.status === status;
 
-    // Filter by favorites
-    const matchesFavorites = !favorites || song.favorite;
-
-    return matchesTerm && matchesStatus && matchesFavorites;
+    return matchesTerm && matchesStatus;
   });
 };
 
@@ -31,7 +27,6 @@ interface SongsState {
   filteredSongs: Song[];
   filterTerm: string;
   filterStatus: SongStatus | "all";
-  filterFavorites: boolean;
   isLoading: boolean;
   error: string | null;
 
@@ -42,7 +37,6 @@ interface SongsState {
   removeSong: (id: string) => void;
   setFilterTerm: (term: string) => void;
   setFilterStatus: (status: SongStatus | "all") => void;
-  setFilterFavorites: (favorites: boolean) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
 }
@@ -53,7 +47,6 @@ export const useSongsStore = create<SongsState>((set) => ({
   filteredSongs: [],
   filterTerm: "",
   filterStatus: "all",
-  filterFavorites: false,
   isLoading: false,
   error: null,
 
@@ -61,12 +54,7 @@ export const useSongsStore = create<SongsState>((set) => ({
   setSongs: (songs) =>
     set((state) => ({
       songs,
-      filteredSongs: filterSongs(
-        songs,
-        state.filterTerm,
-        state.filterStatus,
-        state.filterFavorites,
-      ),
+      filteredSongs: filterSongs(songs, state.filterTerm, state.filterStatus),
     })),
 
   addSong: (song) =>
@@ -77,8 +65,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus,
-          state.filterFavorites,
+          state.filterStatus
         ),
       };
     }),
@@ -86,7 +73,7 @@ export const useSongsStore = create<SongsState>((set) => ({
   updateSong: (id, updates) =>
     set((state) => {
       const updatedSongs = state.songs.map((song) =>
-        song.id === id ? { ...song, ...updates } : song,
+        song.id === id ? { ...song, ...updates } : song
       );
 
       return {
@@ -94,8 +81,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus,
-          state.filterFavorites,
+          state.filterStatus
         ),
       };
     }),
@@ -109,8 +95,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus,
-          state.filterFavorites,
+          state.filterStatus
         ),
       };
     }),
@@ -118,34 +103,13 @@ export const useSongsStore = create<SongsState>((set) => ({
   setFilterTerm: (filterTerm) =>
     set((state) => ({
       filterTerm,
-      filteredSongs: filterSongs(
-        state.songs,
-        filterTerm,
-        state.filterStatus,
-        state.filterFavorites,
-      ),
+      filteredSongs: filterSongs(state.songs, filterTerm, state.filterStatus),
     })),
 
   setFilterStatus: (filterStatus) =>
     set((state) => ({
       filterStatus,
-      filteredSongs: filterSongs(
-        state.songs,
-        state.filterTerm,
-        filterStatus,
-        state.filterFavorites,
-      ),
-    })),
-
-  setFilterFavorites: (filterFavorites) =>
-    set((state) => ({
-      filterFavorites,
-      filteredSongs: filterSongs(
-        state.songs,
-        state.filterTerm,
-        state.filterStatus,
-        filterFavorites,
-      ),
+      filteredSongs: filterSongs(state.songs, state.filterTerm, filterStatus),
     })),
 
   setLoading: (isLoading) => set({ isLoading }),

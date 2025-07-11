@@ -62,18 +62,20 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "openKaraokeSettings", // localStorage key
-    },
-  ),
+    }
+  )
 );
 ```
 
 **Key Stores:**
+
 - `useSettingsStore` - App settings with localStorage persistence
 - `useSongsStore` - Song library state and filtering
 - `useKaraokePlayerStore` - WebSocket-based player state
 - `useKaraokeQueueStore` - Queue management with real-time updates
 
 **Benefits:**
+
 - ✅ Type-safe state management
 - ✅ Automatic persistence
 - ✅ DevTools integration
@@ -96,7 +98,7 @@ const SettingsContext = createContext<{
 // Reducer for complex state transitions
 const settingsReducer = (
   state: AppSettings,
-  action: SettingsAction,
+  action: SettingsAction
 ): AppSettings => {
   switch (action.type) {
     case "SET_THEME_SETTINGS":
@@ -110,6 +112,7 @@ const settingsReducer = (
 ```
 
 **Usage:**
+
 - Configuration state (themes, settings)
 - Cross-component data sharing
 - Complex state transitions with reducers
@@ -124,10 +127,10 @@ export function useSongs() {
   const queryClient = useQueryClient();
 
   // Queries
-  const useAllSongs = (options = {}) => {
+  const useSongs = (options = {}) => {
     return useApiQuery<Song[], typeof QUERY_KEYS.songs>(
-      QUERY_KEYS.songs, 
-      'songs', 
+      QUERY_KEYS.songs,
+      "songs",
       options
     );
   };
@@ -135,7 +138,7 @@ export function useSongs() {
   // Mutations with optimistic updates
   const useUpdateSong = () => {
     return useApiMutation<Song, { id: string; updates: Partial<Song> }>({
-      mutationFn: ({ id, updates }) => apiSend(`songs/${id}`, 'PATCH', updates),
+      mutationFn: ({ id, updates }) => apiSend(`songs/${id}`, "PATCH", updates),
       onSuccess: (updatedSong) => {
         // Update cache optimistically
         queryClient.setQueryData(QUERY_KEYS.song(updatedSong.id), updatedSong);
@@ -144,11 +147,12 @@ export function useSongs() {
     });
   };
 
-  return { useAllSongs, useUpdateSong };
+  return { useSongs, useUpdateSong };
 }
 ```
 
 **Benefits:**
+
 - ✅ Automatic background refetching
 - ✅ Optimistic updates
 - ✅ Cache management
@@ -176,7 +180,10 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+    <div
+      className={cn("flex flex-col space-y-1.5 p-6", className)}
+      {...props}
+    />
   );
 }
 
@@ -185,15 +192,14 @@ export { Card, CardHeader, CardContent, CardFooter };
 ```
 
 **Usage Pattern:**
+
 ```tsx
 <Card>
   <CardHeader>
     <CardTitle>{song.title}</CardTitle>
     <CardDescription>{song.artist}</CardDescription>
   </CardHeader>
-  <CardContent>
-    {/* Song details */}
-  </CardContent>
+  <CardContent>{/* Song details */}</CardContent>
   <CardFooter>
     <Button onClick={handlePlay}>Play</Button>
   </CardFooter>
@@ -215,9 +221,9 @@ export function useJobsWebSocket() {
     const socket = jobsWebSocketService.connect({
       onConnect: () => setConnected(true),
       onJobUpdate: (job) => {
-        setJobs(prev => prev.map(j => j.id === job.id ? job : j));
+        setJobs((prev) => prev.map((j) => (j.id === job.id ? job : j)));
         // Invalidate related queries
-        queryClient.invalidateQueries({ queryKey: ['songs'] });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onDisconnect: () => setConnected(false),
     });
@@ -235,6 +241,7 @@ export function useJobsWebSocket() {
 ```
 
 **Common Patterns:**
+
 - API integration hooks (`useSongs`, `useMetadata`)
 - WebSocket connection management
 - Debounced values and search
@@ -249,10 +256,9 @@ export function useJobsWebSocket() {
 interface SongCardProps {
   song: Song;
   onSelect: (song: Song) => void;
-  onToggleFavorite: (song: Song) => void;
   onAddToQueue: (songId: string, singerName: string) => void;
   isSelected?: boolean;
-  variant?: 'default' | 'compact';
+  variant?: "default" | "compact";
 }
 
 // Type-safe API Response Handling
@@ -287,12 +293,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       {/* Background Effects */}
       <div className="vintage-texture-overlay" />
       <div className="vintage-sunburst-pattern" />
-      
+
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative z-10">
-        {children}
-      </main>
-      
+      <main className="flex-1 overflow-hidden relative z-10">{children}</main>
+
       {/* Navigation */}
       <NavBar items={navigationItems} />
     </div>
@@ -325,15 +329,15 @@ class JobsWebSocketService {
     onDisconnect?: () => void;
   }) {
     this.socket = io(`${WEBSOCKET_URL}/jobs`);
-    
-    this.socket.on('connect', () => {
-      console.log('Connected to job updates');
+
+    this.socket.on("connect", () => {
+      console.log("Connected to job updates");
       callbacks.onConnect?.();
-      this.socket?.emit('subscribe_to_jobs');
+      this.socket?.emit("subscribe_to_jobs");
     });
 
-    this.socket.on('job_update', callbacks.onJobUpdate);
-    this.socket.on('disconnect', callbacks.onDisconnect);
+    this.socket.on("job_update", callbacks.onJobUpdate);
+    this.socket.on("disconnect", callbacks.onDisconnect);
 
     return this.socket;
   }
@@ -352,28 +356,33 @@ class JobsWebSocketService {
 ```typescript
 // Upload Hook with Progress
 export function useUpload() {
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
 
-  const uploadFile = useCallback(async (
-    file: File, 
-    endpoint: string,
-    onProgress?: (progress: number) => void
-  ) => {
-    const formData = new FormData();
-    formData.append('file', file);
+  const uploadFile = useCallback(
+    async (
+      file: File,
+      endpoint: string,
+      onProgress?: (progress: number) => void
+    ) => {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    const response = await fetch(`/api/${endpoint}`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
+      const response = await fetch(`/api/${endpoint}`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
 
-    return response.json();
-  }, []);
+      return response.json();
+    },
+    []
+  );
 
   return { uploadFile, uploadProgress };
 }
@@ -390,14 +399,17 @@ function ApiErrorBoundary({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled API error:', event.reason);
-      toast.error('An unexpected error occurred');
+      console.error("Unhandled API error:", event.reason);
+      toast.error("An unexpected error occurred");
       setHasError(true);
     };
 
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection
+      );
     };
   }, []);
 
@@ -409,13 +421,13 @@ function ApiErrorBoundary({ children }: { children: React.ReactNode }) {
 }
 
 // Hook-level error handling
-const { data, error, isLoading } = useApiQuery(['songs'], 'songs', {
+const { data, error, isLoading } = useApiQuery(["songs"], "songs", {
   onError: (error) => {
-    console.error('Failed to fetch songs:', error);
-    toast.error('Failed to load songs');
+    console.error("Failed to fetch songs:", error);
+    toast.error("Failed to load songs");
   },
   retry: 3,
-  retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+  retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 });
 ```
 
@@ -433,7 +445,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-input bg-background hover:bg-accent",
       },
       size: {
@@ -452,7 +465,7 @@ const buttonVariants = cva(
 // Usage with type safety
 <Button variant="outline" size="sm" onClick={handleClick}>
   Action
-</Button>
+</Button>;
 ```
 
 ### 2. Responsive Design Patterns
@@ -470,8 +483,8 @@ const buttonVariants = cva(
 // Responsive Navigation
 <nav className="flex lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t">
   {navigationItems.map(item => (
-    <NavLink 
-      key={item.path} 
+    <NavLink
+      key={item.path}
       to={item.path}
       className="flex-1 flex flex-col items-center py-2"
     >
@@ -494,7 +507,7 @@ export function useInfiniteScroll({
   hasMore,
   onLoadMore,
   threshold = 0.1,
-  rootMargin = '100px',
+  rootMargin = "100px",
 }: UseInfiniteScrollOptions) {
   const [isFetching, setIsFetching] = useState(false);
   const targetRef = useRef<HTMLDivElement>(null);
@@ -546,11 +559,11 @@ export function useDebouncedValue<T>(value: T, delay: number): T {
 
 // Usage in Search Component
 const SearchableArtists: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
 
   const { data: artists } = useApiQuery(
-    ['artists', debouncedSearchTerm],
+    ["artists", debouncedSearchTerm],
     `artists?search=${debouncedSearchTerm}`,
     { enabled: debouncedSearchTerm.length > 0 }
   );
@@ -598,7 +611,7 @@ const PerformanceControlsPage: React.FC = () => {
     <AppLayout>
       <div className="flex flex-col gap-6 p-6">
         <WebSocketStatus connected={connected} />
-        
+
         <PerformanceControlInput
           icon="volume-2"
           label="Vocal Volume"
@@ -608,7 +621,7 @@ const PerformanceControlsPage: React.FC = () => {
           max={100}
           valueDisplay={`${vocalVolume}%`}
         />
-        
+
         <PerformanceControlInput
           icon="music"
           label="Instrumental Volume"
@@ -670,10 +683,12 @@ const PerformanceControlsPage: React.FC = () => {
 ### Related Technical Investigations
 
 - **Backend Integration:**
+
   - [016-backend-frontend-integration-disconnect](./016-backend-frontend-integration-disconnect.md) - API integration patterns
   - [../backend/004-service-layer-organization](../backend/004-service-layer-organization.md) - Service layer patterns
 
 - **Architecture Decisions:**
+
   - [../architecture/state-management-evaluation.md](../architecture/state-management-evaluation.md) - State management choices
   - [../performance/frontend-optimization-strategies.md](../performance/frontend-optimization-strategies.md) - Performance patterns
 
@@ -692,24 +707,28 @@ const PerformanceControlsPage: React.FC = () => {
 ## 📊 Key Benefits
 
 ### Development Experience
+
 - ✅ **Type Safety** - Full TypeScript integration prevents runtime errors
 - ✅ **Hot Reload** - Vite provides instant feedback during development
 - ✅ **Component Library** - Shadcn/UI ensures consistent design
 - ✅ **State DevTools** - Zustand and TanStack Query DevTools integration
 
 ### Performance
+
 - ✅ **Bundle Optimization** - Vite tree-shaking and code splitting
 - ✅ **Caching Strategy** - TanStack Query intelligent caching
 - ✅ **Infinite Scrolling** - Efficient large dataset rendering
 - ✅ **Debounced Search** - Reduced API calls
 
 ### User Experience
+
 - ✅ **Real-time Updates** - WebSocket integration for live features
 - ✅ **Mobile Optimization** - Touch-friendly responsive design
 - ✅ **Error Handling** - Graceful error recovery and user feedback
 - ✅ **Accessibility** - ARIA labels and keyboard navigation
 
 ### Maintainability
+
 - ✅ **Modular Architecture** - Clear separation of concerns
 - ✅ **Consistent Patterns** - Established coding conventions
 - ✅ **Comprehensive Types** - Self-documenting code through TypeScript
@@ -718,8 +737,9 @@ const PerformanceControlsPage: React.FC = () => {
 ## 🎯 Implementation Guidelines
 
 ### 1. State Management Decision Tree
+
 ```
-Does this state need to persist? 
+Does this state need to persist?
 ├─ Yes → Use Zustand with persist middleware
 ├─ No, but needs global access? → Use Zustand
 ├─ Server state? → Use TanStack Query
@@ -728,6 +748,7 @@ Does this state need to persist?
 ```
 
 ### 2. Component Creation Checklist
+
 - [ ] Define TypeScript interfaces for props
 - [ ] Implement responsive design with Tailwind
 - [ ] Add proper ARIA labels for accessibility
@@ -736,6 +757,7 @@ Does this state need to persist?
 - [ ] Add proper error handling and user feedback
 
 ### 3. Performance Optimization
+
 - [ ] Use React.memo for expensive components
 - [ ] Implement useCallback for stable function references
 - [ ] Use useMemo for expensive calculations
