@@ -1,20 +1,5 @@
 # Open Karaoke Studio - Essential Commands
 
-## Development Environment Setup
-```bash
-# Complete automated setup
-./setup.sh
-
-# Start all services (frontend + backend + celery)
-./scripts/dev.sh
-
-# Start individual services
-pnpm run dev                    # All services
-pnpm run dev:frontend          # Frontend only
-pnpm run dev:backend           # Backend only
-cd backend && ./run_celery.sh  # Celery worker
-```
-
 ## Frontend Commands
 ```bash
 cd frontend/
@@ -43,7 +28,8 @@ pnpm preview               # Preview production build
 ```bash
 cd backend/
 
-# Development
+# Development (ALWAYS activate venv first)
+source venv/bin/activate   # REQUIRED: Activate virtual environment
 ./run_api.sh               # Start Flask API server
 ./run_celery.sh            # Start Celery worker
 
@@ -56,9 +42,9 @@ pytest --cov              # With coverage report
 
 # Code Quality (with venv activated)
 source venv/bin/activate   # REQUIRED: Activate virtual environment
-pylint app/                # Lint Python code
-black app/                 # Format Python code
 isort app/                 # Sort imports
+black app/                 # Format Python code
+pylint app/                # Lint Python code
 
 # Database (with venv activated)
 source venv/bin/activate   # REQUIRED: Activate virtual environment
@@ -79,14 +65,6 @@ git log --oneline -10      # Recent commits
 find . -name "*.py" | head # Find Python files
 grep -r "search_term" .    # Search in files
 ps aux | grep celery       # Check Celery processes
-```
-
-## Docker Commands
-```bash
-# Container management
-docker-compose up -d       # Start all services
-docker-compose down        # Stop all services
-docker-compose logs -f     # Follow logs
 ```
 
 ## Verification Commands
