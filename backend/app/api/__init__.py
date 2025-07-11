@@ -2,6 +2,7 @@
 API endpoint modules for Open Karaoke Studio.
 """
 
+from .health import health_bp
 from .jobs import jobs_bp
 from .karaoke_queue import karaoke_queue_bp
 
@@ -25,6 +26,7 @@ all_blueprints = [
     metadata_bp,
     youtube_bp,
     youtube_music_bp,
+    health_bp,
 ]
 
 
