@@ -1,22 +1,25 @@
-
 import logging
 import os
 import threading
 import time
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
-from typing import Callable, Optional, Tuple, Dict, Any
 from app.config import get_config
 from demucs.api import Separator
 from demucs.audio import save_audio
 
-# Use relative imports
 from . import file_management
 
 logger = logging.getLogger(__name__)
 
-# --- Must Extract Helpers ---
+
+class StopProcessingError(Exception):
+    """Custom exception raised when processing is stopped by user."""
+
+
+# --- Helper Functions ---
 def select_device_and_log(status_callback: Callable[[str], None]) -> str:
     """Selects CUDA or CPU, logs and reports status, and returns device string."""
     use_cuda = torch.cuda.is_available()
@@ -34,7 +37,13 @@ def select_device_and_log(status_callback: Callable[[str], None]) -> str:
         status_callback("Looking for CUDA: No GPU detected. Using CPU for processing.")
         return "cpu"
 
-def init_separator(model_name: str, device: str, progress_callback: Callable[[Dict[str, Any]], None], status_callback: Callable[[str], None]) -> Separator:
+
+def init_separator(
+    model_name: str,
+    device: str,
+    progress_callback: Callable[[Dict[str, Any]], None],
+    status_callback: Callable[[str], None],
+) -> Separator:
     """Initializes Demucs Separator with error handling."""
     try:
         separator = Separator(
@@ -52,9 +61,13 @@ def init_separator(model_name: str, device: str, progress_callback: Callable[[Di
         status_callback(error_msg)
         raise Exception(error_msg)
 
-def make_progress_callback(status_callback: Callable[[str], None], stop_event: Optional[threading.Event]) -> Callable[[Dict[str, Any]], None]:
+
+def make_progress_callback(
+    status_callback: Callable[[str], None], stop_event: Optional[threading.Event]
+) -> Callable[[Dict[str, Any]], None]:
     """Returns a Demucs progress callback with stop event and throttling."""
     last_update_time = [0.0]
+
     def _callback(data):
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -81,9 +94,15 @@ def make_progress_callback(status_callback: Callable[[str], None], stop_event: O
             )
             status_callback(status_msg)
             last_update_time[0] = current_time
+
     return _callback
 
-def calculate_instrumental(separated: Dict[str, torch.Tensor], status_callback: Callable[[str], None], stop_event: Optional[threading.Event]) -> torch.Tensor:
+
+def calculate_instrumental(
+    separated: Dict[str, torch.Tensor],
+    status_callback: Callable[[str], None],
+    stop_event: Optional[threading.Event],
+) -> torch.Tensor:
     """Sums all non-vocal stems to create the instrumental tensor."""
     instr_msg = "Calculating instrumental track..."
     logger.info(instr_msg)
@@ -99,32 +118,22 @@ def calculate_instrumental(separated: Dict[str, torch.Tensor], status_callback: 
         first_stem_name = str(first_stem_name)
     if stop_event and stop_event.is_set():
         raise StopProcessingError("Processing stopped by user")
-    # Patch: handle nested dict structure
-    value = separated[first_stem_name]
-    if isinstance(value, dict):
-        logger.warning(f"Stem '{first_stem_name}' is a nested dict, keys: {list(value.keys())}")
-        tensor = value.get(first_stem_name)
-        if tensor is None:
-            raise TypeError(f"Could not find tensor in nested dict for stem '{first_stem_name}'. Keys: {list(value.keys())}")
-    else:
-        tensor = value
-    instrumental_tensor = torch.zeros_like(tensor)
+    instrumental_tensor = torch.zeros_like(separated[first_stem_name])
     for stem_name in instrumental_stems:
-        stem_value = separated[stem_name]
-        if isinstance(stem_value, dict):
-            stem_tensor = stem_value.get(stem_name)
-            if stem_tensor is None:
-                raise TypeError(f"Could not find tensor in nested dict for stem '{stem_name}'. Keys: {list(stem_value.keys())}")
-        else:
-            stem_tensor = stem_value
-        instrumental_tensor += stem_tensor
+        instrumental_tensor += separated[stem_name]
     return instrumental_tensor
+
 
 def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]:
     """Returns (vocals_path, instrumental_path) with correct extension."""
-    vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(output_extension)
-    instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(output_extension)
+    vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
+        output_extension
+    )
+    instrumental_path = file_management.get_instrumental_path_stem(
+        song_dir
+    ).with_suffix(output_extension)
     return vocals_path, instrumental_path
+
 
 def save_stem(
     tensor: torch.Tensor,
@@ -136,7 +145,10 @@ def save_stem(
     config: Any,
     logger: logging.Logger,
 ):
-    """Handles saving a single stem (vocals or instrumental) with logging and error handling."""
+    """
+    Handles saving a single stem (vocals or instrumental) with logging and error
+    handling.
+    """
     save_msg = f"Saving {stem_type} ({output_extension.upper().lstrip('.')})..."
     logger.info(save_msg)
     status_callback(save_msg)
@@ -148,56 +160,25 @@ def save_stem(
                 str(path),
                 separator_samplerate,
                 int(config.DEFAULT_MP3_BITRATE),
-                'rescale',
+                "rescale",
                 16,
                 False,
-                2
+                2,
             )
         elif output_extension == ".wav":
             save_audio(
-                tensor,
-                str(path),
-                separator_samplerate,
-                320,
-                'rescale',
-                16,
-                False,
-                2
+                tensor, str(path), separator_samplerate, 320, "rescale", 16, False, 2
             )
         else:
-            save_audio(
-                tensor,
-                str(path),
-                separator_samplerate
-            )
+            save_audio(tensor, str(path), separator_samplerate)
         logger.info(f"[AUDIO DEBUG] Saved {stem_type} to: {path}")
     except Exception as e:
         logger.error(f"[AUDIO DEBUG] Exception occurred while saving {stem_type}: {e}")
         status_callback(f"** Error saving {stem_type}: {e} **")
         raise
 
-import logging
-import os
-import threading
-import time
-from pathlib import Path
 
-import torch
-from app.config import get_config
-from demucs.api import Separator
-from demucs.audio import save_audio
-
-
-# Use relative imports
-from . import file_management
-
-logger = logging.getLogger(__name__)
-
-
-class StopProcessingError(Exception):
-    """Custom exception raised when processing is stopped by user."""
-
-
+# --- Main Function ---
 def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event=None):
     """
     Separates the audio file into vocals and instrumental tracks,
@@ -217,50 +198,60 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         Exception: For other errors during processing.
     """
     if status_callback is None:
-        status_callback = lambda msg: logger.info(msg)
+        def default_status_callback(msg):
+            logger.info(msg)
+        status_callback = default_status_callback
     if stop_event is None:
         stop_event = threading.Event()
     try:
-        # Device selection
         device = select_device_and_log(status_callback)
-        # Progress callback
         progress_callback = make_progress_callback(status_callback, stop_event)
-        # Config/model
         config = get_config()
         model_name = config.DEFAULT_MODEL
-        # Separator
-        separator = init_separator(model_name, device, progress_callback, status_callback)
-        # Output format
+        separator = init_separator(
+            model_name, device, progress_callback, status_callback
+        )
         input_extension = input_path.suffix.lower()
-        output_extension = input_extension if input_extension in [".wav", ".mp3"] else ".wav"
+        output_extension = (
+            input_extension if input_extension in [".wav", ".mp3"] else ".wav"
+        )
         output_format_str = "MP3" if output_extension == ".mp3" else "WAV"
         format_msg = f"Input: {input_extension}, Output: {output_format_str}"
         logger.info(format_msg)
         status_callback(format_msg)
-        # Separation
         status_callback(f"Loading audio file: {input_path.name}...")
-        separated_result = separator.separate_audio_file(input_path)
-        # If result is a tuple, convert to dict with default Demucs stem names
-        if isinstance(separated_result, tuple):
-            stem_names = ["vocals", "drums", "bass", "other"]  # Adjust as needed for your model
-            separated = {name: tensor for name, tensor in zip(stem_names, separated_result)}
-        else:
-            separated = separated_result
+        origin_wave, separated = separator.separate_audio_file(input_path)
         status_callback("Separation models finished.")
-        # Instrumental
-        instrumental_tensor = calculate_instrumental(separated, status_callback, stop_event)
-        # Output paths
+        instrumental_tensor = calculate_instrumental(
+            separated, status_callback, stop_event
+        )
         vocals_path, instrumental_path = get_output_paths(song_dir, output_extension)
         vocals_tensor = separated.get("vocals")
-        # Save vocals
         if vocals_tensor is not None:
-            save_stem(vocals_tensor, vocals_path, output_extension, separator.samplerate, status_callback, "vocals", config, logger)
+            save_stem(
+                vocals_tensor,
+                vocals_path,
+                output_extension,
+                separator.samplerate,
+                status_callback,
+                "vocals",
+                config,
+                logger,
+            )
         else:
             warning_msg = "** Warning: Vocals stem not found in model output. **"
             logger.warning(warning_msg)
             status_callback(warning_msg)
-        # Save instrumental
-        save_stem(instrumental_tensor, instrumental_path, output_extension, separator.samplerate, status_callback, "instrumental", config, logger)
+        save_stem(
+            instrumental_tensor,
+            instrumental_path,
+            output_extension,
+            separator.samplerate,
+            status_callback,
+            "instrumental",
+            config,
+            logger,
+        )
         complete_msg = f"Processing complete for {input_path.name}!"
         logger.info(complete_msg)
         status_callback(complete_msg)
@@ -268,6 +259,8 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
     except StopProcessingError:
         raise
     except Exception as e:
-        logger.error(f"Error during separation for {input_path.name}: {e}", exc_info=True)
+        logger.error(
+            f"Error during separation for {input_path.name}: {e}", exc_info=True
+        )
         status_callback(f"** Error during separation: {e} **")
         return False
