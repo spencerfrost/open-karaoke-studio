@@ -100,20 +100,20 @@ class JobRepository:
     def get_job(self, job_id: str) -> Optional[Job]:
         """Retrieve a job from the database by its ID."""
         try:
-            logger.info("Attempting to retrieve job %s from database", job_id)
+            logger.debug("Attempting to retrieve job %s from database", job_id)
 
             with self.get_db_session() as session:
                 from app.db.database import engine
 
-                logger.info("Database engine URL: %s", engine.url)
+                logger.debug("Database engine URL: %s", engine.url)
 
                 # First, let's check how many jobs exist in total
                 total_jobs = session.query(DbJob).count()
-                logger.info("Total jobs in database: %s", total_jobs)
+                logger.debug("Total jobs in database: %s", total_jobs)
 
                 # Check for jobs with similar IDs (for debugging)
                 all_job_ids = session.query(DbJob.id).all()
-                logger.info(
+                logger.debug(
                     "All job IDs in database: %s...",
                     [job.id for job in all_job_ids[:5]],
                 )  # Log first 5
