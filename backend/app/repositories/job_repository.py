@@ -85,7 +85,10 @@ class JobRepository:
                 from app.utils.events import publish_job_event
 
                 print(
-                    f"📝 Job {job.id} saved to database - created={was_created} - status={job.status.value}"
+                    (
+                        f"📝 Job {job.id} saved to database - created={was_created} "
+                        f"- status={job.status.value}"
+                    )
                 )
                 publish_job_event(job.id, job.to_dict(), was_created)
 

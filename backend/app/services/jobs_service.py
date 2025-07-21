@@ -75,7 +75,8 @@ class JobsService(JobsServiceInterface):
 
     def get_job_with_details(self, job_id: str) -> Optional[dict]:
         """
-        Get a job by its ID with additional details like file paths and completion estimates.
+        Get a job by its ID with additional details like file paths and
+        completion estimates.
         """
         job = self.job_repository.get_job(job_id)
         if not job:
@@ -113,7 +114,8 @@ class JobsService(JobsServiceInterface):
         Cancel a job by its ID.
 
         Returns:
-            True if job was successfully cancelled, False if job not found or cannot be cancelled
+            True if job was successfully cancelled
+            False if job not found or cannot be cancelled
         """
         job = self.job_repository.get_job(job_id)
         if not job:
@@ -127,7 +129,7 @@ class JobsService(JobsServiceInterface):
         job.status = JobStatus.CANCELLED
         job.completed_at = datetime.now()
         job.error = "Cancelled by user"
-        self.job_repository.save_job(job)
+        self.job_repository.update(job)
 
         # TODO: Implement actual job cancellation in Celery
         # This would involve celery.control.revoke(task_id, terminate=True)
@@ -140,7 +142,8 @@ class JobsService(JobsServiceInterface):
         Job is hidden but kept in database for potential retry.
 
         Returns:
-            True if job was successfully dismissed, False if job not found or cannot be dismissed
+            True if job was successfully dismissed,
+            False if job not found or cannot be dismissed
         """
         job = self.job_repository.get_job(job_id)
         if not job:

@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class YouTubeService(YouTubeServiceInterface):
     """Handle YouTube video operations"""
 
-    def __init__(self, file_service: FileServiceInterface = None):
-        self.file_service = file_service or FileService()
+    def __init__(self, file_service: FileServiceInterface = FileService()):
+        self.file_service = file_service
 
     def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
         """Search YouTube for videos matching the query"""
@@ -40,25 +40,9 @@ class YouTubeService(YouTubeServiceInterface):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(search_term, download=False)
 
-                if "entries" in info:
+                if info is not None and "entries" in info:
                     for entry in info["entries"]:
-                        results.append(
-                            {
-                                "id": entry.get("id"),
-                                "title": entry.get("title"),
-                                "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
-                                "channel": entry.get("channel")
-                                or entry.get("uploader"),
-                                "channelId": entry.get("channel_id")
-                                or entry.get("uploader_id"),
-                                "thumbnail": (
-                                    entry.get("thumbnails")[0]["url"]
-                                    if entry.get("thumbnails")
-                                    else None
-                                ),
-                                "duration": entry.get("duration"),
-                            }
-                        )
+                        results.append(self._build_search_result_entry(entry))
                     logger.info("Found %s search results", len(results))
                 else:
                     logger.warning("YouTube search returned no entries")
@@ -68,6 +52,23 @@ class YouTubeService(YouTubeServiceInterface):
         except Exception as e:
             logger.error("YouTube search failed: %s", e)
             raise ServiceError(f"Failed to search YouTube: {e}")
+        
+    def _build_search_result_entry(self, entry: dict) -> dict:
+        """Helper to build a search result entry dict from yt-dlp entry"""
+        thumbnails = entry.get("thumbnails")
+        return {
+            "id": entry.get("id"),
+            "title": entry.get("title"),
+            "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
+            "channel": entry.get("channel") or entry.get("uploader"),
+            "channelId": entry.get("channel_id") or entry.get("uploader_id"),
+            "thumbnail": (
+                thumbnails[0]["url"]
+                if thumbnails and len(thumbnails) > 0
+                else None
+            ),
+            "duration": entry.get("duration"),
+        }
 
     def download_video(
         self,
