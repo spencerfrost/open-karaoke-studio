@@ -31,10 +31,10 @@ import {
   useLyricsSearch,
   useMetadataSearch,
   useSaveMetadataMutation,
-  LyricsOption,
-  MetadataOption,
-  CreateSongResponse,
 } from "@/hooks/useYoutube";
+
+import type { LyricsOption, MetadataOption } from "@/components/forms";
+import type { CreateSongResponse } from "@/hooks/useYoutube";
 
 import {
   ConfirmDetailsStep,
@@ -72,8 +72,7 @@ export function SongAdditionStepper({
   const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
     null
   );
-  const [selectedMetadata, setSelectedMetadata] =
-    useState<MetadataOption | null>(null);
+  const [selectedMetadata, setSelectedMetadata] = useState<MetadataOption | null>(null);
   const [showSkipLyricsDialog, setShowSkipLyricsDialog] = useState(false);
 
   // Search state
@@ -255,7 +254,7 @@ export function SongAdditionStepper({
             videoDuration={videoDuration}
             isSearching={isLoadingLyrics}
             initialMetadata={confirmedMetadata}
-            onLyricsSelect={setSelectedLyrics}
+            onLyricsSelect={(lyrics) => setSelectedLyrics(lyrics)}
             onConfirm={handleLyricsConfirm}
             onSkip={handleLyricsSkip}
             onResearch={handleLyricsResearch}
@@ -269,7 +268,7 @@ export function SongAdditionStepper({
             selectedMetadata={selectedMetadata}
             isSearching={isLoadingMetadata}
             initialMetadata={confirmedMetadata}
-            onMetadataSelect={setSelectedMetadata}
+            onMetadataSelect={(metadata) => setSelectedMetadata(metadata)}
             onConfirm={handleMetadataConfirm}
             onSkip={handleMetadataSkip}
             onResearch={handleMetadataResearch}
