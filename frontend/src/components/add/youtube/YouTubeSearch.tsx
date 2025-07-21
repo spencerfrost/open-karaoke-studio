@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { SongAdditionStepper } from "./SongAdditionStepper";
+import { SongAdditionStepper } from "./dialog/SongAdditionStepper";
 import {
   useYoutubeDownloadMutation,
   useCreateSongMutation,

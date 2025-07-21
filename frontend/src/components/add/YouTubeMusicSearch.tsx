@@ -1,28 +1,60 @@
 // frontend/src/components/YouTubeMusicSearch.tsx
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { useYouTubeMusicSearch } from "../hooks/useYouTubeMusic";
-import { YouTubeMusicSong } from "../types/YouTubeMusic";
-import { useSongs } from "../hooks/useSongs";
-import React, { useState } from "react";
-import LyricsFetchDialog from "./lyrics/LyricsFetchDialog";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useYouTubeMusicSearch } from "../../hooks/useYouTubeMusic";
+import { YouTubeMusicSong } from "../../types/YouTubeMusic";
+import { useSongs } from "../../hooks/useSongs";
+import { useState } from "react";
 import {
   Card,
-  CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
-} from "./ui/card";
+  CardDescription,
+  CardContent,
+} from "../ui/card";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../ui/dialog";
+import { LyricsResults } from "../forms";
+import { useLyricsSearch } from "@/hooks/useYoutube";
+import type { LyricsOption } from "@/components/forms";
 
 export function YouTubeMusicSearch() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 1000);
-  const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
-  const [lyricsDialogData, setLyricsDialogData] = useState<{
+  // --- New state for stepper/dialog and loading ---
+  const [selectedSong, setSelectedSong] = useState<YouTubeMusicSong | null>(
+    null
+  );
+  const [isStepperDialogOpen, setIsStepperDialogOpen] = useState(false);
+  const [createdSong, setCreatedSong] = useState<any>(null);
+  const [isAdding, setIsAdding] = useState(false);
+
+  const [lyricsSearchQuery, setLyricsSearchQuery] = useState<{
     artist: string;
     title: string;
     album?: string;
-    duration?: string;
-  } | null>(null);
+  }>({ artist: "", title: "", album: "" });
+  const {
+    data: lyricsOptions = [],
+    refetch: fetchLyrics,
+    isPending: isLoadingLyrics,
+  } = useLyricsSearch(lyricsSearchQuery, {
+    enabled: false,
+    queryKey: [
+      "lyrics",
+      lyricsSearchQuery.artist,
+      lyricsSearchQuery.title,
+      lyricsSearchQuery.album,
+    ],
+  });
+  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
+    null
+  );
   const { data, isLoading, error } = useYouTubeMusicSearch(
     debouncedQuery,
     !!debouncedQuery
@@ -31,6 +63,14 @@ export function YouTubeMusicSearch() {
   const createSongMutation = useCreateSong();
 
   const handleAddToLibrary = (song: YouTubeMusicSong) => {
+    setIsAdding(true);
+    setSelectedSong(song);
+    setLyricsSearchQuery({
+      artist: song.artist,
+      title: song.title,
+      album: song.album,
+    });
+    setSelectedLyrics(null);
     createSongMutation.mutate(
       {
         title: song.title,
@@ -38,11 +78,14 @@ export function YouTubeMusicSearch() {
         album: song.album || "",
         source: "youtube_music",
         videoId: song.videoId,
-        duration: song.duration,
       },
       {
         onSuccess: (createdSong) => {
-          // Now you have the real song ID
+          setCreatedSong(createdSong);
+          setIsStepperDialogOpen(true);
+          setIsAdding(false);
+          fetchLyrics(); // Trigger lyrics search
+
           fetch("/api/youtube/download", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -65,16 +108,9 @@ export function YouTubeMusicSearch() {
               song_id: createdSong.id,
             }),
           }).catch(() => {});
-
-          setLyricsDialogData({
-            artist: song.artist,
-            title: song.title,
-            album: song.album,
-            duration: song.duration,
-          });
-          setLyricsDialogOpen(true);
         },
         onError: (error) => {
+          setIsAdding(false);
           alert("Failed to create song: " + (error?.message || error));
         },
       }
@@ -127,8 +163,15 @@ export function YouTubeMusicSearch() {
                 <button
                   className="ml-4 px-3 py-1 rounded bg-blue-600 text-white"
                   onClick={() => handleAddToLibrary(song)}
+                  disabled={isAdding && selectedSong?.videoId === song.videoId}
                 >
-                  Add to Library
+                  {isAdding && selectedSong?.videoId === song.videoId ? (
+                    <>
+                      <span className="loader mr-2" /> Processing...
+                    </>
+                  ) : (
+                    "Add to Library"
+                  )}
                 </button>
               </li>
             ))}
@@ -139,16 +182,49 @@ export function YouTubeMusicSearch() {
             No official audio found.
           </div>
         )}
-        <LyricsFetchDialog
-          open={lyricsDialogOpen}
-          onClose={() => setLyricsDialogOpen(false)}
-          artist={lyricsDialogData?.artist || ""}
-          title={lyricsDialogData?.title || ""}
-          album={lyricsDialogData?.album}
-          duration={lyricsDialogData?.duration}
-          autoSelectBestMatch
-        />
       </CardContent>
+
+      {/* Stepper Dialog for YouTube Music */}
+      {selectedSong && createdSong && (
+        <Dialog
+          open={isStepperDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsStepperDialogOpen(false);
+              setSelectedSong(null);
+              setCreatedSong(null);
+              setSelectedLyrics(null);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>Add Song to Library</DialogTitle>
+              <DialogDescription>
+                Adding: <strong>{selectedSong.title}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              <LyricsResults
+                isLoading={isLoadingLyrics}
+                options={lyricsOptions}
+                selectedOption={selectedLyrics}
+                onSelectionChange={(lyrics) => setSelectedLyrics(lyrics)}
+                youtubeMusicDurationSeconds={selectedSong.duration}
+              />
+            </div>
+            <div className="flex justify-end pt-4">
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded"
+                onClick={() => setIsStepperDialogOpen(false)}
+                disabled={!selectedLyrics}
+              >
+                Confirm
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
 }
