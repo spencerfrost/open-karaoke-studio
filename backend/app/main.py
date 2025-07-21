@@ -50,7 +50,7 @@ test_log_path = os.path.join(log_dir, "test_logging_setup.log")
 try:
     with open(test_log_path, "a") as f:
         f.write("Logging setup test entry\n")
-    logger.info(f"Successfully wrote to {test_log_path}")
+    logger.debug(f"Successfully wrote to {test_log_path}")
 except Exception as e:
     logger.error(f"Failed to write to log directory {log_dir}: {e}")
 

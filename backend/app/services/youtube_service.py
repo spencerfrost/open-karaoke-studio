@@ -330,7 +330,7 @@ class YouTubeService(YouTubeServiceInterface):
             if not saved_job:
                 raise ServiceError(f"Failed to save job {job_id} to database")
 
-            logger.info("Job %s successfully saved to database", job_id)
+            logger.debug("Job %s successfully saved to database", job_id)
 
             # Note: Thumbnail download is now handled by the Celery job to avoid
             # interfering with frontend stepper state due to database updates

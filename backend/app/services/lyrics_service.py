@@ -41,7 +41,7 @@ class LyricsService(LyricsServiceInterface):
             Tuple[int, Any]: HTTP status code and response data as returned from LRCLIB
         """
         url = f"{self.base_url}{path}"
-        logger.info("LRCLIB request: %s params=%s", url, params)
+        logger.debug("LRCLIB request: %s params=%s", url, params)
 
         try:
             resp = requests.get(url, params=params, headers=self.headers, timeout=10)
