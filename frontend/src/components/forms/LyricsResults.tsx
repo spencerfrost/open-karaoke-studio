@@ -105,9 +105,40 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
     durationMs
   );
 
-  // Helper function to get duration comparison status
-  const getDurationComparison = (songDuration: number, lyricsDuration: number) => {
+  // Sort options by how close their duration is to the song's duration
+  const sortedOptions = React.useMemo(() => {
+    if (!parsedDuration) return options;
+    return [...options].sort((a, b) => {
+      if (a.duration == null && b.duration == null) return 0;
+      if (a.duration == null) return 1;
+      if (b.duration == null) return -1;
+      return (
+        Math.abs(parsedDuration - a.duration) -
+        Math.abs(parsedDuration - b.duration)
+      );
+    });
+  }, [options, parsedDuration]);
 
+  // Find the best match (closest duration) option
+  const bestMatchOption = React.useMemo(() => {
+    if (!parsedDuration) return undefined;
+    return sortedOptions.find(
+      (option) =>
+        option.duration != null &&
+        Math.abs(parsedDuration - option.duration) ===
+          Math.min(
+            ...sortedOptions
+              .filter((o) => o.duration != null)
+              .map((o) => Math.abs(parsedDuration - (o.duration ?? 0)))
+          )
+    );
+  }, [sortedOptions, parsedDuration]);
+
+  // Helper function to get duration comparison status
+  const getDurationComparison = (
+    songDuration: number,
+    lyricsDuration: number
+  ) => {
     const diff = Math.abs(songDuration - lyricsDuration);
 
     if (diff <= 0.5) {
@@ -141,14 +172,9 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
     }
   };
 
-
   // Auto-select best option based on duration matching
   React.useEffect(() => {
-    if (
-      options.length > 0 &&
-      !selectedOption &&
-      parsedDuration
-    ) {
+    if (options.length > 0 && !selectedOption && parsedDuration) {
       const bestMatch = options.reduce((best, current) => {
         if (!current.duration) return best;
 
@@ -165,12 +191,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
       // If no video duration, just select first option
       onSelectionChange(options[0]);
     }
-  }, [
-    options,
-    selectedOption,
-    parsedDuration,
-    onSelectionChange,
-  ]);
+  }, [options, selectedOption, parsedDuration, onSelectionChange]);
 
   const handleValueChange = (value: string) => {
     const index = parseInt(value);
@@ -221,9 +242,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
         onValueChange={handleValueChange}
         className="space-y-4"
       >
-        {options.map((option, index) => {
-          const durationComparison = getDurationComparison(parsedDuration, option.duration);
+        {sortedOptions.map((option, index) => {
+          const durationComparison = getDurationComparison(
+            parsedDuration,
+            option.duration ?? 0
+          );
           const DurationIcon = durationComparison.icon;
+          const isBestMatch = option === bestMatchOption;
 
           return (
             <div
@@ -277,14 +302,23 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
 
                         {/* Duration comparison */}
                         {option.duration && (
-                          <div
-                            className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
-                          >
-                            {DurationIcon && <DurationIcon size={12} />}
-                            <span>{formatDuration(option.duration)}</span>
-                            <span className="text-muted-foreground">
-                              vs {formatDuration(parsedDuration)}
-                            </span>
+                          <div className="flex flex-col items-end gap-1">
+                            <div
+                              className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
+                            >
+                              {DurationIcon && <DurationIcon size={12} />}
+                              <span>{formatDuration(option.duration)}</span>
+                              <span className="text-muted-foreground">
+                                vs {formatDuration(parsedDuration)}
+                              </span>
+                            </div>
+                            <div
+                              className={`text-xs ${durationComparison.className}`}
+                            >
+                              {isBestMatch
+                                ? "Best match"
+                                : durationComparison.message}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -292,18 +326,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
                       {/* Lyrics preview */}
                       <div className="text-sm prose prose-sm max-w-none">
                         <div className="max-h-32 overflow-hidden">
-                          <LyricsCard lyrics={option.syncedLyrics || option.plainLyrics} isSynced={option.isSynced} maxPreviewLines={maxPreviewLines} />
+                          <LyricsCard
+                            lyrics={option.syncedLyrics || option.plainLyrics}
+                            isSynced={option.isSynced}
+                            maxPreviewLines={maxPreviewLines}
+                          />
                         </div>
                       </div>
-
-                      {/* Duration comparison message */}
-                      {parsedDuration && option.duration && (
-                        <div
-                          className={`mt-2 text-xs ${durationComparison.className}`}
-                        >
-                          {durationComparison.message}
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 </Label>

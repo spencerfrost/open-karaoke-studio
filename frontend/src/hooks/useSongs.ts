@@ -75,26 +75,13 @@ export function useSongs() {
     });
   };
 
-  /**
-   * Get song lyrics
-   */
-  const useSongLyrics = (songId: string, options = {}) => {
-    return useApiQuery<
-      { plainLyrics: string; syncedLyrics: string; duration: number },
-      ReturnType<typeof QUERY_KEYS.songLyrics>
-    >(QUERY_KEYS.songLyrics(songId), `songs/${songId}/lyrics`, {
-      enabled: !!songId,
-      ...options,
-    });
-  };
-
   // ===== Mutations =====
   /**
    * Create a new song
    */
   const useCreateSong = () => {
     return useApiMutation<Song, Partial<Song>>("songs", "post", {
-      onMutate: async (newSong) => {
+      onMutate: async () => {
         await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
 
         // Save previous songs list
@@ -102,17 +89,6 @@ export function useSongs() {
           QUERY_KEYS.songs
         );
 
-        // Only optimistically add if newSong has a valid id (required for Song type)
-        if (newSong.id) {
-          queryClient.setQueryData<Song[]>(QUERY_KEYS.songs, (oldSongs) =>
-            oldSongs ? [...oldSongs, newSong as Song] : [newSong as Song]
-          );
-          // Also set the new song in its own query
-          queryClient.setQueryData<Song>(
-            QUERY_KEYS.song(newSong.id),
-            newSong as Song
-          );
-        }
         return { previousSongs };
       },
       onError: (_err, _variables, context: unknown) => {
@@ -152,7 +128,7 @@ export function useSongs() {
   const useUpdateSong = () => {
     return useApiMutation<Song, Partial<Song> & { id: string }>(
       "songs/:id",
-      "put",
+      "patch",
       {
         onMutate: async (variables) => {
           const { id, ...updates } = variables;
@@ -697,7 +673,6 @@ export function useSongs() {
     useSongs,
     useSong,
     useSongStatus,
-    useSongLyrics,
     useRichSongMetadata,
 
     // Mutations
