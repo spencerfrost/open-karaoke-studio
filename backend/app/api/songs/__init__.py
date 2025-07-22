@@ -10,7 +10,6 @@ from . import (  # pylint: disable=unused-import,wrong-import-position
     artists,
     core,
     files,
-    lyrics,
     metadata,
     search,
     thumbnails,

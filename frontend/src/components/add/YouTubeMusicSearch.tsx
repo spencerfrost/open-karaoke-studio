@@ -21,11 +21,10 @@ import {
 } from "../ui/dialog";
 import { LyricsResults } from "../forms";
 import { useLyricsSearch } from "../../hooks/useLyrics";
-import {
-  useYoutubeDownloadMutation,
-} from "@/hooks/useYoutube";
+import { useYoutubeDownloadMutation } from "@/hooks/useYoutube";
 import type { LyricsOption } from "@/components/forms";
 import { toast } from "sonner";
+import { Song } from "@/types/Song";
 
 export function YouTubeMusicSearch() {
   const [query, setQuery] = useState("");
@@ -34,12 +33,15 @@ export function YouTubeMusicSearch() {
   const [selectedSong, setSelectedSong] = useState<YouTubeMusicSong | null>(
     null
   );
-  const [isStepperDialogOpen, setIsStepperDialogOpen] = useState(false);
-  const [createdSong, setCreatedSong] = useState<any>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [createdSong, setCreatedSong] = useState<Song | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  // Lyrics search hook for fetching lyrics options
-  const { data: lyricsOptions, loading: isLoadingLyrics, search: fetchLyrics } = useLyricsSearch();
+  const {
+    data: lyricsOptions,
+    loading: isLoadingLyrics,
+    search: fetchLyrics,
+  } = useLyricsSearch();
 
   const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
     null
@@ -50,6 +52,23 @@ export function YouTubeMusicSearch() {
   );
   const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
+
+  const { useUpdateSong } = useSongs();
+  const updateSongMutation = useUpdateSong();
+
+  const handleConfirmLyrics = () => {
+    if (createdSong && selectedLyrics) {
+      updateSongMutation.mutate({
+        id: createdSong.id,
+        plainLyrics: selectedLyrics.plainLyrics,
+        syncedLyrics: selectedLyrics.syncedLyrics,
+      });
+    }
+    setIsDialogOpen(false);
+    setSelectedSong(null);
+    setCreatedSong(null);
+    setSelectedLyrics(null);
+  };
 
   function handleCreateSong(song: YouTubeMusicSong) {
     createSongMutation.mutate(
@@ -63,7 +82,7 @@ export function YouTubeMusicSearch() {
       {
         onSuccess: (createdSong) => {
           setCreatedSong(createdSong);
-          setIsStepperDialogOpen(true);
+          setIsDialogOpen(true);
           setIsAdding(false);
           fetchLyrics({
             artist: song.artist,
@@ -87,7 +106,7 @@ export function YouTubeMusicSearch() {
       title: song.title,
       artist: song.artist,
       album: song.album,
-      song_id: createdSong.id,
+      song_id: song_id,
     });
   }
 
@@ -100,7 +119,7 @@ export function YouTubeMusicSearch() {
         artist: song.artist,
         title: song.title,
         album: song.album,
-        song_id: createdSong.id,
+        song_id: song_id,
       }),
     }).catch(() => {});
   }
@@ -193,13 +212,12 @@ export function YouTubeMusicSearch() {
         )}
       </CardContent>
 
-      {/* Stepper Dialog for YouTube Music */}
       {selectedSong && createdSong && (
         <Dialog
-          open={isStepperDialogOpen}
+          open={isDialogOpen}
           onOpenChange={(open) => {
             if (!open) {
-              setIsStepperDialogOpen(false);
+              setIsDialogOpen(false);
               setSelectedSong(null);
               setCreatedSong(null);
               setSelectedLyrics(null);
@@ -225,7 +243,7 @@ export function YouTubeMusicSearch() {
             <div className="flex justify-end pt-4">
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded"
-                onClick={() => setIsStepperDialogOpen(false)}
+                onClick={() => handleConfirmLyrics()}
                 disabled={!selectedLyrics}
               >
                 Confirm
