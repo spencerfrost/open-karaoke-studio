@@ -20,8 +20,12 @@ import {
   DialogDescription,
 } from "../ui/dialog";
 import { LyricsResults } from "../forms";
-import { useLyricsSearch } from "@/hooks/useYoutube";
+import { useLyricsSearch } from "../../hooks/useLyrics";
+import {
+  useYoutubeDownloadMutation,
+} from "@/hooks/useYoutube";
 import type { LyricsOption } from "@/components/forms";
+import { toast } from "sonner";
 
 export function YouTubeMusicSearch() {
   const [query, setQuery] = useState("");
@@ -34,24 +38,9 @@ export function YouTubeMusicSearch() {
   const [createdSong, setCreatedSong] = useState<any>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  const [lyricsSearchQuery, setLyricsSearchQuery] = useState<{
-    artist: string;
-    title: string;
-    album?: string;
-  }>({ artist: "", title: "", album: "" });
-  const {
-    data: lyricsOptions = [],
-    refetch: fetchLyrics,
-    isPending: isLoadingLyrics,
-  } = useLyricsSearch(lyricsSearchQuery, {
-    enabled: false,
-    queryKey: [
-      "lyrics",
-      lyricsSearchQuery.artist,
-      lyricsSearchQuery.title,
-      lyricsSearchQuery.album,
-    ],
-  });
+  // Lyrics search hook for fetching lyrics options
+  const { data: lyricsOptions, loading: isLoadingLyrics, search: fetchLyrics } = useLyricsSearch();
+
   const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
     null
   );
@@ -62,15 +51,7 @@ export function YouTubeMusicSearch() {
   const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
 
-  const handleAddToLibrary = (song: YouTubeMusicSong) => {
-    setIsAdding(true);
-    setSelectedSong(song);
-    setLyricsSearchQuery({
-      artist: song.artist,
-      title: song.title,
-      album: song.album,
-    });
-    setSelectedLyrics(null);
+  function handleCreateSong(song: YouTubeMusicSong) {
     createSongMutation.mutate(
       {
         title: song.title,
@@ -84,30 +65,13 @@ export function YouTubeMusicSearch() {
           setCreatedSong(createdSong);
           setIsStepperDialogOpen(true);
           setIsAdding(false);
-          fetchLyrics(); // Trigger lyrics search
-
-          fetch("/api/youtube/download", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              song_id: createdSong.id,
-              video_id: song.videoId,
-              artist: song.artist,
-              title: song.title,
-              album: song.album,
-            }),
-          }).catch(() => {});
-
-          fetch("/api/songs/metadata/auto", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              artist: song.artist,
-              title: song.title,
-              album: song.album,
-              song_id: createdSong.id,
-            }),
-          }).catch(() => {});
+          fetchLyrics({
+            artist: song.artist,
+            title: song.title,
+            album: song.album,
+          });
+          downloadFromYouTube(createdSong.id, song);
+          getMetadata(createdSong.id, song);
         },
         onError: (error) => {
           setIsAdding(false);
@@ -115,6 +79,51 @@ export function YouTubeMusicSearch() {
         },
       }
     );
+  }
+
+  function downloadFromYouTube(song_id: string, song: YouTubeMusicSong) {
+    youtubeDownloadMutation.mutate({
+      video_id: song.videoId,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      song_id: createdSong.id,
+    });
+  }
+
+  function getMetadata(song_id: string, song: YouTubeMusicSong) {
+    // Fetch metadata from YouTube Music API
+    fetch("/api/songs/metadata/auto", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        artist: song.artist,
+        title: song.title,
+        album: song.album,
+        song_id: createdSong.id,
+      }),
+    }).catch(() => {});
+  }
+
+  const youtubeDownloadMutation = useYoutubeDownloadMutation({
+    onSuccess: () => {
+      toast.success("YouTube download started in background");
+    },
+    onError: (error) => {
+      toast.error(`Failed to start download: ${error.message}`);
+    },
+  });
+
+  const handleAddToLibrary = (song: YouTubeMusicSong) => {
+    setIsAdding(true);
+    setSelectedSong(song);
+    setSelectedLyrics(null);
+    fetchLyrics({
+      artist: song.artist,
+      title: song.title,
+      album: song.album,
+    });
+    handleCreateSong(song);
   };
 
   return (
@@ -207,7 +216,7 @@ export function YouTubeMusicSearch() {
             <div className="flex-1 overflow-y-auto">
               <LyricsResults
                 isLoading={isLoadingLyrics}
-                options={lyricsOptions}
+                options={lyricsOptions || []}
                 selectedOption={selectedLyrics}
                 onSelectionChange={(lyrics) => setSelectedLyrics(lyrics)}
                 youtubeMusicDurationSeconds={selectedSong.duration}

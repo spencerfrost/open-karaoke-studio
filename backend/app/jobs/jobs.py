@@ -76,7 +76,7 @@ def get_filepath_from_job(job):
 
     # Construct the path to the original file based on the job's filename
     config = get_config()
-    song_dir = Path(config.BASE_LIBRARY_DIR) / job.id
+    song_dir = Path(config.BASE_LIBRARY_DIR) / job.song_id
     filepath = song_dir / "original.mp3"  # Or however you determine the filename
 
     return str(filepath)
@@ -116,8 +116,12 @@ def process_audio_job(self, job_id):
     from app.config import get_config
 
     config = get_config()
-    song_dir = Path(config.BASE_LIBRARY_DIR) / job.id
-    filepath = song_dir / "original.mp3"  # Or use job.filename to determine the path
+    song_id = job.song_id
+    if not song_id:
+        logger.error("Job %s has no associated song_id", job_id)
+        return {"status": "error", "message": "No song ID associated with job"}
+    song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
+    filepath = song_dir / "original.mp3"
     filename = filepath.name
 
     # Update job status to processing
@@ -163,7 +167,11 @@ def process_audio_job(self, job_id):
     try:
         file_service = FileService()
         file_service.ensure_library_exists()
-        song_dir = file_service.get_song_directory(job_id)
+        config = get_config()
+        song_id = job.song_id
+        if not song_id:
+            raise AudioProcessingError(f"Job {job_id} has no associated song_id")
+        song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio
@@ -245,8 +253,10 @@ def process_youtube_job(self, job_id, video_id, metadata):
         metadata: Dict with artist, title, album, etc.
     """
     logger.info(
-        "Starting unified YouTube processing job for job %s (video_id: %s)",
+        "Starting unified YouTube processing job for job %s (artist: %s, title: %s, video_id: %s)",
         job_id,
+        metadata.get("artist"),
+        metadata.get("title"),
         video_id,
     )
 
@@ -261,7 +271,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
     song_id = job.song_id
     if not song_id:
         logger.error("Job %s has no associated song_id", job_id)
-        return {"status": "error", "message": "No song ID associated with job"}
+        return {"status": "error", "message": "No song ID associated with job"}    
 
     # Verify the song exists
     from app.db.database import get_db_session
@@ -309,69 +319,35 @@ def process_youtube_job(self, job_id, video_id, metadata):
 
     try:
         # Phase 1: Download (5-30% progress)
+        from pathlib import Path
+
+        from app.config import get_config
         from app.services.youtube_service import YouTubeService
 
+        config = get_config()
+        youtube_service = YouTubeService()
         file_service = FileService()
         file_service.ensure_library_exists()
 
-        youtube_service = YouTubeService()
+        song_id = job.song_id
+        if not song_id:
+            raise AudioProcessingError(f"Job {job_id} has no associated song_id")
+        song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
 
         update_progress(10, "Starting YouTube download")
 
-        # Download video and extract metadata
-        download_result = youtube_service.download_video(
+        youtube_service.download_video(
             video_id_or_url=video_id,
-            song_id=song_id,  # Use the existing song_id from the job
+            song_id=song_id,
             artist=metadata.get("artist"),
             title=metadata.get("title"),
         )
-
-        # Extract enhanced metadata from download result
-        _, enhanced_metadata = download_result
-
-        # Get song directory for file paths
-        song_dir = file_service.get_song_directory(song_id)
-
-        # Update the database song with enhanced metadata (including iTunes data)
-        try:
-            from app.db.database import get_db_session
-            from app.repositories.song_repository import SongRepository
-
-            with get_db_session() as session:
-                repo = SongRepository(session)
-                update_fields = {
-                    "title": enhanced_metadata.get("title") or db_song.title,
-                    "artist": enhanced_metadata.get("artist") or db_song.artist,
-                    "duration_ms": enhanced_metadata.get("duration_ms"),
-                    "album": enhanced_metadata.get("album") or db_song.album,
-                    "genre": enhanced_metadata.get("genre") or db_song.genre,
-                    "year": enhanced_metadata.get("year") or db_song.year,
-                    "lyrics": enhanced_metadata.get("lyrics") or db_song.lyrics,
-                    # add more fields as needed
-                }
-                updated_song = repo.update(song_id, **update_fields)
-                if updated_song:
-                    logger.info(
-                        "Successfully updated song %s with enhanced metadata", song_id
-                    )
-                    update_progress(25, "Enhanced metadata saved")
-                else:
-                    logger.warning(
-                        "Failed to update song %s with enhanced metadata", song_id
-                    )
-
-            # Success/failure handling is now above using updated_song
-
-        except Exception as e:
-            logger.error("Error updating song metadata for %s: %s", song_id, e)
-            # Continue processing even if metadata update fails
 
         update_progress(
             30, "Download complete, starting audio processing", JobStatus.PROCESSING
         )
 
         # Phase 2: Audio Processing (30-90% progress)
-        # IMPORTANT: Use song_id for the directory, not job_id
         original_file = song_dir / "original.mp3"
 
         if not original_file.exists():
