@@ -28,10 +28,11 @@ import {
 } from "@/components/ui/stepper";
 
 import {
-  useLyricsSearch,
   useMetadataSearch,
   useSaveMetadataMutation,
 } from "@/hooks/useYoutube";
+
+import { useLyricsSearch } from "@/hooks/useLyrics";
 
 import type { LyricsOption, MetadataOption } from "@/components/forms";
 import type { CreateSongResponse } from "@/hooks/useYoutube";
@@ -75,40 +76,24 @@ export function SongAdditionStepper({
   const [selectedMetadata, setSelectedMetadata] = useState<MetadataOption | null>(null);
   const [showSkipLyricsDialog, setShowSkipLyricsDialog] = useState(false);
 
-  // Search state
-  const [lyricsSearchQuery, setLyricsSearchQuery] = useState({
-    artist: initialMetadata.artist,
-    title: initialMetadata.title,
-    album: initialMetadata.album,
-  });
-
-  const [metadataSearchQuery, setMetadataSearchQuery] = useState({
-    artist: initialMetadata.artist,
-    title: initialMetadata.title,
-    album: initialMetadata.album,
-  });
-
   // API hooks
   const {
-    data: lyricsOptions = [],
-    refetch: fetchLyrics,
-    isPending: isLoadingLyrics,
-  } = useLyricsSearch(lyricsSearchQuery, {
-    enabled: false,
-    queryKey: ["lyrics", lyricsSearchQuery.artist, lyricsSearchQuery.title, lyricsSearchQuery.album],
-  });
+    data: lyricsOptions,
+    loading: isLoadingLyrics,
+    search: fetchLyrics,
+  } = useLyricsSearch();
 
   const {
     data: metadataResponse,
     refetch: fetchMetadata,
     isPending: isLoadingMetadata,
-  } = useMetadataSearch(metadataSearchQuery, {
+  } = useMetadataSearch({
     enabled: false,
     queryKey: [
       "metadata",
-      metadataSearchQuery.artist,
-      metadataSearchQuery.title,
-      metadataSearchQuery.album,
+      initialMetadata.artist,
+      initialMetadata.title,
+      initialMetadata.album,
     ],
   });
 
@@ -133,11 +118,6 @@ export function SongAdditionStepper({
       setConfirmedMetadata(initialMetadata);
       setSelectedLyrics(null);
       setSelectedMetadata(null);
-      setLyricsSearchQuery({
-        artist: initialMetadata.artist,
-        title: initialMetadata.title,
-        album: initialMetadata.album,
-      });
       setMetadataSearchQuery({
         artist: initialMetadata.artist,
         title: initialMetadata.title,
@@ -163,17 +143,19 @@ export function SongAdditionStepper({
     album: string;
   }) => {
     setConfirmedMetadata(newMetadata);
-    setLyricsSearchQuery(newMetadata);
     setMetadataSearchQuery({
       artist: newMetadata.artist,
       title: newMetadata.title,
       album: newMetadata.album,
     });
-
     // Start both API calls simultaneously and advance to lyrics step
     setCurrentStep(2);
     setTimeout(() => {
-      fetchLyrics();
+      fetchLyrics({
+        artist: newMetadata.artist,
+        title: newMetadata.title,
+        album: newMetadata.album,
+      });
       fetchMetadata();
     }, 100);
   };
@@ -202,8 +184,7 @@ export function SongAdditionStepper({
     title: string;
     album: string;
   }) => {
-    setLyricsSearchQuery(query);
-    fetchLyrics();
+    fetchLyrics(query);
   };
 
   // Step 3: Metadata Selection

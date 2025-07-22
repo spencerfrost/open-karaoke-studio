@@ -18,12 +18,6 @@ export interface YouTubeDownloadResponse {
   message: string;
 }
 
-export interface LyricsSearchRequest {
-  title: string;
-  artist: string;
-  album?: string;
-}
-
 export interface MetadataSearchRequest {
   title: string;
   artist: string;
@@ -46,20 +40,6 @@ export interface CreateSongResponse {
   album?: string;
   dateAdded?: string;
   status: string;
-}
-
-export interface LyricsOption {
-  id: string;
-  source: string;
-  trackName?: string;
-  artistName?: string;
-  plainLyrics?: string;
-  syncedLyrics?: string;
-  preview?: string;
-  duration?: number;
-  albumName?: string;
-  name?: string;
-  instrumental?: boolean;
 }
 
 export interface MetadataOption {
@@ -100,7 +80,7 @@ export interface SaveMetadataRequest {
   title: string;
   artist: string;
   album?: string;
-  lyrics?: string;
+  plainlyrics?: string;
   syncedLyrics?: string;
   metadataId?: string;
 }
@@ -128,22 +108,6 @@ export const useYoutubeDownloadMutation = (
     "post",
     options
   );
-};
-/**
- * Hook to search for lyrics using the lyrics API
- */
-export const useLyricsSearch = (
-  params: LyricsSearchRequest,
-  options?: UseQueryOptions<LyricsOption[], Error>
-) => {
-  const queryKey = ["lyrics", "search", params];
-  const queryString = new URLSearchParams({
-    track_name: params.title,
-    artist_name: params.artist,
-    ...(params.album ? { album_name: params.album } : {}),
-  }).toString();
-
-  return useApiQuery(queryKey, `lyrics/search?${queryString}`, options);
 };
 
 /**
