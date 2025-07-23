@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Song } from "@/types/Song";
-import { useSongs } from "@/hooks/useSongs";
+import { useSongs } from "@/hooks/api/useSongs";
 import { Music, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 

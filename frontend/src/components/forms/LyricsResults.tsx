@@ -1,27 +1,10 @@
 import React from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import {
-  Loader2,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  ThumbsUp,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import LyricsCard from "@/components/LyricsCard";
-
-export interface LyricsOption {
-  id?: string;
-  plainLyrics?: string;
-  syncedLyrics?: string;
-  isSynced?: boolean;
-  duration?: number;
-  source?: string;
-  quality?: "high" | "medium" | "low";
-}
+import type { LyricsOption } from "@/hooks/api/useLyrics";
 
 type LyricsResultsProps =
   | ({
@@ -60,14 +43,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   youtubeMusicDurationSeconds,
   durationMs,
 }) => {
-  // Helper function to format duration
-  const formatDuration = (seconds: number) => {
-    if (!seconds) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
   // Helper function to parse duration string to seconds
   const parseYoutubeMusicDuration = (duration: string): number => {
     const parts = duration.split(":").map(Number);
@@ -134,44 +109,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
     );
   }, [sortedOptions, parsedDuration]);
 
-  // Helper function to get duration comparison status
-  const getDurationComparison = (
-    songDuration: number,
-    lyricsDuration: number
-  ) => {
-    const diff = Math.abs(songDuration - lyricsDuration);
-
-    if (diff <= 0.5) {
-      return {
-        status: "perfect",
-        message: "Perfect match",
-        icon: CheckCircle,
-        className: "text-green-700",
-      };
-    } else if (diff <= 2) {
-      return {
-        status: "good",
-        message: "Good match",
-        icon: ThumbsUp,
-        className: "text-green-700",
-      };
-    } else if (diff <= 4) {
-      return {
-        status: "okay",
-        message: "Okay match",
-        icon: AlertTriangle,
-        className: "text-orange-500",
-      };
-    } else {
-      return {
-        status: "poor",
-        message: "Duration mismatch",
-        icon: XCircle,
-        className: "text-red-600",
-      };
-    }
-  };
-
   // Auto-select best option based on duration matching
   React.useEffect(() => {
     if (options.length > 0 && !selectedOption && parsedDuration) {
@@ -225,13 +162,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
 
   if (options.length === 0) {
     return (
-      <Card className={className}>
-        <CardContent className="py-4">
+      <div className={className}>
+        <div className="py-4">
           <p className="text-muted-foreground text-center">
             No lyrics found for this song
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -243,11 +180,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
         className="space-y-4"
       >
         {sortedOptions.map((option, index) => {
-          const durationComparison = getDurationComparison(
-            parsedDuration,
-            option.duration ?? 0
-          );
-          const DurationIcon = durationComparison.icon;
           const isBestMatch = option === bestMatchOption;
 
           return (
@@ -261,80 +193,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
                   htmlFor={`lyrics-${index}`}
                   className="flex flex-col space-y-1 cursor-pointer"
                 >
-                  <Card
-                    className={`hover:border-primary w-full ${
-                      selectedOption === option
-                        ? "border-primary bg-primary/5"
-                        : ""
-                    }`}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            {option.isSynced && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-green-100 text-green-800 text-xs"
-                              >
-                                Synced
-                              </Badge>
-                            )}
-                            {option.source && (
-                              <Badge variant="outline" className="text-xs">
-                                {option.source}
-                              </Badge>
-                            )}
-                            {option.quality && (
-                              <Badge
-                                variant={
-                                  option.quality === "high"
-                                    ? "default"
-                                    : "secondary"
-                                }
-                                className="text-xs"
-                              >
-                                {option.quality}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Duration comparison */}
-                        {option.duration && (
-                          <div className="flex flex-col items-end gap-1">
-                            <div
-                              className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
-                            >
-                              {DurationIcon && <DurationIcon size={12} />}
-                              <span>{formatDuration(option.duration)}</span>
-                              <span className="text-muted-foreground">
-                                vs {formatDuration(parsedDuration)}
-                              </span>
-                            </div>
-                            <div
-                              className={`text-xs ${durationComparison.className}`}
-                            >
-                              {isBestMatch
-                                ? "Best match"
-                                : durationComparison.message}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Lyrics preview */}
-                      <div className="text-sm prose prose-sm max-w-none">
-                        <div className="max-h-32 overflow-hidden">
-                          <LyricsCard
-                            lyrics={option.syncedLyrics || option.plainLyrics}
-                            isSynced={option.isSynced}
-                            maxPreviewLines={maxPreviewLines}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <LyricsCard
+                    option={option}
+                    selectedOption={selectedOption ?? null}
+                    isBestMatch={isBestMatch}
+                    parsedDuration={parsedDuration}
+                    maxPreviewLines={maxPreviewLines}
+                  />
                 </Label>
               </div>
             </div>

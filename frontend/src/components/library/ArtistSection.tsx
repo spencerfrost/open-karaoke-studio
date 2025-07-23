@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
 import { Song } from "@/types/Song";
-import { useInfiniteArtistSongs } from "@/hooks/useInfiniteLibraryBrowsing";
+import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import HorizontalSongCard from "@/components/songs/HorizontalSongCard";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";

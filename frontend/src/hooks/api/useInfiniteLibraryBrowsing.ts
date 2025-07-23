@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { Song } from '../types/Song';
+import { Song } from '../../types/Song';
 
 // Helper function for API calls
 const apiGet = async <T>(url: string): Promise<T> => {

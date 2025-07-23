@@ -130,7 +130,7 @@ const PerformanceControlsPage: React.FC = () => {
               </Button>
               <ProgressBar
                 currentTime={currentTime}
-                duration={duration}
+                durationMs={duration}
                 onSeek={seek}
                 className="w-full"
               />

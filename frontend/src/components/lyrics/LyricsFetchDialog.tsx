@@ -27,7 +27,7 @@ import {
   RefreshCw,
   FileText,
 } from "lucide-react";
-import { useLyricsSearch } from "@/hooks/useLyrics";
+import { useLyricsSearch } from "@/hooks/api/useLyrics";
 
 export interface LyricsResult {
   id?: string;

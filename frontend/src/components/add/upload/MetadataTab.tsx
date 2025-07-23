@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { MetadataOption } from "@/hooks/useYoutube";
+import { MetadataOption } from "@/hooks/api/useMetadata";
 
 interface MetadataTabProps {
   isLoading: boolean;
@@ -55,7 +55,7 @@ export function MetadataTab({
           className="space-y-4"
         >
           {options.map((option, index) => (
-            <div key={option.id || index} className="flex align-middle items-center justify-center space-x-2">
+            <div key={option.metadataId || index} className="flex align-middle items-center justify-center space-x-2">
               <RadioGroupItem value={String(index)} id={`lyrics-${index}`} />
               <div className="flex-1">
                 <Label
@@ -71,11 +71,11 @@ export function MetadataTab({
                             {option.artist}
                             {option.album && ` • ${option.album}`}
                           </p>
-                          {(option.year || option.genre || option.language) && (
+                          {(option.releaseYear || option.genre) && (
                             <div className="mt-1 flex flex-wrap gap-1">
-                              {option.year && (
+                              {option.releaseYear && (
                                 <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
-                                  {option.year}
+                                  {option.releaseYear}
                                 </span>
                               )}
                               {option.genre && (
@@ -83,19 +83,9 @@ export function MetadataTab({
                                   {option.genre}
                                 </span>
                               )}
-                              {option.language && (
-                                <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
-                                  {option.language}
-                                </span>
-                              )}
                             </div>
                           )}
                         </div>
-                        {option.source && (
-                          <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                            {option.source}
-                          </span>
-                        )}
                       </div>
                     </CardContent>
                   </Card>

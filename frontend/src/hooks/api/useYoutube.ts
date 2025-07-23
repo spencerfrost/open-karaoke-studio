@@ -1,6 +1,6 @@
 // frontend/src/hooks/useYoutube.ts
-import { useApiMutation, useApiQuery } from "./useApi";
-import { UseMutationOptions, UseQueryOptions } from "@tanstack/react-query";
+import { useApiMutation } from "./useApi";
+import { UseMutationOptions } from "@tanstack/react-query";
 
 // --- Types ---
 export interface YouTubeDownloadRequest {
@@ -42,40 +42,6 @@ export interface CreateSongResponse {
   status: string;
 }
 
-export interface MetadataOption {
-  metadataId: string;
-  title: string;
-  artist: string;
-  artistId: number;
-  album?: string;
-  albumId?: number;
-  releaseYear?: number;
-  releaseDate?: string;
-  duration?: number;
-  discNumber?: number;
-  trackNumber?: number;
-  genre?: string;
-  country?: string;
-  artworkUrl?: string;
-  previewUrl?: string;
-  explicit?: boolean;
-  isStreamable?: boolean;
-  price?: number;
-}
-
-export interface MetadataSearchResponse {
-  count: number;
-  results: MetadataOption[];
-  search: {
-    album: string;
-    artist: string;
-    limit: number;
-    sort_by: string;
-    title: string;
-  };
-  success: boolean;
-}
-
 export interface SaveMetadataRequest {
   title: string;
   artist: string;
@@ -108,22 +74,6 @@ export const useYoutubeDownloadMutation = (
     "post",
     options
   );
-};
-
-/**
- * Hook to search for metadata using Metadata API
- */
-export const useMetadataSearch = (
-  params: MetadataSearchRequest,
-  options?: UseQueryOptions<MetadataSearchResponse, Error>
-) => {
-  const queryKey = ["metadata", "search", params];
-  const queryString = new URLSearchParams({
-    title: params.title,
-    artist: params.artist,
-  }).toString();
-
-  return useApiQuery(queryKey, `metadata/search?${queryString}`, options);
 };
 
 /**

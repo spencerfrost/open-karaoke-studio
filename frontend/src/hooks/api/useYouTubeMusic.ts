@@ -1,6 +1,6 @@
 // frontend/src/hooks/useYouTubeMusic.ts
 import { useApiQuery } from "./useApi";
-import { YouTubeMusicSearchResponse } from "../types/YouTubeMusic";
+import { YouTubeMusicSearchResponse } from "../../types/YouTubeMusic";
 
 export function useYouTubeMusicSearch(query: string, enabled: boolean = true) {
   return useApiQuery<

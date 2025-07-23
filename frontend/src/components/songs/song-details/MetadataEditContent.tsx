@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Song } from '@/types/Song';
-import { useItunesSearch, ITunesSearchResult } from '@/hooks/useItunesSearch';
+import { useMetadata } from '@/hooks/api/useMetadata';
 import {
   StepIndicator,
   SearchStep,
@@ -30,15 +30,15 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   onBack
 }) => {
   const [currentStep, setCurrentStep] = useState<Step>('search');
-  const [selectedResult, setSelectedResult] = useState<ITunesSearchResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState<any | null>(null);
   const [searchArtist, setSearchArtist] = useState(song.artist || '');
   const [searchTitle, setSearchTitle] = useState(song.title || '');
   const [searchAlbum, setSearchAlbum] = useState(song.album || '');
-  const [searchResults, setSearchResults] = useState<ITunesSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const queryClient = useQueryClient();
-  const { useSearchItunes } = useItunesSearch();
-  const searchMutation = useSearchItunes();
+  const { useSearchMetadata } = useMetadata();
+  const searchMutation = useSearchMetadata();
 
   const updateSongMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
@@ -87,7 +87,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     }
   };
 
-  const handleSelectResult = (result: ITunesSearchResult) => {
+  const handleSelectResult = (result: any) => {
     setSelectedResult(result);
     setCurrentStep('review');
   };

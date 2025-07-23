@@ -4,7 +4,7 @@ import {
   useCancelProcessing,
   useDismissJob,
 } from "../../services/uploadService";
-import { useJobsWebSocket } from "@/hooks/useJobsWebSocket";
+import { useJobsWebSocket } from "@/hooks/api/useJobsWebSocket";
 import { Button } from "@/components/ui/button"; // Import ShadCN Button
 import { Alert, AlertDescription } from "@/components/ui/alert"; // Import ShadCN Alert
 import { Badge } from "@/components/ui/badge"; // Import ShadCN Badge

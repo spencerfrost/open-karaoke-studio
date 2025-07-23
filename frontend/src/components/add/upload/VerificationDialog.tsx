@@ -11,10 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  LyricsOption,
-  MetadataOption,
-} from "@/hooks/useYoutube";
+import { LyricsOption } from "@/hooks/api/useLyrics";
+import { MetadataOption } from "@/hooks/api/useMetadata";
 import { MetadataTab } from "./MetadataTab";
 import { LyricsTab } from "./LyricsTab";
 

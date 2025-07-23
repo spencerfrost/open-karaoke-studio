@@ -1,8 +1,8 @@
 // frontend/src/components/YouTubeMusicSearch.tsx
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import { useYouTubeMusicSearch } from "../../hooks/useYouTubeMusic";
+import { useYouTubeMusicSearch } from "../../hooks/api/useYouTubeMusic";
 import { YouTubeMusicSong } from "../../types/YouTubeMusic";
-import { useSongs } from "../../hooks/useSongs";
+import { useSongs } from "../../hooks/api/useSongs";
 import { useState } from "react";
 import {
   Card,
@@ -20,9 +20,9 @@ import {
   DialogDescription,
 } from "../ui/dialog";
 import { LyricsResults } from "../forms";
-import { useLyricsSearch } from "../../hooks/useLyrics";
-import { useYoutubeDownloadMutation } from "@/hooks/useYoutube";
-import type { LyricsOption } from "@/components/forms";
+import { useLyricsSearch } from "../../hooks/api/useLyrics";
+import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
+import type { LyricsOption } from "@/hooks/api/useLyrics";
 import { toast } from "sonner";
 import { Song } from "@/types/Song";
 

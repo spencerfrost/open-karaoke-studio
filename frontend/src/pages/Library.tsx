@@ -1,13 +1,15 @@
 import React, { useState } from "react";
+import { useArtists } from "@/hooks/api/useArtists";
 import { Filter, Music } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import LibrarySearchInput from "../components/library/LibrarySearchInput";
-import LibraryContent from "../components/library/LibraryContent";
+import SongResultsSection from "../components/library/SongResultsSection";
+import ArtistResultsSection from "../components/library/ArtistResultsSection";
+import RecentlyAddedSongs from "../components/library/RecentlyAddedSongs";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useInfiniteFuzzySearch } from "@/hooks/useInfiniteFuzzySearch";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,11 +18,25 @@ const LibraryPage: React.FC = () => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Debounce search to avoid excessive API calls
-  const debouncedSearch = useDebouncedValue(searchTerm, 300);
+  // Song search (paginated, not infinite)
+  const { useSongs } = useSongsHook();
+  const songsQuery = useSongs(
+    searchTerm.trim()
+      ? {
+          q: searchTerm,
+          limit: 24,
+          offset: 0,
+          sort_by: "relevance",
+          direction: "desc",
+        }
+      : { limit: 24, offset: 0, sort_by: "date_added", direction: "desc" }
+  );
 
-  // Fuzzy search with dual display
-  const searchResults = useInfiniteFuzzySearch(debouncedSearch);
+  // Artist search (fetch all matching artists, up to 200)
+  const {
+    artists,
+    isLoading: artistsLoading,
+  } = useArtists({ search: searchTerm, limit: 200 });
 
   // Handlers
   const handleSongSelect = (song: Song) => {
@@ -31,6 +47,9 @@ const LibraryPage: React.FC = () => {
     navigate("/queue", { state: { songId: song.id } });
   };
 
+  // hasSearch logic
+  const hasSearch = searchTerm && searchTerm.trim().length > 0;
+
   return (
     <AppLayout>
       <div className="mb-6">
@@ -38,7 +57,6 @@ const LibraryPage: React.FC = () => {
           Song Library
         </h1>
 
-        {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -49,7 +67,6 @@ const LibraryPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Advanced Filters Button */}
           <Button
             variant="outline"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -65,7 +82,7 @@ const LibraryPage: React.FC = () => {
           <LibrarySearchInput
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
-            isLoading={searchResults.isLoading}
+            isLoading={songsQuery.isLoading || artistsLoading}
             placeholder="Search songs and artists..."
           />
         </div>
@@ -80,13 +97,31 @@ const LibraryPage: React.FC = () => {
           </div>
         )}
 
-        {/* Main Content - Dual Display Library */}
-        <LibraryContent
-          searchResults={searchResults}
-          onSongSelect={handleSongSelect}
-          onAddToQueue={handleAddToQueue}
-          searchTerm={searchTerm}
-        />
+        <div className="space-y-8">
+          {!hasSearch ? (
+            <RecentlyAddedSongs
+              onSongSelect={handleSongSelect}
+              onAddToQueue={handleAddToQueue}
+            />
+          ) : (
+            <SongResultsSection
+              songs={songsQuery.data || []}
+              hasNextPage={false} // Pagination can be added later
+              isFetchingNextPage={false}
+              fetchNextPage={() => {}}
+              onSongSelect={handleSongSelect}
+              onAddToQueue={handleAddToQueue}
+              searchTerm={searchTerm}
+            />
+          )}
+          {/* Artist Results Section - Always visible for browsing */}
+          <ArtistResultsSection
+            artists={artists}
+            onSongSelect={handleSongSelect}
+            onAddToQueue={handleAddToQueue}
+            searchTerm={searchTerm}
+          />
+        </div>
       </div>
     </AppLayout>
   );

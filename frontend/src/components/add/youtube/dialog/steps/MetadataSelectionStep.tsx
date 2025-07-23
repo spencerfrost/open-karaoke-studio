@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SearchForm, MetadataResults } from "@/components/forms";
-import type { SearchFormData, MetadataOption } from "@/components/forms";
+import type { SearchFormData } from "@/components/forms";
+import type { MetadataOption } from "@/hooks/api/useMetadata";
 
 interface MetadataSelectionStepProps {
   metadataOptions: MetadataOption[];

@@ -1,15 +1,15 @@
 import React from "react";
 import SongCard from "@/components/songs/SongCard";
-import { useSongs as useSongsHook } from "@/hooks/useSongs";
+import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import { Song } from "@/types/Song";
 
-interface RecentlyAddedRowProps {
+interface RecentlyAddedSongsProps {
   onSongSelect: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   limit?: number;
 }
 
-const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
+const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   onSongSelect,
   onAddToQueue,
   limit = 6,
@@ -21,18 +21,9 @@ const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
     direction: "desc",
   });
 
-  // Log dateAdded values for debugging
-  React.useEffect(() => {
-    if (recentSongs) {
-      console.log(
-        "RecentlyAddedRow dateAdded values:",
-        recentSongs.map((s) => s.dateAdded)
-      );
-    }
-  }, [recentSongs]);
-
   const sortedSongs = recentSongs || [];
 
+  // TODO: Improve empty and loading states
   if (isLoading || !recentSongs || recentSongs.length === 0) return null;
 
   return (
@@ -56,4 +47,4 @@ const RecentlyAddedRow: React.FC<RecentlyAddedRowProps> = ({
   );
 };
 
-export default RecentlyAddedRow;
+export default RecentlyAddedSongs;
