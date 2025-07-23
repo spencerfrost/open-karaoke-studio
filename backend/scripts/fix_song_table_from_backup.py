@@ -45,7 +45,6 @@ COLUMN_MAP = {
     "track_time_millis": "track_time_millis",
     "itunes_explicit": "itunes_explicit",
     "itunes_preview_url": "itunes_preview_url",
-    "itunes_artwork_urls": "itunes_artwork_urls",
     "youtube_thumbnail_urls": "youtube_thumbnail_urls",
     "youtube_tags": "youtube_tags",
     "youtube_categories": "youtube_categories",

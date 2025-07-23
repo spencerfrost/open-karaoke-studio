@@ -15,7 +15,6 @@ class Song(BaseModel):
     vocalPath: Optional[str] = None
     instrumentalPath: Optional[str] = None
     originalPath: Optional[str] = None
-    coverArt: Optional[str] = None
     thumbnail: Optional[str] = None
 
     # Source
@@ -57,7 +56,6 @@ class Song(BaseModel):
     trackTimeMillis: Optional[int] = None
     itunesExplicit: Optional[bool] = None
     itunesPreviewUrl: Optional[str] = None
-    itunesArtworkUrls: Optional[List[str]] = None  # JSON array
 
     status: str = "processed"
 

@@ -57,10 +57,6 @@ class FileService(FileServiceInterface):
         """Get thumbnail file path"""
         return self.get_song_directory(song_id) / "thumbnail.jpg"
 
-    def get_cover_art_path(self, song_id: str) -> Path:
-        """Get cover art file path"""
-        return self.get_song_directory(song_id) / "cover.jpg"
-
     def delete_song_files(self, song_id: str) -> bool:
         """Delete all files for a song"""
         try:
