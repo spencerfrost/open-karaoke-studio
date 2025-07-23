@@ -2,7 +2,8 @@
 #
 # ===== CLEANED UP VERSION =====
 # Legacy file operations have been moved to FileService.
-# This file now contains only business logic functions that go beyond simple file operations.
+# This file now contains only business logic functions that go beyond simple file
+# operations.
 # ==============================
 
 import logging
@@ -96,7 +97,8 @@ def download_image(url: str, save_path: Path) -> bool:
             url, headers=headers, timeout=10, allow_redirects=True
         )
 
-        # If HEAD request fails, try a GET request anyway as some servers don't support HEAD
+        # If HEAD request fails, try a GET request anyway as some 
+        # servers don't support HEAD
         if head_response.status_code != 200:
             logger.warning(
                 "HEAD request failed with status %s, trying GET instead",
@@ -163,16 +165,3 @@ def get_thumbnail_path(song_dir: Path) -> Path:
     NOTE: Consider using FileService.get_thumbnail_path() for consistency.
     """
     return song_dir / "thumbnail.jpg"
-
-
-def get_cover_art_path(song_dir: Path) -> Path:
-    """Returns the standard path for the album cover art.
-
-    NOTE: Consider using FileService.get_cover_art_path() for consistency.
-    """
-    return song_dir / "cover.jpg"
-
-
-# =============================================================================
-# END OF FILE
-# =============================================================================

@@ -4,8 +4,7 @@
 Metadata Service Interface for dependency injection and testing
 """
 
-from pathlib import Path
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -41,35 +40,5 @@ class MetadataServiceInterface(Protocol):
 
         Returns:
             Dict[str, Any]: Formatted response data
-        """
-        ...
-
-    def enhance_song_metadata(
-        self, metadata: dict[str, Any], song_dir: Path
-    ) -> dict[str, Any]:
-        """
-        Enhance existing song metadata with additional information.
-
-        Args:
-            metadata: Existing song metadata
-            song_dir: Song directory for cover art download
-
-        Returns:
-            Dict[str, Any]: Enhanced metadata
-        """
-        ...
-
-    def download_cover_art(
-        self, track_data: dict[str, Any], song_dir: Path
-    ) -> Optional[str]:
-        """
-        Download cover art for a track.
-
-        Args:
-            track_data: Track metadata containing artwork URLs
-            song_dir: Directory to save cover art
-
-        Returns:
-            str: Relative path to downloaded cover art or None
         """
         ...

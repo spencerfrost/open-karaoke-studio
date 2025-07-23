@@ -66,7 +66,9 @@ class LoggingConfig:
                 "simple": (
                     {
                         "()": colorlog.ColoredFormatter,
-                        "fmt": ("%(asctime)s %(log_color)s%(levelname)-8s%(reset)s %(white)s%(message)s"
+                        "fmt": (
+                            "%(asctime)s %(log_color)s%(levelname)-8s%(reset)s "
+                            "%(white)s%(message)s"
                         ),
                         "datefmt": "%H:%M:%S",
                         "log_colors": {
@@ -117,7 +119,8 @@ class LoggingConfig:
                     "maxBytes": 10485760,
                     "backupCount": 5,
                     "encoding": "utf8",
-                },                "file_celery": {
+                },
+                "file_celery": {
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "INFO",
                     "formatter": "celery",
@@ -125,18 +128,19 @@ class LoggingConfig:
                     "maxBytes": 10485760,
                     "backupCount": 5,
                     "encoding": "utf8",
-                },            },
+                },
+            },
             "loggers": {
                 # Root logger
                 "": {
                     "level": "INFO",
-                    "handlers": ["console","file_info", ],
+                    "handlers": ["console", "file_info", ],
                     "propagate": False,
                 },
                 # App-specific loggers
                 "app": {
                     "level": "INFO",
-                    "handlers": ["console","file_info", ],
+                    "handlers": ["console", "file_info", ],
                     "propagate": False,
                 },
                 # Celery loggers

@@ -535,26 +535,7 @@ export function useSongs() {
         // Use the backend API endpoint for thumbnails (auto-detects format)
         return `/api/songs/${song.id}/thumbnail`;
       }
-      // iTunes artwork URLs (external)
-      if (song.itunesArtworkUrls) {
-        switch (size) {
-          case "large":
-            if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
-            if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
-            if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
-            break;
-          case "medium":
-            if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
-            if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
-            if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
-            break;
-          case "small":
-            if (song.itunesArtworkUrls[60]) return song.itunesArtworkUrls[60];
-            if (song.itunesArtworkUrls[100]) return song.itunesArtworkUrls[100];
-            if (song.itunesArtworkUrls[600]) return song.itunesArtworkUrls[600];
-            break;
-        }
-      }
+
       // YouTube thumbnail URLs (external)
       if (song.youtubeThumbnailUrls) {
         switch (size) {
@@ -589,10 +570,6 @@ export function useSongs() {
               return song.youtubeThumbnailUrls.high;
             break;
         }
-      }
-      // Last resort: Try cover art path (but this probably won't work due to missing backend endpoint)
-      if (song.coverArt) {
-        return `/api/songs/${song.id}/cover`;
       }
       return null;
     },
