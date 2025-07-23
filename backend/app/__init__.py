@@ -7,10 +7,10 @@ A Flask application for managing and processing karaoke tracks.
 from flask import Flask
 from flask_cors import CORS
 
-from .config import get_config
 from .api import register_blueprints
+from .config import get_config
 from .jobs import init_celery
-from .db import Base, engine
+from .utils.error_handlers import register_error_handlers
 from .websockets import init_socketio
 
 
@@ -27,7 +27,7 @@ def create_app(config_class=None):
     """
     if config_class is None:
         config_class = get_config()
-        
+
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -46,9 +46,12 @@ def create_app(config_class=None):
 
     # Ensure database schema is up to date
     from .db.database import ensure_db_schema
+
     ensure_db_schema()
 
     # Register all blueprints
     register_blueprints(app)
+    # Register global error handlers
+    register_error_handlers(app)
 
     return app

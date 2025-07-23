@@ -8,4 +8,5 @@ queue updates, and notifications to connected clients.
 
 def register_handlers(socketio):
     """Register WebSocket event handlers for the karaoke queue."""
-    pass  # To be implemented
+    # TODO: Implement karaoke queue WebSocket handlers
+    return socketio

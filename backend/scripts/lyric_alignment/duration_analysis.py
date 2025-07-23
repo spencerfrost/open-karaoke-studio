@@ -4,20 +4,22 @@ Duration-based analysis for lyric alignment.
 Compare synced lyrics duration with vocal track duration to determine alignment strategy.
 """
 
-import sys
 import json
 import re
+import sys
 from pathlib import Path
+
 import librosa
+
 
 def parse_synced_lyrics_duration(lyrics_content):
     """Parse synced lyrics and calculate total duration."""
-    lines = lyrics_content.strip().split('\n')
+    lines = lyrics_content.strip().split("\n")
     timestamps = []
 
     for line in lines:
         # Match LRC format: [mm:ss.xx] or [mm:ss]
-        match = re.match(r'\[(\d{1,2}):(\d{2})(?:\.(\d{2}))?\]\s*(.*)', line.strip())
+        match = re.match(r"\[(\d{1,2}):(\d{2})(?:\.(\d{2}))?\]\s*(.*)", line.strip())
         if match:
             minutes = int(match.group(1))
             seconds = int(match.group(2))
@@ -26,10 +28,7 @@ def parse_synced_lyrics_duration(lyrics_content):
 
             if text:  # Only count lines with actual lyrics
                 timestamp = minutes * 60 + seconds + centiseconds / 100
-                timestamps.append({
-                    "time": timestamp,
-                    "text": text
-                })
+                timestamps.append({"time": timestamp, "text": text})
 
     if not timestamps:
         return None
@@ -40,8 +39,9 @@ def parse_synced_lyrics_duration(lyrics_content):
         "duration": timestamps[-1]["time"] - timestamps[0]["time"],
         "total_lines": len(timestamps),
         "first_line": timestamps[0]["text"],
-        "last_line": timestamps[-1]["text"]
+        "last_line": timestamps[-1]["text"],
     }
+
 
 def analyze_audio_duration(audio_path):
     """Analyze audio file duration and basic properties."""
@@ -63,8 +63,12 @@ def analyze_audio_duration(audio_path):
     frame_times = librosa.frames_to_time(range(len(rms_energy)), sr=sr)
     significant_times = frame_times[significant_frames]
 
-    first_significant_time = float(significant_times[0]) if len(significant_times) > 0 else 0.0
-    last_significant_time = float(significant_times[-1]) if len(significant_times) > 0 else duration
+    first_significant_time = (
+        float(significant_times[0]) if len(significant_times) > 0 else 0.0
+    )
+    last_significant_time = (
+        float(significant_times[-1]) if len(significant_times) > 0 else duration
+    )
 
     return {
         "total_duration": duration,
@@ -72,8 +76,9 @@ def analyze_audio_duration(audio_path):
         "avg_energy": avg_energy,
         "first_significant_sound": first_significant_time,
         "last_significant_sound": last_significant_time,
-        "significant_audio_duration": last_significant_time - first_significant_time
+        "significant_audio_duration": last_significant_time - first_significant_time,
     }
+
 
 def calculate_alignment_strategy(audio_info, lyrics_info):
     """Calculate the best alignment strategy based on duration analysis."""
@@ -82,7 +87,7 @@ def calculate_alignment_strategy(audio_info, lyrics_info):
         return {
             "strategy": "onset_detection_only",
             "reason": "No synced lyrics provided",
-            "search_window": min(10.0, audio_info["total_duration"] * 0.3)
+            "search_window": min(10.0, audio_info["total_duration"] * 0.3),
         }
 
     audio_duration = audio_info["significant_audio_duration"]
@@ -90,7 +95,9 @@ def calculate_alignment_strategy(audio_info, lyrics_info):
     lyrics_start = lyrics_info["start_time"]
 
     duration_diff = abs(audio_duration - lyrics_duration)
-    duration_ratio = min(audio_duration, lyrics_duration) / max(audio_duration, lyrics_duration)
+    duration_ratio = min(audio_duration, lyrics_duration) / max(
+        audio_duration, lyrics_duration
+    )
 
     print(f"\n📊 DURATION ANALYSIS")
     print(f"Audio duration (significant): {audio_duration:.2f}s")
@@ -133,17 +140,15 @@ def calculate_alignment_strategy(audio_info, lyrics_info):
         "reason": reason,
         "confidence": confidence,
         "search_window": search_window,
-        "expected_offset_range": {
-            "min": -search_window / 2,
-            "max": search_window / 2
-        },
+        "expected_offset_range": {"min": -search_window / 2, "max": search_window / 2},
         "duration_analysis": {
             "audio_duration": audio_duration,
             "lyrics_duration": lyrics_duration,
             "duration_diff": duration_diff,
-            "duration_ratio": duration_ratio
-        }
+            "duration_ratio": duration_ratio,
+        },
     }
+
 
 def main():
     if len(sys.argv) < 2:
@@ -174,7 +179,7 @@ def main():
             if not Path(lyrics_path).exists():
                 print(f"❌ Warning: Lyrics file not found: {lyrics_path}")
             else:
-                with open(lyrics_path, 'r', encoding='utf-8') as f:
+                with open(lyrics_path, "r", encoding="utf-8") as f:
                     lyrics_content = f.read()
                 lyrics_info = parse_synced_lyrics_duration(lyrics_content)
 
@@ -200,11 +205,11 @@ def main():
             "lyrics_file": str(lyrics_path) if lyrics_path else None,
             "audio_info": audio_info,
             "lyrics_info": lyrics_info,
-            "alignment_strategy": strategy
+            "alignment_strategy": strategy,
         }
 
         output_file = Path(audio_path).stem + "_duration_analysis.json"
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
 
         print(f"\n💾 Analysis saved to: {output_file}")
@@ -212,8 +217,10 @@ def main():
     except Exception as e:
         print(f"❌ Error during analysis: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

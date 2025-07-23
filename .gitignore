@@ -2,6 +2,7 @@
 .DS_Store
 Thumbs.db
 *.log
+*.log.*
 *.env
 .env.*
 !.env.example
@@ -64,7 +65,12 @@ pnpm-debug.log
 karaoke_library
 downloads
 job_store
-instructions.md
 temp_job_cache
+lrclip
+.serena
 
-/docs/issues
+backend/karaoke.db-shm
+backend/karaoke.db-wal
+docs/archived/
+.github/copilot-instructions.md
+htmlcov

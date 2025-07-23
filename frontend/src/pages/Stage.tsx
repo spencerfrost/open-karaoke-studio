@@ -9,8 +9,15 @@ import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
 
 const Stage: React.FC = () => {
-  const { currentTime, duration, seek, connect, disconnect, connected } =
-    useKaraokePlayerStore();
+  const {
+    currentTime,
+    duration,
+    durationMs,
+    seek,
+    connect,
+    disconnect,
+    connected,
+  } = useKaraokePlayerStore();
 
   const { currentQueueItem, items } = useKaraokeQueueStore();
   const currentSong = currentQueueItem?.song;
@@ -37,12 +44,12 @@ const Stage: React.FC = () => {
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
           <UnifiedLyricsDisplay
-            lyrics={currentSong?.syncedLyrics || currentSong?.lyrics || ""}
+            lyrics={currentSong?.syncedLyrics || currentSong?.plainLyrics || ""}
             isSynced={!!currentSong?.syncedLyrics}
             currentTime={currentTime * 1000}
             title={currentSong?.title || ""}
             artist={currentSong?.artist || ""}
-            duration={duration}
+            durationMs={durationMs !== undefined ? durationMs : duration * 1000}
             onSeek={seek}
           />
         </div>

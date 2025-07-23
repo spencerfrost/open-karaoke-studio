@@ -36,7 +36,7 @@ backend/scripts/lyric_alignment/
 
 ### Step 1: Install Dependencies
 ```bash
-cd /home/spencer/code/open-karaoke/backend/scripts/lyric_alignment
+cd /home/spencer/code/open-karaoke-studio/backend/scripts/lyric_alignment
 pip install -r requirements.txt
 ```
 

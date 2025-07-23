@@ -12,12 +12,13 @@
     "lint:check": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --max-warnings=0",
     "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
     "type-check": "tsc --noEmit",
-    "check": "npm run format:check && npm run lint:check && npm run typecheck",
-    "fix": "npm run format && npm run lint:fix",
+    "check": "pnpm run format:check && pnpm run lint:check && pnpm run type-check",
+    "fix": "pnpm run format && pnpm run lint:fix",
     "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-dialog": "^1.1.11",
     "@radix-ui/react-label": "^2.1.4",

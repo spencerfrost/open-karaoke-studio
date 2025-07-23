@@ -1,3 +1,4 @@
+# Python version requirement: 3.10+
 Flask
 Flask-CORS
 numpy<2.0.0
@@ -11,8 +12,11 @@ python-dotenv
 requests
 sqlalchemy
 alembic>=1.8.0
+python-json-logger>=2.0.7
 flask-socketio
 eventlet
+soundfile
+librosa
 # Testing dependencies
 pytest>=7.0.0
 pytest-flask>=1.2.0
@@ -23,5 +27,11 @@ factory-boy>=3.2.0
 freezegun>=1.2.0
 responses>=0.22.0
 pytest-xdist>=3.0.0
+# Code quality and formatting tools
+pylint>=2.15.0
+black>=22.0.0
+isort>=5.10.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
+colorlog>=6.0.0
+ytmusicapi>=1.3.0

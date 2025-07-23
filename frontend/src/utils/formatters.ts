@@ -1,11 +1,17 @@
 /**
  * Format seconds into MM:SS format
  */
-export const formatTime = (seconds: number): string => {
-  if (isNaN(seconds) || seconds < 0) return "0:00";
-
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
+// Format milliseconds into MM:SS or MM:SS.SSS
+export const formatTimeMs = (ms: number, showMs: boolean = false): string => {
+  console.log("formatTimeMs called with:", ms, showMs);
+  if (isNaN(ms) || ms < 0) return "0:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (showMs) {
+    const msPart = ms % 1000;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}.${msPart.toString().padStart(3, "0")}`;
+  }
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 
@@ -40,84 +46,4 @@ export const formatFileSize = (bytes: number): string => {
 export const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + "...";
-};
-
-/**
- * Parses a YouTube video title into separate song title and artist
- * Similar to the backend implementation but available client-side
- */
-export const parseYouTubeTitle = (
-  videoTitle: string,
-): { title: string; artist: string } => {
-  // Default values
-  let artist = "Unknown Artist";
-  let title = videoTitle;
-
-  // Remove common suffixes
-  const commonSuffixes = [
-    "(Official Video)",
-    "(Official Music Video)",
-    "(Official Audio)",
-    "(Lyrics)",
-    "(Lyric Video)",
-    "(Audio)",
-    "(HQ)",
-    "(HD)",
-    "[Official Video]",
-    "[Official Music Video]",
-    "[Official Audio]",
-    "[Lyrics]",
-    "[Lyric Video]",
-    "[Audio]",
-    "[HQ]",
-    "[HD]",
-    "- Official Video",
-    "- Lyrics",
-    "(Official)",
-    "[Official]",
-  ];
-
-  // Case insensitive removal of suffixes
-  for (const suffix of commonSuffixes) {
-    const regex = new RegExp(
-      suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-      "i",
-    );
-    if (regex.test(title)) {
-      title = title.replace(regex, "").trim();
-    }
-  }
-
-  // Try common separators
-  const separators = [" - ", " – ", " | ", " _ ", ": "];
-  for (const separator of separators) {
-    if (title.includes(separator)) {
-      const parts = title.split(separator, 2);
-      artist = parts[0].trim();
-      title = parts[1].trim();
-      return { title, artist };
-    }
-  }
-
-  // Try "by" pattern (e.g., "Title by Artist")
-  if (title.toLowerCase().includes(" by ")) {
-    const parts = title.toLowerCase().split(" by ", 2);
-    title = parts[0].trim();
-    artist = parts[1].trim();
-
-    // Convert to title case
-    title = title.replace(
-      /\w\S*/g,
-      (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase(),
-    );
-    artist = artist.replace(
-      /\w\S*/g,
-      (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase(),
-    );
-
-    return { title, artist };
-  }
-
-  // Return best guess
-  return { title, artist };
 };

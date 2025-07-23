@@ -1,0 +1,2874 @@
+{
+  "audio_file": "/home/spencer/code/open-karaoke-studio/karaoke_library/29257f48-8a26-44b7-ae4a-241540f0b0e9/vocals.mp3",
+  "detected_language": "en",
+  "language_probability": 1,
+  "duration": 361.6130625,
+  "processing_time": 4.017242193222046,
+  "text": "You credit business fortune teller picnic it's nothing wrong with a little california magic long-time listener first-time caller is this what it feels like to be kneeling at the altar creature on a beach the megaphone preaching listen up you heathens you think these waves are gonna save you let birds get lady worship in the pavement she says I don't know but lately I think these rollerblades might save me Jesus did have come on let's chase the river don't you know that it's all just California magic techno kids dancing robot in a trance and this movement for the millions oh hey man did you film emerald green liquid metal she driven down like lava it's a Chevrolet impala Jesus do you have it come on let's chase the rabbit don't you know that it's all just California magic you Tiro walk up, walking on the water, hold the ocean rolling, with a skyline on a shoulder. Backseat signal, heavy metal hymnum, six-string slinger, he's the same, he's a sinner. Jesus did have it. Come on, let's chase the rabbit. Can we get back to all Jesus did have it. Come on, let's chase the rabbit. Don't you know that the soldiers, California magic. Jesus did have it. Come on, let's chase the rabbit. Can we get back to all that California magic.",
+  "segments": [
+    {
+      "start": 14.44,
+      "end": 15.84,
+      "text": " You",
+      "words": [
+        {
+          "word": "You",
+          "start": 14.44,
+          "end": 15.84,
+          "probability": 0.0909423828125
+        }
+      ]
+    },
+    {
+      "start": 32.34,
+      "end": 45.7,
+      "text": " credit business fortune teller picnic it's nothing wrong with a little california magic",
+      "words": [
+        {
+          "word": "credit",
+          "start": 32.34,
+          "end": 33.74,
+          "probability": 0.00962066650390625
+        },
+        {
+          "word": "business",
+          "start": 33.74,
+          "end": 35.14,
+          "probability": 0.2705078125
+        },
+        {
+          "word": "fortune",
+          "start": 35.14,
+          "end": 37.2,
+          "probability": 0.8115234375
+        },
+        {
+          "word": "teller",
+          "start": 37.2,
+          "end": 38.1,
+          "probability": 0.792724609375
+        },
+        {
+          "word": "picnic",
+          "start": 38.1,
+          "end": 38.62,
+          "probability": 0.85546875
+        },
+        {
+          "word": "it's",
+          "start": 38.62,
+          "end": 40.98,
+          "probability": 0.6943359375
+        },
+        {
+          "word": "nothing",
+          "start": 40.98,
+          "end": 41.48,
+          "probability": 0.98291015625
+        },
+        {
+          "word": "wrong",
+          "start": 41.48,
+          "end": 42.28,
+          "probability": 0.994140625
+        },
+        {
+          "word": "with",
+          "start": 42.28,
+          "end": 43.06,
+          "probability": 0.9921875
+        },
+        {
+          "word": "a",
+          "start": 43.06,
+          "end": 43.78,
+          "probability": 0.34423828125
+        },
+        {
+          "word": "little",
+          "start": 43.78,
+          "end": 43.96,
+          "probability": 0.98681640625
+        },
+        {
+          "word": "california",
+          "start": 43.96,
+          "end": 45.2,
+          "probability": 0.9541015625
+        },
+        {
+          "word": "magic",
+          "start": 45.2,
+          "end": 45.7,
+          "probability": 0.89990234375
+        }
+      ]
+    },
+    {
+      "start": 49.96,
+      "end": 63.7,
+      "text": " long-time listener first-time caller is this what it feels like to be kneeling at the altar",
+      "words": [
+        {
+          "word": "long",
+          "start": 49.96,
+          "end": 51.14,
+          "probability": 0.05853271484375
+        },
+        {
+          "word": "-time",
+          "start": 51.14,
+          "end": 51.58,
+          "probability": 0.5946044921875
+        },
+        {
+          "word": "listener",
+          "start": 51.58,
+          "end": 52.38,
+          "probability": 0.978515625
+        },
+        {
+          "word": "first",
+          "start": 52.38,
+          "end": 55.08,
+          "probability": 0.560546875
+        },
+        {
+          "word": "-time",
+          "start": 55.08,
+          "end": 55.66,
+          "probability": 0.731689453125
+        },
+        {
+          "word": "caller",
+          "start": 55.66,
+          "end": 56.48,
+          "probability": 0.943359375
+        },
+        {
+          "word": "is",
+          "start": 56.48,
+          "end": 58.56,
+          "probability": 0.24658203125
+        },
+        {
+          "word": "this",
+          "start": 58.56,
+          "end": 58.8,
+          "probability": 0.324951171875
+        },
+        {
+          "word": "what",
+          "start": 58.8,
+          "end": 59.3,
+          "probability": 0.97705078125
+        },
+        {
+          "word": "it",
+          "start": 59.3,
+          "end": 59.64,
+          "probability": 0.99072265625
+        },
+        {
+          "word": "feels",
+          "start": 59.64,
+          "end": 60.46,
+          "probability": 0.9951171875
+        },
+        {
+          "word": "like",
+          "start": 60.46,
+          "end": 61.08,
+          "probability": 0.994140625
+        },
+        {
+          "word": "to",
+          "start": 61.08,
+          "end": 61.82,
+          "probability": 0.98486328125
+        },
+        {
+          "word": "be",
+          "start": 61.82,
+          "end": 62.02,
+          "probability": 0.998046875
+        },
+        {
+          "word": "kneeling",
+          "start": 62.02,
+          "end": 62.62,
+          "probability": 0.990966796875
+        },
+        {
+          "word": "at",
+          "start": 62.62,
+          "end": 63.02,
+          "probability": 0.98193359375
+        },
+        {
+          "word": "the",
+          "start": 63.02,
+          "end": 63.18,
+          "probability": 0.98828125
+        },
+        {
+          "word": "altar",
+          "start": 63.18,
+          "end": 63.7,
+          "probability": 0.9423828125
+        }
+      ]
+    },
+    {
+      "start": 84.30000000000001,
+      "end": 97.16,
+      "text": " creature on a beach the megaphone preaching listen up you heathens you think these waves are gonna",
+      "words": [
+        {
+          "word": "creature",
+          "start": 84.30000000000001,
+          "end": 85.26,
+          "probability": 0.0144195556640625
+        },
+        {
+          "word": "on",
+          "start": 85.26,
+          "end": 85.68,
+          "probability": 0.92724609375
+        },
+        {
+          "word": "a",
+          "start": 85.68,
+          "end": 85.8,
+          "probability": 0.9228515625
+        },
+        {
+          "word": "beach",
+          "start": 85.8,
+          "end": 86.26,
+          "probability": 0.9619140625
+        },
+        {
+          "word": "the",
+          "start": 86.26,
+          "end": 88.64,
+          "probability": 0.438720703125
+        },
+        {
+          "word": "megaphone",
+          "start": 88.64,
+          "end": 89.64,
+          "probability": 0.863525390625
+        },
+        {
+          "word": "preaching",
+          "start": 89.64,
+          "end": 90.18,
+          "probability": 0.87646484375
+        },
+        {
+          "word": "listen",
+          "start": 90.18,
+          "end": 92.82,
+          "probability": 0.8701171875
+        },
+        {
+          "word": "up",
+          "start": 92.82,
+          "end": 93.3,
+          "probability": 0.99365234375
+        },
+        {
+          "word": "you",
+          "start": 93.3,
+          "end": 93.58,
+          "probability": 0.900390625
+        },
+        {
+          "word": "heathens",
+          "start": 93.58,
+          "end": 94.52,
+          "probability": 0.9817708333333334
+        },
+        {
+          "word": "you",
+          "start": 94.52,
+          "end": 95.4,
+          "probability": 0.8876953125
+        },
+        {
+          "word": "think",
+          "start": 95.4,
+          "end": 95.72,
+          "probability": 0.99658203125
+        },
+        {
+          "word": "these",
+          "start": 95.72,
+          "end": 96.12,
+          "probability": 0.99755859375
+        },
+        {
+          "word": "waves",
+          "start": 96.12,
+          "end": 96.78,
+          "probability": 0.998046875
+        },
+        {
+          "word": "are",
+          "start": 96.78,
+          "end": 97.0,
+          "probability": 0.904296875
+        },
+        {
+          "word": "gonna",
+          "start": 97.0,
+          "end": 97.16,
+          "probability": 0.8505859375
+        }
+      ]
+    },
+    {
+      "start": 97.16,
+      "end": 112.64,
+      "text": " save you let birds get lady worship in the pavement she says I don't know but lately I",
+      "words": [
+        {
+          "word": "save",
+          "start": 97.16,
+          "end": 97.58,
+          "probability": 0.0372314453125
+        },
+        {
+          "word": "you",
+          "start": 97.58,
+          "end": 98.78,
+          "probability": 0.724609375
+        },
+        {
+          "word": "let",
+          "start": 98.78,
+          "end": 103.02,
+          "probability": 0.17431640625
+        },
+        {
+          "word": "birds",
+          "start": 103.02,
+          "end": 103.46,
+          "probability": 0.76708984375
+        },
+        {
+          "word": "get",
+          "start": 103.46,
+          "end": 103.68,
+          "probability": 0.4482421875
+        },
+        {
+          "word": "lady",
+          "start": 103.68,
+          "end": 104.6,
+          "probability": 0.3994140625
+        },
+        {
+          "word": "worship",
+          "start": 104.6,
+          "end": 107.24,
+          "probability": 0.283935546875
+        },
+        {
+          "word": "in",
+          "start": 107.24,
+          "end": 107.6,
+          "probability": 0.7705078125
+        },
+        {
+          "word": "the",
+          "start": 107.6,
+          "end": 107.7,
+          "probability": 0.99658203125
+        },
+        {
+          "word": "pavement",
+          "start": 107.7,
+          "end": 108.24,
+          "probability": 0.923828125
+        },
+        {
+          "word": "she",
+          "start": 108.24,
+          "end": 109.38,
+          "probability": 0.7607421875
+        },
+        {
+          "word": "says",
+          "start": 109.38,
+          "end": 109.82,
+          "probability": 0.9853515625
+        },
+        {
+          "word": "I",
+          "start": 109.82,
+          "end": 110.72,
+          "probability": 0.8291015625
+        },
+        {
+          "word": "don't",
+          "start": 110.72,
+          "end": 110.94,
+          "probability": 0.993896484375
+        },
+        {
+          "word": "know",
+          "start": 110.94,
+          "end": 111.34,
+          "probability": 0.99267578125
+        },
+        {
+          "word": "but",
+          "start": 111.34,
+          "end": 111.58,
+          "probability": 0.86279296875
+        },
+        {
+          "word": "lately",
+          "start": 111.58,
+          "end": 112.28,
+          "probability": 0.865234375
+        },
+        {
+          "word": "I",
+          "start": 112.28,
+          "end": 112.81,
+          "probability": 0.87744140625
+        }
+      ]
+    },
+    {
+      "start": 113.42,
+      "end": 123.8,
+      "text": " think these rollerblades might save me Jesus did have come on let's chase the",
+      "words": [
+        {
+          "word": "think",
+          "start": 113.42,
+          "end": 113.74,
+          "probability": 0.99755859375
+        },
+        {
+          "word": "these",
+          "start": 113.74,
+          "end": 114.16,
+          "probability": 0.9814453125
+        },
+        {
+          "word": "rollerblades",
+          "start": 114.16,
+          "end": 115.2,
+          "probability": 0.7373046875
+        },
+        {
+          "word": "might",
+          "start": 115.2,
+          "end": 115.58,
+          "probability": 0.6923828125
+        },
+        {
+          "word": "save",
+          "start": 115.58,
+          "end": 116.14,
+          "probability": 0.97314453125
+        },
+        {
+          "word": "me",
+          "start": 116.14,
+          "end": 116.64,
+          "probability": 0.89892578125
+        },
+        {
+          "word": "Jesus",
+          "start": 116.64,
+          "end": 118.9,
+          "probability": 0.642578125
+        },
+        {
+          "word": "did",
+          "start": 118.9,
+          "end": 119.64,
+          "probability": 0.6162109375
+        },
+        {
+          "word": "have",
+          "start": 119.64,
+          "end": 120.4,
+          "probability": 0.51123046875
+        },
+        {
+          "word": "come",
+          "start": 120.4,
+          "end": 121.96,
+          "probability": 0.443603515625
+        },
+        {
+          "word": "on",
+          "start": 121.96,
+          "end": 122.34,
+          "probability": 0.966796875
+        },
+        {
+          "word": "let's",
+          "start": 122.34,
+          "end": 122.74,
+          "probability": 0.9404296875
+        },
+        {
+          "word": "chase",
+          "start": 122.74,
+          "end": 123.26,
+          "probability": 0.92578125
+        },
+        {
+          "word": "the",
+          "start": 123.26,
+          "end": 123.8,
+          "probability": 0.880859375
+        }
+      ]
+    },
+    {
+      "start": 123.8,
+      "end": 132.68,
+      "text": " river don't you know that it's all just California magic",
+      "words": [
+        {
+          "word": "river",
+          "start": 123.8,
+          "end": 124.58,
+          "probability": 0.0003139972686767578
+        },
+        {
+          "word": "don't",
+          "start": 124.58,
+          "end": 126.96,
+          "probability": 0.639892578125
+        },
+        {
+          "word": "you",
+          "start": 126.96,
+          "end": 127.22,
+          "probability": 0.94921875
+        },
+        {
+          "word": "know",
+          "start": 127.22,
+          "end": 127.58,
+          "probability": 0.986328125
+        },
+        {
+          "word": "that",
+          "start": 127.58,
+          "end": 128.1,
+          "probability": 0.96337890625
+        },
+        {
+          "word": "it's",
+          "start": 128.1,
+          "end": 128.9,
+          "probability": 0.7364501953125
+        },
+        {
+          "word": "all",
+          "start": 128.9,
+          "end": 129.26,
+          "probability": 0.92138671875
+        },
+        {
+          "word": "just",
+          "start": 129.26,
+          "end": 129.68,
+          "probability": 0.94189453125
+        },
+        {
+          "word": "California",
+          "start": 129.68,
+          "end": 130.88,
+          "probability": 0.8095703125
+        },
+        {
+          "word": "magic",
+          "start": 130.88,
+          "end": 132.68,
+          "probability": 0.62451171875
+        }
+      ]
+    },
+    {
+      "start": 136.38000000000002,
+      "end": 149.42,
+      "text": " techno kids dancing robot in a trance and this movement for the millions oh hey man",
+      "words": [
+        {
+          "word": "techno",
+          "start": 136.38000000000002,
+          "end": 137.36,
+          "probability": 0.294189453125
+        },
+        {
+          "word": "kids",
+          "start": 137.36,
+          "end": 137.72,
+          "probability": 0.96435546875
+        },
+        {
+          "word": "dancing",
+          "start": 137.72,
+          "end": 138.5,
+          "probability": 0.97705078125
+        },
+        {
+          "word": "robot",
+          "start": 138.5,
+          "end": 141.24,
+          "probability": 0.90869140625
+        },
+        {
+          "word": "in",
+          "start": 141.24,
+          "end": 141.62,
+          "probability": 0.84326171875
+        },
+        {
+          "word": "a",
+          "start": 141.62,
+          "end": 141.76,
+          "probability": 0.9287109375
+        },
+        {
+          "word": "trance",
+          "start": 141.76,
+          "end": 142.26,
+          "probability": 0.9326171875
+        },
+        {
+          "word": "and",
+          "start": 142.26,
+          "end": 142.48,
+          "probability": 0.48779296875
+        },
+        {
+          "word": "this",
+          "start": 142.48,
+          "end": 144.92,
+          "probability": 0.6787109375
+        },
+        {
+          "word": "movement",
+          "start": 144.92,
+          "end": 145.4,
+          "probability": 0.94091796875
+        },
+        {
+          "word": "for",
+          "start": 145.4,
+          "end": 145.82,
+          "probability": 0.9873046875
+        },
+        {
+          "word": "the",
+          "start": 145.82,
+          "end": 145.96,
+          "probability": 0.978515625
+        },
+        {
+          "word": "millions",
+          "start": 145.96,
+          "end": 146.6,
+          "probability": 0.92724609375
+        },
+        {
+          "word": "oh",
+          "start": 146.6,
+          "end": 148.6,
+          "probability": 0.408203125
+        },
+        {
+          "word": "hey",
+          "start": 148.6,
+          "end": 149.04,
+          "probability": 0.876953125
+        },
+        {
+          "word": "man",
+          "start": 149.04,
+          "end": 149.42,
+          "probability": 0.986328125
+        }
+      ]
+    },
+    {
+      "start": 149.42,
+      "end": 166.78000000000003,
+      "text": " did you film emerald green liquid metal she driven down like lava it's a Chevrolet",
+      "words": [
+        {
+          "word": "did",
+          "start": 149.42,
+          "end": 149.58,
+          "probability": 0.04595947265625
+        },
+        {
+          "word": "you",
+          "start": 149.58,
+          "end": 149.74,
+          "probability": 0.94384765625
+        },
+        {
+          "word": "film",
+          "start": 149.74,
+          "end": 150.18,
+          "probability": 0.1953125
+        },
+        {
+          "word": "emerald",
+          "start": 150.18,
+          "end": 155.9,
+          "probability": 0.49664306640625
+        },
+        {
+          "word": "green",
+          "start": 155.9,
+          "end": 156.44,
+          "probability": 0.97021484375
+        },
+        {
+          "word": "liquid",
+          "start": 156.44,
+          "end": 159.22,
+          "probability": 0.9912109375
+        },
+        {
+          "word": "metal",
+          "start": 159.22,
+          "end": 159.7,
+          "probability": 0.96533203125
+        },
+        {
+          "word": "she",
+          "start": 159.7,
+          "end": 160.06,
+          "probability": 0.74560546875
+        },
+        {
+          "word": "driven",
+          "start": 160.06,
+          "end": 162.82,
+          "probability": 0.06109619140625
+        },
+        {
+          "word": "down",
+          "start": 162.82,
+          "end": 163.34,
+          "probability": 0.59033203125
+        },
+        {
+          "word": "like",
+          "start": 163.34,
+          "end": 163.76,
+          "probability": 0.91064453125
+        },
+        {
+          "word": "lava",
+          "start": 163.76,
+          "end": 164.38,
+          "probability": 0.8671875
+        },
+        {
+          "word": "it's",
+          "start": 164.38,
+          "end": 165.84,
+          "probability": 0.7259521484375
+        },
+        {
+          "word": "a",
+          "start": 165.84,
+          "end": 165.96,
+          "probability": 0.9189453125
+        },
+        {
+          "word": "Chevrolet",
+          "start": 165.96,
+          "end": 166.78000000000003,
+          "probability": 0.8951822916666666
+        }
+      ]
+    },
+    {
+      "start": 166.78,
+      "end": 183.1,
+      "text": " impala Jesus do you have it come on let's chase the rabbit don't you know that it's all just California",
+      "words": [
+        {
+          "word": "impala",
+          "start": 166.78,
+          "end": 167.7,
+          "probability": 0.3586769104003906
+        },
+        {
+          "word": "Jesus",
+          "start": 167.7,
+          "end": 170.88,
+          "probability": 0.63916015625
+        },
+        {
+          "word": "do",
+          "start": 170.88,
+          "end": 171.54,
+          "probability": 0.6826171875
+        },
+        {
+          "word": "you",
+          "start": 171.54,
+          "end": 171.72,
+          "probability": 0.94189453125
+        },
+        {
+          "word": "have",
+          "start": 171.72,
+          "end": 172.34,
+          "probability": 0.90087890625
+        },
+        {
+          "word": "it",
+          "start": 172.34,
+          "end": 172.64,
+          "probability": 0.69140625
+        },
+        {
+          "word": "come",
+          "start": 172.64,
+          "end": 174.08,
+          "probability": 0.57373046875
+        },
+        {
+          "word": "on",
+          "start": 174.08,
+          "end": 174.34,
+          "probability": 0.98388671875
+        },
+        {
+          "word": "let's",
+          "start": 174.34,
+          "end": 174.8,
+          "probability": 0.9169921875
+        },
+        {
+          "word": "chase",
+          "start": 174.8,
+          "end": 175.2,
+          "probability": 0.9150390625
+        },
+        {
+          "word": "the",
+          "start": 175.2,
+          "end": 175.86,
+          "probability": 0.9326171875
+        },
+        {
+          "word": "rabbit",
+          "start": 175.86,
+          "end": 176.66,
+          "probability": 0.62646484375
+        },
+        {
+          "word": "don't",
+          "start": 176.66,
+          "end": 178.84,
+          "probability": 0.95166015625
+        },
+        {
+          "word": "you",
+          "start": 178.84,
+          "end": 179.22,
+          "probability": 0.9951171875
+        },
+        {
+          "word": "know",
+          "start": 179.22,
+          "end": 179.7,
+          "probability": 0.99658203125
+        },
+        {
+          "word": "that",
+          "start": 179.7,
+          "end": 180.16,
+          "probability": 0.94384765625
+        },
+        {
+          "word": "it's",
+          "start": 180.16,
+          "end": 180.88,
+          "probability": 0.6353759765625
+        },
+        {
+          "word": "all",
+          "start": 180.88,
+          "end": 181.18,
+          "probability": 0.94580078125
+        },
+        {
+          "word": "just",
+          "start": 181.18,
+          "end": 181.68,
+          "probability": 0.990234375
+        },
+        {
+          "word": "California",
+          "start": 181.68,
+          "end": 183.1,
+          "probability": 0.82177734375
+        }
+      ]
+    },
+    {
+      "start": 183.1,
+      "end": 184.62,
+      "text": " magic",
+      "words": [
+        {
+          "word": "magic",
+          "start": 183.1,
+          "end": 184.62,
+          "probability": 0.923828125
+        }
+      ]
+    },
+    {
+      "start": 201.7,
+      "end": 203.1,
+      "text": " you",
+      "words": [
+        {
+          "word": "you",
+          "start": 201.7,
+          "end": 203.1,
+          "probability": 0.00018525123596191406
+        }
+      ]
+    },
+    {
+      "start": 220.56,
+      "end": 233.08,
+      "text": " Tiro walk up, walking on the water, hold the ocean rolling, with a skyline on a",
+      "words": [
+        {
+          "word": "Tiro",
+          "start": 220.56,
+          "end": 221.74,
+          "probability": 0.11358642578125
+        },
+        {
+          "word": "walk",
+          "start": 221.74,
+          "end": 222.44,
+          "probability": 0.6171875
+        },
+        {
+          "word": "up,",
+          "start": 222.44,
+          "end": 223.08,
+          "probability": 0.45654296875
+        },
+        {
+          "word": "walking",
+          "start": 223.08,
+          "end": 225.3,
+          "probability": 0.64306640625
+        },
+        {
+          "word": "on",
+          "start": 225.3,
+          "end": 225.66,
+          "probability": 0.99267578125
+        },
+        {
+          "word": "the",
+          "start": 225.66,
+          "end": 225.78,
+          "probability": 0.99462890625
+        },
+        {
+          "word": "water,",
+          "start": 225.78,
+          "end": 226.22,
+          "probability": 0.9912109375
+        },
+        {
+          "word": "hold",
+          "start": 227.38,
+          "end": 228.8,
+          "probability": 0.317626953125
+        },
+        {
+          "word": "the",
+          "start": 228.8,
+          "end": 229.06,
+          "probability": 0.9931640625
+        },
+        {
+          "word": "ocean",
+          "start": 229.06,
+          "end": 229.42,
+          "probability": 0.9970703125
+        },
+        {
+          "word": "rolling,",
+          "start": 229.42,
+          "end": 230.3,
+          "probability": 0.370849609375
+        },
+        {
+          "word": "with",
+          "start": 231.28,
+          "end": 231.82,
+          "probability": 0.9716796875
+        },
+        {
+          "word": "a",
+          "start": 231.82,
+          "end": 231.98,
+          "probability": 0.4658203125
+        },
+        {
+          "word": "skyline",
+          "start": 231.98,
+          "end": 232.74,
+          "probability": 0.97119140625
+        },
+        {
+          "word": "on",
+          "start": 232.74,
+          "end": 232.98,
+          "probability": 0.97607421875
+        },
+        {
+          "word": "a",
+          "start": 232.98,
+          "end": 233.08,
+          "probability": 0.7978515625
+        }
+      ]
+    },
+    {
+      "start": 233.08,
+      "end": 250.42,
+      "text": " shoulder. Backseat signal, heavy metal hymnum, six-string slinger, he's the same,",
+      "words": [
+        {
+          "word": "shoulder.",
+          "start": 233.08,
+          "end": 233.68,
+          "probability": 0.040252685546875
+        },
+        {
+          "word": "Backseat",
+          "start": 238.64,
+          "end": 240.04,
+          "probability": 0.536376953125
+        },
+        {
+          "word": "signal,",
+          "start": 240.04,
+          "end": 240.74,
+          "probability": 0.6611328125
+        },
+        {
+          "word": "heavy",
+          "start": 242.54,
+          "end": 243.28,
+          "probability": 0.8154296875
+        },
+        {
+          "word": "metal",
+          "start": 243.28,
+          "end": 243.72,
+          "probability": 0.91552734375
+        },
+        {
+          "word": "hymnum,",
+          "start": 243.72,
+          "end": 244.76,
+          "probability": 0.3587646484375
+        },
+        {
+          "word": "six",
+          "start": 246.44,
+          "end": 247.24,
+          "probability": 0.79150390625
+        },
+        {
+          "word": "-string",
+          "start": 247.24,
+          "end": 247.68,
+          "probability": 0.6087646484375
+        },
+        {
+          "word": "slinger,",
+          "start": 247.68,
+          "end": 248.5,
+          "probability": 0.554931640625
+        },
+        {
+          "word": "he's",
+          "start": 249.72,
+          "end": 249.88,
+          "probability": 0.93994140625
+        },
+        {
+          "word": "the",
+          "start": 249.88,
+          "end": 250.02,
+          "probability": 0.432373046875
+        },
+        {
+          "word": "same,",
+          "start": 250.02,
+          "end": 250.42,
+          "probability": 0.900390625
+        }
+      ]
+    },
+    {
+      "start": 250.42,
+      "end": 280.4,
+      "text": " he's a sinner. Jesus did have it. Come on, let's chase the rabbit. Can we get back to all",
+      "words": [
+        {
+          "word": "he's",
+          "start": 250.42,
+          "end": 251.08,
+          "probability": 0.5179290771484375
+        },
+        {
+          "word": "a",
+          "start": 251.08,
+          "end": 251.2,
+          "probability": 0.83837890625
+        },
+        {
+          "word": "sinner.",
+          "start": 251.2,
+          "end": 251.7,
+          "probability": 0.96435546875
+        },
+        {
+          "word": "Jesus",
+          "start": 253.8,
+          "end": 254.88,
+          "probability": 0.84423828125
+        },
+        {
+          "word": "did",
+          "start": 254.88,
+          "end": 255.6,
+          "probability": 0.712890625
+        },
+        {
+          "word": "have",
+          "start": 255.6,
+          "end": 256.32,
+          "probability": 0.94384765625
+        },
+        {
+          "word": "it.",
+          "start": 256.32,
+          "end": 257.2,
+          "probability": 0.806640625
+        },
+        {
+          "word": "Come",
+          "start": 257.56,
+          "end": 258.06,
+          "probability": 0.74755859375
+        },
+        {
+          "word": "on,",
+          "start": 258.06,
+          "end": 258.32,
+          "probability": 0.9814453125
+        },
+        {
+          "word": "let's",
+          "start": 258.46,
+          "end": 258.78,
+          "probability": 0.9833984375
+        },
+        {
+          "word": "chase",
+          "start": 258.78,
+          "end": 259.26,
+          "probability": 0.986328125
+        },
+        {
+          "word": "the",
+          "start": 259.26,
+          "end": 259.88,
+          "probability": 0.984375
+        },
+        {
+          "word": "rabbit.",
+          "start": 259.88,
+          "end": 260.38,
+          "probability": 0.955078125
+        },
+        {
+          "word": "Can",
+          "start": 261.76,
+          "end": 262.72,
+          "probability": 0.98681640625
+        },
+        {
+          "word": "we",
+          "start": 262.72,
+          "end": 263.26,
+          "probability": 0.6494140625
+        },
+        {
+          "word": "get",
+          "start": 263.26,
+          "end": 263.66,
+          "probability": 0.99658203125
+        },
+        {
+          "word": "back",
+          "start": 263.66,
+          "end": 264.26,
+          "probability": 0.99560546875
+        },
+        {
+          "word": "to",
+          "start": 264.26,
+          "end": 280.38,
+          "probability": 0.98828125
+        },
+        {
+          "word": "all",
+          "start": 280.38,
+          "end": 280.4,
+          "probability": 0.482421875
+        }
+      ]
+    },
+    {
+      "start": 303.58,
+      "end": 310.38,
+      "text": " Jesus did have it. Come on, let's chase the rabbit.",
+      "words": [
+        {
+          "word": "Jesus",
+          "start": 303.58,
+          "end": 304.82,
+          "probability": 0.45166015625
+        },
+        {
+          "word": "did",
+          "start": 304.82,
+          "end": 305.56,
+          "probability": 0.4287109375
+        },
+        {
+          "word": "have",
+          "start": 305.56,
+          "end": 306.36,
+          "probability": 0.353515625
+        },
+        {
+          "word": "it.",
+          "start": 306.36,
+          "end": 306.98,
+          "probability": 0.3828125
+        },
+        {
+          "word": "Come",
+          "start": 306.98,
+          "end": 308.08,
+          "probability": 0.9619140625
+        },
+        {
+          "word": "on,",
+          "start": 308.08,
+          "end": 308.38,
+          "probability": 0.990234375
+        },
+        {
+          "word": "let's",
+          "start": 308.46,
+          "end": 308.76,
+          "probability": 0.983642578125
+        },
+        {
+          "word": "chase",
+          "start": 308.76,
+          "end": 309.24,
+          "probability": 0.9462890625
+        },
+        {
+          "word": "the",
+          "start": 309.24,
+          "end": 309.88,
+          "probability": 0.87255859375
+        },
+        {
+          "word": "rabbit.",
+          "start": 309.88,
+          "end": 310.38,
+          "probability": 0.1011962890625
+        }
+      ]
+    },
+    {
+      "start": 311.79999999999995,
+      "end": 332.4,
+      "text": " Don't you know that the soldiers, California magic. Jesus did have it. Come on, let's chase the rabbit.",
+      "words": [
+        {
+          "word": "Don't",
+          "start": 311.79999999999995,
+          "end": 312.96,
+          "probability": 0.56988525390625
+        },
+        {
+          "word": "you",
+          "start": 312.96,
+          "end": 313.24,
+          "probability": 0.9658203125
+        },
+        {
+          "word": "know",
+          "start": 313.24,
+          "end": 313.72,
+          "probability": 0.9853515625
+        },
+        {
+          "word": "that",
+          "start": 313.72,
+          "end": 314.14,
+          "probability": 0.90234375
+        },
+        {
+          "word": "the",
+          "start": 314.14,
+          "end": 314.64,
+          "probability": 0.2152099609375
+        },
+        {
+          "word": "soldiers,",
+          "start": 314.64,
+          "end": 315.34,
+          "probability": 0.919921875
+        },
+        {
+          "word": "California",
+          "start": 315.8,
+          "end": 317.02,
+          "probability": 0.95654296875
+        },
+        {
+          "word": "magic.",
+          "start": 317.02,
+          "end": 318.58,
+          "probability": 0.75390625
+        },
+        {
+          "word": "Jesus",
+          "start": 325.74,
+          "end": 326.9,
+          "probability": 0.81591796875
+        },
+        {
+          "word": "did",
+          "start": 326.9,
+          "end": 327.58,
+          "probability": 0.056640625
+        },
+        {
+          "word": "have",
+          "start": 327.58,
+          "end": 328.34,
+          "probability": 0.50146484375
+        },
+        {
+          "word": "it.",
+          "start": 328.34,
+          "end": 328.54,
+          "probability": 0.5693359375
+        },
+        {
+          "word": "Come",
+          "start": 329.02,
+          "end": 330.0,
+          "probability": 0.93017578125
+        },
+        {
+          "word": "on,",
+          "start": 330.0,
+          "end": 330.36,
+          "probability": 0.9833984375
+        },
+        {
+          "word": "let's",
+          "start": 330.46,
+          "end": 330.74,
+          "probability": 0.98193359375
+        },
+        {
+          "word": "chase",
+          "start": 330.74,
+          "end": 331.2,
+          "probability": 0.9609375
+        },
+        {
+          "word": "the",
+          "start": 331.2,
+          "end": 331.78,
+          "probability": 0.91845703125
+        },
+        {
+          "word": "rabbit.",
+          "start": 331.78,
+          "end": 332.4,
+          "probability": 0.97998046875
+        }
+      ]
+    },
+    {
+      "start": 333.6,
+      "end": 340.62,
+      "text": " Can we get back to all that California magic.",
+      "words": [
+        {
+          "word": "Can",
+          "start": 333.6,
+          "end": 334.72,
+          "probability": 0.51513671875
+        },
+        {
+          "word": "we",
+          "start": 334.72,
+          "end": 335.26,
+          "probability": 0.8857421875
+        },
+        {
+          "word": "get",
+          "start": 335.26,
+          "end": 335.72,
+          "probability": 0.9833984375
+        },
+        {
+          "word": "back",
+          "start": 335.72,
+          "end": 336.2,
+          "probability": 0.9501953125
+        },
+        {
+          "word": "to",
+          "start": 336.2,
+          "end": 336.74,
+          "probability": 0.8857421875
+        },
+        {
+          "word": "all",
+          "start": 336.74,
+          "end": 337.32,
+          "probability": 0.77294921875
+        },
+        {
+          "word": "that",
+          "start": 337.32,
+          "end": 337.64,
+          "probability": 0.94677734375
+        },
+        {
+          "word": "California",
+          "start": 337.64,
+          "end": 338.94,
+          "probability": 0.96484375
+        },
+        {
+          "word": "magic.",
+          "start": 338.94,
+          "end": 340.62,
+          "probability": 0.93994140625
+        }
+      ]
+    }
+  ],
+  "words": [
+    {
+      "word": "You",
+      "start": 14.44,
+      "end": 15.84,
+      "probability": 0.0909423828125
+    },
+    {
+      "word": "credit",
+      "start": 32.34,
+      "end": 33.74,
+      "probability": 0.00962066650390625
+    },
+    {
+      "word": "business",
+      "start": 33.74,
+      "end": 35.14,
+      "probability": 0.2705078125
+    },
+    {
+      "word": "fortune",
+      "start": 35.14,
+      "end": 37.2,
+      "probability": 0.8115234375
+    },
+    {
+      "word": "teller",
+      "start": 37.2,
+      "end": 38.1,
+      "probability": 0.792724609375
+    },
+    {
+      "word": "picnic",
+      "start": 38.1,
+      "end": 38.62,
+      "probability": 0.85546875
+    },
+    {
+      "word": "it's",
+      "start": 38.62,
+      "end": 40.98,
+      "probability": 0.6943359375
+    },
+    {
+      "word": "nothing",
+      "start": 40.98,
+      "end": 41.48,
+      "probability": 0.98291015625
+    },
+    {
+      "word": "wrong",
+      "start": 41.48,
+      "end": 42.28,
+      "probability": 0.994140625
+    },
+    {
+      "word": "with",
+      "start": 42.28,
+      "end": 43.06,
+      "probability": 0.9921875
+    },
+    {
+      "word": "a",
+      "start": 43.06,
+      "end": 43.78,
+      "probability": 0.34423828125
+    },
+    {
+      "word": "little",
+      "start": 43.78,
+      "end": 43.96,
+      "probability": 0.98681640625
+    },
+    {
+      "word": "california",
+      "start": 43.96,
+      "end": 45.2,
+      "probability": 0.9541015625
+    },
+    {
+      "word": "magic",
+      "start": 45.2,
+      "end": 45.7,
+      "probability": 0.89990234375
+    },
+    {
+      "word": "long",
+      "start": 49.96,
+      "end": 51.14,
+      "probability": 0.05853271484375
+    },
+    {
+      "word": "-time",
+      "start": 51.14,
+      "end": 51.58,
+      "probability": 0.5946044921875
+    },
+    {
+      "word": "listener",
+      "start": 51.58,
+      "end": 52.38,
+      "probability": 0.978515625
+    },
+    {
+      "word": "first",
+      "start": 52.38,
+      "end": 55.08,
+      "probability": 0.560546875
+    },
+    {
+      "word": "-time",
+      "start": 55.08,
+      "end": 55.66,
+      "probability": 0.731689453125
+    },
+    {
+      "word": "caller",
+      "start": 55.66,
+      "end": 56.48,
+      "probability": 0.943359375
+    },
+    {
+      "word": "is",
+      "start": 56.48,
+      "end": 58.56,
+      "probability": 0.24658203125
+    },
+    {
+      "word": "this",
+      "start": 58.56,
+      "end": 58.8,
+      "probability": 0.324951171875
+    },
+    {
+      "word": "what",
+      "start": 58.8,
+      "end": 59.3,
+      "probability": 0.97705078125
+    },
+    {
+      "word": "it",
+      "start": 59.3,
+      "end": 59.64,
+      "probability": 0.99072265625
+    },
+    {
+      "word": "feels",
+      "start": 59.64,
+      "end": 60.46,
+      "probability": 0.9951171875
+    },
+    {
+      "word": "like",
+      "start": 60.46,
+      "end": 61.08,
+      "probability": 0.994140625
+    },
+    {
+      "word": "to",
+      "start": 61.08,
+      "end": 61.82,
+      "probability": 0.98486328125
+    },
+    {
+      "word": "be",
+      "start": 61.82,
+      "end": 62.02,
+      "probability": 0.998046875
+    },
+    {
+      "word": "kneeling",
+      "start": 62.02,
+      "end": 62.62,
+      "probability": 0.990966796875
+    },
+    {
+      "word": "at",
+      "start": 62.62,
+      "end": 63.02,
+      "probability": 0.98193359375
+    },
+    {
+      "word": "the",
+      "start": 63.02,
+      "end": 63.18,
+      "probability": 0.98828125
+    },
+    {
+      "word": "altar",
+      "start": 63.18,
+      "end": 63.7,
+      "probability": 0.9423828125
+    },
+    {
+      "word": "creature",
+      "start": 84.30000000000001,
+      "end": 85.26,
+      "probability": 0.0144195556640625
+    },
+    {
+      "word": "on",
+      "start": 85.26,
+      "end": 85.68,
+      "probability": 0.92724609375
+    },
+    {
+      "word": "a",
+      "start": 85.68,
+      "end": 85.8,
+      "probability": 0.9228515625
+    },
+    {
+      "word": "beach",
+      "start": 85.8,
+      "end": 86.26,
+      "probability": 0.9619140625
+    },
+    {
+      "word": "the",
+      "start": 86.26,
+      "end": 88.64,
+      "probability": 0.438720703125
+    },
+    {
+      "word": "megaphone",
+      "start": 88.64,
+      "end": 89.64,
+      "probability": 0.863525390625
+    },
+    {
+      "word": "preaching",
+      "start": 89.64,
+      "end": 90.18,
+      "probability": 0.87646484375
+    },
+    {
+      "word": "listen",
+      "start": 90.18,
+      "end": 92.82,
+      "probability": 0.8701171875
+    },
+    {
+      "word": "up",
+      "start": 92.82,
+      "end": 93.3,
+      "probability": 0.99365234375
+    },
+    {
+      "word": "you",
+      "start": 93.3,
+      "end": 93.58,
+      "probability": 0.900390625
+    },
+    {
+      "word": "heathens",
+      "start": 93.58,
+      "end": 94.52,
+      "probability": 0.9817708333333334
+    },
+    {
+      "word": "you",
+      "start": 94.52,
+      "end": 95.4,
+      "probability": 0.8876953125
+    },
+    {
+      "word": "think",
+      "start": 95.4,
+      "end": 95.72,
+      "probability": 0.99658203125
+    },
+    {
+      "word": "these",
+      "start": 95.72,
+      "end": 96.12,
+      "probability": 0.99755859375
+    },
+    {
+      "word": "waves",
+      "start": 96.12,
+      "end": 96.78,
+      "probability": 0.998046875
+    },
+    {
+      "word": "are",
+      "start": 96.78,
+      "end": 97.0,
+      "probability": 0.904296875
+    },
+    {
+      "word": "gonna",
+      "start": 97.0,
+      "end": 97.16,
+      "probability": 0.8505859375
+    },
+    {
+      "word": "save",
+      "start": 97.16,
+      "end": 97.58,
+      "probability": 0.0372314453125
+    },
+    {
+      "word": "you",
+      "start": 97.58,
+      "end": 98.78,
+      "probability": 0.724609375
+    },
+    {
+      "word": "let",
+      "start": 98.78,
+      "end": 103.02,
+      "probability": 0.17431640625
+    },
+    {
+      "word": "birds",
+      "start": 103.02,
+      "end": 103.46,
+      "probability": 0.76708984375
+    },
+    {
+      "word": "get",
+      "start": 103.46,
+      "end": 103.68,
+      "probability": 0.4482421875
+    },
+    {
+      "word": "lady",
+      "start": 103.68,
+      "end": 104.6,
+      "probability": 0.3994140625
+    },
+    {
+      "word": "worship",
+      "start": 104.6,
+      "end": 107.24,
+      "probability": 0.283935546875
+    },
+    {
+      "word": "in",
+      "start": 107.24,
+      "end": 107.6,
+      "probability": 0.7705078125
+    },
+    {
+      "word": "the",
+      "start": 107.6,
+      "end": 107.7,
+      "probability": 0.99658203125
+    },
+    {
+      "word": "pavement",
+      "start": 107.7,
+      "end": 108.24,
+      "probability": 0.923828125
+    },
+    {
+      "word": "she",
+      "start": 108.24,
+      "end": 109.38,
+      "probability": 0.7607421875
+    },
+    {
+      "word": "says",
+      "start": 109.38,
+      "end": 109.82,
+      "probability": 0.9853515625
+    },
+    {
+      "word": "I",
+      "start": 109.82,
+      "end": 110.72,
+      "probability": 0.8291015625
+    },
+    {
+      "word": "don't",
+      "start": 110.72,
+      "end": 110.94,
+      "probability": 0.993896484375
+    },
+    {
+      "word": "know",
+      "start": 110.94,
+      "end": 111.34,
+      "probability": 0.99267578125
+    },
+    {
+      "word": "but",
+      "start": 111.34,
+      "end": 111.58,
+      "probability": 0.86279296875
+    },
+    {
+      "word": "lately",
+      "start": 111.58,
+      "end": 112.28,
+      "probability": 0.865234375
+    },
+    {
+      "word": "I",
+      "start": 112.28,
+      "end": 112.81,
+      "probability": 0.87744140625
+    },
+    {
+      "word": "think",
+      "start": 113.42,
+      "end": 113.74,
+      "probability": 0.99755859375
+    },
+    {
+      "word": "these",
+      "start": 113.74,
+      "end": 114.16,
+      "probability": 0.9814453125
+    },
+    {
+      "word": "rollerblades",
+      "start": 114.16,
+      "end": 115.2,
+      "probability": 0.7373046875
+    },
+    {
+      "word": "might",
+      "start": 115.2,
+      "end": 115.58,
+      "probability": 0.6923828125
+    },
+    {
+      "word": "save",
+      "start": 115.58,
+      "end": 116.14,
+      "probability": 0.97314453125
+    },
+    {
+      "word": "me",
+      "start": 116.14,
+      "end": 116.64,
+      "probability": 0.89892578125
+    },
+    {
+      "word": "Jesus",
+      "start": 116.64,
+      "end": 118.9,
+      "probability": 0.642578125
+    },
+    {
+      "word": "did",
+      "start": 118.9,
+      "end": 119.64,
+      "probability": 0.6162109375
+    },
+    {
+      "word": "have",
+      "start": 119.64,
+      "end": 120.4,
+      "probability": 0.51123046875
+    },
+    {
+      "word": "come",
+      "start": 120.4,
+      "end": 121.96,
+      "probability": 0.443603515625
+    },
+    {
+      "word": "on",
+      "start": 121.96,
+      "end": 122.34,
+      "probability": 0.966796875
+    },
+    {
+      "word": "let's",
+      "start": 122.34,
+      "end": 122.74,
+      "probability": 0.9404296875
+    },
+    {
+      "word": "chase",
+      "start": 122.74,
+      "end": 123.26,
+      "probability": 0.92578125
+    },
+    {
+      "word": "the",
+      "start": 123.26,
+      "end": 123.8,
+      "probability": 0.880859375
+    },
+    {
+      "word": "river",
+      "start": 123.8,
+      "end": 124.58,
+      "probability": 0.0003139972686767578
+    },
+    {
+      "word": "don't",
+      "start": 124.58,
+      "end": 126.96,
+      "probability": 0.639892578125
+    },
+    {
+      "word": "you",
+      "start": 126.96,
+      "end": 127.22,
+      "probability": 0.94921875
+    },
+    {
+      "word": "know",
+      "start": 127.22,
+      "end": 127.58,
+      "probability": 0.986328125
+    },
+    {
+      "word": "that",
+      "start": 127.58,
+      "end": 128.1,
+      "probability": 0.96337890625
+    },
+    {
+      "word": "it's",
+      "start": 128.1,
+      "end": 128.9,
+      "probability": 0.7364501953125
+    },
+    {
+      "word": "all",
+      "start": 128.9,
+      "end": 129.26,
+      "probability": 0.92138671875
+    },
+    {
+      "word": "just",
+      "start": 129.26,
+      "end": 129.68,
+      "probability": 0.94189453125
+    },
+    {
+      "word": "California",
+      "start": 129.68,
+      "end": 130.88,
+      "probability": 0.8095703125
+    },
+    {
+      "word": "magic",
+      "start": 130.88,
+      "end": 132.68,
+      "probability": 0.62451171875
+    },
+    {
+      "word": "techno",
+      "start": 136.38000000000002,
+      "end": 137.36,
+      "probability": 0.294189453125
+    },
+    {
+      "word": "kids",
+      "start": 137.36,
+      "end": 137.72,
+      "probability": 0.96435546875
+    },
+    {
+      "word": "dancing",
+      "start": 137.72,
+      "end": 138.5,
+      "probability": 0.97705078125
+    },
+    {
+      "word": "robot",
+      "start": 138.5,
+      "end": 141.24,
+      "probability": 0.90869140625
+    },
+    {
+      "word": "in",
+      "start": 141.24,
+      "end": 141.62,
+      "probability": 0.84326171875
+    },
+    {
+      "word": "a",
+      "start": 141.62,
+      "end": 141.76,
+      "probability": 0.9287109375
+    },
+    {
+      "word": "trance",
+      "start": 141.76,
+      "end": 142.26,
+      "probability": 0.9326171875
+    },
+    {
+      "word": "and",
+      "start": 142.26,
+      "end": 142.48,
+      "probability": 0.48779296875
+    },
+    {
+      "word": "this",
+      "start": 142.48,
+      "end": 144.92,
+      "probability": 0.6787109375
+    },
+    {
+      "word": "movement",
+      "start": 144.92,
+      "end": 145.4,
+      "probability": 0.94091796875
+    },
+    {
+      "word": "for",
+      "start": 145.4,
+      "end": 145.82,
+      "probability": 0.9873046875
+    },
+    {
+      "word": "the",
+      "start": 145.82,
+      "end": 145.96,
+      "probability": 0.978515625
+    },
+    {
+      "word": "millions",
+      "start": 145.96,
+      "end": 146.6,
+      "probability": 0.92724609375
+    },
+    {
+      "word": "oh",
+      "start": 146.6,
+      "end": 148.6,
+      "probability": 0.408203125
+    },
+    {
+      "word": "hey",
+      "start": 148.6,
+      "end": 149.04,
+      "probability": 0.876953125
+    },
+    {
+      "word": "man",
+      "start": 149.04,
+      "end": 149.42,
+      "probability": 0.986328125
+    },
+    {
+      "word": "did",
+      "start": 149.42,
+      "end": 149.58,
+      "probability": 0.04595947265625
+    },
+    {
+      "word": "you",
+      "start": 149.58,
+      "end": 149.74,
+      "probability": 0.94384765625
+    },
+    {
+      "word": "film",
+      "start": 149.74,
+      "end": 150.18,
+      "probability": 0.1953125
+    },
+    {
+      "word": "emerald",
+      "start": 150.18,
+      "end": 155.9,
+      "probability": 0.49664306640625
+    },
+    {
+      "word": "green",
+      "start": 155.9,
+      "end": 156.44,
+      "probability": 0.97021484375
+    },
+    {
+      "word": "liquid",
+      "start": 156.44,
+      "end": 159.22,
+      "probability": 0.9912109375
+    },
+    {
+      "word": "metal",
+      "start": 159.22,
+      "end": 159.7,
+      "probability": 0.96533203125
+    },
+    {
+      "word": "she",
+      "start": 159.7,
+      "end": 160.06,
+      "probability": 0.74560546875
+    },
+    {
+      "word": "driven",
+      "start": 160.06,
+      "end": 162.82,
+      "probability": 0.06109619140625
+    },
+    {
+      "word": "down",
+      "start": 162.82,
+      "end": 163.34,
+      "probability": 0.59033203125
+    },
+    {
+      "word": "like",
+      "start": 163.34,
+      "end": 163.76,
+      "probability": 0.91064453125
+    },
+    {
+      "word": "lava",
+      "start": 163.76,
+      "end": 164.38,
+      "probability": 0.8671875
+    },
+    {
+      "word": "it's",
+      "start": 164.38,
+      "end": 165.84,
+      "probability": 0.7259521484375
+    },
+    {
+      "word": "a",
+      "start": 165.84,
+      "end": 165.96,
+      "probability": 0.9189453125
+    },
+    {
+      "word": "Chevrolet",
+      "start": 165.96,
+      "end": 166.78000000000003,
+      "probability": 0.8951822916666666
+    },
+    {
+      "word": "impala",
+      "start": 166.78,
+      "end": 167.7,
+      "probability": 0.3586769104003906
+    },
+    {
+      "word": "Jesus",
+      "start": 167.7,
+      "end": 170.88,
+      "probability": 0.63916015625
+    },
+    {
+      "word": "do",
+      "start": 170.88,
+      "end": 171.54,
+      "probability": 0.6826171875
+    },
+    {
+      "word": "you",
+      "start": 171.54,
+      "end": 171.72,
+      "probability": 0.94189453125
+    },
+    {
+      "word": "have",
+      "start": 171.72,
+      "end": 172.34,
+      "probability": 0.90087890625
+    },
+    {
+      "word": "it",
+      "start": 172.34,
+      "end": 172.64,
+      "probability": 0.69140625
+    },
+    {
+      "word": "come",
+      "start": 172.64,
+      "end": 174.08,
+      "probability": 0.57373046875
+    },
+    {
+      "word": "on",
+      "start": 174.08,
+      "end": 174.34,
+      "probability": 0.98388671875
+    },
+    {
+      "word": "let's",
+      "start": 174.34,
+      "end": 174.8,
+      "probability": 0.9169921875
+    },
+    {
+      "word": "chase",
+      "start": 174.8,
+      "end": 175.2,
+      "probability": 0.9150390625
+    },
+    {
+      "word": "the",
+      "start": 175.2,
+      "end": 175.86,
+      "probability": 0.9326171875
+    },
+    {
+      "word": "rabbit",
+      "start": 175.86,
+      "end": 176.66,
+      "probability": 0.62646484375
+    },
+    {
+      "word": "don't",
+      "start": 176.66,
+      "end": 178.84,
+      "probability": 0.95166015625
+    },
+    {
+      "word": "you",
+      "start": 178.84,
+      "end": 179.22,
+      "probability": 0.9951171875
+    },
+    {
+      "word": "know",
+      "start": 179.22,
+      "end": 179.7,
+      "probability": 0.99658203125
+    },
+    {
+      "word": "that",
+      "start": 179.7,
+      "end": 180.16,
+      "probability": 0.94384765625
+    },
+    {
+      "word": "it's",
+      "start": 180.16,
+      "end": 180.88,
+      "probability": 0.6353759765625
+    },
+    {
+      "word": "all",
+      "start": 180.88,
+      "end": 181.18,
+      "probability": 0.94580078125
+    },
+    {
+      "word": "just",
+      "start": 181.18,
+      "end": 181.68,
+      "probability": 0.990234375
+    },
+    {
+      "word": "California",
+      "start": 181.68,
+      "end": 183.1,
+      "probability": 0.82177734375
+    },
+    {
+      "word": "magic",
+      "start": 183.1,
+      "end": 184.62,
+      "probability": 0.923828125
+    },
+    {
+      "word": "you",
+      "start": 201.7,
+      "end": 203.1,
+      "probability": 0.00018525123596191406
+    },
+    {
+      "word": "Tiro",
+      "start": 220.56,
+      "end": 221.74,
+      "probability": 0.11358642578125
+    },
+    {
+      "word": "walk",
+      "start": 221.74,
+      "end": 222.44,
+      "probability": 0.6171875
+    },
+    {
+      "word": "up,",
+      "start": 222.44,
+      "end": 223.08,
+      "probability": 0.45654296875
+    },
+    {
+      "word": "walking",
+      "start": 223.08,
+      "end": 225.3,
+      "probability": 0.64306640625
+    },
+    {
+      "word": "on",
+      "start": 225.3,
+      "end": 225.66,
+      "probability": 0.99267578125
+    },
+    {
+      "word": "the",
+      "start": 225.66,
+      "end": 225.78,
+      "probability": 0.99462890625
+    },
+    {
+      "word": "water,",
+      "start": 225.78,
+      "end": 226.22,
+      "probability": 0.9912109375
+    },
+    {
+      "word": "hold",
+      "start": 227.38,
+      "end": 228.8,
+      "probability": 0.317626953125
+    },
+    {
+      "word": "the",
+      "start": 228.8,
+      "end": 229.06,
+      "probability": 0.9931640625
+    },
+    {
+      "word": "ocean",
+      "start": 229.06,
+      "end": 229.42,
+      "probability": 0.9970703125
+    },
+    {
+      "word": "rolling,",
+      "start": 229.42,
+      "end": 230.3,
+      "probability": 0.370849609375
+    },
+    {
+      "word": "with",
+      "start": 231.28,
+      "end": 231.82,
+      "probability": 0.9716796875
+    },
+    {
+      "word": "a",
+      "start": 231.82,
+      "end": 231.98,
+      "probability": 0.4658203125
+    },
+    {
+      "word": "skyline",
+      "start": 231.98,
+      "end": 232.74,
+      "probability": 0.97119140625
+    },
+    {
+      "word": "on",
+      "start": 232.74,
+      "end": 232.98,
+      "probability": 0.97607421875
+    },
+    {
+      "word": "a",
+      "start": 232.98,
+      "end": 233.08,
+      "probability": 0.7978515625
+    },
+    {
+      "word": "shoulder.",
+      "start": 233.08,
+      "end": 233.68,
+      "probability": 0.040252685546875
+    },
+    {
+      "word": "Backseat",
+      "start": 238.64,
+      "end": 240.04,
+      "probability": 0.536376953125
+    },
+    {
+      "word": "signal,",
+      "start": 240.04,
+      "end": 240.74,
+      "probability": 0.6611328125
+    },
+    {
+      "word": "heavy",
+      "start": 242.54,
+      "end": 243.28,
+      "probability": 0.8154296875
+    },
+    {
+      "word": "metal",
+      "start": 243.28,
+      "end": 243.72,
+      "probability": 0.91552734375
+    },
+    {
+      "word": "hymnum,",
+      "start": 243.72,
+      "end": 244.76,
+      "probability": 0.3587646484375
+    },
+    {
+      "word": "six",
+      "start": 246.44,
+      "end": 247.24,
+      "probability": 0.79150390625
+    },
+    {
+      "word": "-string",
+      "start": 247.24,
+      "end": 247.68,
+      "probability": 0.6087646484375
+    },
+    {
+      "word": "slinger,",
+      "start": 247.68,
+      "end": 248.5,
+      "probability": 0.554931640625
+    },
+    {
+      "word": "he's",
+      "start": 249.72,
+      "end": 249.88,
+      "probability": 0.93994140625
+    },
+    {
+      "word": "the",
+      "start": 249.88,
+      "end": 250.02,
+      "probability": 0.432373046875
+    },
+    {
+      "word": "same,",
+      "start": 250.02,
+      "end": 250.42,
+      "probability": 0.900390625
+    },
+    {
+      "word": "he's",
+      "start": 250.42,
+      "end": 251.08,
+      "probability": 0.5179290771484375
+    },
+    {
+      "word": "a",
+      "start": 251.08,
+      "end": 251.2,
+      "probability": 0.83837890625
+    },
+    {
+      "word": "sinner.",
+      "start": 251.2,
+      "end": 251.7,
+      "probability": 0.96435546875
+    },
+    {
+      "word": "Jesus",
+      "start": 253.8,
+      "end": 254.88,
+      "probability": 0.84423828125
+    },
+    {
+      "word": "did",
+      "start": 254.88,
+      "end": 255.6,
+      "probability": 0.712890625
+    },
+    {
+      "word": "have",
+      "start": 255.6,
+      "end": 256.32,
+      "probability": 0.94384765625
+    },
+    {
+      "word": "it.",
+      "start": 256.32,
+      "end": 257.2,
+      "probability": 0.806640625
+    },
+    {
+      "word": "Come",
+      "start": 257.56,
+      "end": 258.06,
+      "probability": 0.74755859375
+    },
+    {
+      "word": "on,",
+      "start": 258.06,
+      "end": 258.32,
+      "probability": 0.9814453125
+    },
+    {
+      "word": "let's",
+      "start": 258.46,
+      "end": 258.78,
+      "probability": 0.9833984375
+    },
+    {
+      "word": "chase",
+      "start": 258.78,
+      "end": 259.26,
+      "probability": 0.986328125
+    },
+    {
+      "word": "the",
+      "start": 259.26,
+      "end": 259.88,
+      "probability": 0.984375
+    },
+    {
+      "word": "rabbit.",
+      "start": 259.88,
+      "end": 260.38,
+      "probability": 0.955078125
+    },
+    {
+      "word": "Can",
+      "start": 261.76,
+      "end": 262.72,
+      "probability": 0.98681640625
+    },
+    {
+      "word": "we",
+      "start": 262.72,
+      "end": 263.26,
+      "probability": 0.6494140625
+    },
+    {
+      "word": "get",
+      "start": 263.26,
+      "end": 263.66,
+      "probability": 0.99658203125
+    },
+    {
+      "word": "back",
+      "start": 263.66,
+      "end": 264.26,
+      "probability": 0.99560546875
+    },
+    {
+      "word": "to",
+      "start": 264.26,
+      "end": 280.38,
+      "probability": 0.98828125
+    },
+    {
+      "word": "all",
+      "start": 280.38,
+      "end": 280.4,
+      "probability": 0.482421875
+    },
+    {
+      "word": "Jesus",
+      "start": 303.58,
+      "end": 304.82,
+      "probability": 0.45166015625
+    },
+    {
+      "word": "did",
+      "start": 304.82,
+      "end": 305.56,
+      "probability": 0.4287109375
+    },
+    {
+      "word": "have",
+      "start": 305.56,
+      "end": 306.36,
+      "probability": 0.353515625
+    },
+    {
+      "word": "it.",
+      "start": 306.36,
+      "end": 306.98,
+      "probability": 0.3828125
+    },
+    {
+      "word": "Come",
+      "start": 306.98,
+      "end": 308.08,
+      "probability": 0.9619140625
+    },
+    {
+      "word": "on,",
+      "start": 308.08,
+      "end": 308.38,
+      "probability": 0.990234375
+    },
+    {
+      "word": "let's",
+      "start": 308.46,
+      "end": 308.76,
+      "probability": 0.983642578125
+    },
+    {
+      "word": "chase",
+      "start": 308.76,
+      "end": 309.24,
+      "probability": 0.9462890625
+    },
+    {
+      "word": "the",
+      "start": 309.24,
+      "end": 309.88,
+      "probability": 0.87255859375
+    },
+    {
+      "word": "rabbit.",
+      "start": 309.88,
+      "end": 310.38,
+      "probability": 0.1011962890625
+    },
+    {
+      "word": "Don't",
+      "start": 311.79999999999995,
+      "end": 312.96,
+      "probability": 0.56988525390625
+    },
+    {
+      "word": "you",
+      "start": 312.96,
+      "end": 313.24,
+      "probability": 0.9658203125
+    },
+    {
+      "word": "know",
+      "start": 313.24,
+      "end": 313.72,
+      "probability": 0.9853515625
+    },
+    {
+      "word": "that",
+      "start": 313.72,
+      "end": 314.14,
+      "probability": 0.90234375
+    },
+    {
+      "word": "the",
+      "start": 314.14,
+      "end": 314.64,
+      "probability": 0.2152099609375
+    },
+    {
+      "word": "soldiers,",
+      "start": 314.64,
+      "end": 315.34,
+      "probability": 0.919921875
+    },
+    {
+      "word": "California",
+      "start": 315.8,
+      "end": 317.02,
+      "probability": 0.95654296875
+    },
+    {
+      "word": "magic.",
+      "start": 317.02,
+      "end": 318.58,
+      "probability": 0.75390625
+    },
+    {
+      "word": "Jesus",
+      "start": 325.74,
+      "end": 326.9,
+      "probability": 0.81591796875
+    },
+    {
+      "word": "did",
+      "start": 326.9,
+      "end": 327.58,
+      "probability": 0.056640625
+    },
+    {
+      "word": "have",
+      "start": 327.58,
+      "end": 328.34,
+      "probability": 0.50146484375
+    },
+    {
+      "word": "it.",
+      "start": 328.34,
+      "end": 328.54,
+      "probability": 0.5693359375
+    },
+    {
+      "word": "Come",
+      "start": 329.02,
+      "end": 330.0,
+      "probability": 0.93017578125
+    },
+    {
+      "word": "on,",
+      "start": 330.0,
+      "end": 330.36,
+      "probability": 0.9833984375
+    },
+    {
+      "word": "let's",
+      "start": 330.46,
+      "end": 330.74,
+      "probability": 0.98193359375
+    },
+    {
+      "word": "chase",
+      "start": 330.74,
+      "end": 331.2,
+      "probability": 0.9609375
+    },
+    {
+      "word": "the",
+      "start": 331.2,
+      "end": 331.78,
+      "probability": 0.91845703125
+    },
+    {
+      "word": "rabbit.",
+      "start": 331.78,
+      "end": 332.4,
+      "probability": 0.97998046875
+    },
+    {
+      "word": "Can",
+      "start": 333.6,
+      "end": 334.72,
+      "probability": 0.51513671875
+    },
+    {
+      "word": "we",
+      "start": 334.72,
+      "end": 335.26,
+      "probability": 0.8857421875
+    },
+    {
+      "word": "get",
+      "start": 335.26,
+      "end": 335.72,
+      "probability": 0.9833984375
+    },
+    {
+      "word": "back",
+      "start": 335.72,
+      "end": 336.2,
+      "probability": 0.9501953125
+    },
+    {
+      "word": "to",
+      "start": 336.2,
+      "end": 336.74,
+      "probability": 0.8857421875
+    },
+    {
+      "word": "all",
+      "start": 336.74,
+      "end": 337.32,
+      "probability": 0.77294921875
+    },
+    {
+      "word": "that",
+      "start": 337.32,
+      "end": 337.64,
+      "probability": 0.94677734375
+    },
+    {
+      "word": "California",
+      "start": 337.64,
+      "end": 338.94,
+      "probability": 0.96484375
+    },
+    {
+      "word": "magic.",
+      "start": 338.94,
+      "end": 340.62,
+      "probability": 0.93994140625
+    }
+  ]
+}

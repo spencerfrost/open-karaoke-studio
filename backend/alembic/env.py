@@ -1,23 +1,19 @@
-from logging.config import fileConfig
-import os
+"""
+Alembic environment configuration for database migrations.
+"""
+
 import sys
+from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
-
-# Add the app to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Import application models and config
-from app.db.models import Base
+from alembic.config import Config
 from app.config import get_config
+from app.db.models import Base
+from sqlalchemy import engine_from_config, pool
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
-config = context.config
+sys.path.insert(0, str(Path(__file__).parent.parent))
+config = Config(file_=str(Path(__file__).parent / "alembic.ini"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -30,10 +26,12 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
+
 def get_url():
     """Get database URL from application config"""
     app_config = get_config()
     return app_config.DATABASE_URL
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -56,7 +54,7 @@ def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     if url is None:
         url = get_url()
-    
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -79,7 +77,7 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
     if "sqlalchemy.url" not in configuration:
         configuration["sqlalchemy.url"] = get_url()
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -87,9 +85,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

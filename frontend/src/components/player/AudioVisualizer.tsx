@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import vintageTheme from "@/utils/theme";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 interface AudioVisualizerProps {
@@ -17,7 +16,6 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     useKaraokePlayerStore();
   const [audioData, setAudioData] = useState<number[]>([]);
   const animationRef = useRef<number | null>(null);
-  const colors = vintageTheme.colors;
 
   // Animation loop for real waveform data
   useEffect(() => {
@@ -75,15 +73,15 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       {audioData.map((value, index) => {
         const barHeight = value * height;
         const hueRotation = (index / barCount) * 60;
+        const isEven = index % 2 === 0;
+        
         return (
           <div
             key={index}
-            className="w-2 rounded-t"
+            className="w-2 rounded-t opacity-70"
             style={{
               height: `${barHeight}px`,
-              backgroundColor:
-                index % 2 === 0 ? colors.darkCyan : colors.orangePeel,
-              opacity: 0.7,
+              backgroundColor: isEven ? "#01928B" : "#FD9A02", // dark-cyan : orange-peel
               transform: `translateY(${(height - barHeight) / 2}px)`,
               transition: isPlaying ? "none" : "height 0.5s",
               filter: `hue-rotate(${hueRotation}deg)`,

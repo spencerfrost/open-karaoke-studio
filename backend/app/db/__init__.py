@@ -1,5 +1,16 @@
 """
 Database models and connection management for Open Karaoke Studio.
 """
-from .database import engine, init_db, DBSessionMiddleware, SessionLocal
+
+# Database infrastructure
+from .database import SessionLocal, get_db_session
+
+# Models
 from .models import *
+
+# Song operations and business logic
+
+__all__ = [
+    "SessionLocal",
+    "get_db_session",
+]

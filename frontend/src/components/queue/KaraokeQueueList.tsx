@@ -1,7 +1,6 @@
 import React from "react";
 import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 import KaraokeQueueItem from "./KaraokeQueueItem";
-import vintageTheme from "@/utils/theme";
 
 interface KaraokeQueueListProps {
   items: KaraokeQueueItemWithSong[];
@@ -18,14 +17,9 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
   emptyMessage = "No songs in the queue",
   className = "",
 }) => {
-  const colors = vintageTheme.colors;
-
   if (!items.length) {
     return (
-      <div
-        className={`p-8 text-center ${className}`}
-        style={{ color: `${colors.lemonChiffon}80` }}
-      >
+      <div className={`p-8 text-center text-lemon-chiffon/80 ${className}`}>
         <p className="text-lg mb-3">{emptyMessage}</p>
         <p>Add songs to get started!</p>
       </div>

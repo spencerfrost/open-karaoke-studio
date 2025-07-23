@@ -3,10 +3,9 @@ Job management endpoints for the Open Karaoke Studio API.
 These endpoints provide access to job processing and status.
 """
 
-from flask import Blueprint, request, jsonify
-
-from ..db.models import JobStatus
-from ..services import JobsService
+from app.db.models import JobStatus
+from app.services import JobsService
+from flask import Blueprint, jsonify, request
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
 jobs_service = JobsService()

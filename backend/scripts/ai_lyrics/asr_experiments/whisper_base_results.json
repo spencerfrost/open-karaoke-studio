@@ -1,0 +1,189 @@
+{
+  "model": "whisper-base",
+  "detected_language": "en",
+  "text": " I got nothing but all that I need with the music, playing, people singing out I got nothing, I got nothing, I got nothing, Yeah, I got nothing. I got nothing, I could draw my feet, man. I can't help but be good enough by myself. I got nothing, I could draw the feet, man. You make me wake, make me say, oh, oh, oh, oh, I got nothing, I could draw my feet, man. I can't help but be good enough by myself. I got nothing, I could draw the feet, man. You make me wake, make me say oh, oh, oh, oh, oh. Oh! I got nothing, I could draw the feet, man. I'm leaving soon. Take my money. I got nothing. But all I need with music is playing. People singing now, I got nothing. I got nothing, I got nothing, I got nothing, no I can knock a shoulder of people, I can't the big ones and I'll buy myself I can knock a shoulder of people, you make me wake, make me say Oh, I can knock a shoulder of people, I can't the big ones and I'll buy myself I can knock a shoulder of people, you make me wake, make me say Oh! I can knock a shoulder of people I can knock a shoulder of people I can knock a shoulder of people I can knock a shoulder of people I can't knock a troll my feet man, I can't knock a troll the feet man, you make me wake, make me say, oh, I can't knock a troll my feet man, I can't knock a troll the feet man, I can't knock a troll the feet man, you make me wake, make me say, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh oh, oh, oh, oh, oh",
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 29.46,
+      "text": " I got nothing but all that I need with the",
+      "words": []
+    },
+    {
+      "start": 29.46,
+      "end": 52.980000000000004,
+      "text": " music, playing, people singing out I got nothing, I got nothing, I got nothing,",
+      "words": []
+    },
+    {
+      "start": 52.98,
+      "end": 56.379999999999995,
+      "text": " Yeah, I got nothing.",
+      "words": []
+    },
+    {
+      "start": 56.379999999999995,
+      "end": 58.58,
+      "text": " I got nothing, I could draw my feet, man.",
+      "words": []
+    },
+    {
+      "start": 58.58,
+      "end": 61.58,
+      "text": " I can't help but be good enough by myself.",
+      "words": []
+    },
+    {
+      "start": 61.58,
+      "end": 63.58,
+      "text": " I got nothing, I could draw the feet, man.",
+      "words": []
+    },
+    {
+      "start": 63.58,
+      "end": 66.78,
+      "text": " You make me wake, make me say, oh, oh, oh, oh,",
+      "words": []
+    },
+    {
+      "start": 66.78,
+      "end": 68.78,
+      "text": " I got nothing, I could draw my feet, man.",
+      "words": []
+    },
+    {
+      "start": 68.78,
+      "end": 71.78,
+      "text": " I can't help but be good enough by myself.",
+      "words": []
+    },
+    {
+      "start": 71.78,
+      "end": 73.97999999999999,
+      "text": " I got nothing, I could draw the feet, man.",
+      "words": []
+    },
+    {
+      "start": 73.98,
+      "end": 76.38000000000001,
+      "text": " You make me wake, make me say oh, oh, oh, oh, oh.",
+      "words": []
+    },
+    {
+      "start": 76.58,
+      "end": 79.58,
+      "text": " Oh!",
+      "words": []
+    },
+    {
+      "start": 79.58,
+      "end": 82.58,
+      "text": " I got nothing, I could draw the feet, man.",
+      "words": []
+    },
+    {
+      "start": 82.58,
+      "end": 84.18,
+      "text": " I'm leaving soon.",
+      "words": []
+    },
+    {
+      "start": 84.18,
+      "end": 86.58,
+      "text": " Take my money.",
+      "words": []
+    },
+    {
+      "start": 86.58,
+      "end": 92.18,
+      "text": " I got nothing.",
+      "words": []
+    },
+    {
+      "start": 92.18,
+      "end": 97.18,
+      "text": " But all I need with music is playing.",
+      "words": []
+    },
+    {
+      "start": 97.18,
+      "end": 102.18,
+      "text": " People singing now, I got nothing.",
+      "words": []
+    },
+    {
+      "start": 102.18,
+      "end": 110.74000000000001,
+      "text": " I got nothing, I got nothing, I got nothing, no",
+      "words": []
+    },
+    {
+      "start": 110.74000000000001,
+      "end": 115.86000000000001,
+      "text": " I can knock a shoulder of people, I can't the big ones and I'll buy myself",
+      "words": []
+    },
+    {
+      "start": 115.86000000000001,
+      "end": 119.86000000000001,
+      "text": " I can knock a shoulder of people, you make me wake, make me say",
+      "words": []
+    },
+    {
+      "start": 119.86000000000001,
+      "end": 126.18,
+      "text": " Oh, I can knock a shoulder of people, I can't the big ones and I'll buy myself",
+      "words": []
+    },
+    {
+      "start": 126.18,
+      "end": 130.26000000000002,
+      "text": " I can knock a shoulder of people, you make me wake, make me say",
+      "words": []
+    },
+    {
+      "start": 131.01999999999998,
+      "end": 131.54,
+      "text": " Oh!",
+      "words": []
+    },
+    {
+      "start": 142.17999999999998,
+      "end": 144.17999999999998,
+      "text": " I can knock a shoulder of people",
+      "words": []
+    },
+    {
+      "start": 147.62,
+      "end": 150.01999999999998,
+      "text": " I can knock a shoulder of people",
+      "words": []
+    },
+    {
+      "start": 151.78,
+      "end": 155.54,
+      "text": " I can knock a shoulder of people",
+      "words": []
+    },
+    {
+      "start": 157.78,
+      "end": 159.78,
+      "text": " I can knock a shoulder of people",
+      "words": []
+    },
+    {
+      "start": 160.26,
+      "end": 190.26,
+      "text": " I can't knock a troll my feet man, I can't knock a troll the feet man, you make me wake, make me say, oh, I can't knock a troll my feet man, I can't knock a troll the feet man, I can't knock a troll the feet man, you make me wake, make me say, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh",
+      "words": []
+    },
+    {
+      "start": 190.26,
+      "end": 205.81,
+      "text": " oh, oh, oh, oh, oh",
+      "words": []
+    }
+  ],
+  "words": [],
+  "processing_time": 11.196140766143799
+}
