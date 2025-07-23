@@ -27,15 +27,13 @@ import {
   StepperTrigger,
 } from "@/components/ui/stepper";
 
-import {
-  useMetadataSearch,
-  useSaveMetadataMutation,
-} from "@/hooks/useYoutube";
+import { useMetadata } from '@/hooks/api/useMetadata';
+import { useLyricsSearch } from "@/hooks/api/useLyrics";
+import { useSaveMetadataMutation } from "@/hooks/api/useYoutube";
 
-import { useLyricsSearch } from "@/hooks/useLyrics";
-
-import type { LyricsOption, MetadataOption } from "@/components/forms";
-import type { CreateSongResponse } from "@/hooks/useYoutube";
+import type { LyricsOption } from "@/hooks/api/useLyrics";
+import type { MetadataOption } from "@/hooks/api/useMetadata";
+import type { CreateSongResponse } from "@/hooks/api/useYoutube";
 
 import {
   ConfirmDetailsStep,
@@ -83,22 +81,11 @@ export function SongAdditionStepper({
     search: fetchLyrics,
   } = useLyricsSearch();
 
-  const {
-    data: metadataResponse,
-    refetch: fetchMetadata,
-    isPending: isLoadingMetadata,
-  } = useMetadataSearch({
-    enabled: false,
-    queryKey: [
-      "metadata",
-      initialMetadata.artist,
-      initialMetadata.title,
-      initialMetadata.album,
-    ],
-  });
+  const { useSearchMetadata } = useMetadata();
+const searchMetadata = useSearchMetadata();
 
   // Extract metadata options from the response structure
-  const metadataOptions = metadataResponse?.results || [];
+  const metadataOptions = searchMetadata.data || [];
 
   const saveMetadataMutation = useSaveMetadataMutation(createdSong.id, {
     onSuccess: () => {
@@ -118,23 +105,20 @@ export function SongAdditionStepper({
       setConfirmedMetadata(initialMetadata);
       setSelectedLyrics(null);
       setSelectedMetadata(null);
-      setMetadataSearchQuery({
-        artist: initialMetadata.artist,
-        title: initialMetadata.title,
-        album: initialMetadata.album,
-      });
     }
   }, [isOpen, initialMetadata]);
 
   // Auto-proceed from confirm step to lyrics step after API calls start
+  const safeLyricsOptions = lyricsOptions || [];
+
   useEffect(() => {
-    if (currentStep === 2 && !isLoadingLyrics && lyricsOptions.length >= 0) {
+    if (currentStep === 2 && !isLoadingLyrics && safeLyricsOptions.length >= 0) {
       // Auto-select first lyrics option if available
-      if (lyricsOptions.length > 0) {
-        setSelectedLyrics(lyricsOptions[0]);
+      if (safeLyricsOptions.length > 0) {
+        setSelectedLyrics(safeLyricsOptions[0]);
       }
     }
-  }, [currentStep, isLoadingLyrics, lyricsOptions]);
+  }, [currentStep, isLoadingLyrics, safeLyricsOptions]);
 
   // Step 1: Confirm Details
   const handleStep1Continue = (newMetadata: {
@@ -143,12 +127,7 @@ export function SongAdditionStepper({
     album: string;
   }) => {
     setConfirmedMetadata(newMetadata);
-    setMetadataSearchQuery({
-      artist: newMetadata.artist,
-      title: newMetadata.title,
-      album: newMetadata.album,
-    });
-    // Start both API calls simultaneously and advance to lyrics step
+    // No setMetadataSearchQuery needed
     setCurrentStep(2);
     setTimeout(() => {
       fetchLyrics({
@@ -156,7 +135,11 @@ export function SongAdditionStepper({
         title: newMetadata.title,
         album: newMetadata.album,
       });
-      fetchMetadata();
+      searchMetadata.mutate({
+        artist: newMetadata.artist,
+        title: newMetadata.title,
+        album: newMetadata.album,
+      });
     }, 100);
   };
 
@@ -193,26 +176,26 @@ export function SongAdditionStepper({
       title: selectedMetadata?.title || confirmedMetadata.title,
       artist: selectedMetadata?.artist || confirmedMetadata.artist,
       album: selectedMetadata?.album || confirmedMetadata.album,
-      lyrics: selectedLyrics?.plainLyrics,
+      plainlyrics: selectedLyrics?.plainLyrics,
       syncedLyrics: selectedLyrics?.syncedLyrics,
-      metadataId: selectedMetadata?.metadataId,
+      // Use id or another correct property if metadataId is not present
+      metadataId: (selectedMetadata as MetadataOption)?.metadataId,
     });
   };
 
   const handleMetadataSkip = () => {
-    // Skip metadata completely - save with just lyrics
     saveMetadataMutation.mutate({
       title: confirmedMetadata.title,
       artist: confirmedMetadata.artist,
       album: confirmedMetadata.album,
-      lyrics: selectedLyrics?.plainLyrics,
+      plainlyrics: selectedLyrics?.plainLyrics,
       syncedLyrics: selectedLyrics?.syncedLyrics,
     });
   };
 
   const handleMetadataResearch = (query: { artist: string; title: string; album: string }) => {
-    setMetadataSearchQuery(query);
-    fetchMetadata();
+    // No setMetadataSearchQuery needed
+    searchMetadata.mutate(query);
   };
 
   // Render step content
@@ -230,7 +213,7 @@ export function SongAdditionStepper({
       case 2:
         return (
           <LyricsSelectionStep
-            lyricsOptions={lyricsOptions}
+            lyricsOptions={safeLyricsOptions}
             selectedLyrics={selectedLyrics}
             videoDuration={videoDuration}
             isSearching={isLoadingLyrics}
@@ -247,7 +230,7 @@ export function SongAdditionStepper({
           <MetadataSelectionStep
             metadataOptions={metadataOptions}
             selectedMetadata={selectedMetadata}
-            isSearching={isLoadingMetadata}
+            isSearching={searchMetadata.isPending}
             initialMetadata={confirmedMetadata}
             onMetadataSelect={(metadata) => setSelectedMetadata(metadata)}
             onConfirm={handleMetadataConfirm}

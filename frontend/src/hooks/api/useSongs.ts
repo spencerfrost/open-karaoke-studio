@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useApiQuery, useApiMutation, uploadFile } from "./useApi";
-import { Song, SongProcessingStatus } from "../types/Song";
+import { Song, SongProcessingStatus } from "../../types/Song";
 import { useQueryClient } from "@tanstack/react-query";
 
 // Query keys for React Query

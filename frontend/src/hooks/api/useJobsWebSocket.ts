@@ -4,8 +4,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { jobsWebSocketService } from '../services/jobsWebSocketService';
-import { SongProcessingStatus, SongStatus } from '../types/Song';
+import { jobsWebSocketService } from '../../services/jobsWebSocketService';
+import { SongProcessingStatus, SongStatus } from '../../types/Song';
 
 interface JobData {
   id: string;

@@ -18,7 +18,7 @@ import {
   useYoutubeDownloadMutation,
   useCreateSongMutation,
   CreateSongResponse,
-} from "@/hooks/useYoutube";
+} from "@/hooks/api/useYoutube";
 
 // Helper functions
 const formatDuration = (seconds: number) => {

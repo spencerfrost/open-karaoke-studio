@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { LyricsOption } from "@/hooks/useYoutube";
+import { LyricsOption } from "@/hooks/api/useLyrics";
 
 interface LyricsTabProps {
   isLoading: boolean;

@@ -5,7 +5,7 @@ import { Music, Play, Plus, MoreVertical } from "lucide-react";
 import { SongDetailsDialog } from "./song-details/SongDetailsDialog";
 import { Song } from "@/types/Song";
 import { formatTimeMs } from "@/utils/formatters";
-import { useSongs } from "@/hooks/useSongs";
+import { useSongs } from "@/hooks/api/useSongs";
 import { Button } from "@/components/ui/button";
 
 interface HorizontalSongCardProps {

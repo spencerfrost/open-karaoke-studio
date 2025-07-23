@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SearchForm, LyricsResults } from "@/components/forms";
-import type { SearchFormData, LyricsOption } from "@/components/forms";
+import type { SearchFormData } from "@/components/forms";
+import type { LyricsOption } from "@/hooks/api/useLyrics";
 
 interface LyricsSelectionStepProps {
   lyricsOptions: LyricsOption[];
@@ -100,9 +101,7 @@ export function LyricsSelectionStep({
             selectedOption={selectedLyrics}
             onSelectionChange={onLyricsSelect}
             isLoading={isSearching}
-            videoDuration={videoDuration}
-            autoSelectBest={true}
-            emptyMessage="No lyrics found for this search"
+            youtubeDurationSeconds={videoDuration}
           />
         </CardContent>
       </Card>

@@ -4,7 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import WebSocketStatus from "@/components/WebsocketStatus";
 import { useParams } from "react-router-dom";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import { useSongs } from "@/hooks/useSongs";
+import { useSongs } from "@/hooks/api/useSongs";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
