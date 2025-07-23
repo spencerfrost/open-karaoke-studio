@@ -49,7 +49,7 @@ const SongPlayer: React.FC = () => {
 
   // Combine lyrics data if we fetched it separately
   const lyrics = song?.plainLyrics || "";
-  const syncedLyrics = song?.syncedLyrics ||"";
+  const syncedLyrics = song?.syncedLyrics || "";
 
   const playerState = {
     isPlaying,
