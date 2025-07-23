@@ -67,6 +67,7 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
     parsedDuration,
     option.duration ?? 0
   );
+  const Icon = durationComparison.icon;
 
   // Remove timestamps for synced lyrics preview
   const cleanedLyrics = option.syncedLyrics
@@ -119,9 +120,7 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
               <div
                 className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
               >
-                {durationComparison.icon && (
-                  <durationComparison.icon size={12} />
-                )}
+                {Icon && <Icon size={12} />}
                 <span>{formatDuration(option.duration)}</span>
                 <span className="text-muted-foreground">
                   vs {formatDuration(parsedDuration)}
