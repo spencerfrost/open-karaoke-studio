@@ -138,7 +138,8 @@ class LoggingConfig:
                     "level": "INFO",
                     "handlers": ["console","file_info", ],
                     "propagate": False,
-                },                # Celery loggers
+                },
+                # Celery loggers
                 "celery": {
                     "level": "INFO",
                     "handlers": ["console", "file_celery",],
