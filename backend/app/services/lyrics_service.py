@@ -42,7 +42,7 @@ class LyricsService:
                     else:
                         data = {"error": "Invalid JSON from LRCLIB"}
                 # Only treat as failure if network error or 5xx, not just 404/400
-                if status >= 500 or (status == 0):
+                if (status >= 500 or status == 0) and status not in {404, 400}:
                     raise ServiceError(f"LRCLIB server error: {status}")
                 return status, data
             except requests.RequestException as e:
