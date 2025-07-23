@@ -37,7 +37,12 @@ export function useLyricsSearch() {
         artist_name: params.artist,
         ...(params.album ? { album_name: params.album } : {}),
       }).toString();
-      const response = await fetch(`/api/lyrics/search?${queryString}`);
+      let response;
+      try {
+        response = await fetch(`/api/lyrics/search?${queryString}`);
+      } catch (fetchError) {
+        throw new Error(`Network error: ${fetchError.message}`);
+      }
       if (!response.ok) throw new Error("Failed to fetch lyrics");
       const result = await response.json();
       setData(result);
