@@ -209,7 +209,7 @@ def _setup_event_subscriptions():
         print("✅ Jobs WebSocket event subscriptions initialized")
         import logging
 
-        logging.getLogger(__name__).info(
+        logging.getLogger(__name__).debug(
             "Jobs WebSocket event subscriptions initialized"
         )
     except Exception as e:

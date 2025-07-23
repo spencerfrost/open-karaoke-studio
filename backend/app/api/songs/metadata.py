@@ -48,8 +48,14 @@ def auto_save_itunes_metadata() -> tuple:
         if not song:
             logger.error(f"Song not found: {song_id}")
             return jsonify({"success": False, "error": "Song not found"}), 404
-        # Update song with new metadata (using DB model)
-        update_fields = {k: v for k, v in results[0].items() if hasattr(song, k)}
+        itunes_result = results[0].copy()
+        if "id" in itunes_result:
+            # Map iTunes 'id' to 'mbid' (or 'metadataId' if that's your model field)
+            itunes_result["mbid"] = itunes_result["id"]
+            del itunes_result["id"]
+
+        # Now only update fields that exist on the model, and never the primary key 'id'
+        update_fields = {k: v for k, v in itunes_result.items() if hasattr(song, k) and k != "id"}
         with get_db_session() as session:
             repo = SongRepository(session)
             updated_song = repo.update(song_id, **update_fields)

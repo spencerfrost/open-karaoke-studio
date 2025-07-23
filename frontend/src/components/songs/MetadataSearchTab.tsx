@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Music, Search, Check } from "lucide-react";
 import { Song } from "@/types/Song";
-import { useMetadata } from "@/hooks/useMetadata";
+import { useMetadata } from "@/hooks/api/useMetadata";
 
 interface MetadataSearchTabProps {
   song: Song;

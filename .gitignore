@@ -66,6 +66,7 @@ karaoke_library
 downloads
 job_store
 temp_job_cache
+lrclip
 .serena
 
 backend/karaoke.db-shm

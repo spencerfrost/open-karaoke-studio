@@ -44,7 +44,7 @@ const Stage: React.FC = () => {
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
           <UnifiedLyricsDisplay
-            lyrics={currentSong?.syncedLyrics || currentSong?.lyrics || ""}
+            lyrics={currentSong?.syncedLyrics || currentSong?.plainLyrics || ""}
             isSynced={!!currentSong?.syncedLyrics}
             currentTime={currentTime * 1000}
             title={currentSong?.title || ""}

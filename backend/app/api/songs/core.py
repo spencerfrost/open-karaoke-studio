@@ -194,7 +194,7 @@ def create_song(validated_data: CreateSongRequest):
             file_service = FileService()
             song_dir = file_service.get_song_directory(song_id)
             song_dir.mkdir(parents=True, exist_ok=True)
-            logger.info("Created directory for song: %s", song_dir)
+            logger.debug("Created directory for song: %s", song_dir)
         except OSError as e:
             logger.warning(
                 "File system error creating directory for song %s: %s", song_id, e

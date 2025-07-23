@@ -70,10 +70,10 @@ def download_youtube_endpoint(validated_data: YouTubeDownloadRequest):
     # The service will handle song creation if needed
     youtube_service = YouTubeService()
     job_id = youtube_service.download_and_process_async(
+        song_id=validated_data.song_id,
         video_id_or_url=validated_data.video_id,
         artist=validated_data.artist or "",
         title=validated_data.title or "",
-        song_id=validated_data.song_id,
     )
 
     logger.info(

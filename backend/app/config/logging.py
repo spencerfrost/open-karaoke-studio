@@ -14,6 +14,12 @@ from app.config import get_config
 
 from .base import BaseConfig
 
+try:
+    import colorlog
+    COLORLOG_AVAILABLE = True
+except ImportError:
+    COLORLOG_AVAILABLE = False
+
 
 class TimezoneFormatter(logging.Formatter):
     """Custom formatter that converts timestamps to a specified timezone."""
@@ -57,12 +63,30 @@ class LoggingConfig:
                     "datefmt": "%Y-%m-%d %H:%M:%S %Z",
                     "timezone": self.timezone,
                 },
-                "simple": {
-                    "()": TimezoneFormatter,
-                    "format": "%(asctime)s - %(levelname)s - %(message)s",
-                    "datefmt": "%Y-%m-%d %H:%M:%S %Z",
-                    "timezone": self.timezone,
-                },
+                "simple": (
+                    {
+                        "()": colorlog.ColoredFormatter,
+                        "fmt": (
+                            "%(asctime)s %(log_color)s%(levelname)-8s%(reset)s "
+                            "%(white)s%(message)s"
+                        ),
+                        "datefmt": "%H:%M:%S",
+                        "log_colors": {
+                            "DEBUG": "cyan",
+                            "INFO": "green",
+                            "WARNING": "yellow",
+                            "ERROR": "red",
+                            "CRITICAL": "bold_red,bg_white",
+                        },
+                        "secondary_log_colors": {},
+                        "style": "%",
+                    } if COLORLOG_AVAILABLE else {
+                        "()": TimezoneFormatter,
+                        "format": "%(asctime)s - %(levelname)s - %(message)s",
+                        "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                        "timezone": self.timezone,
+                    }
+                ),
                 "celery": {
                     "()": TimezoneFormatter,
                     "format": (
@@ -96,15 +120,6 @@ class LoggingConfig:
                     "backupCount": 5,
                     "encoding": "utf8",
                 },
-                "file_error": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "ERROR",
-                    "formatter": "detailed",
-                    "filename": str(self.log_dir / "errors.log"),
-                    "maxBytes": 10485760,
-                    "backupCount": 5,
-                    "encoding": "utf8",
-                },
                 "file_celery": {
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "INFO",
@@ -114,71 +129,29 @@ class LoggingConfig:
                     "backupCount": 5,
                     "encoding": "utf8",
                 },
-                "file_jobs": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "INFO",
-                    "formatter": "detailed",
-                    "filename": str(self.log_dir / "jobs.log"),
-                    "maxBytes": 10485760,
-                    "backupCount": 5,
-                    "encoding": "utf8",
-                },
-                "file_youtube": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "INFO",
-                    "formatter": "detailed",
-                    "filename": str(self.log_dir / "youtube.log"),
-                    "maxBytes": 5242880,  # 5MB
-                    "backupCount": 3,
-                    "encoding": "utf8",
-                },
-                "file_audio": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "INFO",
-                    "formatter": "detailed",
-                    "filename": str(self.log_dir / "audio_processing.log"),
-                    "maxBytes": 10485760,
-                    "backupCount": 5,
-                    "encoding": "utf8",
-                },
             },
             "loggers": {
                 # Root logger
                 "": {
                     "level": "INFO",
-                    "handlers": ["console", "file_info", "file_error"],
+                    "handlers": ["console", "file_info", ],
                     "propagate": False,
                 },
                 # App-specific loggers
                 "app": {
                     "level": "INFO",
-                    "handlers": ["console", "file_info", "file_error"],
-                    "propagate": False,
-                },
-                "app.jobs": {
-                    "level": "INFO",
-                    "handlers": ["console", "file_jobs", "file_error"],
-                    "propagate": False,
-                },
-                "app.services.youtube_service": {
-                    "level": "INFO",
-                    "handlers": ["console", "file_youtube", "file_error"],
-                    "propagate": False,
-                },
-                "app.services.audio": {
-                    "level": "INFO",
-                    "handlers": ["console", "file_audio", "file_error"],
+                    "handlers": ["console", "file_info", ],
                     "propagate": False,
                 },
                 # Celery loggers
                 "celery": {
                     "level": "INFO",
-                    "handlers": ["console", "file_celery", "file_error"],
+                    "handlers": ["console", "file_celery",],
                     "propagate": False,
                 },
                 "celery.task": {
                     "level": "INFO",
-                    "handlers": ["console", "file_celery", "file_error"],
+                    "handlers": ["console", "file_celery",],
                     "propagate": False,
                 },
                 # Third-party loggers (reduce noise)
