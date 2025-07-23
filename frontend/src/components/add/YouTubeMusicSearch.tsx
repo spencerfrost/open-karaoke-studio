@@ -94,7 +94,7 @@ export function YouTubeMusicSearch() {
         },
         onError: (error) => {
           setIsAdding(false);
-          alert("Failed to create song: " + (error?.message || error));
+          toast.error("Failed to create song: " + (error?.message || error));
         },
       }
     );
