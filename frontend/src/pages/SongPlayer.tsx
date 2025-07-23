@@ -4,22 +4,19 @@ import AppLayout from "@/components/layout/AppLayout";
 import WebSocketStatus from "@/components/WebsocketStatus";
 import { useParams } from "react-router-dom";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import { useSongs } from "@/hooks/useSongs";
+import { useSongs } from "@/hooks/api/useSongs";
 
 const SongPlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
 
   // Use the song query hook
-  const { useSong, useSongLyrics } = useSongs();
+  const { useSong } = useSongs();
+  
   const {
     data: song,
     isLoading: songLoading,
     error: songError,
   } = useSong(id ?? "");
-
-  const { data: lyricsData } = useSongLyrics(id ?? "", {
-    enabled: !!song && !song.lyrics && !song.syncedLyrics,
-  });
 
   const {
     connect,
@@ -51,8 +48,8 @@ const SongPlayer: React.FC = () => {
   }, [song, setSongAndLoad, cleanup]);
 
   // Combine lyrics data if we fetched it separately
-  const lyrics = song?.lyrics || lyricsData?.plainLyrics || "";
-  const syncedLyrics = song?.syncedLyrics || lyricsData?.syncedLyrics || "";
+  const lyrics = song?.plainLyrics || "";
+  const syncedLyrics = song?.syncedLyrics || "";
 
   const playerState = {
     isPlaying,
@@ -125,7 +122,7 @@ const SongPlayer: React.FC = () => {
             currentTime={currentTime * 1000}
             title={song.title}
             artist={song.artist}
-            durationMs={durationMs}
+            durationMs={durationMs || 0}
             onSeek={seek}
           />
         </div>

@@ -1,12 +1,9 @@
 # backend/app/services/itunes_service.py
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import requests
-
-from .file_management import download_image, get_cover_art_path
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +21,7 @@ def search_itunes(
         limit (int): Maximum number of results to return
 
     Returns:
-        List[Dict[str, Any]]: List of song metadata sorted by release date (newest first)
+        List[Dict[str, Any]]: List of song metadata sorted by release date (new first)
     """
     try:
         # Build search term - iTunes works best with simple search terms
@@ -91,18 +88,11 @@ def search_itunes(
                     "albumId": track.get("collectionId"),
                     "releaseDate": track.get("releaseDate"),
                     "genre": track.get("primaryGenreName"),
-                    "duration": track.get(
-                        "trackTimeMillis"
-                    ),  # Duration in milliseconds
                     "trackNumber": track.get("trackNumber"),
                     "discNumber": track.get("discNumber"),
                     "country": track.get("country"),
-                    "currency": track.get("currency"),
                     "price": track.get("trackPrice"),
                     "previewUrl": track.get("previewUrl"),
-                    "artworkUrl30": track.get("artworkUrl30"),
-                    "artworkUrl60": track.get("artworkUrl60"),
-                    "artworkUrl100": track.get("artworkUrl100"),
                     "collectionPrice": track.get("collectionPrice"),
                     "trackExplicitness": track.get("trackExplicitness"),
                     "collectionExplicitness": track.get("collectionExplicitness"),
@@ -122,10 +112,6 @@ def search_itunes(
                     except (ValueError, AttributeError):
                         track_data["releaseYear"] = None
                         track_data["releaseDateFormatted"] = None
-
-                # Convert duration from milliseconds to seconds
-                if track_data["duration"]:
-                    track_data["durationSeconds"] = track_data["duration"] // 1000
 
                 logging.debug(
                     "iTunes result %s: '%s' by %s (%s)",
@@ -278,298 +264,3 @@ def _filter_canonical_releases(
         )
 
     return [item["track"] for item in scored_tracks]
-
-
-def get_itunes_cover_art(track_data: dict[str, Any], song_dir: Path) -> Optional[str]:
-    """
-    Download cover art from iTunes artwork URLs.
-
-    Args:
-        track_data: iTunes track metadata
-        song_dir: Directory to save cover art
-
-    Returns:
-        str: Relative path to downloaded cover art or None
-    """
-    try:
-        # Try to get the highest quality artwork available
-        artwork_url = (
-            track_data.get("artworkUrl100")
-            or track_data.get("artworkUrl60")
-            or track_data.get("artworkUrl30")
-        )
-
-        logger.info("iTunes cover art - Original URL: %s", artwork_url)
-
-        if not artwork_url:
-            logger.warning("No iTunes artwork URL found in track data")
-            return None
-
-        cover_path = get_cover_art_path(song_dir)
-        logger.info("iTunes cover art - Target path: %s", cover_path)
-
-        # First try to get high-resolution artwork (600x600)
-        # iTunes URLs end with dimensions like "100x100bb.jpg", need to replace the whole ending
-        high_res_url = (
-            artwork_url.replace("100x100bb.jpg", "600x600bb.jpg")
-            .replace("60x60bb.jpg", "600x600bb.jpg")
-            .replace("30x30bb.jpg", "600x600bb.jpg")
-        )
-        logger.info("iTunes cover art - Trying high-res URL: %s", high_res_url)
-
-        if download_image(high_res_url, cover_path):
-            # Success with high-res
-            if cover_path.exists():
-                file_size = cover_path.stat().st_size
-                logger.info(
-                    "iTunes cover art - High-res download successful, size: %s bytes",
-                    file_size,
-                )
-
-            from app.config import get_config
-
-            config = get_config()
-            relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
-            logger.info("iTunes cover art - Returning relative path: %s", relative_path)
-            return relative_path
-
-        # High-res failed, try the original URL as fallback
-        logger.warning(
-            "iTunes cover art - High-res failed, trying original URL: %s", artwork_url
-        )
-
-        if download_image(artwork_url, cover_path):
-            if cover_path.exists():
-                file_size = cover_path.stat().st_size
-                logger.info(
-                    "iTunes cover art - Original URL download successful, size: %s bytes",
-                    file_size,
-                )
-
-            from app.config import get_config
-
-            config = get_config()
-            relative_path = str(cover_path.relative_to(config.LIBRARY_DIR))
-            logger.info("iTunes cover art - Returning relative path: %s", relative_path)
-            return relative_path
-        else:
-            logger.error("iTunes cover art - Both high-res and original URL failed")
-
-    except Exception as e:
-        logger.error("iTunes cover art download error: %s", e)
-
-    return None
-
-
-def enhance_metadata_with_itunes(
-    metadata: dict[str, Any], song_dir: Path
-) -> dict[str, Any]:
-    """
-    Enhance song metadata with iTunes data.
-
-    Args:
-        metadata: Existing song metadata
-        song_dir: Song directory for cover art
-
-    Returns:
-        Dict[str, Any]: Enhanced metadata
-    """
-    try:
-        from app.utils.metadata import filter_itunes_metadata_for_storage
-
-        artist = metadata.get("artist", "")
-        title = metadata.get("title", "")
-
-        logger.info("Enhancing metadata for: '%s' by '%s'", title, artist)
-
-        if not artist or artist == "Unknown Artist" or not title:
-            logger.warning("Skipping iTunes enhancement - missing artist or title")
-            return metadata
-
-        itunes_results = search_itunes(artist, title, limit=1)
-
-        if not itunes_results:
-            logger.warning("No iTunes results found for: '%s' by '%s'", title, artist)
-            return metadata
-
-        itunes_data = itunes_results[0]
-        logger.info(
-            "Found iTunes match: '%s' by '%s'",
-            itunes_data.get("title"),
-            itunes_data.get("artist"),
-        )
-
-        # Download cover art
-        cover_art_path = get_itunes_cover_art(itunes_data, song_dir)
-        if cover_art_path:
-            logger.info("Downloaded cover art to: %s", cover_art_path)
-        else:
-            logger.warning("Could not download cover art from iTunes")
-
-        # Enhance metadata with iTunes data
-        enhanced = metadata.copy()
-        enhanced.update(
-            {
-                "id": itunes_data.get("id"),
-                "title": itunes_data.get("title") or metadata.get("title"),
-                "artist": itunes_data.get("artist") or metadata.get("artist"),
-                "artistId": itunes_data.get("artistId"),
-                "album": itunes_data.get("album") or metadata.get("album"),
-                "albumId": itunes_data.get("albumId"),
-                "releaseDate": itunes_data.get("releaseDateFormatted"),
-                "releaseYear": itunes_data.get("releaseYear"),
-                "genre": itunes_data.get("genre") or metadata.get("genre"),
-                "duration": itunes_data.get("durationSeconds"),
-                "trackNumber": itunes_data.get("trackNumber"),
-                "previewUrl": itunes_data.get("previewUrl"),
-                "isStreamable": itunes_data.get("isStreamable"),
-                # Phase 1B: New iTunes-specific fields
-                "itunesTrackId": itunes_data.get("id"),
-                "itunesArtistId": itunes_data.get("artistId"),
-                "itunesCollectionId": itunes_data.get("albumId"),
-                "trackTimeMillis": itunes_data.get(
-                    "duration"
-                ),  # milliseconds from iTunes
-                "itunesExplicit": itunes_data.get("trackExplicitness") == "explicit",
-                "itunesPreviewUrl": itunes_data.get("previewUrl"),
-                "itunesArtworkUrls": (
-                    [
-                        itunes_data.get("artworkUrl30"),
-                        itunes_data.get("artworkUrl60"),
-                        itunes_data.get("artworkUrl100"),
-                    ]
-                    if any(
-                        [
-                            itunes_data.get("artworkUrl30"),
-                            itunes_data.get("artworkUrl60"),
-                            itunes_data.get("artworkUrl100"),
-                        ]
-                    )
-                    else None
-                ),
-                # Phase 1B: Store raw iTunes metadata
-                "itunesRawMetadata": filter_itunes_metadata_for_storage(itunes_data),
-            }
-        )
-
-        if cover_art_path:
-            enhanced["coverArt"] = cover_art_path
-
-        return enhanced
-
-    except Exception as e:
-        logger.error("Error enhancing metadata with iTunes: %s", e)
-        return metadata
-
-
-# Test function for quick verification
-def test_itunes_search():
-    """Quick test function to verify iTunes API is working."""
-    test_queries = [
-        ("Coldplay", "Yellow"),
-        ("The Beatles", "Hey Jude"),
-        ("Queen", "Bohemian Rhapsody"),
-    ]
-
-    for artist, title in test_queries:
-        print(f"\n--- Testing: {artist} - {title} ---")
-        results = search_itunes(artist, title, limit=3)
-
-        if results:
-            for i, result in enumerate(results, 1):
-                print(f"{i}. {result.get('title')} by {result.get('artist')}")
-                print(f"   Album: {result.get('album')}")
-                print(f"   Release: {result.get('releaseDateFormatted')}")
-                print(f"   Genre: {result.get('genre')}")
-        else:
-            print("No results found")
-
-
-def test_itunes_api_access():
-    """Test iTunes API access with detailed debugging."""
-
-    print("=== iTunes API Access Test ===")
-
-    # Test with minimal request first
-    url = "https://itunes.apple.com/search"
-    params = {
-        "term": "coldplay yellow",
-        "entity": "song",
-        "media": "music",
-        "limit": 1,
-        "country": "US",
-    }
-
-    # Test with different User-Agent strings
-    user_agents = [
-        "OpenKaraokeStudio/1.0",
-        (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        ),
-        "iTunes/12.12 (Linux; N; en_US) AppleWebKit/605.1.15",
-        "python-requests/2.28.1",
-    ]
-
-    for i, ua in enumerate(user_agents, 1):
-        print(f"\n--- Test {i}: User-Agent: {ua[:50]}... ---")
-
-        try:
-            response = requests.get(
-                url, params=params, headers={"User-Agent": ua}, timeout=10
-            )
-
-            print(f"Status Code: {response.status_code}")
-            print(f"Response Headers: {dict(response.headers)}")
-            print(f"URL: {response.url}")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"Results found: {len(data.get('results', []))}")
-                if data.get("results"):
-                    track = data["results"][0]
-                    print(
-                        f"First result: {track.get('trackName')} by {track.get('artistName')}"
-                    )
-            else:
-                print(f"Error response body: {response.text[:500]}")
-
-        except requests.RequestException as e:
-            print(f"Request Error: {e}")
-            if hasattr(e, "response") and e.response:
-                print(f"Response status: {e.response.status_code}")
-                print(f"Response text: {e.response.text[:500]}")
-        except Exception as e:
-            print(f"Error: {e}")
-
-    # Test with session for persistent connections
-    print("\n--- Test with Session ---")
-    try:
-        session = requests.Session()
-        session.headers.update(
-            {
-                "User-Agent": (
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-                )
-            }
-        )
-
-        response = session.get(url, params=params, timeout=10)
-        print(f"Session request - Status: {response.status_code}")
-
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Session request - Results: {len(data.get('results', []))}")
-        else:
-            print(f"Session error: {response.text[:500]}")
-
-    except Exception as e:
-        print(f"Session error: {e}")
-
-    print("\n=== End iTunes API Test ===")
-
-
-if __name__ == "__main__":
-    # Quick test when running the file directly
-    test_itunes_search()

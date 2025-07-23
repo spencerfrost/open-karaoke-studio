@@ -53,7 +53,7 @@ def validate_json_request(schema_class: Type[BaseModel], location: str = "json")
                 validated_data = schema_class.model_validate(raw_data)
 
                 # Log successful validation
-                logger.info(
+                logger.debug(
                     "Request validated successfully",
                     extra={
                         "endpoint": func.__name__,

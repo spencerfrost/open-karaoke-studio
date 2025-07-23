@@ -2,7 +2,7 @@
  * Upload-related API services
  */
 import { useMutation } from "@tanstack/react-query";
-import { uploadFile } from "@/hooks/useApi";
+import { uploadFile } from "@/hooks/api/useApi";
 
 /**
  * Hook: Upload and process an audio file

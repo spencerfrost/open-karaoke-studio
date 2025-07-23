@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pencil } from "lucide-react";
 import { Song } from "@/types/Song";
-import { useSongs } from "@/hooks/useSongs";
+import { useSongs } from "@/hooks/api/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MetadataSearchTab from "./MetadataSearchTab";
 

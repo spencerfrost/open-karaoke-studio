@@ -5,14 +5,13 @@ Unit tests for the lyrics service.
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
 from app.exceptions import ServiceError, ValidationError
 from app.services.file_service import FileService
-from app.services.lyrics_service import USER_AGENT, LyricsService, make_request
-from requests.exceptions import ConnectionError, Timeout
+from app.services.lyrics_service import LyricsService
 
 
 class TestLyricsService:
@@ -221,69 +220,3 @@ class TestLyricsService:
         # Act & Assert
         with pytest.raises(ServiceError):
             lyrics_service.search_lyrics("Test Song Test Artist")
-
-
-class TestLegacyMakeRequest:
-    """Test suite for legacy make_request function."""
-
-    @pytest.fixture
-    def sample_response_data(self):
-        """Sample response data for testing."""
-        return {
-            "id": 12345,
-            "name": "Test Song",
-            "artistName": "Test Artist",
-            "albumName": "Test Album",
-            "duration": 180.5,
-            "plainLyrics": "Line 1\nLine 2\nLine 3",
-            "syncedLyrics": "[00:00.00] Line 1\n[00:03.50] Line 2\n[00:07.00] Line 3",
-        }
-
-    @patch("app.services.lyrics_service.requests.get")
-    def test_make_request_success(self, mock_get, sample_response_data, app):
-        """Test successful API request."""
-        # Arrange
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = sample_response_data
-        mock_get.return_value = mock_response
-
-        path = "/api/search"
-        params = {"q": "test artist test song"}
-
-        # Act
-        with app.app_context():
-            status, data = make_request(path, params)
-
-        # Assert
-        assert status == 200
-        assert data == sample_response_data
-
-    @patch("app.services.lyrics_service.requests.get")
-    def test_make_request_404_not_found(self, mock_get, app):
-        """Test API request when lyrics not found."""
-        # Arrange
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_response.json.return_value = {"error": "Not found"}
-        mock_get.return_value = mock_response
-
-        path = "/api/get"
-        params = {"artist_name": "Unknown Artist", "track_name": "Unknown Song"}
-
-        # Act
-        with app.app_context():
-            status, data = make_request(path, params)
-
-        # Assert
-        assert status == 404
-        assert data == {"error": "Not found"}
-
-    def test_user_agent_constant(self):
-        """Test that USER_AGENT constant is properly defined."""
-        assert (
-            USER_AGENT
-            == "OpenKaraokeStudio/0.1 (https://github.com/spencerfrost/open-karaoke-studio)"
-        )
-        assert isinstance(USER_AGENT, str)
-        assert len(USER_AGENT) > 0

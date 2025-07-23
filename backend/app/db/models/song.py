@@ -24,7 +24,6 @@ class DbSong(Base):
     instrumental_path = Column(String, nullable=True)
     original_path = Column(String, nullable=True)
     thumbnail_path = Column(String, nullable=True)
-    cover_art_path = Column(String, nullable=True)
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
     video_id = Column(String, nullable=True)
@@ -53,7 +52,6 @@ class DbSong(Base):
     track_time_millis = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
     itunes_preview_url = Column(String, nullable=True)
-    itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
     # Phase 1B = Column(Integer, nullable=True)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
@@ -108,7 +106,6 @@ class DbSong(Base):
                 if self.original_path is not None
                 else None
             ),
-            "coverArt": self.cover_art_path,
             "thumbnail": self.thumbnail_path,
             # YouTube data (convert to camelCase)
             "videoId": self.video_id,

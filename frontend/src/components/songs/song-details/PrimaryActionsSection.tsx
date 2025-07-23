@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Play, PlusCircle, Edit } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
-import { useAddToKaraokeQueue } from "@/hooks/useKaraokeQueue";
+import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import { toast } from "sonner";
 
 interface PrimaryActionsSectionProps {

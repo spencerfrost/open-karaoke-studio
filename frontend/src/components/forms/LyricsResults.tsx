@@ -1,169 +1,134 @@
 import React from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import {
-  Loader2,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  ThumbsUp,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
+import LyricsCard from "@/components/LyricsCard";
+import type { LyricsOption } from "@/hooks/api/useLyrics";
 
-export interface LyricsOption {
-  id?: string;
-  lyrics?: string;
-  syncedLyrics?: string;
-  isSynced?: boolean;
-  duration?: number;
-  source?: string;
-  quality?: "high" | "medium" | "low";
-}
+type LyricsResultsProps =
+  | ({
+      youtubeDurationSeconds: number;
+      youtubeMusicDurationSeconds?: never;
+      durationMs?: never;
+    } & CommonLyricsResultsProps)
+  | ({
+      youtubeDurationSeconds?: never;
+      youtubeMusicDurationSeconds: string;
+      durationMs?: never;
+    } & CommonLyricsResultsProps)
+  | ({
+      youtubeDurationSeconds?: never;
+      youtubeMusicDurationSeconds?: never;
+      durationMs: number;
+    } & CommonLyricsResultsProps);
 
-interface LyricsResultsProps {
+type CommonLyricsResultsProps = {
   options: LyricsOption[];
   selectedOption?: LyricsOption | null;
   onSelectionChange: (option: LyricsOption) => void;
   isLoading?: boolean;
-  videoDuration?: number;
-  autoSelectBest?: boolean;
-  emptyMessage?: string;
   className?: string;
   maxPreviewLines?: number;
-}
+};
 
 export const LyricsResults: React.FC<LyricsResultsProps> = ({
   options,
   selectedOption,
   onSelectionChange,
   isLoading = false,
-  videoDuration,
-  autoSelectBest = true,
-  emptyMessage = "No lyrics found",
   className = "",
   maxPreviewLines = 10,
+  youtubeDurationSeconds,
+  youtubeMusicDurationSeconds,
+  durationMs,
 }) => {
-  // Helper function to format duration
-  const formatDuration = (seconds: number) => {
-    if (!seconds) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  // Helper function to parse duration string to seconds
+  const parseYoutubeMusicDuration = (duration: string): number => {
+    const parts = duration.split(":").map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    } else if (parts.length === 1) {
+      return parts[0];
+    }
+    return 0;
   };
 
-  // Helper function to get duration comparison status
-  const getDurationComparison = (lyricsDuration?: number) => {
-    if (!videoDuration || !lyricsDuration) {
-      return {
-        status: "unknown",
-        message: "Duration unknown",
-        icon: null,
-        className: "text-muted-foreground",
-      };
+  function getParsedDuration(
+    youtubeDurationSeconds?: number,
+    youtubeMusicDurationSeconds?: string,
+    durationMs?: number
+  ): number {
+    if (youtubeDurationSeconds !== undefined) {
+      return youtubeDurationSeconds;
     }
-
-    const diff = Math.abs(videoDuration - lyricsDuration);
-
-    if (diff <= 0.5) {
-      return {
-        status: "perfect",
-        message: "Perfect match",
-        icon: CheckCircle,
-        className: "text-green-700",
-      };
-    } else if (diff <= 2) {
-      return {
-        status: "good",
-        message: "Good match",
-        icon: ThumbsUp,
-        className: "text-green-700",
-      };
-    } else if (diff <= 4) {
-      return {
-        status: "okay",
-        message: "Okay match",
-        icon: AlertTriangle,
-        className: "text-orange-500",
-      };
-    } else {
-      return {
-        status: "poor",
-        message: "Duration mismatch",
-        icon: XCircle,
-        className: "text-red-600",
-      };
+    if (youtubeMusicDurationSeconds !== undefined) {
+      return parseYoutubeMusicDuration(youtubeMusicDurationSeconds);
     }
-  };
+    if (durationMs !== undefined) {
+      return durationMs / 1000;
+    }
+    // This should never happen due to prop types, but just in case:
+    throw new Error("No valid duration prop provided.");
+  }
 
-  // Function to render lyrics preview
-  const renderLyricsPreview = (lyrics?: string, isSynced = false) => {
-    if (!lyrics)
+  const parsedDuration = getParsedDuration(
+    youtubeDurationSeconds,
+    youtubeMusicDurationSeconds,
+    durationMs
+  );
+
+  // Sort options by how close their duration is to the song's duration
+  const sortedOptions = React.useMemo(() => {
+    if (!parsedDuration) return options;
+    return [...options].sort((a, b) => {
+      if (a.duration == null && b.duration == null) return 0;
+      if (a.duration == null) return 1;
+      if (b.duration == null) return -1;
       return (
-        <span className="text-muted-foreground italic">
-          No lyrics available
-        </span>
+        Math.abs(parsedDuration - a.duration) -
+        Math.abs(parsedDuration - b.duration)
       );
+    });
+  }, [options, parsedDuration]);
 
-    // Remove timestamps for synced lyrics preview
-    const cleanedLyrics = isSynced
-      ? lyrics
-          .split("\n")
-          .map((line) => line.replace(/^\[\d+:\d+\.\d+\]/g, "").trim())
-          .join("\n")
-      : lyrics;
-
-    // Only show first few lines
-    const lines = cleanedLyrics.split("\n").slice(0, maxPreviewLines);
-    return (
-      <>
-        {lines.map((line, i) => (
-          <p key={i} className={line.trim() === "" ? "h-4" : ""}>
-            {line}
-          </p>
-        ))}
-        {cleanedLyrics.split("\n").length > maxPreviewLines && (
-          <p className="text-muted-foreground italic mt-2 border-t pt-1">
-            {cleanedLyrics.split("\n").length - maxPreviewLines} more lines (not
-            shown)
-          </p>
-        )}
-      </>
+  // Find the best match (closest duration) option
+  const bestMatchOption = React.useMemo(() => {
+    if (!parsedDuration) return undefined;
+    return sortedOptions.find(
+      (option) =>
+        option.duration != null &&
+        Math.abs(parsedDuration - option.duration) ===
+          Math.min(
+            ...sortedOptions
+              .filter((o) => o.duration != null)
+              .map((o) => Math.abs(parsedDuration - (o.duration ?? 0)))
+          )
     );
-  };
+  }, [sortedOptions, parsedDuration]);
 
   // Auto-select best option based on duration matching
   React.useEffect(() => {
-    if (
-      autoSelectBest &&
-      options.length > 0 &&
-      !selectedOption &&
-      videoDuration
-    ) {
+    if (options.length > 0 && !selectedOption && parsedDuration) {
       const bestMatch = options.reduce((best, current) => {
         if (!current.duration) return best;
 
-        const currentDiff = Math.abs(videoDuration - current.duration);
+        const currentDiff = Math.abs(parsedDuration - current.duration);
         const bestDiff = best?.duration
-          ? Math.abs(videoDuration - best.duration)
+          ? Math.abs(parsedDuration - best.duration)
           : Infinity;
 
         return currentDiff < bestDiff ? current : best;
       }, options[0]);
 
       onSelectionChange(bestMatch);
-    } else if (autoSelectBest && options.length > 0 && !selectedOption) {
+    } else if (options.length > 0 && !selectedOption) {
       // If no video duration, just select first option
       onSelectionChange(options[0]);
     }
-  }, [
-    options,
-    selectedOption,
-    autoSelectBest,
-    videoDuration,
-    onSelectionChange,
-  ]);
+  }, [options, selectedOption, parsedDuration, onSelectionChange]);
 
   const handleValueChange = (value: string) => {
     const index = parseInt(value);
@@ -197,14 +162,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
 
   if (options.length === 0) {
     return (
-      <Card className={className}>
-        <CardContent className="py-4">
-          <p className="text-muted-foreground text-center">{emptyMessage}</p>
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            You can add lyrics manually later
+      <div className={className}>
+        <div className="py-4">
+          <p className="text-muted-foreground text-center">
+            No lyrics found for this song
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -215,9 +179,8 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
         onValueChange={handleValueChange}
         className="space-y-4"
       >
-        {options.map((option, index) => {
-          const durationComparison = getDurationComparison(option.duration);
-          const DurationIcon = durationComparison.icon;
+        {sortedOptions.map((option, index) => {
+          const isBestMatch = option === bestMatchOption;
 
           return (
             <div
@@ -230,81 +193,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
                   htmlFor={`lyrics-${index}`}
                   className="flex flex-col space-y-1 cursor-pointer"
                 >
-                  <Card
-                    className={`hover:border-primary w-full ${
-                      selectedOption === option
-                        ? "border-primary bg-primary/5"
-                        : ""
-                    }`}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            {option.isSynced && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-green-100 text-green-800 text-xs"
-                              >
-                                Synced
-                              </Badge>
-                            )}
-                            {option.source && (
-                              <Badge variant="outline" className="text-xs">
-                                {option.source}
-                              </Badge>
-                            )}
-                            {option.quality && (
-                              <Badge
-                                variant={
-                                  option.quality === "high"
-                                    ? "default"
-                                    : "secondary"
-                                }
-                                className="text-xs"
-                              >
-                                {option.quality}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Duration comparison */}
-                        {option.duration && (
-                          <div
-                            className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
-                          >
-                            {DurationIcon && <DurationIcon size={12} />}
-                            <span>{formatDuration(option.duration)}</span>
-                            {videoDuration && (
-                              <span className="text-muted-foreground">
-                                vs {formatDuration(videoDuration)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Lyrics preview */}
-                      <div className="text-sm prose prose-sm max-w-none">
-                        <div className="max-h-32 overflow-hidden">
-                          {renderLyricsPreview(
-                            option.syncedLyrics || option.lyrics,
-                            option.isSynced
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Duration comparison message */}
-                      {videoDuration && option.duration && (
-                        <div
-                          className={`mt-2 text-xs ${durationComparison.className}`}
-                        >
-                          {durationComparison.message}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <LyricsCard
+                    option={option}
+                    selectedOption={selectedOption ?? null}
+                    isBestMatch={isBestMatch}
+                    parsedDuration={parsedDuration}
+                    maxPreviewLines={maxPreviewLines}
+                  />
                 </Label>
               </div>
             </div>

@@ -4,18 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-
-export interface MetadataOption {
-  id?: string;
-  title: string;
-  artist: string;
-  album?: string;
-  year?: string;
-  genre?: string;
-  language?: string;
-  source?: string;
-  coverArt?: string;
-}
+import type { MetadataOption } from "@/hooks/api/useMetadata";
 
 interface MetadataResultsProps {
   options: MetadataOption[];
@@ -54,7 +43,9 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
   const getSelectedIndex = () => {
     if (!selectedOption) return "0";
     const index = options.findIndex((option) =>
-      option.id ? option.id === selectedOption.id : option === selectedOption
+      option.metadataId
+        ? option.metadataId === selectedOption.metadataId
+        : option === selectedOption
     );
     return index >= 0 ? String(index) : "0";
   };
@@ -94,7 +85,10 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
         className="space-y-4"
       >
         {options.map((option, index) => (
-          <div key={option.id || index} className="flex items-center space-x-2">
+          <div
+            key={option.metadataId || index}
+            className="flex items-center space-x-2"
+          >
             <RadioGroupItem value={String(index)} id={`metadata-${index}`} />
             <div className="flex-1">
               <Label
@@ -116,11 +110,11 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
                           {option.artist}
                           {option.album && ` • ${option.album}`}
                         </p>
-                        {(option.year || option.genre || option.language) && (
+                        {(option.releaseYear || option.genre) && (
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {option.year && (
+                            {option.releaseYear && (
                               <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
-                                {option.year}
+                                {option.releaseYear}
                               </span>
                             )}
                             {option.genre && (
@@ -128,23 +122,13 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
                                 {option.genre}
                               </span>
                             )}
-                            {option.language && (
-                              <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
-                                {option.language}
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {option.source && (
-                          <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                            {option.source}
-                          </span>
-                        )}
-                        {option.coverArt && (
+                        {option.artworkUrl && (
                           <img
-                            src={option.coverArt}
+                            src={option.artworkUrl}
                             alt={`${option.title} cover`}
                             className="w-12 h-12 rounded object-cover"
                           />

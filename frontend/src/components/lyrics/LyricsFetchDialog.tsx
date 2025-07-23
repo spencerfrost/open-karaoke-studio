@@ -27,7 +27,7 @@ import {
   RefreshCw,
   FileText,
 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useLyricsSearch } from "@/hooks/api/useLyrics";
 
 export interface LyricsResult {
   id?: string;
@@ -66,11 +66,17 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   const [albumName, setAlbumName] = useState("");
 
   // Results state
-  const [lyricsResults, setLyricsResults] = useState<LyricsResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<LyricsResult | null>(
     null
   );
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Use new lyrics search hook
+  const {
+    data: lyricsResults = [],
+    loading: isLoadingLyrics,
+    search: fetchLyrics,
+  } = useLyricsSearch();
 
   // Pre-fill form when song changes
   useEffect(() => {
@@ -84,7 +90,6 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
       setAlbumName("");
     }
     // Reset results when song changes
-    setLyricsResults([]);
     setSelectedResult(null);
     setHasSearched(false);
   }, [song]);
@@ -92,64 +97,33 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   // Reset state when dialog closes
   useEffect(() => {
     if (!isOpen) {
-      setLyricsResults([]);
       setSelectedResult(null);
       setHasSearched(false);
     }
   }, [isOpen]);
 
-  const searchLyricsMutation = useMutation({
-    mutationFn: async (params: {
-      artist_name: string;
-      track_name: string;
-      album_name?: string;
-    }) => {
-      const searchParams = new URLSearchParams({
-        artist_name: params.artist_name,
-        track_name: params.track_name,
-      });
-
-      if (params.album_name?.trim()) {
-        searchParams.append("album_name", params.album_name);
-      }
-
-      const response = await fetch(`/api/lyrics/search?${searchParams}`);
-
-      if (!response.ok) {
-        const error = await response
-          .json()
-          .catch(() => ({ error: "Network error" }));
-        throw new Error(error.error || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    onSuccess: (results) => {
-      setLyricsResults(results || []);
-      setHasSearched(true);
-      onLyricsFetched?.(results || []);
-    },
-    onError: (error) => {
-      console.error("Lyrics search failed:", error);
-      setLyricsResults([]);
-      setHasSearched(true);
-    },
-  });
-
   const handleSearch = () => {
     if (!artistName.trim() || !trackName.trim()) {
       return;
     }
-
-    searchLyricsMutation.mutate({
-      artist_name: artistName.trim(),
-      track_name: trackName.trim(),
-      album_name: albumName.trim() || undefined,
+    fetchLyrics({
+      artist: artistName.trim(),
+      title: trackName.trim(),
+      album: albumName.trim() || undefined,
     });
+    setHasSearched(true);
+    onLyricsFetched?.([]); // Will be updated by effect below
   };
 
+  // Call onLyricsFetched when lyricsResults change after a search
+  useEffect(() => {
+    if (hasSearched) {
+      onLyricsFetched?.(lyricsResults);
+    }
+  }, [lyricsResults, hasSearched, onLyricsFetched]);
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !searchLyricsMutation.isPending) {
+    if (e.key === "Enter" && !isLoadingLyrics) {
       handleSearch();
     }
   };
@@ -160,7 +134,6 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   };
 
   const handleReset = () => {
-    setLyricsResults([]);
     setSelectedResult(null);
     setHasSearched(false);
   };
@@ -238,7 +211,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                     onChange={(e) => setArtistName(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Enter artist name"
-                    disabled={searchLyricsMutation.isPending}
+                    disabled={isLoadingLyrics}
                   />
                 </div>
                 <div className="space-y-2">
@@ -249,7 +222,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                     onChange={(e) => setTrackName(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Enter song title"
-                    disabled={searchLyricsMutation.isPending}
+                    disabled={isLoadingLyrics}
                   />
                 </div>
                 <div className="space-y-2">
@@ -260,7 +233,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                     onChange={(e) => setAlbumName(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Enter album name"
-                    disabled={searchLyricsMutation.isPending}
+                    disabled={isLoadingLyrics}
                   />
                 </div>
               </div>
@@ -276,7 +249,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={handleReset}
-                      disabled={searchLyricsMutation.isPending}
+                      disabled={isLoadingLyrics}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
                       Reset
@@ -284,9 +257,9 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                   )}
                   <Button
                     onClick={handleSearch}
-                    disabled={!canSearch || searchLyricsMutation.isPending}
+                    disabled={!canSearch || isLoadingLyrics}
                   >
-                    {searchLyricsMutation.isPending ? (
+                    {isLoadingLyrics ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Searching...
@@ -318,7 +291,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden p-0">
                 <ScrollArea className="h-full p-6">
-                  {searchLyricsMutation.isPending ? (
+                  {isLoadingLyrics ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-8 w-8 animate-spin mr-2" />
                       <span>Searching for lyrics...</span>
@@ -342,9 +315,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                         <Card
                           key={result.id || index}
                           className={`cursor-pointer transition-all hover:shadow-md ${
-                            selectedResult === result
-                              ? "ring-2 ring-primary"
-                              : ""
+                            selectedResult === result ? "ring-2 ring-primary" : ""
                           }`}
                           onClick={() => handleSelectResult(result)}
                         >

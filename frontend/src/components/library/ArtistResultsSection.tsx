@@ -1,7 +1,7 @@
 import React from "react";
 import { Users } from "lucide-react";
 import { Song } from "@/types/Song";
-import InfiniteArtistAccordion from "./InfiniteArtistAccordion";
+import ArtistAccordion from "./ArtistAccordion";
 
 interface Artist {
   name: string;
@@ -10,21 +10,17 @@ interface Artist {
 }
 
 interface ArtistResultsSectionProps {
-  artists: Artist[]; // Not used directly, but kept for consistency
-  hasNextPage: boolean; // Not used - InfiniteArtistAccordion handles its own pagination
-  isFetchingNextPage: boolean; // Not used - InfiniteArtistAccordion handles its own pagination
-  fetchNextPage: () => void; // Not used - InfiniteArtistAccordion handles its own pagination
+  artists: Artist[];
   onSongSelect: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   searchTerm: string;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
+  artists,
   onSongSelect,
   onAddToQueue,
   searchTerm,
-  // Unused props (handled internally by InfiniteArtistAccordion):
-  // artists, hasNextPage, isFetchingNextPage, fetchNextPage
 }) => {
   // Show section header
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
@@ -37,12 +33,11 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
         <h2 className="text-xl font-semibold text-orange-peel">
           {sectionTitle}
         </h2>
-        {/* Note: Artist count is shown by InfiniteArtistAccordion internally */}
       </div>
 
-      {/* Artist Accordion - Reuse existing infinite scrolling logic */}
-      <InfiniteArtistAccordion
-        searchTerm={searchTerm}
+      {/* Artist Accordion - now a pure presentational component */}
+      <ArtistAccordion
+        artists={artists}
         onSongSelect={onSongSelect}
         onAddToQueue={onAddToQueue}
       />
