@@ -7,6 +7,8 @@ import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
 
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
+import { useQueue, useRemoveFromKaraokeQueue, usePlayFromKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { toast } from "sonner";
 
 const Stage: React.FC = () => {
   const {
@@ -17,10 +19,23 @@ const Stage: React.FC = () => {
     connect,
     disconnect,
     connected,
+    setSongAndLoad,
   } = useKaraokePlayerStore();
 
-  const { currentQueueItem, items } = useKaraokeQueueStore();
+  const { currentQueueItem, setKaraokeQueue } = useKaraokeQueueStore();
   const currentSong = currentQueueItem?.song;
+
+  // API hooks
+  const queueQuery = useQueue();
+  const removeFromQueueMutation = useRemoveFromKaraokeQueue();
+  const playFromQueueMutation = usePlayFromKaraokeQueue();
+
+  // Update store when API data changes
+  useEffect(() => {
+    if (queueQuery.data) {
+      setKaraokeQueue(queueQuery.data);
+    }
+  }, [queueQuery.data, setKaraokeQueue]);
 
   useEffect(() => {
     connect();
@@ -28,6 +43,33 @@ const Stage: React.FC = () => {
       disconnect();
     };
   }, [connect, disconnect]);
+
+  const handleRemoveFromQueue = async (id: string) => {
+    try {
+      await removeFromQueueMutation.mutateAsync(id);
+      queueQuery.refetch(); // Refresh queue
+      toast.success("Song removed from queue");
+    } catch (error) {
+      console.error("Failed to remove song from queue:", error);
+      toast.error("Failed to remove song from queue");
+    }
+  };
+
+  const handlePlayFromQueue = async (id: string) => {
+    try {
+      const songData = await playFromQueueMutation.mutateAsync(id);
+      queueQuery.refetch(); // Refresh queue
+      
+      // Load song into player
+      if (songData && songData.id) {
+        await setSongAndLoad(songData.id, songData.durationMs);
+        toast.success(`Now playing: ${songData.title}`);
+      }
+    } catch (error) {
+      console.error("Failed to play song from queue:", error);
+      toast.error("Failed to play song from queue");
+    }
+  };
 
   return (
     <AppLayout>
@@ -59,8 +101,10 @@ const Stage: React.FC = () => {
 
         <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-background border border-orange-peel">
           <KaraokeQueueList
-            items={items}
+            items={queueQuery.data || []}
             emptyMessage="No songs in the queue"
+            onRemove={handleRemoveFromQueue}
+            onPlay={handlePlayFromQueue}
           />
         </div>
       </div>

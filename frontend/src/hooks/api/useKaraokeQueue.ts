@@ -21,14 +21,14 @@ export function useQueue(
       KaraokeQueueItemWithSong[],
       Error,
       KaraokeQueueItemWithSong[],
-      ["queue"]
+      ["karaoke-queue"]
     >,
     "queryKey" | "queryFn"
   >
 ) {
-  return useApiQuery<KaraokeQueueItemWithSong[], ["queue"]>(
-    ["queue"],
-    "queue",
+  return useApiQuery<KaraokeQueueItemWithSong[], ["karaoke-queue"]>(
+    ["karaoke-queue"],
+    "karaoke-queue",
     options
   );
 }
@@ -60,7 +60,7 @@ export function useCurrentSong(
 export function useAddToKaraokeQueue(
   options?: Omit<
     UseMutationOptions<
-      KaraokeQueueItem,
+      KaraokeQueueItemWithSong,
       Error,
       AddToKaraokeQueueRequest,
       unknown
@@ -68,8 +68,8 @@ export function useAddToKaraokeQueue(
     "mutationFn"
   >
 ) {
-  return useApiMutation<KaraokeQueueItem, AddToKaraokeQueueRequest>(
-    "queue",
+  return useApiMutation<KaraokeQueueItemWithSong, AddToKaraokeQueueRequest>(
+    "karaoke-queue",
     "post",
     options
   );
@@ -88,7 +88,7 @@ export function useRemoveFromKaraokeQueue(
   // Custom mutation for dynamic URL based on id
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/queue/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/karaoke-queue/${id}`, { method: "DELETE" });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
@@ -106,24 +106,31 @@ export function useRemoveFromKaraokeQueue(
 }
 
 /**
- * Hook: Reorder the queue
+ * Hook: Play a song from the queue (removes from queue and loads into player)
  */
-export function useReorderKaraokeQueue(
+export function usePlayFromKaraokeQueue(
   options?: Omit<
-    UseMutationOptions<
-      KaraokeQueueItemWithSong[],
-      Error,
-      { itemIds: string[] },
-      unknown
-    >,
+    UseMutationOptions<any, Error, string, unknown>,
     "mutationFn"
   >
 ) {
-  return useApiMutation<KaraokeQueueItemWithSong[], { itemIds: string[] }>(
-    "queue/reorder",
-    "put",
-    options
-  );
+  return useMutation<any, Error, string, unknown>({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/karaoke-queue/${id}/play`, { method: "POST" });
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData: any = await response.json();
+          errorMessage = errorData?.message || errorMessage;
+        } catch (jsonError: any) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      return await response.json();
+    },
+    ...options,
+  });
 }
 
 /**
