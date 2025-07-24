@@ -57,7 +57,6 @@ def register_handlers(socketio):
                             "album": item.song.album,
                             "durationMs": item.song.duration_ms,
                             "coverArt": getattr(item.song, 'cover_art_url', None),
-                            "status": item.song.status,
                             "syncedLyrics": item.song.synced_lyrics,
                             "plainLyrics": item.song.plain_lyrics
                         }
