@@ -1,5 +1,5 @@
 import React from "react";
-import { Music, X } from "lucide-react";
+import { Music, X, Play } from "lucide-react";
 import { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
 interface KaraokeQueueItemProps {
@@ -7,6 +7,7 @@ interface KaraokeQueueItemProps {
   index: number;
   isActive?: boolean;
   onRemove?: (id: string) => void;
+  onPlay?: (id: string) => void;
   className?: string;
 }
 
@@ -15,6 +16,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
   index,
   isActive = false,
   onRemove,
+  onPlay,
   className = "",
 }) => {
   return (
@@ -64,19 +66,38 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
         )}
       </div>
 
-      {/* Remove button */}
-      {onRemove && (
-        <button
-          className="p-2 ml-1 rounded-full hover:bg-black hover:bg-opacity-20 transition-colors shrink-0"
-          onClick={() => onRemove(item.id)}
-          aria-label="Remove from queue"
-        >
-          <X
-            size={18}
-            className={isActive ? 'text-orange-peel' : 'text-lemon-chiffon'}
-          />
-        </button>
-      )}
+      {/* Action buttons */}
+      <div className="flex items-center gap-1 ml-2 shrink-0">
+        {/* Play button */}
+        {onPlay && (
+          <button
+            className="p-2 rounded-full hover:bg-green-500/20 transition-colors"
+            onClick={() => onPlay(item.id)}
+            aria-label="Play now"
+            title="Play now"
+          >
+            <Play
+              size={18}
+              className="text-green-500 fill-green-500"
+            />
+          </button>
+        )}
+
+        {/* Remove button */}
+        {onRemove && (
+          <button
+            className="p-2 rounded-full hover:bg-red-500/20 transition-colors"
+            onClick={() => onRemove(item.id)}
+            aria-label="Remove from queue"
+            title="Remove from queue"
+          >
+            <X
+              size={18}
+              className="text-red-400"
+            />
+          </button>
+        )}
+      </div>
     </div>
   );
 };

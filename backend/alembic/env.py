@@ -13,7 +13,7 @@ from app.db.models import Base
 from sqlalchemy import engine_from_config, pool
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-config = Config(file_=str(Path(__file__).parent / "alembic.ini"))
+config = Config(file_=str(Path(__file__).parent.parent / "alembic.ini"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
