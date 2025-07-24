@@ -3,7 +3,7 @@ from app.db.models import KaraokeQueueItem, DbSong
 from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy.orm import joinedload
 
-karaoke_queue_bp = Blueprint("karaoke_queue", __name__, url_prefix="/karaoke-queue")
+karaoke_queue_bp = Blueprint("karaoke_queue", __name__, url_prefix="/api/karaoke-queue")
 
 
 @karaoke_queue_bp.route("/", methods=["GET"])
@@ -33,7 +33,6 @@ def get_queue():
                         "album": item.song.album,
                         "durationMs": item.song.duration_ms,
                         "coverArt": getattr(item.song, 'cover_art_url', None),
-                        "status": item.song.status,
                         "syncedLyrics": item.song.synced_lyrics,
                         "plainLyrics": item.song.plain_lyrics
                     }
@@ -102,7 +101,6 @@ def add_to_queue():
                 "album": song.album,
                 "durationMs": song.duration_ms,
                 "coverArt": getattr(song, 'cover_art_url', None),
-                "status": song.status,
                 "syncedLyrics": song.synced_lyrics,
                 "plainLyrics": song.plain_lyrics
             }
@@ -216,7 +214,6 @@ def play_queue_item(item_id):
                     "album": item.song.album,
                     "durationMs": item.song.duration_ms,
                     "coverArt": getattr(item.song, 'cover_art_url', None),
-                    "status": item.song.status,
                     "syncedLyrics": item.song.synced_lyrics,
                     "plainLyrics": item.song.plain_lyrics
                 }
@@ -236,7 +233,6 @@ def play_queue_item(item_id):
             "album": item.song.album,
             "durationMs": item.song.duration_ms,
             "coverArt": getattr(item.song, 'cover_art_url', None),
-            "status": item.song.status,
             "syncedLyrics": item.song.synced_lyrics,
             "plainLyrics": item.song.plain_lyrics,
             "singer": item.singer_name
