@@ -6,6 +6,7 @@ interface KaraokeQueueListProps {
   items: KaraokeQueueItemWithSong[];
   currentSongId?: string | null;
   onRemove?: (id: string) => void;
+  onPlay?: (id: string) => void;
   emptyMessage?: string;
   className?: string;
 }
@@ -14,6 +15,7 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
   items,
   currentSongId = null,
   onRemove,
+  onPlay,
   emptyMessage = "No songs in the queue",
   className = "",
 }) => {
@@ -38,6 +40,7 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
           index={index}
           isActive={item.id === currentSongId}
           onRemove={onRemove}
+          onPlay={onPlay}
         />
       ))}
     </div>
