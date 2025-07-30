@@ -1,8 +1,10 @@
 import React, { useEffect } from "react";
-import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
-import AppLayout from "@/components/layout/AppLayout";
-import WebSocketStatus from "@/components/WebsocketStatus";
 import { useParams } from "react-router-dom";
+
+import AppLayout from "@/components/layout/AppLayout";
+import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
+import WebSocketStatus from "@/components/WebsocketStatus";
+
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { useSongs } from "@/hooks/api/useSongs";
 
@@ -11,7 +13,7 @@ const SongPlayer: React.FC = () => {
 
   // Use the song query hook
   const { useSong } = useSongs();
-  
+
   const {
     data: song,
     isLoading: songLoading,
