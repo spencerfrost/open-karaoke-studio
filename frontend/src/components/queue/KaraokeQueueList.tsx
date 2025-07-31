@@ -28,11 +28,12 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
     );
   }
 
-  // For a real implementation, you would add drag-and-drop functionality
-  // using a library like react-beautiful-dnd for reordering
+  // TODO: add drag-and-drop functionality for reordering
+
+  items = items.filter((item) => item.position !== 0);
 
   return (
-    <div className={className}>
+    <div className={`${className}`}>
       {items.map((item, index) => (
         <KaraokeQueueItem
           key={item.id}
