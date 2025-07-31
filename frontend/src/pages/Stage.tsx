@@ -1,41 +1,44 @@
 import React, { useEffect } from "react";
 
 import AppLayout from "@/components/layout/AppLayout";
-import WebSocketStatus from "@/components/WebsocketStatus";
 import KaraokeQueueList from "@/components/queue/KaraokeQueueList";
 import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
+import WebSocketStatus from "@/components/WebsocketStatus";
 
+import { useSongs } from "@/hooks/api/useSongs";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import { useKaraokeQueueStore } from "@/stores/useKaraokeQueueStore";
-import { useQueue, useRemoveFromKaraokeQueue, usePlayFromKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import {
+  useQueue,
+  useRemoveFromKaraokeQueue,
+  usePlayFromKaraokeQueue,
+} from "@/hooks/api/useKaraokeQueue";
+import { Song } from "@/types/Song";
 import { toast } from "sonner";
 
 const Stage: React.FC = () => {
   const {
     currentTime,
-    duration,
-    durationMs,
     seek,
     connect,
     disconnect,
     connected,
+    cleanup,
     setSongAndLoad,
+    socket,
   } = useKaraokePlayerStore();
 
-  const { currentQueueItem, setKaraokeQueue } = useKaraokeQueueStore();
-  const currentSong = currentQueueItem?.song;
+  const { useSong } = useSongs();
 
   // API hooks
   const queueQuery = useQueue();
   const removeFromQueueMutation = useRemoveFromKaraokeQueue();
   const playFromQueueMutation = usePlayFromKaraokeQueue();
 
-  // Update store when API data changes
-  useEffect(() => {
-    if (queueQuery.data) {
-      setKaraokeQueue(queueQuery.data);
-    }
-  }, [queueQuery.data, setKaraokeQueue]);
+  // Get the current song (position 0) from the queue
+  const currentQueueItem = queueQuery.data?.find((item) => item.position === 0);
+  const currentSongId = currentQueueItem?.song?.id;
+
+  const { data: currentSong } = useSong(currentSongId ?? "");
 
   useEffect(() => {
     connect();
@@ -44,10 +47,56 @@ const Stage: React.FC = () => {
     };
   }, [connect, disconnect]);
 
+  useEffect(() => {
+    if (currentSong) {
+      setSongAndLoad(currentSong.id, currentSong.durationMs);
+    }
+    return () => cleanup();
+  }, [currentSong, setSongAndLoad, cleanup]);
+
+  // WebSocket effect for queue updates
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    // Join the karaoke queue room
+    socket.emit("join_queue_room", {});
+
+    const handleQueueUpdate = () => {
+      console.log("Queue updated via WebSocket, refetching queue data");
+      queueQuery.refetch();
+    };
+
+    const handlePlaySong = (data: { song: Song; singer: string }) => {
+      console.log(
+        `Song played via WebSocket: ${data.song.title} by ${data.song.artist}`
+      );
+
+      // Refetch queue data since positions have changed
+      queueQuery.refetch();
+
+      // Automatically load the song into the player
+      setSongAndLoad(data.song.id, data.song.durationMs).catch((error) => {
+        console.error("Failed to load song from WebSocket:", error);
+        toast.error("Failed to load song");
+      });
+    };
+
+    // Set up WebSocket event listeners
+    socket.on("queue_updated", handleQueueUpdate);
+    socket.on("play_song", handlePlaySong);
+
+    // Cleanup
+    return () => {
+      socket.off("queue_updated", handleQueueUpdate);
+      socket.off("play_song", handlePlaySong);
+      socket.emit("leave_queue_room", {});
+    };
+  }, [socket, connected, queueQuery, setSongAndLoad]);
+
   const handleRemoveFromQueue = async (id: string) => {
     try {
       await removeFromQueueMutation.mutateAsync(id);
-      queueQuery.refetch(); // Refresh queue
+      // Queue will be updated automatically via WebSocket
       toast.success("Song removed from queue");
     } catch (error) {
       console.error("Failed to remove song from queue:", error);
@@ -57,14 +106,9 @@ const Stage: React.FC = () => {
 
   const handlePlayFromQueue = async (id: string) => {
     try {
-      const songData = await playFromQueueMutation.mutateAsync(id);
-      queueQuery.refetch(); // Refresh queue
-      
-      // Load song into player
-      if (songData && songData.id) {
-        await setSongAndLoad(songData.id, songData.durationMs);
-        toast.success(`Now playing: ${songData.title}`);
-      }
+      await playFromQueueMutation.mutateAsync(id);
+      // Queue and song loading will be handled automatically via WebSocket
+      toast.success("Song is being loaded...");
     } catch (error) {
       console.error("Failed to play song from queue:", error);
       toast.error("Failed to play song from queue");
@@ -73,7 +117,7 @@ const Stage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-4 h-full p-6 relative z-20">
+      <div className="flex flex-col gap-4 min-h-full p-6 relative z-20">
         <WebSocketStatus
           connected={connected}
           className="absolute top-4 right-8 z-10"
@@ -91,7 +135,7 @@ const Stage: React.FC = () => {
             currentTime={currentTime * 1000}
             title={currentSong?.title || ""}
             artist={currentSong?.artist || ""}
-            durationMs={durationMs !== undefined ? durationMs : duration * 1000}
+            durationMs={currentSong?.durationMs || 0}
             onSeek={seek}
           />
         </div>
