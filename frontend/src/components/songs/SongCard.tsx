@@ -21,6 +21,7 @@ import {
 import { Pencil, ListPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { DEFAULT_SINGER } from "@/constants/singers";
 
 interface SongCardProps {
   song: Song;
@@ -133,7 +134,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, onSelect }) => {
           className="text-secondary"
           aria-label="Add to karaoke queue"
           onClick={() => {
-            addToKaraokeQueue.mutate({ songId: song.id, singer: 'global' });
+            addToKaraokeQueue.mutate({ songId: song.id, singer: DEFAULT_SINGER });
           }}
         >
           <ListPlus className="w-5 h-5" />

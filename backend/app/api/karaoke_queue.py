@@ -142,7 +142,7 @@ def remove_from_queue(item_id):
             .all()
         )
         for idx, queue_item in enumerate(remaining_items):
-            setattr(queue_item, 'position', idx)
+            queue_item.position = idx  # type: ignore
         session.commit()
 
         # Broadcast update via WebSocket if available
@@ -225,7 +225,7 @@ def play_queue_item(item_id):
             session.delete(current_song)
         
         # Move the played item to position 0 (current song)
-        setattr(item, 'position', 0)
+        item.position = 0  # type: ignore
         session.commit()
 
         # Reindex remaining positions to be contiguous (1, 2, 3, ...)
@@ -236,7 +236,7 @@ def play_queue_item(item_id):
             .all()
         )
         for idx, queue_item in enumerate(remaining_items, start=1):
-            setattr(queue_item, 'position', idx)
+            queue_item.position = idx  # type: ignore
         session.commit()
 
         # Broadcast queue update via WebSocket if available
