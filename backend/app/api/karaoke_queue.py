@@ -135,6 +135,16 @@ def remove_from_queue(item_id):
         session.delete(item)
         session.commit()
 
+        # Reindex positions to be contiguous
+        remaining_items = (
+            session.query(KaraokeQueueItem)
+            .order_by(KaraokeQueueItem.position)
+            .all()
+        )
+        for idx, queue_item in enumerate(remaining_items):
+            setattr(queue_item, 'position', idx)
+        session.commit()
+
         # Broadcast update via WebSocket if available
         try:
             socketio = current_app.extensions.get("socketio")
@@ -205,8 +215,28 @@ def play_queue_item(item_id):
         if not item.song:
             return jsonify({"error": "Song not found"}), 404
 
-        # Remove item from queue
-        session.delete(item)
+        # Remove current song (position 0) if it exists
+        current_song = (
+            session.query(KaraokeQueueItem)
+            .filter(KaraokeQueueItem.position == 0)
+            .first()
+        )
+        if current_song:
+            session.delete(current_song)
+        
+        # Move the played item to position 0 (current song)
+        setattr(item, 'position', 0)
+        session.commit()
+
+        # Reindex remaining positions to be contiguous (1, 2, 3, ...)
+        remaining_items = (
+            session.query(KaraokeQueueItem)
+            .filter(KaraokeQueueItem.position > 0)
+            .order_by(KaraokeQueueItem.position)
+            .all()
+        )
+        for idx, queue_item in enumerate(remaining_items, start=1):
+            setattr(queue_item, 'position', idx)
         session.commit()
 
         # Broadcast queue update via WebSocket if available

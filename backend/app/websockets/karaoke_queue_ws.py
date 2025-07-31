@@ -5,9 +5,9 @@ This module handles real-time updates for the karaoke queue, such as
 queue updates and notifications to connected clients.
 """
 
-from flask_socketio import emit, join_room, leave_room
 from app.db import SessionLocal
-from app.db.models import KaraokeQueueItem, DbSong
+from app.db.models import KaraokeQueueItem
+from flask_socketio import emit, join_room, leave_room
 from sqlalchemy.orm import joinedload
 
 
@@ -49,7 +49,11 @@ def register_handlers(socketio):
                         "songId": item.song_id,
                         "singer": item.singer_name,
                         "position": item.position,
-                        "addedAt": item.created_at.isoformat() if hasattr(item, 'created_at') and item.created_at else None,
+                        "addedAt": (
+                            item.created_at.isoformat()
+                            if hasattr(item, 'created_at') and item.created_at
+                            else None
+                        ),
                         "song": {
                             "id": item.song.id,
                             "title": item.song.title,
