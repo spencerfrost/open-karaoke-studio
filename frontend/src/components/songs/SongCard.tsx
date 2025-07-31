@@ -18,8 +18,9 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Pencil } from "lucide-react";
+import { Pencil, ListPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 
 interface SongCardProps {
   song: Song;
@@ -34,7 +35,7 @@ const SongCard: React.FC<SongCardProps> = ({ song, onSelect }) => {
   const { getArtworkUrl, useDeleteSong } = useSongs();
   const navigate = useNavigate();
   const deleteSongMutation = useDeleteSong();
-
+  const addToKaraokeQueue = useAddToKaraokeQueue();
   const artworkUrl = getArtworkUrl(song, "medium");
 
   const handlePlay = () => {
@@ -125,6 +126,17 @@ const SongCard: React.FC<SongCardProps> = ({ song, onSelect }) => {
           onClick={() => setIsDialogOpen(true)}
         >
           <Pencil className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-secondary"
+          aria-label="Add to karaoke queue"
+          onClick={() => {
+            addToKaraokeQueue.mutate({ songId: song.id, singer: 'global' });
+          }}
+        >
+          <ListPlus className="w-5 h-5" />
         </Button>
         {/* Delete Song Button with AlertDialog */}
         <AlertDialog
