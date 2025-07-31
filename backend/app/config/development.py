@@ -17,9 +17,10 @@ class DevelopmentConfig(BaseConfig):
         return [
             "http://localhost:5173",  # Vite dev server default
             "http://127.0.0.1:5173",  # Alternative localhost
-            "http://localhost:3000",  # Alternative dev port
-            "http://127.0.0.1:3000",  # Alternative localhost
             "http://192.168.50.112:5173",  # Network IP access
+            "http://localhost:5192",  # Vite dev server default
+            "http://127.0.0.1:5192",  # Alternative localhost
+            "http://192.168.50.112:5192",  # Network IP access
         ]
 
     @classmethod

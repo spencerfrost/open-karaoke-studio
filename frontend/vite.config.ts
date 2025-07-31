@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,
+      port: 5192,
       proxy: {
         "/api": {
           target: backendUrl,
@@ -30,6 +31,10 @@ export default defineConfig(({ mode }) => {
           ws: true, // Enable WebSocket proxying
         },
       },
+      allowedHosts: [
+        "localhost",
+        "karaoke.mrspinn.ca",
+      ],
       watch: {
         usePolling: true,
         interval: 1500,
