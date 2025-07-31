@@ -25,7 +25,6 @@ const SongPlayer: React.FC = () => {
     disconnect,
     connected,
     currentTime,
-    durationMs,
     isReady,
     isPlaying,
     lyricsOffset,
@@ -49,15 +48,10 @@ const SongPlayer: React.FC = () => {
     return () => cleanup();
   }, [song, setSongAndLoad, cleanup]);
 
-  // Combine lyrics data if we fetched it separately
-  const lyrics = song?.plainLyrics || "";
-  const syncedLyrics = song?.syncedLyrics || "";
-
   const playerState = {
     isPlaying,
     currentTime,
     lyricsOffset,
-    durationMs,
     isReady,
     connected,
   };
@@ -119,12 +113,12 @@ const SongPlayer: React.FC = () => {
         </h2>
         <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden mb-4 flex items-center justify-center relative">
           <UnifiedLyricsDisplay
-            lyrics={syncedLyrics || lyrics || ""}
-            isSynced={!!syncedLyrics}
+            lyrics={song.syncedLyrics || song.plainLyrics || ""}
+            isSynced={!!song.syncedLyrics}
             currentTime={currentTime * 1000}
             title={song.title}
             artist={song.artist}
-            durationMs={durationMs || 0}
+            durationMs={song.durationMs || 0}
             onSeek={seek}
           />
         </div>
