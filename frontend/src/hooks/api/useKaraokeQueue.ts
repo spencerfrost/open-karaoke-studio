@@ -7,8 +7,7 @@ import type {
   UseMutationOptions,
 } from "@tanstack/react-query";
 import {
-  KaraokeQueueItem,
-  KaraokeQueueItemWithSong,
+  KaraokeQueueItemWithSong as KaraokeQueueItem,
   AddToKaraokeQueueRequest,
 } from "@/types/KaraokeQueue";
 
@@ -18,15 +17,15 @@ import {
 export function useQueue(
   options?: Omit<
     UseQueryOptions<
-      KaraokeQueueItemWithSong[],
+      KaraokeQueueItem[],
       Error,
-      KaraokeQueueItemWithSong[],
+      KaraokeQueueItem[],
       ["karaoke-queue"]
     >,
     "queryKey" | "queryFn"
   >
 ) {
-  return useApiQuery<KaraokeQueueItemWithSong[], ["karaoke-queue"]>(
+  return useApiQuery<KaraokeQueueItem[], ["karaoke-queue"]>(
     ["karaoke-queue"],
     "karaoke-queue",
     options
@@ -39,17 +38,17 @@ export function useQueue(
 export function useCurrentSong(
   options?: Omit<
     UseQueryOptions<
-      KaraokeQueueItemWithSong | null,
+      KaraokeQueueItem | null,
       Error,
-      KaraokeQueueItemWithSong | null,
-      ["queue", "current"]
+      KaraokeQueueItem | null,
+      ["karaoke-queue", "current"]
     >,
     "queryKey" | "queryFn"
   >
 ) {
-  return useApiQuery<KaraokeQueueItemWithSong | null, ["queue", "current"]>(
-    ["queue", "current"],
-    "queue/current",
+  return useApiQuery<KaraokeQueueItem | null, ["karaoke-queue", "current"]>(
+    ["karaoke-queue", "current"],
+    "karaoke-queue/current",
     options
   );
 }
@@ -60,7 +59,7 @@ export function useCurrentSong(
 export function useAddToKaraokeQueue(
   options?: Omit<
     UseMutationOptions<
-      KaraokeQueueItemWithSong,
+      KaraokeQueueItem,
       Error,
       AddToKaraokeQueueRequest,
       unknown
@@ -68,7 +67,7 @@ export function useAddToKaraokeQueue(
     "mutationFn"
   >
 ) {
-  return useApiMutation<KaraokeQueueItemWithSong, AddToKaraokeQueueRequest>(
+  return useApiMutation<KaraokeQueueItem, AddToKaraokeQueueRequest>(
     "karaoke-queue",
     "post",
     options
@@ -88,7 +87,9 @@ export function useRemoveFromKaraokeQueue(
   // Custom mutation for dynamic URL based on id
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/karaoke-queue/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/karaoke-queue/${id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
@@ -109,14 +110,13 @@ export function useRemoveFromKaraokeQueue(
  * Hook: Play a song from the queue (removes from queue and loads into player)
  */
 export function usePlayFromKaraokeQueue(
-  options?: Omit<
-    UseMutationOptions<any, Error, string, unknown>,
-    "mutationFn"
-  >
+  options?: Omit<UseMutationOptions<any, Error, string, unknown>, "mutationFn">
 ) {
   return useMutation<any, Error, string, unknown>({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/karaoke-queue/${id}/play`, { method: "POST" });
+      const response = await fetch(`/api/karaoke-queue/${id}/play`, {
+        method: "POST",
+      });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
@@ -138,11 +138,11 @@ export function usePlayFromKaraokeQueue(
  */
 export function useSkipToNext(
   options?: Omit<
-    UseMutationOptions<KaraokeQueueItemWithSong | null, Error, void, unknown>,
+    UseMutationOptions<KaraokeQueueItem | null, Error, void, unknown>,
     "mutationFn"
   >
 ) {
-  return useApiMutation<KaraokeQueueItemWithSong | null, void>(
+  return useApiMutation<KaraokeQueueItem | null, void>(
     "queue/next",
     "post",
     options
