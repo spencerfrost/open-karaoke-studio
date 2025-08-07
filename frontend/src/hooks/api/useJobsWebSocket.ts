@@ -67,7 +67,6 @@ export function useJobsWebSocket() {
 
   // Update job in the list
   const updateJob = useCallback((jobData: JobData) => {
-    console.log('updateJob called with:', jobData);
     const processedJob = mapJobToProcessingStatus(jobData);
     
     setJobs(prevJobs => {
@@ -77,7 +76,6 @@ export function useJobsWebSocket() {
         // Update existing job
         const updatedJobs = [...prevJobs];
         updatedJobs[existingIndex] = processedJob;
-        console.log('Updated existing job in list');
         
         // Remove completed/failed jobs from the processing list after a short delay
         if (processedJob.status === 'processed' || processedJob.status === 'error') {
@@ -90,10 +88,8 @@ export function useJobsWebSocket() {
       } else {
         // Add new job if it's in processing state
         if (['queued', 'processing'].includes(processedJob.status)) {
-          console.log('Added new job to list:', processedJob);
           return [...prevJobs, processedJob];
         }
-        console.log('Job not added - status not processing/queued:', processedJob.status);
         return prevJobs;
       }
     });

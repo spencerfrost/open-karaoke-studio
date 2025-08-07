@@ -58,24 +58,11 @@ export function YouTubeMusicSearch() {
 
   const handleConfirmLyrics = () => {
     if (createdSong && selectedLyrics) {
-      // Add detailed logging to track lyrics assignment
-      console.log(`🎯 Confirming lyrics for song ${createdSong.id} (${createdSong.title} by ${createdSong.artist})`);
-      console.log(`📝 Lyrics preview:`, {
-        plainLyrics: selectedLyrics.plainLyrics?.substring(0, 100) + '...', 
-        syncedLyrics: selectedLyrics.syncedLyrics?.substring(0, 100) + '...',
-        source: selectedLyrics.source,
-        trackName: selectedLyrics.trackName,
-        artistName: selectedLyrics.artistName
-      });
-      
       updateSongMutation.mutate({
         id: createdSong.id,
         plainLyrics: selectedLyrics.plainLyrics,
         syncedLyrics: selectedLyrics.syncedLyrics,
       }, {
-        onSuccess: (updatedSong) => {
-          console.log(`✅ Lyrics successfully saved to song ${createdSong.id}`);
-        },
         onError: (error) => {
           console.error(`❌ Failed to save lyrics to song ${createdSong.id}:`, error);
         }
@@ -104,8 +91,6 @@ export function YouTubeMusicSearch() {
           
           // Clear previous lyrics results before fetching new ones to prevent race conditions
           setSelectedLyrics(null);
-          console.log(`✅ Song created successfully: ${createdSong.id} - ${song.artist} - ${song.title}`);
-          console.log(`🎵 Fetching lyrics for song ${createdSong.id}: ${song.artist} - ${song.title}`);
           
           fetchLyrics({
             artist: song.artist,
@@ -160,7 +145,6 @@ export function YouTubeMusicSearch() {
     setIsAdding(true);
     setSelectedSong(song);
     setSelectedLyrics(null);
-    // Remove redundant fetchLyrics call here - it will be called in handleCreateSong onSuccess
     handleCreateSong(song);
   };
 
