@@ -1,0 +1,22 @@
+# FastAPI Proof of Concept Dependencies
+
+# Core FastAPI
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# For async operations
+asyncio-mqtt>=0.11.0
+
+# Type hints and validation
+pydantic>=2.11.3
+typing-extensions>=4.8.0
+
+# WebSocket support (included with uvicorn[standard])
+websockets>=11.0
+
+# For integration with existing code
+# (These should already be in your main requirements.txt)
+# sqlalchemy
+# celery[redis]
+# redis

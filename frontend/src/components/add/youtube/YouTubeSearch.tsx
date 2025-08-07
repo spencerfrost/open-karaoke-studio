@@ -59,7 +59,6 @@ const YouTubeSearch: React.FC = () => {
   // --- API Hooks ---
   const createSongMutation = useCreateSongMutation({
     onSuccess: (data) => {
-      console.log("Song created in database:", data);
       setCreatedSong(data); // After song creation, start YouTube download with the song ID
       if (selectedResult) {
         youtubeDownloadMutation.mutate({

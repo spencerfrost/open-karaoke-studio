@@ -62,6 +62,10 @@ export function YouTubeMusicSearch() {
         id: createdSong.id,
         plainLyrics: selectedLyrics.plainLyrics,
         syncedLyrics: selectedLyrics.syncedLyrics,
+      }, {
+        onError: (error) => {
+          console.error(`❌ Failed to save lyrics to song ${createdSong.id}:`, error);
+        }
       });
     }
     setIsDialogOpen(false);
@@ -84,6 +88,10 @@ export function YouTubeMusicSearch() {
           setCreatedSong(createdSong);
           setIsDialogOpen(true);
           setIsAdding(false);
+          
+          // Clear previous lyrics results before fetching new ones to prevent race conditions
+          setSelectedLyrics(null);
+          
           fetchLyrics({
             artist: song.artist,
             title: song.title,
@@ -137,11 +145,6 @@ export function YouTubeMusicSearch() {
     setIsAdding(true);
     setSelectedSong(song);
     setSelectedLyrics(null);
-    fetchLyrics({
-      artist: song.artist,
-      title: song.title,
-      album: song.album,
-    });
     handleCreateSong(song);
   };
 

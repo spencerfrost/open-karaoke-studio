@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Users } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import HorizontalSongCard from "@/components/songs/HorizontalSongCard";
+import SongCard from "@/components/songs/SongCard";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -87,8 +87,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             <div className="p-2 max-h-80 overflow-y-auto">
               {songs.map((song) => (
                 <div key={song.id} className="mb-2">
-                  <HorizontalSongCard
+                  <SongCard
                     song={song}
+                    variant="horizontal"
                     onSongSelect={onSongSelect}
                     onAddToQueue={onAddToQueue}
                   />

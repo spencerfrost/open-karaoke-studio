@@ -48,12 +48,16 @@ export interface Song {
   syncedLyrics?: string;
 
   // iTunes data
+  itunesTrackId?: number;
   itunesArtistId?: number;
   itunesCollectionId?: number;
   trackTimeMillis?: number;
   itunesExplicit?: boolean;
   itunesPreviewUrl?: string;
   itunesArtworkUrls?: string[];
+
+  // Lyrics (unified field)
+  lyrics?: string;
 
   status: SongStatus;
 }
@@ -71,4 +75,12 @@ export interface SongProcessingStatus {
   message?: string;
   artist?: string;
   title?: string;
+}
+
+export interface LyricsResult {
+  id: string;
+  title: string;
+  artist: string;
+  lyrics: string;
+  source: string;
 }

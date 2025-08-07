@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useApiQuery, useApiMutation, uploadFile } from "./useApi";
 import { Song, SongProcessingStatus } from "../../types/Song";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 // Query keys for React Query
 const QUERY_KEYS = {
@@ -32,14 +32,56 @@ export function useSongs() {
   /**
    * Get songs in the library with flexible query params (limit, offset, sort_by, direction, etc)
    * Pass params as an object: { limit, offset, sort_by, direction, ... }
+   * If 'q' parameter is provided, automatically routes to the search endpoint
    */
   const useSongs = (params: Record<string, any> = {}, options = {}) => {
+    // If search query is provided, use the search endpoint
+    const isSearch = params.q && params.q.trim().length > 0;
+    const endpoint = isSearch ? "songs/search" : "songs";
+    
     const queryString = Object.keys(params).length
-      ? `songs?${new URLSearchParams(params).toString()}`
-      : "songs";
-    // Use params as part of the query key for caching
-    const queryKey = ["songs", params];
-    return useApiQuery<Song[], typeof queryKey>(queryKey, queryString, options);
+      ? `${endpoint}?${new URLSearchParams(params).toString()}`
+      : endpoint;
+    
+    // Use params as part of the query key for caching, include endpoint type
+    const queryKey = ["songs", isSearch ? "search" : "list", params];
+    
+    // Use a custom query function that handles different response formats
+    const queryFn = async () => {
+      const response = await fetch(`/api/${queryString}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const contentType = response.headers.get("Content-Type") ?? "";
+          if (contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData?.error || errorData?.message || errorMessage;
+          }
+        } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      
+      // If it's a search response, extract the songs array
+      if (isSearch && data.songs) {
+        return data.songs;
+      }
+      
+      // Otherwise return the data as-is (should be a songs array)
+      return data;
+    };
+    
+    return useQuery<Song[], typeof queryKey>({
+      queryKey,
+      queryFn,
+      ...options,
+    });
   };
 
   /**

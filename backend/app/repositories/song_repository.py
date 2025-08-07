@@ -115,10 +115,25 @@ class SongRepository:
         if sort_by:
             sort_col = getattr(DbSong, sort_by, None)
             if sort_col is not None:
-                if direction == "desc":
-                    query = query.order_by(sort_col.desc())
+                # Add secondary sort for consistent ordering when primary sort values are equal
+                if sort_by == "date_added":
+                    # For date_added, use title as secondary sort to ensure consistent ordering
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc(), DbSong.title.asc())
+                    else:
+                        query = query.order_by(sort_col.asc(), DbSong.title.asc())
+                elif sort_by in ["title", "artist"]:
+                    # For title/artist sorts, use date_added as secondary
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc(), DbSong.date_added.desc())
+                    else:
+                        query = query.order_by(sort_col.asc(), DbSong.date_added.desc())
                 else:
-                    query = query.order_by(sort_col.asc())
+                    # Default single column sort for other fields
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc())
+                    else:
+                        query = query.order_by(sort_col.asc())
         if offset:
             query = query.offset(offset)
         if limit:
@@ -129,13 +144,24 @@ class SongRepository:
         """
         Update an existing song record.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         song = self.fetch(song_id)
         if not song:
+            logger.warning(f"Song {song_id} not found for update")
             return None
+            
+        # Log the update for debugging race conditions
+        if "synced_lyrics" in fields or "plain_lyrics" in fields:
+            logger.info(f"Updating lyrics for song {song_id}: {song.title} by {song.artist}")
+            
         for key, value in fields.items():
             setattr(song, key, value)
         self.db.commit()
         self.db.refresh(song)
+        
+        logger.debug(f"Successfully updated song {song_id}")
         return song
 
     def delete(self, song_id: str) -> bool:

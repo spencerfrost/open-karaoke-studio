@@ -19,7 +19,7 @@ class DbSong(Base):
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
     duration_ms = Column(Integer, nullable=True)
-    date_added = Column(DateTime, default=datetime.now(timezone.utc))
+    date_added = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     vocals_path = Column(String, nullable=True)
     instrumental_path = Column(String, nullable=True)
     original_path = Column(String, nullable=True)
