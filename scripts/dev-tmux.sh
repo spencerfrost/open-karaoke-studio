@@ -1,16 +1,38 @@
 #!/bin/bash
 # Development script using tmux - starts frontend, backend API, and Celery worker
 # Each service runs in its own tmux pane for better control and debugging
+#
+# Usage:
+#   ./dev-tmux.sh          # Start with frontend in development mode (default)
+#   ./dev-tmux.sh --build  # Start with frontend built for production
 
-echo "🎤 Starting Open Karaoke Studio with tmux (Local Network Mode)..."
+# Parse command line arguments
+BUILD_FRONTEND=false
+for arg in "$@"; do
+    case $arg in
+        --build)
+            BUILD_FRONTEND=true
+            shift
+            ;;
+        *)
+            # Unknown option
+            ;;
+    esac
+done
 
-# # Auto-detect the machine's IP address for external access
-# HOST_IP=$(hostname -I | awk '{print $1}')
-# echo "📡 Detected host IP: $HOST_IP"
+if [ "$BUILD_FRONTEND" = true ]; then
+    echo "🎤 Starting Open Karaoke Studio with tmux (Local Network Mode - Production Build)..."
+else
+    echo "🎤 Starting Open Karaoke Studio with tmux (Local Network Mode - Development Mode)..."
+fi
 
-# # Create/update the frontend .env.local file with the correct backend URL
-# echo "VITE_BACKEND_URL=http://$HOST_IP:5123" >frontend/.env.local
-# echo "✅ Frontend configured to connect to: http://$HOST_IP:5123"
+# Auto-detect the machine's IP address for external access
+HOST_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+echo "📡 Detected host IP: $HOST_IP"
+
+# Create/update the frontend .env.local file with the correct backend URL
+echo "VITE_BACKEND_URL=http://$HOST_IP:5123" >frontend/.env.local
+echo "✅ Frontend configured to connect to: http://$HOST_IP:5123"
 
 # Session name
 SESSION_NAME="open-karaoke-studio"
@@ -40,7 +62,15 @@ tmux send-keys -t $SESSION_NAME:services.1 "./run_celery.sh" C-m
 echo "🌐 Adding frontend in pane 2..."
 tmux split-window -v -t $SESSION_NAME:services.1 -c "$(pwd)/frontend"
 tmux send-keys -t $SESSION_NAME:services.2 "sleep 2" C-m # Wait for backend services to start
-tmux send-keys -t $SESSION_NAME:services.2 "pnpm run host" C-m
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    echo "🏗️  Building frontend for production..."
+    tmux send-keys -t $SESSION_NAME:services.2 "pnpm run build" C-m
+    tmux send-keys -t $SESSION_NAME:services.2 "sleep 3" C-m # Wait for build to complete
+    tmux send-keys -t $SESSION_NAME:services.2 "pnpm run preview --host 0.0.0.0 --port 5192" C-m
+else
+    tmux send-keys -t $SESSION_NAME:services.2 "pnpm run host" C-m
+fi
 
 # Adjust pane sizes for better visibility
 # Make the backend pane (left) take up 50% of width
@@ -55,9 +85,24 @@ tmux send-keys -t $SESSION_NAME:status "clear" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '🎤 Open Karaoke Studio - Development Environment'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '========================================='" C-m
 tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    tmux send-keys -t $SESSION_NAME:status "echo '🏗️  Frontend Mode: Production Build (preview server)'" C-m
+else
+    tmux send-keys -t $SESSION_NAME:status "echo '🚀 Frontend Mode: Development (dev server with HMR)'" C-m
+fi
+
+tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '🌐 LOCAL NETWORK ACCESS:'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5173'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5173'" C-m
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5192'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5192'" C-m
+else
+    tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5192'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5192'" C-m
+fi
+
 tmux send-keys -t $SESSION_NAME:status "echo '   🔧 Backend API:     http://$HOST_IP:5123'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '📋 Tmux Controls:'" C-m
@@ -78,8 +123,15 @@ tmux send-keys -t $SESSION_NAME:status "echo '   ┌─────────�
 tmux send-keys -t $SESSION_NAME:status "echo '   │             │   Celery    │'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   │   Backend   │   Worker    │'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   │     API     ├─────────────┤'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   │             │  Frontend   │'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   │             │  Dev Server │'" C-m
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    tmux send-keys -t $SESSION_NAME:status "echo '   │             │  Frontend   │'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   │             │ Preview Srv │'" C-m
+else
+    tmux send-keys -t $SESSION_NAME:status "echo '   │             │  Frontend   │'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   │             │  Dev Server │'" C-m
+fi
+
 tmux send-keys -t $SESSION_NAME:status "echo '   └─────────────┴─────────────┘'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '🎉 Ready for karaoke party! Other devices can now connect.'" C-m
@@ -96,14 +148,27 @@ echo ""
 echo "✅ Tmux session '$SESSION_NAME' created with all services!"
 echo ""
 echo "🌐 LOCAL NETWORK ACCESS:"
-echo "   🎤 Main Device:     http://localhost:5173"
-echo "   📱 Other Devices:   http://$HOST_IP:5173"
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    echo "   🎤 Main Device:     http://localhost:5192 (Production Build)"
+    echo "   📱 Other Devices:   http://$HOST_IP:5192"
+else
+    echo "   🎤 Main Device:     http://localhost:5192 (Development Mode)"
+    echo "   📱 Other Devices:   http://$HOST_IP:5192"
+fi
+
 echo "   🔧 Backend API:     http://$HOST_IP:5123"
 echo ""
 echo "📋 Tmux Commands:"
 echo "   Attach to session:  tmux attach -t $SESSION_NAME"
 echo "   Kill all services:  tmux kill-session -t $SESSION_NAME"
 echo ""
+
+if [ "$BUILD_FRONTEND" = true ]; then
+    echo "🏗️  Frontend built for production and served via preview server"
+    echo ""
+fi
+
 echo "🚀 Attaching to tmux session now..."
 
 # Attach to the session
