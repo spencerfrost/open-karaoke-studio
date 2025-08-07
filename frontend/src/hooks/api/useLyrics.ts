@@ -29,8 +29,12 @@ export function useLyricsSearch() {
   const [error, setError] = useState<Error | null>(null);
 
   const search = async (params: LyricsSearchRequest) => {
+    console.log(`🎵 Starting lyrics search for: ${params.artist} - ${params.title}${params.album ? ` (${params.album})` : ''}`);
+    
     setLoading(true);
     setError(null);
+    setData(null); // Clear previous results immediately to prevent race conditions
+    
     try {
       const queryString = new URLSearchParams({
         track_name: params.title,
@@ -47,6 +51,7 @@ export function useLyricsSearch() {
       const result = await response.json();
       setData(result);
     } catch (err) {
+      console.error(`🎵 Lyrics search failed for: ${params.artist} - ${params.title}`, err);
       setError(err as Error);
     } finally {
       setLoading(false);

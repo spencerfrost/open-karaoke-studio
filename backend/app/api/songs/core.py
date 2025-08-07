@@ -254,32 +254,21 @@ def update_song(song_id: str):
             db_song = repo.fetch(song_id)
             if not db_song:
                 raise ResourceNotFoundError("Song", song_id)
-            # Only update provided fields
+            # Only update provided fields (don't use current DB values as fallbacks to prevent race conditions)
             update_fields = {}
-            for field in [
-                "title",
-                "artist",
-                "album",
-                "genre",
-                "language",
-                "plain_lyrics",
-                "synced_lyrics",
-                "durationMs",
-            ]:
-                # Map camelCase to snake_case for synced_lyrics and durationMs
-                if field == "synced_lyrics":
-                    val = data.get("syncedLyrics", getattr(db_song, field))
-                elif field == "plain_lyrics":
-                    val = data.get("plainLyrics", getattr(db_song, field))
-                elif field == "durationMs":
-                    val = data.get("durationMs", getattr(db_song, "duration_ms", None))
-                    # Validation already done by pydantic
-                    if val is not None:
-                        update_fields["duration_ms"] = val
-                    continue
-                else:
-                    val = data.get(field, getattr(db_song, field))
-                update_fields[field] = val
+            
+            # Handle field mapping and only update fields that are actually provided
+            if "syncedLyrics" in data:
+                update_fields["synced_lyrics"] = data["syncedLyrics"]
+            if "plainLyrics" in data:
+                update_fields["plain_lyrics"] = data["plainLyrics"]
+            if "durationMs" in data:
+                update_fields["duration_ms"] = data["durationMs"]
+            
+            # Handle other standard fields
+            for field in ["title", "artist", "album", "genre", "language"]:
+                if field in data:
+                    update_fields[field] = data[field]
             updated_song = repo.update(song_id, **update_fields)
             if not updated_song:
                 raise DatabaseError(

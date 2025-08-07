@@ -128,7 +128,7 @@ const Stage: React.FC = () => {
         <h2 className="text-xl text-center mb-4 text-background/80">
           {currentSong?.artist}
         </h2>
-        <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
+        <div className="aspect-video max-h-svh bg-black/80 rounded-xl overflow-hidden">
           <UnifiedLyricsDisplay
             lyrics={currentSong?.syncedLyrics || currentSong?.plainLyrics || ""}
             isSynced={!!currentSong?.syncedLyrics}
