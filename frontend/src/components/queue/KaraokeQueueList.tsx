@@ -6,6 +6,7 @@ interface KaraokeQueueListProps {
   items: KaraokeQueueItemWithSong[];
   currentSongId?: string | null;
   onRemove?: (id: string) => void;
+  onPlay?: (id: string) => void;
   emptyMessage?: string;
   className?: string;
 }
@@ -14,6 +15,7 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
   items,
   currentSongId = null,
   onRemove,
+  onPlay,
   emptyMessage = "No songs in the queue",
   className = "",
 }) => {
@@ -26,18 +28,20 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
     );
   }
 
-  // For a real implementation, you would add drag-and-drop functionality
-  // using a library like react-beautiful-dnd for reordering
+  // TODO: add drag-and-drop functionality for reordering
+
+  const filteredItems = items.filter((item) => item.position !== 0);
 
   return (
-    <div className={className}>
-      {items.map((item, index) => (
+    <div className={`${className}`}>
+      {filteredItems.map((item, index) => (
         <KaraokeQueueItem
           key={item.id}
           item={item}
           index={index}
           isActive={item.id === currentSongId}
           onRemove={onRemove}
+          onPlay={onPlay}
         />
       ))}
     </div>

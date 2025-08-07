@@ -3,7 +3,6 @@
  */
 // Format milliseconds into MM:SS or MM:SS.SSS
 export const formatTimeMs = (ms: number, showMs: boolean = false): string => {
-  console.log("formatTimeMs called with:", ms, showMs);
   if (isNaN(ms) || ms < 0) return "0:00";
   const totalSeconds = Math.floor(ms / 1000);
   const mins = Math.floor(totalSeconds / 60);
