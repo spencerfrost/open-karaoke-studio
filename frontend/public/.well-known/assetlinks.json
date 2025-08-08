@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.spencerfrost.openkaraokestudio",
+        "sha256_cert_fingerprints": ["8E:79:58:17:AD:22:4C:A7:78:39:CE:6B:FD:DD:B7:9D:25:13:2B:49:40:7D:27:9E:E4:D3:F8:BE:48:7B:A4:0B"]
+      }
+    }]
