@@ -31,26 +31,16 @@ class BaseConfig:
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "detailed")
 
     # Database Configuration
-    # Always use the backend directory database to avoid working directory issues
+    # Use DATABASE_URL from environment (.env) for PostgreSQL by default
+    # Fallback to SQLite for dev/testing if not set
     BACKEND_DB_PATH = BASE_DIR / "backend" / "karaoke.db"
     _env_database_url = os.environ.get("DATABASE_URL")
 
-    if (
-        _env_database_url
-        and _env_database_url.startswith("sqlite:///")
-        and not _env_database_url.startswith("sqlite:////")
-    ):
-        # If relative sqlite path, convert to absolute backend directory path
-        relative_path = _env_database_url.replace("sqlite:///", "")
-        if relative_path == "karaoke.db":
-            # Use the backend directory database for consistency
-            DATABASE_URL = f"sqlite:///{BACKEND_DB_PATH}"
-        elif not Path(relative_path).is_absolute():
-            DATABASE_URL = f"sqlite:///{BASE_DIR / 'backend' / relative_path}"
-        else:
-            DATABASE_URL = _env_database_url
+    if _env_database_url:
+        DATABASE_URL = _env_database_url
     else:
-        DATABASE_URL = _env_database_url or f"sqlite:///{BACKEND_DB_PATH}"
+        # Default to SQLite for local/dev if no env var set
+        DATABASE_URL = f"sqlite:///{BACKEND_DB_PATH}"
     SQLALCHEMY_DATABASE_URI = DATABASE_URL  # For SQLAlchemy compatibility
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

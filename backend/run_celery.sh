@@ -11,7 +11,7 @@ if [ -f .env ]; then
 fi
 
 # Ensure DATABASE_URL is set to the same value as the main app (backend directory)
-export DATABASE_URL="sqlite:///karaoke.db"
+export DATABASE_URL="postgresql://karaoke_user:karaoke_pass@localhost/karaoke"
 
 # Set critical environment variables for PyTorch/CUDA compatibility
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
