@@ -74,3 +74,6 @@ backend/karaoke.db-wal
 docs/archived/
 .github/copilot-instructions.md
 htmlcov
+frontend/dev-dist/registerSW.js
+frontend/dev-dist/sw.js
+frontend/dev-dist/workbox-31862777.js
