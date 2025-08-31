@@ -10,7 +10,6 @@
     "backend/logs",
     "backend/htmlcov",
     "backend/.pytest_cache",
-    "temp_downloads",
     "temp_job_cache",
     "karaoke_library"
   ],

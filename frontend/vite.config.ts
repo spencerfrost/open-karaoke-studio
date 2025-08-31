@@ -108,7 +108,6 @@ export default defineConfig(({ mode }) => {
         interval: 1500,
         ignored: [
           path.resolve(__dirname, "../karaoke_library/**"),
-          path.resolve(__dirname, "../temp_downloads/**"),
         ],
       },
     },

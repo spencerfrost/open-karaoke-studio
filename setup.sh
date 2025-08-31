@@ -285,7 +285,6 @@ print('Database schema verified')
     log_info "Creating necessary directories..."
     mkdir -p logs
     mkdir -p ../karaoke_library
-    mkdir -p ../temp_downloads
     
     # Make scripts executable
     chmod +x run_api.sh run_celery.sh

@@ -84,7 +84,6 @@ DATABASE_URL=sqlite:///karaoke.db
 
 # File Storage
 LIBRARY_DIR=/path/to/karaoke_library
-TEMP_DIR=/path/to/temp_downloads
 
 # Redis/Celery
 CELERY_BROKER_URL=redis://localhost:6379/0

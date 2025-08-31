@@ -85,7 +85,6 @@ karaoke_library/
 │   └── *.info.json          # YouTube download metadata (if applicable)
 ├── {song_id_2}/
 │   └── ...
-└── temp_downloads/           # Temporary processing files
 ```
 
 ## Core Functionality

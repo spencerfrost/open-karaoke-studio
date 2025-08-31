@@ -46,7 +46,6 @@ class BaseConfig:
 
     # File Management
     LIBRARY_DIR = Path(os.environ.get("LIBRARY_DIR", str(BASE_DIR / "karaoke_library")))
-    TEMP_DIR = Path(os.environ.get("TEMP_DIR", str(BASE_DIR / "temp_downloads")))
 
     # Audio Processing Settings
     DEMUCS_MODEL = os.environ.get("DEMUCS_MODEL", "htdemucs_ft")

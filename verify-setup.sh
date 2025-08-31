@@ -311,12 +311,6 @@ test_project_structure() {
         log_warning "Karaoke library directory not found (will be created)"
     fi
     
-    if [ -d "temp_downloads" ]; then
-        log_success "Temp downloads directory exists"
-    else
-        log_warning "Temp downloads directory not found (will be created)"
-    fi
-    
     # Check development scripts
     local scripts=("dev.sh" "dev-localhost.sh")
     for script in "${scripts[@]}"; do
