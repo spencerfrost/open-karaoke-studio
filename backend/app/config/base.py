@@ -128,5 +128,4 @@ class BaseConfig:
 
         # Ensure directories exist
         self.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-        self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
         self.LOG_DIR.mkdir(parents=True, exist_ok=True)  # Ensure log directory exists

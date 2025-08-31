@@ -127,7 +127,6 @@ class FileService:
     def __init__(self):
         self.config = get_config()
         self.library_dir = self.config.LIBRARY_DIR
-        self.temp_dir = self.config.TEMP_DIR
 ```
 
 ### Database Configuration
