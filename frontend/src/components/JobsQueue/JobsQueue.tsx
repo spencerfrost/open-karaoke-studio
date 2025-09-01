@@ -1,6 +1,6 @@
 import React from "react";
 import { Drawer } from "@/components/ui/drawer";
-import { useJobsQueue } from "./useJobsQueue";
+import { useJobsQueue } from "../../hooks/useJobsQueue";
 import JobsQueueTrigger from "./JobsQueueTrigger";
 import JobsQueueDrawer from "./JobsQueueDrawer";
 

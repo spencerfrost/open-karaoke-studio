@@ -2,7 +2,7 @@ import React from "react";
 import YouTubeSearch from "../components/add/youtube/YouTubeSearch";
 import AppLayout from "../components/layout/AppLayout";
 import JobsQueue from "@/components/JobsQueue";
-import { YouTubeMusicSearch } from "../components/add/YouTubeMusicSearch";
+import { YouTubeMusicSearch } from "@/components/add/YouTubeMusicSearch";
 
 const AddSongPage: React.FC = () => {
   return (

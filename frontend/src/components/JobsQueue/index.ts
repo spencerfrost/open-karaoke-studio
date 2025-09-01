@@ -9,7 +9,7 @@ export { default as ConnectionStatus } from "./ConnectionStatus";
 export { default as EmptyState } from "./EmptyState";
 
 // Export custom hook
-export { useJobsQueue } from "./useJobsQueue";
+export { useJobsQueue } from "../../hooks/useJobsQueue";
 
 // Export types
 export type {
