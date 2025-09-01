@@ -1,8 +1,11 @@
+import logging
+
 from app.db import SessionLocal
 from app.db.models import DbSong, KaraokeQueueItem
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.orm import joinedload
 
+logger = logging.getLogger(__name__)
 karaoke_queue_bp = Blueprint("karaoke_queue", __name__, url_prefix="/api/karaoke-queue")
 
 
@@ -90,7 +93,7 @@ def add_to_queue():
             if socketio and hasattr(socketio, "broadcast_queue_update"):
                 socketio.broadcast_queue_update()
         except Exception as e:
-            print(f"WebSocket broadcast error: {e}")
+            logger.error("WebSocket broadcast error: %s", e)
 
         # Return the created item with song data
         session.refresh(new_item)
@@ -151,7 +154,7 @@ def remove_from_queue(item_id):
             if socketio and hasattr(socketio, "broadcast_queue_update"):
                 socketio.broadcast_queue_update()
         except Exception as e:
-            print(f"WebSocket broadcast error: {e}")
+            logger.error("WebSocket broadcast error: %s", e)
 
         return jsonify({"success": True})
     finally:
@@ -191,7 +194,7 @@ def reorder_queue():
             if socketio and hasattr(socketio, "broadcast_queue_update"):
                 socketio.broadcast_queue_update()
         except Exception as e:
-            print(f"WebSocket broadcast error: {e}")
+            logger.error("WebSocket broadcast error: %s", e)
 
         return jsonify({"success": True})
     finally:
@@ -264,7 +267,7 @@ def play_queue_item(item_id):
                 )
 
         except Exception as e:
-            print(f"WebSocket broadcast error: {e}")
+            logger.error("WebSocket broadcast error: %s", e)
 
         # Return the song data for the player
         result = {

@@ -141,9 +141,7 @@ def get_thumbnail_auto(song_id: str):
 @handle_api_error
 @validate_path_params(song_id=str, track_type=str)
 def download_song_track(song_id: str, track_type: str):
-    print("download_song_track called", song_id, track_type)
-    logger = logging.getLogger(__name__)
-    logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
+    logger.info("Download request for song '%s', track type '%s'", song_id, track_type)
     track_type = track_type.lower()
     valid_track_types = ["vocals", "instrumental", "original"]
     if track_type not in valid_track_types:

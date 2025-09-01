@@ -5,11 +5,14 @@ This module handles real-time updates for the karaoke queue, such as
 queue updates and notifications to connected clients.
 """
 
+import logging
+
 from app.db import SessionLocal
 from app.db.models import KaraokeQueueItem
 from flask_socketio import emit, join_room, leave_room
 from sqlalchemy.orm import joinedload
 
+logger = logging.getLogger(__name__)
 
 def register_handlers(socketio):
     """Register WebSocket event handlers for the karaoke queue."""
@@ -68,7 +71,7 @@ def register_handlers(socketio):
             
             socketio.emit("queue_updated", {"items": queue_data}, room="karaoke_queue")
         except Exception as e:
-            print(f"Error broadcasting queue update: {e}")
+            logger.error(f"Error broadcasting queue update: {e}")
         finally:
             session.close()
     
