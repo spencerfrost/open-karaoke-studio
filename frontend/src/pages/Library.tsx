@@ -5,11 +5,12 @@ import AppLayout from "@/components/layout/AppLayout";
 import LibrarySearchInput from "../components/library/LibrarySearchInput";
 import SongResultsSection from "../components/library/SongResultsSection";
 import ArtistResultsSection from "../components/library/ArtistResultsSection";
-import RecentlyAddedSongs from "../components/library/RecentlyAddedSongs";
+import RecentlyAddedSongs from "../components/library/RecentlyAddedSongs/RecentlyAddedSongs";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
+import JobsQueue from "@/components/JobsQueue";
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -107,10 +108,7 @@ const LibraryPage: React.FC = () => {
 
         <div className="space-y-8">
           {!hasSearch ? (
-            <RecentlyAddedSongs
-              onSongSelect={handleSongSelect}
-              onAddToQueue={handleAddToQueue}
-            />
+            <RecentlyAddedSongs />
           ) : (
             <SongResultsSection
               songs={songsQuery.data || []}
@@ -131,6 +129,7 @@ const LibraryPage: React.FC = () => {
           />
         </div>
       </div>
+      <JobsQueue />
     </AppLayout>
   );
 };
