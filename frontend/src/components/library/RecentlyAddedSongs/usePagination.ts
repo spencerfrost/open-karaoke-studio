@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
-import { 
-  PaginationState, 
-  PaginationActions, 
-  UsePaginationOptions, 
-  UsePaginationResult 
+import {
+  PaginationState,
+  PaginationActions,
+  UsePaginationOptions,
+  UsePaginationResult,
 } from "./RecentlyAddedSongs.types";
 
 export const usePagination = ({
@@ -23,10 +23,10 @@ export const usePagination = ({
 
   const nextPage = useCallback(() => {
     if (hasNextPage && !state.isAnimating) {
-      setState(prev => ({ ...prev, isAnimating: true }));
+      setState((prev) => ({ ...prev, isAnimating: true }));
 
       setTimeout(() => {
-        setState(prev => ({
+        setState((prev) => ({
           currentPage: prev.currentPage + 1,
           displayPage: prev.displayPage + 1,
           isAnimating: false,
@@ -44,24 +44,24 @@ export const usePagination = ({
   }, []);
 
   const currentPageItems = useCallback(
-    <T,>(items: T[]) => {
+    <T>(items: T[]) => {
       const startIndex = state.displayPage * itemsPerPage;
       return items.slice(startIndex, startIndex + itemsPerPage);
     },
-    [state.displayPage, itemsPerPage]
+    [state.displayPage, itemsPerPage],
   );
 
   const nextPageItems = useCallback(
-    <T,>(items: T[]) => {
+    <T>(items: T[]) => {
       const nextStartIndex = (state.displayPage + 1) * itemsPerPage;
       return items.slice(nextStartIndex, nextStartIndex + itemsPerPage);
     },
-    [state.displayPage, itemsPerPage]
+    [state.displayPage, itemsPerPage],
   );
 
   const actions: PaginationActions = useMemo(
     () => ({ nextPage, reset }),
-    [nextPage, reset]
+    [nextPage, reset],
   );
 
   return {

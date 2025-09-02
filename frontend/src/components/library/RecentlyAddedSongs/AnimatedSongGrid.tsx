@@ -9,7 +9,8 @@ interface AnimatedSongGridProps {
   displayPage: number;
 }
 
-const GRID_CLASSES = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 transition-all duration-300 ease-in-out";
+const GRID_CLASSES =
+  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 transition-all duration-300 ease-in-out";
 
 export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
   currentPageSongs,
@@ -28,10 +29,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
         }`}
       >
         {currentPageSongs.map((song: Song) => (
-          <SongCard
-            key={`${song.id}-${displayPage}`}
-            song={song}
-          />
+          <SongCard key={`${song.id}-${displayPage}`} song={song} />
         ))}
       </div>
 
@@ -45,10 +43,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
           }`}
         >
           {nextPageSongs.map((song: Song) => (
-            <SongCard
-              key={`${song.id}-${displayPage + 1}`}
-              song={song}
-            />
+            <SongCard key={`${song.id}-${displayPage + 1}`} song={song} />
           ))}
         </div>
       )}
