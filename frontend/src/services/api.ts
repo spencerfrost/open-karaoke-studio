@@ -16,7 +16,7 @@ export interface ApiResponse<T> {
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options: ApiOptions = {}
+  options: ApiOptions = {},
 ): Promise<ApiResponse<T>> {
   try {
     const { method = "GET", headers = {}, body } = options;
@@ -68,7 +68,7 @@ export async function apiRequest<T>(
 export async function uploadFile<T>(
   endpoint: string,
   file: File,
-  additionalData?: Record<string, unknown>
+  additionalData?: Record<string, unknown>,
 ): Promise<ApiResponse<T>> {
   try {
     const formData = new FormData();
@@ -109,7 +109,7 @@ export async function uploadFile<T>(
  */
 export async function downloadFile(
   endpoint: string,
-  filename: string
+  filename: string,
 ): Promise<void> {
   try {
     const response = await fetch(`${endpoint}`, {

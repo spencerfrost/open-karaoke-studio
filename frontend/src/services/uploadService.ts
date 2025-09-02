@@ -21,7 +21,7 @@ export function useUploadAndProcessAudio(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<UploadAudioResponse, Error, UploadAudioVariables, unknown>(
     {
@@ -29,7 +29,7 @@ export function useUploadAndProcessAudio(
         return uploadFile<UploadAudioResponse>("process", file, metadata);
       },
       ...options,
-    }
+    },
   );
 }
 
@@ -50,7 +50,7 @@ export function useProcessYouTubeVideo(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<
     ProcessYouTubeResponse,
@@ -92,7 +92,7 @@ export function useCancelProcessing(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
@@ -127,7 +127,7 @@ export function useDismissJob(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {

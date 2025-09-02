@@ -67,7 +67,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
 
   // Results state
   const [selectedResult, setSelectedResult] = useState<LyricsResult | null>(
-    null
+    null,
   );
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -315,7 +315,9 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                         <Card
                           key={result.id || index}
                           className={`cursor-pointer transition-all hover:shadow-md ${
-                            selectedResult === result ? "ring-2 ring-primary" : ""
+                            selectedResult === result
+                              ? "ring-2 ring-primary"
+                              : ""
                           }`}
                           onClick={() => handleSelectResult(result)}
                         >
@@ -345,7 +347,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                                     {Math.floor(result.duration / 60)}:
                                     {String(result.duration % 60).padStart(
                                       2,
-                                      "0"
+                                      "0",
                                     )}
                                   </Badge>
                                 )}

@@ -15,7 +15,7 @@ const INITIAL_STATE = {
 // Helper function to get audio URLs
 const getAudioUrl = (
   songId: string,
-  trackType: "vocals" | "instrumental" | "original"
+  trackType: "vocals" | "instrumental" | "original",
 ): string => {
   return `/api/songs/${songId}/download/${trackType}`;
 };
@@ -205,7 +205,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         | "isLoading"
         | "error"
       >
-    >
+    >,
   ) {
     set(updates);
     socketEmit("update_player_state", updates);
@@ -217,13 +217,13 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       | "instrumentalVolume"
       | "lyricsSize"
       | "lyricsOffset",
-    value: unknown
+    value: unknown,
   ) {
     set({ [control]: value });
     // Map camelCase to snake_case for backend
     const backendControl = control.replace(
       /[A-Z]/g,
-      (letter) => "_" + letter.toLowerCase()
+      (letter) => "_" + letter.toLowerCase(),
     );
     socketEmit("update_performance_control", {
       control: backendControl,

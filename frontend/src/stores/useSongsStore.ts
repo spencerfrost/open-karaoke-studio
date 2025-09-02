@@ -5,7 +5,7 @@ import { Song, SongStatus } from "@/types/Song";
 const filterSongs = (
   songs: Song[],
   term: string,
-  status: SongStatus | "all"
+  status: SongStatus | "all",
 ): Song[] => {
   return songs.filter((song) => {
     // Filter by search term
@@ -65,7 +65,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus
+          state.filterStatus,
         ),
       };
     }),
@@ -73,7 +73,7 @@ export const useSongsStore = create<SongsState>((set) => ({
   updateSong: (id, updates) =>
     set((state) => {
       const updatedSongs = state.songs.map((song) =>
-        song.id === id ? { ...song, ...updates } : song
+        song.id === id ? { ...song, ...updates } : song,
       );
 
       return {
@@ -81,7 +81,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus
+          state.filterStatus,
         ),
       };
     }),
@@ -95,7 +95,7 @@ export const useSongsStore = create<SongsState>((set) => ({
         filteredSongs: filterSongs(
           updatedSongs,
           state.filterTerm,
-          state.filterStatus
+          state.filterStatus,
         ),
       };
     }),

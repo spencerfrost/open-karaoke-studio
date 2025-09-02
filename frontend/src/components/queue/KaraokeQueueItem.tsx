@@ -23,15 +23,15 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
   return (
     <div
       className={`p-4 flex items-center border-b border-orange-peel/30 ${className} ${
-        isActive ? 'bg-dark-cyan/30' : 'bg-transparent'
+        isActive ? "bg-dark-cyan/30" : "bg-transparent"
       }`}
     >
       {/* Position indicator */}
       <div
         className={`h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0 ${
-          isActive 
-            ? 'bg-dark-cyan text-lemon-chiffon' 
-            : 'bg-orange-peel/25 text-orange-peel'
+          isActive
+            ? "bg-dark-cyan text-lemon-chiffon"
+            : "bg-orange-peel/25 text-orange-peel"
         }`}
       >
         {index + 1}
@@ -41,16 +41,14 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
       <div className="flex-1 min-w-0">
         <h3
           className={`font-semibold text-xl truncate ${
-            isActive ? 'text-orange-peel' : 'text-lemon-chiffon'
+            isActive ? "text-orange-peel" : "text-lemon-chiffon"
           }`}
         >
           {item.song.title}
         </h3>
         <p className="opacity-80 truncate">
           {item.song.artist} •{" "}
-          <span className="text-orange-peel">
-            Singer: {item.singer}
-          </span>
+          <span className="text-orange-peel">Singer: {item.singer}</span>
         </p>
       </div>
 
@@ -78,10 +76,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
             aria-label="Play now"
             title="Play now"
           >
-            <Play
-              size={18}
-              className="text-green-500 fill-green-500"
-            />
+            <Play size={18} className="text-green-500 fill-green-500" />
           </Button>
         )}
 
@@ -93,10 +88,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
             aria-label="Remove from queue"
             title="Remove from queue"
           >
-            <X
-              size={18}
-              className="text-red-400"
-            />
+            <X size={18} className="text-red-400" />
           </Button>
         )}
       </div>
