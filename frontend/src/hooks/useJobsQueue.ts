@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  useCancelProcessing,
-  useDismissJob,
-} from "../services/uploadService";
+import { useCancelProcessing, useDismissJob } from "../services/uploadService";
 import { useJobsWebSocket } from "@/hooks/api/useJobsWebSocket";
-import { formatTaskId, countActiveJobs } from "../components/JobsQueue/JobsQueue.utils";
+import {
+  formatTaskId,
+  countActiveJobs,
+} from "../components/JobsQueue/JobsQueue.utils";
 import { JobItem } from "../components/JobsQueue/JobsQueue.types";
 
 export function useJobsQueue() {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   // Use WebSocket for real-time job updates
   const {
     jobs: processingItems = [],
@@ -55,7 +55,7 @@ export function useJobsQueue() {
   };
 
   // Transform processing items to JobItem format
-  const jobs: JobItem[] = processingItems.map(item => ({
+  const jobs: JobItem[] = processingItems.map((item) => ({
     id: item.id,
     progress: item.progress,
     status: item.status,
@@ -75,7 +75,7 @@ export function useJobsQueue() {
     isConnected,
     error,
     activeJobsCount,
-    
+
     // Actions
     handleCancel,
     handleDismiss,

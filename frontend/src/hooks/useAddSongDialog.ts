@@ -3,7 +3,9 @@ import type { LyricsOption } from "@/hooks/api/useLyrics";
 
 export const useAddSongDialog = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(null);
+  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
+    null,
+  );
 
   const openDialog = () => {
     setIsOpen(true);

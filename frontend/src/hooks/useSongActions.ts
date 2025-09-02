@@ -17,7 +17,7 @@ export const useSongActions = (song: Song, config: SongActionsConfig = {}) => {
 
   const handlePlay = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    
+
     if (config.onPlay) {
       config.onPlay(song);
     } else {
