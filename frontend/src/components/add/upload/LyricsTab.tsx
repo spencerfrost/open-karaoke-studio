@@ -75,9 +75,7 @@ export function LyricsTab({
       ) : options.length === 0 ? (
         <Card>
           <CardContent className="py-4">
-            <p className="text-muted-foreground text-center">
-              No lyrics found
-            </p>
+            <p className="text-muted-foreground text-center">No lyrics found</p>
             <p className="text-xs text-muted-foreground text-center mt-2">
               You can add lyrics manually later
             </p>
@@ -90,14 +88,19 @@ export function LyricsTab({
           className="space-y-4"
         >
           {options.map((option, index) => (
-            <div key={option.id || index} className="flex align-middle items-center justify-center space-x-2">
+            <div
+              key={option.id || index}
+              className="flex align-middle items-center justify-center space-x-2"
+            >
               <RadioGroupItem value={String(index)} id={`lyrics-${index}`} />
               <div className="flex-1">
                 <Label
                   htmlFor={`lyrics-${index}`}
                   className="flex flex-col space-y-1 cursor-pointer"
                 >
-                  <Card className={`hover:border-primary w-full ${selectedOption === option ? 'border-primary bg-primary/5' : ''}`}>
+                  <Card
+                    className={`hover:border-primary w-full ${selectedOption === option ? "border-primary bg-primary/5" : ""}`}
+                  >
                     <CardContent className="p-3">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
@@ -116,11 +119,11 @@ export function LyricsTab({
                           </span>
                         )}
                       </div>
-                      
+
                       <div className="text-sm mt-2 border-t pt-2 text-muted-foreground">
                         {renderLyricsPreview(
-                          option.syncedLyrics || option.plainLyrics, 
-                          !!option.syncedLyrics
+                          option.syncedLyrics || option.plainLyrics,
+                          !!option.syncedLyrics,
                         )}
                       </div>
                     </CardContent>
