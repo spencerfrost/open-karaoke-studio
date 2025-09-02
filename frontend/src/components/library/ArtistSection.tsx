@@ -21,16 +21,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   onSongSelect,
   onAddToQueue,
 }) => {
-  const {
-    songs,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    isLoading,
-    error,
-  } = useInfiniteArtistSongs(artistName, 200, {
-    enabled: isExpanded,
-  });
+  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteArtistSongs(artistName, 200, {
+      enabled: isExpanded,
+    });
 
   return (
     <div className="border border-orange-peel rounded-lg overflow-hidden">
