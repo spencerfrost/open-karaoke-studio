@@ -1,21 +1,21 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Edit,
-  FileText,
-  MoreHorizontal,
-  Download,
-  Share,
-  Trash2,
-} from "lucide-react";
+import { Edit, FileText, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
 import { LyricsFetchDialog } from "@/components/lyrics";
+import { useSongs } from "@/hooks/api/useSongs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface SecondaryActionsPanelProps {
   song: Song;
@@ -24,8 +24,9 @@ interface SecondaryActionsPanelProps {
 export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
   song,
 }) => {
-  const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const [isLyricsFetchDialogOpen, setIsLyricsFetchDialogOpen] = useState(false);
+  const { useDeleteSong } = useSongs();
+  const deleteSongMutation = useDeleteSong();
 
   const handleEditMetadata = () => {
     // For 016E: Show "Coming Soon" message
@@ -44,24 +45,13 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
   const handleLyricsSelected = (selectedLyrics: LyricsResult) => {
     console.log("Lyrics selected:", selectedLyrics);
     toast.success(
-      `Lyrics selected: ${selectedLyrics.trackName} by ${selectedLyrics.artistName}`
+      `Lyrics selected: ${selectedLyrics.trackName} by ${selectedLyrics.artistName}`,
     );
     setIsLyricsFetchDialogOpen(false);
   };
 
-  const handleDownload = () => {
-    toast.info("Download feature coming soon!");
-    setIsMoreActionsOpen(false);
-  };
-
-  const handleShare = () => {
-    toast.info("Share feature coming soon!");
-    setIsMoreActionsOpen(false);
-  };
-
   const handleRemove = () => {
-    toast.info("Remove from library feature coming soon!");
-    setIsMoreActionsOpen(false);
+    deleteSongMutation.mutate({ id: song.id });
   };
 
   // Suppress unused variable warning for now
@@ -94,49 +84,33 @@ export const SecondaryActionsPanel: React.FC<SecondaryActionsPanelProps> = ({
           Edit Lyrics
         </Button>
 
-        <Popover open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>
-          <PopoverTrigger asChild>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
             <Button
               variant="outline"
-              className="w-full justify-start gap-2"
+              className="w-full justify-start gap-2 text-destructive hover:text-destructive"
               size="sm"
             >
-              <MoreHorizontal size={14} />
-              More Actions
+              <Trash2 size={14} />
+              Remove from Library
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-48 p-2">
-            <div className="flex flex-col gap-1">
-              <Button
-                variant="ghost"
-                onClick={handleDownload}
-                className="w-full justify-start gap-2"
-                size="sm"
-              >
-                <Download size={14} />
-                Download Song
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={handleShare}
-                className="w-full justify-start gap-2"
-                size="sm"
-              >
-                <Share size={14} />
-                Share Song
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={handleRemove}
-                className="w-full justify-start gap-2 text-destructive hover:text-destructive"
-                size="sm"
-              >
-                <Trash2 size={14} />
-                Remove from Library
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the
+                song and all its data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRemove}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* Lyrics Fetch Dialog */}

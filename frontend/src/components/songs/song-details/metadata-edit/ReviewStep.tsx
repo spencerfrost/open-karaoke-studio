@@ -1,11 +1,17 @@
-import React from 'react';
-import { Song } from '@/types/Song';
-import { ITunesSearchResult } from '@/hooks/useItunesSearch';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { ITunesResultCard } from './ITunesResultCard';
-import { MetadataComparisonView } from './MetadataComparisonView';
+import React from "react";
+import { Song } from "@/types/Song";
+import { ITunesSearchResult } from "@/hooks/useItunesSearch";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { ITunesResultCard } from "./ITunesResultCard";
+import { MetadataComparisonView } from "./MetadataComparisonView";
 
 interface ReviewStepProps {
   song: Song;
@@ -15,12 +21,12 @@ interface ReviewStepProps {
   isLoading: boolean;
 }
 
-export const ReviewStep: React.FC<ReviewStepProps> = ({ 
-  song, 
-  selectedResult, 
-  onSave, 
-  onBack, 
-  isLoading 
+export const ReviewStep: React.FC<ReviewStepProps> = ({
+  song,
+  selectedResult,
+  onSave,
+  onBack,
+  isLoading,
 }) => {
   return (
     <div className="space-y-6">
@@ -67,7 +73,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               Saving...
             </>
           ) : (
-            'Apply iTunes Metadata'
+            "Apply iTunes Metadata"
           )}
         </Button>
       </div>

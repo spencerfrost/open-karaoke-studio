@@ -15,7 +15,7 @@ interface SongDetailsDialogProps {
   className?: string;
 }
 
-type DialogView = 'main' | 'edit-metadata';
+type DialogView = "main" | "edit-metadata";
 
 export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   song,
@@ -23,7 +23,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   onClose,
   className = "",
 }) => {
-  const [currentView, setCurrentView] = useState<DialogView>('main');
+  const [currentView, setCurrentView] = useState<DialogView>("main");
 
   // Close audio when dialog closes
   useEffect(() => {
@@ -35,7 +35,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
         audio.currentTime = 0;
       });
       // Reset view when dialog closes
-      setCurrentView('main');
+      setCurrentView("main");
     }
   }, [isOpen]);
 
@@ -43,8 +43,8 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        if (currentView === 'edit-metadata') {
-          setCurrentView('main');
+        if (currentView === "edit-metadata") {
+          setCurrentView("main");
         } else {
           onClose();
         }
@@ -58,11 +58,11 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   }, [isOpen, onClose, currentView]);
 
   const handleEditMetadata = () => {
-    setCurrentView('edit-metadata');
+    setCurrentView("edit-metadata");
   };
 
   const handleBackToMain = () => {
-    setCurrentView('main');
+    setCurrentView("main");
   };
 
   return (
@@ -74,11 +74,11 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
           // Desktop: large dialog
           "md:w-[90vw] md:h-[90vh] md:max-w-6xl md:max-h-[90vh] md:rounded-lg",
           "overflow-y-auto p-0",
-          className
+          className,
         )}
       >
         <div className="p-8 space-y-8">
-          {currentView === 'main' ? (
+          {currentView === "main" ? (
             <>
               {/* Main content grid - Cover art and primary details */}
               <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
@@ -99,10 +99,10 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
               </div>
 
               {/* Primary Actions Section - Prominent placement below song details */}
-              <PrimaryActionsSection 
-                song={song} 
-                onClose={onClose} 
-                onEditMetadata={handleEditMetadata} 
+              <PrimaryActionsSection
+                song={song}
+                onClose={onClose}
+                onEditMetadata={handleEditMetadata}
               />
 
               {/* Two-Column Layout: Lyrics + Secondary Actions */}
@@ -110,10 +110,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
             </>
           ) : (
             /* Metadata Editing View */
-            <MetadataEditContent 
-              song={song}
-              onBack={handleBackToMain}
-            />
+            <MetadataEditContent song={song} onBack={handleBackToMain} />
           )}
         </div>
       </DialogContent>

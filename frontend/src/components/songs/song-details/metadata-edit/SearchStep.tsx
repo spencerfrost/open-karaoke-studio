@@ -1,10 +1,16 @@
-import React from 'react';
-import { Song } from '@/types/Song';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Loader2, ExternalLink } from 'lucide-react';
+import React from "react";
+import { Song } from "@/types/Song";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Search, Loader2, ExternalLink } from "lucide-react";
 
 interface SearchStepProps {
   searchArtist: string;
@@ -29,45 +35,54 @@ export const SearchStep: React.FC<SearchStepProps> = ({
   onSearch,
   onKeyPress,
   isLoading,
-  song
+  song,
 }) => {
   return (
     <div className="space-y-6">
       {/* Current iTunes Data Section */}
-      {(song.itunesTrackId || song.itunesArtistId || song.itunesCollectionId) && (
+      {(song.itunesTrackId ||
+        song.itunesArtistId ||
+        song.itunesCollectionId) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Current iTunes Data</CardTitle>
             <CardDescription>
-              Administrative information from the currently selected iTunes release
+              Administrative information from the currently selected iTunes
+              release
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               {song.itunesTrackId && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">Track ID</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Track ID
+                  </Label>
                   <p className="font-mono">{song.itunesTrackId}</p>
                 </div>
               )}
               {song.itunesArtistId && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">Artist ID</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Artist ID
+                  </Label>
                   <p className="font-mono">{song.itunesArtistId}</p>
                 </div>
               )}
               {song.itunesCollectionId && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">Collection ID</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Collection ID
+                  </Label>
                   <p className="font-mono">{song.itunesCollectionId}</p>
                 </div>
               )}
             </div>
             {song.itunesPreviewUrl && (
               <div className="pt-2">
-                <a 
-                  href={song.itunesPreviewUrl} 
-                  target="_blank" 
+                <a
+                  href={song.itunesPreviewUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                 >
@@ -121,10 +136,12 @@ export const SearchStep: React.FC<SearchStepProps> = ({
               />
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             onClick={onSearch}
-            disabled={isLoading || (!searchArtist.trim() && !searchTitle.trim())}
+            disabled={
+              isLoading || (!searchArtist.trim() && !searchTitle.trim())
+            }
             className="w-full md:w-auto"
           >
             {isLoading ? (

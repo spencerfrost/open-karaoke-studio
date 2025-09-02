@@ -17,12 +17,9 @@ interface MetadataQualityIndicatorProps {
   className?: string;
 }
 
-export const MetadataQualityIndicator: React.FC<MetadataQualityIndicatorProps> = ({
-  quality,
-  size = "medium",
-  showDetails = false,
-  className = "",
-}) => {
+export const MetadataQualityIndicator: React.FC<
+  MetadataQualityIndicatorProps
+> = ({ quality, size = "medium", showDetails = false, className = "" }) => {
   const getQualityColor = (level: MetadataQuality["level"]) => {
     switch (level) {
       case "poor":
@@ -40,7 +37,7 @@ export const MetadataQualityIndicator: React.FC<MetadataQualityIndicatorProps> =
 
   const getQualityIcon = (level: MetadataQuality["level"]) => {
     const iconSize = size === "small" ? 12 : size === "medium" ? 14 : 16;
-    
+
     switch (level) {
       case "poor":
         return <XCircle size={iconSize} />;
@@ -70,7 +67,7 @@ export const MetadataQualityIndicator: React.FC<MetadataQualityIndicatorProps> =
     "inline-flex items-center gap-1 font-medium border",
     getQualityColor(quality.level),
     getSizeClasses(),
-    className
+    className,
   );
 
   if (showDetails) {
@@ -80,15 +77,16 @@ export const MetadataQualityIndicator: React.FC<MetadataQualityIndicatorProps> =
           {getQualityIcon(quality.level)}
           {quality.percentage}% Complete
         </Badge>
-        
+
         {quality.missingFields.length > 0 && (
           <div className="text-xs text-muted-foreground">
             <p>Missing: {quality.missingFields.join(", ")}</p>
           </div>
         )}
-        
+
         <div className="text-xs text-muted-foreground">
-          {quality.sourceCount} source{quality.sourceCount !== 1 ? "s" : ""} available
+          {quality.sourceCount} source{quality.sourceCount !== 1 ? "s" : ""}{" "}
+          available
         </div>
       </div>
     );

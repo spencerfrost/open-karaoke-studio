@@ -1,8 +1,8 @@
-import React from 'react';
-import { ITunesSearchResult } from '@/hooks/useItunesSearch';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ExternalLink } from 'lucide-react';
+import React from "react";
+import { ITunesSearchResult } from "@/hooks/useItunesSearch";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink } from "lucide-react";
 
 interface ITunesResultCardProps {
   result: ITunesSearchResult;
@@ -10,22 +10,22 @@ interface ITunesResultCardProps {
   onSelect: () => void;
 }
 
-export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({ 
-  result, 
-  isSelected, 
-  onSelect 
+export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({
+  result,
+  isSelected,
+  onSelect,
 }) => {
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'Unknown';
+    if (!seconds) return "Unknown";
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   };
 
   return (
-    <Card 
+    <Card
       className={`cursor-pointer transition-colors ${
-        isSelected ? 'ring-2 ring-primary border-primary' : 'hover:bg-accent'
+        isSelected ? "ring-2 ring-primary border-primary" : "hover:bg-accent"
       }`}
       onClick={onSelect}
     >
@@ -45,14 +45,20 @@ export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({
               </div>
             )}
           </div>
-          
+
           {/* Metadata */}
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h4 className="font-medium text-sm truncate">{result.trackName}</h4>
-                <p className="text-sm text-muted-foreground truncate">{result.artistName}</p>
-                <p className="text-sm text-muted-foreground truncate">{result.collectionName}</p>
+                <h4 className="font-medium text-sm truncate">
+                  {result.trackName}
+                </h4>
+                <p className="text-sm text-muted-foreground truncate">
+                  {result.artistName}
+                </p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {result.collectionName}
+                </p>
               </div>
               <div className="flex-shrink-0 text-right text-xs space-y-1">
                 <div>{formatDuration(result.durationSeconds)}</div>
@@ -63,7 +69,7 @@ export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({
                 )}
               </div>
             </div>
-            
+
             {/* Additional info */}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {result.primaryGenreName && (
@@ -71,15 +77,15 @@ export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({
                   {result.primaryGenreName}
                 </Badge>
               )}
-              {result.trackExplicitness === 'explicit' && (
+              {result.trackExplicitness === "explicit" && (
                 <Badge variant="destructive" className="text-xs">
                   Explicit
                 </Badge>
               )}
               {result.previewUrl && (
-                <a 
-                  href={result.previewUrl} 
-                  target="_blank" 
+                <a
+                  href={result.previewUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                   onClick={(e) => e.stopPropagation()}

@@ -17,7 +17,8 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
   className = "",
   showIcons = true,
 }) => {
-  const badgeSize = size === "small" ? "text-xs px-1 py-0" : "text-xs px-2 py-1";
+  const badgeSize =
+    size === "small" ? "text-xs px-1 py-0" : "text-xs px-2 py-1";
   const iconSize = size === "small" ? 10 : 12;
 
   const badges = [];
@@ -28,11 +29,15 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
       <Badge
         key="itunes"
         variant="secondary"
-        className={cn(badgeSize, "bg-blue-100 text-blue-800 border-blue-200", className)}
+        className={cn(
+          badgeSize,
+          "bg-blue-100 text-blue-800 border-blue-200",
+          className,
+        )}
       >
         {showIcons && <Music size={iconSize} className="mr-1" />}
         iTunes
-      </Badge>
+      </Badge>,
     );
   }
 
@@ -42,11 +47,15 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
       <Badge
         key="youtube"
         variant="secondary"
-        className={cn(badgeSize, "bg-red-100 text-red-800 border-red-200", className)}
+        className={cn(
+          badgeSize,
+          "bg-red-100 text-red-800 border-red-200",
+          className,
+        )}
       >
         {showIcons && <Globe size={iconSize} className="mr-1" />}
         YouTube
-      </Badge>
+      </Badge>,
     );
   }
 
@@ -56,10 +65,14 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
       <Badge
         key="complete"
         variant="secondary"
-        className={cn(badgeSize, "bg-green-100 text-green-800 border-green-200", className)}
+        className={cn(
+          badgeSize,
+          "bg-green-100 text-green-800 border-green-200",
+          className,
+        )}
       >
         Complete
-      </Badge>
+      </Badge>,
     );
   }
 
@@ -69,20 +82,28 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
       <Badge
         key="synced-lyrics"
         variant="secondary"
-        className={cn(badgeSize, "bg-purple-100 text-purple-800 border-purple-200", className)}
+        className={cn(
+          badgeSize,
+          "bg-purple-100 text-purple-800 border-purple-200",
+          className,
+        )}
       >
         Synced Lyrics
-      </Badge>
+      </Badge>,
     );
   } else if (song.lyrics) {
     badges.push(
       <Badge
         key="lyrics"
         variant="outline"
-        className={cn(badgeSize, "border-purple-200 text-purple-700", className)}
+        className={cn(
+          badgeSize,
+          "border-purple-200 text-purple-700",
+          className,
+        )}
       >
         Lyrics
-      </Badge>
+      </Badge>,
     );
   }
 
@@ -90,9 +111,5 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
     return null;
   }
 
-  return (
-    <div className="flex flex-wrap gap-1">
-      {badges}
-    </div>
-  );
+  return <div className="flex flex-wrap gap-1">{badges}</div>;
 };

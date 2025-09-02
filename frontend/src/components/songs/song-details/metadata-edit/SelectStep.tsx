@@ -1,10 +1,16 @@
-import React from 'react';
-import { ITunesSearchResult } from '@/hooks/useItunesSearch';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ITunesResultCard } from './ITunesResultCard';
+import React from "react";
+import { ITunesSearchResult } from "@/hooks/useItunesSearch";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ArrowLeft, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ITunesResultCard } from "./ITunesResultCard";
 
 interface SelectStepProps {
   results: ITunesSearchResult[];
@@ -14,12 +20,12 @@ interface SelectStepProps {
   error: Error | null;
 }
 
-export const SelectStep: React.FC<SelectStepProps> = ({ 
-  results, 
-  onSelect, 
-  onBackToSearch, 
-  isLoading, 
-  error 
+export const SelectStep: React.FC<SelectStepProps> = ({
+  results,
+  onSelect,
+  onBackToSearch,
+  isLoading,
+  error,
 }) => {
   return (
     <div className="space-y-6">
@@ -36,8 +42,12 @@ export const SelectStep: React.FC<SelectStepProps> = ({
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            No iTunes results found. 
-            <Button variant="link" className="p-0 ml-1" onClick={onBackToSearch}>
+            No iTunes results found.
+            <Button
+              variant="link"
+              className="p-0 ml-1"
+              onClick={onBackToSearch}
+            >
               Try adjusting your search terms
             </Button>
           </AlertDescription>
@@ -49,7 +59,8 @@ export const SelectStep: React.FC<SelectStepProps> = ({
           <CardHeader>
             <CardTitle className="text-lg">iTunes Search Results</CardTitle>
             <CardDescription>
-              Found {results.length} potential matches. Select the correct release:
+              Found {results.length} potential matches. Select the correct
+              release:
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -38,13 +38,13 @@ export const ArtworkDisplay: React.FC<ArtworkDisplayProps> = ({
   const fallbackClasses = cn(
     "flex items-center justify-center bg-muted/20 border border-muted rounded-lg",
     sizeClasses[size],
-    className
+    className,
   );
 
   const imageClasses = cn(
     "object-cover rounded-lg",
     sizeClasses[size],
-    className
+    className,
   );
 
   // Handle image load
@@ -71,7 +71,10 @@ export const ArtworkDisplay: React.FC<ArtworkDisplayProps> = ({
     <div className={cn("relative", className)}>
       {isLoading && (
         <div className={cn(fallbackClasses, "absolute inset-0 z-10")}>
-          <ImageIcon size={iconSizes[size]} className="text-muted-foreground animate-pulse" />
+          <ImageIcon
+            size={iconSizes[size]}
+            className="text-muted-foreground animate-pulse"
+          />
         </div>
       )}
       <img

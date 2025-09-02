@@ -1,40 +1,54 @@
-import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Song } from '@/types/Song';
-import { useMetadata } from '@/hooks/api/useMetadata';
+import React, { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Song } from "@/types/Song";
+import { useMetadata } from "@/hooks/api/useMetadata";
 import {
   StepIndicator,
   SearchStep,
   SelectStep,
-  ReviewStep
-} from './metadata-edit';
+  ReviewStep,
+} from "./metadata-edit";
 
 interface MetadataEditContentProps {
   song: Song;
   onBack: () => void;
 }
 
-type Step = 'search' | 'select' | 'review';
+interface ITunesResult {
+  trackName: string;
+  artistName: string;
+  collectionName: string;
+  primaryGenreName: string;
+  releaseDate: string;
+  artworkUrl60: string;
+  artworkUrl100: string;
+  artworkUrl600: string;
+  releaseYear?: number;
+}
+
+type Step = "search" | "select" | "review";
 
 const STEPS: { key: Step; label: string; step: number }[] = [
-  { key: 'search', label: 'Search iTunes', step: 1 },
-  { key: 'select', label: 'Select Result', step: 2 },
-  { key: 'review', label: 'Review Changes', step: 3 }
+  { key: "search", label: "Search iTunes", step: 1 },
+  { key: "select", label: "Select Result", step: 2 },
+  { key: "review", label: "Review Changes", step: 3 },
 ];
 
 export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   song,
-  onBack
+  onBack,
 }) => {
-  const [currentStep, setCurrentStep] = useState<Step>('search');
-  const [selectedResult, setSelectedResult] = useState<any | null>(null);
-  const [searchArtist, setSearchArtist] = useState(song.artist || '');
-  const [searchTitle, setSearchTitle] = useState(song.title || '');
-  const [searchAlbum, setSearchAlbum] = useState(song.album || '');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState<Step>("search");
+  const [selectedResult, setSelectedResult] = useState<ITunesResult | null>(
+    null,
+  );
+  const [searchArtist, setSearchArtist] = useState(song.artist || "");
+  const [searchTitle, setSearchTitle] = useState(song.title || "");
+  const [searchAlbum, setSearchAlbum] = useState(song.album || "");
+  const [searchResults, setSearchResults] = useState<ITunesResult[]>([]);
 
   const queryClient = useQueryClient();
   const { useSearchMetadata } = useMetadata();
@@ -43,22 +57,22 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   const updateSongMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       const response = await fetch(`/api/songs/${song.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(updates),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to update song metadata');
+        throw new Error("Failed to update song metadata");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['songs'] });
-      queryClient.invalidateQueries({ queryKey: ['song', song.id] });
+      queryClient.invalidateQueries({ queryKey: ["songs"] });
+      queryClient.invalidateQueries({ queryKey: ["song", song.id] });
       onBack();
     },
   });
@@ -68,36 +82,36 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       artist: searchArtist,
       title: searchTitle,
       album: searchAlbum,
-      limit: 10
+      limit: 10,
     };
 
     searchMutation.mutate(params, {
       onSuccess: (results) => {
         setSearchResults(results);
         if (results.length > 0) {
-          setCurrentStep('select');
+          setCurrentStep("select");
         }
-      }
+      },
     });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !searchMutation.isPending) {
+    if (e.key === "Enter" && !searchMutation.isPending) {
       handleSearch();
     }
   };
 
-  const handleSelectResult = (result: any) => {
+  const handleSelectResult = (result: ITunesResult) => {
     setSelectedResult(result);
-    setCurrentStep('review');
+    setCurrentStep("review");
   };
 
   const handleBackToSearch = () => {
-    setCurrentStep('search');
+    setCurrentStep("search");
   };
 
   const handleBackToSelect = () => {
-    setCurrentStep('select');
+    setCurrentStep("select");
   };
 
   const handleSave = async () => {
@@ -108,18 +122,24 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       artist: selectedResult.artistName,
       album: selectedResult.collectionName,
       genre: selectedResult.primaryGenreName,
-      year: selectedResult.releaseYear ? selectedResult.releaseYear.toString() : undefined,
+      year: selectedResult.releaseYear
+        ? selectedResult.releaseYear.toString()
+        : undefined,
     };
 
     // Convert artwork URLs to the format expected by the backend (array of strings)
     const artworkUrls: string[] = [];
-    if (selectedResult.artworkUrl60) artworkUrls.push(selectedResult.artworkUrl60);
-    if (selectedResult.artworkUrl100) artworkUrls.push(selectedResult.artworkUrl100);
+    if (selectedResult.artworkUrl60)
+      artworkUrls.push(selectedResult.artworkUrl60);
+    if (selectedResult.artworkUrl100)
+      artworkUrls.push(selectedResult.artworkUrl100);
     if (selectedResult.artworkUrl600) {
       artworkUrls.push(selectedResult.artworkUrl600);
     } else if (selectedResult.artworkUrl100) {
       // Generate 600x600 version from 100x100
-      artworkUrls.push(selectedResult.artworkUrl100.replace('100x100', '600x600'));
+      artworkUrls.push(
+        selectedResult.artworkUrl100.replace("100x100", "600x600"),
+      );
     }
 
     // Prepare updates for backend with proper types
@@ -129,7 +149,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     };
 
     // Remove undefined values
-    Object.keys(updatesForBackend).forEach(key => {
+    Object.keys(updatesForBackend).forEach((key) => {
       if (updatesForBackend[key] === undefined) {
         delete updatesForBackend[key];
       }
@@ -140,7 +160,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'search':
+      case "search":
         return (
           <SearchStep
             searchArtist={searchArtist}
@@ -155,19 +175,19 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
             song={song}
           />
         );
-      
-      case 'select':
+
+      case "select":
         return (
           <SelectStep
             results={searchResults}
             onSelect={handleSelectResult}
             onBackToSearch={handleBackToSearch}
             isLoading={false}
-            error={searchMutation.error}
+            error={searchMutation.error as Error | null}
           />
         );
-      
-      case 'review':
+
+      case "review":
         return selectedResult ? (
           <ReviewStep
             song={song}
@@ -177,7 +197,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
             isLoading={updateSongMutation.isPending}
           />
         ) : null;
-      
+
       default:
         return null;
     }
@@ -201,7 +221,10 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
             step={step.step}
             title={step.label}
             isActive={currentStep === step.key}
-            isCompleted={STEPS.findIndex(s => s.key === currentStep) > STEPS.findIndex(s => s.key === step.key)}
+            isCompleted={
+              STEPS.findIndex((s) => s.key === currentStep) >
+              STEPS.findIndex((s) => s.key === step.key)
+            }
           />
         ))}
       </div>
@@ -217,9 +240,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       )}
 
       {/* Step Content */}
-      <div className="min-h-[400px]">
-        {renderStepContent()}
-      </div>
+      <div className="min-h-[400px]">{renderStepContent()}</div>
 
       {/* Navigation Footer */}
       <div className="flex justify-between pt-4 border-t">
