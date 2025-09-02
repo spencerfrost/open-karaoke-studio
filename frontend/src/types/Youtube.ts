@@ -1,5 +1,18 @@
-// frontend/src/types/YoutubeMusic.ts
+// frontend/src/types/Youtube.ts
 
+export interface YoutubeVideoSearchResult {
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number;
+  thumbnail: string;
+  url: string;
+}
+
+export interface YoutubeVideoSearchResponse {
+  results: YoutubeVideoSearchResult[];
+  error: string | null;
+}
 export interface YoutubeMusicSearchResult {
   videoId: string;
   title: string;

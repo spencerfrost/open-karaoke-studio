@@ -1,7 +1,7 @@
 import React from "react";
 import AppLayout from "../components/layout/AppLayout";
 import JobsQueue from "@/components/JobsQueue";
-import { SongSearchContainer } from "@/components/add/shared";
+import { SongSearchContainer } from "@/components/add-song/shared";
 
 const AddSongPage: React.FC = () => {
   return (
