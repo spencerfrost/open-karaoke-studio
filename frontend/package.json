@@ -14,7 +14,6 @@
     "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
     "type-check": "tsc --noEmit",
     "check": "pnpm run format:check && pnpm run lint:check && pnpm run type-check",
-    "fix": "pnpm run format && pnpm run lint:fix",
     "preview": "vite preview"
   },
   "dependencies": {
