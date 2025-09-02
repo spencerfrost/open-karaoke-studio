@@ -2,7 +2,7 @@
  * WebSocket service for real-time job updates using Socket.IO
  */
 
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from "socket.io-client";
 
 interface JobData {
   id: string;
@@ -43,21 +43,32 @@ class JobsWebSocketService {
       // In development, use the Vite dev server URL to leverage the proxy
       // In production, use the backend URL directly
       let socketUrl: string;
-      
+
       if (import.meta.env.DEV) {
         // Development mode - use the current host to leverage Vite proxy
         socketUrl = `${window.location.protocol}//${window.location.host}`;
-        console.log('Development mode - using Vite proxy for WebSocket:', socketUrl);
+        console.log(
+          "Development mode - using Vite proxy for WebSocket:",
+          socketUrl,
+        );
       } else {
         // Production mode - use the backend URL directly
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || `${window.location.protocol}//${window.location.host}`;
+        const backendUrl =
+          import.meta.env.VITE_BACKEND_URL ||
+          `${window.location.protocol}//${window.location.host}`;
         socketUrl = backendUrl;
-        console.log('Production mode - using direct backend URL for WebSocket:', socketUrl);
+        console.log(
+          "Production mode - using direct backend URL for WebSocket:",
+          socketUrl,
+        );
       }
 
-      console.log('Attempting to connect to WebSocket at:', `${socketUrl}/jobs`);
+      console.log(
+        "Attempting to connect to WebSocket at:",
+        `${socketUrl}/jobs`,
+      );
       this.socket = io(`${socketUrl}/jobs`, {
-        transports: ['websocket', 'polling'],
+        transports: ["websocket", "polling"],
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
@@ -67,71 +78,71 @@ class JobsWebSocketService {
 
       this.setupEventHandlers();
     } catch (error) {
-      console.error('Failed to initialize WebSocket connection:', error);
+      console.error("Failed to initialize WebSocket connection:", error);
     }
   }
 
   private setupEventHandlers() {
     if (!this.socket) return;
 
-    this.socket.on('connect', () => {
-      console.log('Connected to jobs WebSocket');
+    this.socket.on("connect", () => {
+      console.log("Connected to jobs WebSocket");
       this.isConnected = true;
-      
+
       // Subscribe to job updates
-      this.socket?.emit('subscribe_to_jobs');
+      this.socket?.emit("subscribe_to_jobs");
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from jobs WebSocket');
+    this.socket.on("disconnect", () => {
+      console.log("Disconnected from jobs WebSocket");
       this.isConnected = false;
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+    this.socket.on("connect_error", (error) => {
+      console.error("WebSocket connection error:", error);
       this.isConnected = false;
     });
 
-    this.socket.on('subscribed', (data) => {
-      console.log('Subscribed to job updates:', data);
+    this.socket.on("subscribed", (data) => {
+      console.log("Subscribed to job updates:", data);
     });
 
     // Set up job event listeners
-    this.socket.on('job_created', (data: JobData) => {
-      console.log('Received job_created event:', data);
-      this.emit('job_created', data);
+    this.socket.on("job_created", (data: JobData) => {
+      console.log("Received job_created event:", data);
+      this.emit("job_created", data);
     });
 
-    this.socket.on('job_updated', (data: JobData) => {
-      console.log('Received job_updated event:', data);
-      this.emit('job_updated', data);
+    this.socket.on("job_updated", (data: JobData) => {
+      console.log("Received job_updated event:", data);
+      this.emit("job_updated", data);
     });
 
-    this.socket.on('job_completed', (data: JobData) => {
-      console.log('Received job_completed event:', data);
-      this.emit('job_completed', data);
+    this.socket.on("job_completed", (data: JobData) => {
+      console.log("Received job_completed event:", data);
+      this.emit("job_completed", data);
     });
 
-    this.socket.on('job_failed', (data: JobData) => {
-      console.log('Received job_failed event:', data);
-      this.emit('job_failed', data);
+    this.socket.on("job_failed", (data: JobData) => {
+      console.log("Received job_failed event:", data);
+      this.emit("job_failed", data);
     });
 
-    this.socket.on('job_cancelled', (data: JobData) => {
-      console.log('Received job_cancelled event:', data);
-      this.emit('job_cancelled', data);
+    this.socket.on("job_cancelled", (data: JobData) => {
+      console.log("Received job_cancelled event:", data);
+      this.emit("job_cancelled", data);
     });
 
-    this.socket.on('jobs_list', (data: { jobs: JobData[] }) => {
-      console.log('Received jobs_list event:', data);
-      this.emit('jobs_list', data);
+    this.socket.on("jobs_list", (data: { jobs: JobData[] }) => {
+      console.log("Received jobs_list event:", data);
+      this.emit("jobs_list", data);
     });
   }
 
   private emit(eventName: string, data: unknown) {
     const eventListeners = this.listeners.get(eventName);
     if (eventListeners) {
-      eventListeners.forEach(listener => {
+      eventListeners.forEach((listener) => {
         try {
           listener(data);
         } catch (error) {
@@ -146,7 +157,7 @@ class JobsWebSocketService {
    */
   on<T extends keyof JobsWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T]
+    listener: JobsWebSocketEvents[T],
   ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
@@ -165,7 +176,7 @@ class JobsWebSocketService {
    */
   off<T extends keyof JobsWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T]
+    listener: JobsWebSocketEvents[T],
   ) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
@@ -188,7 +199,7 @@ class JobsWebSocketService {
    */
   disconnect() {
     if (this.socket) {
-      this.socket.emit('unsubscribe_from_jobs');
+      this.socket.emit("unsubscribe_from_jobs");
       this.socket.disconnect();
       this.socket = null;
     }
@@ -212,9 +223,9 @@ class JobsWebSocketService {
    */
   requestJobsList() {
     if (this.socket && this.isConnected) {
-      this.socket.emit('request_jobs_list');
+      this.socket.emit("request_jobs_list");
     } else {
-      console.warn('Cannot request jobs list: WebSocket not connected');
+      console.warn("Cannot request jobs list: WebSocket not connected");
     }
   }
 }

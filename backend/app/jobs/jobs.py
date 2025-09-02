@@ -135,9 +135,29 @@ def process_audio_job(self, job_id):
     stop_event = threading.Event()
 
     def update_progress(progress, message):
-        """Update job progress and log the message."""
+        """Update job progress and log the message.
+
+        Uses throttling to prevent database spam during frequent updates.
+        Only saves to database when progress changes significantly.
+        """
+        # Track the last saved progress to avoid unnecessary database writes
+        last_saved_progress = getattr(update_progress, "_last_saved_progress", 0)
+
         job.progress = progress
-        job_repository.update(job)
+
+        # Determine if we should save to database
+        # Save if progress changed by 5% or more, or is a milestone
+        progress_diff = abs(progress - last_saved_progress)
+        is_milestone = progress in [0, 5, 25, 50, 75, 90, 100]
+        should_save = progress_diff >= 5 or is_milestone
+
+        # Update database with throttling
+        job_repository.update(job, skip_events=not should_save)
+
+        # Update our tracking variable only when we actually save
+        if should_save:
+            update_progress._last_saved_progress = progress
+
         if hasattr(self, "update_state"):
             self.update_state(
                 state="PROGRESS",
@@ -149,20 +169,23 @@ def process_audio_job(self, job_id):
                     "message": message,
                 },
             )
-        # Enhanced logging with structured data
-        structured_logger.info(
-            "Job progress: %s%% - %s",
-            progress,
-            message,
-            extra={
-                "job_id": job_id,
-                "progress": progress,
-                "status": "processing",
-                "filename": filename,
-                "message": message,
-            },
-        )
-        logger.info("Job %s progress: %s% - %s", job_id, progress, message)
+        # Enhanced logging with structured data - only for milestones
+        if should_save:
+            structured_logger.info(
+                "Job progress: %s%% - %s",
+                progress,
+                message,
+                extra={
+                    "job_id": job_id,
+                    "progress": progress,
+                    "status": "processing",
+                    "filename": filename,
+                    "message": message,
+                },
+            )
+        # Only log major progress milestones to reduce noise
+        if progress % 25 == 0 or progress >= 95:
+            logger.info("Job %s progress: %s%% - %s", job_id, progress, message)
 
     try:
         file_service = FileService()
@@ -271,7 +294,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
     song_id = job.song_id
     if not song_id:
         logger.error("Job %s has no associated song_id", job_id)
-        return {"status": "error", "message": "No song ID associated with job"}    
+        return {"status": "error", "message": "No song ID associated with job"}
 
     # Verify the song exists
     from app.db.database import get_db_session
@@ -297,12 +320,34 @@ def process_youtube_job(self, job_id, video_id, metadata):
     job_repository.update(job)
 
     def update_progress(progress, message, status=None):
-        """Update job progress and status."""
+        """Update job progress and status.
+
+        Uses throttling to prevent database spam during frequent updates.
+        Only saves to database when progress changes significantly or status changes.
+        """
+        # Track the last saved progress to avoid unnecessary database writes
+        last_saved_progress = getattr(update_progress, "_last_saved_progress", 0)
+        last_saved_status = getattr(update_progress, "_last_saved_status", None)
+
         job.progress = progress
         job.status_message = message
         if status:
             job.status = status
-        job_repository.update(job)
+
+        # Determine if we should save to database
+        # Save if: status changed, progress changed by 5% or more, or is a milestone
+        progress_diff = abs(progress - last_saved_progress)
+        status_changed = status and status != last_saved_status
+        is_milestone = progress in [0, 25, 50, 75, 95, 100]
+        should_save = status_changed or progress_diff >= 5 or is_milestone
+
+        # Always save for important statuses or initial creation
+        if status or should_save:
+            job_repository.update(job, skip_events=not should_save)
+            # Update our tracking variables
+            update_progress._last_saved_progress = progress
+            update_progress._last_saved_status = job.status
+
         if hasattr(self, "update_state"):
             self.update_state(
                 state="PROGRESS",

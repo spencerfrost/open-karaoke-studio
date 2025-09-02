@@ -21,7 +21,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   onAddToQueue,
   className = "",
 }) => {
-  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(new Set());
+  const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
+    new Set(),
+  );
 
   const toggleArtist = (artistName: string) => {
     setExpandedArtists((prev) => {
@@ -46,7 +48,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
         groups[letter].push(artist);
         return groups;
       },
-      {} as Record<string, typeof artists>
+      {} as Record<string, typeof artists>,
     );
   }, [artists]);
 

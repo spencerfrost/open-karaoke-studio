@@ -24,17 +24,17 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
   const { useUpdateSongMetadata, useDeleteSong } = useSongs();
-  
+
   const updateMetadata = useUpdateSongMetadata();
   const deleteSong = useDeleteSong();
 
   const handleSaveMetadata = async (metadata: Partial<Song>) => {
     try {
-      const result = await updateMetadata.mutateAsync({ 
-        id: song.id, 
-        ...metadata 
+      const result = await updateMetadata.mutateAsync({
+        id: song.id,
+        ...metadata,
       });
-      
+
       if (result) {
         onSongUpdated(result);
       }
@@ -62,11 +62,11 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
   const handleDeleteSong = async () => {
     if (
       window.confirm(
-        "Are you sure you want to delete this song? This action cannot be undone."
+        "Are you sure you want to delete this song? This action cannot be undone.",
       )
     ) {
       try {
-        await deleteSong.mutateAsync(song.id);
+        await deleteSong.mutateAsync({ id: song.id });
         setOpen(false);
         alert("Song deleted successfully.");
       } catch (error) {
@@ -107,8 +107,8 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
             </TabsContent>
           </Tabs>
           <div className="flex justify-end mt-4">
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleDeleteSong}
               disabled={deleteSong.isPending}
             >

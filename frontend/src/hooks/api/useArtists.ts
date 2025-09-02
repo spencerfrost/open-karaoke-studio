@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
 export interface Artist {
   name: string;
@@ -18,15 +18,19 @@ interface UseArtistsResult {
   error: unknown;
 }
 
-export function useArtists({ search = '', limit = 200, offset = 0 }: UseArtistsParams = {}): UseArtistsResult {
-  const queryKey = ['artists', { search, limit, offset }];
+export function useArtists({
+  search = "",
+  limit = 200,
+  offset = 0,
+}: UseArtistsParams = {}): UseArtistsResult {
+  const queryKey = ["artists", { search, limit, offset }];
   const queryFn = async () => {
     const params = new URLSearchParams();
-    if (search.trim()) params.set('search', search);
-    params.set('limit', limit.toString());
-    params.set('offset', offset.toString());
+    if (search.trim()) params.set("search", search);
+    params.set("limit", limit.toString());
+    params.set("offset", offset.toString());
     const res = await fetch(`/api/songs/artists?${params.toString()}`);
-    if (!res.ok) throw new Error('Failed to fetch artists');
+    if (!res.ok) throw new Error("Failed to fetch artists");
     const data = await res.json();
     return Array.isArray(data.artists) ? data.artists : [];
   };

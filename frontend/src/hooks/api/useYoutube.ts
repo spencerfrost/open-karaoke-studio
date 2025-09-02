@@ -67,12 +67,12 @@ export const useYoutubeDownloadMutation = (
     YouTubeDownloadResponse,
     Error,
     YouTubeDownloadRequest
-  >
+  >,
 ) => {
   return useApiMutation<YouTubeDownloadResponse, YouTubeDownloadRequest>(
     "youtube/download",
     "post",
-    options
+    options,
   );
 };
 
@@ -80,12 +80,12 @@ export const useYoutubeDownloadMutation = (
  * Hook to create a new song with basic metadata in the database
  */
 export const useCreateSongMutation = (
-  options?: UseMutationOptions<CreateSongResponse, Error, CreateSongRequest>
+  options?: UseMutationOptions<CreateSongResponse, Error, CreateSongRequest>,
 ) => {
   return useApiMutation<CreateSongResponse, CreateSongRequest>(
     "songs",
     "post",
-    options
+    options,
   );
 };
 
@@ -94,11 +94,15 @@ export const useCreateSongMutation = (
  */
 export const useSaveMetadataMutation = (
   songId: string,
-  options?: UseMutationOptions<SaveMetadataResponse, Error, SaveMetadataRequest>
+  options?: UseMutationOptions<
+    SaveMetadataResponse,
+    Error,
+    SaveMetadataRequest
+  >,
 ) => {
   return useApiMutation<SaveMetadataResponse, SaveMetadataRequest>(
     `songs/${songId}`,
     "patch",
-    options
+    options,
   );
 };

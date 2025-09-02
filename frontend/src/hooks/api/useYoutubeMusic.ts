@@ -1,10 +1,10 @@
-// frontend/src/hooks/useYouTubeMusic.ts
+// frontend/src/hooks/useYoutubeMusic.ts
 import { useApiQuery } from "./useApi";
-import { YouTubeMusicSearchResponse } from "../../types/YouTubeMusic";
+import { YoutubeMusicSearchResponse } from "../../types/YoutubeMusic";
 
-export function useYouTubeMusicSearch(query: string, enabled: boolean = true) {
+export function useYoutubeMusicSearch(query: string, enabled: boolean = true) {
   return useApiQuery<
-    YouTubeMusicSearchResponse,
+    YoutubeMusicSearchResponse,
     ["youtube-music-search", string]
   >(
     ["youtube-music-search", query],
@@ -13,6 +13,6 @@ export function useYouTubeMusicSearch(query: string, enabled: boolean = true) {
       enabled: enabled && !!query,
       staleTime: 1000 * 60 * 5, // 5 minutes
       retry: 1,
-    }
+    },
   );
 }

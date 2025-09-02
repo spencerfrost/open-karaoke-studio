@@ -69,7 +69,7 @@ if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
     use_reloader = os.environ.get("FLASK_USE_RELOADER", "true").lower() == "true"
 
-    print(f"Starting Open Karaoke Studio API Server on http://0.0.0.0:{port}")
-    print(f"Debug mode: {debug}")
+    logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
+    logger.info("Debug mode: %s", debug)
 
     socketio.run(app, host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader)

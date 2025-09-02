@@ -145,8 +145,6 @@
   ::-webkit-scrollbar-thumb:hover {
     background: color-mix(in srgb, var(--dark-cyan), white 10%);
   }
-
-
 }
 
 /* Vintage Theme Background Pattern Utilities */
@@ -157,18 +155,26 @@
     background-repeat: repeat;
     @apply absolute inset-0 z-10 pointer-events-none;
   }
-  
+
   /* Vintage sunburst pattern - matches theme.ts getSunburstPattern() */
   .vintage-sunburst-pattern {
-    background: 
-      radial-gradient(circle at center, transparent 0, transparent 40%, rgba(0,0,0,0.2) 41%, transparent 42%),
+    background:
+      radial-gradient(
+        circle at center,
+        transparent 0,
+        transparent 40%,
+        rgba(0, 0, 0, 0.2) 41%,
+        transparent 42%
+      ),
       repeating-conic-gradient(
-        #b4481980 0deg, 
-        #b4481980 6deg, 
+        #b4481980 0deg,
+        #b4481980 6deg,
         #77432080 6deg,
         #77432080 12deg
       );
-    background-size: 100% 100%, 100% 100%;
+    background-size:
+      100% 100%,
+      100% 100%;
     @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
 

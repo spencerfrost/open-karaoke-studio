@@ -74,7 +74,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         const barHeight = value * height;
         const hueRotation = (index / barCount) * 60;
         const isEven = index % 2 === 0;
-        
+
         return (
           <div
             key={index}

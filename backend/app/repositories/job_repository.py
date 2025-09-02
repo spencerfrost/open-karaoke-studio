@@ -22,8 +22,14 @@ class JobRepository:
 
         DbJob.__table__.create(bind=engine, checkfirst=True)
 
-    def create(self, job: Job) -> None:
-        """Create or update a job in the database."""
+    def create(self, job: Job, skip_events: bool = False) -> None:
+        """Create or update a job in the database.
+
+        Args:
+            job: The job to save
+            skip_events: If True, skip database logging and event publishing
+                        (useful for frequent progress updates)
+        """
         try:
             was_created = False
 
@@ -82,20 +88,23 @@ class JobRepository:
                         "CRITICAL: Job %s failed verification after commit!", job.id
                     )
                     raise Exception(f"Job {job.id} failed to save properly")
-                from app.utils.events import publish_job_event
 
-                print(
-                    (
-                        f"📝 Job {job.id} saved to database - created={was_created} "
-                        f"- status={job.status.value}"
+                # Only log and publish events if not skipped (to reduce noise)
+                if not skip_events:
+                    from app.utils.events import publish_job_event
+
+                    logger.debug(
+                        "📝 Job %s saved to database - created=%s - status=%s",
+                        job.id,
+                        was_created,
+                        job.status.value,
                     )
-                )
-                publish_job_event(job.id, job.to_dict(), was_created)
+                    publish_job_event(job.id, job.to_dict(), was_created)
 
         except Exception as e:
             logger.error("Error saving job %s: %s", job.id, e)
             traceback.print_exc()
-            raise  # Re-raise to ensure calling code knows about the failure
+            raise  # Re-raise to ensure calling code knows about the failure  # Re-raise to ensure calling code knows about the failure  # Re-raise to ensure calling code knows about the failure
 
     def get_job(self, job_id: str) -> Optional[Job]:
         """Retrieve a job from the database by its ID."""
@@ -135,9 +144,15 @@ class JobRepository:
         """Retrieve a job from the database by its ID (standard naming convention)."""
         return self.get_job(job_id)
 
-    def update(self, job: Job) -> None:
-        """Update an existing job in the database (standard naming convention)."""
-        return self.create(job)
+    def update(self, job: Job, skip_events: bool = False) -> None:
+        """Update an existing job in the database (standard naming convention).
+
+        Args:
+            job: The job to update
+            skip_events: If True, skip database logging and event publishing
+                        (useful for frequent progress updates)
+        """
+        return self.create(job, skip_events=skip_events)
 
     def get_all_jobs(self) -> List[Job]:
         """Retrieve all jobs from the database."""

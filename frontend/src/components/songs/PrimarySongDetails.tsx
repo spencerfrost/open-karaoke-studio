@@ -1,7 +1,6 @@
 import React from "react";
 import { Song } from "../../types/Song";
 import { SourceBadges } from "./song-details/SourceBadges";
-import { MetadataQualityIndicator } from "./song-details/MetadataQualityIndicator";
 import { SongPreviewPlayer } from "./song-details/SongPreviewPlayer";
 import { formatTimeMs } from "../../utils/formatters";
 import { Badge } from "@/components/ui/badge";

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Search, X, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from "react";
+import { Search, X, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -44,8 +44,8 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
   }, [debouncedValue]);
 
   const handleClear = () => {
-    setInputValue('');
-    onSearchChange('');
+    setInputValue("");
+    onSearchChange("");
   };
 
   return (

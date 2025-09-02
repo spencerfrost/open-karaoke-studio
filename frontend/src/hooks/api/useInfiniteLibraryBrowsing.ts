@@ -1,6 +1,6 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { Song } from '../../types/Song';
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { Song } from "../../types/Song";
 
 // Helper function for API calls
 const apiGet = async <T>(url: string): Promise<T> => {
@@ -58,23 +58,25 @@ interface InfiniteArtistSongsResult {
 
 /**
  * Hook for infinite scrolling through artists
- * 
+ *
  * @param searchTerm - Optional search term to filter artists
  * @param pageSize - Number of artists to fetch per page (default: 200)
  *                   High limit is efficient since we only fetch lightweight artist metadata,
  *                   not song data. Songs are lazy-loaded when artists are expanded.
  */
 export const useInfiniteArtists = (
-  searchTerm: string = '',
-  pageSize: number = 200
+  searchTerm: string = "",
+  pageSize: number = 200,
 ): InfiniteArtistsResult => {
   const fetchArtists = async ({ pageParam = 0 }) => {
     const queryParams = new URLSearchParams();
-    if (searchTerm) queryParams.set('search', searchTerm);
-    queryParams.set('limit', pageSize.toString());
-    queryParams.set('offset', (pageParam * pageSize).toString());
-    
-    return apiGet<ArtistListResponse>(`songs/artists?${queryParams.toString()}`);
+    if (searchTerm) queryParams.set("search", searchTerm);
+    queryParams.set("limit", pageSize.toString());
+    queryParams.set("offset", (pageParam * pageSize).toString());
+
+    return apiGet<ArtistListResponse>(
+      `songs/artists?${queryParams.toString()}`,
+    );
   };
 
   const {
@@ -85,7 +87,7 @@ export const useInfiniteArtists = (
     isLoading,
     error,
   } = useInfiniteQuery({
-    queryKey: ['artists', 'infinite', { search: searchTerm, pageSize }],
+    queryKey: ["artists", "infinite", { search: searchTerm, pageSize }],
     queryFn: fetchArtists,
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage?.pagination?.hasMore) return undefined;
@@ -96,7 +98,9 @@ export const useInfiniteArtists = (
   });
 
   const artists = useMemo(() => {
-    return data?.pages.flatMap(page => page?.artists ?? []).filter(Boolean) ?? [];
+    return (
+      data?.pages.flatMap((page) => page?.artists ?? []).filter(Boolean) ?? []
+    );
   }, [data]);
 
   return {
@@ -112,17 +116,17 @@ export const useInfiniteArtists = (
 export const useInfiniteArtistSongs = (
   artistName: string,
   pageSize: number = 10,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean } = {},
 ): InfiniteArtistSongsResult => {
   const fetchSongsByArtist = async ({ pageParam = 0 }) => {
     const queryParams = new URLSearchParams();
-    queryParams.set('limit', pageSize.toString());
-    queryParams.set('offset', (pageParam * pageSize).toString());
-    queryParams.set('sort', 'title');
-    queryParams.set('direction', 'asc');
-    
+    queryParams.set("limit", pageSize.toString());
+    queryParams.set("offset", (pageParam * pageSize).toString());
+    queryParams.set("sort", "title");
+    queryParams.set("direction", "asc");
+
     return apiGet<ArtistSongsResponse>(
-      `songs/by-artist/${encodeURIComponent(artistName)}?${queryParams.toString()}`
+      `songs/by-artist/${encodeURIComponent(artistName)}?${queryParams.toString()}`,
     );
   };
 
@@ -134,19 +138,21 @@ export const useInfiniteArtistSongs = (
     isLoading,
     error,
   } = useInfiniteQuery({
-    queryKey: ['artist-songs', 'infinite', artistName, { pageSize }],
+    queryKey: ["artist-songs", "infinite", artistName, { pageSize }],
     queryFn: fetchSongsByArtist,
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage?.pagination?.hasMore) return undefined;
       return allPages.length;
     },
-    enabled: !!artistName && (options.enabled !== false),
+    enabled: !!artistName && options.enabled !== false,
     staleTime: 2 * 60 * 1000, // 2 minutes
     initialPageParam: 0,
   });
 
   const songs = useMemo(() => {
-    return data?.pages.flatMap(page => page?.songs ?? []).filter(Boolean) ?? [];
+    return (
+      data?.pages.flatMap((page) => page?.songs ?? []).filter(Boolean) ?? []
+    );
   }, [data]);
 
   return {

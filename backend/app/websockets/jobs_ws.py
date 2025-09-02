@@ -16,14 +16,14 @@ from .socketio import socketio
 @socketio.on("connect", namespace="/jobs")
 def handle_connect():
     """Handle client connection to the jobs namespace."""
-    print("Client connected to jobs namespace")
+    logger.info("Client connected to jobs namespace")
     emit("connected", {"status": "connected"})
 
 
 @socketio.on("disconnect", namespace="/jobs")
 def handle_disconnect():
     """Handle client disconnection from the jobs namespace."""
-    print("Client disconnected from jobs namespace")
+    logger.info("Client disconnected from jobs namespace")
 
 
 @socketio.on("subscribe_to_jobs", namespace="/jobs")
@@ -206,7 +206,7 @@ def _setup_event_subscriptions():
         from app.utils.events import subscribe_to_job_events
 
         subscribe_to_job_events(_handle_job_event)
-        print("✅ Jobs WebSocket event subscriptions initialized")
+        logger.info("Jobs WebSocket event subscriptions initialized")
         import logging
 
         logging.getLogger(__name__).debug(
@@ -215,7 +215,7 @@ def _setup_event_subscriptions():
     except Exception as e:
         import logging
 
-        print(f"❌ Failed to set up job event subscriptions: {e}")
+        logger.error("Failed to set up job event subscriptions: %s", e)
         logging.getLogger(__name__).warning(
             f"Failed to set up job event subscriptions: {e}"
         )
@@ -226,7 +226,7 @@ def initialize_jobs_websocket():
     Initialize the jobs WebSocket handlers and event subscriptions.
     Should be called after Flask app and SocketIO are fully initialized.
     """
-    print("🔌 Initializing Jobs WebSocket handlers...")
+    logger.info("Initializing Jobs WebSocket handlers...")
     _setup_event_subscriptions()
 
 

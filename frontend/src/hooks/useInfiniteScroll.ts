@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from "react";
 
 interface UseInfiniteScrollProps {
   loading: boolean;
@@ -13,7 +13,7 @@ export const useInfiniteScroll = ({
   hasMore,
   onLoadMore,
   threshold = 0.1,
-  rootMargin = '100px',
+  rootMargin = "100px",
 }: UseInfiniteScrollProps) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +24,7 @@ export const useInfiniteScroll = ({
         onLoadMore();
       }
     },
-    [hasMore, loading, onLoadMore]
+    [hasMore, loading, onLoadMore],
   );
 
   useEffect(() => {

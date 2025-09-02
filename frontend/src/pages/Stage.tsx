@@ -68,7 +68,7 @@ const Stage: React.FC = () => {
 
     const handlePlaySong = (data: { song: Song; singer: string }) => {
       console.log(
-        `Song played via WebSocket: ${data.song.title} by ${data.song.artist}`
+        `Song played via WebSocket: ${data.song.title} by ${data.song.artist}`,
       );
 
       // Refetch queue data since positions have changed

@@ -2,18 +2,15 @@ import React from "react";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import SongCard from "@/components/songs/SongCard";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import { Skeleton } from "@/components/ui/skeleton";
+import SongResultsGrid from "@/components/library/SongResultsGrid";
 
 interface ArtistSectionProps {
   artistName: string;
   songCount: number;
   isExpanded: boolean;
   onToggle: () => void;
-  onSongSelect?: (song: Song) => void;
-  onAddToQueue?: (song: Song) => void;
+  onSongSelect: (song: Song) => void;
+  onAddToQueue: (song: Song) => void;
 }
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
@@ -24,25 +21,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   onSongSelect,
   onAddToQueue,
 }) => {
-  const {
-    songs,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    isLoading,
-    error,
-  } = useInfiniteArtistSongs(artistName, 10, {
-    enabled: isExpanded, // Only fetch songs when accordion is expanded
-  });
-
-  // Infinite scroll hook for songs within this artist
-  const sentinelRef = useInfiniteScroll({
-    loading: isFetchingNextPage,
-    hasMore: hasNextPage,
-    onLoadMore: fetchNextPage,
-    threshold: 0.1,
-    rootMargin: "100px",
-  });
+  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteArtistSongs(artistName, 200, {
+      enabled: isExpanded,
+    });
 
   return (
     <div className="border border-orange-peel rounded-lg overflow-hidden">
@@ -72,50 +54,15 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
 
       {/* Expanded Songs List */}
       {isExpanded && (
-        <div className="border-t border-orange-peel">
-          {isLoading ? (
-            <div className="p-4 space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="p-4 text-center text-red-500">
-              Error loading songs: {error.message}
-            </div>
-          ) : (
-            <div className="p-2 max-h-80 overflow-y-auto">
-              {songs.map((song) => (
-                <div key={song.id} className="mb-2">
-                  <SongCard
-                    song={song}
-                    variant="horizontal"
-                    onSongSelect={onSongSelect}
-                    onAddToQueue={onAddToQueue}
-                  />
-                </div>
-              ))}
-
-              {/* Intersection Observer Sentinel */}
-              <div ref={sentinelRef} className="h-4">
-                {isFetchingNextPage && (
-                  <div className="flex justify-center items-center py-2">
-                    <LoadingSpinner size={16} />
-                    <span className="ml-2 text-sm opacity-60">
-                      Loading more songs...
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* End of results indicator */}
-              {!hasNextPage && songs.length > 0 && (
-                <div className="text-center py-2 text-sm opacity-60">
-                  All songs loaded ({songs.length} total)
-                </div>
-              )}
-            </div>
-          )}
+        <div className="mb-8 px-4 mt-4">
+          <SongResultsGrid
+            songs={songs}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            onSongSelect={onSongSelect}
+            onAddToQueue={onAddToQueue}
+          />
         </div>
       )}
     </div>

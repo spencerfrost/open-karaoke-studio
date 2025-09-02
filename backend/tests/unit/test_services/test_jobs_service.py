@@ -100,7 +100,7 @@ class TestJobsService:
     def test_cancel_job_success(self):
         """Test that cancel_job successfully cancels a pending job."""
         mock_job_store = Mock(spec=JobRepository)
-        mock_job_store.save_job = Mock()
+        mock_job_store.update = Mock()
 
         pending_job = Job(
             id="pending_job", filename="test.mp3", status=JobStatus.PENDING
@@ -115,7 +115,7 @@ class TestJobsService:
         assert pending_job.status == JobStatus.CANCELLED
         assert pending_job.error == "Cancelled by user"
         assert pending_job.completed_at is not None
-        mock_job_store.save_job.assert_called_once_with(pending_job)
+        mock_job_store.update.assert_called_once_with(pending_job)
 
     def test_cancel_job_already_completed(self):
         """Test that cancel_job returns False for already completed jobs."""
