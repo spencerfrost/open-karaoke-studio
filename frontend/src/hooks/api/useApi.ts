@@ -38,7 +38,7 @@ const apiGet = async <T>(url: string): Promise<T> => {
 const apiSend = async <T, V>(
   url: string,
   method: string,
-  data: V | null = null
+  data: V | null = null,
 ): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
     method: method.toUpperCase(), // Ensure method is uppercase
@@ -94,7 +94,7 @@ export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
   options?: Omit<
     UseQueryOptions<T, Error, T, TQueryKey>,
     "queryKey" | "queryFn"
-  >
+  >,
 ) {
   return useQuery<T, Error, T, TQueryKey>({
     queryKey,
@@ -122,7 +122,7 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
     "mutationFn"
   > & {
     mutationFn?: (variables: TVariables) => Promise<TData>;
-  }
+  },
 ) {
   return useMutation<TData, Error, TVariables, TContext>({
     mutationFn:
@@ -145,7 +145,7 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
 export const uploadFile = async <T>(
   url: string,
   file: File,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ): Promise<T> => {
   const formData = new FormData();
   formData.append("audio_file", file);

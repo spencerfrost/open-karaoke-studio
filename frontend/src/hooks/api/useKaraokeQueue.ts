@@ -23,12 +23,12 @@ export function useQueue(
       ["karaoke-queue"]
     >,
     "queryKey" | "queryFn"
-  >
+  >,
 ) {
   return useApiQuery<KaraokeQueueItem[], ["karaoke-queue"]>(
     ["karaoke-queue"],
     "karaoke-queue",
-    options
+    options,
   );
 }
 
@@ -44,12 +44,12 @@ export function useCurrentSong(
       ["karaoke-queue", "current"]
     >,
     "queryKey" | "queryFn"
-  >
+  >,
 ) {
   return useApiQuery<KaraokeQueueItem | null, ["karaoke-queue", "current"]>(
     ["karaoke-queue", "current"],
     "karaoke-queue/current",
-    options
+    options,
   );
 }
 
@@ -65,12 +65,12 @@ export function useAddToKaraokeQueue(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useApiMutation<KaraokeQueueItem, AddToKaraokeQueueRequest>(
     "karaoke-queue",
     "post",
-    options
+    options,
   );
 }
 
@@ -82,7 +82,7 @@ export function useRemoveFromKaraokeQueue(
   options?: Omit<
     UseMutationOptions<{ success: boolean }, Error, string, unknown>,
     "mutationFn"
-  >
+  >,
 ) {
   // Custom mutation for dynamic URL based on id
   return useMutation<{ success: boolean }, Error, string, unknown>({
@@ -110,7 +110,7 @@ export function useRemoveFromKaraokeQueue(
  * Hook: Play a song from the queue (removes from queue and loads into player)
  */
 export function usePlayFromKaraokeQueue(
-  options?: Omit<UseMutationOptions<any, Error, string, unknown>, "mutationFn">
+  options?: Omit<UseMutationOptions<any, Error, string, unknown>, "mutationFn">,
 ) {
   return useMutation<any, Error, string, unknown>({
     mutationFn: async (id: string) => {
@@ -140,12 +140,12 @@ export function useSkipToNext(
   options?: Omit<
     UseMutationOptions<KaraokeQueueItem | null, Error, void, unknown>,
     "mutationFn"
-  >
+  >,
 ) {
   return useApiMutation<KaraokeQueueItem | null, void>(
     "queue/next",
     "post",
-    options
+    options,
   );
 }
 
@@ -161,11 +161,11 @@ export function useKaraokeQueueQrCode(
       ["queue", "qr-code"]
     >,
     "queryKey" | "queryFn"
-  >
+  >,
 ) {
   return useApiQuery<{ qrCodeUrl: string }, ["queue", "qr-code"]>(
     ["queue", "qr-code"],
     "queue/qr-code",
-    options
+    options,
   );
 }

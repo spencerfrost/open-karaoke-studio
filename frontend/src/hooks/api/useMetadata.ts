@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
 
-
 export interface MetadataSearchResponse {
   count: number;
   results: MetadataOption[];
@@ -58,7 +57,7 @@ export const useMetadata = () => {
         if (params.sortBy) queryParams.append("sort_by", params.sortBy);
 
         const response = await fetch(
-          `/api/metadata/search?${queryParams.toString()}`
+          `/api/metadata/search?${queryParams.toString()}`,
         );
         if (!response.ok) {
           let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -77,10 +76,7 @@ export const useMetadata = () => {
 
   const useSaveMetadata = () => {
     return useMutation({
-      mutationFn: async (data: {
-        songId: string;
-        itunesId?: string;
-      }) => {
+      mutationFn: async (data: { songId: string; itunesId?: string }) => {
         const response = await fetch("/api/metadata/save", {
           method: "POST",
           headers: {
