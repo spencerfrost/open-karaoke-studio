@@ -52,7 +52,7 @@ export const SongDialogs: React.FC<SongDialogsProps> = ({
         onOpenChange={(open) => !open && dialogs.closeDialog()}
       >
         <AlertDialogTrigger asChild>
-          <div style={{ display: 'none' }} />
+          <div style={{ display: "none" }} />
         </AlertDialogTrigger>
         <AlertDialogContent
           onKeyDown={(e) => {
@@ -65,9 +65,8 @@ export const SongDialogs: React.FC<SongDialogsProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this song?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Are you sure you want to
-              permanently delete{" "}
-              <span className="font-semibold">{song.title}</span>?
+              This action cannot be undone. Are you sure you want to permanently
+              delete <span className="font-semibold">{song.title}</span>?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
