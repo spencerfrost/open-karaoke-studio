@@ -26,9 +26,7 @@ const JobsQueueDrawer: React.FC<JobsQueueDrawerProps> = ({
           <ListMusic size={20} />
           Jobs Queue
         </DrawerTitle>
-        <DrawerDescription>
-          Songs being prepared for karaoke
-        </DrawerDescription>
+        <DrawerDescription>Songs being prepared for karaoke</DrawerDescription>
         <ConnectionStatus isConnected={isConnected} />
       </DrawerHeader>
 

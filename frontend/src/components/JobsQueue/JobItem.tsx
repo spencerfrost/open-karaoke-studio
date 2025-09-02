@@ -27,14 +27,11 @@ const JobItem: React.FC<JobItemProps> = ({ job, onCancel, onDismiss }) => {
                   ? `${job.title} - ${job.artist}`
                   : job.message || `Job ${job.id}`}
               </h4>
-              <Badge
-                variant={statusInfo.variant}
-                className="flex-shrink-0"
-              >
+              <Badge variant={statusInfo.variant} className="flex-shrink-0">
                 {statusInfo.label}
               </Badge>
             </div>
-            
+
             <div className="flex items-center gap-2 mb-2">
               <Progress
                 value={job.progress ?? 0}
@@ -44,13 +41,13 @@ const JobItem: React.FC<JobItemProps> = ({ job, onCancel, onDismiss }) => {
                 {job.progress ?? 0}%
               </span>
             </div>
-            
+
             {job.status === "error" && (
               <p className="text-xs text-destructive mb-2">
                 Processing failed. You can dismiss this job and try again.
               </p>
             )}
-            
+
             <div className="flex items-center justify-end gap-1">
               {/* Cancel Button - Only show for cancellable statuses */}
               {(job.status === "queued" || job.status === "processing") && (

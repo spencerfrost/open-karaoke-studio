@@ -22,10 +22,10 @@ export function getJobStatusInfo(status: string): JobStatusInfo {
  */
 export function countActiveJobs(jobs: JobItem[]): number {
   return jobs.filter(
-    (item) => 
-      item.status === "processing" || 
-      item.status === "queued" || 
-      item.status === "error"
+    (item) =>
+      item.status === "processing" ||
+      item.status === "queued" ||
+      item.status === "error",
   ).length;
 }
 

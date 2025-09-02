@@ -24,7 +24,7 @@ const JobsQueue: React.FC = () => {
           onToggle={setIsOpen}
           activeJobsCount={activeJobsCount}
         />
-        
+
         <JobsQueueDrawer
           isOpen={isOpen}
           onOpenChange={setIsOpen}
