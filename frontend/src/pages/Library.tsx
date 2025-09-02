@@ -21,7 +21,7 @@ const LibraryPage: React.FC = () => {
 
   // Song search (paginated, not infinite)
   const { useSongs } = useSongsHook();
-  
+
   // Use appropriate parameters based on whether we're searching or browsing
   const songsParams = searchTerm.trim()
     ? {
@@ -32,20 +32,20 @@ const LibraryPage: React.FC = () => {
         sort: "relevance",
         direction: "desc",
       }
-    : { 
-        limit: 24, 
-        offset: 0, 
-        sort_by: "date_added", 
-        direction: "desc" 
+    : {
+        limit: 24,
+        offset: 0,
+        sort_by: "date_added",
+        direction: "desc",
       };
-  
+
   const songsQuery = useSongs(songsParams);
 
   // Artist search (fetch all matching artists, up to 200)
-  const {
-    artists,
-    isLoading: artistsLoading,
-  } = useArtists({ search: searchTerm, limit: 200 });
+  const { artists, isLoading: artistsLoading } = useArtists({
+    search: searchTerm,
+    limit: 200,
+  });
 
   // Handlers
   const handleSongSelect = (song: Song) => {
