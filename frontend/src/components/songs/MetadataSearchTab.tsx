@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { DialogHeader, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  DialogHeader,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,10 +184,7 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
       {/* No Results State */}
       {noResults && (
         <div className="text-center py-6 opacity-70">
-          <Music
-            size={48}
-            className="mx-auto mb-2 text-orange-peel"
-          />
+          <Music size={48} className="mx-auto mb-2 text-orange-peel" />
           <p>No matches found. Try adjusting your search terms.</p>
         </div>
       )}
