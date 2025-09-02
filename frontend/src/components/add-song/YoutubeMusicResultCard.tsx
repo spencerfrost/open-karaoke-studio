@@ -1,6 +1,6 @@
 import React from "react";
-import { BaseResultCard } from "../shared/BaseResultCard";
-import { YoutubeMusicSearchResult } from "@/types/YoutubeMusic";
+import { BaseResultCard } from "./shared/BaseResultCard";
+import { YoutubeMusicSearchResult } from "@/types/Youtube";
 
 interface YoutubeMusicResultCardProps {
   result: YoutubeMusicSearchResult;

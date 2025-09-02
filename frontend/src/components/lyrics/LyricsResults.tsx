@@ -3,7 +3,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import LyricsCard from "@/components/LyricsCard";
+import LyricsCard from "@/components/lyrics/LyricsCard";
 import type { LyricsOption } from "@/hooks/api/useLyrics";
 
 type LyricsResultsProps =

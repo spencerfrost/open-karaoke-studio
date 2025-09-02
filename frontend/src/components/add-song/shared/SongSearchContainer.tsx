@@ -11,8 +11,8 @@ import {
 import { SearchInput } from "./SearchInput";
 import { SearchTabs } from "./SearchTabs";
 import { SearchResults } from "./SearchResults";
-import { YoutubeMusicResultCard } from "../youtube-music/YoutubeMusicResultCard";
-import { YouTubeResultCard } from "../youtube-video/YoutubeVideoResultCard";
+import { YoutubeMusicResultCard } from "../YoutubeMusicResultCard";
+import { YouTubeResultCard } from "../YoutubeVideoResultCard";
 import { AddSongDialog } from "../AddSongDialog";
 
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";

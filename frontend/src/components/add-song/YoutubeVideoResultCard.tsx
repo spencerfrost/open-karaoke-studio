@@ -1,6 +1,6 @@
 import React from "react";
-import { BaseResultCard } from "../shared/BaseResultCard";
-import { YouTubeResultCardProps } from "../shared/types";
+import { BaseResultCard } from "./shared/BaseResultCard";
+import { YouTubeResultCardProps } from "./shared/types";
 
 // Helper function to format duration from seconds
 const formatDuration = (seconds: number) => {

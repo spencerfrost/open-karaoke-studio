@@ -1,5 +1,5 @@
-import { YoutubeMusicSearchResult } from "../youtube-music";
-import { YoutubeVideoSearchResult } from "../youtube-video";
+import { YoutubeVideoSearchResult } from "@/types/Youtube";
+import { YoutubeMusicSearchResult } from "@/types/Youtube";
 
 // Base search source type
 export type SearchSource = "youtube-music" | "youtube";
@@ -7,7 +7,7 @@ export type SearchSource = "youtube-music" | "youtube";
 export type SearchResult = YoutubeMusicSearchResult | YoutubeVideoSearchResult;
 
 // Type guards for search results
-export const isYoutubeMusicResult = (
+export const isYouTubeMusicResult = (
   result: SearchResult,
 ): result is YoutubeMusicSearchResult => {
   return "videoId" in result && "thumbnails" in result;

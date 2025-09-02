@@ -16,4 +16,3 @@ export {
 } from "./EmptyStates";
 
 export type * from "./types";
-
