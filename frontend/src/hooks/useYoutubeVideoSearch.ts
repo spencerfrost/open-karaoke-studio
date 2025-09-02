@@ -1,27 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
-import { YouTubeSearchResult } from "@/components/add/youtube/YouTubeSearch";
+import { YoutubeVideoSearchResult } from "@/components/add/youtube-video/types";
 
-interface UseYouTubeSearchParams {
+interface UseYoutubeVideoSearchParams {
   query: string;
   enabled?: boolean;
 }
 
-interface YouTubeSearchResponse {
-  data: YouTubeSearchResult[];
+interface YoutubeVideoSearchResponse {
+  data: YoutubeVideoSearchResult[];
   error?: string;
 }
 
 /**
  * Hook for searching YouTube videos with a simple query string
- * This replaces the manual fetch logic in the original YouTubeSearch component
+ * This replaces the manual fetch logic in the original YoutubeVideoSearch component
  */
-export const useYouTubeSearch = ({
+export const useYoutubeVideoSearch = ({
   query,
   enabled = true,
-}: UseYouTubeSearchParams) => {
+}: UseYoutubeVideoSearchParams) => {
   return useQuery({
     queryKey: ["youtube-search", query],
-    queryFn: async (): Promise<YouTubeSearchResult[]> => {
+    queryFn: async (): Promise<YoutubeVideoSearchResult[]> => {
       if (!query.trim()) {
         return [];
       }
@@ -30,7 +30,7 @@ export const useYouTubeSearch = ({
         `/api/youtube/search?query=${encodeURIComponent(query)}`,
       );
 
-      const data: YouTubeSearchResponse = await response.json();
+      const data: YoutubeVideoSearchResponse = await response.json();
 
       if (data.error) {
         throw new Error(data.error);

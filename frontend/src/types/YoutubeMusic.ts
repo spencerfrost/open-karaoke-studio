@@ -1,6 +1,6 @@
-// frontend/src/types/YouTubeMusic.ts
+// frontend/src/types/YoutubeMusic.ts
 
-export interface YouTubeMusicSong {
+export interface YoutubeMusicSearchResult {
   videoId: string;
   title: string;
   artist: string;
@@ -9,7 +9,7 @@ export interface YouTubeMusicSong {
   thumbnails: Array<{ url: string; width?: number; height?: number }>;
 }
 
-export interface YouTubeMusicSearchResponse {
-  results: YouTubeMusicSong[];
+export interface YoutubeMusicSearchResponse {
+  results: YoutubeMusicSearchResult[];
   error: string | null;
 }

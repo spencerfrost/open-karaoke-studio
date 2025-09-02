@@ -3,24 +3,34 @@ import { toast } from "sonner";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useLyricsSearch } from "@/hooks/api/useLyrics";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
-import { YouTubeMusicSong } from "@/types/YouTubeMusic";
 import { Song } from "@/types/Song";
 import type { LyricsOption } from "@/hooks/api/useLyrics";
 
+// Generic song input interface for both YouTube sources
+export interface SongInput {
+  title: string;
+  artist: string;
+  album?: string;
+  videoId: string;
+  source: "youtube" | "youtube_music";
+  url: string;
+  duration?: string;
+  thumbnail: string;
+  startTime?: number;
+  endTime?: number;
+  lyrics?: string;
+}
+
 export const useSongCreation = () => {
   const [isAdding, setIsAdding] = useState(false);
-  const [currentSong, setCurrentSong] = useState<YouTubeMusicSong | null>(null);
+  const [currentSong, setCurrentSong] = useState<SongInput | null>(null);
   const [createdSong, setCreatedSong] = useState<Song | null>(null);
 
   const { useCreateSong, useUpdateSong } = useSongs();
   const createSongMutation = useCreateSong();
   const updateSongMutation = useUpdateSong();
 
-  const {
-    data: lyricsOptions,
-    loading: isLoadingLyrics,
-    search: fetchLyrics,
-  } = useLyricsSearch();
+  const lyricsSearch = useLyricsSearch();
 
   const youtubeDownloadMutation = useYoutubeDownloadMutation({
     onSuccess: () => {
@@ -31,61 +41,65 @@ export const useSongCreation = () => {
     },
   });
 
-  const downloadFromYouTube = (songId: string, song: YouTubeMusicSong) => {
+  const downloadFromYouTube = (songId: string, song: SongInput) => {
     youtubeDownloadMutation.mutate({
+      song_id: songId,
       video_id: song.videoId,
       title: song.title,
       artist: song.artist,
       album: song.album,
-      song_id: songId,
     });
   };
 
-  const getMetadata = (songId: string, song: YouTubeMusicSong) => {
-    // TODO: Extract this to a proper service/hook
-    fetch("/api/songs/metadata/auto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        artist: song.artist,
-        title: song.title,
-        album: song.album,
-        song_id: songId,
-      }),
-    }).catch(() => {});
+  const getMetadata = (songId: string, song: SongInput) => {
+    const metadataPromise = Promise.all([
+      downloadFromYouTube(songId, song),
+      lyricsSearch.search({ title: song.title, artist: song.artist, album: song.album })
+    ]);
+
+    metadataPromise.then(() => {
+      console.log("All download and lyrics search operations started");
+    });
   };
 
-  const createSong = (song: YouTubeMusicSong) => {
+  const createSong = (song: SongInput) => {
     setIsAdding(true);
     setCurrentSong(song);
 
+    // Convert duration to milliseconds if it's provided as seconds
+    let durationMs: number | undefined;
+    if (song.duration) {
+      const duration = typeof song.duration === 'string' ? parseFloat(song.duration) : song.duration;
+      // Assume duration is in seconds and convert to milliseconds
+      durationMs = Math.round(duration * 1000);
+    }
+
+    const songData = {
+      title: song.title,
+      artist: song.artist,
+      album: song.album || "",
+      durationMs,
+      source: song.source,
+      video_id: song.videoId,
+    };
+
     return createSongMutation
-      .mutateAsync({
-        title: song.title,
-        artist: song.artist,
-        album: song.album || "",
-        source: "youtube_music",
-        videoId: song.videoId,
-      })
+      .mutateAsync(songData)
       .then((createdSong) => {
         setCreatedSong(createdSong);
-        setIsAdding(false);
-
-        // Start parallel processes
-        fetchLyrics({
-          artist: song.artist,
-          title: song.title,
-          album: song.album,
-        });
-        downloadFromYouTube(createdSong.id, song);
+        console.log("Song created successfully:", createdSong);
+        
+        // Start parallel processes for lyrics and download
         getMetadata(createdSong.id, song);
-
+        
         return createdSong;
       })
       .catch((error) => {
-        setIsAdding(false);
-        toast.error("Failed to create song: " + (error?.message || error));
+        console.error("Error creating song:", error);
         throw error;
+      })
+      .finally(() => {
+        setIsAdding(false);
       });
   };
 
@@ -106,10 +120,10 @@ export const useSongCreation = () => {
   ) => {
     if (!currentSong) return Promise.reject("No current song");
 
-    return fetchLyrics({
+    return lyricsSearch.search({
       title: customTitle || currentSong.title,
       artist: customArtist || currentSong.artist,
-      album: customAlbum || currentSong.album,
+      album: customAlbum || currentSong.album || "",
     });
   };
 
@@ -119,7 +133,7 @@ export const useSongCreation = () => {
     setIsAdding(false);
   };
 
-  const setCurrentSongState = (song: YouTubeMusicSong | null) => {
+  const setCurrentSongState = (song: SongInput | null) => {
     setCurrentSong(song);
   };
 
@@ -132,8 +146,8 @@ export const useSongCreation = () => {
     isAdding,
     currentSong,
     createdSong,
-    lyricsOptions,
-    isLoadingLyrics,
+    lyricsOptions: lyricsSearch.data || [],
+    isLoadingLyrics: lyricsSearch.loading,
 
     // Actions
     createSong,
