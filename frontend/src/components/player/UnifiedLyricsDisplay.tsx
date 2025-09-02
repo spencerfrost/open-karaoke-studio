@@ -67,7 +67,7 @@ const UnifiedLyricsDisplay: React.FC<UnifiedLyricsDisplayProps> = ({
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener(
         "webkitfullscreenchange",
-        handleFullscreenChange
+        handleFullscreenChange,
       );
     };
   }, []);
