@@ -65,4 +65,3 @@
 3. **Code Review**: All changes reviewed before merge
 4. **Testing**: Write tests for new functionality
 5. **Documentation**: Update docs with changes
-6. **Deployment**: Automated deployment pipeline
