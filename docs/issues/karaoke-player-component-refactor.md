@@ -109,8 +109,11 @@ const SongPlayer: React.FC = () => {
   songId={id}
   autoPlay={false}
   size="full"
-  controls={['play', 'volume', 'fullscreen', 'progress']}
-  onStateChange={handleStateChange}
+  controls={true}
+  showInfo={true}
+  showVisualizer={true}
+  onPlay={handlePlay}
+  onError={handleError}
 />
 
 // That's it! No manual store management, no complex props.
@@ -308,32 +311,33 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 - [ ] **Design clean props interface**
   ```typescript
   interface KaraokePlayerProps {
-    songId?: string;                           // Simple song identification
+    songId: string;                            // Required song identification
     autoPlay?: boolean;                        // Auto-start playback
     size?: 'compact' | 'full' | 'stage';      // Layout variants
-    controls?: PlayerControl[];                // Configurable controls
+    controls?: boolean;                        // Show/hide controls
     showInfo?: boolean;                        // Show song title/artist
-    onStateChange?: (state: PlayerState) => void; // State callbacks
-    onError?: (error: PlayerError) => void;    // Error callbacks
+    showVisualizer?: boolean;                  // Show audio visualizer
+    onPlay?: () => void;                       // Playback callbacks
+    onPause?: () => void;
+    onEnd?: () => void;
+    onTimeUpdate?: (currentTime: number, duration: number) => void;
+    onError?: (error: Error) => void;
     className?: string;                        // Custom styling
+    style?: React.CSSProperties;
+    children?: ReactNode;
   }
   ```
 
 - [ ] **Implement main KaraokePlayer component**
   - Orchestrate all sub-components
   - Handle prop-based configuration
-  - Provide composition API for advanced usage
   - Implement different size layouts
+  - Provide simple, clean API
 
-- [ ] **Add composition API**
-  ```typescript
-  // Allow fine-grained control when needed:
-  <KaraokePlayer.Container>
-    <KaraokePlayer.LyricsDisplay />
-    <KaraokePlayer.Controls controls={['play', 'volume']} />
-    <KaraokePlayer.ProgressBar />
-  </KaraokePlayer.Container>
-  ```
+- [ ] **Remove compound API complexity**
+  - Keep the implementation simple and focused
+  - Avoid over-engineering with composition patterns
+  - Prioritize ease of use over advanced customization
 
 - [ ] **Create layout variants**
   - **Compact**: Minimal controls, small lyrics
@@ -350,7 +354,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 - [ ] Simple API: `<KaraokePlayer songId="123" />`
 - [ ] All sub-components work together seamlessly
 - [ ] Multiple layout variants available
-- [ ] Comprehensive documentation and examples
+- [ ] Clean and easy to use interface
 
 ### **Phase 4: Integration and Cleanup** (2-3 days)
 **Goal**: Replace old implementations and ensure system-wide consistency
@@ -410,63 +414,50 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 ```typescript
 interface KaraokePlayerProps {
   // Core functionality
-  songId?: string;                    // Auto-loads song data and audio
+  songId: string;                     // Required song identification
   autoPlay?: boolean;                 // Start playback immediately
   
   // Layout and appearance  
   size?: 'compact' | 'full' | 'stage'; // Predefined layouts
-  theme?: 'dark' | 'light' | 'auto';   // Visual theme
   className?: string;                  // Custom CSS classes
+  style?: React.CSSProperties;         // Inline styles
   
   // Controls configuration
-  controls?: Array<
-    | 'play'           // Play/pause button
-    | 'volume'         // Volume slider
-    | 'progress'       // Progress bar with seeking
-    | 'fullscreen'     // Fullscreen toggle
-    | 'lyrics-size'    // Lyrics size adjustment
-    | 'lyrics-offset'  // Timing offset adjustment
-  >;
+  controls?: boolean;                  // Show/hide all controls
   
   // Content display
   showInfo?: boolean;                 // Show song title/artist
   showVisualizer?: boolean;           // Show audio visualizer
   
   // Callbacks
-  onStateChange?: (state: PlayerState) => void;
-  onError?: (error: PlayerError) => void;
-  onSongEnd?: () => void;
-  onTimeUpdate?: (time: number) => void;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onEnd?: () => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onError?: (error: Error) => void;
+  
+  // Optional children for custom content
+  children?: ReactNode;
 }
 
 // Usage examples:
 <KaraokePlayer songId="123" />                                    // Minimal
 <KaraokePlayer songId="123" size="stage" autoPlay />             // Stage mode
-<KaraokePlayer songId="123" controls={['play', 'volume']} />      // Custom controls
+<KaraokePlayer songId="123" controls={false} />                  // No controls
 ```
 
-### **Composition API** (Advanced Usage)
+### **Simple, Clean Architecture**
+
+We chose to implement a simple component with a clean props API rather than a complex composition pattern. This keeps the component easy to use while still being powerful and flexible.
+
 ```typescript
-// For cases requiring fine-grained control:
-<KaraokePlayer.Container songId="123">
-  <KaraokePlayer.LyricsDisplay 
-    size="large" 
-    scrollBehavior="smooth"
-    highlightColor="orange" 
-  />
-  <KaraokePlayer.Controls 
-    layout="horizontal"
-    controls={['play', 'volume']} 
-  />
-  <KaraokePlayer.ProgressBar 
-    showTimeLabels 
-    allowSeeking 
-  />
-  <KaraokePlayer.Visualizer 
-    barCount={120} 
-    height={80} 
-  />
-</KaraokePlayer.Container>
+// Simple usage (covers 95% of use cases):
+<KaraokePlayer 
+  songId="123" 
+  size="full" 
+  showVisualizer={true}
+  onPlay={() => console.log('Started playing')}
+/>
 ```
 
 ### **Hook Interfaces**
@@ -498,9 +489,9 @@ interface KaraokePlayerHook {
   // Lyrics and display
   lyrics: string;
   isLyricsSync: boolean;
-  lyricsSize: 'small' | 'medium' | 'large';
+  lyricsSize: LyricsSize;
   lyricsOffset: number;
-  setLyricsSize: (size: 'small' | 'medium' | 'large') => void;
+  setLyricsSize: (size: LyricsSize) => void;
   setLyricsOffset: (offset: number) => void;
   
   // Visualizer
@@ -509,6 +500,30 @@ interface KaraokePlayerHook {
   // Advanced
   reload: () => Promise<void>;
   preload: (songId: string) => Promise<void>;
+}
+
+// usePlayerUI return interface  
+interface PlayerUIHook {
+  // UI state
+  isFullscreen: boolean;
+  showVolumeSlider: boolean;
+  isControlsVisible: boolean;
+  
+  // UI actions
+  toggleFullscreen: () => void;
+  setShowVolumeSlider: (show: boolean) => void;
+  
+  // Keyboard shortcuts
+  keyboardShortcuts: {
+    [key: string]: () => void;
+  };
+  
+  // Focus management
+  focusPlayer: () => void;
+  
+  // Internal refs and error state
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  fsError: string | null;
 }
 ```
 
@@ -600,15 +615,16 @@ interface KaraokePlayerHook {
 <KaraokePlayer 
   songId={song.id}
   size="full"
-  onStateChange={handleStateChange}
+  onPlay={handlePlay}
+  onError={handleError}
 />
 ```
 
 ### **Breaking Changes**
-- [ ] **Props Interface**: Complete redesign of component props
+- [ ] **Props Interface**: Complete redesign with simplified, clean API
 - [ ] **Import Paths**: New component location and exports
 - [ ] **Hook Dependencies**: Business logic moved to hooks
-- [ ] **Event Callbacks**: Standardized event handling
+- [ ] **Event Callbacks**: Simplified callback system (onPlay, onPause, onError vs complex state changes)
 
 ### **Backward Compatibility**
 - [ ] **Transition Period**: Old components work during migration
