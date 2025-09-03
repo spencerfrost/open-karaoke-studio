@@ -83,6 +83,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   // Add a variable to store durationMs (milliseconds)
   let durationMs: number | undefined = undefined;
 
+  // Track local updates to prevent WebSocket echoes
+  const lastLocalUpdate: { [key: string]: { value: unknown; timestamp: number } } = {};
+  const LOCAL_UPDATE_DEBOUNCE_MS = 1000; // Ignore WebSocket updates for 1 second after local change
+
   // --- WebSocket helpers ---
   function createSocket(): Socket {
     return io(WEBSOCKET_URL, {
@@ -207,6 +211,14 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       >
     >,
   ) {
+    // Track currentTime updates to prevent seek flickering
+    if (updates.currentTime !== undefined) {
+      lastLocalUpdate["current_time"] = {
+        value: updates.currentTime,
+        timestamp: Date.now(),
+      };
+    }
+
     set(updates);
     socketEmit("update_player_state", updates);
   }
@@ -219,16 +231,42 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       | "lyricsOffset",
     value: unknown,
   ) {
-    set({ [control]: value });
-    // Map camelCase to snake_case for backend
+    // Track this as a local update to prevent WebSocket echo
     const backendControl = control.replace(
       /[A-Z]/g,
       (letter) => "_" + letter.toLowerCase(),
     );
+    lastLocalUpdate[backendControl] = {
+      value,
+      timestamp: Date.now(),
+    };
+
+    set({ [control]: value });
+    
     socketEmit("update_performance_control", {
       control: backendControl,
       value,
     });
+  }
+
+  // Helper to check if a WebSocket update should be ignored
+  function shouldIgnoreWebSocketUpdate(control: string, value: unknown): boolean {
+    const localUpdate = lastLocalUpdate[control];
+    if (!localUpdate) return false;
+    
+    const timeSinceLocalUpdate = Date.now() - localUpdate.timestamp;
+    const isWithinDebounceWindow = timeSinceLocalUpdate < LOCAL_UPDATE_DEBOUNCE_MS;
+    
+    // For currentTime, allow small differences due to precision/timing
+    if (control === "current_time" && typeof value === "number" && typeof localUpdate.value === "number") {
+      const timeDifference = Math.abs(value - localUpdate.value);
+      const isSimilarTime = timeDifference < 0.5; // Within 0.5 seconds
+      return isSimilarTime && isWithinDebounceWindow;
+    }
+    
+    // For other controls, require exact value match
+    const isSameValue = localUpdate.value === value;
+    return isSameValue && isWithinDebounceWindow;
   }
 
   return {
@@ -260,17 +298,25 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         });
         socket.on("disconnect", () => set({ connected: false }));
         socket.on("performance_state", (data) => {
+          // Check if currentTime update should be ignored to prevent seek flickering
+          const shouldIgnoreCurrentTime = shouldIgnoreWebSocketUpdate("current_time", data.current_time);
+          
           set((state) => ({
             isPlaying: data.is_playing,
-            currentTime: data.current_time,
+            currentTime: shouldIgnoreCurrentTime ? state.currentTime : data.current_time,
             duration: data.duration > 0 ? data.duration : state.duration,
-            vocalVolume: data.vocal_volume,
-            instrumentalVolume: data.instrumental_volume,
-            lyricsSize: data.lyrics_size,
-            lyricsOffset: data.lyrics_offset,
+            vocalVolume: shouldIgnoreWebSocketUpdate("vocal_volume", data.vocal_volume) ? state.vocalVolume : data.vocal_volume,
+            instrumentalVolume: shouldIgnoreWebSocketUpdate("instrumental_volume", data.instrumental_volume) ? state.instrumentalVolume : data.instrumental_volume,
+            lyricsSize: shouldIgnoreWebSocketUpdate("lyrics_size", data.lyrics_size) ? state.lyricsSize : data.lyrics_size,
+            lyricsOffset: shouldIgnoreWebSocketUpdate("lyrics_offset", data.lyrics_offset) ? state.lyricsOffset : data.lyrics_offset,
           }));
         });
         socket.on("control_updated", (update) => {
+          // Check if this is an echo of our own local update
+          if (shouldIgnoreWebSocketUpdate(update.control, update.value)) {
+            return; // Ignore this update to prevent flicker
+          }
+
           if (update.control === "vocal_volume") {
             set({ vocalVolume: update.value });
             if (vocalGain) vocalGain.gain.value = update.value;

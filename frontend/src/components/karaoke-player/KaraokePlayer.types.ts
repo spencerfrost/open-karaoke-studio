@@ -1,0 +1,113 @@
+/**
+ * TypeScript interfaces for the unified KaraokePlayer component
+ */
+
+import { ReactNode } from 'react';
+import type { Song } from '@/types/Song';
+
+// Size variants for the player
+export type PlayerSize = 'compact' | 'full' | 'stage';
+
+// Main component props interface
+export interface KaraokePlayerProps {
+  // Song to play
+  songId: string;
+  
+  // Player configuration
+  autoPlay?: boolean;
+  size?: PlayerSize;
+  
+  // UI options
+  controls?: boolean;
+  showInfo?: boolean;
+  showVisualizer?: boolean;
+  
+  // Event callbacks
+  onPlay?: () => void;
+  onPause?: () => void;
+  onEnd?: () => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onError?: (error: Error) => void;
+  
+  // Styling
+  className?: string;
+  style?: React.CSSProperties;
+  children?: ReactNode;
+}
+
+// Player options for useKaraokePlayer hook
+export interface PlayerOptions {
+  autoPlay?: boolean;
+  preload?: boolean;
+}
+
+// Error type for player errors
+export interface PlayerError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+// Return interface for useKaraokePlayer hook
+export interface KaraokePlayerHook {
+  // State
+  song: Song | null;
+  isLoading: boolean;
+  isReady: boolean;
+  isPlaying: boolean;
+  currentTime: number;        // Always in milliseconds
+  duration: number;           // Always in milliseconds
+  error: PlayerError | null;
+  connectionStatus: 'connected' | 'disconnected' | 'connecting';
+  
+  // Playback controls
+  play: () => void;
+  pause: () => void;
+  togglePlay: () => void;
+  seek: (timeMs: number) => void;
+  
+  // Audio controls
+  setVocalVolume: (volume: number) => void;
+  setInstrumentalVolume: (volume: number) => void;
+  vocalVolume: number;
+  instrumentalVolume: number;
+  
+  // Lyrics and display
+  lyrics: string;
+  isLyricsSync: boolean;
+  lyricsSize: 'small' | 'medium' | 'large';
+  lyricsOffset: number;
+  setLyricsSize: (size: 'small' | 'medium' | 'large') => void;
+  setLyricsOffset: (offset: number) => void;
+  
+  // Visualizer
+  waveformData: Uint8Array | null;
+  
+  // Advanced
+  reload: () => Promise<void>;
+  preload: (songId: string) => Promise<void>;
+}
+
+// Return interface for usePlayerUI hook
+export interface PlayerUIHook {
+  // UI state
+  isFullscreen: boolean;
+  showVolumeSlider: boolean;
+  isControlsVisible: boolean;
+  
+  // UI actions
+  toggleFullscreen: () => void;
+  setShowVolumeSlider: (show: boolean) => void;
+  
+  // Keyboard shortcuts
+  keyboardShortcuts: {
+    [key: string]: () => void;
+  };
+  
+  // Focus management
+  focusPlayer: () => void;
+  
+  // Internal refs and error state (for component usage)
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  fsError: string | null;
+}
