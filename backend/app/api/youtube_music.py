@@ -1,6 +1,6 @@
 import logging
 
-from app.services.youtube_music_service import YouTubeMusicService
+from app.services.youtube_music_service import YoutubeMusicService
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ def search_youtube_music():
         logger.warning("Missing query parameter for YouTube Music search.")
         return jsonify({"error": "Missing query parameter 'q'"}), 400
     try:
-        service = YouTubeMusicService()
+        service = YoutubeMusicService()
         results = service.search_songs(query, limit=limit)
         return jsonify({"results": results, "error": None}), 200
     except Exception as e:

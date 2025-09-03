@@ -9,7 +9,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class YouTubeMusicService:
+class YoutubeMusicService:
     """Service for searching official audio tracks on YouTube Music."""
 
     def __init__(self):
@@ -17,7 +17,7 @@ class YouTubeMusicService:
             logger.error(
                 "ytmusicapi is not installed. Please install it in your environment."
             )
-            raise ImportError("ytmusicapi is required for YouTubeMusicService.")
+            raise ImportError("ytmusicapi is required for YoutubeMusicService.")
         self.ytmusic = YTMusic()
 
     def search_songs(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
