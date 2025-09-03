@@ -11,7 +11,7 @@
 | Lyrics              | Yes (`LyricsService`)  | No                 | Controllers use `LyricsService` (external API) | **Keep service layer** for API integration.               |
 | Metadata            | Yes (`MetadataService`)| No                 | Controllers use `MetadataService` (external API) | **Keep service layer** for API integration.               |
 | YouTube             | Yes (`YouTubeService`) | No                 | Controllers use `YouTubeService` (external API, jobs) | **Keep service layer** for orchestration/API.             |
-| YouTube Music       | Yes (`YouTubeMusicService`)| No              | Controllers use `YouTubeMusicService` (external API) | **Keep service layer** for API integration.               |
+| YouTube Music       | Yes (`YoutubeMusicService`)| No              | Controllers use `YoutubeMusicService` (external API) | **Keep service layer** for API integration.               |
 
 **Legend:**
 - "Service Layer Present?" = Is there a dedicated service class for this domain?

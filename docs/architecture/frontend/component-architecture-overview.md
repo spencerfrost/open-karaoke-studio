@@ -100,7 +100,7 @@ SettingsProvider → SongsProvider → AppLayout
 - `SongAdditionStepper` - Multi-step upload process
 - `JobsQueue` - Upload job status
 - `MetadataDialog` - Metadata input during upload
-- `YouTubeSearch` - YouTube integration
+- `YoutubeVideoSearch` - YouTube integration
 - `VerificationDialog` - Upload verification
 
 ##### Upload Steps (`/upload/steps/`)
