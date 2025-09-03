@@ -10,7 +10,7 @@ import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
-import JobsQueue from "@/components/JobsQueue";
+import JobsQueue from "@/components/jobs-queue";
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();

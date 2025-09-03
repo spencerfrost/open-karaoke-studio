@@ -5,8 +5,8 @@ import { useJobsWebSocket } from "@/hooks/api/useJobsWebSocket";
 import {
   formatTaskId,
   countActiveJobs,
-} from "../components/JobsQueue/JobsQueue.utils";
-import { JobItem } from "../components/JobsQueue/JobsQueue.types";
+} from "../components/jobs-queue/JobsQueue.utils";
+import { JobItem } from "../components/jobs-queue/JobsQueue.types";
 
 export function useJobsQueue() {
   const [isOpen, setIsOpen] = useState(false);
