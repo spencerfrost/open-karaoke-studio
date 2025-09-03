@@ -3,7 +3,7 @@
 export interface YoutubeVideoSearchResult {
   id: string;
   title: string;
-  uploader: string;
+  channel: string;
   duration: number;
   thumbnail: string;
   url: string;

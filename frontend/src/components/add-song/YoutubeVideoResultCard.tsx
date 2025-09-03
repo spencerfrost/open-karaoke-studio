@@ -23,7 +23,7 @@ export const YouTubeResultCard: React.FC<YouTubeResultCardProps> = ({
     <BaseResultCard
       thumbnail={result.thumbnail}
       title={result.title}
-      subtitle={result.uploader}
+      subtitle={result.channel}
       duration={formatDuration(result.duration)}
       isLoading={isLoading}
       onSelect={handleSelect}

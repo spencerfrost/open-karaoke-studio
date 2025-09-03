@@ -1,5 +1,5 @@
 import { useApiQuery } from "./api/useApi";
-import { YoutubeVideoSearchResponse } from "@/types/Youtube";
+import { YoutubeVideoSearchResult } from "@/types/Youtube";
 
 interface UseYoutubeVideoSearchParams {
   query: string;
@@ -15,7 +15,7 @@ export const useYoutubeVideoSearch = ({
   enabled = true,
 }: UseYoutubeVideoSearchParams) => {
   const result = useApiQuery<
-    YoutubeVideoSearchResponse,
+    { data: YoutubeVideoSearchResult[] },
     ["youtube-search", string]
   >(
     ["youtube-search", query],
@@ -27,9 +27,9 @@ export const useYoutubeVideoSearch = ({
     },
   );
 
-  // Transform the result to match the expected interface
+  // Transform the result to match the expected interface (return just the data array)
   return {
     ...result,
-    data: result.data?.results || [],
+    data: result.data?.data || [],
   };
 };

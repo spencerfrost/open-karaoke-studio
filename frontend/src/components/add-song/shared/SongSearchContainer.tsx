@@ -21,11 +21,15 @@ import { useSongCreation, SongInput } from "@/hooks/useSongCreation";
 import { useAddSongDialog } from "@/hooks/useAddSongDialog";
 
 import { SongSearchContainerProps, SearchSource } from "./types";
-import { YoutubeMusicSearchResult } from "../youtube-music";
-import { YoutubeVideoSearchResult } from "../youtube-video";
+import {
+  YoutubeMusicSearchResult,
+  YoutubeVideoSearchResult,
+} from "@/types/Youtube";
 
 // Data mappers to convert search results to unified SongInput
-const mapYoutubeMusicToSongInput = (result: YoutubeMusicSearchResult): SongInput => ({
+const mapYoutubeMusicToSongInput = (
+  result: YoutubeMusicSearchResult
+): SongInput => ({
   title: result.title,
   artist: result.artist,
   album: result.album,
@@ -36,9 +40,11 @@ const mapYoutubeMusicToSongInput = (result: YoutubeMusicSearchResult): SongInput
   thumbnail: result.thumbnails[0]?.url || "",
 });
 
-const mapYouTubeToSongInput = (result: YoutubeVideoSearchResult): SongInput => ({
+const mapYouTubeToSongInput = (
+  result: YoutubeVideoSearchResult
+): SongInput => ({
   title: result.title,
-  artist: result.uploader,
+  artist: result.channel,
   album: "",
   videoId: result.id,
   source: "youtube",
@@ -61,7 +67,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   // Use existing search hooks
   const youtubeMusicSearch = useYoutubeMusicSearch(
     query,
-    activeSource === "youtube-music" && !!query,
+    activeSource === "youtube-music" && !!query
   );
 
   const youtubeSearch = useYoutubeVideoSearch({
@@ -76,21 +82,22 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   const dialog = useAddSongDialog();
 
   // Loading states for both result types
-  const youtubeMusicLoadingStates: Record<string, boolean> = 
-    Object.fromEntries(
-      (youtubeMusicSearch.data?.results || []).map((result: YoutubeMusicSearchResult) => [
-        result.videoId, 
-        songCreation.isAdding && songCreation.currentSong?.videoId === result.videoId
-      ])
-    );
+  const youtubeMusicLoadingStates: Record<string, boolean> = Object.fromEntries(
+    (youtubeMusicSearch.data?.results || []).map(
+      (result: YoutubeMusicSearchResult) => [
+        result.videoId,
+        songCreation.isAdding &&
+          songCreation.currentSong?.videoId === result.videoId,
+      ]
+    )
+  );
 
-  const youtubeLoadingStates: Record<string, boolean> = 
-    Object.fromEntries(
-      (youtubeSearch.data || []).map((result: YoutubeVideoSearchResult) => [
-        result.id, 
-        songCreation.isAdding && songCreation.currentSong?.videoId === result.id
-      ])
-    );
+  const youtubeLoadingStates: Record<string, boolean> = Object.fromEntries(
+    (youtubeSearch.data || []).map((result: YoutubeVideoSearchResult) => [
+      result.id,
+      songCreation.isAdding && songCreation.currentSong?.videoId === result.id,
+    ])
+  );
 
   const handleSearch = (searchQuery: string) => {
     setQuery(searchQuery);
@@ -133,7 +140,8 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
         <CardHeader>
           <CardTitle>Add Songs</CardTitle>
           <CardDescription>
-            Search and add songs from YouTube Music or YouTube videos to your karaoke library
+            Search and add songs from YouTube Music or YouTube videos to your
+            karaoke library
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -178,10 +186,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
         </CardContent>
       </Card>
 
-      <AddSongDialog
-        songCreation={songCreation}
-        dialog={dialog}
-      />
+      <AddSongDialog songCreation={songCreation} dialog={dialog} />
     </div>
   );
 };
