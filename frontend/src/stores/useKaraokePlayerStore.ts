@@ -27,8 +27,8 @@ interface KaraokePlayerState {
   vocalUrl: string;
   isReady: boolean;
   isLoading: boolean;
-  duration: number; // seconds (float)
-  durationMs?: number; // milliseconds (integer, from backend)
+  duration: number; // seconds (float) - canonical unit
+  durationMs?: number; // milliseconds (integer, for backwards compatibility)
   error: string | null;
 
   // Playback state
@@ -48,8 +48,8 @@ interface KaraokePlayerState {
   // Actions
   connect: () => void;
   disconnect: () => void;
-  setSongId: (id: string, durationMs?: number) => void;
-  setSongAndLoad: (id: string, durationMs?: number) => Promise<void>;
+  setSongId: (id: string, duration?: number) => void;
+  setSongAndLoad: (id: string, duration?: number) => Promise<void>;
   load: () => Promise<void>;
   play: () => void;
   pause: () => void;
@@ -80,8 +80,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   let playbackStartTime: number | null = null; // audioContext.currentTime when playback started
   let playbackOffset: number = 0; // seconds into the track when playback started
 
-  // Add a variable to store durationMs (milliseconds)
-  let durationMs: number | undefined = undefined;
+  // Add a variable to store song duration in seconds
+  let songDuration: number | undefined = undefined;
 
   // Track local updates to prevent WebSocket echoes
   const lastLocalUpdate: { [key: string]: { value: unknown; timestamp: number } } = {};
@@ -344,21 +344,21 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       }
       set({ connected: false });
     },
-    setSongId: (id: string, songDurationMs?: number) => {
-      // Accept durationMs from the backend if available
-      durationMs = songDurationMs;
+    setSongId: (id: string, duration?: number) => {
+      // Accept duration from the backend if available (prefer seconds, fallback to durationMs)
+      songDuration = duration;
       set({
         songId: id,
         instrumentalUrl: getAudioUrl(id, "instrumental"),
         vocalUrl: getAudioUrl(id, "vocals"),
         isReady: false,
         error: null,
-        duration: songDurationMs ? songDurationMs / 1000 : 0,
-        durationMs: songDurationMs,
+        duration: duration || 0,
+        durationMs: duration ? Math.round(duration * 1000) : undefined,
       });
     },
-    setSongAndLoad: async (id: string, songDurationMs?: number) => {
-      get().setSongId(id, songDurationMs);
+    setSongAndLoad: async (id: string, duration?: number) => {
+      get().setSongId(id, duration);
       get().cleanup();
       await get().load();
     },
@@ -390,14 +390,14 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         ]);
         instrumentalBuffer = instBuf;
         vocalBuffer = vocBuf;
-        // Prefer durationMs from backend, otherwise use decoded buffer duration
-        const ms =
-          durationMs !== undefined
-            ? durationMs
-            : Math.round(instBuf.duration * 1000);
+        // Prefer songDuration from backend, otherwise use decoded buffer duration
+        const durationSeconds =
+          songDuration !== undefined
+            ? songDuration
+            : instBuf.duration;
         set({
-          duration: ms / 1000,
-          durationMs: ms,
+          duration: durationSeconds,
+          durationMs: Math.round(durationSeconds * 1000),
           isReady: true,
           error: null,
         });
@@ -442,20 +442,19 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       socketEmit("playback_pause", {});
       get().pause();
     },
-    // Accepts milliseconds as canonical unit
-    seek: (timeMs: number) => {
+    // Accepts seconds as canonical unit
+    seek: (timeSeconds: number) => {
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
-      const timeSec = timeMs / 1000;
-      playbackOffset = timeSec;
+      playbackOffset = timeSeconds;
       if (get().isPlaying) {
-        setupAudioGraph(audioContext.currentTime, timeSec);
+        setupAudioGraph(audioContext.currentTime, timeSeconds);
         playbackStartTime = audioContext.currentTime;
         startTimeInterval();
-        updatePlayerState({ currentTime: timeSec });
+        updatePlayerState({ currentTime: timeSeconds });
       } else {
         playbackStartTime = null;
-        updatePlayerState({ currentTime: timeSec, isPlaying: false });
+        updatePlayerState({ currentTime: timeSeconds, isPlaying: false });
       }
     },
     setVocalVolume: (volume: number) => {

@@ -13,7 +13,7 @@ import {
 } from './subcomponents';
 import AudioVisualizer from '@/components/karaoke-player/subcomponents/AudioVisualizer';
 import ProgressBar from '@/components/karaoke-player/subcomponents/ProgressBar';
-import { formatTimeMs } from '@/utils/formatters';
+import { formatTime } from '@/utils/formatters';
 import type { KaraokePlayerProps } from './KaraokePlayer.types';
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
@@ -160,7 +160,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           {showProgress && (
             <ProgressBar
               currentTime={player.currentTime}
-              durationMs={player.duration}
+              duration={player.duration}
               onSeek={player.seek}
             />
           )}
@@ -185,7 +185,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             {/* Time Display */}
             {showProgress && (
               <div className={`flex-1 text-sm text-background/50 ${size === 'compact' ? 'text-xs' : 'text-sm'}`}>
-                {formatTimeMs(player.currentTime)} / {formatTimeMs(player.duration)}
+                {formatTime(player.currentTime)} / {formatTime(player.duration)}
               </div>
             )}
 

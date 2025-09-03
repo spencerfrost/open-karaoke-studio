@@ -2,7 +2,8 @@ import React from "react";
 import { Song } from "../../types/Song";
 import { SourceBadges } from "./song-details/SourceBadges";
 import { SongPreviewPlayer } from "./song-details/SongPreviewPlayer";
-import { formatTimeMs } from "../../utils/formatters";
+import { formatTime } from "../../utils/formatters";
+import { getSongDuration } from "../../utils/songUtils";
 import { Badge } from "@/components/ui/badge";
 import { Music, Calendar, Clock, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,7 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
           <Clock size={16} className="text-muted-foreground flex-shrink-0" />
           <div>
             <p className="text-xs text-muted-foreground">Duration</p>
-            <p className="font-medium">{formatTimeMs(song.durationMs ?? 0)}</p>
+            <p className="font-medium">{formatTime(getSongDuration(song))}</p>
           </div>
         </div>
 

@@ -1,6 +1,18 @@
 /**
  * Format seconds into MM:SS format
  */
+export const formatTime = (seconds: number, showMs: boolean = false): string => {
+  if (isNaN(seconds) || seconds < 0) return "0:00";
+  const totalSeconds = Math.floor(seconds);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (showMs) {
+    const msPart = Math.round((seconds - totalSeconds) * 1000);
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}.${msPart.toString().padStart(3, "0")}`;
+  }
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
 // Format milliseconds into MM:SS or MM:SS.SSS
 export const formatTimeMs = (ms: number, showMs: boolean = false): string => {
   if (isNaN(ms) || ms < 0) return "0:00";

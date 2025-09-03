@@ -66,19 +66,19 @@ export const useSongCreation = () => {
     setIsAdding(true);
     setCurrentSong(song);
 
-    // Convert duration to milliseconds if it's provided as seconds
-    let durationMs: number | undefined;
+    // Convert duration to seconds if it's provided
+    let duration: number | undefined;
     if (song.duration) {
-      const duration = typeof song.duration === 'string' ? parseFloat(song.duration) : song.duration;
-      // Assume duration is in seconds and convert to milliseconds
-      durationMs = Math.round(duration * 1000);
+      const durationValue = typeof song.duration === 'string' ? parseFloat(song.duration) : song.duration;
+      // Assume duration is already in seconds (no conversion needed)
+      duration = durationValue;
     }
 
     const songData = {
       title: song.title,
       artist: song.artist,
       album: song.album || "",
-      durationMs,
+      duration,
       source: song.source,
       video_id: song.videoId,
     };

@@ -1,6 +1,7 @@
 import React from "react";
 import { CardContent } from "@/components/ui/card";
-import { formatTimeMs } from "@/utils/formatters";
+import { formatTime } from "@/utils/formatters";
+import { getSongDuration } from "@/utils/songUtils";
 import { SongInfoProps } from "./SongCard.types";
 
 export const SongInfo: React.FC<SongInfoProps> = ({ song }) => {
@@ -16,7 +17,7 @@ export const SongInfo: React.FC<SongInfoProps> = ({ song }) => {
             : song.title}
         </h3>
         <span className="text-xs opacity-60 whitespace-nowrap">
-          {formatTimeMs(song.durationMs || 0)}
+          {formatTime(getSongDuration(song))}
         </span>
       </div>
       <p

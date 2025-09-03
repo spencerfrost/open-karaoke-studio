@@ -1,19 +1,23 @@
 import React from "react";
 
 interface ProgressBarProps {
-  currentTime: number;
-  durationMs: number;
-  onSeek?: (value: number) => void;
+  currentTime: number; // seconds
+  duration?: number; // seconds (new, preferred)
+  durationMs?: number; // milliseconds (old, for backwards compatibility)
+  onSeek?: (value: number) => void; // callback receives seconds
   className?: string;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   currentTime,
+  duration,
   durationMs,
   onSeek,
   className = "",
 }) => {
-  const progressPercentage = durationMs ? (currentTime / durationMs) * 100 : 0;
+  // Prefer duration (seconds), fallback to durationMs/1000
+  const totalDuration = duration ?? (durationMs ? durationMs / 1000 : 0);
+  const progressPercentage = totalDuration ? (currentTime / totalDuration) * 100 : 0;
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const seekTime = Number(e.target.value);
@@ -34,7 +38,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         <input
           type="range"
           min={0}
-          max={durationMs || 100}
+          max={totalDuration || 100}
           value={currentTime}
           onChange={handleSeek}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"

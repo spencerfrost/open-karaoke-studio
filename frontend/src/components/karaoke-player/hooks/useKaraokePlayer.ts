@@ -1,11 +1,7 @@
-/**
- * Custom hook for karaoke player business logic
- * Extracts all player state and operations from the store
- */
-
 import { useEffect, useCallback, useMemo } from 'react';
 import { useKaraokePlayerStore } from '@/stores/useKaraokePlayerStore';
 import { useSongs } from '@/hooks/api/useSongs';
+import { getSongDuration } from '@/utils/songUtils';
 import type { 
   KaraokePlayerHook, 
   PlayerOptions, 
@@ -65,7 +61,8 @@ export const useKaraokePlayer = (
   // Song loading and lifecycle management
   useEffect(() => {
     if (song && songId && songId !== currentSongId) {
-      setSongAndLoad(song.id, song.durationMs);
+      const duration = getSongDuration(song);
+      setSongAndLoad(song.id, duration);
     }
     return () => cleanup();
   }, [song, songId, currentSongId, setSongAndLoad, cleanup]);
@@ -114,10 +111,10 @@ export const useKaraokePlayer = (
     }
   }, [isReady, isPlaying, play, pause]);
 
-  const seek = useCallback((timeMs: number) => {
+  const seek = useCallback((timeSeconds: number) => {
     if (isReady) {
-      // Store expects milliseconds, so pass directly without conversion
-      storeSeek(timeMs);
+      // Store now expects seconds
+      storeSeek(timeSeconds);
     }
   }, [isReady, storeSeek]);
 
@@ -125,7 +122,8 @@ export const useKaraokePlayer = (
   const reload = useCallback(async () => {
     if (song) {
       cleanup();
-      await setSongAndLoad(song.id, song.durationMs);
+      const duration = getSongDuration(song);
+      await setSongAndLoad(song.id, duration);
     }
   }, [song, cleanup, setSongAndLoad]);
 
@@ -168,14 +166,14 @@ export const useKaraokePlayer = (
     return getWaveformData();
   }, [getWaveformData]);
 
-  // Duration in milliseconds (consistent with interface)
-  const durationMs = useMemo(() => {
-    return song?.durationMs || duration * 1000;
-  }, [song?.durationMs, duration]);
+  // Duration in seconds (consistent with new interface)
+  const durationSeconds = useMemo(() => {
+    return song ? getSongDuration(song) : duration;
+  }, [song, duration]);
 
-  // Current time in milliseconds (consistent with interface)
-  const currentTimeMs = useMemo(() => {
-    return currentTime * 1000;
+  // Current time in seconds (consistent with new interface)
+  const currentTimeSeconds = useMemo(() => {
+    return currentTime;
   }, [currentTime]);
 
   return {
@@ -184,8 +182,8 @@ export const useKaraokePlayer = (
     isLoading,
     isReady,
     isPlaying,
-    currentTime: currentTimeMs,
-    duration: durationMs,
+    currentTime: currentTimeSeconds,
+    duration: durationSeconds,
     error,
     connectionStatus,
     

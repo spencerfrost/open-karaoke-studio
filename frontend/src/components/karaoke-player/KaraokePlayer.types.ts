@@ -26,7 +26,7 @@ export interface KaraokePlayerProps {
   onPlay?: () => void;
   onPause?: () => void;
   onEnd?: () => void;
-  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
   
   // Styling
@@ -55,8 +55,8 @@ export interface KaraokePlayerHook {
   isLoading: boolean;
   isReady: boolean;
   isPlaying: boolean;
-  currentTime: number;        // Always in milliseconds
-  duration: number;           // Always in milliseconds
+  currentTime: number;        // In seconds (changed from milliseconds)
+  duration: number;           // In seconds (changed from milliseconds)
   error: PlayerError | null;
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
   
@@ -64,7 +64,7 @@ export interface KaraokePlayerHook {
   play: () => void;
   pause: () => void;
   togglePlay: () => void;
-  seek: (timeMs: number) => void;
+  seek: (timeSeconds: number) => void; // Now accepts seconds instead of milliseconds
   
   // Audio controls
   setVocalVolume: (volume: number) => void;

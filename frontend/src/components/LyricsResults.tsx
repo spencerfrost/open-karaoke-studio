@@ -10,17 +10,26 @@ type LyricsResultsProps =
   | ({
       youtubeDurationSeconds: number;
       youtubeMusicDurationSeconds?: never;
+      duration?: never;
       durationMs?: never;
     } & CommonLyricsResultsProps)
   | ({
       youtubeDurationSeconds?: never;
       youtubeMusicDurationSeconds: string;
+      duration?: never;
       durationMs?: never;
     } & CommonLyricsResultsProps)
   | ({
       youtubeDurationSeconds?: never;
       youtubeMusicDurationSeconds?: never;
-      durationMs: number;
+      duration: number; // New: seconds
+      durationMs?: never;
+    } & CommonLyricsResultsProps)
+  | ({
+      youtubeDurationSeconds?: never;
+      youtubeMusicDurationSeconds?: never;
+      duration?: never;
+      durationMs: number; // Old: milliseconds (for backwards compatibility)
     } & CommonLyricsResultsProps);
 
 type CommonLyricsResultsProps = {
@@ -41,6 +50,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   maxPreviewLines = 10,
   youtubeDurationSeconds,
   youtubeMusicDurationSeconds,
+  duration,
   durationMs,
 }) => {
   // Helper function to parse duration string to seconds
@@ -59,13 +69,17 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   function getParsedDuration(
     youtubeDurationSeconds?: number,
     youtubeMusicDurationSeconds?: string,
-    durationMs?: number
+    duration?: number, // New: seconds
+    durationMs?: number // Old: milliseconds
   ): number {
     if (youtubeDurationSeconds !== undefined) {
       return youtubeDurationSeconds;
     }
     if (youtubeMusicDurationSeconds !== undefined) {
       return parseYoutubeMusicDuration(youtubeMusicDurationSeconds);
+    }
+    if (duration !== undefined) {
+      return duration; // Already in seconds
     }
     if (durationMs !== undefined) {
       return durationMs / 1000;
@@ -77,6 +91,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   const parsedDuration = getParsedDuration(
     youtubeDurationSeconds,
     youtubeMusicDurationSeconds,
+    duration,
     durationMs
   );
 
