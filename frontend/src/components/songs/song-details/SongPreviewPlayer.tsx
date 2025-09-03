@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Play, Pause, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatTime } from "@/utils/formatters";
 
 interface SongPreviewPlayerProps {
   previewUrl: string;
@@ -106,12 +107,6 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
     setCurrentTime(newTime);
   };
 
-  const formatTimeMs = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
   const progressPercentage = (currentTime / duration) * 100;
 
   return (
@@ -149,7 +144,7 @@ export const SongPreviewPlayer: React.FC<SongPreviewPlayerProps> = ({
               {title} - {artist}
             </span>
             <span className="text-xs text-muted-foreground">
-              {formatTimeMs(currentTime)} / {formatTimeMs(duration)}
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 

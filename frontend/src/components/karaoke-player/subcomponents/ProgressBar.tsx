@@ -2,8 +2,7 @@ import React from "react";
 
 interface ProgressBarProps {
   currentTime: number; // seconds
-  duration?: number; // seconds (new, preferred)
-  durationMs?: number; // milliseconds (old, for backwards compatibility)
+  duration?: number; // seconds
   onSeek?: (value: number) => void; // callback receives seconds
   className?: string;
 }
@@ -11,12 +10,10 @@ interface ProgressBarProps {
 const ProgressBar: React.FC<ProgressBarProps> = ({
   currentTime,
   duration,
-  durationMs,
   onSeek,
   className = "",
 }) => {
-  // Prefer duration (seconds), fallback to durationMs/1000
-  const totalDuration = duration ?? (durationMs ? durationMs / 1000 : 0);
+  const totalDuration = duration ?? 0;
   const progressPercentage = totalDuration ? (currentTime / totalDuration) * 100 : 0;
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {

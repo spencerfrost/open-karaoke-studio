@@ -28,7 +28,6 @@ interface KaraokePlayerState {
   isReady: boolean;
   isLoading: boolean;
   duration: number; // seconds (float) - canonical unit
-  durationMs?: number; // milliseconds (integer, for backwards compatibility)
   error: string | null;
 
   // Playback state
@@ -276,7 +275,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     isReady: false,
     isLoading: false,
     duration: 0,
-    durationMs: undefined,
     error: null,
     isPlaying: false,
     currentTime: 0,
@@ -345,7 +343,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       set({ connected: false });
     },
     setSongId: (id: string, duration?: number) => {
-      // Accept duration from the backend if available (prefer seconds, fallback to durationMs)
+      // Accept duration from the backend if available
       songDuration = duration;
       set({
         songId: id,
@@ -354,7 +352,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         isReady: false,
         error: null,
         duration: duration || 0,
-        durationMs: duration ? Math.round(duration * 1000) : undefined,
       });
     },
     setSongAndLoad: async (id: string, duration?: number) => {
@@ -397,7 +394,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
             : instBuf.duration;
         set({
           duration: durationSeconds,
-          durationMs: Math.round(durationSeconds * 1000),
           isReady: true,
           error: null,
         });

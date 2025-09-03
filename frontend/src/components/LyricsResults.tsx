@@ -11,25 +11,16 @@ type LyricsResultsProps =
       youtubeDurationSeconds: number;
       youtubeMusicDurationSeconds?: never;
       duration?: never;
-      durationMs?: never;
     } & CommonLyricsResultsProps)
   | ({
       youtubeDurationSeconds?: never;
       youtubeMusicDurationSeconds: string;
       duration?: never;
-      durationMs?: never;
     } & CommonLyricsResultsProps)
   | ({
       youtubeDurationSeconds?: never;
       youtubeMusicDurationSeconds?: never;
-      duration: number; // New: seconds
-      durationMs?: never;
-    } & CommonLyricsResultsProps)
-  | ({
-      youtubeDurationSeconds?: never;
-      youtubeMusicDurationSeconds?: never;
-      duration?: never;
-      durationMs: number; // Old: milliseconds (for backwards compatibility)
+      duration: number; // seconds
     } & CommonLyricsResultsProps);
 
 type CommonLyricsResultsProps = {
@@ -51,7 +42,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   youtubeDurationSeconds,
   youtubeMusicDurationSeconds,
   duration,
-  durationMs,
 }) => {
   // Helper function to parse duration string to seconds
   const parseYoutubeMusicDuration = (duration: string): number => {
@@ -69,8 +59,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   function getParsedDuration(
     youtubeDurationSeconds?: number,
     youtubeMusicDurationSeconds?: string,
-    duration?: number, // New: seconds
-    durationMs?: number // Old: milliseconds
+    duration?: number // seconds
   ): number {
     if (youtubeDurationSeconds !== undefined) {
       return youtubeDurationSeconds;
@@ -81,9 +70,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
     if (duration !== undefined) {
       return duration; // Already in seconds
     }
-    if (durationMs !== undefined) {
-      return durationMs / 1000;
-    }
     // This should never happen due to prop types, but just in case:
     throw new Error("No valid duration prop provided.");
   }
@@ -91,8 +77,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   const parsedDuration = getParsedDuration(
     youtubeDurationSeconds,
     youtubeMusicDurationSeconds,
-    duration,
-    durationMs
+    duration
   );
 
   // Sort options by how close their duration is to the song's duration

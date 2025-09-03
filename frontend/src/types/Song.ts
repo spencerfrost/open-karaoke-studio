@@ -4,8 +4,7 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
-  duration?: number;      // New (seconds) - preferred
-  durationMs?: number;    // Old (milliseconds) - fallback during migration
+  duration?: number;      // Duration in seconds
   dateAdded?: string;
 
   // File paths (API URLs)
