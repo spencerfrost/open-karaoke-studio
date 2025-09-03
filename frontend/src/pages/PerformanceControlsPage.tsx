@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Volume2, Play, Pause } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PerformanceControlInput from "@/components/PerformanceControlsInput";
-import ProgressBar from "@/components/player/ProgressBar";
+import ProgressBar from "@/components/karaoke-player/subcomponents/ProgressBar";
 import WebSocketStatus from "@/components/WebsocketStatus";
 
 /**

@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
 
 import AppLayout from "@/components/layout/AppLayout";
-import KaraokeQueueList from "@/components/queue/KaraokeQueueList";
-import UnifiedLyricsDisplay from "@/components/player/UnifiedLyricsDisplay";
+import KaraokeQueueList from "@/components/karaoke-queue/KaraokeQueueList";
+import KaraokePlayer from "@/components/karaoke-player/KaraokePlayer";
 import WebSocketStatus from "@/components/WebsocketStatus";
 
 import { useSongs } from "@/hooks/api/useSongs";
@@ -17,13 +17,9 @@ import { toast } from "sonner";
 
 const Stage: React.FC = () => {
   const {
-    currentTime,
-    seek,
     connect,
     disconnect,
     connected,
-    cleanup,
-    setSongAndLoad,
     socket,
   } = useKaraokePlayerStore();
 
@@ -47,13 +43,6 @@ const Stage: React.FC = () => {
     };
   }, [connect, disconnect]);
 
-  useEffect(() => {
-    if (currentSong) {
-      setSongAndLoad(currentSong.id, currentSong.durationMs);
-    }
-    return () => cleanup();
-  }, [currentSong, setSongAndLoad, cleanup]);
-
   // WebSocket effect for queue updates
   useEffect(() => {
     if (!socket || !connected) return;
@@ -74,11 +63,9 @@ const Stage: React.FC = () => {
       // Refetch queue data since positions have changed
       queueQuery.refetch();
 
-      // Automatically load the song into the player
-      setSongAndLoad(data.song.id, data.song.durationMs).catch((error) => {
-        console.error("Failed to load song from WebSocket:", error);
-        toast.error("Failed to load song");
-      });
+      // Note: The KaraokePlayer component will handle song loading automatically
+      // when currentSongId changes due to queue updates
+      toast.success(`Now playing: ${data.song.title}`);
     };
 
     // Set up WebSocket event listeners
@@ -91,7 +78,7 @@ const Stage: React.FC = () => {
       socket.off("play_song", handlePlaySong);
       socket.emit("leave_queue_room", {});
     };
-  }, [socket, connected, queueQuery, setSongAndLoad]);
+  }, [socket, connected, queueQuery]);
 
   const handleRemoveFromQueue = async (id: string) => {
     try {
@@ -129,15 +116,16 @@ const Stage: React.FC = () => {
           {currentSong?.artist}
         </h2>
         <div className="aspect-video max-h-svh bg-black/80 rounded-xl overflow-hidden">
-          <UnifiedLyricsDisplay
-            lyrics={currentSong?.syncedLyrics || currentSong?.plainLyrics || ""}
-            isSynced={!!currentSong?.syncedLyrics}
-            currentTime={currentTime * 1000}
-            title={currentSong?.title || ""}
-            artist={currentSong?.artist || ""}
-            durationMs={currentSong?.durationMs || 0}
-            onSeek={seek}
-          />
+          {currentSong && (
+            <KaraokePlayer
+              songId={currentSong.id}
+              size="stage"
+              autoPlay={true}
+              controls={true}
+              showInfo={false}
+              showVisualizer={true}
+            />
+          )}
         </div>
         <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
           Up Next
