@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Edit, FileText, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
-import { LyricsFetchDialog } from "@/components/lyrics";
+import { LyricsFetchDialog } from "@/components/LyricsFetchDialog";
 import { useSongs } from "@/hooks/api/useSongs";
 import {
   AlertDialog,

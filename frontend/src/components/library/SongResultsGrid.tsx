@@ -1,6 +1,6 @@
 import React from "react";
 import { Song } from "@/types/Song";
-import { SongCard } from "@/components/songs/SongCard";
+import { SongCard } from "@/components/songs/song-card";
 
 interface SongResultsGridProps {
   songs: Song[];

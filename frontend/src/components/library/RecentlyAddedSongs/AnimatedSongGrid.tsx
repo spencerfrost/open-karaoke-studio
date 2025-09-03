@@ -1,5 +1,5 @@
 import React from "react";
-import { SongCard } from "@/components/songs/SongCard";
+import { SongCard } from "@/components/songs/song-card";
 import { Song } from "@/types/Song";
 
 interface AnimatedSongGridProps {
