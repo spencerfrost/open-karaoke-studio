@@ -12,7 +12,7 @@ import {
   useRemoveFromKaraokeQueue,
   usePlayFromKaraokeQueue,
 } from "@/hooks/api/useKaraokeQueue";
-import { Song } from "@/types/Song";
+import { queueWebSocketService } from "@/services/queueWebSocketService";
 import { toast } from "sonner";
 
 const Stage: React.FC = () => {
@@ -20,7 +20,6 @@ const Stage: React.FC = () => {
     connect,
     disconnect,
     connected,
-    socket,
   } = useKaraokePlayerStore();
 
   const { useSong } = useSongs();
@@ -43,42 +42,29 @@ const Stage: React.FC = () => {
     };
   }, [connect, disconnect]);
 
-  // WebSocket effect for queue updates
+  // WebSocket effect for queue updates using FastAPI queue WebSocket
   useEffect(() => {
-    if (!socket || !connected) return;
-
-    // Join the karaoke queue room
-    socket.emit("join_queue_room", {});
-
     const handleQueueUpdate = () => {
-      console.log("Queue updated via WebSocket, refetching queue data");
+      console.log("Queue updated via FastAPI WebSocket, refetching queue data");
       queueQuery.refetch();
     };
 
-    const handlePlaySong = (data: { song: Song; singer: string }) => {
-      console.log(
-        `Song played via WebSocket: ${data.song.title} by ${data.song.artist}`,
-      );
-
-      // Refetch queue data since positions have changed
-      queueQuery.refetch();
-
-      // Note: The KaraokePlayer component will handle song loading automatically
-      // when currentSongId changes due to queue updates
-      toast.success(`Now playing: ${data.song.title}`);
+    const handleQueueJoined = (data: { room: string }) => {
+      console.log("Joined queue room:", data.room);
+      // Request initial queue state
+      queueWebSocketService.requestQueueUpdate();
     };
 
-    // Set up WebSocket event listeners
-    socket.on("queue_updated", handleQueueUpdate);
-    socket.on("play_song", handlePlaySong);
+    // Set up WebSocket event listeners using FastAPI queue service
+    const cleanupJoined = queueWebSocketService.on("queue_joined", handleQueueJoined);
+    const cleanupUpdated = queueWebSocketService.on("queue_updated", handleQueueUpdate);
 
     // Cleanup
     return () => {
-      socket.off("queue_updated", handleQueueUpdate);
-      socket.off("play_song", handlePlaySong);
-      socket.emit("leave_queue_room", {});
+      cleanupJoined();
+      cleanupUpdated();
     };
-  }, [socket, connected, queueQuery]);
+  }, [queueQuery]);
 
   const handleRemoveFromQueue = async (id: string) => {
     try {

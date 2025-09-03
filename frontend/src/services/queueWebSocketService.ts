@@ -1,33 +1,32 @@
 /**
- * WebSocket service for real-time job updates using native WebSockets (FastAPI)
- * Migrated from Socket.IO to native WebSocket for FastAPI compatibility
+ * WebSocket service for real-time karaoke queue updates using native WebSockets (FastAPI)
  */
 
-interface JobData {
+interface QueueItem {
   id: string;
-  progress?: number;
-  status: string;
-  error?: string;
-  notes?: string;
-  created_at?: string;
-  started_at?: string;
-  completed_at?: string;
-  filename?: string;
-  task_id?: string;
-  artist?: string;
-  title?: string;
+  songId: string;
+  singer: string;
+  position: number;
+  addedAt?: string;
+  song: {
+    id: string;
+    title: string;
+    artist: string;
+    album?: string;
+    duration?: number;
+    coverArt?: string;
+    syncedLyrics?: string;
+    plainLyrics?: string;
+  };
 }
 
-interface JobsWebSocketEvents {
-  job_created: (data: JobData) => void;
-  job_updated: (data: JobData) => void;
-  job_completed: (data: JobData) => void;
-  job_failed: (data: JobData) => void;
-  job_cancelled: (data: JobData) => void;
-  jobs_list: (data: { jobs: JobData[] }) => void;
+interface QueueWebSocketEvents {
+  queue_updated: (data: { items: QueueItem[] }) => void;
+  queue_joined: (data: { room: string }) => void;
+  queue_left: (data: { room: string }) => void;
 }
 
-class JobsWebSocketService {
+class QueueWebSocketService {
   private websocket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
   private isConnected = false;
@@ -47,23 +46,23 @@ class JobsWebSocketService {
 
       if (import.meta.env.DEV) {
         // Development mode - use the current host to leverage Vite proxy (/ws -> localhost:5124)
-        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/jobs`;
-        console.log("Development mode - using Vite proxy for WebSocket:", socketUrl);
+        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/queue`;
+        console.log("Development mode - using Vite proxy for queue WebSocket:", socketUrl);
       } else {
         // Production mode - use FastAPI WebSocket directly
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 
                           `${window.location.protocol}//${window.location.host}`;
-        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/jobs`;
-        console.log("Production mode - using direct FastAPI WebSocket:", socketUrl);
+        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/queue`;
+        console.log("Production mode - using direct FastAPI queue WebSocket:", socketUrl);
       }
 
-      console.log("Attempting to connect to FastAPI WebSocket at:", socketUrl);
+      console.log("Attempting to connect to FastAPI queue WebSocket at:", socketUrl);
       
       this.websocket = new WebSocket(socketUrl);
       this.setupEventHandlers();
       
     } catch (error) {
-      console.error("Failed to initialize WebSocket connection:", error);
+      console.error("Failed to initialize queue WebSocket connection:", error);
       this.scheduleReconnect();
     }
   }
@@ -72,16 +71,16 @@ class JobsWebSocketService {
     if (!this.websocket) return;
 
     this.websocket.onopen = () => {
-      console.log("Connected to FastAPI jobs WebSocket");
+      console.log("Connected to FastAPI queue WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
-      // Subscribe to job updates
-      this.send({ type: "subscribe_to_jobs" });
+      // Automatically join queue room
+      this.send({ type: "join_queue_room" });
     };
 
     this.websocket.onclose = (event) => {
-      console.log("Disconnected from FastAPI jobs WebSocket:", event.code, event.reason);
+      console.log("Disconnected from FastAPI queue WebSocket:", event.code, event.reason);
       this.isConnected = false;
       this.websocket = null;
       
@@ -92,70 +91,47 @@ class JobsWebSocketService {
     };
 
     this.websocket.onerror = (error) => {
-      console.error("FastAPI WebSocket connection error:", error);
+      console.error("FastAPI queue WebSocket connection error:", error);
       this.isConnected = false;
     };
 
     this.websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("FastAPI WebSocket received:", data);
+        console.log("FastAPI queue WebSocket received:", data);
         
         switch (data.type) {
-          case "connected":
-            console.log("FastAPI WebSocket connection confirmed");
+          case "queue_joined":
+            console.log("Joined queue room:", data.room);
+            this.emit("queue_joined", data);
             break;
             
-          case "subscribed":
-            console.log("Subscribed to job updates:", data);
+          case "queue_left":
+            console.log("Left queue room:", data.room);
+            this.emit("queue_left", data);
             break;
             
-          case "jobs_list":
-            console.log("Received jobs list:", data);
-            this.emit("jobs_list", { jobs: data.jobs });
-            break;
-            
-          case "job_created":
-            console.log("Received job_created event:", data.job);
-            this.emit("job_created", data.job);
-            break;
-            
-          case "job_updated":
-            console.log("Received job_updated event:", data.job);
-            this.emit("job_updated", data.job);
-            break;
-            
-          case "job_completed":
-            console.log("Received job_completed event:", data.job);
-            this.emit("job_completed", data.job);
-            break;
-            
-          case "job_failed":
-            console.log("Received job_failed event:", data.job);
-            this.emit("job_failed", data.job);
-            break;
-            
-          case "job_cancelled":
-            console.log("Received job_cancelled event:", data.job);
-            this.emit("job_cancelled", data.job);
+          case "queue_updated":
+            console.log("Queue updated:", data.items?.length || 0, "items");
+            this.emit("queue_updated", data);
             break;
             
           case "error":
-            console.error("WebSocket error:", data.message);
+            console.error("Queue WebSocket error:", data.message);
             break;
             
           default:
-            console.log("Unknown message type:", data.type);
+            console.log("Unknown queue message type:", data.type);
         }
       } catch (error) {
-        console.error("Error parsing FastAPI WebSocket message:", error);
+        console.error("Error parsing FastAPI queue WebSocket message:", error);
       }
     };
   }
 
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max reconnection attempts reached");
+      console.error("Max queue WebSocket reconnection attempts reached");
       return;
     }
 
@@ -164,7 +140,7 @@ class JobsWebSocketService {
     }
 
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 5000);
-    console.log(`Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    console.log(`Scheduling queue WebSocket reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
@@ -176,7 +152,7 @@ class JobsWebSocketService {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       this.websocket.send(JSON.stringify(message));
     } else {
-      console.warn("Cannot send message: WebSocket not connected");
+      console.warn("Cannot send queue message: WebSocket not connected");
     }
   }
 
@@ -187,18 +163,18 @@ class JobsWebSocketService {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in ${eventName} listener:`, error);
+          console.error(`Error in queue ${eventName} listener:`, error);
         }
       });
     }
   }
 
   /**
-   * Add an event listener for job events
+   * Add an event listener for queue events
    */
-  on<T extends keyof JobsWebSocketEvents>(
+  on<T extends keyof QueueWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T],
+    listener: QueueWebSocketEvents[T],
   ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
@@ -215,9 +191,9 @@ class JobsWebSocketService {
   /**
    * Remove an event listener
    */
-  off<T extends keyof JobsWebSocketEvents>(
+  off<T extends keyof QueueWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T],
+    listener: QueueWebSocketEvents[T],
   ) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
@@ -236,6 +212,27 @@ class JobsWebSocketService {
   }
 
   /**
+   * Join queue room for updates
+   */
+  joinQueueRoom() {
+    this.send({ type: "join_queue_room" });
+  }
+
+  /**
+   * Leave queue room
+   */
+  leaveQueueRoom() {
+    this.send({ type: "leave_queue_room" });
+  }
+
+  /**
+   * Request queue update
+   */
+  requestQueueUpdate() {
+    this.send({ type: "request_queue_update" });
+  }
+
+  /**
    * Manually disconnect the WebSocket
    */
   disconnect() {
@@ -245,7 +242,7 @@ class JobsWebSocketService {
     }
     
     if (this.websocket) {
-      this.send({ type: "unsubscribe_from_jobs" });
+      this.send({ type: "leave_queue_room" });
       this.websocket.close(1000, "Manual disconnect"); // Normal closure
       this.websocket = null;
     }
@@ -262,20 +259,9 @@ class JobsWebSocketService {
     this.reconnectAttempts = 0;
     this.initializeConnection();
   }
-
-  /**
-   * Request an updated list of all jobs from the server
-   */
-  requestJobsList() {
-    if (this.isConnectionActive()) {
-      this.send({ type: "request_jobs_list" });
-    } else {
-      console.warn("Cannot request jobs list: WebSocket not connected");
-    }
-  }
 }
 
 // Create singleton instance
-export const jobsWebSocketService = new JobsWebSocketService();
+export const queueWebSocketService = new QueueWebSocketService();
 
-export default JobsWebSocketService;
+export default QueueWebSocketService;

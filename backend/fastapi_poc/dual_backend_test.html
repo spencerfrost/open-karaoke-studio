@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual Backend Test - Open Karaoke Studio</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        .backend-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        .flask-section {
+            border-left-color: #00ff88;
+        }
+        .fastapi-section {
+            border-left-color: #ff6b6b;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+        }
+        .status.error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+        }
+        .status.pending {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid #ffc107;
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .endpoint-test {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .response {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .session-demo {
+            background: rgba(147, 51, 234, 0.2);
+            border-left-color: #9333ea;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        h2 {
+            margin-top: 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        .websocket-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .websocket-status.connected {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+        .websocket-status.disconnected {
+            background: #ff6b6b;
+        }
+        .architecture-diagram {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Dual Backend Architecture Test</h1>
+        
+        <div class="architecture-diagram">
+            <h3>📊 Current Architecture</h3>
+            <div style="font-family: monospace; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">
+Frontend (React + Vite)
+     ↙️              ↘️
+Flask Backend     FastAPI Backend
+  (Port 5123)       (Port 5124)
+     ↓                  ↓
+Songs, Jobs,      Sessions, WebSockets
+Uploads, etc.     Performance Controls
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Flask Backend Tests -->
+            <div class="backend-section flask-section">
+                <h2>🐍 Flask Backend (Existing)</h2>
+                <div id="flask-status" class="status pending">⏳ Testing connection...</div>
+                
+                <div class="endpoint-test">
+                    <h4>Health Check</h4>
+                    <button onclick="testFlaskHealth()">Test /api/health</button>
+                    <div id="flask-health-response" class="response"></div>
+                </div>
+                
+                <div class="endpoint-test">
+                    <h4>Songs API</h4>
+                    <button onclick="testFlaskSongs()">Test /api/songs</button>
+                    <div id="flask-songs-response" class="response"></div>
+                </div>
+                
+                <div class="endpoint-test">
+                    <h4>Jobs WebSocket</h4>
+                    <button onclick="testFlaskWebSocket()" id="flask-ws-btn">
+                        <span class="websocket-status disconnected" id="flask-ws-status"></span>
+                        Connect to Jobs WS
+                    </button>
+                    <div id="flask-ws-response" class="response"></div>
+                </div>
+            </div>
+
+            <!-- FastAPI Backend Tests -->
+            <div class="backend-section fastapi-section">
+                <h2>⚡ FastAPI Backend (New)</h2>
+                <div id="fastapi-status" class="status pending">⏳ Testing connection...</div>
+                
+                <div class="endpoint-test">
+                    <h4>Health Check</h4>
+                    <button onclick="testFastAPIHealth()">Test /api/health</button>
+                    <div id="fastapi-health-response" class="response"></div>
+                </div>
+                
+                <div class="endpoint-test">
+                    <h4>API Documentation</h4>
+                    <button onclick="window.open('http://localhost:5124/docs', '_blank')">Open /docs</button>
+                    <button onclick="window.open('http://localhost:5124/redoc', '_blank')">Open /redoc</button>
+                </div>
+                
+                <div class="endpoint-test">
+                    <h4>Session WebSocket</h4>
+                    <button onclick="testSessionWebSocket()" id="session-ws-btn">
+                        <span class="websocket-status disconnected" id="session-ws-status"></span>
+                        Connect to Session WS
+                    </button>
+                    <div id="session-ws-response" class="response"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Demo -->
+        <div class="backend-section session-demo">
+            <h2>🎪 Live Session Demo</h2>
+            <p>This demonstrates the new session management system running on FastAPI:</p>
+            
+            <div style="margin: 15px 0;">
+                <button onclick="createSession()" id="create-session-btn">🎭 Create New Session</button>
+                <button onclick="window.open('http://localhost:5124/session-test', '_blank')">🧪 Open Full Session Test</button>
+            </div>
+            
+            <div id="session-demo-response" class="response"></div>
+        </div>
+
+        <!-- Migration Strategy -->
+        <div class="container">
+            <h2>🚀 Migration Strategy</h2>
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 10px;">
+                <h3>✅ Benefits of Dual Backend Approach:</h3>
+                <ul>
+                    <li><strong>Zero Downtime:</strong> Existing features keep working on Flask</li>
+                    <li><strong>Performance:</strong> New session features use native FastAPI WebSockets (30x faster)</li>
+                    <li><strong>Gradual Migration:</strong> Move features one by one when ready</li>
+                    <li><strong>Risk Management:</strong> Can rollback to Flask if needed</li>
+                </ul>
+                
+                <h3>📋 Migration Plan:</h3>
+                <ol>
+                    <li><strong>Phase 1:</strong> Session management → FastAPI ✅</li>
+                    <li><strong>Phase 2:</strong> Performance controls → FastAPI</li>
+                    <li><strong>Phase 3:</strong> Real-time sync → FastAPI</li>
+                    <li><strong>Phase 4:</strong> Evaluate moving more features</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connections
+        let flaskWS = null;
+        let sessionWS = null;
+
+        // Test Flask backend health
+        async function testFlaskHealth() {
+            try {
+                const response = await fetch('http://localhost:5123/api/health');
+                const data = await response.json();
+                document.getElementById('flask-health-response').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('flask-status').className = 'status success';
+                document.getElementById('flask-status').textContent = '✅ Flask Backend: Connected';
+            } catch (error) {
+                document.getElementById('flask-health-response').textContent = `Error: ${error.message}`;
+                document.getElementById('flask-status').className = 'status error';
+                document.getElementById('flask-status').textContent = '❌ Flask Backend: Connection Failed';
+            }
+        }
+
+        // Test Flask songs API
+        async function testFlaskSongs() {
+            try {
+                const response = await fetch('http://localhost:5123/api/songs');
+                const data = await response.json();
+                document.getElementById('flask-songs-response').textContent = 
+                    `Found ${data.length} songs:\n` + JSON.stringify(data.slice(0, 3), null, 2) + 
+                    (data.length > 3 ? '\n... and more' : '');
+            } catch (error) {
+                document.getElementById('flask-songs-response').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Test FastAPI backend health
+        async function testFastAPIHealth() {
+            try {
+                const response = await fetch('http://localhost:5124/api/health');
+                const data = await response.json();
+                document.getElementById('fastapi-health-response').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('fastapi-status').className = 'status success';
+                document.getElementById('fastapi-status').textContent = '✅ FastAPI Backend: Connected';
+            } catch (error) {
+                document.getElementById('fastapi-health-response').textContent = `Error: ${error.message}`;
+                document.getElementById('fastapi-status').className = 'status error';
+                document.getElementById('fastapi-status').textContent = '❌ FastAPI Backend: Connection Failed';
+            }
+        }
+
+        // Test Flask WebSocket (jobs)
+        function testFlaskWebSocket() {
+            const button = document.getElementById('flask-ws-btn');
+            const status = document.getElementById('flask-ws-status');
+            const response = document.getElementById('flask-ws-response');
+
+            if (flaskWS && flaskWS.readyState === WebSocket.OPEN) {
+                flaskWS.close();
+                return;
+            }
+
+            try {
+                flaskWS = new WebSocket('ws://localhost:5123/jobs');
+                
+                flaskWS.onopen = () => {
+                    status.className = 'websocket-status connected';
+                    button.innerHTML = '<span class="websocket-status connected"></span>Disconnect Jobs WS';
+                    response.textContent = '🔌 Connected to Flask Jobs WebSocket\n';
+                };
+
+                flaskWS.onmessage = (event) => {
+                    response.textContent += `📨 Received: ${event.data}\n`;
+                };
+
+                flaskWS.onclose = () => {
+                    status.className = 'websocket-status disconnected';
+                    button.innerHTML = '<span class="websocket-status disconnected"></span>Connect to Jobs WS';
+                    response.textContent += '🔌 Disconnected from Flask Jobs WebSocket\n';
+                };
+
+                flaskWS.onerror = (error) => {
+                    response.textContent += `❌ WebSocket error: ${error}\n`;
+                };
+            } catch (error) {
+                response.textContent = `❌ Failed to connect: ${error.message}`;
+            }
+        }
+
+        // Test Session WebSocket
+        function testSessionWebSocket() {
+            const button = document.getElementById('session-ws-btn');
+            const status = document.getElementById('session-ws-status');
+            const response = document.getElementById('session-ws-response');
+
+            if (sessionWS && sessionWS.readyState === WebSocket.OPEN) {
+                sessionWS.close();
+                return;
+            }
+
+            try {
+                sessionWS = new WebSocket('ws://localhost:5124/ws/session');
+                
+                sessionWS.onopen = () => {
+                    status.className = 'websocket-status connected';
+                    button.innerHTML = '<span class="websocket-status connected"></span>Disconnect Session WS';
+                    response.textContent = '🔌 Connected to FastAPI Session WebSocket\n';
+                    
+                    // Test creating a session
+                    const testMessage = {
+                        action: 'create_session',
+                        device_name: 'Test Device'
+                    };
+                    sessionWS.send(JSON.stringify(testMessage));
+                };
+
+                sessionWS.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    response.textContent += `📨 Received: ${JSON.stringify(data, null, 2)}\n`;
+                };
+
+                sessionWS.onclose = () => {
+                    status.className = 'websocket-status disconnected';
+                    button.innerHTML = '<span class="websocket-status disconnected"></span>Connect to Session WS';
+                    response.textContent += '🔌 Disconnected from FastAPI Session WebSocket\n';
+                };
+
+                sessionWS.onerror = (error) => {
+                    response.textContent += `❌ WebSocket error: ${error}\n`;
+                };
+            } catch (error) {
+                response.textContent = `❌ Failed to connect: ${error.message}`;
+            }
+        }
+
+        // Create a test session
+        async function createSession() {
+            const response = document.getElementById('session-demo-response');
+            try {
+                const ws = new WebSocket('ws://localhost:5124/ws/session');
+                
+                ws.onopen = () => {
+                    response.textContent = '🔌 Connected to session WebSocket...\n';
+                    const createMessage = {
+                        action: 'create_session',
+                        device_name: 'Demo Device'
+                    };
+                    ws.send(JSON.stringify(createMessage));
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'session_created') {
+                        response.textContent += `🎭 Session created!\n`;
+                        response.textContent += `📝 Session Code: ${data.session_code}\n`;
+                        response.textContent += `🆔 Session ID: ${data.session_id}\n`;
+                        response.textContent += `📱 Device ID: ${data.device_id}\n`;
+                        response.textContent += `\n✨ Try joining this session in another tab!`;
+                        
+                        // Close after getting response
+                        setTimeout(() => ws.close(), 1000);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    response.textContent = `❌ Error: ${error.message}`;
+                };
+            } catch (error) {
+                response.textContent = `❌ Failed to create session: ${error.message}`;
+            }
+        }
+
+        // Run initial tests
+        window.addEventListener('load', () => {
+            testFlaskHealth();
+            testFastAPIHealth();
+        });
+    </script>
+</body>
+</html>

@@ -15,8 +15,12 @@ typing-extensions>=4.8.0
 # WebSocket support (included with uvicorn[standard])
 websockets>=11.0
 
+# Database support
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+alembic>=1.12.0  # Database migrations
+
 # For integration with existing code
 # (These should already be in your main requirements.txt)
-# sqlalchemy
 # celery[redis]
 # redis

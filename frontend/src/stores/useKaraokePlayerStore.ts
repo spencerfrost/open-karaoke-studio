@@ -1,9 +1,8 @@
 import { create } from "zustand";
-import { io, Socket } from "socket.io-client";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5123";
-// For WebSocket connections, use local proxy in development, direct URL in production
-const WEBSOCKET_URL = import.meta.env.DEV ? window.location.origin : BASE_URL;
+// WebSocket URL for FastAPI performance controls
+// Use relative path so it goes through Vite proxy
+const PERFORMANCE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/performance`;
 const INITIAL_STATE = {
   isReady: false,
   isLoading: false,
@@ -42,7 +41,7 @@ interface KaraokePlayerState {
 
   // WebSocket
   connected: boolean;
-  socket: Socket | null;
+  websocket: WebSocket | null;
 
   // Actions
   connect: () => void;
@@ -60,7 +59,7 @@ interface KaraokePlayerState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   cleanup: () => void;
-  getWaveformData: () => Uint8Array | null;
+  getWaveformData: () => number[] | null;
 }
 
 export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
@@ -73,7 +72,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   let instrumentalGain: GainNode | null = null;
   let vocalGain: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
-  let waveformArray: Uint8Array | null = null;
   let interval: NodeJS.Timeout | null = null;
 
   let playbackStartTime: number | null = null; // audioContext.currentTime when playback started
@@ -86,22 +84,11 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   const lastLocalUpdate: { [key: string]: { value: unknown; timestamp: number } } = {};
   const LOCAL_UPDATE_DEBOUNCE_MS = 1000; // Ignore WebSocket updates for 1 second after local change
 
-  // --- WebSocket helpers ---
-  function createSocket(): Socket {
-    return io(WEBSOCKET_URL, {
-      autoConnect: false,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-  }
-
   // --- Audio graph helpers ---
   function setupAnalyser() {
     if (!analyser && audioContext) {
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
-      waveformArray = new Uint8Array(analyser.frequencyBinCount);
     }
   }
 
@@ -115,10 +102,22 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     if (interval) clearInterval(interval);
   }
 
-  function socketEmit(event: string, data: unknown) {
-    const { socket } = get();
-    if (socket?.connected) {
-      socket.emit(event, data);
+  function socketEmit(messageType: string, data?: Record<string, unknown>) {
+    const { websocket } = get();
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      const message = {
+        type: messageType,
+        ...(data || {})
+      };
+      setTimeout(() => {
+        websocket.send(JSON.stringify(message));
+      }, 5);
+    } else {
+      console.error('❌ WebSocket not ready:', {
+        websocket: !!websocket,
+        readyState: websocket?.readyState,
+        OPEN: WebSocket.OPEN
+      });
     }
   }
 
@@ -167,7 +166,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     instrumentalGain = null;
     vocalGain = null;
     analyser = null;
-    waveformArray = null;
     clearIntervals();
     playbackStartTime = null;
     playbackOffset = 0;
@@ -177,7 +175,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     if (interval) clearInterval(interval);
     if (!audioContext) return;
     interval = setInterval(() => {
-      const { isReady, socket, isPlaying, duration } = get();
+      const { isReady, websocket, isPlaying, duration } = get();
       if (!isReady) return;
       let currentTime = playbackOffset;
       if (isPlaying && playbackStartTime !== null && audioContext) {
@@ -185,8 +183,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
           playbackOffset + (audioContext.currentTime - playbackStartTime);
       }
       set({ currentTime });
-      if (socket?.connected && audioContext && isPlaying) {
-        socket.emit("update_player_state", {
+      if (websocket && websocket.readyState === WebSocket.OPEN && audioContext && isPlaying) {
+        socketEmit("update_player_state", {
           isPlaying: true,
           currentTime,
           duration,
@@ -240,6 +238,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       timestamp: Date.now(),
     };
 
+    console.log('Sending performance control update:', backendControl, '=', value);
     set({ [control]: value });
     
     socketEmit("update_performance_control", {
@@ -283,64 +282,103 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     lyricsSize: "medium",
     lyricsOffset: 0,
     connected: false,
-    socket: null,
+    websocket: null,
 
     // Actions
     connect: () => {
-      let socket = get().socket;
-      if (!socket) {
-        socket = createSocket();
-        socket.on("connect", () => {
-          set({ connected: true });
-          socket?.emit("join_performance");
-        });
-        socket.on("disconnect", () => set({ connected: false }));
-        socket.on("performance_state", (data) => {
-          // Check if currentTime update should be ignored to prevent seek flickering
-          const shouldIgnoreCurrentTime = shouldIgnoreWebSocketUpdate("current_time", data.current_time);
-          
-          set((state) => ({
-            isPlaying: data.is_playing,
-            currentTime: shouldIgnoreCurrentTime ? state.currentTime : data.current_time,
-            duration: data.duration > 0 ? data.duration : state.duration,
-            vocalVolume: shouldIgnoreWebSocketUpdate("vocal_volume", data.vocal_volume) ? state.vocalVolume : data.vocal_volume,
-            instrumentalVolume: shouldIgnoreWebSocketUpdate("instrumental_volume", data.instrumental_volume) ? state.instrumentalVolume : data.instrumental_volume,
-            lyricsSize: shouldIgnoreWebSocketUpdate("lyrics_size", data.lyrics_size) ? state.lyricsSize : data.lyrics_size,
-            lyricsOffset: shouldIgnoreWebSocketUpdate("lyrics_offset", data.lyrics_offset) ? state.lyricsOffset : data.lyrics_offset,
-          }));
-        });
-        socket.on("control_updated", (update) => {
-          // Check if this is an echo of our own local update
-          if (shouldIgnoreWebSocketUpdate(update.control, update.value)) {
-            return; // Ignore this update to prevent flicker
-          }
+      const currentState = get();
+      
+      // Close existing connection if any
+      if (currentState.websocket) {
+        if (currentState.websocket.readyState === WebSocket.OPEN) {
+          return; // Already connected
+        }
+        currentState.websocket.close();
+      }
 
-          if (update.control === "vocal_volume") {
-            set({ vocalVolume: update.value });
-            if (vocalGain) vocalGain.gain.value = update.value;
-          } else if (update.control === "instrumental_volume") {
-            set({ instrumentalVolume: update.value });
-            if (instrumentalGain) instrumentalGain.gain.value = update.value;
-          } else if (update.control === "lyrics_size") {
-            set({ lyricsSize: update.value });
-          } else if (update.control === "lyrics_offset") {
-            set({ lyricsOffset: update.value });
+      console.log('Connecting to WebSocket at:', PERFORMANCE_WS_URL);
+      const websocket = new WebSocket(PERFORMANCE_WS_URL);
+      
+      // Set the websocket in state immediately
+      set({ websocket });
+      
+      websocket.onopen = () => {
+        console.log('WebSocket connected successfully');
+        set({ connected: true });
+        // Join performance controls
+        websocket.send(JSON.stringify({
+          type: 'join_performance'
+        }));
+      };
+
+      websocket.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        set({ connected: false, websocket: null });
+      };
+
+      websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        set({ connected: false, websocket: null });
+      };
+
+      websocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket received:', data);
+          
+          if (data.type === 'performance_state') {
+            // Check if currentTime update should be ignored to prevent seek flickering
+            const shouldIgnoreCurrentTime = shouldIgnoreWebSocketUpdate("current_time", data.state.current_time);
+            
+            set((state) => ({
+              isPlaying: data.state.is_playing,
+              currentTime: shouldIgnoreCurrentTime ? state.currentTime : data.state.current_time,
+              duration: data.state.duration > 0 ? data.state.duration : state.duration,
+              vocalVolume: shouldIgnoreWebSocketUpdate("vocal_volume", data.state.vocal_volume) ? state.vocalVolume : data.state.vocal_volume,
+              instrumentalVolume: shouldIgnoreWebSocketUpdate("instrumental_volume", data.state.instrumental_volume) ? state.instrumentalVolume : data.state.instrumental_volume,
+              lyricsSize: shouldIgnoreWebSocketUpdate("lyrics_size", data.state.lyrics_size) ? state.lyricsSize : data.state.lyrics_size,
+              lyricsOffset: shouldIgnoreWebSocketUpdate("lyrics_offset", data.state.lyrics_offset) ? state.lyricsOffset : data.state.lyrics_offset,
+            }));
+          } else if (data.type === 'control_updated') {
+            console.log('Received control update:', data.control, '=', data.value);
+            // Check if this is an echo of our own local update
+            if (shouldIgnoreWebSocketUpdate(data.control, data.value)) {
+              console.log('Ignoring control update (local echo)');
+              return; // Ignore this update to prevent flicker
+            }
+
+            if (data.control === "vocal_volume") {
+              console.log('Updating vocal volume to:', data.value);
+              set({ vocalVolume: data.value });
+              if (vocalGain) vocalGain.gain.value = data.value;
+            } else if (data.control === "instrumental_volume") {
+              console.log('Updating instrumental volume to:', data.value);
+              set({ instrumentalVolume: data.value });
+              if (instrumentalGain) instrumentalGain.gain.value = data.value;
+            } else if (data.control === "lyrics_size") {
+              set({ lyricsSize: data.value });
+            } else if (data.control === "lyrics_offset") {
+              set({ lyricsOffset: data.value });
+            }
+          } else if (data.type === 'playback_play') {
+            get().play();
+          } else if (data.type === 'playback_pause') {
+            get().pause();
           }
-        });
-        socket.on("playback_play", () => get().play());
-        socket.on("playback_pause", () => get().pause());
-        set({ socket });
-      }
-      if (!socket.connected) {
-        socket.connect();
-      }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      set({ websocket });
     },
     disconnect: () => {
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.disconnect();
+      const { websocket } = get();
+      if (websocket) {
+        console.log('Disconnecting WebSocket');
+        websocket.close();
       }
-      set({ connected: false });
+      set({ connected: false, websocket: null });
     },
     setSongId: (id: string, duration?: number) => {
       // Accept duration from the backend if available
@@ -474,9 +512,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       updatePlayerState({ ...INITIAL_STATE });
     },
     getWaveformData: () => {
-      if (!analyser || !waveformArray) return null;
-      analyser.getByteTimeDomainData(waveformArray);
-      return waveformArray;
+      if (!analyser) return null;
+      const array = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(array);
+      return Array.from(array);
     },
   };
 });

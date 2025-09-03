@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Session Manager - FastAPI Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+        .session-info {
+            background: rgba(76, 175, 80, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .device-list {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        input, select, button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .disconnect-btn {
+            background: #f44336;
+        }
+        .disconnect-btn:hover {
+            background: #da190b;
+        }
+        .display-code {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            letter-spacing: 0.5rem;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #4CAF50;
+        }
+        .status.disconnected {
+            background: #f44336;
+        }
+        .event-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .event {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .event.info { color: #2196F3; }
+        .event.success { color: #4CAF50; }
+        .event.error { color: #f44336; }
+        .event.warning { color: #FF9800; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Karaoke Session Manager</h1>
+    <p>FastAPI WebSocket Session Testing Interface</p>
+    
+    <div class="container">
+        <h2>Connection Status</h2>
+        <span id="connectionStatus" class="status disconnected">Disconnected</span>
+        <button onclick="connectWebSocket()">Connect</button>
+        <button onclick="disconnectWebSocket()" class="disconnect-btn">Disconnect</button>
+    </div>
+
+    <div class="container">
+        <h2>Session Management</h2>
+        
+        <div style="margin: 20px 0;">
+            <h3>Create New Session (Stage Device)</h3>
+            <button onclick="createSession()">🎭 Create Session as Stage</button>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <h3>Join Existing Session</h3>
+            <input type="text" id="joinCode" placeholder="Enter 4-character code" maxlength="4" style="text-transform: uppercase;">
+            <select id="deviceType">
+                <option value="performer">🎤 Performer</option>
+                <option value="controller">🎛️ Controller</option>
+                <option value="stage">🎭 Stage</option>
+            </select>
+            <button onclick="joinSession()">Join Session</button>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <button onclick="getSessionInfo()">📊 Get Session Info</button>
+            <button onclick="leaveSession()" class="disconnect-btn">🚪 Leave Session</button>
+        </div>
+    </div>
+
+    <div id="sessionInfo" style="display: none;" class="container">
+        <h2>Current Session</h2>
+        <div id="sessionDetails"></div>
+    </div>
+
+    <div class="container">
+        <h2>Connected Devices</h2>
+        <div id="deviceList" class="device-list">
+            No session active
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Event Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="eventLog" class="event-log"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentSession = null;
+
+        function logEvent(message, type = 'info') {
+            const log = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const eventDiv = document.createElement('div');
+            eventDiv.className = `event ${type}`;
+            eventDiv.innerHTML = `<span style="color: #888;">[${timestamp}]</span> ${message}`;
+            log.appendChild(eventDiv);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            status.textContent = connected ? 'Connected' : 'Disconnected';
+            status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function connectWebSocket() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                logEvent('Already connected!', 'warning');
+                return;
+            }
+
+            const wsUrl = 'ws://localhost:5124/ws/session';
+            logEvent(`🔌 Connecting to ${wsUrl}...`);
+
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = function(event) {
+                logEvent('🟢 Connected to session WebSocket!', 'success');
+                updateConnectionStatus(true);
+            };
+
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    logEvent(`❌ Error parsing message: ${error.message}`, 'error');
+                }
+            };
+
+            socket.onclose = function(event) {
+                logEvent('🔴 WebSocket connection closed', 'warning');
+                updateConnectionStatus(false);
+                currentSession = null;
+                updateSessionInfo();
+            };
+
+            socket.onerror = function(error) {
+                logEvent(`❌ WebSocket error: ${error}`, 'error');
+                updateConnectionStatus(false);
+            };
+        }
+
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.close();
+                socket = null;
+                logEvent('🔌 Manually disconnected');
+                updateConnectionStatus(false);
+                currentSession = null;
+                updateSessionInfo();
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            logEvent(`📨 Received: ${data.type}`, 'info');
+            
+            switch (data.type) {
+                case 'session_created':
+                    logEvent(`🎉 Session created! Code: ${data.display_code}`, 'success');
+                    currentSession = data;
+                    updateSessionInfo();
+                    break;
+                    
+                case 'session_joined':
+                    logEvent(`✅ Joined session ${data.display_code}`, 'success');
+                    currentSession = data;
+                    updateSessionInfo();
+                    break;
+                    
+                case 'session_error':
+                    logEvent(`❌ Session error: ${data.error}`, 'error');
+                    break;
+                    
+                case 'device_joined':
+                    logEvent(`👥 Device joined as ${data.device_type} (${data.device_count} total)`, 'info');
+                    if (currentSession) {
+                        currentSession.device_count = data.device_count;
+                        updateSessionInfo();
+                    }
+                    break;
+                    
+                case 'device_left':
+                case 'device_disconnected':
+                    logEvent(`👋 Device left (${data.device_count} remaining)`, 'warning');
+                    if (currentSession) {
+                        currentSession.device_count = data.device_count;
+                        updateSessionInfo();
+                    }
+                    break;
+                    
+                case 'session_ended':
+                    logEvent(`🏁 Session ended: ${data.reason}`, 'warning');
+                    currentSession = null;
+                    updateSessionInfo();
+                    break;
+                    
+                case 'session_left':
+                    logEvent('🚪 Left session', 'info');
+                    currentSession = null;
+                    updateSessionInfo();
+                    break;
+                    
+                case 'session_info':
+                    if (data.in_session) {
+                        logEvent(`📊 Session info: ${data.device_count} devices connected`, 'info');
+                        currentSession = data;
+                        updateSessionInfo();
+                        updateDeviceList(data.connected_devices);
+                    } else {
+                        logEvent('📊 Not in any session', 'info');
+                        currentSession = null;
+                        updateSessionInfo();
+                    }
+                    break;
+                    
+                default:
+                    logEvent(`🤷 Unknown message type: ${data.type}`, 'warning');
+            }
+        }
+
+        function createSession() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                logEvent('❌ Not connected. Please connect first.', 'error');
+                return;
+            }
+
+            logEvent('🎭 Creating new session...', 'info');
+            socket.send(JSON.stringify({
+                type: 'create_session',
+                device_type: 'stage'
+            }));
+        }
+
+        function joinSession() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                logEvent('❌ Not connected. Please connect first.', 'error');
+                return;
+            }
+
+            const code = document.getElementById('joinCode').value.trim().toUpperCase();
+            const deviceType = document.getElementById('deviceType').value;
+
+            if (!code || code.length !== 4) {
+                logEvent('❌ Please enter a valid 4-character code', 'error');
+                return;
+            }
+
+            logEvent(`🎪 Joining session ${code} as ${deviceType}...`, 'info');
+            socket.send(JSON.stringify({
+                type: 'join_session_by_code',
+                display_code: code,
+                device_type: deviceType
+            }));
+        }
+
+        function leaveSession() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                logEvent('❌ Not connected.', 'error');
+                return;
+            }
+
+            logEvent('🚪 Leaving session...', 'info');
+            socket.send(JSON.stringify({
+                type: 'leave_session'
+            }));
+        }
+
+        function getSessionInfo() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                logEvent('❌ Not connected.', 'error');
+                return;
+            }
+
+            logEvent('📊 Requesting session info...', 'info');
+            socket.send(JSON.stringify({
+                type: 'get_session_info'
+            }));
+        }
+
+        function updateSessionInfo() {
+            const sessionInfoDiv = document.getElementById('sessionInfo');
+            const sessionDetailsDiv = document.getElementById('sessionDetails');
+
+            if (currentSession && currentSession.session_id) {
+                sessionInfoDiv.style.display = 'block';
+                sessionDetailsDiv.innerHTML = `
+                    <div class="session-info">
+                        <div class="display-code">${currentSession.display_code || 'N/A'}</div>
+                        <p><strong>Session ID:</strong> ${currentSession.session_id}</p>
+                        <p><strong>Role:</strong> ${currentSession.is_host ? '🎭 Host (Stage)' : `🎤 ${currentSession.device_type || 'Guest'}`}</p>
+                        <p><strong>Connected Devices:</strong> ${currentSession.device_count || 0}</p>
+                        <p><strong>Created:</strong> ${currentSession.created_at ? new Date(currentSession.created_at).toLocaleString() : 'Unknown'}</p>
+                        <p><strong>Expires:</strong> ${currentSession.expires_at ? new Date(currentSession.expires_at).toLocaleString() : 'Unknown'}</p>
+                    </div>
+                `;
+            } else {
+                sessionInfoDiv.style.display = 'none';
+            }
+        }
+
+        function updateDeviceList(devices) {
+            const deviceListDiv = document.getElementById('deviceList');
+            
+            if (!devices || devices.length === 0) {
+                deviceListDiv.innerHTML = 'No devices connected';
+                return;
+            }
+
+            const deviceHtml = devices.map(device => `
+                <div style="padding: 8px; margin: 4px 0; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                    <strong>${device.is_self ? '👤 You' : '👥 Other'}</strong> - 
+                    ${device.device_type === 'stage' ? '🎭' : device.device_type === 'performer' ? '🎤' : '🎛️'} 
+                    ${device.device_type}
+                    <small style="color: #ccc;"> (joined ${new Date(device.joined_at).toLocaleTimeString()})</small>
+                </div>
+            `).join('');
+
+            deviceListDiv.innerHTML = deviceHtml;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+            logEvent('Log cleared');
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            logEvent('🎤 Karaoke Session Manager loaded');
+            logEvent('FastAPI WebSocket endpoint: ws://localhost:5124/ws/session');
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html>

@@ -32,7 +32,7 @@ mkdir -p {routers,models,websockets,middleware}
 touch routers/__init__.py models/__init__.py websockets/__init__.py
 
 # Test basic FastAPI
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 5124
 ```
 
 ### Phase 2: Core Endpoints
@@ -42,14 +42,14 @@ uvicorn main:app --reload --port 8000
 cd backend && python app/main.py
 
 # Terminal 2 (FastAPI - new)
-cd backend/fastapi_app && uvicorn main:app --reload --port 8000
+cd backend/fastapi_app && uvicorn main:app --reload --port 5124
 ```
 
 ### Phase 3: WebSocket Migration
 ```bash
 # Test WebSocket connections
 # Use tools like websocat or browser dev tools
-websocat ws://localhost:8000/ws/jobs
+websocat ws://localhost:5124/ws/jobs
 ```
 
 ### Phase 4: Frontend Updates
@@ -60,7 +60,7 @@ cd frontend
 npm run dev
 
 # Test both backends during transition
-REACT_APP_API_URL=http://localhost:8000 npm run dev  # FastAPI
+REACT_APP_API_URL=http://localhost:5124 npm run dev  # FastAPI
 REACT_APP_API_URL=http://localhost:5123 npm run dev  # Flask (fallback)
 ```
 
@@ -167,7 +167,7 @@ pytest test_main.py::test_health_endpoint -v
 pip install locust httpx
 
 # Run load test
-locust -f locustfile.py --host=http://localhost:8000
+locust -f locustfile.py --host=http://localhost:5124
 ```
 
 ### WebSocket Testing
@@ -177,10 +177,10 @@ locust -f locustfile.py --host=http://localhost:8000
 # Linux: cargo install websocat
 
 # Test WebSocket connection
-websocat ws://localhost:8000/ws/jobs
+websocat ws://localhost:5124/ws/jobs
 
 # Send test message
-echo '{"type": "subscribe_to_jobs"}' | websocat ws://localhost:8000/ws/jobs
+echo '{"type": "subscribe_to_jobs"}' | websocat ws://localhost:5124/ws/jobs
 ```
 
 ## Debugging Commands
@@ -188,14 +188,14 @@ echo '{"type": "subscribe_to_jobs"}' | websocat ws://localhost:8000/ws/jobs
 ### Check FastAPI Docs
 ```bash
 # Auto-generated API documentation
-open http://localhost:8000/docs      # Swagger UI
-open http://localhost:8000/redoc     # ReDoc
+open http://localhost:5124/docs      # Swagger UI
+open http://localhost:5124/redoc     # ReDoc
 ```
 
 ### Monitor Logs
 ```bash
 # FastAPI with detailed logging
-uvicorn main:app --reload --port 8000 --log-level debug
+uvicorn main:app --reload --port 5124 --log-level debug
 
 # Check Celery workers (unchanged)
 cd backend && celery -A app.jobs.celery_app.celery worker --loglevel=info
@@ -207,11 +207,11 @@ cd backend && celery -A app.jobs.celery_app.celery worker --loglevel=info
 curl http://localhost:5123/api/health
 
 # Test FastAPI health (new)
-curl http://localhost:8000/api/health
+curl http://localhost:5124/api/health
 
 # Compare response times
 time curl http://localhost:5123/api/health
-time curl http://localhost:8000/api/health
+time curl http://localhost:5124/api/health
 ```
 
 ## Rollback Commands
@@ -243,12 +243,12 @@ curl http://localhost:5123/api/health
 # Start all services
 cd backend && ./run_api.sh          # Flask (current)
 cd backend && ./run_celery.sh       # Celery workers
-cd backend/fastapi_app && uvicorn main:app --reload --port 8000  # FastAPI (new)
+cd backend/fastapi_app && uvicorn main:app --reload --port 5124  # FastAPI (new)
 cd frontend && npm run dev           # Frontend
 
 # Check all services
 curl http://localhost:5123/api/health  # Flask
-curl http://localhost:8000/api/health  # FastAPI
+curl http://localhost:5124/api/health  # FastAPI
 curl http://localhost:5173/           # Frontend
 ```
 

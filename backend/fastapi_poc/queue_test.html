@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Queue WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .error { background-color: #fff3cd; color: #856404; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .queue-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #fafafa;
+        }
+        .queue-item h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .queue-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .queue-position {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .messages {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .message {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .message.sent { color: #007bff; }
+        .message.received { color: #28a745; }
+        .message.error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Karaoke Queue WebSocket Test</h1>
+        <p>Testing FastAPI karaoke queue WebSocket functionality</p>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+        
+        <div>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="joinQueueBtn" onclick="joinQueue()" disabled>Join Queue</button>
+            <button id="leaveQueueBtn" onclick="leaveQueue()" disabled>Leave Queue</button>
+            <button id="requestUpdateBtn" onclick="requestUpdate()" disabled>Request Update</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Current Queue</h2>
+        <div id="queueItems">
+            <p>No queue items</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>WebSocket Messages</h2>
+        <div id="messages" class="messages"></div>
+        <button onclick="clearMessages()">Clear Messages</button>
+    </div>
+
+    <script>
+        let ws = null;
+        let isConnected = false;
+
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${className}`;
+        }
+
+        function addMessage(message, type = 'received') {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerHTML = `<span style="color: #666;">[${new Date().toLocaleTimeString()}]</span> ${message}`;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function updateButtons() {
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+            document.getElementById('joinQueueBtn').disabled = !isConnected;
+            document.getElementById('leaveQueueBtn').disabled = !isConnected;
+            document.getElementById('requestUpdateBtn').disabled = !isConnected;
+        }
+
+        function renderQueue(items) {
+            const container = document.getElementById('queueItems');
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p>No queue items</p>';
+                return;
+            }
+
+            container.innerHTML = items.map(item => `
+                <div class="queue-item">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <span class="queue-position">${item.position}</span>
+                        <div>
+                            <h4>${item.song.title} - ${item.song.artist}</h4>
+                            <p><strong>Singer:</strong> ${item.singer}</p>
+                        </div>
+                    </div>
+                    <p><strong>Album:</strong> ${item.song.album || 'Unknown'}</p>
+                    <p><strong>Duration:</strong> ${item.song.duration ? Math.floor(item.song.duration / 60) + ':' + (item.song.duration % 60).toString().padStart(2, '0') : 'Unknown'}</p>
+                    <p><strong>Added:</strong> ${new Date(item.addedAt).toLocaleString()}</p>
+                </div>
+            `).join('');
+        }
+
+        function connect() {
+            if (ws) {
+                ws.close();
+            }
+
+            updateStatus('Connecting...', 'error');
+            ws = new WebSocket('ws://localhost:5124/ws/queue');
+
+            ws.onopen = function() {
+                isConnected = true;
+                updateStatus('Connected to queue WebSocket', 'connected');
+                updateButtons();
+                addMessage('WebSocket connection opened', 'received');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addMessage(`Received: ${JSON.stringify(data, null, 2)}`, 'received');
+
+                // Handle different message types
+                switch (data.type) {
+                    case 'queue_joined':
+                        addMessage('✅ Joined queue room successfully', 'received');
+                        break;
+                    case 'queue_left':
+                        addMessage('🚪 Left queue room', 'received');
+                        break;
+                    case 'queue_updated':
+                        addMessage(`📝 Queue updated with ${data.items ? data.items.length : 0} items`, 'received');
+                        renderQueue(data.items);
+                        break;
+                    case 'error':
+                        addMessage(`❌ Error: ${data.message}`, 'error');
+                        break;
+                }
+            };
+
+            ws.onclose = function() {
+                isConnected = false;
+                updateStatus('Disconnected', 'disconnected');
+                updateButtons();
+                addMessage('WebSocket connection closed', 'error');
+            };
+
+            ws.onerror = function(error) {
+                addMessage(`WebSocket error: ${error}`, 'error');
+                updateStatus('Connection error', 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function joinQueue() {
+            if (ws && isConnected) {
+                const message = {
+                    type: 'join_queue_room'
+                };
+                ws.send(JSON.stringify(message));
+                addMessage(`Sent: ${JSON.stringify(message)}`, 'sent');
+            }
+        }
+
+        function leaveQueue() {
+            if (ws && isConnected) {
+                const message = {
+                    type: 'leave_queue_room'
+                };
+                ws.send(JSON.stringify(message));
+                addMessage(`Sent: ${JSON.stringify(message)}`, 'sent');
+            }
+        }
+
+        function requestUpdate() {
+            if (ws && isConnected) {
+                const message = {
+                    type: 'request_queue_update'
+                };
+                ws.send(JSON.stringify(message));
+                addMessage(`Sent: ${JSON.stringify(message)}`, 'sent');
+            }
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            connect();
+        };
+    </script>
+</body>
+</html>

@@ -85,7 +85,7 @@ Redis + SQLite + File System [UNCHANGED]
 
 3. **Run both servers during development**
    - Flask: `http://localhost:5123` (current)
-   - FastAPI: `http://localhost:8000` (new)
+   - FastAPI: `http://localhost:5124` (new)
 
 ### Phase 2: Migrate Core API Endpoints
 **Duration:** 3-5 days  
@@ -309,7 +309,7 @@ async def broadcast_job_update_fastapi(job_data: dict):
 ```typescript
 // frontend/src/config/api.ts
 const API_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:8000'  // FastAPI
+  ? 'http://localhost:5124'  // FastAPI
   : 'http://localhost:5123'; // Flask fallback
 ```
 
@@ -317,7 +317,7 @@ const API_BASE_URL = process.env.NODE_ENV === 'development'
 ```typescript
 // frontend/src/hooks/useWebSocket.ts
 // Replace Socket.IO client with native WebSocket
-const ws = new WebSocket('ws://localhost:8000/ws/jobs');
+const ws = new WebSocket('ws://localhost:5124/ws/jobs');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -361,7 +361,7 @@ async def test_endpoint_performance():
         # Test 100 concurrent requests
         tasks = []
         for _ in range(100):
-            tasks.append(session.get('http://localhost:8000/api/health'))
+            tasks.append(session.get('http://localhost:5124/api/health'))
         
         responses = await asyncio.gather(*tasks)
         end_time = time.time()
@@ -383,7 +383,7 @@ COPY requirements-fastapi.txt .
 RUN pip install -r requirements-fastapi.txt
 
 COPY fastapi_app/ .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5124"]
 ```
 
 #### 7.2 Update docker-compose.yml
@@ -394,7 +394,7 @@ services:
       context: .
       dockerfile: Dockerfile.fastapi
     ports:
-      - "8000:8000"  # Changed from 5123
+      - "5124:5124"  # Changed from 5123
     
   # Celery workers remain unchanged
   celery:

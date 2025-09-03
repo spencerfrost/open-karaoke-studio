@@ -6,6 +6,7 @@ Database models package exports
 from .base import UNKNOWN_ARTIST, Base
 from .job import DbJob, Job, JobStatus
 from .queue import KaraokeQueueItem
+from .session import KaraokeSession, SessionDevice
 from .song import DbSong  # Only DbSong now - cancer removed
 from .user import User
 
@@ -16,7 +17,9 @@ __all__ = [
     "DbJob",
     "Job",
     "JobStatus",
+    "KaraokeSession",
     "KaraokeQueueItem",
+    "SessionDevice",
     "DbSong",
     "User",
 ]
