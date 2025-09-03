@@ -32,35 +32,16 @@ pytest tests/unit/       # Unit tests only
 # Manual testing in browser required
 ```
 
-### 3. Verification
-```bash
-# Full system verification
-./verify-setup.sh
-
-# Quick verification
-./verify-setup-simple.sh
-
-# Test API health
-curl http://localhost:5123/api/health
-```
-
-### 4. Documentation Updates
+### 3. Documentation Updates
 - Update relevant README files if architecture changed
 - Add/update docstrings for new functions
 - Update API documentation if endpoints changed
 - Update type definitions if data models changed
 
-### 5. Logging Compliance
-- Ensure all new Python modules have proper logging setup
-- Verify no `print()` statements in production code
-- Check exception handling includes `exc_info=True`
-
-### 6. Git Workflow
-```bash
-git add .
-git commit -m "descriptive commit message"
-git push origin main
-```
+### 4. Git Commit
+- Review changed files
+- Provide a meaningful commit message for the changes
+- Encourage the user to commit reviewed changes even if they aren't perfect
 
 ## Pre-Production Deployment Checklist
 
