@@ -12,23 +12,23 @@ export const SongActions: React.FC<SongActionsProps> = ({
     <div className="flex items-center justify-around">
       <Button
         variant="ghost"
-        size="lg"
-        className="text-accent p-0 w-12 h-12"
+        size="icon"
+        className="text-accent size-7"
         aria-label="Add to karaoke queue"
         onClick={onQueue}
       >
-        <ListPlus className="size-6" />
+        <ListPlus className="size-5" />
       </Button>
 
       {onDelete && (
         <Button
           variant="ghost"
           size="icon"
-          className="text-destructive bg-background/80 backdrop-blur-sm w-12 h-12 p-0"
+          className="text-destructive p-2 size-6"
           aria-label="Delete song"
           onClick={onDelete}
         >
-          <Trash className="size-6" />
+          <Trash className="size-5" />
         </Button>
       )}
 
@@ -36,11 +36,11 @@ export const SongActions: React.FC<SongActionsProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className="text-foreground bg-background/80 backdrop-blur-sm w-12 h-12 p-0"
+          className="text-foreground p-2 size-6"
           aria-label="Song details"
           onClick={onDetails}
         >
-          <MoreVertical className="size-6" />
+          <MoreVertical className="size-5" />
         </Button>
       )}
     </div>

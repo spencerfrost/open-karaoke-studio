@@ -9,7 +9,6 @@ interface SongResultsSectionProps {
   isFetchingNextPage: boolean;
   fetchNextPage: () => void;
   onSongSelect: (song: Song) => void;
-  onAddToQueue: (song: Song) => void;
   searchTerm: string;
 }
 
@@ -19,7 +18,6 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   onSongSelect,
-  onAddToQueue,
 }) => {
   return (
     <div className="mb-8">
@@ -39,7 +37,6 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
         onSongSelect={onSongSelect}
-        onAddToQueue={onAddToQueue}
       />
     </div>
   );

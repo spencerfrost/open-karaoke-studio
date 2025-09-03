@@ -108,7 +108,12 @@ const LibraryPage: React.FC = () => {
 
         <div className="space-y-8">
           {!hasSearch ? (
-            <RecentlyAddedSongs />
+            <RecentlyAddedSongs 
+              onSongSelect={handleSongSelect}
+              songsPerPage={12}
+              maxSongs={48}
+              animated={true}
+            />
           ) : (
             <SongResultsSection
               songs={songsQuery.data || []}
@@ -116,7 +121,6 @@ const LibraryPage: React.FC = () => {
               isFetchingNextPage={false}
               fetchNextPage={() => {}}
               onSongSelect={handleSongSelect}
-              onAddToQueue={handleAddToQueue}
               searchTerm={searchTerm}
             />
           )}

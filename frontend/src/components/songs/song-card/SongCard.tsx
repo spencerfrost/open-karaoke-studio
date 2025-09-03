@@ -40,7 +40,7 @@ export const SongCard: React.FC<SongCardProps> = ({
     actions.includes(action as "delete" | "details" | "queue");
 
   return (
-    <Card className="group overflow-hidden relative hover:shadow-lg transition-shadow pt-0">
+    <Card className="group overflow-hidden relative hover:shadow-lg transition-shadow pt-0 pb-2 gap-0.5">
       <CardContent className="p-0 flex-1">
         <div className="flex flex-col">
           <SongArtwork

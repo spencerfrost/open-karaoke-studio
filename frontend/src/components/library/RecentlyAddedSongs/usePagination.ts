@@ -1,74 +1,161 @@
 import { useState, useCallback, useMemo } from "react";
-import {
-  PaginationState,
-  PaginationActions,
-  UsePaginationOptions,
-  UsePaginationResult,
-} from "./RecentlyAddedSongs.types";
+
+interface UsePaginationOptions {
+  itemsPerPage: number;
+  totalItems: number;
+  initialPage?: number;
+  onPageChange?: (page: number) => void;
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  startIndex: number;
+  endIndex: number;
+  itemsOnCurrentPage: number;
+}
+
+interface PaginationActions {
+  nextPage: () => void;
+  previousPage: () => void;
+  goToPage: (page: number) => void;
+  goToFirstPage: () => void;
+  goToLastPage: () => void;
+  reset: () => void;
+}
+
+interface UsePaginationResult {
+  // Core pagination info
+  pagination: PaginationInfo;
+  
+  // Actions
+  actions: PaginationActions;
+  
+  // Utility methods
+  currentPageItems: <T>(items: T[]) => T[];
+  getPageItems: <T>(items: T[], page: number) => T[];
+  getPageRange: (delta?: number) => number[];
+}
 
 export const usePagination = ({
   itemsPerPage,
   totalItems,
-  animationDuration = 300,
+  initialPage = 0,
+  onPageChange,
 }: UsePaginationOptions): UsePaginationResult => {
-  const [state, setState] = useState<PaginationState>({
-    currentPage: 0,
-    displayPage: 0,
-    isAnimating: false,
-  });
+  const [currentPage, setCurrentPage] = useState(initialPage);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(totalItems / itemsPerPage);
+  }, [totalItems, itemsPerPage]);
 
   const hasNextPage = useMemo(() => {
-    return state.currentPage * itemsPerPage + itemsPerPage < totalItems;
-  }, [state.currentPage, itemsPerPage, totalItems]);
+    return currentPage < totalPages - 1;
+  }, [currentPage, totalPages]);
+
+  const hasPreviousPage = useMemo(() => {
+    return currentPage > 0;
+  }, [currentPage]);
+
+  const startIndex = useMemo(() => {
+    return currentPage * itemsPerPage;
+  }, [currentPage, itemsPerPage]);
+
+  const endIndex = useMemo(() => {
+    return Math.min(startIndex + itemsPerPage, totalItems);
+  }, [startIndex, itemsPerPage, totalItems]);
+
+  const itemsOnCurrentPage = useMemo(() => {
+    return endIndex - startIndex;
+  }, [endIndex, startIndex]);
+
+  // Internal setter that handles callback
+  const setPage = useCallback((page: number) => {
+    if (page >= 0 && page < totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      onPageChange?.(page);
+    }
+  }, [totalPages, currentPage, onPageChange]);
 
   const nextPage = useCallback(() => {
-    if (hasNextPage && !state.isAnimating) {
-      setState((prev) => ({ ...prev, isAnimating: true }));
-
-      setTimeout(() => {
-        setState((prev) => ({
-          currentPage: prev.currentPage + 1,
-          displayPage: prev.displayPage + 1,
-          isAnimating: false,
-        }));
-      }, animationDuration);
+    if (hasNextPage) {
+      setPage(currentPage + 1);
     }
-  }, [hasNextPage, state.isAnimating, animationDuration]);
+  }, [hasNextPage, currentPage, setPage]);
+
+  const previousPage = useCallback(() => {
+    if (hasPreviousPage) {
+      setPage(currentPage - 1);
+    }
+  }, [hasPreviousPage, currentPage, setPage]);
+
+  const goToPage = useCallback((page: number) => {
+    setPage(page);
+  }, [setPage]);
+
+  const goToFirstPage = useCallback(() => {
+    setPage(0);
+  }, [setPage]);
+
+  const goToLastPage = useCallback(() => {
+    setPage(totalPages - 1);
+  }, [setPage, totalPages]);
 
   const reset = useCallback(() => {
-    setState({
-      currentPage: 0,
-      displayPage: 0,
-      isAnimating: false,
-    });
-  }, []);
+    setPage(initialPage);
+  }, [setPage, initialPage]);
 
   const currentPageItems = useCallback(
     <T>(items: T[]) => {
-      const startIndex = state.displayPage * itemsPerPage;
-      return items.slice(startIndex, startIndex + itemsPerPage);
+      return items.slice(startIndex, endIndex);
     },
-    [state.displayPage, itemsPerPage],
+    [startIndex, endIndex],
   );
 
-  const nextPageItems = useCallback(
-    <T>(items: T[]) => {
-      const nextStartIndex = (state.displayPage + 1) * itemsPerPage;
-      return items.slice(nextStartIndex, nextStartIndex + itemsPerPage);
+  const getPageItems = useCallback(
+    <T>(items: T[], page: number) => {
+      const pageStart = page * itemsPerPage;
+      const pageEnd = Math.min(pageStart + itemsPerPage, items.length);
+      return items.slice(pageStart, pageEnd);
     },
-    [state.displayPage, itemsPerPage],
+    [itemsPerPage],
   );
 
-  const actions: PaginationActions = useMemo(
-    () => ({ nextPage, reset }),
-    [nextPage, reset],
+  const getPageRange = useCallback(
+    (delta: number = 2) => {
+      const start = Math.max(0, currentPage - delta);
+      const end = Math.min(totalPages, currentPage + delta + 1);
+      return Array.from({ length: end - start }, (_, i) => start + i);
+    },
+    [currentPage, totalPages],
   );
+
+  const pagination: PaginationInfo = useMemo(() => ({
+    currentPage,
+    totalPages,
+    hasNextPage,
+    hasPreviousPage,
+    startIndex,
+    endIndex,
+    itemsOnCurrentPage,
+  }), [currentPage, totalPages, hasNextPage, hasPreviousPage, startIndex, endIndex, itemsOnCurrentPage]);
+
+  const actions: PaginationActions = useMemo(() => ({
+    nextPage,
+    previousPage,
+    goToPage,
+    goToFirstPage,
+    goToLastPage,
+    reset,
+  }), [nextPage, previousPage, goToPage, goToFirstPage, goToLastPage, reset]);
 
   return {
-    state,
+    pagination,
     actions,
-    hasNextPage,
     currentPageItems,
-    nextPageItems,
+    getPageItems,
+    getPageRange,
   };
 };
