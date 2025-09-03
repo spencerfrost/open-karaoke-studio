@@ -18,6 +18,7 @@ interface LibrarySearchInputProps {
   isLoading: boolean;
   placeholder?: string;
   debounceMs?: number;
+  className?: string;
 }
 
 const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
@@ -25,7 +26,8 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
   onSearchChange,
   isLoading,
   placeholder = "Search songs and artists...",
-  debounceMs = 300,
+  debounceMs = 500,
+  className = "",
 }) => {
   const [inputValue, setInputValue] = useState(searchTerm);
   const debouncedValue = useDebouncedValue(inputValue, debounceMs);
@@ -49,7 +51,7 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className={`relative w-full ${className}`}>
       {/* Search Icon */}
       <Search
         size={20}

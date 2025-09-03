@@ -62,30 +62,6 @@ const LibraryPage: React.FC = () => {
   return (
     <AppLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
-          Song Library
-        </h1>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Music size={20} className="text-orange-peel" />
-              <span className="text-lemon-chiffon">
-                {searchTerm ? "Search Results" : "Browse Library"}
-              </span>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="border-orange-peel text-orange-peel"
-          >
-            <Filter size={16} className="mr-2" />
-            Advanced Filters
-          </Button>
-        </div>
-
         {/* Search Input */}
         <div className="mb-6">
           <LibrarySearchInput
@@ -93,7 +69,16 @@ const LibraryPage: React.FC = () => {
             onSearchChange={setSearchTerm}
             isLoading={songsQuery.isLoading || artistsLoading}
             placeholder="Search songs and artists..."
+            className="w-full max-w-xl mx-auto"
           />
+          {/* <Button
+            variant="outline"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="border-orange-peel text-orange-peel"
+          >
+            <Filter size={16} className="mr-2" />
+            Advanced Filters
+          </Button> */}
         </div>
 
         {/* Advanced Filters Panel */}
@@ -108,7 +93,7 @@ const LibraryPage: React.FC = () => {
 
         <div className="space-y-8">
           {!hasSearch ? (
-            <RecentlyAddedSongs 
+            <RecentlyAddedSongs
               onSongSelect={handleSongSelect}
               songsPerPage={12}
               maxSongs={48}
