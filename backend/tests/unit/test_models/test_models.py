@@ -20,7 +20,7 @@ class TestDbSong:
             "id": "test-123",
             "title": "Test Song",
             "artist": "Test Artist",
-            "duration_ms": 180,
+            "duration": 180.0,
             "source": "upload",
         }
 
@@ -29,7 +29,7 @@ class TestDbSong:
         assert song.id == "test-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.duration_ms == 180
+        assert song.duration == 180.0
         assert song.source == "upload"
 
     def test_db_song_to_dict_conversion(self):
@@ -39,7 +39,7 @@ class TestDbSong:
             id="test-song-123",
             title="Test Song",
             artist="Test Artist",
-            duration_ms=180500,
+            duration=180.5,
             source="youtube",
             video_id="abc123",
         )
@@ -53,7 +53,7 @@ class TestDbSong:
         assert song.id == "test-song-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.durationMs == 180500
+        assert song.duration == 180.5
         assert song.videoId == "abc123"
 
 

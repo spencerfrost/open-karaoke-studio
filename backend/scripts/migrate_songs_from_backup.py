@@ -38,12 +38,12 @@ insert_sql = (
 old_col_idx = {col: i for i, col in enumerate(old_columns)}
 
 
-def get_duration_ms(row):
-    # Prefer duration_ms if present, else convert duration (seconds) to ms
-    if "duration_ms" in old_col_idx and row[old_col_idx["duration_ms"]] is not None:
-        return row[old_col_idx["duration_ms"]]
-    elif "duration" in old_col_idx and row[old_col_idx["duration"]] is not None:
-        return int(float(row[old_col_idx["duration"]]) * 1000)
+def get_duration(row):
+    # Prefer duration (seconds) if present, else convert duration_ms to seconds
+    if "duration" in old_col_idx and row[old_col_idx["duration"]] is not None:
+        return float(row[old_col_idx["duration"]])
+    elif "duration_ms" in old_col_idx and row[old_col_idx["duration_ms"]] is not None:
+        return float(row[old_col_idx["duration_ms"]]) / 1000.0
     else:
         return None
 
@@ -52,8 +52,8 @@ def get_duration_ms(row):
 for row in rows:
     values = []
     for col in new_columns:
-        if col == "duration_ms":
-            values.append(get_duration_ms(row))
+        if col == "duration":
+            values.append(get_duration(row))
         elif col in old_col_idx:
             values.append(row[old_col_idx[col]])
         else:

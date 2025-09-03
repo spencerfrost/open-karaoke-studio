@@ -145,7 +145,7 @@ class YouTubeService(YouTubeServiceInterface):
                 try:
                     duration = self._extract_audio_duration(original_file)
                     if duration:
-                        metadata_dict["duration_ms"] = int(duration * 1000)
+                        metadata_dict["duration"] = duration  # Store in seconds
                         logger.info(
                             "Extracted duration %ss from audio file for song %s",
                             duration,
@@ -157,17 +157,7 @@ class YouTubeService(YouTubeServiceInterface):
                         song_id,
                         e,
                     )
-            else:
-                # If duration is present (in seconds), also convert to ms
-                try:
-                    duration = float(metadata_dict["duration"])
-                    metadata_dict["duration_ms"] = int(duration * 1000)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to convert duration to ms for song %s: %s",
-                        song_id,
-                        e,
-                    )
+            # Duration is already in seconds, no conversion needed
             # Ensure source_url is set correctly
             if not metadata_dict.get("source_url"):
                 metadata_dict["source_url"] = url
@@ -182,17 +172,17 @@ class YouTubeService(YouTubeServiceInterface):
                 "Successfully downloaded YouTube video %s as song %s", video_id, song_id
             )
             try:
-                # Update song with duration_ms if available
-                if metadata_dict.get("duration_ms"):
+                # Update song with duration if available
+                if metadata_dict.get("duration"):
                     from app.db.database import get_db_session
                     from app.repositories.song_repository import SongRepository
 
                     with get_db_session() as session:
                         repo = SongRepository(session)
-                        repo.update(song_id, duration_ms=metadata_dict["duration_ms"])
+                        repo.update(song_id, duration=metadata_dict["duration"])
             except Exception as e:
                 logger.warning(
-                    "Failed to update duration_ms for song %s: %s", song_id, e
+                    "Failed to update duration for song %s: %s", song_id, e
                 )
             return song_id, metadata_dict
 
@@ -286,8 +276,8 @@ class YouTubeService(YouTubeServiceInterface):
                         "artist": artist or "Unknown Artist",
                         "source": "youtube",
                         "video_id": video_id,
-                        # Try to fetch duration_ms from YouTube metadata if available
-                        "duration_ms": None,  # Will be updated after download if possible
+                        # Duration will be updated after download if possible
+                        "duration": None,  # Will be updated after download if possible
                     }
                     created_song = repo.create(song_data)
                     if created_song:

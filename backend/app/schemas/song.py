@@ -8,8 +8,7 @@ class Song(BaseModel):
     id: str
     title: str
     artist: str
-    durationMs: Optional[int] = None  # Legacy field (milliseconds) - temporary
-    duration: Optional[float] = None  # New field (seconds)
+    duration: Optional[float] = None  # Duration in seconds
     dateAdded: Optional[datetime] = None
 
     # File paths (API URLs)

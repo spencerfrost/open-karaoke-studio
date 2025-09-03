@@ -21,7 +21,7 @@ def test_create_song_success(client):
         "title": "Integration Test Song",
         "artist": "Test Artist",
         "album": "Test Album",
-        "durationMs": 123456,
+        "duration": 123.456,  # Duration in seconds
         "source": "test",
         "video_id": "testvid123",
     }
@@ -71,7 +71,7 @@ def test_update_song_invalid_data(client):
     create_resp = client.post("/api/songs", json={"title": "Valid", "artist": "Valid"})
     assert create_resp.status_code in (200, 201)
     song_id = create_resp.get_json()["id"]
-    response = client.patch(f"/api/songs/{song_id}", json={"durationMs": -5})
+    response = client.patch(f"/api/songs/{song_id}", json={"duration": -5})
     assert response.status_code == 400
     client.delete(f"/api/songs/{song_id}")
 

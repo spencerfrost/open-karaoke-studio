@@ -176,17 +176,10 @@ def create_song(validated_data: CreateSongRequest):
                 "title": validated_data.title,
                 "artist": validated_data.artist,
                 "album": validated_data.album,
-                "duration_ms": validated_data.durationMs,
                 "duration": validated_data.duration,
                 "source": validated_data.source,
                 "video_id": validated_data.video_id,
             }
-            
-            # Ensure both duration fields are synchronized during transition
-            if validated_data.duration is not None and validated_data.durationMs is None:
-                song_data["duration_ms"] = int(validated_data.duration * 1000)
-            elif validated_data.durationMs is not None and validated_data.duration is None:
-                song_data["duration"] = validated_data.durationMs / 1000.0
             
             song = repo.create(song_data)
 
@@ -270,12 +263,8 @@ def update_song(song_id: str):
                 update_fields["synced_lyrics"] = data["syncedLyrics"]
             if "plainLyrics" in data:
                 update_fields["plain_lyrics"] = data["plainLyrics"]
-            if "durationMs" in data:
-                update_fields["duration_ms"] = data["durationMs"]
             if "duration" in data:
                 update_fields["duration"] = data["duration"]
-                # Also update duration_ms for backwards compatibility during transition
-                update_fields["duration_ms"] = int(data["duration"] * 1000) if data["duration"] is not None else None
             
             # Handle other standard fields
             for field in ["title", "artist", "album", "genre", "language"]:

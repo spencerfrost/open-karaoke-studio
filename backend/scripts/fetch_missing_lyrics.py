@@ -30,10 +30,10 @@ SONG_PATCH_URL = (
 )
 
 
-def find_best_lyrics_result(results, target_durationMs):
+def find_best_lyrics_result(results, target_duration_seconds):
     """
-    Given a list of results and a target duration (ms), return the result with the closest duration.
-    Assumes result['duration'] is in milliseconds or seconds (try both).
+    Given a list of results and a target duration (seconds), return the result with the closest duration.
+    Assumes result['duration'] is in seconds.
     """
     if not results:
         return None
@@ -43,15 +43,11 @@ def find_best_lyrics_result(results, target_durationMs):
         dur = r.get("duration")
         if dur is None:
             continue
-        # Try both ms and s
-        diff_ms = abs(dur - target_durationMs)
-        diff_s = abs(dur * 1000 - target_durationMs)
-        if diff_ms < best_diff:
+        # Compare durations in seconds
+        diff = abs(dur - target_duration_seconds)
+        if diff < best_diff:
             best = r
-            best_diff = diff_ms
-        if diff_s < best_diff:
-            best = r
-            best_diff = diff_s
+            best_diff = diff
     return best
 
 
@@ -76,7 +72,7 @@ def fetch_and_save_lyrics():
                 results = resp.json()
                 if results:
                     # Pick the result with the closest duration to our song
-                    best_result = find_best_lyrics_result(results, song.durationMs)
+                    best_result = find_best_lyrics_result(results, song.duration)
                     if best_result:
                         plain_lyrics = (
                             best_result.get("plainLyrics")

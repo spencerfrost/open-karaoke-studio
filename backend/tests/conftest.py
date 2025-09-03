@@ -30,7 +30,7 @@ def populate_test_songs(test_db_session):
             title=f"Test Song {i+1} {'★' if i % 5 == 0 else ''}",
             artist=random.choice(artists),
             album=random.choice(albums),
-            duration_ms=180000 + i * 1000,
+            duration=180.0 + i,  # Duration in seconds
             date_added=None,
             vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
             instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",

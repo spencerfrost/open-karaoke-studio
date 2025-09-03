@@ -18,8 +18,7 @@ class DbSong(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
-    duration_ms = Column(Integer, nullable=True)  # Legacy - will be removed after migration
-    duration = Column(Float, nullable=True)  # New primary duration field (seconds)
+    duration = Column(Float, nullable=True)  # Duration in seconds
     date_added = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     vocals_path = Column(String, nullable=True)
     instrumental_path = Column(String, nullable=True)
@@ -88,8 +87,7 @@ class DbSong(Base):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
-            "durationMs": self.duration_ms,  # Legacy field (milliseconds)
-            "duration": self.duration,       # New field (seconds)
+            "duration": self.duration,       # Duration in seconds
             "status": "processed",
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None

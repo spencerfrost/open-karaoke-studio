@@ -39,8 +39,7 @@ def get_queue():
                             "title": item.song.title,
                             "artist": item.song.artist,
                             "album": item.song.album,
-                            "durationMs": item.song.duration_ms,  # Legacy field
-                            "duration": item.song.duration,      # New field (seconds)
+                            "duration": item.song.duration,      # Duration in seconds
                             "coverArt": getattr(item.song, "cover_art_url", None),
                             "syncedLyrics": item.song.synced_lyrics,
                             "plainLyrics": item.song.plain_lyrics,
@@ -113,8 +112,7 @@ def add_to_queue():
                 "title": song.title,
                 "artist": song.artist,
                 "album": song.album,
-                "durationMs": song.duration_ms,  # Legacy field
-                "duration": song.duration,       # New field (seconds)
+                "duration": song.duration,       # Duration in seconds
                 "coverArt": getattr(song, "cover_art_url", None),
                 "syncedLyrics": song.synced_lyrics,
                 "plainLyrics": song.plain_lyrics,
@@ -257,8 +255,7 @@ def play_queue_item(item_id):
                     "title": item.song.title,
                     "artist": item.song.artist,
                     "album": item.song.album,
-                    "durationMs": item.song.duration_ms,  # Legacy field
-                    "duration": item.song.duration,       # New field (seconds)
+                    "duration": item.song.duration,       # Duration in seconds
                     "coverArt": getattr(item.song, "cover_art_url", None),
                     "syncedLyrics": item.song.synced_lyrics,
                     "plainLyrics": item.song.plain_lyrics,
@@ -278,8 +275,7 @@ def play_queue_item(item_id):
             "title": item.song.title,
             "artist": item.song.artist,
             "album": item.song.album,
-            "durationMs": item.song.duration_ms,  # Legacy field
-            "duration": item.song.duration,       # New field (seconds)
+            "duration": item.song.duration,       # Duration in seconds
             "coverArt": getattr(item.song, "cover_art_url", None),
             "syncedLyrics": item.song.synced_lyrics,
             "plainLyrics": item.song.plain_lyrics,

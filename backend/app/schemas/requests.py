@@ -13,11 +13,8 @@ class CreateSongRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Song title")
     artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
-    durationMs: Optional[int] = Field(
-        None, ge=0, description="Song duration in milliseconds (legacy)"
-    )
     duration: Optional[float] = Field(
-        None, ge=0, description="Song duration in seconds (new)"
+        None, ge=0, description="Song duration in seconds"
     )
     source: Optional[str] = Field(None, max_length=50, description="Source of the song")
     video_id: Optional[str] = Field(
@@ -37,8 +34,7 @@ class UpdateSongRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
-    durationMs: Optional[int] = Field(None, ge=0)  # Legacy field
-    duration: Optional[float] = Field(None, ge=0)  # New field
+    duration: Optional[float] = Field(None, ge=0)  # Duration in seconds
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
