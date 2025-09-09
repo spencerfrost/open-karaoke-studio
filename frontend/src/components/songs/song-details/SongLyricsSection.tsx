@@ -13,8 +13,11 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
   song,
   className = "",
 }) => {
-  const hasLyrics = !!(song.lyrics || song.syncedLyrics);
+  // Check for any type of lyrics - prioritize synced lyrics, then plain lyrics, then unified lyrics field
   const hasSyncedLyrics = !!song.syncedLyrics;
+  const hasPlainLyrics = !!song.plainLyrics;
+  const hasUnifiedLyrics = !!song.lyrics;
+  const hasLyrics = hasSyncedLyrics || hasPlainLyrics || hasUnifiedLyrics;
 
   if (!hasLyrics) {
     return (
@@ -32,13 +35,32 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
     );
   }
 
-  const displayLyrics = song.lyrics || "";
+  // Prioritize synced lyrics, then plain lyrics, then unified lyrics field
+  const displayLyrics = song.syncedLyrics || song.plainLyrics || song.lyrics || "";
+  const isUsingSyncedLyrics = !!song.syncedLyrics;
 
-  // Basic processing for display
-  const processedLyrics = displayLyrics
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .map((line) => line.trim());
+  // Process lyrics for display - handle both synced (LRC) and plain text formats
+  const processedLyrics = React.useMemo(() => {
+    if (!displayLyrics) return [];
+
+    // If using synced lyrics, they might be in LRC format with timestamps like [00:12.34]
+    if (isUsingSyncedLyrics) {
+      return displayLyrics
+        .split("\n")
+        .map((line) => {
+          // Remove LRC timestamp format [mm:ss.xx] or [mm:ss.xxx]
+          const cleanedLine = line.replace(/^\[\d{2}:\d{2}\.\d{2,3}\]\s*/, "").trim();
+          return cleanedLine;
+        })
+        .filter((line) => line.length > 0);
+    }
+
+    // For plain lyrics, just split and clean
+    return displayLyrics
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => line.trim());
+  }, [displayLyrics, isUsingSyncedLyrics]);
 
   return (
     <div className={cn("border rounded-lg p-6", className)}>
@@ -53,6 +75,12 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
             <Badge variant="secondary" className="bg-green-100 text-green-800">
               <Music size={12} className="mr-1" />
               Synced
+            </Badge>
+          )}
+          {hasPlainLyrics && !hasSyncedLyrics && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              <FileText size={12} className="mr-1" />
+              Plain
             </Badge>
           )}
           <Badge variant="outline" className="text-xs">
@@ -78,10 +106,17 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
         )}
       </div>
 
-      {hasSyncedLyrics && (
+      {hasSyncedLyrics && isUsingSyncedLyrics && (
         <div className="mt-4 p-3 bg-muted/30 rounded border text-xs text-muted-foreground">
           <Music size={12} className="inline mr-1" />
           This song includes synchronized lyrics for karaoke playback
+        </div>
+      )}
+
+      {hasPlainLyrics && !hasSyncedLyrics && (
+        <div className="mt-4 p-3 bg-muted/30 rounded border text-xs text-muted-foreground">
+          <FileText size={12} className="inline mr-1" />
+          Plain text lyrics (no timing synchronization)
         </div>
       )}
     </div>

@@ -44,20 +44,14 @@ const SongPlayer: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="w-full max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-2 text-orange-peel">
-          {song.title}
-        </h1>
-        <h2 className="text-xl text-center mb-4 text-background/80">
-          {song.artist}
-        </h2>
-        <div className="aspect-video w-full bg-black/80 rounded-xl overflow-hidden mb-4 flex items-center justify-center relative">
+      <div className="w-full h-full flex flex-col items-center justify-center p-4">
+        <div className="aspect-video w-full max-w-[90vw] max-h-[90vh] bg-black/80 rounded-xl overflow-hidden flex items-center justify-center relative">
           <KaraokePlayer
             songId={song.id}
             size="full"
             autoPlay={false}
             controls={true}
-            showInfo={false}
+            showInfo={true}
             showVisualizer={true}
           />
         </div>

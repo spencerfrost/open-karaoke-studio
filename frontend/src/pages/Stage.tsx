@@ -95,20 +95,14 @@ const Stage: React.FC = () => {
           connected={connected}
           className="absolute top-4 right-8 z-10"
         />
-        <h1 className="text-3xl font-bold text-center mb-2 text-orange-peel">
-          {currentSong?.title}
-        </h1>
-        <h2 className="text-xl text-center mb-4 text-background/80">
-          {currentSong?.artist}
-        </h2>
-        <div className="aspect-video max-h-svh bg-black/80 rounded-xl overflow-hidden">
+        <div className="aspect-video w-full max-w-[90vw] max-h-[90vh] bg-black/80 rounded-xl overflow-hidden">
           {currentSong && (
             <KaraokePlayer
               songId={currentSong.id}
-              size="stage"
-              autoPlay={true}
+              size="full"
+              autoPlay={false}
               controls={true}
-              showInfo={false}
+              showInfo={true}
               showVisualizer={true}
             />
           )}

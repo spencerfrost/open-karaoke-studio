@@ -7,27 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Search,
-  Loader2,
-  Music,
-  AlertTriangle,
-  RefreshCw,
-  FileText,
-} from "lucide-react";
+import { Search, RotateCcw } from "lucide-react";
+import { LyricsResults } from "@/components/LyricsResults";
 import { useLyricsSearch } from "@/hooks/api/useLyrics";
+import type { LyricsOption } from "@/hooks/api/useLyrics";
 
 export interface LyricsResult {
   id?: string;
@@ -45,10 +30,8 @@ export interface LyricsFetchDialogProps {
   isOpen: boolean;
   /** Function to close the dialog */
   onClose: () => void;
-  /** Optional song to pre-fill form fields */
+  /** Song to search lyrics for */
   song?: Song | null;
-  /** Callback when lyrics are successfully fetched */
-  onLyricsFetched?: (lyrics: LyricsResult[]) => void;
   /** Callback when a specific lyrics result is selected */
   onLyricsSelected?: (lyrics: LyricsResult) => void;
 }
@@ -57,339 +40,209 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   isOpen,
   onClose,
   song,
-  onLyricsFetched,
   onLyricsSelected,
 }) => {
-  // Form state
-  const [artistName, setArtistName] = useState("");
-  const [trackName, setTrackName] = useState("");
-  const [albumName, setAlbumName] = useState("");
+  // State for search refinement
+  const [refinedQuery, setRefinedQuery] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
+  const [hasRefined, setHasRefined] = useState(false);
+  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(null);
 
-  // Results state
-  const [selectedResult, setSelectedResult] = useState<LyricsResult | null>(
-    null,
-  );
-  const [hasSearched, setHasSearched] = useState(false);
+  // Lyrics search hook
+  const lyricsSearch = useLyricsSearch();
+  const lyricsOptions = lyricsSearch.data || [];
+  const isLoadingLyrics = lyricsSearch.loading;
 
-  // Use new lyrics search hook
-  const {
-    data: lyricsResults = [],
-    loading: isLoadingLyrics,
-    search: fetchLyrics,
-  } = useLyricsSearch();
-
-  // Pre-fill form when song changes
+  // Reset state when dialog opens
   useEffect(() => {
-    if (song) {
-      setArtistName(song.artist || "");
-      setTrackName(song.title || "");
-      setAlbumName(song.album || "");
-    } else {
-      setArtistName("");
-      setTrackName("");
-      setAlbumName("");
-    }
-    // Reset results when song changes
-    setSelectedResult(null);
-    setHasSearched(false);
-  }, [song]);
+    if (isOpen && song) {
+      setRefinedQuery("");
+      setIsRefining(false);
+      setHasRefined(false);
+      setSelectedLyrics(null);
 
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedResult(null);
-      setHasSearched(false);
-    }
-  }, [isOpen]);
+      // Pre-populate search field with song metadata when dialog opens
+      const parts = [song.artist, song.title];
+      if (song.album) {
+        parts.push(song.album);
+      }
+      const defaultQuery = parts.join(" - ");
+      setRefinedQuery(defaultQuery);
 
-  const handleSearch = () => {
-    if (!artistName.trim() || !trackName.trim()) {
-      return;
+      // Immediately start lyrics search
+      setTimeout(() => {
+        lyricsSearch.search({
+          artist: song.artist,
+          title: song.title,
+          album: song.album,
+        });
+      }, 100);
     }
-    fetchLyrics({
-      artist: artistName.trim(),
-      title: trackName.trim(),
-      album: albumName.trim() || undefined,
-    });
-    setHasSearched(true);
-    onLyricsFetched?.([]); // Will be updated by effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, song]);
+
+  const handleClose = () => {
+    onClose();
+    setRefinedQuery("");
+    setIsRefining(false);
+    setHasRefined(false);
+    setSelectedLyrics(null);
   };
 
-  // Call onLyricsFetched when lyricsResults change after a search
-  useEffect(() => {
-    if (hasSearched) {
-      onLyricsFetched?.(lyricsResults);
+  const handleSearchRefinement = async () => {
+    if (!refinedQuery.trim() || !song) return;
+
+    setIsRefining(true);
+    setHasRefined(true);
+
+    try {
+      // Parse the refined query - assume format is "artist - title - album" or "artist - title"
+      const parts = refinedQuery.split(" - ").map(part => part.trim());
+      const artist = parts[0] || song.artist;
+      const title = parts[1] || song.title;
+      const album = parts[2] || song.album;
+
+      await lyricsSearch.search({
+        artist,
+        title,
+        album,
+      });
+    } catch (error) {
+      console.error("Failed to refine search:", error);
+    } finally {
+      setIsRefining(false);
     }
-  }, [lyricsResults, hasSearched, onLyricsFetched]);
+  };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !isLoadingLyrics) {
-      handleSearch();
+  const handleResetSearch = async () => {
+    if (!song) return;
+
+    setIsRefining(true);
+    setHasRefined(false);
+
+    try {
+      // Reset to original song metadata
+      const parts = [song.artist, song.title];
+      if (song.album) {
+        parts.push(song.album);
+      }
+      setRefinedQuery(parts.join(" - "));
+
+      // Search with original metadata
+      await lyricsSearch.search({
+        artist: song.artist,
+        title: song.title,
+        album: song.album,
+      });
+    } catch (error) {
+      console.error("Failed to reset search:", error);
+    } finally {
+      setIsRefining(false);
     }
   };
 
-  const handleSelectResult = (result: LyricsResult) => {
-    setSelectedResult(result);
-    onLyricsSelected?.(result);
-  };
-
-  const handleReset = () => {
-    setSelectedResult(null);
-    setHasSearched(false);
-  };
-
-  const canSearch = artistName.trim() && trackName.trim();
-
-  const renderLyricsPreview = (lyrics?: string, isSynced = false) => {
-    if (!lyrics) {
-      return (
-        <span className="text-muted-foreground italic">
-          No lyrics available
-        </span>
-      );
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && refinedQuery.trim()) {
+      handleSearchRefinement();
     }
-
-    // Clean synced lyrics by removing timestamps for preview
-    const cleanedLyrics = isSynced
-      ? lyrics
-          .split("\n")
-          .map((line) => line.replace(/^\[\d+:\d+\.\d+\]/g, "").trim())
-          .filter((line) => line.length > 0)
-          .join("\n")
-      : lyrics;
-
-    // Show first few lines for preview
-    const lines = cleanedLyrics.split("\n").slice(0, 4);
-    return (
-      <div className="text-sm">
-        {lines.map((line, i) => (
-          <p key={i} className={line.trim() === "" ? "h-4" : ""}>
-            {line}
-          </p>
-        ))}
-        {cleanedLyrics.split("\n").length > 4 && (
-          <p className="text-muted-foreground italic mt-1">
-            ... and {cleanedLyrics.split("\n").length - 4} more lines
-          </p>
-        )}
-      </div>
-    );
   };
+
+  const handleLyricsConfirm = () => {
+    if (selectedLyrics && onLyricsSelected) {
+      // Convert LyricsOption to LyricsResult format
+      const lyricsResult: LyricsResult = {
+        id: selectedLyrics.id,
+        plainLyrics: selectedLyrics.plainLyrics,
+        syncedLyrics: selectedLyrics.syncedLyrics,
+        trackName: selectedLyrics.trackName,
+        artistName: selectedLyrics.artistName,
+        albumName: selectedLyrics.albumName,
+        duration: selectedLyrics.duration,
+        source: selectedLyrics.source,
+      };
+      onLyricsSelected(lyricsResult);
+    }
+    handleClose();
+  };
+
+  if (!song) {
+    return null;
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Fetch Lyrics
-          </DialogTitle>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90dvh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle>Search for Lyrics</DialogTitle>
           <DialogDescription>
-            Search for lyrics using song metadata.
-            {song
-              ? ` Pre-filled with "${song.title}" by ${song.artist}.`
-              : " Enter song details to search."}
+            Finding lyrics for: <strong>{song.title}</strong> by <strong>{song.artist}</strong>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 flex-1 overflow-hidden">
-          {/* Search Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Search Parameters</CardTitle>
-              <CardDescription>
-                Enter or modify the song details to search for lyrics
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="artist-name">Artist *</Label>
-                  <Input
-                    id="artist-name"
-                    value={artistName}
-                    onChange={(e) => setArtistName(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter artist name"
-                    disabled={isLoadingLyrics}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="track-name">Title *</Label>
-                  <Input
-                    id="track-name"
-                    value={trackName}
-                    onChange={(e) => setTrackName(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter song title"
-                    disabled={isLoadingLyrics}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="album-name">Album (Optional)</Label>
-                  <Input
-                    id="album-name"
-                    value={albumName}
-                    onChange={(e) => setAlbumName(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter album name"
-                    disabled={isLoadingLyrics}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-muted-foreground">
-                  * Required fields. Album name can help improve search
-                  accuracy.
-                </p>
-                <div className="flex gap-2">
-                  {hasSearched && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleReset}
-                      disabled={isLoadingLyrics}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" />
-                      Reset
-                    </Button>
-                  )}
-                  <Button
-                    onClick={handleSearch}
-                    disabled={!canSearch || isLoadingLyrics}
-                  >
-                    {isLoadingLyrics ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="h-4 w-4 mr-2" />
-                        Search Lyrics
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          {hasSearched && (
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardHeader className="flex-shrink-0">
-                <CardTitle className="text-lg">
-                  Search Results ({lyricsResults.length})
-                </CardTitle>
-                <CardDescription>
-                  {lyricsResults.length > 0
-                    ? "Select a result to use these lyrics"
-                    : "No lyrics found. Try adjusting your search terms."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0">
-                <ScrollArea className="h-full p-6">
-                  {isLoadingLyrics ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin mr-2" />
-                      <span>Searching for lyrics...</span>
-                    </div>
-                  ) : lyricsResults.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">
-                        No lyrics found
-                      </h3>
-                      <p className="text-muted-foreground text-sm mb-4">
-                        Try different search terms or check the spelling
-                      </p>
-                      <Button variant="outline" onClick={handleReset}>
-                        Try again
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {lyricsResults.map((result, index) => (
-                        <Card
-                          key={result.id || index}
-                          className={`cursor-pointer transition-all hover:shadow-md ${
-                            selectedResult === result
-                              ? "ring-2 ring-primary"
-                              : ""
-                          }`}
-                          onClick={() => handleSelectResult(result)}
-                        >
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <CardTitle className="text-base">
-                                  {result.trackName || "Unknown Title"}
-                                </CardTitle>
-                                <CardDescription>
-                                  by {result.artistName || "Unknown Artist"}
-                                  {result.albumName && ` • ${result.albumName}`}
-                                </CardDescription>
-                              </div>
-                              <div className="flex gap-1">
-                                {result.syncedLyrics && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="bg-green-100 text-green-800"
-                                  >
-                                    <Music className="h-3 w-3 mr-1" />
-                                    Synced
-                                  </Badge>
-                                )}
-                                {result.duration && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {Math.floor(result.duration / 60)}:
-                                    {String(result.duration % 60).padStart(
-                                      2,
-                                      "0",
-                                    )}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pt-0">
-                            <div className="border-t pt-3">
-                              <h4 className="text-sm font-medium mb-2">
-                                Lyrics Preview:
-                              </h4>
-                              {renderLyricsPreview(result.plainLyrics)}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
+        <div className="flex-1 overflow-y-auto">
+          <LyricsResults
+            isLoading={isLoadingLyrics || isRefining}
+            options={lyricsOptions}
+            selectedOption={selectedLyrics}
+            onSelectionChange={setSelectedLyrics}
+            duration={song.duration || 0}
+          />
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {selectedResult && (
-              <span className="flex items-center gap-1">
-                <Music className="h-4 w-4" />
-                Selected: {selectedResult.trackName} by{" "}
-                {selectedResult.artistName}
-              </span>
-            )}
+        {/* Search Refinement */}
+        <div className="border-t pt-4 flex-shrink-0">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                id="refine-search"
+                placeholder="Enter search terms (e.g., 'Artist - Title - Album')"
+                value={refinedQuery}
+                onChange={(e) => setRefinedQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isRefining}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSearchRefinement}
+                disabled={!refinedQuery.trim() || isRefining}
+                size="sm"
+                variant="outline"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              {hasRefined && (
+                <Button
+                  onClick={handleResetSearch}
+                  disabled={isRefining}
+                  size="sm"
+                  variant="outline"
+                  title="Reset to original search"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {hasRefined
+                ? "You're viewing results for a custom search. Click reset to return to the original search."
+                : "Not finding the right lyrics? Try searching with different terms like the exact song title or artist name."}
+            </p>
           </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-between pt-4 border-t">
+          <div></div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            {selectedResult && (
-              <Button onClick={() => onClose()}>Use Selected Lyrics</Button>
-            )}
+            <Button
+              onClick={handleLyricsConfirm}
+              disabled={!selectedLyrics}
+            >
+              Use Selected Lyrics
+            </Button>
           </div>
         </div>
       </DialogContent>

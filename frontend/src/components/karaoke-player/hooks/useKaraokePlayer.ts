@@ -171,18 +171,13 @@ export const useKaraokePlayer = (
     return song ? getSongDuration(song) : duration;
   }, [song, duration]);
 
-  // Current time in seconds (consistent with new interface)
-  const currentTimeSeconds = useMemo(() => {
-    return currentTime;
-  }, [currentTime]);
-
   return {
     // State
     song: song || null,
     isLoading,
     isReady,
     isPlaying,
-    currentTime: currentTimeSeconds,
+    currentTime: currentTime, // Pass in seconds
     duration: durationSeconds,
     error,
     connectionStatus,

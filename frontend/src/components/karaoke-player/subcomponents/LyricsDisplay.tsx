@@ -4,18 +4,30 @@
  * Optimized for performance with smooth scrolling and proper accessibility
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { Lrc } from 'react-lrc';
-import type { LyricsSize } from '../KaraokePlayer.types';
+import { Button } from '@/components/ui/button';
+import { Search } from 'lucide-react';
+import LyricsFetchDialog from '@/components/LyricsFetchDialog';
+import { useSongs } from '@/hooks/api/useSongs';
+import { toast } from 'sonner';
+import type { LyricsResult } from '@/components/LyricsFetchDialog';
+import type { Song } from '@/types/Song';
 
 interface LyricsDisplayProps {
   lyrics: string;
   isSync: boolean;
-  currentTime: number;        // in milliseconds
-  lyricsSize: LyricsSize;
-  lyricsOffset: number;       // in milliseconds
+  currentTime: number;        // in seconds
+  lyricsSize: 'small' | 'medium' | 'large';
+  lyricsOffset: number;       // in seconds
   className?: string;
   'aria-label'?: string;
+  // Optional song data for lyrics search
+  songId?: string;
+  songTitle?: string;
+  songArtist?: string;
+  songAlbum?: string;
+  songDuration?: number;      // in seconds
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
@@ -26,7 +38,44 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
   lyricsOffset,
   className = "",
   'aria-label': ariaLabel = "Song lyrics",
+  songId,
+  songTitle,
+  songArtist,
+  songAlbum,
+  songDuration,
 }) => {
+  const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
+  const { useUpdateSong } = useSongs();
+  const updateSongMutation = useUpdateSong();
+
+  const handleLyricsSearch = () => {
+    if (!songId || !songTitle || !songArtist) {
+      toast.error("Missing song information for lyrics search");
+      return;
+    }
+    setIsLyricsDialogOpen(true);
+  };
+
+  const handleLyricsSelected = (lyricsResult: LyricsResult) => {
+    if (!songId) {
+      toast.error("Cannot update song: missing song ID");
+      return;
+    }
+
+    updateSongMutation.mutate({
+      id: songId,
+      plainLyrics: lyricsResult.plainLyrics,
+      syncedLyrics: lyricsResult.syncedLyrics,
+    }, {
+      onSuccess: () => {
+        toast.success("Lyrics updated successfully!");
+        setIsLyricsDialogOpen(false);
+      },
+      onError: (error) => {
+        toast.error(`Failed to update lyrics: ${error.message}`);
+      }
+    });
+  };
   const lyricsSizeClass =
     lyricsSize === "small"
       ? "text-base"
@@ -45,7 +94,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
     return (
       <Lrc
         lrc={lyrics}
-        currentMillisecond={currentTime + lyricsOffset}
+        currentMillisecond={(currentTime + lyricsOffset) * 1000}
         verticalSpace={true}
         lineRenderer={({ active, line }) => (
           <div
@@ -81,9 +130,41 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
           {lyrics}
         </div>
       ) : (
-        <div className="text-gray-400" role="status">
-          No lyrics available
+        <div className="flex flex-col items-center justify-center h-full text-center p-8" role="status">
+          <div className="text-gray-400 text-lg mb-2">
+            🎵 No lyrics available
+          </div>
+          <div className="text-gray-500 text-sm mb-4">
+            Enjoy the music and sing along if you know the words!
+          </div>
+          {songId && songTitle && songArtist && (
+            <Button
+              onClick={handleLyricsSearch}
+              variant="outline"
+              size="sm"
+              className="mt-2"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Search for Lyrics
+            </Button>
+          )}
         </div>
+      )}
+
+      {/* Lyrics Search Dialog */}
+      {songId && songTitle && songArtist && (
+        <LyricsFetchDialog
+          isOpen={isLyricsDialogOpen}
+          onClose={() => setIsLyricsDialogOpen(false)}
+          song={{
+            id: songId,
+            title: songTitle,
+            artist: songArtist,
+            album: songAlbum || '',
+            duration: songDuration,
+          } as Song}
+          onLyricsSelected={handleLyricsSelected}
+        />
       )}
     </div>
   );

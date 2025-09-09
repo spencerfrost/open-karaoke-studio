@@ -149,6 +149,11 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           lyricsSize={player.lyricsSize}
           lyricsOffset={player.lyricsOffset}
           className={lyricsVisibility[size]}
+          songId={songId}
+          songTitle={player.song?.title}
+          songArtist={player.song?.artist}
+          songAlbum={player.song?.album}
+          songDuration={player.song?.duration}
         />
 
         {/* Bottom Controls Area */}
