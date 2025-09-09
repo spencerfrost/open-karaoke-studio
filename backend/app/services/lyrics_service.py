@@ -16,8 +16,8 @@ class LyricsService:
     """Service for searching lyrics via LRCLIB with fallback support."""
 
     def __init__(self):
-        self.primary_url = "https://lrclib.mrspinn.ca"
-        self.backup_url = "https://lrclib.net"
+        self.primary_url = "https://lrclib.net"
+        self.backup_url = "https://lrclib.mrspinn.ca"
         self.headers = {"User-Agent": USER_AGENT}
 
     def _make_request(self, path: str, params: dict) -> tuple[int, Any]:
