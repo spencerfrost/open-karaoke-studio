@@ -1,24 +1,30 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, PlusCircle, Edit } from "lucide-react";
+import { Play, PlusCircle, Edit, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
+import { DeleteSongDialog } from "../DeleteSongDialog";
 
 interface PrimaryActionsSectionProps {
   song: Song;
   onClose: () => void;
   onEditMetadata?: () => void;
+  onSongDeleted?: () => void;
 }
 
 export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   song,
   onClose,
   onEditMetadata,
+  onSongDeleted,
 }) => {
   const navigate = useNavigate();
   const addToQueueMutation = useAddToKaraokeQueue();
+  const { useDeleteSong } = useSongs();
+  const deleteSongMutation = useDeleteSong();
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
   const handlePlayNow = () => {
@@ -84,6 +90,24 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
             Edit Metadata
           </Button>
         )}
+
+        <DeleteSongDialog
+          song={song}
+          onConfirm={() => deleteSongMutation.mutateAsync({ id: song.id })}
+          isDeleting={deleteSongMutation.isPending}
+          onSuccess={onSongDeleted}
+          trigger={
+            <Button
+              variant="outline"
+              className="flex-1 sm:max-w-[160px] flex items-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
+              size="lg"
+              disabled={deleteSongMutation.isPending}
+            >
+              <Trash2 size={16} />
+              {deleteSongMutation.isPending ? "Removing..." : "Remove"}
+            </Button>
+          }
+        />
       </div>
 
       {!isProcessed && (

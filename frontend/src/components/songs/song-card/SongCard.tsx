@@ -6,7 +6,9 @@ import { useSongDialogs } from "@/hooks/useSongDialogs";
 import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { SongActions } from "./SongActions";
-import { SongDialogs } from "./SongDialogs";
+import { SongDetailsDialog } from "../song-details/SongDetailsDialog";
+import { SingerNameDialog } from "../SingerNameDialog";
+import { DeleteSongDialog } from "../DeleteSongDialog";
 import { SongCardProps } from "./SongCard.types";
 
 export const SongCard: React.FC<SongCardProps> = ({
@@ -58,7 +60,29 @@ export const SongCard: React.FC<SongCardProps> = ({
         onDelete={showAction("delete") ? handleDeleteClick : undefined}
         onDetails={showAction("details") ? handleDetailsClick : undefined}
       />
-      <SongDialogs song={song} dialogs={dialogs} songActions={songActions} />
+
+      <SongDetailsDialog
+        song={song}
+        isOpen={dialogs.isDialogOpen("details")}
+        onClose={dialogs.closeDialog}
+      />
+
+      <SingerNameDialog
+        isOpen={dialogs.isDialogOpen("singer")}
+        onClose={dialogs.closeDialog}
+        onConfirm={songActions.handleAddToQueue}
+        songTitle={song.title}
+      />
+
+      <DeleteSongDialog
+        song={song}
+        onConfirm={songActions.handleDelete}
+        isDeleting={songActions.isDeleting}
+        deleteError={songActions.deleteError}
+        isOpen={dialogs.isDialogOpen("delete")}
+        onOpenChange={(open) => !open && dialogs.closeDialog()}
+        trigger={<div style={{ display: "none" }} />}
+      />
     </Card>
   );
 };

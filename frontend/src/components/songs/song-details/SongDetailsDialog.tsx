@@ -3,7 +3,7 @@ import { Song } from "@/types/Song";
 import { ArtworkDisplay } from "./ArtworkDisplay";
 import { PrimarySongDetails } from "./PrimarySongDetails";
 import { PrimaryActionsSection } from "./PrimaryActionsSection";
-import { TwoColumnContentLayout } from "./TwoColumnContentLayout";
+import { SongLyricsSection } from "./SongLyricsSection";
 import { MetadataEditContent } from "./MetadataEditContent";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -103,10 +103,11 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                 song={song}
                 onClose={onClose}
                 onEditMetadata={handleEditMetadata}
+                onSongDeleted={onClose}
               />
 
-              {/* Two-Column Layout: Lyrics + Secondary Actions */}
-              <TwoColumnContentLayout song={song} />
+              {/* Lyrics Section */}
+              <SongLyricsSection song={song} />
             </>
           ) : (
             /* Metadata Editing View */
