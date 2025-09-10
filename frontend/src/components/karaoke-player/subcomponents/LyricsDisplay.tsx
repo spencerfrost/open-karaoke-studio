@@ -19,7 +19,7 @@ interface LyricsDisplayProps {
   isSync: boolean;
   currentTime: number;        // in seconds
   lyricsSize: 'small' | 'medium' | 'large';
-  lyricsOffset: number;       // in seconds
+  lyricsOffset: number;       // in milliseconds
   className?: string;
   'aria-label'?: string;
   // Optional song data for lyrics search
@@ -94,7 +94,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
     return (
       <Lrc
         lrc={lyrics}
-        currentMillisecond={(currentTime + lyricsOffset) * 1000}
+        currentMillisecond={(currentTime * 1000) + lyricsOffset}
         verticalSpace={true}
         lineRenderer={({ active, line }) => (
           <div
