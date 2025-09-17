@@ -10,6 +10,7 @@ interface SongResultsSectionProps {
   fetchNextPage: () => void;
   onSongSelect: (song: Song) => void;
   searchTerm: string;
+  sessionId?: string;
 }
 
 const SongResultsSection: React.FC<SongResultsSectionProps> = ({
@@ -18,6 +19,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   onSongSelect,
+  sessionId,
 }) => {
   return (
     <div className="mb-8">
@@ -37,6 +39,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
         onSongSelect={onSongSelect}
+        sessionId={sessionId}
       />
     </div>
   );

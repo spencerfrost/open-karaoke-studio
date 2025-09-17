@@ -2,13 +2,6 @@
 Main entry point for the Open Karaoke Studio backend application.
 """
 
-import eventlet
-
-# Monkey patch as early as possible for eventlet compatibility
-# (must be before any other imports that use networking)
-eventlet.monkey_patch()
-
-
 import logging
 import os
 
@@ -57,19 +50,10 @@ except Exception as e:
 if __name__ == "__main__":
     # Optional: Setup any additional runtime configuration here
 
-    from app.websockets.handlers import register_websocket_handlers
-    from app.websockets.socketio import init_socketio, socketio
-
-    # Initialize SocketIO with the Flask app
-    init_socketio(app)
-    # Register all websocket event handlers in one place
-    register_websocket_handlers(socketio)
-
     port = int(os.environ.get("PORT", 5123))
     debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
-    use_reloader = os.environ.get("FLASK_USE_RELOADER", "true").lower() == "true"
 
     logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
     logger.info("Debug mode: %s", debug)
 
-    socketio.run(app, host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader)
+    app.run(host="0.0.0.0", port=port, debug=debug)

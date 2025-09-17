@@ -77,3 +77,4 @@ htmlcov
 frontend/dev-dist/registerSW.js
 frontend/dev-dist/sw.js
 frontend/dev-dist/workbox-31862777.js
+docs/claude.xml

@@ -11,6 +11,7 @@ interface RecentlyAddedSongsProps {
   songsPerPage?: number;
   maxSongs?: number;
   animated?: boolean; // Toggle between carousel animation and simple pagination
+  sessionId?: string;
 }
 
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
@@ -18,6 +19,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   songsPerPage = 12,
   maxSongs = 48,
   animated = true,
+  sessionId,
 }) => {
   const { useSongs } = useSongsHook();
   const { 
@@ -115,6 +117,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
                         key={`${song.id}-${pageIndex}`}
                         song={song}
                         onPlay={onSongSelect}
+                        sessionId={sessionId}
                       />
                     ))}
                   </div>
@@ -131,6 +134,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
               key={song.id}
               song={song}
               onPlay={onSongSelect}
+              sessionId={sessionId}
             />
           ))}
         </div>

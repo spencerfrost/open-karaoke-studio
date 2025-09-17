@@ -15,19 +15,20 @@ import {
  * Hook: Get the current queue
  */
 export function useQueue(
+  sessionCode?: string,
   options?: Omit<
     UseQueryOptions<
       KaraokeQueueItem[],
       Error,
       KaraokeQueueItem[],
-      ["karaoke-queue"]
+      ["karaoke-queue", string]
     >,
     "queryKey" | "queryFn"
   >,
 ) {
-  return useApiQuery<KaraokeQueueItem[], ["karaoke-queue"]>(
-    ["karaoke-queue"],
-    "karaoke-queue",
+  return useApiQuery<KaraokeQueueItem[], ["karaoke-queue", string]>(
+    ["karaoke-queue", sessionCode || ""],
+    `karaoke-queue${sessionCode ? `?session_code=${sessionCode}` : ""}`,
     options,
   );
 }
@@ -57,6 +58,7 @@ export function useCurrentSong(
  * Hook: Add a song to the queue
  */
 export function useAddToKaraokeQueue(
+  sessionCode?: string,
   options?: Omit<
     UseMutationOptions<
       KaraokeQueueItem,
@@ -68,7 +70,7 @@ export function useAddToKaraokeQueue(
   >,
 ) {
   return useApiMutation<KaraokeQueueItem, AddToKaraokeQueueRequest>(
-    "karaoke-queue",
+    `karaoke-queue${sessionCode ? `?session_code=${sessionCode}` : ""}`,
     "post",
     options,
   );
@@ -79,6 +81,7 @@ export function useAddToKaraokeQueue(
  */
 import { useMutation } from "@tanstack/react-query";
 export function useRemoveFromKaraokeQueue(
+  sessionCode?: string,
   options?: Omit<
     UseMutationOptions<{ success: boolean }, Error, string, unknown>,
     "mutationFn"
@@ -87,7 +90,8 @@ export function useRemoveFromKaraokeQueue(
   // Custom mutation for dynamic URL based on id
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/karaoke-queue/${id}`, {
+      const url = `/api/karaoke-queue/${id}${sessionCode ? `?session_code=${sessionCode}` : ""}`;
+      const response = await fetch(url, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -110,11 +114,13 @@ export function useRemoveFromKaraokeQueue(
  * Hook: Play a song from the queue (removes from queue and loads into player)
  */
 export function usePlayFromKaraokeQueue(
+  sessionCode?: string,
   options?: Omit<UseMutationOptions<any, Error, string, unknown>, "mutationFn">,
 ) {
   return useMutation<any, Error, string, unknown>({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/karaoke-queue/${id}/play`, {
+      const url = `/api/karaoke-queue/${id}/play${sessionCode ? `?session_code=${sessionCode}` : ""}`;
+      const response = await fetch(url, {
         method: "POST",
       });
       if (!response.ok) {

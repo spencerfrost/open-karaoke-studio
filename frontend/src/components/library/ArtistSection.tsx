@@ -10,7 +10,7 @@ interface ArtistSectionProps {
   isExpanded: boolean;
   onToggle: () => void;
   onSongSelect: (song: Song) => void;
-  onAddToQueue: (song: Song) => void;
+  sessionId?: string;
 }
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
@@ -19,7 +19,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   isExpanded,
   onToggle,
   onSongSelect,
-  onAddToQueue,
+  sessionId,
 }) => {
   const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteArtistSongs(artistName, 200, {
@@ -61,7 +61,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             isFetchingNextPage={isFetchingNextPage}
             fetchNextPage={fetchNextPage}
             onSongSelect={onSongSelect}
-            onAddToQueue={onAddToQueue}
+            sessionId={sessionId}
           />
         </div>
       )}

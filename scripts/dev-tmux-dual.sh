@@ -67,7 +67,7 @@ tmux split-window -v -t $SESSION_NAME:services.1 -c "$(pwd)/backend"
 tmux send-keys -t $SESSION_NAME:services.2 "source venv/bin/activate" C-m
 tmux send-keys -t $SESSION_NAME:services.2 "cd fastapi_poc" C-m
 tmux send-keys -t $SESSION_NAME:services.2 "sleep 1" C-m # Wait for Flask to start
-tmux send-keys -t $SESSION_NAME:services.2 "python main.py" C-m
+tmux send-keys -t $SESSION_NAME:services.2 "hypercorn main:app --bind 0.0.0.0:5124 --reload" C-m
 
 # Split the left pane (Flask backend) vertically to create fourth pane for frontend
 echo "🌐 Adding frontend in pane 3..."

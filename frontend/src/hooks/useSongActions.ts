@@ -9,10 +9,10 @@ export interface SongActionsConfig {
   enableDetails?: boolean;
 }
 
-export const useSongActions = (song: Song, config: SongActionsConfig = {}) => {
+export const useSongActions = (song: Song, config: SongActionsConfig = {}, sessionId?: string) => {
   const navigate = useNavigate();
   const { useDeleteSong } = useSongs();
-  const addToKaraokeQueue = useAddToKaraokeQueue();
+  const addToKaraokeQueue = useAddToKaraokeQueue(sessionId);
   const deleteSongMutation = useDeleteSong();
 
   const handlePlay = (e?: React.MouseEvent) => {

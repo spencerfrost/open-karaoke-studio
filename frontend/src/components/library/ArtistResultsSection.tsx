@@ -14,6 +14,7 @@ interface ArtistResultsSectionProps {
   onSongSelect: (song: Song) => void;
   onAddToQueue: (song: Song) => void;
   searchTerm: string;
+  sessionId?: string;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
@@ -21,6 +22,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   onSongSelect,
   onAddToQueue,
   searchTerm,
+  sessionId,
 }) => {
   // Show section header
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
@@ -40,6 +42,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
         artists={artists}
         onSongSelect={onSongSelect}
         onAddToQueue={onAddToQueue}
+        sessionId={sessionId}
       />
     </div>
   );

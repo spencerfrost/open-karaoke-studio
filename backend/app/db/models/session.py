@@ -5,12 +5,15 @@ Session management models for Open Karaoke Studio.
 import secrets
 import string
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .queue import KaraokeQueueItem
 
 
 class KaraokeSession(Base):
@@ -19,7 +22,7 @@ class KaraokeSession(Base):
     __tablename__ = "karaoke_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    session_id: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
     display_code: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
     host_device_id: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -31,26 +34,49 @@ class KaraokeSession(Base):
         "SessionDevice", back_populates="session", cascade="all, delete-orphan"
     )
 
+    # Relationship to queue items
+    queue_items: Mapped[List["KaraokeQueueItem"]] = relationship(
+        "KaraokeQueueItem", back_populates="session", cascade="all, delete-orphan"
+    )
+
     @classmethod
     def generate_session_id(cls) -> str:
         """Generate a unique session ID."""
         return secrets.token_urlsafe(24)
 
     @classmethod
-    def generate_display_code(cls) -> str:
-        """Generate a 4-character display code."""
-        # Use uppercase letters and numbers, excluding confusing characters (0, O, 1, I)
-        chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-        return "".join(secrets.choice(chars) for _ in range(4))
+    def generate_display_code(cls, db_session) -> str:
+        """Generate a unique 4-character display code using only capital letters, checking against active sessions."""
+        # Use only uppercase letters for simplicity and readability
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+        # Keep trying until we find an unused code
+        max_attempts = 100  # Prevent infinite loop, though 26^4 = 456,976 possibilities make this unlikely
+        for _ in range(max_attempts):
+            code = "".join(secrets.choice(chars) for _ in range(4))
+
+            # Check if this code is already in use by an active session
+            existing = db_session.query(cls).filter(
+                cls.display_code == code,
+                cls.is_active == True,
+                cls.expires_at > datetime.utcnow(),
+            ).first()
+
+            if not existing:
+                return code
+
+        # If we somehow exhaust all possibilities (extremely unlikely), raise an error
+        raise RuntimeError("Unable to generate unique display code - all codes in use")
 
     @classmethod
     def create_new_session(
-        cls, host_device_id: str, duration_hours: int = 24
+        cls, db_session, host_device_id: str, duration_hours: int = 24
     ) -> "KaraokeSession":
-        """Create a new karaoke session."""
+        """Create a new karaoke session with unique display code."""
+        display_code = cls.generate_display_code(db_session)
         session = cls(
-            session_id=cls.generate_session_id(),
-            display_code=cls.generate_display_code(),
+            session_id=display_code,  # Use display_code as session_id for simplicity
+            display_code=display_code,
             host_device_id=host_device_id,
             expires_at=datetime.utcnow() + timedelta(hours=duration_hours),
         )
@@ -76,7 +102,7 @@ class SessionDevice(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("karaoke_sessions.session_id"), nullable=False
+        String(4), ForeignKey("karaoke_sessions.session_id"), nullable=False
     )
     device_id: Mapped[str] = mapped_column(String(64), nullable=False)
     device_type: Mapped[str] = mapped_column(String(20), nullable=False)

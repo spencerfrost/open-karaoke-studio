@@ -33,30 +33,39 @@ class QueueWebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private currentSessionId: string | null = null;
 
   constructor() {
-    this.initializeConnection();
+    // Don't initialize connection immediately - wait for session
   }
 
   private initializeConnection() {
     try {
-      // Use the WebSocket URL that goes through Vite proxy in development
-      // or directly to FastAPI in production
       let socketUrl: string;
 
       if (import.meta.env.DEV) {
-        // Development mode - use the current host to leverage Vite proxy (/ws -> localhost:5124)
-        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/queue`;
-        console.log("Development mode - using Vite proxy for queue WebSocket:", socketUrl);
+        // Development mode - use the current host to leverage Vite proxy
+        if (this.currentSessionId) {
+          socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${this.currentSessionId}/queue`;
+          console.log("Development mode - using session-specific queue WebSocket:", socketUrl);
+        } else {
+          socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/queue`;
+          console.log("Development mode - using global queue WebSocket (no session):", socketUrl);
+        }
       } else {
-        // Production mode - use FastAPI WebSocket directly
+        // Production mode - use direct URLs
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 
                           `${window.location.protocol}//${window.location.host}`;
-        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/queue`;
-        console.log("Production mode - using direct FastAPI queue WebSocket:", socketUrl);
+        if (this.currentSessionId) {
+          socketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${this.currentSessionId}/queue`;
+          console.log("Production mode - using session-specific queue WebSocket:", socketUrl);
+        } else {
+          socketUrl = `${backendUrl.replace('http', 'ws')}/ws/queue`;
+          console.log("Production mode - using global queue WebSocket (no session):", socketUrl);
+        }
       }
 
-      console.log("Attempting to connect to FastAPI queue WebSocket at:", socketUrl);
+      console.log("Attempting to connect to queue WebSocket at:", socketUrl);
       
       this.websocket = new WebSocket(socketUrl);
       this.setupEventHandlers();
@@ -230,6 +239,21 @@ class QueueWebSocketService {
    */
   requestQueueUpdate() {
     this.send({ type: "request_queue_update" });
+  }
+
+  /**
+   * Update connection when session changes
+   */
+  updateSession(sessionId: string | null) {
+    console.log("Updating queue WebSocket for new session:", sessionId);
+    this.currentSessionId = sessionId;
+    this.disconnect();
+    this.reconnectAttempts = 0;
+    
+    // Only initialize if we have a session ID
+    if (sessionId) {
+      this.initializeConnection();
+    }
   }
 
   /**

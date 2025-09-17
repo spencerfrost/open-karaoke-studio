@@ -16,11 +16,12 @@ export const SongCard: React.FC<SongCardProps> = ({
   onPlay,
   variant = "detailed",
   actions = ["queue", "details"],
+  sessionId,
 }) => {
   const { getArtworkUrl } = useSongs();
   const artworkUrl = getArtworkUrl(song, "medium");
 
-  const songActions = useSongActions(song, { onPlay });
+  const songActions = useSongActions(song, { onPlay }, sessionId);
   const dialogs = useSongDialogs();
 
   const handleQueueClick = (e: React.MouseEvent) => {

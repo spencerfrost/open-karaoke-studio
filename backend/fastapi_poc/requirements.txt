@@ -2,7 +2,7 @@
 
 # Core FastAPI
 fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+hypercorn>=0.17.3
 python-multipart>=0.0.6
 
 # For async operations
@@ -12,8 +12,7 @@ asyncio-mqtt>=0.11.0
 pydantic>=2.11.3
 typing-extensions>=4.8.0
 
-# WebSocket support (included with uvicorn[standard])
-websockets>=11.0
+# WebSocket support (handled by hypercorn, no direct dependency needed)
 
 # Database support
 sqlalchemy>=2.0.0

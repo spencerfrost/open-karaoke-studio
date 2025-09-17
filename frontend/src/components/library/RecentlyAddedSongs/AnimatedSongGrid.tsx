@@ -7,6 +7,7 @@ interface AnimatedSongGridProps {
   nextPageSongs: Song[];
   isAnimating: boolean;
   displayPage: number;
+  sessionId?: string;
 }
 
 const GRID_CLASSES =
@@ -17,6 +18,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
   nextPageSongs,
   isAnimating,
   displayPage,
+  sessionId,
 }) => {
   return (
     <div className="relative overflow-hidden">
@@ -29,7 +31,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
         }`}
       >
         {currentPageSongs.map((song: Song) => (
-          <SongCard key={`${song.id}-${displayPage}`} song={song} />
+          <SongCard key={`${song.id}-${displayPage}`} song={song} sessionId={sessionId} />
         ))}
       </div>
 
@@ -43,7 +45,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
           }`}
         >
           {nextPageSongs.map((song: Song) => (
-            <SongCard key={`${song.id}-${displayPage + 1}`} song={song} />
+            <SongCard key={`${song.id}-${displayPage + 1}`} song={song} sessionId={sessionId} />
           ))}
         </div>
       )}

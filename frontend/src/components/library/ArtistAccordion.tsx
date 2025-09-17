@@ -13,6 +13,7 @@ interface ArtistAccordionProps {
   onSongSelect?: (song: Song) => void;
   onAddToQueue?: (song: Song) => void;
   className?: string;
+  sessionId?: string;
 }
 
 const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
@@ -20,6 +21,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   onSongSelect,
   onAddToQueue,
   className = "",
+  sessionId,
 }) => {
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
     new Set(),
@@ -79,6 +81,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                 onToggle={() => toggleArtist(artist.name)}
                 onSongSelect={onSongSelect}
                 onAddToQueue={onAddToQueue}
+                sessionId={sessionId}
               />
             ))}
           </div>

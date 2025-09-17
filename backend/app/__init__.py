@@ -11,7 +11,6 @@ from .api import register_blueprints
 from .config import get_config
 from .jobs import init_celery
 from .utils.error_handlers import register_error_handlers
-from .websockets import init_socketio
 
 
 def create_app(config_class=None):
@@ -40,9 +39,6 @@ def create_app(config_class=None):
 
     # Initialize Celery
     init_celery(app)
-
-    # Initialize WebSocket
-    init_socketio(app)
 
     # Ensure database schema is up to date
     from .db.database import ensure_db_schema

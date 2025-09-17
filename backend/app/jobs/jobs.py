@@ -30,38 +30,9 @@ def _broadcast_job_event(job, was_created=False):
         job: The job object
         was_created: Whether this is a newly created job
     """
-    try:
-        from app.websockets.jobs_ws import (
-            broadcast_job_cancelled,
-            broadcast_job_completed,
-            broadcast_job_created,
-            broadcast_job_failed,
-            broadcast_job_update,
-        )
-
-        job_data = job.to_dict()
-
-        # Determine the appropriate broadcast function
-        if was_created:
-            broadcast_job_created(job_data)
-        else:
-            # Map job status to appropriate event type
-            if job.status == JobStatus.COMPLETED:
-                broadcast_job_completed(job_data)
-            elif job.status == JobStatus.FAILED:
-                broadcast_job_failed(job_data)
-            elif job.status == JobStatus.CANCELLED:
-                broadcast_job_cancelled(job_data)
-            else:
-                # For PENDING, PROCESSING, or other statuses
-                broadcast_job_update(job_data)
-
-    except ImportError:
-        # WebSocket not available, silently continue
-        pass
-    except Exception as e:
-        # Log the error but don't fail the operation
-        logger.warning("Failed to broadcast job event: %s", e)
+    # WebSocket broadcasting has been migrated to FastAPI
+    # Job events are now handled by the FastAPI WebSocket server
+    pass
 
 
 class AudioProcessingError(Exception):

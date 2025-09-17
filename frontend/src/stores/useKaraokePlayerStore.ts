@@ -1,23 +1,27 @@
 import { create } from "zustand";
+import { sessionWebSocketService } from "../services/sessionWebSocketService";
 
-// WebSocket URL for FastAPI performance controls
-// Use relative path so it goes through Vite proxy
-const PERFORMANCE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/performance`;
-const INITIAL_STATE = {
-  isReady: false,
-  isLoading: false,
-  error: null,
-  currentTime: 0,
-  isPlaying: false,
-};
+// Extend window interface for cleanup storage
+declare global {
+  interface Window {
+    __playerWebSocketCleanup?: (() => void)[];
+  }
+}
 
-// Helper function to get audio URLs
-const getAudioUrl = (
-  songId: string,
-  trackType: "vocals" | "instrumental" | "original",
-): string => {
-  return `/api/songs/${songId}/download/${trackType}`;
-};
+// Import types from sessionWebSocketService
+type ControlValue = number | string | boolean;
+
+interface PerformanceState {
+  vocal_volume: number;
+  instrumental_volume: number;
+  lyrics_size: "small" | "medium" | "large";
+  lyrics_offset: number;
+  current_time: number;
+  duration: number;
+  is_playing: boolean;
+  current_song_id?: string | null;
+  is_ready?: boolean;
+}
 
 interface KaraokePlayerState {
   // Audio/track info
@@ -39,9 +43,8 @@ interface KaraokePlayerState {
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
 
-  // WebSocket
+  // Connection state (managed by unified service)
   connected: boolean;
-  websocket: WebSocket | null;
 
   // Actions
   connect: () => void;
@@ -60,6 +63,9 @@ interface KaraokePlayerState {
   setLyricsOffset: (offset: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  // Method to update from WebSocket
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateFromWebSocket: (data: any) => void;
 }
 
 export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
@@ -79,6 +85,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
   // Add a variable to store song duration in seconds
   let songDuration: number | undefined = undefined;
+
+  // Flag to prevent WebSocket interference during song loading
+  let isLoadingNewSong: boolean = false;
 
   // Track local updates to prevent WebSocket echoes
   const lastLocalUpdate: { [key: string]: { value: unknown; timestamp: number } } = {};
@@ -103,21 +112,32 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   }
 
   function socketEmit(messageType: string, data?: Record<string, unknown>) {
-    const { websocket } = get();
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-      const message = {
-        type: messageType,
-        ...(data || {})
-      };
-      setTimeout(() => {
-        websocket.send(JSON.stringify(message));
-      }, 5);
-    } else {
-      console.error('❌ WebSocket not ready:', {
-        websocket: !!websocket,
-        readyState: websocket?.readyState,
-        OPEN: WebSocket.OPEN
+    // Use the appropriate public method based on message type
+    if (messageType === "update_performance_control") {
+      sessionWebSocketService.updatePerformanceControl(
+        (data?.control as string) || "",
+        data?.value as ControlValue
+      );
+    } else if (messageType === "update_player_state") {
+      sessionWebSocketService.updatePlayerState({
+        isPlaying: data?.isPlaying as boolean,
+        currentTime: data?.currentTime as number,
+        duration: data?.duration as number,
       });
+    } else if (messageType === "playback_play") {
+      sessionWebSocketService.playback();
+    } else if (messageType === "playback_pause") {
+      sessionWebSocketService.pause();
+    } else if (messageType === "song_loaded") {
+      sessionWebSocketService.songLoaded(
+        (data?.songId as string) || "",
+        (data?.duration as number) || 0
+      );
+    } else if (messageType === "song_ready") {
+      sessionWebSocketService.songReady(
+        (data?.songId as string) || "",
+        (data?.duration as number) || 0
+      );
     }
   }
 
@@ -175,7 +195,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     if (interval) clearInterval(interval);
     if (!audioContext) return;
     interval = setInterval(() => {
-      const { isReady, websocket, isPlaying, duration } = get();
+      const { isReady, isPlaying, duration } = get();
       if (!isReady) return;
       let currentTime = playbackOffset;
       if (isPlaying && playbackStartTime !== null && audioContext) {
@@ -183,7 +203,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
           playbackOffset + (audioContext.currentTime - playbackStartTime);
       }
       set({ currentTime });
-      if (websocket && websocket.readyState === WebSocket.OPEN && audioContext && isPlaying) {
+      if (audioContext && isPlaying) {
         socketEmit("update_player_state", {
           isPlaying: true,
           currentTime,
@@ -240,7 +260,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     console.log('Sending performance control update:', backendControl, '=', value);
     set({ [control]: value });
-    
+
     socketEmit("update_performance_control", {
       control: backendControl,
       value,
@@ -251,17 +271,17 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   function shouldIgnoreWebSocketUpdate(control: string, value: unknown): boolean {
     const localUpdate = lastLocalUpdate[control];
     if (!localUpdate) return false;
-    
+
     const timeSinceLocalUpdate = Date.now() - localUpdate.timestamp;
     const isWithinDebounceWindow = timeSinceLocalUpdate < LOCAL_UPDATE_DEBOUNCE_MS;
-    
+
     // For currentTime, allow small differences due to precision/timing
     if (control === "current_time" && typeof value === "number" && typeof localUpdate.value === "number") {
       const timeDifference = Math.abs(value - localUpdate.value);
       const isSimilarTime = timeDifference < 0.5; // Within 0.5 seconds
       return isSimilarTime && isWithinDebounceWindow;
     }
-    
+
     // For other controls, require exact value match
     const isSameValue = localUpdate.value === value;
     return isSameValue && isWithinDebounceWindow;
@@ -282,121 +302,105 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     lyricsSize: "medium",
     lyricsOffset: 0,
     connected: false,
-    websocket: null,
 
     // Actions
     connect: () => {
-      const currentState = get();
-      
-      // Close existing connection if any
-      if (currentState.websocket) {
-        if (currentState.websocket.readyState === WebSocket.OPEN) {
-          return; // Already connected
-        }
-        currentState.websocket.close();
-      }
+      // Connection is now handled by the unified session service
+      // Just update the connected status based on service state
+      set({ connected: sessionWebSocketService.isConnectionActive() });
 
-      console.log('Connecting to WebSocket at:', PERFORMANCE_WS_URL);
-      const websocket = new WebSocket(PERFORMANCE_WS_URL);
-      
-      // Set the websocket in state immediately
-      set({ websocket });
-      
-      websocket.onopen = () => {
-        console.log('WebSocket connected successfully');
+      // Set up listeners for performance events
+      const cleanupPerformanceState = sessionWebSocketService.on("performance_state", (data) => {
+        if (data && typeof data === 'object' && 'state' in data) {
+          const state = (data as { state: PerformanceState }).state;
+          get().updateFromWebSocket(state);
+        }
+      });
+
+      const cleanupControlUpdated = sessionWebSocketService.on("control_updated", (data) => {
+        if (data && typeof data === 'object' && 'control' in data && 'value' in data) {
+          const { control, value } = data as { control: string; value: unknown };
+          get().updateFromWebSocket({ [control]: value });
+        }
+      });
+
+      const cleanupPlaybackPlay = sessionWebSocketService.on("playback_play", () => {
+        get().play();
+      });
+
+      const cleanupPlaybackPause = sessionWebSocketService.on("playback_pause", () => {
+        get().pause();
+      });
+
+      // Add listener for session connection status
+      const cleanupSessionConnected = sessionWebSocketService.on("session_connected", () => {
         set({ connected: true });
-        // Join performance controls
-        websocket.send(JSON.stringify({
-          type: 'join_performance'
-        }));
-      };
+      });
 
-      websocket.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        set({ connected: false, websocket: null });
-      };
-
-      websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        set({ connected: false, websocket: null });
-      };
-
-      websocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket received:', data);
-          
-          if (data.type === 'performance_state') {
-            // Check if currentTime update should be ignored to prevent seek flickering
-            const shouldIgnoreCurrentTime = shouldIgnoreWebSocketUpdate("current_time", data.state.current_time);
-            
-            set((state) => ({
-              isPlaying: data.state.is_playing,
-              currentTime: shouldIgnoreCurrentTime ? state.currentTime : data.state.current_time,
-              duration: data.state.duration > 0 ? data.state.duration : state.duration,
-              vocalVolume: shouldIgnoreWebSocketUpdate("vocal_volume", data.state.vocal_volume) ? state.vocalVolume : data.state.vocal_volume,
-              instrumentalVolume: shouldIgnoreWebSocketUpdate("instrumental_volume", data.state.instrumental_volume) ? state.instrumentalVolume : data.state.instrumental_volume,
-              lyricsSize: shouldIgnoreWebSocketUpdate("lyrics_size", data.state.lyrics_size) ? state.lyricsSize : data.state.lyrics_size,
-              lyricsOffset: shouldIgnoreWebSocketUpdate("lyrics_offset", data.state.lyrics_offset) ? state.lyricsOffset : data.state.lyrics_offset,
-            }));
-          } else if (data.type === 'control_updated') {
-            console.log('Received control update:', data.control, '=', data.value);
-            // Check if this is an echo of our own local update
-            if (shouldIgnoreWebSocketUpdate(data.control, data.value)) {
-              console.log('Ignoring control update (local echo)');
-              return; // Ignore this update to prevent flicker
-            }
-
-            if (data.control === "vocal_volume") {
-              console.log('Updating vocal volume to:', data.value);
-              set({ vocalVolume: data.value });
-              if (vocalGain) vocalGain.gain.value = data.value;
-            } else if (data.control === "instrumental_volume") {
-              console.log('Updating instrumental volume to:', data.value);
-              set({ instrumentalVolume: data.value });
-              if (instrumentalGain) instrumentalGain.gain.value = data.value;
-            } else if (data.control === "lyrics_size") {
-              set({ lyricsSize: data.value });
-            } else if (data.control === "lyrics_offset") {
-              set({ lyricsOffset: data.value });
-            }
-          } else if (data.type === 'playback_play') {
-            get().play();
-          } else if (data.type === 'playback_pause') {
-            get().pause();
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      set({ websocket });
+      // Store cleanup functions for later
+      window.__playerWebSocketCleanup = [
+        cleanupPerformanceState,
+        cleanupControlUpdated,
+        cleanupPlaybackPlay,
+        cleanupPlaybackPause,
+        cleanupSessionConnected,
+      ];
     },
+
     disconnect: () => {
-      const { websocket } = get();
-      if (websocket) {
-        console.log('Disconnecting WebSocket');
-        websocket.close();
+      // Clean up event listeners
+      if (window.__playerWebSocketCleanup) {
+        window.__playerWebSocketCleanup.forEach((cleanup: () => void) => cleanup());
+        delete window.__playerWebSocketCleanup;
       }
-      set({ connected: false, websocket: null });
+
+      set({ connected: false });
     },
+
     setSongId: (id: string, duration?: number) => {
       // Accept duration from the backend if available
       songDuration = duration;
+      // Reset playback state when changing songs
+      playbackOffset = 0;
+      playbackStartTime = null;
       set({
         songId: id,
-        instrumentalUrl: getAudioUrl(id, "instrumental"),
-        vocalUrl: getAudioUrl(id, "vocals"),
+        instrumentalUrl: `/api/songs/${id}/download/instrumental`,
+        vocalUrl: `/api/songs/${id}/download/vocals`,
         isReady: false,
         error: null,
         duration: duration || 0,
+        currentTime: 0,
+        isPlaying: false,
       });
     },
+
     setSongAndLoad: async (id: string, duration?: number) => {
-      get().setSongId(id, duration);
-      get().cleanup();
+      // Set loading flag to prevent WebSocket interference
+      isLoadingNewSong = true;
+
+      get().cleanup(); // This will reset audio nodes and state
+      get().setSongId(id, duration); // This will set new song and reset playback position
+
+      // Tell the backend we're loading a new song so it can reset performance state
+      socketEmit("song_loaded", {
+        songId: id,
+        duration: duration || 0,
+        currentTime: 0,
+        isPlaying: false
+      });
+
       await get().load();
+
+      // Re-enable WebSocket updates after a short delay to allow backend reset to propagate
+      setTimeout(() => {
+        isLoadingNewSong = false;
+        // Clear any stale local update tracking to ensure clean sync
+        Object.keys(lastLocalUpdate).forEach(key => delete lastLocalUpdate[key]);
+        console.log('Re-enabled WebSocket performance state updates');
+      }, 500);
     },
+
     load: async () => {
       set({ isLoading: true });
       try {
@@ -435,6 +439,16 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
           isReady: true,
           error: null,
         });
+
+        // Confirm to backend that song is loaded and ready with final duration
+        socketEmit("song_ready", {
+          songId: get().songId,
+          duration: durationSeconds,
+          currentTime: 0,
+          isPlaying: false,
+          isReady: true
+        });
+
         tempContext.close();
       } catch {
         set({ error: "Failed to load or decode audio." });
@@ -442,6 +456,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         set({ isLoading: false });
       }
     },
+
     play: () => {
       if (!audioContext) {
         audioContext = new window.AudioContext();
@@ -451,10 +466,11 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
       setupAudioGraph(audioContext.currentTime, playbackOffset);
       playbackStartTime = audioContext.currentTime;
-      set({ isPlaying: true });
+      updatePlayerState({ isPlaying: true });
 
       startTimeInterval();
     },
+
     pause: () => {
       if (instrumentalSource) instrumentalSource.stop();
       if (vocalSource) vocalSource.stop();
@@ -464,18 +480,22 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         const elapsed = audioContext.currentTime - playbackStartTime;
         playbackOffset = playbackOffset + elapsed;
         playbackStartTime = null;
-        set({ currentTime: playbackOffset });
+        updatePlayerState({ currentTime: playbackOffset, isPlaying: false });
+      } else {
+        updatePlayerState({ isPlaying: false });
       }
-      set({ isPlaying: false });
     },
+
     userPlay: () => {
       socketEmit("playback_play", {});
       get().play();
     },
+
     userPause: () => {
       socketEmit("playback_pause", {});
       get().pause();
     },
+
     // Accepts seconds as canonical unit
     seek: (timeSeconds: number) => {
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
@@ -491,31 +511,81 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         updatePlayerState({ currentTime: timeSeconds, isPlaying: false });
       }
     },
+
     setVocalVolume: (volume: number) => {
       const normalized = Math.max(0, Math.min(1, volume));
       updatePerformanceControl("vocalVolume", normalized);
       if (vocalGain) vocalGain.gain.value = normalized;
     },
+
     setInstrumentalVolume: (volume: number) => {
       const normalized = Math.max(0, Math.min(1, volume));
       updatePerformanceControl("instrumentalVolume", normalized);
       if (instrumentalGain) instrumentalGain.gain.value = normalized;
     },
+
     setLyricsSize: (size: "small" | "medium" | "large") => {
       updatePerformanceControl("lyricsSize", size);
     },
+
     setLyricsOffset: (offset: number) => {
       updatePerformanceControl("lyricsOffset", offset);
     },
+
     cleanup: () => {
       resetAudioNodes();
-      updatePlayerState({ ...INITIAL_STATE });
+      // Clear any pending local update tracking to avoid stale state
+      Object.keys(lastLocalUpdate).forEach(key => delete lastLocalUpdate[key]);
+      // Note: We don't reset the store state here as it causes infinite loops
+      // State should only be reset when explicitly loading a new song
     },
+
     getWaveformData: () => {
       if (!analyser) return null;
       const array = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(array);
       return Array.from(array);
+    },
+
+    updateFromWebSocket: (data: any) => {
+      // Ignore updates during song loading to prevent interference
+      if (isLoadingNewSong) {
+        console.log('Ignoring WebSocket update during song loading');
+        return;
+      }
+
+      const updates: Partial<KaraokePlayerState> = {};
+
+      // Handle performance state updates
+      if (data.vocal_volume !== undefined && !shouldIgnoreWebSocketUpdate("vocal_volume", data.vocal_volume)) {
+        updates.vocalVolume = data.vocal_volume as number;
+        if (vocalGain) vocalGain.gain.value = data.vocal_volume as number;
+      }
+      if (data.instrumental_volume !== undefined && !shouldIgnoreWebSocketUpdate("instrumental_volume", data.instrumental_volume)) {
+        updates.instrumentalVolume = data.instrumental_volume as number;
+        if (instrumentalGain) instrumentalGain.gain.value = data.instrumental_volume as number;
+      }
+      if (data.lyrics_size !== undefined && !shouldIgnoreWebSocketUpdate("lyrics_size", data.lyrics_size)) {
+        updates.lyricsSize = data.lyrics_size as "small" | "medium" | "large";
+      }
+      if (data.lyrics_offset !== undefined && !shouldIgnoreWebSocketUpdate("lyrics_offset", data.lyrics_offset)) {
+        updates.lyricsOffset = data.lyrics_offset as number;
+      }
+
+      // Handle player state updates
+      if (data.is_playing !== undefined) {
+        updates.isPlaying = data.is_playing as boolean;
+      }
+      if (data.current_time !== undefined && !shouldIgnoreWebSocketUpdate("current_time", data.current_time)) {
+        updates.currentTime = data.current_time as number;
+      }
+      if (data.duration !== undefined) {
+        updates.duration = data.duration as number;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        set(updates);
+      }
     },
   };
 });

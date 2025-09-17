@@ -5,6 +5,7 @@ export interface SongCardProps {
   onPlay?: (song: Song) => void;
   variant?: "compact" | "detailed";
   actions?: SongCardAction[];
+  sessionId?: string;
 }
 
 export type SongCardAction = "delete" | "details" | "queue";

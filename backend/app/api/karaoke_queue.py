@@ -12,11 +12,17 @@ karaoke_queue_bp = Blueprint("karaoke_queue", __name__, url_prefix="/api/karaoke
 @karaoke_queue_bp.route("", methods=["GET"])
 def get_queue():
     """Retrieve the current karaoke queue with song details."""
+    # Get session_code from query parameter or header
+    session_code = request.args.get('session_code') or request.headers.get('X-Session-ID')
+    if not session_code:
+        return jsonify({"error": "session_code is required"}), 400
+    
     session = SessionLocal()
     try:
         queue = (
             session.query(KaraokeQueueItem)
             .options(joinedload(KaraokeQueueItem.song))
+            .filter(KaraokeQueueItem.session_id == session_code)
             .order_by(KaraokeQueueItem.position)
             .all()
         )
@@ -54,6 +60,11 @@ def get_queue():
 @karaoke_queue_bp.route("", methods=["POST"])
 def add_to_queue():
     """Add a new item to the karaoke queue."""
+    # Get session_code from query parameter or header
+    session_code = request.args.get('session_code') or request.headers.get('X-Session-ID')
+    if not session_code:
+        return jsonify({"error": "session_code is required"}), 400
+    
     data = request.json
     if not data or "singer" not in data or "songId" not in data:
         return (
@@ -68,6 +79,15 @@ def add_to_queue():
         )
     session = SessionLocal()
     try:
+        # Verify session exists
+        from app.db.models import KaraokeSession
+        karaoke_session = session.query(KaraokeSession).filter(
+            KaraokeSession.session_id == session_code,
+            KaraokeSession.is_active == True
+        ).first()
+        if not karaoke_session:
+            return jsonify({"error": "Session not found or inactive"}), 404
+        
         # Check if song exists
         song = session.query(DbSong).filter(DbSong.id == data["songId"]).first()
         if not song:
@@ -75,6 +95,7 @@ def add_to_queue():
 
         max_position = (
             session.query(KaraokeQueueItem.position)
+            .filter(KaraokeQueueItem.session_id == session_code)
             .order_by(KaraokeQueueItem.position.desc())
             .first()
         )
@@ -82,18 +103,20 @@ def add_to_queue():
         new_item = KaraokeQueueItem(
             singer_name=data["singer"],
             song_id=data["songId"],
+            session_id=session_code,
             position=new_position,
         )
         session.add(new_item)
         session.commit()
 
-        # Broadcast update via WebSocket if available
+        # Broadcast queue update via FastAPI WebSocket service
         try:
-            socketio = current_app.extensions.get("socketio")
-            if socketio and hasattr(socketio, "broadcast_queue_update"):
-                socketio.broadcast_queue_update()
+            import requests
+            fastapi_url = "http://localhost:5124/api/broadcast/queue-update"
+            requests.post(fastapi_url, timeout=1)  # Short timeout to avoid blocking
         except Exception as e:
-            logger.error("WebSocket broadcast error: %s", e)
+            # Log but don't fail the request if WebSocket broadcast fails
+            print(f"Warning: Failed to broadcast queue update: {e}")
 
         # Return the created item with song data
         session.refresh(new_item)
@@ -126,11 +149,16 @@ def add_to_queue():
 @karaoke_queue_bp.route("/<int:item_id>", methods=["DELETE"])
 def remove_from_queue(item_id):
     """Remove an item from the karaoke queue."""
+    # Get session_code from query parameter or header
+    session_code = request.args.get('session_code') or request.headers.get('X-Session-ID')
+    if not session_code:
+        return jsonify({"error": "session_code is required"}), 400
+    
     session = SessionLocal()
     try:
         item = (
             session.query(KaraokeQueueItem)
-            .filter(KaraokeQueueItem.id == item_id)
+            .filter(KaraokeQueueItem.id == item_id, KaraokeQueueItem.session_id == session_code)
             .first()
         )
         if not item:
@@ -141,6 +169,7 @@ def remove_from_queue(item_id):
         # Reindex positions to be contiguous
         remaining_items = (
             session.query(KaraokeQueueItem)
+            .filter(KaraokeQueueItem.session_id == session_code)
             .order_by(KaraokeQueueItem.position)
             .all()
         )
@@ -148,13 +177,13 @@ def remove_from_queue(item_id):
             queue_item.position = idx  # type: ignore
         session.commit()
 
-        # Broadcast update via WebSocket if available
+        # Broadcast queue update via FastAPI WebSocket service
         try:
-            socketio = current_app.extensions.get("socketio")
-            if socketio and hasattr(socketio, "broadcast_queue_update"):
-                socketio.broadcast_queue_update()
+            import requests
+            fastapi_url = "http://localhost:5124/api/broadcast/queue-update"
+            requests.post(fastapi_url, timeout=1)
         except Exception as e:
-            logger.error("WebSocket broadcast error: %s", e)
+            print(f"Warning: Failed to broadcast queue update: {e}")
 
         return jsonify({"success": True})
     finally:
@@ -164,6 +193,11 @@ def remove_from_queue(item_id):
 @karaoke_queue_bp.route("/reorder", methods=["PUT"])
 def reorder_queue():
     """Reorder the karaoke queue."""
+    # Get session_code from query parameter or header
+    session_code = request.args.get('session_code') or request.headers.get('X-Session-ID')
+    if not session_code:
+        return jsonify({"error": "session_code is required"}), 400
+    
     data = request.json
     if not data or "queue" not in data or not isinstance(data["queue"], list):
         return (
@@ -181,20 +215,20 @@ def reorder_queue():
         for item in data["queue"]:
             queue_item = (
                 session.query(KaraokeQueueItem)
-                .filter(KaraokeQueueItem.id == item["id"])
+                .filter(KaraokeQueueItem.id == item["id"], KaraokeQueueItem.session_id == session_code)
                 .first()
             )
             if queue_item:
                 queue_item.position = item["position"]
         session.commit()
 
-        # Broadcast update via WebSocket if available
+        # Broadcast queue update via FastAPI WebSocket service
         try:
-            socketio = current_app.extensions.get("socketio")
-            if socketio and hasattr(socketio, "broadcast_queue_update"):
-                socketio.broadcast_queue_update()
+            import requests
+            fastapi_url = "http://localhost:5124/api/broadcast/queue-update"
+            requests.post(fastapi_url, timeout=1)
         except Exception as e:
-            logger.error("WebSocket broadcast error: %s", e)
+            print(f"Warning: Failed to broadcast queue update: {e}")
 
         return jsonify({"success": True})
     finally:
@@ -204,12 +238,17 @@ def reorder_queue():
 @karaoke_queue_bp.route("/<int:item_id>/play", methods=["POST"])
 def play_queue_item(item_id):
     """Play a specific item from the queue (moves it to the player)."""
+    # Get session_code from query parameter or header
+    session_code = request.args.get('session_code') or request.headers.get('X-Session-ID')
+    if not session_code:
+        return jsonify({"error": "session_code is required"}), 400
+    
     session = SessionLocal()
     try:
         item = (
             session.query(KaraokeQueueItem)
             .options(joinedload(KaraokeQueueItem.song))
-            .filter(KaraokeQueueItem.id == item_id)
+            .filter(KaraokeQueueItem.id == item_id, KaraokeQueueItem.session_id == session_code)
             .first()
         )
         if not item:
@@ -221,7 +260,7 @@ def play_queue_item(item_id):
         # Remove current song (position 0) if it exists
         current_song = (
             session.query(KaraokeQueueItem)
-            .filter(KaraokeQueueItem.position == 0)
+            .filter(KaraokeQueueItem.position == 0, KaraokeQueueItem.session_id == session_code)
             .first()
         )
         if current_song:
@@ -234,7 +273,7 @@ def play_queue_item(item_id):
         # Reindex remaining positions to be contiguous (1, 2, 3, ...)
         remaining_items = (
             session.query(KaraokeQueueItem)
-            .filter(KaraokeQueueItem.position > 0)
+            .filter(KaraokeQueueItem.position > 0, KaraokeQueueItem.session_id == session_code)
             .order_by(KaraokeQueueItem.position)
             .all()
         )
@@ -242,32 +281,13 @@ def play_queue_item(item_id):
             queue_item.position = idx  # type: ignore
         session.commit()
 
-        # Broadcast queue update via WebSocket if available
+        # Broadcast queue update via FastAPI WebSocket service
         try:
-            socketio = current_app.extensions.get("socketio")
-            if socketio and hasattr(socketio, "broadcast_queue_update"):
-                socketio.broadcast_queue_update()
-
-            # Also broadcast the song that should be played
-            if socketio:
-                song_data = {
-                    "id": item.song.id,
-                    "title": item.song.title,
-                    "artist": item.song.artist,
-                    "album": item.song.album,
-                    "duration": item.song.duration,       # Duration in seconds
-                    "coverArt": getattr(item.song, "cover_art_url", None),
-                    "syncedLyrics": item.song.synced_lyrics,
-                    "plainLyrics": item.song.plain_lyrics,
-                }
-                socketio.emit(
-                    "play_song",
-                    {"song": song_data, "singer": item.singer_name},
-                    room="karaoke_queue",
-                )
-
+            import requests
+            fastapi_url = "http://localhost:5124/api/broadcast/queue-update"
+            requests.post(fastapi_url, timeout=1)
         except Exception as e:
-            logger.error("WebSocket broadcast error: %s", e)
+            print(f"Warning: Failed to broadcast queue update: {e}")
 
         # Return the song data for the player
         result = {

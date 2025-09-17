@@ -15,6 +15,8 @@ import AudioVisualizer from '@/components/karaoke-player/subcomponents/AudioVisu
 import ProgressBar from '@/components/karaoke-player/subcomponents/ProgressBar';
 import { formatTime } from '@/utils/formatters';
 import type { KaraokePlayerProps } from './KaraokePlayer.types';
+import { useSessionStore } from '@/stores/sessionStore';
+import { SessionCodeDisplay } from './subcomponents';
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
@@ -34,6 +36,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const player = useKaraokePlayer(songId, { autoPlay });
   const ui = usePlayerUI();
 
+  // Session store
+  const { displayCode } = useSessionStore();
+
   // Handle play/pause callbacks
   React.useEffect(() => {
     if (player.isPlaying && onPlay) {
@@ -46,7 +51,13 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   // Handle error callback
   React.useEffect(() => {
     if (player.error && onError) {
-      onError(player.error);
+      // Adapt PlayerError to Error for callback
+      const err: Error = {
+        name: player.error.code || 'PlayerError',
+        message: player.error.message,
+        stack: undefined,
+      };
+      onError(err);
     }
   }, [player.error, onError]);
 
@@ -71,7 +82,11 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     } else {
       player.setVocalVolume(0);
     }
-  };
+  } 
+
+  // No-op handlers for disabled controls
+  const noop = () => {};
+  const noopVolume = (/*volume: number*/) => {};
 
   // Size-based styling
   const sizeClasses = {
@@ -121,8 +136,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     );
   }
 
+  // Show player UI even if no song is loaded
   return (
-    <PlayerErrorBoundary onError={onError}>
+    <PlayerErrorBoundary onError={undefined}>
       <FullscreenContainer
         isFullscreen={ui.isFullscreen}
         containerRef={ui.containerRef}
@@ -141,20 +157,31 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           </div>
         )}
 
-        {/* Main Lyrics Display */}
-        <LyricsDisplay
-          lyrics={player.lyrics}
-          isSync={player.isLyricsSync}
-          currentTime={player.currentTime}
-          lyricsSize={player.lyricsSize}
-          lyricsOffset={player.lyricsOffset}
-          className={lyricsVisibility[size]}
-          songId={songId}
-          songTitle={player.song?.title}
-          songArtist={player.song?.artist}
-          songAlbum={player.song?.album}
-          songDuration={player.song?.duration}
-        />
+        {/* Session Code Display */}
+  <SessionCodeDisplay code={displayCode || ''} />
+
+        {/* Main Lyrics Display or No Song Message */}
+        {player.song ? (
+          <LyricsDisplay
+            lyrics={player.lyrics}
+            isSync={player.isLyricsSync}
+            currentTime={player.currentTime}
+            lyricsSize={player.lyricsSize}
+            lyricsOffset={player.lyricsOffset}
+            className={lyricsVisibility[size]}
+            songId={songId}
+            songTitle={player.song?.title}
+            songArtist={player.song?.artist}
+            songAlbum={player.song?.album}
+            songDuration={player.song?.duration}
+          />
+        ) : (
+          <div className={`flex flex-col items-center justify-center w-full h-full ${lyricsVisibility[size]}`}>
+            <div className="text-background/60 text-xl font-semibold py-12">
+              No songs in the queue
+            </div>
+          </div>
+        )}
 
         {/* Bottom Controls Area */}
         <div className="w-full absolute bottom-0 left-0 right-0">
@@ -162,7 +189,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           {showVisualizer && <AudioVisualizer className="w-full" />}
 
           {/* Progress Bar */}
-          {showProgress && (
+          {player.song && showProgress && (
             <ProgressBar
               currentTime={player.currentTime}
               duration={player.duration}
@@ -170,42 +197,45 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             />
           )}
 
-          {/* Player Controls */}
+          {/* Player Controls (always rendered, disabled if no song) */}
           <div className="flex items-center">
             {/* Main Controls (Play/Pause, Volume) */}
             <PlayerControls
               isPlaying={player.isPlaying}
-              isReady={player.isReady}
+              isReady={!!player.song && player.isReady}
               vocalVolume={player.vocalVolume}
               isFullscreen={ui.isFullscreen}
               showVolumeSlider={ui.showVolumeSlider}
               controls={[showPlay && 'play', showVolume && 'volume'].filter(Boolean) as Array<'play' | 'volume'>}
-              onPlayPause={player.togglePlay}
-              onVolumeChange={player.setVocalVolume}
-              onVolumeToggle={handleVolumeToggle}
+              onPlayPause={player.song ? player.togglePlay : noop}
+              onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
+              onVolumeToggle={player.song ? handleVolumeToggle : noop}
               onFullscreenToggle={ui.toggleFullscreen}
               onVolumeSliderShow={ui.setShowVolumeSlider}
             />
 
             {/* Time Display */}
-            {showProgress && (
+            {player.song && showProgress && (
               <div className={`flex-1 text-sm text-background/50 ${size === 'compact' ? 'text-xs' : 'text-sm'}`}>
                 {formatTime(player.currentTime)} / {formatTime(player.duration)}
               </div>
             )}
 
-            {/* Fullscreen Control */}
+            {/* Spacer to push fullscreen to far right */}
+            <div className="flex-1" />
+
+            {/* Fullscreen Control (always rendered, disabled if no song) */}
             {showFullscreen && (
               <PlayerControls
                 isPlaying={player.isPlaying}
-                isReady={player.isReady}
+                isReady={!!player.song && player.isReady}
                 vocalVolume={player.vocalVolume}
                 isFullscreen={ui.isFullscreen}
                 showVolumeSlider={ui.showVolumeSlider}
                 controls={['fullscreen']}
-                onPlayPause={player.togglePlay}
-                onVolumeChange={player.setVocalVolume}
-                onVolumeToggle={handleVolumeToggle}
+                onPlayPause={player.song ? player.togglePlay : noop}
+                onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
+                onVolumeToggle={player.song ? handleVolumeToggle : noop}
                 onFullscreenToggle={ui.toggleFullscreen}
                 onVolumeSliderShow={ui.setShowVolumeSlider}
               />

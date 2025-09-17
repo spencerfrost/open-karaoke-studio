@@ -10,6 +10,7 @@ interface SongResultsGridProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   onSongSelect?: (song: Song) => void;
+  sessionId?: string;
 }
 
 const SongResultsGrid: React.FC<SongResultsGridProps> = ({ 
@@ -18,6 +19,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   onSongSelect,
+  sessionId,
 }) => {
   if (songs.length === 0) {
     return null;
@@ -32,6 +34,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
             key={song.id} 
             song={song}
             onPlay={onSongSelect}
+            sessionId={sessionId}
           />
         ))}
       </div>

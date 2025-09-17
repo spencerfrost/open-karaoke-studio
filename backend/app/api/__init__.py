@@ -9,6 +9,7 @@ from .karaoke_queue import karaoke_queue_bp
 # Import all blueprints
 from .lyrics import lyrics_bp
 from .metadata import metadata_bp
+from .sessions import sessions_bp
 from .songs import song_bp
 
 # from .songs_artists import artists_bp
@@ -27,6 +28,7 @@ all_blueprints = [
     youtube_bp,
     youtube_music_bp,
     health_bp,
+    sessions_bp,
 ]
 
 
