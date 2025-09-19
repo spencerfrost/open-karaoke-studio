@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSongActions } from "@/hooks/useSongActions";
@@ -7,13 +7,12 @@ import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { SongActions } from "./SongActions";
 import { SongDetailsDialog } from "../song-details/SongDetailsDialog";
-import { SingerNameDialog } from "../SingerNameDialog";
+import { JoinSessionDialog } from "../JoinSessionDialog";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 import { SongCardProps } from "./SongCard.types";
 
 export const SongCard: React.FC<SongCardProps> = ({
   song,
-  onPlay,
   variant = "detailed",
   actions = ["queue", "details"],
   sessionId,
@@ -21,12 +20,26 @@ export const SongCard: React.FC<SongCardProps> = ({
   const { getArtworkUrl } = useSongs();
   const artworkUrl = getArtworkUrl(song, "medium");
 
-  const songActions = useSongActions(song, { onPlay }, sessionId);
+  const songActions = useSongActions(song, {  }, sessionId);
   const dialogs = useSongDialogs();
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
 
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    dialogs.openDialog("singer");
+
+    if (songActions.handleQueueClick()) {
+      // Song was added directly (user is in session)
+      // Could show a success toast here
+    } else {
+      // User not in session, show join dialog
+      setShowJoinDialog(true);
+    }
+  };
+
+  const handleJoinSuccess = (singerName: string) => {
+    // After successful join, add the song to queue
+    songActions.handleAddToQueue(singerName);
+    setShowJoinDialog(false);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -68,10 +81,10 @@ export const SongCard: React.FC<SongCardProps> = ({
         onClose={dialogs.closeDialog}
       />
 
-      <SingerNameDialog
-        isOpen={dialogs.isDialogOpen("singer")}
-        onClose={dialogs.closeDialog}
-        onConfirm={songActions.handleAddToQueue}
+      <JoinSessionDialog
+        isOpen={showJoinDialog}
+        onClose={() => setShowJoinDialog(false)}
+        onConfirm={handleJoinSuccess}
         songTitle={song.title}
       />
 

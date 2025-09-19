@@ -1,6 +1,5 @@
 import React from "react";
 import { Users } from "lucide-react";
-import { Song } from "@/types/Song";
 import ArtistAccordion from "./ArtistAccordion";
 
 interface Artist {
@@ -11,18 +10,12 @@ interface Artist {
 
 interface ArtistResultsSectionProps {
   artists: Artist[];
-  onSongSelect: (song: Song) => void;
-  onAddToQueue: (song: Song) => void;
   searchTerm: string;
-  sessionId?: string;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   artists,
-  onSongSelect,
-  onAddToQueue,
   searchTerm,
-  sessionId,
 }) => {
   // Show section header
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
@@ -38,12 +31,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
       </div>
 
       {/* Artist Accordion - now a pure presentational component */}
-      <ArtistAccordion
-        artists={artists}
-        onSongSelect={onSongSelect}
-        onAddToQueue={onAddToQueue}
-        sessionId={sessionId}
-      />
+      <ArtistAccordion artists={artists} />
     </div>
   );
 };

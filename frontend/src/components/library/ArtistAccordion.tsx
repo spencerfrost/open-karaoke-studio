@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import ArtistSection from "./ArtistSection";
-import { Song } from "@/types/Song";
 
 interface Artist {
   name: string;
@@ -10,18 +9,12 @@ interface Artist {
 
 interface ArtistAccordionProps {
   artists: Artist[];
-  onSongSelect?: (song: Song) => void;
-  onAddToQueue?: (song: Song) => void;
   className?: string;
-  sessionId?: string;
 }
 
 const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   artists = [],
-  onSongSelect,
-  onAddToQueue,
   className = "",
-  sessionId,
 }) => {
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
     new Set(),
@@ -79,9 +72,6 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                 songCount={artist.songCount}
                 isExpanded={expandedArtists.has(artist.name)}
                 onToggle={() => toggleArtist(artist.name)}
-                onSongSelect={onSongSelect}
-                onAddToQueue={onAddToQueue}
-                sessionId={sessionId}
               />
             ))}
           </div>

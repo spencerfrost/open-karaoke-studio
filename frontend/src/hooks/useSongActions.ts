@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useSessionStore } from "@/stores/sessionStore";
 import { Song } from "@/types/Song";
 
 export interface SongActionsConfig {
@@ -12,7 +13,12 @@ export interface SongActionsConfig {
 export const useSongActions = (song: Song, config: SongActionsConfig = {}, sessionId?: string) => {
   const navigate = useNavigate();
   const { useDeleteSong } = useSongs();
-  const addToKaraokeQueue = useAddToKaraokeQueue(sessionId);
+  const { displayCode } = useSessionStore();
+  
+  // Use the provided sessionId or fall back to the current session from store
+  const currentSessionId = sessionId || (displayCode ? displayCode : undefined);
+  
+  const addToKaraokeQueue = useAddToKaraokeQueue(currentSessionId);
   const deleteSongMutation = useDeleteSong();
 
   const handlePlay = (e?: React.MouseEvent) => {
@@ -25,8 +31,15 @@ export const useSongActions = (song: Song, config: SongActionsConfig = {}, sessi
     }
   };
 
-  const handleAddToQueue = (singerName: string) => {
-    addToKaraokeQueue.mutate({ songId: song.id, singer: singerName });
+  const handleAddToQueue = (singerName: string, sessionCode?: string) => {
+    addToKaraokeQueue.mutate({ songId: song.id, singer: singerName }, {
+      onSuccess: () => {
+        // If we joined a session, we might want to refresh session info
+        if (sessionCode) {
+          // Could add session refresh logic here if needed
+        }
+      }
+    });
   };
 
   const handleDelete = () => {

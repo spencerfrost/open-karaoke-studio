@@ -1,6 +1,5 @@
 import React from "react";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
-import { Song } from "@/types/Song";
 import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import SongResultsGrid from "@/components/library/SongResultsGrid";
 
@@ -9,8 +8,6 @@ interface ArtistSectionProps {
   songCount: number;
   isExpanded: boolean;
   onToggle: () => void;
-  onSongSelect: (song: Song) => void;
-  sessionId?: string;
 }
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
@@ -18,8 +15,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   songCount,
   isExpanded,
   onToggle,
-  onSongSelect,
-  sessionId,
 }) => {
   const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteArtistSongs(artistName, 200, {
@@ -60,8 +55,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
             fetchNextPage={fetchNextPage}
-            onSongSelect={onSongSelect}
-            sessionId={sessionId}
           />
         </div>
       )}

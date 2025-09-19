@@ -9,8 +9,6 @@ interface SongResultsGridProps {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
-  onSongSelect?: (song: Song) => void;
-  sessionId?: string;
 }
 
 const SongResultsGrid: React.FC<SongResultsGridProps> = ({ 
@@ -18,8 +16,6 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
-  onSongSelect,
-  sessionId,
 }) => {
   if (songs.length === 0) {
     return null;
@@ -33,8 +29,6 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
           <SongCard 
             key={song.id} 
             song={song}
-            onPlay={onSongSelect}
-            sessionId={sessionId}
           />
         ))}
       </div>

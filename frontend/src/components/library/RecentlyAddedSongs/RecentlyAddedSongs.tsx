@@ -7,19 +7,15 @@ import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import { usePagination } from "./usePagination";
 
 interface RecentlyAddedSongsProps {
-  onSongSelect?: (song: Song) => void;
   songsPerPage?: number;
   maxSongs?: number;
   animated?: boolean; // Toggle between carousel animation and simple pagination
-  sessionId?: string;
 }
 
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
-  onSongSelect,
   songsPerPage = 12,
   maxSongs = 48,
   animated = true,
-  sessionId,
 }) => {
   const { useSongs } = useSongsHook();
   const { 
@@ -116,8 +112,6 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
                       <SongCard
                         key={`${song.id}-${pageIndex}`}
                         song={song}
-                        onPlay={onSongSelect}
-                        sessionId={sessionId}
                       />
                     ))}
                   </div>
@@ -133,8 +127,6 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
             <SongCard
               key={song.id}
               song={song}
-              onPlay={onSongSelect}
-              sessionId={sessionId}
             />
           ))}
         </div>
