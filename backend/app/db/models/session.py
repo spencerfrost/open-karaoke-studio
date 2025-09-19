@@ -109,6 +109,7 @@ class SessionDevice(Base):
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Relationship to session
     session: Mapped["KaraokeSession"] = relationship(

@@ -13,7 +13,7 @@ export interface SongActionsConfig {
 export const useSongActions = (song: Song, config: SongActionsConfig = {}, sessionId?: string) => {
   const navigate = useNavigate();
   const { useDeleteSong } = useSongs();
-  const { displayCode } = useSessionStore();
+  const { displayCode, displayName } = useSessionStore();
   
   // Use the provided sessionId or fall back to the current session from store
   const currentSessionId = sessionId || (displayCode ? displayCode : undefined);
@@ -46,8 +46,20 @@ export const useSongActions = (song: Song, config: SongActionsConfig = {}, sessi
     return deleteSongMutation.mutate({ id: song.id });
   };
 
+  const handleQueueClick = () => {
+    // Check if user is in an active session
+    if (displayCode && displayName) {
+      // User is in session and has a display name, add directly to queue
+      handleAddToQueue(displayName);
+      return true;
+    }
+    // User not in session or no display name, need to show join dialog
+    return false;
+  };
+
   return {
     handlePlay,
+    handleQueueClick,
     handleAddToQueue,
     handleDelete,
     isDeleting: deleteSongMutation.isPending,

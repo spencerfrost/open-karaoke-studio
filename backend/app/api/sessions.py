@@ -28,6 +28,7 @@ def create_session():
     try:
         data = request.get_json() or {}
         device_type = data.get("device_type", "stage")
+        display_name = data.get("display_name")  # Optional display name for host
 
         if device_type not in SessionDevice.DEVICE_TYPES:
             return jsonify({"error": "Invalid device type"}), 400
@@ -55,6 +56,7 @@ def create_session():
                     device_id=device_id,
                     device_type=device_type,
                     user_agent=request.headers.get("User-Agent"),
+                    display_name=display_name,  # Store the host's display name
                 )
                 db.add(host_device)
                 db.commit()
@@ -78,6 +80,7 @@ def create_session():
                         "device_type": host_device.device_type,
                         "joined_at": host_device.joined_at.isoformat(),
                         "is_self": True,
+                        "display_name": host_device.display_name,  # Include display name
                     }],
                     "created_at": session.created_at.isoformat(),
                     "expires_at": session.expires_at.isoformat(),
@@ -110,6 +113,7 @@ def join_session_by_code():
         data = request.get_json() or {}
         display_code = data.get("code", "").upper().strip()
         device_type = data.get("device_type", "performer")
+        display_name = data.get("display_name")  # New parameter for user's name
 
         if not display_code or len(display_code) != 4:
             return jsonify({"error": "Invalid display code"}), 400
@@ -147,6 +151,7 @@ def join_session_by_code():
             device_id=device_id,
             device_type=device_type,
             user_agent=request.headers.get("User-Agent"),
+            display_name=display_name,  # Store the user's display name
         )
         db.add(device)
         db.commit()
@@ -167,6 +172,7 @@ def join_session_by_code():
                 "device_type": d.device_type,
                 "joined_at": d.joined_at.isoformat(),
                 "is_self": d.device_id == device_id,
+                "display_name": d.display_name,  # Include display name in response
             }
             for d in active_devices
         ]
@@ -208,6 +214,7 @@ def join_session_by_id():
         data = request.get_json() or {}
         session_id = data.get("session_id", "").strip()
         device_type = data.get("device_type", "performer")
+        display_name = data.get("display_name")  # New parameter for user's name
 
         if not session_id:
             return jsonify({"error": "Session ID required"}), 400
@@ -256,6 +263,7 @@ def join_session_by_id():
             device_id=request.remote_addr or "unknown",
             device_type=device_type,
             user_agent=request.headers.get("User-Agent"),
+            display_name=display_name,  # Store the user's display name
         )
         db.add(device)
         db.commit()
@@ -276,6 +284,7 @@ def join_session_by_id():
                 "device_type": d.device_type,
                 "joined_at": d.joined_at.isoformat(),
                 "is_self": d.device_id == (request.remote_addr or "unknown"),
+                "display_name": d.display_name,  # Include display name in response
             }
             for d in active_devices
         ]
@@ -349,6 +358,7 @@ def get_session_info(session_id):
                 "device_type": d.device_type,
                 "joined_at": d.joined_at.isoformat(),
                 "is_self": d.device_id == (request.remote_addr or "unknown"),
+                "display_name": d.display_name,  # Include display name in response
             }
             for d in active_devices
         ]

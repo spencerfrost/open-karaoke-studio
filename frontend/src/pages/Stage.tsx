@@ -14,22 +14,19 @@ import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
 
 const Stage: React.FC = () => {
-  const { displayCode, createSession } = useSessionStore();
+  const { 
+    displayCode, 
+    createSession, 
+    recoverSession,  // Changed from recoverHostSession
+    isRecovering, 
+    recoveryError,
+    isConnecting,
+    connectionError 
+  } = useSessionStore();
 
   const { useSong } = useSongs();
 
-  // Create session on mount if not already in one
-  useEffect(() => {
-    if (!displayCode) {
-      createSession("stage").catch((error) => {
-        console.error("Failed to create session:", error);
-        toast.error("Failed to create session");
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayCode]);
-
-  // API hooks
+  // API hooks - must be called before any conditional returns
   const queueQuery = useQueue(displayCode || undefined);
   const removeFromQueueMutation = useRemoveFromKaraokeQueue(displayCode || undefined);
   const playFromQueueMutation = usePlayFromKaraokeQueue(displayCode || undefined);
@@ -37,8 +34,31 @@ const Stage: React.FC = () => {
   // Get the current song (position 0) from the queue
   const currentQueueItem = queueQuery.data?.find((item) => item.position === 0);
   const currentSongId = currentQueueItem?.song?.id;
-
   const { data: currentSong } = useSong(currentSongId ?? "");
+
+  // Recover existing host session or create new one on mount
+  useEffect(() => {
+    const initializeSession = async () => {
+      if (!displayCode) {
+        try {
+          // First try to recover existing session (host or performer)
+          await recoverSession();
+          
+          // If recovery didn't work (no stored session), create new host session
+          const state = useSessionStore.getState();
+          if (!state.displayCode) {
+            await createSession("stage");
+          }
+        } catch (error) {
+          console.error("Failed to initialize session:", error);
+          toast.error("Failed to initialize session");
+        }
+      }
+    };
+
+    initializeSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
@@ -63,6 +83,33 @@ const Stage: React.FC = () => {
       cleanupUpdated();
     };
   }, [queueQuery]);
+
+  // Show loading state during session recovery or creation
+  if (isRecovering || (isConnecting && !displayCode)) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-full gap-6">
+          <h1 className="text-4xl font-bold text-orange-peel text-center">
+            {isRecovering ? "Restoring Session" : "Creating Session"}
+          </h1>
+          <p className="text-xl text-center text-muted-foreground max-w-md">
+            {isRecovering 
+              ? "Reconnecting to your existing karaoke session..." 
+              : "Setting up your karaoke session..."
+            }
+          </p>
+          {(recoveryError || connectionError) && (
+            <div className="text-center text-destructive">
+              {recoveryError || connectionError}
+            </div>
+          )}
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-peel"></div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const handleRemoveFromQueue = async (id: string) => {
     try {

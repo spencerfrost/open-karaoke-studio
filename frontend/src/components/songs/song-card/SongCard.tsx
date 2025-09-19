@@ -84,8 +84,8 @@ export const SongCard: React.FC<SongCardProps> = ({
       <JoinSessionDialog
         isOpen={showJoinDialog}
         onClose={() => setShowJoinDialog(false)}
-        onConfirm={handleJoinSuccess}
-        songTitle={song.title}
+        onJoinSuccess={handleJoinSuccess}
+        context={`add "${song.title}" to the karaoke queue`}
       />
 
       <DeleteSongDialog
