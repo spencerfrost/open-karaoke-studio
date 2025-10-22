@@ -31,6 +31,12 @@ class YouTubeService(YouTubeServiceInterface):
                 "extract_flat": True,
                 "default_search": "ytsearch",
                 "noplaylist": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
             }
 
             search_term = f"ytsearch{max_results}:{query}"
@@ -101,7 +107,7 @@ class YouTubeService(YouTubeServiceInterface):
             outtmpl = str(song_dir / "original.%(ext)s")
 
             ydl_opts = {
-                "format": "bestaudio/best",
+                "format": "best",
                 "outtmpl": outtmpl,
                 "postprocessors": [
                     {
@@ -114,6 +120,12 @@ class YouTubeService(YouTubeServiceInterface):
                 "no_warnings": True,
                 "writeinfojson": True,
                 "noplaylist": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
             }
 
             # Download video
@@ -277,7 +289,7 @@ class YouTubeService(YouTubeServiceInterface):
                         "source": "youtube",
                         "video_id": video_id,
                         # Duration will be updated after download if possible
-                        "duration": None,  # Will be updated after download if possible
+                        "duration": None,
                     }
                     created_song = repo.create(song_data)
                     if created_song:
