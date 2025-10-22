@@ -125,25 +125,16 @@ export function useSongs() {
   const useCreateSong = () => {
     return useApiMutation<Song, Partial<Song>>("songs", "post", {
       onMutate: async () => {
-        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
-
-        // Save previous songs list
-        const previousSongs = queryClient.getQueryData<Song[]>(
-          QUERY_KEYS.songs,
-        );
-
-        return { previousSongs };
+        await queryClient.cancelQueries({ queryKey: ["songs"] });
+        return {};
       },
-      onError: (_err, _variables, context: unknown) => {
-        // If the mutation fails, roll back to the previous songs list
-        const ctx = context as { previousSongs?: Song[] } | undefined;
-        if (ctx?.previousSongs) {
-          queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
-        }
+      onError: () => {
+        // Invalidate to refetch fresh data on error
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSettled: () => {
         // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const response = await fetch("/api/songs", {
@@ -189,18 +180,8 @@ export function useSongs() {
               ...updates,
             });
 
-            // Also update the song in the list of all songs
-            const previousSongs = queryClient.getQueryData<Song[]>(
-              QUERY_KEYS.songs,
-            );
-            if (previousSongs) {
-              queryClient.setQueryData<Song[]>(
-                QUERY_KEYS.songs,
-                previousSongs.map((song) =>
-                  song.id === id ? { ...song, ...updates } : song,
-                ),
-              );
-            }
+            // Note: We don't optimistically update song lists due to complex query key structure
+            // The cache will be properly updated via invalidation on success
           }
 
           return { previousSong };
@@ -219,7 +200,7 @@ export function useSongs() {
           queryClient.invalidateQueries({
             queryKey: QUERY_KEYS.song(variables.id),
           });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
         },
         mutationFn: async (data) => {
           const { id, ...updates } = data;
@@ -270,18 +251,8 @@ export function useSongs() {
               ...metadata,
             });
 
-            // Also update the song in the list of all songs
-            const previousSongs = queryClient.getQueryData<Song[]>(
-              QUERY_KEYS.songs,
-            );
-            if (previousSongs) {
-              queryClient.setQueryData<Song[]>(
-                QUERY_KEYS.songs,
-                previousSongs.map((song) =>
-                  song.id === id ? { ...song, ...metadata } : song,
-                ),
-              );
-            }
+            // Note: We don't optimistically update song lists due to complex query key structure
+            // The cache will be properly updated via invalidation on success
           }
 
           return { previousSong };
@@ -301,7 +272,7 @@ export function useSongs() {
           queryClient.invalidateQueries({
             queryKey: QUERY_KEYS.song(variables.id),
           });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
@@ -380,7 +351,7 @@ export function useSongs() {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.song(variables.id),
         });
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const { id, ...metadata } = data;
@@ -459,7 +430,7 @@ export function useSongs() {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.song(variables.id),
         });
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const { id, ...metadata } = data;
@@ -491,38 +462,24 @@ export function useSongs() {
    */
   const useDeleteSong = () => {
     return useApiMutation<void, { id: string }>("songs/:id", "delete", {
-      onMutate: async (variables) => {
-        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
-
-        // Save previous songs list
-        const previousSongs = queryClient.getQueryData<Song[]>(
-          QUERY_KEYS.songs,
-        );
-
-        // Optimistically remove the song from the list
-        if (previousSongs) {
-          queryClient.setQueryData<Song[]>(
-            QUERY_KEYS.songs,
-            previousSongs.filter((song) => song.id !== variables.id),
-          );
-        }
-
-        return { previousSongs };
+      onMutate: async () => {
+        // Cancel all song-related queries to prevent race conditions
+        await queryClient.cancelQueries({ queryKey: ["songs"] });
+        return {};
       },
-      onError: (_err, _variables, context: unknown) => {
-        // If the mutation fails, restore the previous songs list
-        const ctx = context as { previousSongs?: Song[] } | undefined;
-        if (ctx?.previousSongs) {
-          queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
-        }
+      onError: () => {
+        // Invalidate to refetch fresh data on error
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSuccess: (_data, variables) => {
-        // Remove the specific song from cache
+        // Remove the specific song from all caches
         queryClient.removeQueries({ queryKey: QUERY_KEYS.song(variables.id) });
+        // Invalidate all song list queries to trigger refetch
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSettled: () => {
-        // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        // Ensure all song queries are fresh
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const url = formatUrl("songs/:id", { id: data.id });

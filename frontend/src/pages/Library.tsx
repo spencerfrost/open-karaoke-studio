@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { useArtists } from "@/hooks/api/useArtists";
 import AppLayout from "@/components/layout/AppLayout";
-import LibrarySearchInput from "../components/library/LibrarySearchInput";
-import SongResultsSection from "../components/library/SongResultsSection";
-import ArtistResultsSection from "../components/library/ArtistResultsSection";
-import RecentlyAddedSongs from "../components/library/RecentlyAddedSongs/RecentlyAddedSongs";
+import { LibrarySearchInput, SongResultsSection, ArtistResultsSection, RecentlyAddedSongs } from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 
 const LibraryPage: React.FC = () => {

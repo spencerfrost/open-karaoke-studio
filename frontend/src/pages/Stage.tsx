@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import KaraokeQueueList from "@/components/karaoke-queue/KaraokeQueueList";
-import KaraokePlayer from "@/components/karaoke-player/KaraokePlayer";
+import { KaraokeQueueList } from "@/features/queue";
+import { KaraokePlayer } from "@/features/player";
 
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";

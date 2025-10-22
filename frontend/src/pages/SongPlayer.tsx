@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useParams } from "react-router-dom";
 
 import AppLayout from "@/components/layout/AppLayout";
-import KaraokePlayer from "@/components/karaoke-player/KaraokePlayer";
+import { KaraokePlayer } from "@/features/player";
 
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";

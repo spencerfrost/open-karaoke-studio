@@ -1,0 +1,12 @@
+/**
+ * Performance feature exports
+ * Clean API for performance controls functionality
+ */
+
+// Component exports
+export { default as PerformanceControlsPanel } from './components/PerformanceControlsPanel';
+export { default as PerformanceControlsInput } from './components/PerformanceControlsInput';
+export { default as KnobControl } from './components/KnobControl';
+
+// Hook exports
+export { usePerformanceControlsLogic } from './hooks/usePerformanceControlsLogic';

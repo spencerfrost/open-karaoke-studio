@@ -1,11 +1,9 @@
 import React, { useEffect } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import AppLayout from "@/components/layout/AppLayout";
-import SessionStatusHeader from "@/components/SessionStatusHeader";
-import SessionJoinForm from "@/components/SessionJoinForm";
-import SessionRecoveryLoading from "@/components/SessionRecoveryLoading";
-import PerformanceControlsPanel from "@/components/PerformanceControlsPanel";
-import { useSessionConnection } from "@/hooks/useSessionConnection";
+import { SessionStatusHeader, SessionJoinForm, SessionRecoveryLoading } from "@/features/session";
+import { PerformanceControlsPanel } from "@/features/performance";
+import { useSessionConnection } from "@/features/session";
 
 /**
  * Mobile-optimized dedicated page for performance controls
