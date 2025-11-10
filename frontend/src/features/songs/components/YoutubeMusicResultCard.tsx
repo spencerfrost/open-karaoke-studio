@@ -37,6 +37,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
       duration={duration}
       isLoading={isLoading}
       onSelect={handleSelect}
+      existsInLibrary={result.existsInLibrary}
     >
       {/* Additional YouTube Music specific metadata could go here */}
     </BaseResultCard>

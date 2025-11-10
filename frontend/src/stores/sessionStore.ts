@@ -111,6 +111,16 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
+          // Setup session_ended event handler
+          sessionWebSocketService.on('session_ended', (data) => {
+            console.log('Session ended by host:', data?.reason);
+            get().clearSession();
+            // Show toast notification
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/';
+            }
+          });
+
           console.log("Session created:", sessionData);
         } catch (error) {
           console.error("Failed to create session:", error);
@@ -159,6 +169,16 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
+          // Setup session_ended event handler
+          sessionWebSocketService.on('session_ended', (data) => {
+            console.log('Session ended by host:', data?.reason);
+            get().clearSession();
+            // Show toast notification and redirect
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/';
+            }
+          });
+
           // Store performer session data in localStorage if not a host
           if (!sessionData.is_host && displayName) {
             localStorage.setItem(PERFORMER_SESSION_STORAGE_KEY, JSON.stringify({
@@ -191,16 +211,30 @@ export const useSessionStore = create<SessionState>()(
         try {
           const { sessionId, deviceId } = JSON.parse(storedSession);
 
-          // Validate session still exists and is active
-          const response = await fetch(`/api/sessions/${sessionId}/info`);
-          if (!response.ok) {
-            if (response.status === 404 || response.status === 410) {
+          // Use new validation API endpoint from Phase 1
+          const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
+          if (!validationResponse.ok) {
+            if (validationResponse.status === 404 || validationResponse.status === 410) {
               // Session not found or expired - clear stored data
               localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
-            throw new Error(`Failed to validate session: ${response.statusText}`);
+            throw new Error(`Failed to validate session: ${validationResponse.statusText}`);
+          }
+
+          const validationData = await validationResponse.json();
+          if (!validationData.valid) {
+            // Session is invalid - clear stored data
+            localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+            set({ isRecovering: false });
+            return;
+          }
+
+          // Get full session info
+          const response = await fetch(`/api/sessions/${sessionId}/info`);
+          if (!response.ok) {
+            throw new Error(`Failed to get session info: ${response.statusText}`);
           }
 
           const sessionData = await response.json();
@@ -225,6 +259,16 @@ export const useSessionStore = create<SessionState>()(
 
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
+
+          // Setup session_ended event handler
+          sessionWebSocketService.on('session_ended', (data) => {
+            console.log('Session ended by host:', data?.reason);
+            get().clearSession();
+            // Show toast notification and redirect
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/';
+            }
+          });
 
           console.log("Host session recovered:", sessionData);
         } catch (error) {
@@ -260,16 +304,30 @@ export const useSessionStore = create<SessionState>()(
         try {
           const { sessionId, deviceId, displayName } = JSON.parse(storedSession);
 
-          // Validate session still exists and is active
-          const response = await fetch(`/api/sessions/${sessionId}/info`);
-          if (!response.ok) {
-            if (response.status === 404 || response.status === 410) {
+          // Use new validation API endpoint from Phase 1
+          const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
+          if (!validationResponse.ok) {
+            if (validationResponse.status === 404 || validationResponse.status === 410) {
               // Session not found or expired - clear stored data
               localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
-            throw new Error(`Failed to validate session: ${response.statusText}`);
+            throw new Error(`Failed to validate session: ${validationResponse.statusText}`);
+          }
+
+          const validationData = await validationResponse.json();
+          if (!validationData.valid) {
+            // Session is invalid - clear stored data
+            localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+            set({ isRecovering: false });
+            return;
+          }
+
+          // Get full session info
+          const response = await fetch(`/api/sessions/${sessionId}/info`);
+          if (!response.ok) {
+            throw new Error(`Failed to get session info: ${response.statusText}`);
           }
 
           const sessionData = await response.json();
@@ -288,6 +346,16 @@ export const useSessionStore = create<SessionState>()(
 
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
+
+          // Setup session_ended event handler
+          sessionWebSocketService.on('session_ended', (data) => {
+            console.log('Session ended by host:', data?.reason);
+            get().clearSession();
+            // Show toast notification and redirect
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/';
+            }
+          });
 
           console.log("Performer session recovered:", sessionData);
         } catch (error) {

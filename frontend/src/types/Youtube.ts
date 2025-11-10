@@ -20,6 +20,7 @@ export interface YoutubeMusicSearchResult {
   duration: string; // ISO or mm:ss as returned by backend
   album?: string;
   thumbnails: Array<{ url: string; width?: number; height?: number }>;
+  existsInLibrary: boolean;
 }
 
 export interface YoutubeMusicSearchResponse {

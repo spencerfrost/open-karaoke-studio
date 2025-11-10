@@ -6,7 +6,7 @@ import { SongSearchContainer } from "@/features/songs/components/shared/SongSear
 const AddSongPage: React.FC = () => {
   return (
     <AppLayout>
-      <div className="p-4 md:p-6 space-y-6 container mx-auto">
+      <div className="md:p-6 space-y-6 container mx-auto">
         <JobsQueue />
         <SongSearchContainer />
       </div>

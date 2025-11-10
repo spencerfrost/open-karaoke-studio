@@ -154,17 +154,14 @@ class JobsWebSocketService {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max reconnection attempts reached");
-      return;
-    }
-
+    // Never give up reconnecting for personal use - just slow down the attempts
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 5000);
-    console.log(`Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    // Cap at 30 seconds, but never stop trying
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
+    console.log(`Scheduling reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;

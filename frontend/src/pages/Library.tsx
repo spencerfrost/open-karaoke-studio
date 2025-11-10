@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { useArtists } from "@/hooks/api/useArtists";
+import { useInfiniteArtists } from "@/hooks/api/useInfiniteLibraryBrowsing";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import AppLayout from "@/components/layout/AppLayout";
 import { LibrarySearchInput, SongResultsSection, ArtistResultsSection, RecentlyAddedSongs } from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
@@ -30,12 +31,23 @@ const LibraryPage: React.FC = () => {
 
   const songsQuery = useSongs(songsParams);
 
-  // Artist search (fetch all matching artists, up to 200)
-  const { artists, isLoading: artistsLoading } = useArtists({
-    search: searchTerm,
-    limit: 200,
-  });
+  // Artist search with infinite scrolling to fetch ALL artists
+  const {
+    artists,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    isLoading: artistsLoading,
+  } = useInfiniteArtists(searchTerm, 200);
 
+  // Infinite scroll for artists
+  const sentinelRef = useInfiniteScroll({
+    loading: isFetchingNextPage,
+    hasMore: hasNextPage,
+    onLoadMore: fetchNextPage,
+    threshold: 0.1,
+    rootMargin: "100px",
+  });
 
   // hasSearch logic
   const hasSearch = searchTerm && searchTerm.trim().length > 0;
@@ -74,6 +86,9 @@ const LibraryPage: React.FC = () => {
           <ArtistResultsSection
             artists={artists}
             searchTerm={searchTerm}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            sentinelRef={sentinelRef}
           />
         </div>
       </div>

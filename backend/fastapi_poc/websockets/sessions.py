@@ -153,31 +153,30 @@ async def websocket_session_endpoint(
             elif message_type == "leave_session":
                 session = manager.get_session_for_device(device_id)
                 if session:
-                    session_room = manager.get_session_room_name(session["session_id"])
-
-                    manager.leave_session(device_id, session["session_id"])
-                    await manager.leave_room(websocket, session_room)
-
-                    device_count = len(
-                        [
-                            d
-                            for d in session["connected_devices"].values()
-                            if d["is_active"]
-                        ]
-                    )
-
-                    await manager.send_personal_message(
-                        {"type": "session_left", "session_id": session["session_id"]},
-                        websocket,
-                    )
-
-                    # If host left, end session
+                    # If host is leaving, force close all connections
                     if device_id == session["host_device_id"]:
-                        await manager.broadcast_to_room(
-                            session_room,
-                            {"type": "session_ended", "reason": "Host disconnected"},
+                        await manager.force_close_session_connections(
+                            session["session_id"], "Host left the session"
                         )
                     else:
+                        # Regular device leaving
+                        session_room = manager.get_session_room_name(session["session_id"])
+                        manager.leave_session(device_id, session["session_id"])
+                        await manager.leave_room(websocket, session_room)
+
+                        device_count = len(
+                            [
+                                d
+                                for d in session["connected_devices"].values()
+                                if d["is_active"]
+                            ]
+                        )
+
+                        await manager.send_personal_message(
+                            {"type": "session_left", "session_id": session["session_id"]},
+                            websocket,
+                        )
+
                         await manager.broadcast_to_room(
                             session_room,
                             {
@@ -225,16 +224,16 @@ async def websocket_session_endpoint(
         # Handle disconnection
         session = manager.get_session_for_device(device_id)
         if session:
-            session_room = manager.get_session_room_name(session["session_id"])
-            manager.leave_session(device_id, session["session_id"])
-
-            # Notify remaining devices
+            # If host disconnected, force close all connections
             if device_id == session["host_device_id"]:
-                await manager.broadcast_to_room(
-                    session_room,
-                    {"type": "session_ended", "reason": "Host disconnected"},
+                await manager.force_close_session_connections(
+                    session["session_id"], "Host disconnected"
                 )
             else:
+                # Regular device disconnected
+                session_room = manager.get_session_room_name(session["session_id"])
+                manager.leave_session(device_id, session["session_id"])
+
                 device_count = len(
                     [d for d in session["connected_devices"].values() if d["is_active"]]
                 )

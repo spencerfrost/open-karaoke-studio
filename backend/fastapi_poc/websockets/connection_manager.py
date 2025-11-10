@@ -194,3 +194,47 @@ class SessionConnectionManager:
         if room_type == "main":
             return f"session_{session_id}"
         return f"session_{session_id}_{room_type}"
+
+    async def force_close_session_connections(self, session_id: str, reason: str = "Session ended"):
+        """
+        Force close all WebSocket connections for a specific session.
+        Used when host leaves and session should be terminated.
+        """
+        if session_id not in self.sessions:
+            return
+
+        session = self.sessions[session_id]
+        session_room = self.get_session_room_name(session_id)
+        
+        # Get all connections in the session room
+        if session_room in self.rooms:
+            connections_to_close = list(self.rooms[session_room])
+            
+            # Send final message before closing
+            await self.broadcast_to_room(
+                session_room,
+                {"type": "session_ended", "reason": reason}
+            )
+            
+            # Force close all connections
+            for websocket in connections_to_close:
+                try:
+                    await websocket.close(code=1000, reason=reason)
+                    print(f"🔌 Force closed WebSocket {id(websocket)} for session {session_id}")
+                except Exception as e:
+                    print(f"❌ Failed to close WebSocket {id(websocket)}: {e}")
+            
+            # Clean up the room
+            self.rooms[session_room] = []
+        
+        # Mark session as inactive and clean up session data
+        session["is_active"] = False
+        for device_id in session["connected_devices"]:
+            session["connected_devices"][device_id]["is_active"] = False
+        
+        # Clean up session performance state if available
+        try:
+            from .session_specific import cleanup_session_performance_state
+            cleanup_session_performance_state(session_id)
+        except ImportError:
+            pass  # Function not available, skip cleanup

@@ -7,6 +7,7 @@
 export { default as PerformanceControlsPanel } from './components/PerformanceControlsPanel';
 export { default as PerformanceControlsInput } from './components/PerformanceControlsInput';
 export { default as KnobControl } from './components/KnobControl';
+export { ConnectedPerformanceControls } from './components/ConnectedPerformanceControls';
 
 // Hook exports
 export { usePerformanceControlsLogic } from './hooks/usePerformanceControlsLogic';

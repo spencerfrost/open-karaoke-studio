@@ -1,9 +1,8 @@
 import React, { useEffect } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import AppLayout from "@/components/layout/AppLayout";
-import { SessionStatusHeader, SessionJoinForm, SessionRecoveryLoading } from "@/features/session";
-import { PerformanceControlsPanel } from "@/features/performance";
-import { useSessionConnection } from "@/features/session";
+import { SessionStatusHeader, SessionRecoveryLoading } from "@/features/session";
+import { ConnectedPerformanceControls } from "@/features/performance";
 
 /**
  * Mobile-optimized dedicated page for performance controls
@@ -18,9 +17,6 @@ const PerformanceControlsPage: React.FC = () => {
     recoverSession,
   } = useSessionStore();
 
-  // WebSocket connection
-  const { connected } = useSessionConnection();
-
   useEffect(() => {
     // Try to recover existing session on page load
     if (!sessionId) {
@@ -34,25 +30,8 @@ const PerformanceControlsPage: React.FC = () => {
       return <SessionRecoveryLoading />;
     }
 
-    // Show session join UI when not in a session
-    if (!sessionId) {
-      return <SessionJoinForm />;
-    }
-
-    // Show connecting state when in session but not connected
-    if (!connected) {
-      return (
-        <div className="flex-1 flex items-center justify-center flex-col">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-peel mb-4"></div>
-          <p className="text-lg text-lemon-chiffon">
-            Connecting to performance controls...
-          </p>
-        </div>
-      );
-    }
-
-    // Show performance controls when connected
-    return <PerformanceControlsPanel />;
+    // Always show the performance controls (with join dialog overlay if needed)
+    return <ConnectedPerformanceControls />;
   };
 
   return (

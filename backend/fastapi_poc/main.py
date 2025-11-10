@@ -7,7 +7,8 @@ while providing modern async capabilities and better performance.
 Enhanced with session-based WebSocket architecture for party mode and
 full integration with existing database models and services.
 
-REFACTORED: WebSocket endpoints moved to separate modules for better maintainability.
+CLEAN ARCHITECTURE: Only two WebSocket endpoints - jobs (global) and session (session-specific).
+All karaoke functionality (performance controls, queue, player state) handled through sessions.
 """
 
 import asyncio
@@ -19,7 +20,7 @@ from typing import Generator, List
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -35,11 +36,6 @@ from app.services.jobs_service import JobsService
 from websockets import (
     SessionConnectionManager,
     websocket_jobs_endpoint,
-    websocket_performance_endpoint,
-    websocket_queue_endpoint,
-    websocket_session_endpoint,
-    websocket_session_performance_endpoint,
-    websocket_session_queue_endpoint,
     websocket_unified_session_endpoint,
 )
 
@@ -120,44 +116,19 @@ async def root():
         "health": "/api/health",
         "test_pages": {
             "session_test": "/session-test",
-            "dual_backend_test": "/dual-backend-test", 
-            "performance_test": "/performance-test",
-            "queue_test": "/queue-test",
             "websocket_test": "/websocket-test"
         },
         "websockets": {
             "jobs": "ws://localhost:5124/ws/jobs",
-            "performance": "ws://localhost:5124/ws/performance", 
-            "session": "ws://localhost:5124/ws/session",
-            "queue": "ws://localhost:5124/ws/queue"
-        },
-        "session_websockets": {
-            "unified": "ws://localhost:5124/ws/session/{session_id}",
-            "performance": "ws://localhost:5124/ws/session/{session_id}/performance",
-            "queue": "ws://localhost:5124/ws/session/{session_id}/queue"
+            "session": "ws://localhost:5124/ws/session/{session_id}"
         }
     }
 
 # Test page routes
-@app.get("/performance-test", response_class=FileResponse)
-async def performance_test_page():
-    """Serve the performance controls test page"""
-    return FileResponse("performance_test.html", media_type="text/html")
-
-@app.get("/dual-backend-test", response_class=FileResponse)
-async def dual_backend_test():
-    """Serve the dual backend test page"""
-    return FileResponse("dual_backend_test.html", media_type="text/html")
-
 @app.get("/session-test")
 async def session_test():
     """Serve the session testing HTML page."""
     return FileResponse("session_test.html")
-
-@app.get("/queue-test", response_class=FileResponse)
-async def queue_test_page():
-    """Serve the queue test page"""
-    return FileResponse("queue_test.html", media_type="text/html")
 
 @app.get("/websocket-test", response_class=FileResponse)
 async def websocket_test_page():
@@ -296,28 +267,12 @@ async def trigger_queue_broadcast():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to broadcast: {str(e)}")
 
-# WebSocket Routes - Now using the refactored modules
+# WebSocket Routes - Clean session architecture with only two endpoints
 @app.websocket("/ws/jobs")
 async def jobs_ws(websocket: WebSocket):
     """WebSocket endpoint for real-time job updates."""
     await websocket_jobs_endpoint(websocket, manager)
 
-@app.websocket("/ws/performance")
-async def performance_ws(websocket: WebSocket):
-    """WebSocket endpoint for real-time performance controls synchronization."""
-    await websocket_performance_endpoint(websocket, manager)
-
-@app.websocket("/ws/session")
-async def session_ws(websocket: WebSocket):
-    """Session management WebSocket endpoint."""
-    await websocket_session_endpoint(websocket, manager)
-
-@app.websocket("/ws/queue")
-async def queue_ws(websocket: WebSocket):
-    """WebSocket endpoint for real-time karaoke queue updates."""
-    await websocket_queue_endpoint(websocket, manager)
-
-# Session-specific WebSocket endpoints
 @app.websocket("/ws/session/{session_id}")
 async def unified_session_ws(websocket: WebSocket, session_id: str):
     """
@@ -325,16 +280,6 @@ async def unified_session_ws(websocket: WebSocket, session_id: str):
     Handles all session-related communication: performance controls, player state, and queue management.
     """
     await websocket_unified_session_endpoint(websocket, session_id, manager)
-
-@app.websocket("/ws/session/{session_id}/performance")
-async def session_performance_ws(websocket: WebSocket, session_id: str):
-    """Session-specific performance controls WebSocket endpoint."""
-    await websocket_session_performance_endpoint(websocket, session_id, manager)
-
-@app.websocket("/ws/session/{session_id}/queue")
-async def session_queue_ws(websocket: WebSocket, session_id: str):
-    """Session-specific queue WebSocket endpoint."""
-    await websocket_session_queue_endpoint(websocket, session_id, manager)
 
 # Performance testing endpoint
 @app.get("/api/performance-test")
@@ -360,19 +305,25 @@ async def performance_test():
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
-    return {
-        "error": "Not found",
-        "message": f"The endpoint {request.url.path} was not found",
-        "framework": "fastapi"
-    }
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not found",
+            "message": f"The endpoint {request.url.path} was not found",
+            "framework": "fastapi"
+        }
+    )
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
-    return {
-        "error": "Internal server error", 
-        "message": "An unexpected error occurred",
-        "framework": "fastapi"
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error", 
+            "message": "An unexpected error occurred",
+            "framework": "fastapi"
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn

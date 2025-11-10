@@ -20,7 +20,32 @@ from app.db.models.queue import KaraokeQueueItem
 from app.db.models.song import DbSong
 
 from .connection_manager import SessionConnectionManager
-from .performance import global_performance_state
+
+# Session-based performance state - separate state for each session
+session_performance_states = {}
+
+def get_session_performance_state(session_id: str):
+    """Get or create performance state for a specific session."""
+    if session_id not in session_performance_states:
+        session_performance_states[session_id] = {
+            "vocal_volume": 1.0,
+            "instrumental_volume": 1.0,
+            "lyrics_size": "medium",
+            "lyrics_offset": 0,
+            "current_time": 0,
+            "duration": 0,
+            "is_playing": False,
+            "current_song_id": None,
+            "is_ready": False,
+        }
+    return session_performance_states[session_id]
+
+
+def cleanup_session_performance_state(session_id: str):
+    """Clean up performance state for a specific session when it ends."""
+    if session_id in session_performance_states:
+        del session_performance_states[session_id]
+        print(f"🧹 Cleaned up performance state for session {session_id}")
 
 
 async def websocket_unified_session_endpoint(
@@ -68,13 +93,14 @@ async def websocket_unified_session_endpoint(
 
     try:
         # Send current state to new connection
+        session_state = get_session_performance_state(session_id)
         await websocket.send_text(
             json.dumps(
                 {
                     "type": "session_connected",
                     "session_id": session_id,
                     "device_id": device_id,
-                    "performance_state": global_performance_state,
+                    "performance_state": session_state,
                 }
             )
         )
@@ -88,16 +114,17 @@ async def websocket_unified_session_endpoint(
             if message_type == "join_performance":
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": global_performance_state}
+                        {"type": "performance_state", "state": get_session_performance_state(session_id)}
                     )
                 )
 
             elif message_type == "update_performance_control":
                 control_name = message.get("control")
                 value = message.get("value")
+                session_state = get_session_performance_state(session_id)
 
-                if control_name and control_name in global_performance_state:
-                    global_performance_state[control_name] = value
+                if control_name and control_name in session_state:
+                    session_state[control_name] = value
 
                     # Broadcast to all devices in this session
                     await manager.broadcast_to_room(
@@ -114,18 +141,19 @@ async def websocket_unified_session_endpoint(
                 is_playing = message.get("isPlaying")
                 current_time = message.get("currentTime")
                 duration = message.get("duration")
+                session_state = get_session_performance_state(session_id)
 
                 if is_playing is not None:
-                    global_performance_state["is_playing"] = is_playing
+                    session_state["is_playing"] = is_playing
                 if current_time is not None:
-                    global_performance_state["current_time"] = current_time
+                    session_state["current_time"] = current_time
                 if duration is not None:
-                    global_performance_state["duration"] = duration
+                    session_state["duration"] = duration
 
                 # Broadcast player state to all devices in session
                 await manager.broadcast_to_room(
                     session_room,
-                    {"type": "performance_state", "state": global_performance_state},
+                    {"type": "performance_state", "state": session_state},
                     exclude=websocket,
                 )
 
@@ -136,35 +164,36 @@ async def websocket_unified_session_endpoint(
                 "song_loaded",
                 "song_ready",
             ]:
+                session_state = get_session_performance_state(session_id)
                 if message_type == "playback_play":
-                    global_performance_state["is_playing"] = True
+                    session_state["is_playing"] = True
                 elif message_type == "playback_pause":
-                    global_performance_state["is_playing"] = False
+                    session_state["is_playing"] = False
                 elif message_type == "reset_player_state":
-                    global_performance_state["current_time"] = 0
-                    global_performance_state["is_playing"] = False
+                    session_state["current_time"] = 0
+                    session_state["is_playing"] = False
                 elif message_type in ["song_loaded", "song_ready"]:
                     # Update song info from message
                     song_id = message.get("songId")
                     duration = message.get("duration", 0)
                     if song_id:
-                        global_performance_state["current_song_id"] = song_id
+                        session_state["current_song_id"] = song_id
                     if duration > 0:
-                        global_performance_state["duration"] = duration
-                    global_performance_state["current_time"] = message.get(
+                        session_state["duration"] = duration
+                    session_state["current_time"] = message.get(
                         "currentTime", 0
                     )
-                    global_performance_state["is_playing"] = message.get(
+                    session_state["is_playing"] = message.get(
                         "isPlaying", False
                     )
-                    global_performance_state["is_ready"] = message.get(
+                    session_state["is_ready"] = message.get(
                         "isReady", message_type == "song_ready"
                     )
 
                 # Broadcast to all devices in this session
                 await manager.broadcast_to_room(
                     session_room,
-                    {"type": message_type, "state": global_performance_state},
+                    {"type": message_type, "state": session_state},
                     exclude=websocket,
                 )
 
@@ -279,8 +308,9 @@ async def websocket_session_performance_endpoint(
 
     try:
         # Send current performance state to new connection
+        session_state = get_session_performance_state(session_id)
         await websocket.send_text(
-            json.dumps({"type": "performance_state", "state": global_performance_state})
+            json.dumps({"type": "performance_state", "state": session_state})
         )
 
         while True:
@@ -291,16 +321,17 @@ async def websocket_session_performance_endpoint(
             if message_type == "join_performance":
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": global_performance_state}
+                        {"type": "performance_state", "state": get_session_performance_state(session_id)}
                     )
                 )
 
             elif message_type == "update_performance_control":
                 control_name = message.get("control")
                 value = message.get("value")
+                session_state = get_session_performance_state(session_id)
 
-                if control_name and control_name in global_performance_state:
-                    global_performance_state[control_name] = value
+                if control_name and control_name in session_state:
+                    session_state[control_name] = value
 
                     # Broadcast to all devices in this session only
                     await manager.broadcast_to_room(
@@ -316,17 +347,18 @@ async def websocket_session_performance_endpoint(
                 is_playing = message.get("isPlaying")
                 current_time = message.get("currentTime")
                 duration = message.get("duration")
+                session_state = get_session_performance_state(session_id)
 
                 if is_playing is not None:
-                    global_performance_state["is_playing"] = is_playing
+                    session_state["is_playing"] = is_playing
                 if current_time is not None:
-                    global_performance_state["current_time"] = current_time
+                    session_state["current_time"] = current_time
                 if duration is not None:
-                    global_performance_state["duration"] = duration
+                    session_state["duration"] = duration
 
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": global_performance_state}
+                        {"type": "performance_state", "state": session_state}
                     )
                 )
 
@@ -335,18 +367,19 @@ async def websocket_session_performance_endpoint(
                 "playback_pause",
                 "reset_player_state",
             ]:
+                session_state = get_session_performance_state(session_id)
                 if message_type == "playback_play":
-                    global_performance_state["is_playing"] = True
+                    session_state["is_playing"] = True
                 elif message_type == "playback_pause":
-                    global_performance_state["is_playing"] = False
+                    session_state["is_playing"] = False
                 elif message_type == "reset_player_state":
-                    global_performance_state["current_time"] = 0
-                    global_performance_state["is_playing"] = False
+                    session_state["current_time"] = 0
+                    session_state["is_playing"] = False
 
                 # Broadcast to all devices in this session
                 await manager.broadcast_to_room(
                     performance_room,
-                    {"type": message_type, "state": global_performance_state},
+                    {"type": message_type, "state": session_state},
                 )
 
     except WebSocketDisconnect:

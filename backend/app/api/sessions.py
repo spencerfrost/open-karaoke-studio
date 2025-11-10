@@ -9,10 +9,10 @@ This module provides REST API endpoints for session management:
 """
 
 import logging
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
 
 from ..db.database import SessionLocal
 from ..db.models import KaraokeSession, SessionDevice
@@ -132,7 +132,7 @@ def join_session_by_code():
             db.query(KaraokeSession)
             .filter(
                 KaraokeSession.display_code == display_code,
-                KaraokeSession.is_active == True,
+                KaraokeSession.is_active.is_(True),
             )
             .first()
         )
@@ -382,6 +382,50 @@ def get_session_info(session_id):
         if 'db' in locals():
             db.close()
         return jsonify({"error": "Failed to get session info"}), 500
+
+
+@sessions_bp.route("/<session_id>/validate", methods=["GET"])
+def validate_session(session_id: str):
+    """
+    Validate if a session exists and is active.
+    Used by frontend to check session validity before connecting to WebSocket.
+    """
+    try:
+        with SessionLocal() as db:
+            session = (
+                db.query(KaraokeSession)
+                .filter(
+                    KaraokeSession.session_id == session_id,
+                    KaraokeSession.is_active.is_(True),
+                )
+                .first()
+            )
+
+            if not session:
+                return jsonify({
+                    "valid": False,
+                    "error": "Session not found or inactive"
+                }), 404
+
+            # Check if session has expired
+            if session.expires_at and session.expires_at < datetime.utcnow():
+                return jsonify({
+                    "valid": False,
+                    "error": "Session has expired"
+                }), 410
+
+            return jsonify({
+                "valid": True,
+                "session_id": session.session_id,
+                "display_code": session.display_code,
+                "is_active": session.is_active,
+                "expires_at": session.expires_at.isoformat() if session.expires_at else None,
+                "created_at": session.created_at.isoformat() if session.created_at else None
+            })
+
+    except Exception as e:
+        logger.error(f"Error validating session {session_id}: {str(e)}")
+        return jsonify({"error": "Failed to validate session"}), 500
 
 
 @sessions_bp.route("/<session_id>/leave", methods=["POST"])

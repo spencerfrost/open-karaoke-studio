@@ -42,6 +42,7 @@ interface SessionWebSocketEvents {
   // Session connection events
   session_connected: (data: { session_id: string; device_id: string; performance_state: PerformanceState }) => void;
   session_error: (data: { error: string }) => void;
+  session_ended: (data: { reason: string }) => void;
   
   // Performance control events
   performance_state: (data: { state: PerformanceState }) => void;
@@ -148,17 +149,14 @@ class SessionWebSocketService {
       return;
     }
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max unified session WebSocket reconnection attempts reached");
-      return;
-    }
-
+    // Never give up reconnecting for personal use - just slow down the attempts
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 5000);
-    console.log(`Scheduling unified session WebSocket reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    // Cap at 30 seconds, but never stop trying
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
+    console.log(`Scheduling unified session WebSocket reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;

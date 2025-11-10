@@ -13,14 +13,13 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from .connection_manager import SessionConnectionManager
 
-# Global performance state for real-time controls
-global_performance_state = {
-    # Synchronized state - these values are shared across all devices
+# NOTE: Performance state is now session-based and managed in session_specific.py
+# This global endpoint is kept for backwards compatibility but should use session endpoints
+default_performance_state = {
     "vocal_volume": 0,
     "instrumental_volume": 1,
     "lyrics_size": "medium",
     "lyrics_offset": 0,
-    # Playback state - ALSO synchronized (contrary to my earlier comment)
     "current_time": 0,
     "duration": 0,
     "is_playing": False,
@@ -46,7 +45,7 @@ async def websocket_performance_endpoint(
     try:
         # Send current performance state to new connection
         await websocket.send_text(
-            json.dumps({"type": "performance_state", "state": global_performance_state})
+            json.dumps({"type": "performance_state", "state": default_performance_state})
         )
 
         while True:
@@ -58,7 +57,7 @@ async def websocket_performance_endpoint(
                 # Client explicitly joined performance controls
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": global_performance_state}
+                        {"type": "performance_state", "state": default_performance_state}
                     )
                 )
                 print(f"Client {id(websocket)} joined performance controls")
@@ -79,7 +78,7 @@ async def websocket_performance_endpoint(
                     )
                     continue
 
-                if control_name not in global_performance_state:
+                if control_name not in default_performance_state:
                     await websocket.send_text(
                         json.dumps(
                             {
@@ -91,9 +90,9 @@ async def websocket_performance_endpoint(
                     continue
 
                 # Update global state
-                global_performance_state[control_name] = value
+                default_performance_state[control_name] = value
                 print(f"🎛️ Updated {control_name}={value} for performance controls")
-                print(f"🌍 Global state: {global_performance_state}")
+                print(f"🌍 Global state: {default_performance_state}")
 
                 # Broadcast to all clients except sender
                 await manager.broadcast_to_room(
@@ -113,16 +112,16 @@ async def websocket_performance_endpoint(
                 duration = message.get("duration")
 
                 if is_playing is not None:
-                    global_performance_state["is_playing"] = is_playing
+                    default_performance_state["is_playing"] = is_playing
                 if current_time is not None:
-                    global_performance_state["current_time"] = current_time
+                    default_performance_state["current_time"] = current_time
                 if duration is not None:
-                    global_performance_state["duration"] = duration
+                    default_performance_state["duration"] = duration
 
                 # Send updated state back to sender only (like Flask version)
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": global_performance_state}
+                        {"type": "performance_state", "state": default_performance_state}
                     )
                 )
 
@@ -132,8 +131,8 @@ async def websocket_performance_endpoint(
 
             elif message_type == "reset_player_state":
                 # Reset player state AND broadcast event (like Flask version)
-                global_performance_state["current_time"] = 0
-                global_performance_state["is_playing"] = False
+                default_performance_state["current_time"] = 0
+                default_performance_state["is_playing"] = False
 
                 # Broadcast reset event to all clients except sender
                 await manager.broadcast_to_room(
@@ -144,7 +143,7 @@ async def websocket_performance_endpoint(
 
             elif message_type == "playback_play":
                 # Play command: Update state AND broadcast event (matching Flask exactly)
-                global_performance_state["is_playing"] = True
+                default_performance_state["is_playing"] = True
 
                 # Broadcast play command to all clients including sender
                 await manager.broadcast_to_room(
@@ -154,14 +153,14 @@ async def websocket_performance_endpoint(
                 # Also broadcast updated state to all clients including sender
                 await manager.broadcast_to_room(
                     performance_room,
-                    {"type": "performance_state", "state": global_performance_state},
+                    {"type": "performance_state", "state": default_performance_state},
                 )
 
                 print(f"Play command from client {id(websocket)}")
 
             elif message_type == "playback_pause":
                 # Pause command: Update state AND broadcast event (matching Flask exactly)
-                global_performance_state["is_playing"] = False
+                default_performance_state["is_playing"] = False
 
                 # Broadcast pause command to all clients including sender
                 await manager.broadcast_to_room(
@@ -171,7 +170,7 @@ async def websocket_performance_endpoint(
                 # Also broadcast updated state to all clients including sender
                 await manager.broadcast_to_room(
                     performance_room,
-                    {"type": "performance_state", "state": global_performance_state},
+                    {"type": "performance_state", "state": default_performance_state},
                 )
 
                 print(f"Pause command from client {id(websocket)}")
@@ -179,7 +178,7 @@ async def websocket_performance_endpoint(
             elif message_type == "seek_to":
                 # Seek command: Update current_time state AND broadcast event
                 seek_time = message.get("time", 0)
-                global_performance_state["current_time"] = seek_time
+                default_performance_state["current_time"] = seek_time
 
                 await manager.broadcast_to_room(
                     performance_room, {"type": "seek_to", "time": seek_time}
@@ -188,7 +187,7 @@ async def websocket_performance_endpoint(
                 # Also broadcast updated state
                 await manager.broadcast_to_room(
                     performance_room,
-                    {"type": "performance_state", "state": global_performance_state},
+                    {"type": "performance_state", "state": default_performance_state},
                 )
 
                 print(f"Seek command to {seek_time}s from client {id(websocket)}")
@@ -209,13 +208,13 @@ async def websocket_performance_endpoint(
 
 
 def get_performance_state():
-    """Get current performance state for external access."""
-    return global_performance_state.copy()
+    """Get current performance state for external use"""
+    return default_performance_state.copy()
 
 
 def update_performance_state(updates: dict):
-    """Update performance state from external sources."""
-    global global_performance_state
+    """Update performance state from external source"""
+    global default_performance_state
     for key, value in updates.items():
-        if key in global_performance_state:
-            global_performance_state[key] = value
+        if key in default_performance_state:
+            default_performance_state[key] = value

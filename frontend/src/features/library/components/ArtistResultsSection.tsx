@@ -11,11 +11,17 @@ interface Artist {
 interface ArtistResultsSectionProps {
   artists: Artist[];
   searchTerm: string;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  sentinelRef?: React.RefObject<HTMLDivElement>;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   artists,
   searchTerm,
+  hasNextPage,
+  isFetchingNextPage,
+  sentinelRef,
 }) => {
   // Show section header
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
@@ -31,7 +37,12 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
       </div>
 
       {/* Artist Accordion - now a pure presentational component */}
-      <ArtistAccordion artists={artists} />
+      <ArtistAccordion 
+        artists={artists}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        sentinelRef={sentinelRef}
+      />
     </div>
   );
 };

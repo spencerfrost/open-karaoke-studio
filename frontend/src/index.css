@@ -183,6 +183,15 @@
     -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
   }
+
+  /* Hide scrollbar while keeping functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Custom Animations */

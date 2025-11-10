@@ -40,29 +40,24 @@ class QueueWebSocketService {
   }
 
   private initializeConnection() {
+    if (!this.currentSessionId) {
+      console.warn("Queue WebSocket requires a session ID - not connecting");
+      return;
+    }
+    
     try {
       let socketUrl: string;
 
       if (import.meta.env.DEV) {
-        // Development mode - use the current host to leverage Vite proxy
-        if (this.currentSessionId) {
-          socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${this.currentSessionId}/queue`;
-          console.log("Development mode - using session-specific queue WebSocket:", socketUrl);
-        } else {
-          socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/queue`;
-          console.log("Development mode - using global queue WebSocket (no session):", socketUrl);
-        }
+        // Development mode - always use session-specific endpoint
+        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${this.currentSessionId}/queue`;
+        console.log("Development mode - using session-specific queue WebSocket:", socketUrl);
       } else {
-        // Production mode - use direct URLs
+        // Production mode - always use session-specific endpoint
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 
                           `${window.location.protocol}//${window.location.host}`;
-        if (this.currentSessionId) {
-          socketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${this.currentSessionId}/queue`;
-          console.log("Production mode - using session-specific queue WebSocket:", socketUrl);
-        } else {
-          socketUrl = `${backendUrl.replace('http', 'ws')}/ws/queue`;
-          console.log("Production mode - using global queue WebSocket (no session):", socketUrl);
-        }
+        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${this.currentSessionId}/queue`;
+        console.log("Production mode - using session-specific queue WebSocket:", socketUrl);
       }
 
       console.log("Attempting to connect to queue WebSocket at:", socketUrl);
@@ -139,17 +134,14 @@ class QueueWebSocketService {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max queue WebSocket reconnection attempts reached");
-      return;
-    }
-
+    // Never give up reconnecting for personal use - just slow down the attempts  
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 5000);
-    console.log(`Scheduling queue WebSocket reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    // Cap at 30 seconds, but never stop trying
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
+    console.log(`Scheduling queue WebSocket reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
