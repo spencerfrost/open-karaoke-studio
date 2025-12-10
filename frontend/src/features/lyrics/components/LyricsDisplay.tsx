@@ -7,8 +7,9 @@
 import React, { memo, useState } from 'react';
 import { Lrc } from 'react-lrc';
 import { Button } from '@/components/ui/button';
-import { Search } from 'lucide-react';
+import { Search, FileText } from 'lucide-react';
 import LyricsFetchDialog from './LyricsFetchDialog';
+import PasteLyricsDialog from './PasteLyricsDialog';
 import { useSongs } from '@/hooks/api/useSongs';
 import { toast } from 'sonner';
 import type { LyricsResult } from './LyricsFetchDialog';
@@ -45,6 +46,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
   songDuration,
 }) => {
   const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
+  const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] = useState(false);
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
 
@@ -73,6 +75,35 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
       },
       onError: (error) => {
         toast.error(`Failed to update lyrics: ${error.message}`);
+      }
+    });
+  };
+
+  const handlePasteLyrics = () => {
+    if (!songId) {
+      toast.error("Missing song information");
+      return;
+    }
+    setIsPasteLyricsDialogOpen(true);
+  };
+
+  const handlePasteLyricsConfirmed = (pastedLyrics: string) => {
+    if (!songId) {
+      toast.error("Cannot update song: missing song ID");
+      return;
+    }
+
+    updateSongMutation.mutate({
+      id: songId,
+      plainLyrics: pastedLyrics,
+      syncedLyrics: undefined, // Clear synced lyrics when pasting plain lyrics
+    }, {
+      onSuccess: () => {
+        toast.success("Lyrics saved successfully!");
+        setIsPasteLyricsDialogOpen(false);
+      },
+      onError: (error) => {
+        toast.error(`Failed to save lyrics: ${error.message}`);
       }
     });
   };
@@ -109,7 +140,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
             {line.content}
           </div>
         )}
-        className={`lrc h-full w-full overflow-y-scroll scrollbar-hide pb-20 mask-image-fade-bottom ${className}`}
+        className={`lrc h-full w-full overflow-y-scroll scrollbar-hide mask-image-fade-bottom ${className}`}
         role="region"
         aria-label={ariaLabel}
       />
@@ -138,33 +169,51 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(({
             Enjoy the music and sing along if you know the words!
           </div>
           {songId && songTitle && songArtist && (
-            <Button
-              onClick={handleLyricsSearch}
-              variant="outline"
-              size="sm"
-              className="mt-2"
-            >
-              <Search className="w-4 h-4 mr-2" />
-              Search for Lyrics
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleLyricsSearch}
+                variant="outline"
+                size="sm"
+                className="mt-2"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Search for Lyrics
+              </Button>
+              <Button
+                onClick={handlePasteLyrics}
+                variant="outline"
+                size="sm"
+                className="mt-2"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Paste Lyrics
+              </Button>
+            </div>
           )}
         </div>
       )}
 
       {/* Lyrics Search Dialog */}
       {songId && songTitle && songArtist && (
-        <LyricsFetchDialog
-          isOpen={isLyricsDialogOpen}
-          onClose={() => setIsLyricsDialogOpen(false)}
-          song={{
-            id: songId,
-            title: songTitle,
-            artist: songArtist,
-            album: songAlbum || '',
-            duration: songDuration,
-          } as Song}
-          onLyricsSelected={handleLyricsSelected}
-        />
+        <>
+          <LyricsFetchDialog
+            isOpen={isLyricsDialogOpen}
+            onClose={() => setIsLyricsDialogOpen(false)}
+            song={{
+              id: songId,
+              title: songTitle,
+              artist: songArtist,
+              album: songAlbum || '',
+              duration: songDuration,
+            } as Song}
+            onLyricsSelected={handleLyricsSelected}
+          />
+          <PasteLyricsDialog
+            isOpen={isPasteLyricsDialogOpen}
+            onClose={() => setIsPasteLyricsDialogOpen(false)}
+            onLyricsConfirmed={handlePasteLyricsConfirmed}
+          />
+        </>
       )}
     </div>
   );

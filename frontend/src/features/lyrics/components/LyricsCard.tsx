@@ -7,7 +7,7 @@ import { CheckCircle, ThumbsUp, AlertTriangle, XCircle } from "lucide-react";
 // Helper function to get duration comparison status
 const getDurationComparison = (
   songDuration: number,
-  lyricsDuration: number,
+  lyricsDuration: number
 ) => {
   const diff = Math.abs(songDuration - lyricsDuration);
 
@@ -65,7 +65,7 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
 
   const durationComparison = getDurationComparison(
     parsedDuration,
-    option.duration ?? 0,
+    option.duration ?? 0
   );
   const Icon = durationComparison.icon;
 
@@ -83,20 +83,56 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
   // Helper function to format duration as mm:ss
   const formatDuration = (seconds: number) => {
     if (!seconds) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const roundedSeconds = Math.round(seconds);
+    const mins = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
     <Card
-      className={`hover:border-primary w-full ${
+      className={`hover:border-primary w-full py-0 ${
         selectedOption === option ? "border-primary bg-primary/5" : ""
       }`}
     >
       <CardContent className="p-3">
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start gap-3">
+          {/* Duration comparison */}
+          {option.duration && (
+            <div className="flex flex-col items-start gap-1 flex-shrink-0">
+              <div
+                className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
+              >
+                {Icon && <Icon size={12} />}
+                <span>{formatDuration(option.duration)}</span>
+                <span className="text-muted-foreground">
+                  vs {formatDuration(parsedDuration)}
+                </span>
+              </div>
+              <div className={`text-xs ${durationComparison.className}`}>
+                {isBestMatch ? "Best match" : durationComparison.message}
+              </div>
+            </div>
+          )}
+
+          {/* Lyrics preview */}
+          <div className="text-sm prose prose-sm max-w-none text-center flex-grow">
+            <div className="overflow-hidden">
+              {lines.map((line: string, i: number) => (
+                <p key={i} className={line.trim() === "" ? "h-4" : ""}>
+                  {line}
+                </p>
+              ))}
+              {cleanedLyrics?.split("\n").length > maxPreviewLines && (
+                <p className="text-muted-foreground italic mt-2 border-t pt-1">
+                  {cleanedLyrics.split("\n").length - maxPreviewLines} more lines
+                  (not shown)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex gap-1">
               {option.syncedLyrics && (
                 <Badge
@@ -112,41 +148,6 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
                 </Badge>
               )}
             </div>
-          </div>
-
-          {/* Duration comparison */}
-          {option.duration && (
-            <div className="flex flex-col items-end gap-1">
-              <div
-                className={`flex items-center gap-1 text-xs ${durationComparison.className}`}
-              >
-                {Icon && <Icon size={12} />}
-                <span>{formatDuration(option.duration)}</span>
-                <span className="text-muted-foreground">
-                  vs {formatDuration(parsedDuration)}
-                </span>
-              </div>
-              <div className={`text-xs ${durationComparison.className}`}>
-                {isBestMatch ? "Best match" : durationComparison.message}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Lyrics preview */}
-        <div className="text-sm prose prose-sm max-w-none">
-          <div className="max-h-32 overflow-hidden">
-            {lines.map((line: string, i: number) => (
-              <p key={i} className={line.trim() === "" ? "h-4" : ""}>
-                {line}
-              </p>
-            ))}
-            {cleanedLyrics?.split("\n").length > maxPreviewLines && (
-              <p className="text-muted-foreground italic mt-2 border-t pt-1">
-                {cleanedLyrics.split("\n").length - maxPreviewLines} more lines
-                (not shown)
-              </p>
-            )}
           </div>
         </div>
       </CardContent>

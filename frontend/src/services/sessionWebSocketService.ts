@@ -43,6 +43,7 @@ interface SessionWebSocketEvents {
   session_connected: (data: { session_id: string; device_id: string; performance_state: PerformanceState }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
+  host_registered: (data: { success: boolean; error?: string }) => void;
   
   // Performance control events
   performance_state: (data: { state: PerformanceState }) => void;
@@ -68,6 +69,7 @@ class SessionWebSocketService {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private currentSessionId: string | null = null;
   private deviceId: string | null = null;
+  private hostDeviceId: string | null = null; // REST API device ID for host identification
 
   constructor() {
     // Don't initialize connection immediately - wait for session
@@ -107,6 +109,12 @@ class SessionWebSocketService {
       console.log("Connected to unified session WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
+
+      // If this device is the host, register it with the backend
+      if (this.hostDeviceId) {
+        console.log("Registering as host with device ID:", this.hostDeviceId);
+        this.send({ type: "register_as_host", device_id: this.hostDeviceId });
+      }
 
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
@@ -224,10 +232,13 @@ class SessionWebSocketService {
 
   /**
    * Connect to a session
+   * @param sessionId The session ID to connect to
+   * @param hostDeviceId Optional: The REST API device ID if this device is the host
    */
-  connectToSession(sessionId: string) {
-    console.log("Connecting to unified session WebSocket for session:", sessionId);
+  connectToSession(sessionId: string, hostDeviceId?: string) {
+    console.log("Connecting to unified session WebSocket for session:", sessionId, hostDeviceId ? "(as host)" : "(as performer)");
     this.currentSessionId = sessionId;
+    this.hostDeviceId = hostDeviceId || null;
     this.disconnect(); // Clean up any existing connection
     this.reconnectAttempts = 0;
     this.initializeConnection(sessionId);
@@ -345,6 +356,7 @@ class SessionWebSocketService {
     this.reconnectAttempts = 0;
     this.currentSessionId = null;
     this.deviceId = null;
+    this.hostDeviceId = null;
   }
 
   /**

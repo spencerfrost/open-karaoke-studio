@@ -12,16 +12,18 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import type { PlayerControl } from '../KaraokePlayer.types';
+import type { PlayerControl } from '../../types/KaraokePlayer.types';
 
 interface PlayerControlsProps {
   // Player state
   isPlaying: boolean;
   isReady: boolean;
   vocalVolume: number;
+  songEnded?: boolean; // True when song finished naturally
   
   // UI state
   isFullscreen: boolean;
@@ -44,6 +46,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(({
   isPlaying,
   isReady,
   vocalVolume,
+  songEnded = false,
   isFullscreen,
   showVolumeSlider,
   controls = ['play', 'volume', 'fullscreen'],
@@ -58,19 +61,41 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(({
   const showVolume = controls.includes('volume');
   const showFullscreen = controls.includes('fullscreen');
 
+  // Determine play button icon and label
+  const getPlayButtonProps = () => {
+    if (isPlaying) {
+      return {
+        icon: <Pause size={48} aria-hidden="true" />,
+        label: "Pause"
+      };
+    }
+    if (songEnded) {
+      return {
+        icon: <RotateCcw size={48} aria-hidden="true" />,
+        label: "Replay from beginning"
+      };
+    }
+    return {
+      icon: <Play size={48} aria-hidden="true" />,
+      label: "Play"
+    };
+  };
+
+  const playButtonProps = getPlayButtonProps();
+
   return (
     <div className={`flex items-center ${className}`} role="toolbar" aria-label="Player controls">
-      {/* Play/Pause Button */}
+      {/* Play/Pause/Replay Button */}
       {showPlay && (
         <Button
           variant="ghost"
-          aria-label={isPlaying ? "Pause" : "Play"}
+          aria-label={playButtonProps.label}
           onClick={onPlayPause}
           disabled={!isReady}
           className="px-4"
           tabIndex={0}
         >
-          {isPlaying ? <Pause size={48} aria-hidden="true" /> : <Play size={48} aria-hidden="true" />}
+          {playButtonProps.icon}
         </Button>
       )}
 

@@ -1,14 +1,16 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Song } from "@/types/Song";
 import { SongCard } from "@/features/songs/components/song-card";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Youtube } from "lucide-react";
 
 interface SongResultsGridProps {
   songs: Song[];
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+  searchTerm?: string;
 }
 
 const SongResultsGrid: React.FC<SongResultsGridProps> = ({ 
@@ -16,7 +18,29 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  searchTerm,
 }) => {
+  const navigate = useNavigate();
+
+  if (songs.length === 0 && searchTerm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <div className="text-center space-y-4 max-w-md">
+          <p className="text-lemon-chiffon/60">
+            No songs found in your library for "{searchTerm}"
+          </p>
+          <Button
+            onClick={() => navigate(`/add?q=${encodeURIComponent(searchTerm)}`)}
+            className="gap-2"
+          >
+            <Youtube className="h-4 w-4" />
+            Search YouTube
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (songs.length === 0) {
     return null;
   }

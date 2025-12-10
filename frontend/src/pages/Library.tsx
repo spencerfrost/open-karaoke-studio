@@ -4,6 +4,7 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import AppLayout from "@/components/layout/AppLayout";
 import { LibrarySearchInput, SongResultsSection, ArtistResultsSection, RecentlyAddedSongs } from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
+import { SessionCodeDisplay } from "@/features/player/components/subcomponents";
 
 const LibraryPage: React.FC = () => {
   // State
@@ -54,6 +55,7 @@ const LibraryPage: React.FC = () => {
 
   return (
     <AppLayout>
+      <SessionCodeDisplay variant="page" />
       <div className="mb-6">
         {/* Search Input */}
         <div className="mb-6">
@@ -88,6 +90,7 @@ const LibraryPage: React.FC = () => {
             searchTerm={searchTerm}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
             sentinelRef={sentinelRef}
           />
         </div>

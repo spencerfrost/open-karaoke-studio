@@ -465,21 +465,22 @@ export function useSongs() {
       onMutate: async () => {
         // Cancel all song-related queries to prevent race conditions
         await queryClient.cancelQueries({ queryKey: ["songs"] });
+        await queryClient.cancelQueries({ queryKey: ["artists"] });
+        await queryClient.cancelQueries({ queryKey: ["artist-songs"] });
         return {};
-      },
-      onError: () => {
-        // Invalidate to refetch fresh data on error
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSuccess: (_data, variables) => {
         // Remove the specific song from all caches
         queryClient.removeQueries({ queryKey: QUERY_KEYS.song(variables.id) });
-        // Invalidate all song list queries to trigger refetch
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSettled: () => {
-        // Ensure all song queries are fresh
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        // Invalidate all queries after mutation completes (success or error)
+        // Using a small delay to allow UI to update first
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
+          queryClient.invalidateQueries({ queryKey: ["artists"] });
+          queryClient.invalidateQueries({ queryKey: ["artist-songs"] });
+        }, 100);
       },
       mutationFn: async (data) => {
         const url = formatUrl("songs/:id", { id: data.id });

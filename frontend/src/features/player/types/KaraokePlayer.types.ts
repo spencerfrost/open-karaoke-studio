@@ -8,6 +8,12 @@ import type { Song } from '@/types/Song';
 // Size variants for the player
 export type PlayerSize = 'compact' | 'full' | 'stage';
 
+// Sidebar display modes
+export type SidebarMode = 'floating' | 'push';
+
+// Player control types
+export type PlayerControl = 'play' | 'volume' | 'fullscreen';
+
 // Main component props interface
 export interface KaraokePlayerProps {
   // Song to play
@@ -21,6 +27,10 @@ export interface KaraokePlayerProps {
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
+  
+  // Sidebar options
+  sidebarMode?: SidebarMode;  // 'floating' = overlay, 'push' = takes space
+  showSidebarTrigger?: boolean;  // Show the settings button
   
   // Event callbacks
   onPlay?: () => void;
@@ -55,6 +65,7 @@ export interface KaraokePlayerHook {
   isLoading: boolean;
   isReady: boolean;
   isPlaying: boolean;
+  songEnded: boolean;         // True when song finished naturally (not paused)
   currentTime: number;        // In seconds (changed from milliseconds)
   duration: number;           // In seconds (changed from milliseconds)
   error: PlayerError | null;
@@ -65,6 +76,7 @@ export interface KaraokePlayerHook {
   pause: () => void;
   togglePlay: () => void;
   seek: (timeSeconds: number) => void; // Now accepts seconds instead of milliseconds
+  replay: () => void;         // Restart playback from the beginning
   
   // Audio controls
   setVocalVolume: (volume: number) => void;

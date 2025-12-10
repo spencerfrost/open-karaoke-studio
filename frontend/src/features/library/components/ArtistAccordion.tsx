@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ArtistSection from "./ArtistSection";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import AlphabeticalNavigation from "./AlphabeticalNavigation";
@@ -14,6 +14,7 @@ interface ArtistAccordionProps {
   className?: string;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
   sentinelRef?: React.RefObject<HTMLDivElement>;
 }
 
@@ -22,11 +23,14 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   className = "",
   hasNextPage,
   isFetchingNextPage,
+  fetchNextPage,
   sentinelRef,
 }) => {
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
     new Set(),
   );
+  const [pendingLetter, setPendingLetter] = useState<string | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleArtist = (artistName: string) => {
     setExpandedArtists((prev) => {
@@ -60,14 +64,81 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
     return Object.keys(groupedArtists).sort();
   }, [groupedArtists]);
 
+  // Watch for pending letter to become available
+  useEffect(() => {
+    if (pendingLetter && availableLetters.includes(pendingLetter)) {
+      // Letter is now loaded, navigate to it
+      const element = document.getElementById(`artist-section-${pendingLetter}`);
+      if (element) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+      setPendingLetter(null);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    }
+  }, [pendingLetter, availableLetters]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Handle navigation letter click
   const handleLetterClick = (letter: string) => {
-    const element = document.getElementById(`artist-section-${letter}`);
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+    const isAvailable = availableLetters.includes(letter);
+    
+    if (isAvailable) {
+      // Letter is already loaded, navigate immediately
+      const element = document.getElementById(`artist-section-${letter}`);
+      if (element) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    } else if (hasNextPage && fetchNextPage) {
+      // Letter not loaded yet, trigger loading
+      setPendingLetter(letter);
+      
+      // Scroll to bottom to trigger sentinel
+      if (sentinelRef?.current) {
+        sentinelRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "end",
+        });
+      }
+      
+      // Trigger initial page load
+      fetchNextPage();
+      
+      // Set up repeated loading until letter appears or timeout
+      const startLoading = () => {
+        const loadInterval = setInterval(() => {
+          if (availableLetters.includes(letter) || !hasNextPage) {
+            clearInterval(loadInterval);
+            return;
+          }
+          fetchNextPage();
+        }, 1000);
+        
+        // Timeout after 30 seconds
+        loadingTimeoutRef.current = setTimeout(() => {
+          clearInterval(loadInterval);
+          setPendingLetter(null);
+          console.warn(`Timed out waiting for letter ${letter}`);
+        }, 30000);
+      };
+      
+      startLoading();
     }
   };
 
@@ -82,15 +153,15 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   return (
     <div className={`relative ${className}`}>
       {/* Mobile horizontal navigation */}
-      {availableLetters.length > 0 && (
-        <div className="lg:hidden mb-4">
-          <AlphabeticalNavigation
-            availableLetters={availableLetters}
-            onLetterClick={handleLetterClick}
-            isMobile={true}
-          />
-        </div>
-      )}
+      <div className="lg:hidden mb-4">
+        <AlphabeticalNavigation
+          availableLetters={availableLetters}
+          onLetterClick={handleLetterClick}
+          pendingLetter={pendingLetter}
+          hasNextPage={hasNextPage}
+          isMobile={true}
+        />
+      </div>
 
       <div className="flex gap-6">
         {/* Main content */}
@@ -121,7 +192,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             <div ref={sentinelRef} className="h-4">
               {isFetchingNextPage && (
                 <div className="flex justify-center py-4">
-                  <LoadingSpinner size="sm" />
+                  <LoadingSpinner size={16} />
                 </div>
               )}
               {!hasNextPage && artists.length > 0 && (
@@ -134,15 +205,15 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
         </div>
 
         {/* Desktop vertical navigation sidebar */}
-        {availableLetters.length > 0 && (
-          <div className="hidden lg:block w-12">
-            <AlphabeticalNavigation
-              availableLetters={availableLetters}
-              onLetterClick={handleLetterClick}
-              isMobile={false}
-            />
-          </div>
-        )}
+        <div className="hidden lg:block w-12">
+          <AlphabeticalNavigation
+            availableLetters={availableLetters}
+            onLetterClick={handleLetterClick}
+            pendingLetter={pendingLetter}
+            hasNextPage={hasNextPage}
+            isMobile={false}
+          />
+        </div>
       </div>
     </div>
   );

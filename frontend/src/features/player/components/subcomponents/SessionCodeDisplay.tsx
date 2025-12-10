@@ -3,15 +3,27 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useSessionStore } from "@/stores/sessionStore";
 import { Users, Crown, Monitor, Smartphone, Clock } from "lucide-react";
 
+type SessionCodeVariant = "player" | "page";
+
 interface SessionCodeDisplayProps {
-  code: string;
+  code?: string;
   className?: string;
+  variant?: SessionCodeVariant;
 }
 
-const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({ code, className = "" }) => {
-  const { connectedDevices, isHost, deviceType, sessionInfo } = useSessionStore();
+const variantStyles: Record<SessionCodeVariant, string> = {
+  player: "bg-orange-peel text-background hover:bg-orange-peel/90",
+  page: "bg-card text-foreground hover:bg-card/90 border border-border",
+};
 
-  if (!code) return null;
+const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({ code, className = "", variant = "player" }) => {
+  const { connectedDevices, isHost, deviceType, sessionInfo, displayCode } = useSessionStore();
+
+  // Use provided code or fall back to displayCode from store
+  const sessionCode = code || displayCode;
+
+  // Only display session code on host devices
+  if (!sessionCode || !isHost) return null;
 
   const participantCount = connectedDevices.length;
   const deviceTypeIcons = {
@@ -26,8 +38,8 @@ const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({ code, className
     <HoverCard>
       <HoverCardTrigger asChild>
         <div className={`absolute top-2 right-3 z-30 cursor-pointer ${className}`}>
-          <div className="bg-orange-peel text-background px-3 py-1 rounded-lg font-mono text-lg font-bold hover:bg-orange-peel/90 transition-colors">
-            {code}
+          <div className={`px-4 py-2 rounded-lg font-mono text-2xl font-bold transition-colors ${variantStyles[variant]}`}>
+            {sessionCode}
           </div>
         </div>
       </HoverCardTrigger>

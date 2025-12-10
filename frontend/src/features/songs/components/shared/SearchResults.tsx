@@ -13,10 +13,12 @@ interface SearchResultsProps<TResult> {
     result: TResult;
     isLoading: boolean;
     onSelect: () => void;
+    onArtistClick?: (artistId: string, artistName: string) => void;
   }>;
   keyExtractor: (result: TResult) => string;
   emptyMessage: string;
   emptyDescription: string;
+  onArtistClick?: (artistId: string, artistName: string) => void;
 }
 
 export const SearchResults = <TResult,>({
@@ -29,6 +31,7 @@ export const SearchResults = <TResult,>({
   keyExtractor,
   emptyMessage,
   emptyDescription,
+  onArtistClick,
 }: SearchResultsProps<TResult>) => {
   // Show loading state
   if (isLoading) {
@@ -62,6 +65,7 @@ export const SearchResults = <TResult,>({
               result={result}
               isLoading={loadingStates[key] || false}
               onSelect={() => onSelect(result)}
+              onArtistClick={onArtistClick}
             />
           );
         })}

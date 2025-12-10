@@ -4,3 +4,5 @@
 
 export { useKaraokePlayer } from './useKaraokePlayer';
 export { usePlayerUI } from './usePlayerUI';
+export { useSongSuggestions, getSuggestionReasonText } from './useSongSuggestions';
+export type { SuggestionContext, SongSuggestion, UseSongSuggestionsResult } from './useSongSuggestions';

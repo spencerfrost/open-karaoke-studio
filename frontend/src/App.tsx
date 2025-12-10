@@ -16,6 +16,7 @@ import JoinSessionPage from "./pages/JoinSessionPage";
 import { SessionProvider } from "./contexts/SessionContext";
 import SessionGuard from "./components/SessionGuard";
 import { Toaster } from "./components/ui/sonner";
+import { MiniPlayer } from "./components/player/MiniPlayer";
 
 const App: React.FC = () => {
   return (
@@ -80,6 +81,9 @@ const App: React.FC = () => {
             {/* Fallback route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          
+          {/* Mini-player renders outside routes, always available */}
+          <MiniPlayer />
         </SessionProvider>
       </Router>
     </>

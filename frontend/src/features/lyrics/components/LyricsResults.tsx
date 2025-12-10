@@ -125,7 +125,13 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
       // If no video duration, just select first option
       onSelectionChange(options[0]);
     }
-  }, [options, selectedOption, parsedDuration, onSelectionChange, sortedOptions]);
+  }, [
+    options,
+    selectedOption,
+    parsedDuration,
+    onSelectionChange,
+    sortedOptions,
+  ]);
 
   const handleValueChange = (value: string) => {
     const index = parseInt(value);
@@ -171,11 +177,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
 
   return (
     <ScrollArea className={`flex-1 pr-4 ${className}`}>
-      <RadioGroup
-        value={getSelectedIndex()}
-        onValueChange={handleValueChange}
-        className="space-y-4"
-      >
+      <RadioGroup value={getSelectedIndex()} onValueChange={handleValueChange}>
         {sortedOptions.map((option, index) => {
           const isBestMatch = option === bestMatchOption;
 

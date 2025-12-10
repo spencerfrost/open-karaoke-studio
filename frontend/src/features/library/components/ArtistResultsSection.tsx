@@ -13,6 +13,7 @@ interface ArtistResultsSectionProps {
   searchTerm: string;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
   sentinelRef?: React.RefObject<HTMLDivElement>;
 }
 
@@ -21,6 +22,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   searchTerm,
   hasNextPage,
   isFetchingNextPage,
+  fetchNextPage,
   sentinelRef,
 }) => {
   // Show section header
@@ -41,6 +43,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
         artists={artists}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
         sentinelRef={sentinelRef}
       />
     </div>

@@ -3,6 +3,8 @@ import React, { useEffect, useState } from "react";
 interface AlphabeticalNavigationProps {
   availableLetters: string[];
   onLetterClick: (letter: string) => void;
+  pendingLetter?: string | null;
+  hasNextPage?: boolean;
   className?: string;
   isMobile?: boolean;
 }
@@ -10,6 +12,8 @@ interface AlphabeticalNavigationProps {
 const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
   availableLetters,
   onLetterClick,
+  pendingLetter,
+  hasNextPage,
   className = "",
   isMobile = false,
 }) => {
@@ -52,7 +56,8 @@ const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
   }, [availableLetters]);
 
   const handleLetterClick = (letter: string) => {
-    if (availableLetters.includes(letter)) {
+    // Allow clicking if letter is available OR if there are more pages to load
+    if (availableLetters.includes(letter) || hasNextPage) {
       onLetterClick(letter);
     }
   };
@@ -64,23 +69,37 @@ const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
           {allLetters.map((letter) => {
             const isAvailable = availableLetters.includes(letter);
             const isActive = letter === activeSection;
+            const isPending = letter === pendingLetter;
+            const isClickable = isAvailable || hasNextPage;
             
             return (
               <button
                 key={letter}
                 onClick={() => handleLetterClick(letter)}
-                disabled={!isAvailable}
+                disabled={!isClickable}
                 className={`
                   ${isMobile ? 'w-7 h-7 text-xs flex-shrink-0' : 'w-8 h-8 text-sm'} 
-                  font-medium rounded transition-all duration-200
-                  ${isAvailable
-                    ? isActive
-                      ? "bg-orange-peel text-dark-cyan shadow-md scale-110"
-                      : "bg-orange-peel/20 text-orange-peel hover:bg-orange-peel/40 hover:scale-105"
-                    : "text-gray-500 cursor-not-allowed opacity-50"
+                  font-medium rounded transition-all duration-200 relative
+                  ${isPending
+                    ? "bg-orange-peel/40 text-lemon-chiffon animate-pulse"
+                    : isAvailable
+                      ? isActive
+                        ? "bg-orange-peel text-dark-cyan shadow-md scale-110"
+                        : "bg-orange-peel/20 text-orange-peel hover:bg-orange-peel/40 hover:scale-105"
+                      : hasNextPage
+                        ? "text-lemon-chiffon/50 bg-dark-cyan/30 border border-lemon-chiffon/20 hover:border-lemon-chiffon/40 hover:text-lemon-chiffon/70"
+                        : "text-lemon-chiffon/30 cursor-not-allowed bg-dark-cyan/30 border border-lemon-chiffon/10"
                   }
                 `}
-                title={isAvailable ? `Jump to ${letter}` : `No artists starting with ${letter}`}
+                title={
+                  isPending
+                    ? `Loading artists for ${letter}...`
+                    : isAvailable
+                      ? `Jump to ${letter}`
+                      : hasNextPage
+                        ? `Load more to reach ${letter}`
+                        : `No artists starting with ${letter}`
+                }
               >
                 {letter}
               </button>

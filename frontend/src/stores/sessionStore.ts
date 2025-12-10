@@ -108,8 +108,8 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null, // Clear any recovery errors
           });
 
-          // Update WebSocket services for new session
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          // Update WebSocket services for new session - pass device_id for host registration
+          sessionWebSocketService.connectToSession(sessionData.session_id, sessionData.device_id);
 
           // Setup session_ended event handler
           sessionWebSocketService.on('session_ended', (data) => {
@@ -257,8 +257,8 @@ export const useSessionStore = create<SessionState>()(
             sessionInfo: sessionData,
           });
 
-          // Reconnect WebSocket
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          // Reconnect WebSocket - pass device_id for host registration
+          sessionWebSocketService.connectToSession(sessionData.session_id, deviceId);
 
           // Setup session_ended event handler
           sessionWebSocketService.on('session_ended', (data) => {

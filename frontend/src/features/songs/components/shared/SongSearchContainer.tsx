@@ -14,6 +14,7 @@ import { SearchResults } from "./SearchResults";
 import { YoutubeMusicResultCard } from "../YoutubeMusicResultCard";
 import { YouTubeResultCard } from "../YoutubeVideoResultCard";
 import { AddSongDialog } from "../AddSongDialog";
+import { ArtistBrowsePanel } from "../artist-browse";
 
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";
 import { useYoutubeVideoSearch } from "@/hooks/useYoutubeVideoSearch";
@@ -53,16 +54,26 @@ const mapYouTubeToSongInput = (
   thumbnail: result.thumbnail,
 });
 
+// Artist browse state type
+interface BrowsingArtist {
+  id: string;
+  name: string;
+}
+
 /**
  * Unified search container that replaces the side-by-side search components
  * Provides tabbed interface for YouTube Music and YouTube search
  */
 export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   className = "",
+  initialQuery = "",
 }) => {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [activeSource, setActiveSource] =
     useState<SearchSource>("youtube-music");
+  const [browsingArtist, setBrowsingArtist] = useState<BrowsingArtist | null>(
+    null
+  );
 
   // Use existing search hooks
   const youtubeMusicSearch = useYoutubeMusicSearch(
@@ -101,6 +112,16 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
 
   const handleSearch = (searchQuery: string) => {
     setQuery(searchQuery);
+    // Clear artist browse when searching
+    setBrowsingArtist(null);
+  };
+
+  const handleArtistClick = (artistId: string, artistName: string) => {
+    setBrowsingArtist({ id: artistId, name: artistName });
+  };
+
+  const handleBackFromArtist = () => {
+    setBrowsingArtist(null);
   };
 
   const handleYoutubeMusicSelect = async (result: YoutubeMusicSearchResult) => {
@@ -133,6 +154,33 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
     "youtube-music": youtubeMusicResults.length,
     youtube: youtubeResults.length,
   };
+
+  // When browsing an artist, show the artist panel instead of search results
+  if (browsingArtist) {
+    return (
+      <div className={`space-y-6 ${className}`}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Songs</CardTitle>
+            <CardDescription>
+              Browse songs from {browsingArtist.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ArtistBrowsePanel
+              artistId={browsingArtist.id}
+              artistName={browsingArtist.name}
+              onBack={handleBackFromArtist}
+              onSelectSong={handleYoutubeMusicSelect}
+              loadingStates={youtubeMusicLoadingStates}
+            />
+          </CardContent>
+        </Card>
+
+        <AddSongDialog songCreation={songCreation} dialog={dialog} />
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -167,6 +215,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               keyExtractor={(result) => result.videoId}
               emptyMessage="Search YouTube Music"
               emptyDescription="Find official tracks with high-quality audio and reliable metadata."
+              onArtistClick={handleArtistClick}
             />
           )}
 

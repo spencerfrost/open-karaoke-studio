@@ -23,8 +23,10 @@ export const useKaraokePlayer = (
     currentTime,
     isReady,
     isPlaying,
+    songEnded,
     duration,
     error: storeError,
+    isLoading: isAudioLoading,
     vocalVolume,
     instrumentalVolume,
     lyricsSize,
@@ -45,27 +47,34 @@ export const useKaraokePlayer = (
   const { useSong } = useSongs();
   const { 
     data: song, 
-    isLoading,
+    isLoading: isMetadataLoading,
     error: songError 
   } = useSong(songId ?? '');
 
+  // Combined loading state: either fetching metadata OR downloading/decoding audio
+  const isLoading = isMetadataLoading || isAudioLoading;
+
   // Connection management
+  // Note: We do NOT cleanup on unmount - audio state persists in Zustand store
+  // for mini-player functionality. Cleanup only happens when loading a new song.
   useEffect(() => {
     connect();
     return () => {
-      cleanup();
-      disconnect();
+      // Don't cleanup or disconnect - let the audio continue for mini-player
+      // The store state persists and mini-player can control playback
     };
-  }, [connect, disconnect, cleanup]);
+  }, [connect]);
 
   // Song loading and lifecycle management
+  // Note: We only cleanup when loading a DIFFERENT song, not on unmount
   useEffect(() => {
     if (song && songId && songId !== currentSongId) {
       const duration = getSongDuration(song);
-      setSongAndLoad(song.id, duration);
+      // Pass song metadata for mini-player display
+      setSongAndLoad(song.id, duration, song.title, song.artist);
     }
-    return () => cleanup();
-  }, [song, songId, currentSongId, setSongAndLoad, cleanup]);
+    // Don't cleanup on unmount - mini-player needs the audio to keep playing
+  }, [song, songId, currentSongId, setSongAndLoad]);
 
   // Auto-play functionality
   useEffect(() => {
@@ -118,12 +127,20 @@ export const useKaraokePlayer = (
     }
   }, [isReady, storeSeek]);
 
+  // Replay from the beginning
+  const replay = useCallback(() => {
+    if (isReady) {
+      storeSeek(0);
+      userPlay();
+    }
+  }, [isReady, storeSeek, userPlay]);
+
   // Reload functionality
   const reload = useCallback(async () => {
     if (song) {
       cleanup();
       const duration = getSongDuration(song);
-      await setSongAndLoad(song.id, duration);
+      await setSongAndLoad(song.id, duration, song.title, song.artist);
     }
   }, [song, cleanup, setSongAndLoad]);
 
@@ -177,6 +194,7 @@ export const useKaraokePlayer = (
     isLoading,
     isReady,
     isPlaying,
+    songEnded,
     currentTime: currentTime, // Pass in seconds
     duration: durationSeconds,
     error,
@@ -187,6 +205,7 @@ export const useKaraokePlayer = (
     pause,
     togglePlay,
     seek,
+    replay,
     
     // Audio controls
     setVocalVolume,

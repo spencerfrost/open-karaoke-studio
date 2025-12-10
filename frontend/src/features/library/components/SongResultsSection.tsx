@@ -16,6 +16,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  searchTerm,
 }) => {
   return (
     <div className="mb-8">
@@ -34,6 +35,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
+        searchTerm={searchTerm}
       />
     </div>
   );

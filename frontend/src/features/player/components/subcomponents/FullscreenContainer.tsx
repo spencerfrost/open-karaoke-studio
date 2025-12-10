@@ -11,6 +11,9 @@ interface FullscreenContainerProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   fsError: string | null;
   className?: string;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  onMouseMove?: () => void;
 }
 
 const FullscreenContainer: React.FC<FullscreenContainerProps> = ({
@@ -19,6 +22,9 @@ const FullscreenContainer: React.FC<FullscreenContainerProps> = ({
   containerRef,
   fsError,
   className = "",
+  onMouseEnter,
+  onMouseLeave,
+  onMouseMove,
 }) => {
   return (
     <div
@@ -26,6 +32,9 @@ const FullscreenContainer: React.FC<FullscreenContainerProps> = ({
       className={`h-full w-full ${className} relative`}
       tabIndex={-1}
       style={{ outline: isFullscreen ? "none" : undefined }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
     >
       {/* Fullscreen Error Display */}
       {fsError && (

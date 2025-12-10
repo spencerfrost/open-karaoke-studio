@@ -23,6 +23,12 @@ interface PerformanceState {
   is_ready?: boolean;
 }
 
+// Mini-player position interface
+interface MiniPlayerPosition {
+  x: number;
+  y: number;
+}
+
 interface KaraokePlayerState {
   // Audio/track info
   songId: string | null;
@@ -33,36 +39,53 @@ interface KaraokePlayerState {
   duration: number; // seconds (float) - canonical unit
   error: string | null;
 
+  // Song metadata for display
+  songTitle: string | null;
+  songArtist: string | null;
+
   // Playback state
   isPlaying: boolean;
   currentTime: number;
+  songEnded: boolean; // True when song has finished playing (not just paused)
 
   // Controls
   vocalVolume: number;
   instrumentalVolume: number;
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
+  autoScrollEnabled: boolean;
 
   // Connection state (managed by unified service)
   connected: boolean;
+
+  // Mini-player state
+  miniPlayerEnabled: boolean;
+  miniPlayerPosition: MiniPlayerPosition;
+  miniPlayerDismissed: boolean; // User explicitly closed it for current song
 
   // Actions
   connect: () => void;
   disconnect: () => void;
   setSongId: (id: string, duration?: number) => void;
-  setSongAndLoad: (id: string, duration?: number) => Promise<void>;
+  setSongAndLoad: (id: string, duration?: number, title?: string, artist?: string) => Promise<void>;
   load: () => Promise<void>;
   play: () => void;
   pause: () => void;
   userPlay: () => void;
   userPause: () => void;
   seek: (time: number) => void;
+  resetSongEnded: () => void;
   setVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
+  setAutoScrollEnabled: (enabled: boolean) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  // Mini-player actions
+  setMiniPlayerEnabled: (enabled: boolean) => void;
+  setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
+  dismissMiniPlayer: () => void;
   // Method to update from WebSocket
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateFromWebSocket: (data: any) => void;
@@ -162,7 +185,30 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     instrumentalSource.connect(instrumentalGain).connect(analyser!);
     vocalSource.connect(vocalGain).connect(analyser!);
     analyser!.connect(audioContext.destination);
-    // Stat the sources in sync
+    
+    // Handle playback end - use instrumental track as the reference
+    // Only trigger once when playback naturally ends (not when stopped manually)
+    instrumentalSource.onended = () => {
+      // Check if we're still playing (wasn't manually stopped)
+      const { isPlaying, duration } = get();
+      if (isPlaying && playbackStartTime !== null && audioContext) {
+        const currentTime = playbackOffset + (audioContext.currentTime - playbackStartTime);
+        // Only auto-stop if we're near or past the end of the song
+        if (currentTime >= duration - 0.5) {
+          clearIntervals();
+          playbackStartTime = null;
+          playbackOffset = duration; // Set to exact duration
+          set({ currentTime: duration, isPlaying: false, songEnded: true });
+          socketEmit("update_player_state", {
+            isPlaying: false,
+            currentTime: duration,
+            duration,
+          });
+        }
+      }
+    };
+    
+    // Start the sources in sync
     if (typeof offset === "number") {
       instrumentalSource.start(startTime, offset);
       vocalSource.start(startTime, offset);
@@ -295,13 +341,20 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     isLoading: false,
     duration: 0,
     error: null,
+    songTitle: null,
+    songArtist: null,
     isPlaying: false,
     currentTime: 0,
+    songEnded: false,
     vocalVolume: 0,
     instrumentalVolume: 1.0,
     lyricsSize: "medium",
     lyricsOffset: 0,
+    autoScrollEnabled: true,
     connected: false,
+    miniPlayerEnabled: true,
+    miniPlayerPosition: { x: 24, y: 24 }, // Bottom-right with 24px margin
+    miniPlayerDismissed: false,
 
     // Actions
     connect: () => {
@@ -372,15 +425,23 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         duration: duration || 0,
         currentTime: 0,
         isPlaying: false,
+        miniPlayerDismissed: false, // Reset dismissed state for new song
       });
     },
 
-    setSongAndLoad: async (id: string, duration?: number) => {
+    setSongAndLoad: async (id: string, duration?: number, title?: string, artist?: string) => {
       // Set loading flag to prevent WebSocket interference
       isLoadingNewSong = true;
 
       get().cleanup(); // This will reset audio nodes and state
       get().setSongId(id, duration); // This will set new song and reset playback position
+      
+      // Set song metadata for mini-player display and reset songEnded state
+      set({
+        songTitle: title || null,
+        songArtist: artist || null,
+        songEnded: false,
+      });
 
       // Tell the backend we're loading a new song so it can reset performance state
       socketEmit("song_loaded", {
@@ -464,6 +525,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (!instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
 
+      // Reset songEnded flag when starting playback
+      set({ songEnded: false });
+
       setupAudioGraph(audioContext.currentTime, playbackOffset);
       playbackStartTime = audioContext.currentTime;
       updatePlayerState({ isPlaying: true });
@@ -501,6 +565,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
       playbackOffset = timeSeconds;
+      
+      // Reset songEnded flag when seeking
+      set({ songEnded: false });
+      
       if (get().isPlaying) {
         setupAudioGraph(audioContext.currentTime, timeSeconds);
         playbackStartTime = audioContext.currentTime;
@@ -510,6 +578,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         playbackStartTime = null;
         updatePlayerState({ currentTime: timeSeconds, isPlaying: false });
       }
+    },
+
+    resetSongEnded: () => {
+      set({ songEnded: false });
     },
 
     setVocalVolume: (volume: number) => {
@@ -532,6 +604,11 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       updatePerformanceControl("lyricsOffset", offset);
     },
 
+    setAutoScrollEnabled: (enabled: boolean) => {
+      // Auto-scroll is a local-only setting, no need to sync via WebSocket
+      set({ autoScrollEnabled: enabled });
+    },
+
     cleanup: () => {
       resetAudioNodes();
       // Clear any pending local update tracking to avoid stale state
@@ -545,6 +622,19 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const array = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(array);
       return Array.from(array);
+    },
+
+    // Mini-player actions
+    setMiniPlayerEnabled: (enabled: boolean) => {
+      set({ miniPlayerEnabled: enabled });
+    },
+
+    setMiniPlayerPosition: (position: MiniPlayerPosition) => {
+      set({ miniPlayerPosition: position });
+    },
+
+    dismissMiniPlayer: () => {
+      set({ miniPlayerDismissed: true });
     },
 
     updateFromWebSocket: (data: any) => {

@@ -22,6 +22,7 @@ export const isYouTubeResult = (
 // Component prop interfaces
 export interface SongSearchContainerProps {
   className?: string;
+  initialQuery?: string;
 }
 
 export interface SearchInputProps {

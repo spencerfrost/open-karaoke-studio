@@ -1,0 +1,23 @@
+# Development Dockerfile for Open Karaoke Studio Frontend
+# Includes hot-reload support
+
+FROM node:20-slim
+
+# Install pnpm
+RUN npm install -g pnpm@10.9.0
+
+WORKDIR /app/frontend
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+EXPOSE 5192
+
+# Run dev server with host mode
+CMD ["pnpm", "run", "host"]
