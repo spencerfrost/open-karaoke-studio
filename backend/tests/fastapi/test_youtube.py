@@ -2,8 +2,9 @@
 Tests for FastAPI YouTube endpoints.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 
 class TestYouTubeSearch:

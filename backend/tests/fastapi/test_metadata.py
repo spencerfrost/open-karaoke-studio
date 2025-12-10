@@ -2,8 +2,9 @@
 Tests for FastAPI metadata endpoint.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 
 class TestMetadataSearch:

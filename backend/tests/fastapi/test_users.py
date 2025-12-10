@@ -2,8 +2,9 @@
 Tests for FastAPI users endpoints.
 """
 
+from unittest.mock import MagicMock, Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock
 
 
 class TestUserRegistration:
