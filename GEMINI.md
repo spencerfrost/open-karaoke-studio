@@ -124,23 +124,6 @@ The built assets will be located in the `frontend/dist/` directory.
 
 ## Testing
 
-### Verification Script
-
-A dedicated script is available to verify the development environment setup:
-
-```bash
-./verify-setup.sh
-```
-
-This script checks:
-*   System dependencies (Python, Node.js, pnpm, Redis, Git, FFmpeg).
-*   Redis connection and basic operations.
-*   Backend setup (virtual environment, key Python imports, database existence and schema, environment configuration, script executability).
-*   Frontend setup (`package.json`, `node_modules`, lock file, environment configuration, TypeScript compilation).
-*   Project directory structure.
-*   Attempts to test API endpoints if the backend server is running.
-*   Celery configuration and broker connection.
-
 ### Running Tests
 
 The project uses `pytest` for backend testing. Frontend testing details are not explicitly defined in the provided `package.json` but typically involve frameworks like Jest or Vitest.
