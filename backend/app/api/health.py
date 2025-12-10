@@ -1,28 +1,41 @@
+"""
+Health check endpoint for Open Karaoke Studio FastAPI backend.
+"""
+
+import asyncio
 import time
 from datetime import datetime
 
-from flask import Blueprint, jsonify
+from fastapi import APIRouter
+from pydantic import BaseModel
 
-health_bp = Blueprint("health", __name__, url_prefix="/api")
+router = APIRouter(prefix="/api", tags=["health"])
 
 
-@health_bp.route("/health", methods=["GET"])
-def health():
+class HealthResponse(BaseModel):
+    status: str
+    framework: str
+    timestamp: datetime
+    response_time_ms: float
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health():
     """
     Health check endpoint with performance timing.
-    Enhanced to match FastAPI's health endpoint for comparison.
+    Compare this with Flask's health endpoint to see performance improvements.
     """
     start_time = time.time()
-    
-    # Simulate some work (same as FastAPI version)
-    time.sleep(0.001)  # 1ms of "work"
-    
+
+    # Simulate some async work
+    await asyncio.sleep(0.001)
+
     end_time = time.time()
     response_time = (end_time - start_time) * 1000  # Convert to milliseconds
-    
-    return jsonify({
-        "status": "ok",
-        "framework": "flask",
-        "timestamp": datetime.now().isoformat(),
-        "response_time_ms": round(response_time, 2)
-    }), 200
+
+    return HealthResponse(
+        status="ok",
+        framework="fastapi",
+        timestamp=datetime.now(),
+        response_time_ms=round(response_time, 2),
+    )

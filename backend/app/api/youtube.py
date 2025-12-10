@@ -1,94 +1,150 @@
-# backend/app/api/youtube.py
-import logging
+"""
+FastAPI router for YouTube search and download endpoints.
+"""
 
-from app.api.responses import success_response
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
+
+
 from app.exceptions import NetworkError, ServiceError, ValidationError
-from app.schemas.requests import YouTubeDownloadRequest
 from app.services.youtube_service import YouTubeService
-from app.utils.error_handlers import handle_api_error
-from app.utils.validation import validate_json_request
-from flask import Blueprint, request
 
 logger = logging.getLogger(__name__)
-youtube_bp = Blueprint("youtube", __name__, url_prefix="/api/youtube")
+
+router = APIRouter(prefix="/api/youtube", tags=["youtube"])
 
 
-@youtube_bp.route("/search", methods=["GET"])
-@handle_api_error
-def search_youtube_endpoint():
-    """Search YouTube for videos - thin controller"""
+class YouTubeDownloadRequest(BaseModel):
+    """Request model for YouTube download."""
+    video_id: str = Field(..., min_length=1, max_length=100, description="YouTube video ID")
+    song_id: str = Field(..., min_length=1, max_length=100, description="Song ID to associate with")
+    title: Optional[str] = Field(None, max_length=200, description="Custom title override")
+    artist: Optional[str] = Field(None, max_length=200, description="Custom artist override")
+    album: Optional[str] = Field(None, max_length=200, description="Album name")
+    searchThumbnailUrl: Optional[str] = Field(None, max_length=500, description="Original search result thumbnail URL")
+
+    @field_validator("video_id", "song_id")
+    @classmethod
+    def validate_required_ids(cls, v: str) -> str:
+        if not v or v.strip() == "":
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
+    @field_validator("title", "artist", "album")
+    @classmethod
+    def validate_optional_strings(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and isinstance(v, str):
+            stripped = v.strip()
+            if stripped == "":
+                return None
+            return stripped
+        return v
+
+
+class YouTubeSearchResponse(BaseModel):
+    """Response model for YouTube search results."""
+    success: bool
+    message: str
+    data: list
+
+
+class YouTubeDownloadResponse(BaseModel):
+    """Response model for YouTube download initiation."""
+    success: bool
+    message: str
+    data: dict
+
+
+@router.get("/search", response_model=YouTubeSearchResponse)
+async def search_youtube(
+    query: str = Query(..., min_length=1, description="Search query"),
+    maxResults: int = Query(10, ge=1, le=50, description="Maximum number of results")
+):
+    """
+    Search YouTube for videos.
+    
+    Returns a list of video results matching the query.
+    """
     try:
-        query = request.args.get("query")
-        if not query:
-            raise ValidationError("Missing query parameter", "MISSING_QUERY")
-
-        max_results_str = request.args.get("maxResults", "10")
-        try:
-            max_results = int(max_results_str)
-        except ValueError as e:
-            raise ValidationError(
-                "Invalid maxResults parameter, must be an integer",
-                "INVALID_MAX_RESULTS",
-            ) from e
-
         youtube_service = YouTubeService()
-        results = youtube_service.search_videos(query, max_results)
+        results = youtube_service.search_videos(query, maxResults)
 
-        return success_response(
-            data=results, message=f"Found {len(results)} videos matching '{query}'"
+        return YouTubeSearchResponse(
+            success=True,
+            message=f"Found {len(results)} videos matching '{query}'",
+            data=results
         )
 
-    except ServiceError:
-        raise  # Let error handlers deal with it
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except NetworkError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except ConnectionError as e:
-        raise NetworkError(
-            "Failed to connect to YouTube API",
-            "YOUTUBE_CONNECTION_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("YouTube connection error: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to connect to YouTube API: {str(e)}"
+        )
     except TimeoutError as e:
-        raise NetworkError(
-            "YouTube API request timed out",
-            "YOUTUBE_TIMEOUT_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("YouTube timeout error: %s", e)
+        raise HTTPException(
+            status_code=504,
+            detail=f"YouTube API request timed out: {str(e)}"
+        )
     except Exception as e:
-        raise ServiceError(
-            "Unexpected error during YouTube search",
-            "YOUTUBE_SEARCH_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("Unexpected YouTube search error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during YouTube search: {str(e)}"
+        )
 
 
-@youtube_bp.route("/download", methods=["POST"])
-@handle_api_error
-@validate_json_request(YouTubeDownloadRequest)
-def download_youtube_endpoint(validated_data: YouTubeDownloadRequest):
-    """Download and process YouTube video - thin controller delegating to service"""
+@router.post("/download", response_model=YouTubeDownloadResponse, status_code=202)
+async def download_youtube(request: YouTubeDownloadRequest):
+    """
+    Download and process a YouTube video.
+    
+    Creates a background job to download the video and process the audio.
+    Returns immediately with a job ID for tracking progress.
+    """
+    try:
+        youtube_service = YouTubeService()
+        job_id = youtube_service.download_and_process_async(
+            song_id=request.song_id,
+            video_id_or_url=request.video_id,
+            artist=request.artist or "",
+            title=request.title or "",
+        )
 
-    # Delegate to service layer for job creation and orchestration
-    # The service will handle song creation if needed
-    youtube_service = YouTubeService()
-    job_id = youtube_service.download_and_process_async(
-        song_id=validated_data.song_id,
-        video_id_or_url=validated_data.video_id,
-        artist=validated_data.artist or "",
-        title=validated_data.title or "",
-    )
+        logger.info(
+            "YouTube processing started for song %s, video %s, job %s",
+            request.song_id,
+            request.video_id,
+            job_id,
+        )
 
-    logger.info(
-        "YouTube processing started for song %s, video %s, job %s",
-        validated_data.song_id,
-        validated_data.video_id,
-        job_id,
-    )
+        return YouTubeDownloadResponse(
+            success=True,
+            message="YouTube processing started",
+            data={
+                "jobId": job_id,
+                "status": "pending",
+                "message": "YouTube processing job created",
+            }
+        )
 
-    return success_response(
-        data={
-            "jobId": job_id,
-            "status": "pending",
-            "message": "YouTube processing job created",
-        },
-        message="YouTube processing started",
-        status_code=202,
-    )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected YouTube download error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error starting YouTube download: {str(e)}"
+        )

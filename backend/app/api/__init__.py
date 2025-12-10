@@ -1,40 +1,29 @@
 """
-API endpoint modules for Open Karaoke Studio.
+FastAPI Routers for Open Karaoke Studio
+
+This package contains all API endpoint routers organized by domain.
 """
 
-from .health import health_bp
-from .jobs import jobs_bp
-from .karaoke_queue import karaoke_queue_bp
+from .health import router as health_router
+from .jobs import router as jobs_router
+from .karaoke_queue import router as queue_router
+from .lyrics import router as lyrics_router
+from .metadata import router as metadata_router
+from .sessions import router as sessions_router
+from .songs import router as songs_router
+from .users import router as users_router
+from .youtube import router as youtube_router
+from .youtube_music import router as youtube_music_router
 
-# Import all blueprints
-from .lyrics import lyrics_bp
-from .metadata import metadata_bp
-from .sessions import sessions_bp
-from .songs import song_bp
-
-# from .songs_artists import artists_bp
-from .users import user_bp
-from .youtube import youtube_bp
-from .youtube_music import youtube_music_bp
-
-# List of all blueprints to register with the app
-all_blueprints = [
-    lyrics_bp,
-    song_bp,
-    jobs_bp,
-    karaoke_queue_bp,
-    user_bp,
-    metadata_bp,
-    youtube_bp,
-    youtube_music_bp,
-    health_bp,
-    sessions_bp,
+__all__ = [
+    "health_router",
+    "songs_router",
+    "jobs_router",
+    "sessions_router",
+    "queue_router",
+    "youtube_router",
+    "youtube_music_router",
+    "metadata_router",
+    "lyrics_router",
+    "users_router",
 ]
-
-
-def register_blueprints(app):
-    """
-    Register all API blueprints with the Flask app
-    """
-    for blueprint in all_blueprints:
-        app.register_blueprint(blueprint)

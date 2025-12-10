@@ -6,14 +6,10 @@ Replaces Flask-SocketIO with native FastAPI WebSocket support.
 """
 
 import json
-import sys
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-# Add the parent directory to the Python path to import from app
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from app.services.jobs_service import JobsService
 

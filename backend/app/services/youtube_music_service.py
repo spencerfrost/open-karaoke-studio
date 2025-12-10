@@ -1,5 +1,7 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from cachetools import TTLCache
 
 try:
     from ytmusicapi import YTMusic
@@ -7,6 +9,10 @@ except ImportError:
     YTMusic = None  # Will raise in __init__ if not installed
 
 logger = logging.getLogger(__name__)
+
+# Module-level caches with 15-minute TTL
+_artist_cache: TTLCache = TTLCache(maxsize=100, ttl=900)
+_album_cache: TTLCache = TTLCache(maxsize=200, ttl=900)
 
 
 class YoutubeMusicService:
@@ -28,11 +34,14 @@ class YoutubeMusicService:
             songs = []
             for item in results:
                 if item.get("resultType") == "song" and item.get("videoId"):
+                    artists = item.get("artists", [{}])
+                    primary_artist = artists[0] if artists else {}
                     songs.append(
                         {
                             "videoId": item["videoId"],
                             "title": item.get("title"),
-                            "artist": item.get("artists", [{}])[0].get("name"),
+                            "artist": primary_artist.get("name"),
+                            "artistId": primary_artist.get("id"),
                             "duration": item.get("duration"),
                             "album": item.get("album", {}).get("name"),
                             "thumbnails": item.get("thumbnails", []),
@@ -44,4 +53,132 @@ class YoutubeMusicService:
             return songs
         except Exception as e:
             logger.error("YouTube Music search failed: %s", e, exc_info=True)
+            raise
+
+    def get_artist(self, artist_id: str, top_songs_limit: int = 12) -> Dict[str, Any]:
+        """Get artist info, top songs, and album list."""
+        # Check cache first
+        cache_key = f"{artist_id}:{top_songs_limit}"
+        if cache_key in _artist_cache:
+            logger.info("Cache hit for artist: %s", artist_id)
+            return _artist_cache[cache_key]
+
+        try:
+            logger.info("Fetching artist from YouTube Music: %s", artist_id)
+            raw = self.ytmusic.get_artist(artist_id)
+
+            # Normalize top songs
+            top_songs = []
+            songs_data = raw.get("songs", {})
+            for song in songs_data.get("results", [])[:top_songs_limit]:
+                top_songs.append(
+                    {
+                        "videoId": song.get("videoId"),
+                        "title": song.get("title"),
+                        "artist": raw.get("name"),
+                        "artistId": artist_id,
+                        "album": song.get("album", {}).get("name")
+                        if isinstance(song.get("album"), dict)
+                        else song.get("album"),
+                        "duration": song.get("duration"),
+                        "thumbnails": song.get("thumbnails", []),
+                    }
+                )
+
+            # Normalize albums (just metadata, not tracks)
+            albums = []
+            for section in ["albums", "singles"]:
+                section_data = raw.get(section, {})
+                for album in section_data.get("results", []):
+                    albums.append(
+                        {
+                            "browseId": album.get("browseId"),
+                            "title": album.get("title"),
+                            "year": album.get("year"),
+                            "type": "single" if section == "singles" else "album",
+                            "thumbnails": album.get("thumbnails", []),
+                        }
+                    )
+
+            result = {
+                "artist": {
+                    "id": artist_id,
+                    "name": raw.get("name"),
+                    "thumbnails": raw.get("thumbnails", []),
+                    "description": raw.get("description"),
+                    "subscribers": raw.get("subscribers"),
+                },
+                "topSongs": top_songs,
+                "albums": albums,
+            }
+
+            # Cache the result
+            _artist_cache[cache_key] = result
+            logger.info(
+                "Fetched artist %s with %d top songs and %d albums",
+                raw.get("name"),
+                len(top_songs),
+                len(albums),
+            )
+            return result
+
+        except Exception as e:
+            logger.error("Failed to get artist %s: %s", artist_id, e, exc_info=True)
+            raise
+
+    def get_album_tracks(self, album_id: str) -> Dict[str, Any]:
+        """Get all tracks from an album."""
+        # Check cache first
+        if album_id in _album_cache:
+            logger.info("Cache hit for album: %s", album_id)
+            return _album_cache[album_id]
+
+        try:
+            logger.info("Fetching album from YouTube Music: %s", album_id)
+            raw = self.ytmusic.get_album(album_id)
+
+            album_thumbnails = raw.get("thumbnails", [])
+            album_title = raw.get("title")
+
+            tracks = []
+            for track in raw.get("tracks", []):
+                artists = track.get("artists", [{}])
+                primary_artist = artists[0] if artists else {}
+                tracks.append(
+                    {
+                        "videoId": track.get("videoId"),
+                        "title": track.get("title"),
+                        "artist": primary_artist.get("name"),
+                        "artistId": primary_artist.get("id"),
+                        "album": album_title,
+                        "duration": track.get("duration"),
+                        "trackNumber": track.get("trackNumber"),
+                        "thumbnails": album_thumbnails,
+                        "isExplicit": track.get("isExplicit", False),
+                    }
+                )
+
+            result = {
+                "album": {
+                    "browseId": album_id,
+                    "title": album_title,
+                    "artist": raw.get("artists", [{}])[0].get("name")
+                    if raw.get("artists")
+                    else None,
+                    "year": raw.get("year"),
+                    "thumbnails": album_thumbnails,
+                    "trackCount": len(tracks),
+                },
+                "tracks": tracks,
+            }
+
+            # Cache the result
+            _album_cache[album_id] = result
+            logger.info(
+                "Fetched album %s with %d tracks", album_title, len(tracks)
+            )
+            return result
+
+        except Exception as e:
+            logger.error("Failed to get album %s: %s", album_id, e, exc_info=True)
             raise

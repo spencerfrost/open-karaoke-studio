@@ -1,20 +1,47 @@
+"""
+FastAPI router for lyrics search endpoints.
+"""
+
 import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
 
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.lyrics_service import LyricsService
-from app.utils.error_handlers import handle_api_error
-from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
-lyrics_bp = Blueprint("lyrics", __name__, url_prefix="/api/lyrics")
+
+router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
 
 
-@lyrics_bp.route("/search", methods=["GET"])
-@handle_api_error
-def search_lyrics():
+class LyricsResult(BaseModel):
+    """Individual lyrics result from LRCLIB."""
+    id: Optional[int] = None
+    name: Optional[str] = None
+    trackName: Optional[str] = None
+    artistName: Optional[str] = None
+    albumName: Optional[str] = None
+    duration: Optional[float] = None
+    instrumental: Optional[bool] = None
+    plainLyrics: Optional[str] = None
+    syncedLyrics: Optional[str] = None
+    
+    class Config:
+        extra = "allow"
+
+
+@router.get("/search", response_model=List[dict])
+async def search_lyrics(
+    track_name: str = Query(..., min_length=1, description="Song title (required)"),
+    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
+    album_name: Optional[str] = Query(None, description="Album name (optional, can improve results)")
+):
     """
-    Search for lyrics via GET (with query parameters).
-
+    Search for lyrics via LRCLIB.
+    
     Parameters:
     - track_name: Song title (required)
     - artist_name: Artist name (required)
@@ -23,15 +50,6 @@ def search_lyrics():
     Returns:
     - A JSON array with lyrics results from LRCLIB
     """
-    track_name = request.args.get("track_name")
-    artist_name = request.args.get("artist_name")
-    album_name = request.args.get("album_name")
-
-    if not track_name or not artist_name:
-        raise ValidationError(
-            "Missing track_name/artist_name information", "MISSING_PARAMETERS"
-        )
-
     try:
         lyrics_service = LyricsService()
 
@@ -44,25 +62,25 @@ def search_lyrics():
         results = lyrics_service.search_lyrics(query)
 
         logger.info("Found %s lyrics results for query: %s", len(results), query)
-        return jsonify(results), 200
+        return results
 
-    except ServiceError:
-        raise  # Let error handlers deal with it
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except ConnectionError as e:
-        raise NetworkError(
-            "Failed to connect to lyrics service",
-            "LYRICS_CONNECTION_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("Lyrics connection error: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to connect to lyrics service: {str(e)}"
+        )
     except TimeoutError as e:
-        raise NetworkError(
-            "Lyrics service request timed out",
-            "LYRICS_TIMEOUT_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("Lyrics timeout error: %s", e)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Lyrics service request timed out: {str(e)}"
+        )
     except Exception as e:
-        raise ServiceError(
-            "Unexpected error during lyrics search",
-            "LYRICS_SEARCH_ERROR",
-            {"query": query, "error": str(e)},
-        ) from e
+        logger.error("Unexpected lyrics search error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during lyrics search: {str(e)}"
+        )

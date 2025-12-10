@@ -1,14 +1,23 @@
+"""
+Pydantic Schemas for Song objects.
+"""
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
-class Song(BaseModel):
+# ============================================================================
+# Pydantic Models for Songs
+# ============================================================================
+
+class SongResponse(BaseModel):
+    """Full song response model"""
+
     id: str
     title: str
     artist: str
-    duration: Optional[float] = None  # Duration in seconds
+    duration: Optional[float] = None
     dateAdded: Optional[datetime] = None
 
     # File paths (API URLs)
@@ -35,7 +44,7 @@ class Song(BaseModel):
     youtubeCategories: Optional[List[str]] = None
     youtubeChannelId: Optional[str] = None
     youtubeChannelName: Optional[str] = None
-    youtubeRawMetadata: Optional[Any] = None  # JSON object
+    youtubeRawMetadata: Optional[Any] = None
 
     # Metadata
     mbid: Optional[str] = None
@@ -63,22 +72,71 @@ class Song(BaseModel):
         from_attributes = True
 
 
-class SongCreate(BaseModel):
-    """Song creation schema - for new songs"""
+class SongCreateRequest(BaseModel):
+    """Request model for creating a new song"""
 
-    title: str
-    artist: str = "Unknown Artist"
-    video_id: Optional[str] = None
-    source_url: Optional[str] = None
-    duration: Optional[float] = None
+    id: Optional[str] = Field(None, description="Optional song ID, will be generated if not provided")
+    title: str = Field(..., min_length=1, max_length=200, description="Song title")
+    artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
+    album: Optional[str] = Field(None, max_length=200, description="Album name")
+    duration: Optional[float] = Field(None, ge=0, description="Song duration in seconds")
+    source: Optional[str] = Field(None, max_length=50, description="Source of the song")
+    video_id: Optional[str] = Field(None, max_length=100, description="YouTube video ID")
+
+    @field_validator("title", "artist")
+    def validate_non_empty_strings(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError("Field cannot be empty")
+        return v.strip()
 
 
-class SongUpdate(BaseModel):
-    """Song update schema - only updatable fields"""
+class SongUpdateRequest(BaseModel):
+    """Request model for updating a song"""
 
-    title: Optional[str] = None
-    artist: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    artist: Optional[str] = Field(None, min_length=1, max_length=200)
+    album: Optional[str] = Field(None, max_length=200)
+    duration: Optional[float] = Field(None, ge=0)
+    genre: Optional[str] = Field(None, max_length=100)
+    language: Optional[str] = Field(None, max_length=50)
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    album: Optional[str] = None
-    genre: Optional[str] = None
+
+    @field_validator("title", "artist")
+    def validate_non_empty_strings(cls, v):
+        if v is not None and (not v or v.strip() == ""):
+            raise ValueError("Field cannot be empty")
+        return v.strip() if v else v
+
+
+class PaginationInfo(BaseModel):
+    """Pagination metadata"""
+
+    total: int
+    limit: int
+    offset: int
+    hasMore: bool
+
+
+class SongSearchResponse(BaseModel):
+    """Response model for song search"""
+
+    songs: List[SongResponse]
+    pagination: PaginationInfo
+
+
+class ArtistInfo(BaseModel):
+    """Artist information with song count"""
+
+    artist: str
+    songCount: int
+    songs: List[SongResponse]
+
+
+class ArtistSearchResponse(BaseModel):
+    """Response model for artist-grouped search"""
+
+    artists: List[ArtistInfo]
+    totalSongs: int
+    totalArtists: int
+    pagination: PaginationInfo

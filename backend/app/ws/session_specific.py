@@ -7,13 +7,9 @@ Includes unified session endpoints and legacy session-specific performance/queue
 
 import json
 import secrets
-import sys
-from pathlib import Path
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-# Add the parent directory to the Python path to import from app
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from app.db.database import SessionLocal
 from app.db.models.queue import KaraokeQueueItem
@@ -59,8 +55,10 @@ async def websocket_unified_session_endpoint(
     device_id = f"device_{secrets.token_urlsafe(8)}"
     await manager.connect(websocket, device_id)
 
-    # Verify session exists in database
+    # Verify session exists in database and check if this is the host
     db = SessionLocal()
+    is_host = False
+    host_device_id = None
     try:
         from app.db.models import KaraokeSession
 
@@ -79,6 +77,8 @@ async def websocket_unified_session_endpoint(
             )
             await websocket.close()
             return
+        
+        host_device_id = session.host_device_id
     finally:
         db.close()
 
@@ -88,6 +88,11 @@ async def websocket_unified_session_endpoint(
     # Join unified session room (covers both performance and queue)
     session_room = manager.get_session_room_name(session_id)
     await manager.join_room(websocket, session_room)
+    
+    # Track if this WebSocket connection is the host
+    # The host is identified by being the first "stage" type device to connect
+    # or by sending a register_as_host message
+    is_host = False
 
     print(f"Session {session_id} unified client connected: {device_id}")
 
@@ -111,7 +116,21 @@ async def websocket_unified_session_endpoint(
             message_type = message.get("type")
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
-            if message_type == "join_performance":
+            if message_type == "register_as_host":
+                # Host device registers itself with its REST API device_id
+                rest_device_id = message.get("device_id")
+                if rest_device_id and rest_device_id == host_device_id:
+                    is_host = True
+                    print(f"🏠 Host registered for session {session_id}: {device_id} (REST ID: {rest_device_id})")
+                    await websocket.send_text(
+                        json.dumps({"type": "host_registered", "success": True})
+                    )
+                else:
+                    await websocket.send_text(
+                        json.dumps({"type": "host_registered", "success": False, "error": "Invalid host device ID"})
+                    )
+            
+            elif message_type == "join_performance":
                 await websocket.send_text(
                     json.dumps(
                         {"type": "performance_state", "state": get_session_performance_state(session_id)}
@@ -259,9 +278,56 @@ async def websocket_unified_session_endpoint(
                 )
 
     except WebSocketDisconnect:
+        print(f"Session {session_id} unified client disconnected: {device_id} (is_host: {is_host})")
+        
+        # If host disconnected, terminate the session for all connected devices
+        if is_host:
+            print(f"🛑 Host disconnected from session {session_id} - terminating session")
+            
+            # Broadcast session_ended to all connected devices
+            await manager.broadcast_to_room(
+                session_room,
+                {"type": "session_ended", "reason": "Host disconnected"},
+                exclude=websocket,
+            )
+            
+            # Mark the session as inactive in the database
+            db = SessionLocal()
+            try:
+                from app.db.models import KaraokeSession
+                
+                session = (
+                    db.query(KaraokeSession)
+                    .filter(KaraokeSession.session_id == session_id)
+                    .first()
+                )
+                if session:
+                    session.is_active = False
+                    db.commit()
+                    print(f"📝 Session {session_id} marked as inactive in database")
+            except Exception as e:
+                print(f"❌ Failed to update session status in database: {e}")
+            finally:
+                db.close()
+            
+            # Clean up performance state for this session
+            cleanup_session_performance_state(session_id)
+            
+            # Force close all other connections in this session
+            if session_room in manager.rooms:
+                connections_to_close = [conn for conn in manager.rooms[session_room] if conn != websocket]
+                for conn in connections_to_close:
+                    try:
+                        await conn.close(code=1000, reason="Session ended by host")
+                        print(f"🔌 Force closed connection {id(conn)} for session {session_id}")
+                    except Exception as e:
+                        print(f"❌ Failed to close connection {id(conn)}: {e}")
+                
+                # Clear the room
+                manager.rooms[session_room] = []
+        
         manager.disconnect(websocket)
         manager.leave_session(device_id, session_id)
-        print(f"Session {session_id} unified client disconnected: {device_id}")
 
 
 async def websocket_session_performance_endpoint(

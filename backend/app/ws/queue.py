@@ -6,15 +6,11 @@ Replaces Flask-SocketIO queue functionality with FastAPI WebSockets.
 """
 
 import json
-import sys
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import joinedload
 
-# Add the parent directory to the Python path to import from app
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from app.db.database import get_db_session
 from app.db.models.queue import KaraokeQueueItem

@@ -52,8 +52,12 @@ def run_migrations_offline() -> None:
 
     """
     url = config.get_main_option("sqlalchemy.url")
+    if url and url.startswith("env:"):
+        env_var = url.split("env:")[1]
+        url = os.environ.get(env_var)
     if url is None:
         url = get_url()
+    print(f"[alembic] Using SQLAlchemy URL (offline): {url}")
 
     context.configure(
         url=url,
@@ -77,6 +81,10 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
     if "sqlalchemy.url" not in configuration:
         configuration["sqlalchemy.url"] = get_url()
+    if configuration.get("sqlalchemy.url", "").startswith("env:"):
+        env_var = configuration["sqlalchemy.url"].split("env:")[1]
+        configuration["sqlalchemy.url"] = os.environ.get(env_var)
+    print(f"[alembic] Using SQLAlchemy URL (online): {configuration.get('sqlalchemy.url')}")
 
     connectable = engine_from_config(
         configuration,

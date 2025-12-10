@@ -31,16 +31,14 @@ class BaseConfig:
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "detailed")
 
     # Database Configuration
-    # Use DATABASE_URL from environment (.env) for PostgreSQL by default
-    # Fallback to SQLite for dev/testing if not set
-    BACKEND_DB_PATH = BASE_DIR / "backend" / "karaoke.db"
-    _env_database_url = os.environ.get("DATABASE_URL")
-
-    if _env_database_url:
-        DATABASE_URL = _env_database_url
-    else:
-        # Default to SQLite for local/dev if no env var set
-        DATABASE_URL = f"sqlite:///{BACKEND_DB_PATH}"
+    # DATABASE_URL is required - no fallback to SQLite
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError(
+            "DATABASE_URL environment variable is required. "
+            "Please set it in your .env file, e.g.: "
+            "DATABASE_URL=postgresql://karaoke_user:karaoke_pass@localhost/karaoke"
+        )
     SQLALCHEMY_DATABASE_URI = DATABASE_URL  # For SQLAlchemy compatibility
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

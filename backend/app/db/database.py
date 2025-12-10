@@ -70,7 +70,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Initialize the database
 def init_db():
     """Initialize the database with tables from models"""
-    Base.metadata.create_all(bind=engine)
+    # Base.metadata.create_all(bind=engine)  # Disabled: Alembic manages schema
 
     # Configure SQLite for better concurrency if using SQLite
     if config.DATABASE_URL.startswith("sqlite:"):
@@ -115,94 +115,6 @@ class DBSessionMiddleware:
     pass
 
 
-def ensure_db_schema():
-    """Ensure the database schema is up to date with the latest model definitions"""
-    # Check if we're using SQLite and get the database path
-    if config.DATABASE_URL.startswith("sqlite:"):
-        # Extract path from sqlite:///path/to/db
-        db_path_str = config.DATABASE_URL.replace("sqlite:///", "")
-        db_path = Path(db_path_str)
-
-        if not db_path.exists() or db_path.stat().st_size == 0:
-            logger.info("Creating database schema from scratch")
-            Base.metadata.create_all(bind=engine)
-            return
-    else:
-        # For non-SQLite databases, just ensure schema exists
-        Base.metadata.create_all(bind=engine)
-        return
-
-    # If DB exists, check for missing tables and columns
-    try:
-        inspector = inspect(engine)
-        existing_tables = inspector.get_table_names()
-    except Exception as e:
-        logger.warning(f"Could not inspect existing database, recreating schema: {e}")
-        Base.metadata.create_all(bind=engine)
-        return
-
-    # First, create any missing tables
-    tables_to_create = []
-    for table in Base.metadata.tables.values():
-        if table.name not in existing_tables:
-            tables_to_create.append(table)
-
-    if tables_to_create:
-        logger.info(f"Creating missing tables: {[t.name for t in tables_to_create]}")
-        Base.metadata.create_all(bind=engine, tables=tables_to_create)
-        return  # If we created tables, we're done
-
-    # Check for missing columns in existing tables
-    for table in Base.metadata.tables.values():
-        table_name = table.name
-        if table_name not in existing_tables:
-            continue  # Skip if table doesn't exist (shouldn't happen after above check)
-
-        try:
-            existing_columns = {
-                col["name"] for col in inspector.get_columns(table_name)
-            }
-        except Exception as e:
-            logger.warning(f"Could not inspect table {table_name}, skipping: {e}")
-            continue
-
-        missing_columns = set()
-
-        for column in table.columns:
-            if column.name not in existing_columns:
-                missing_columns.add(column.name)
-
-        if missing_columns:
-            logger.info(f"Missing columns in {table_name}: {missing_columns}")
-            # Add columns using direct SQL
-            with engine.connect() as connection:
-                for col_name in missing_columns:
-                    col = table.columns[col_name]
-                    col_type = col.type.compile(dialect=engine.dialect)
-
-                    # Handle nullability
-                    nullable = "" if col.nullable else "NOT NULL"
-
-                    # Handle defaults carefully
-                    default = ""
-                    if col.default is not None:
-                        if hasattr(col.default, "arg") and col.default.arg is not None:
-                            if isinstance(col.default.arg, str):
-                                default = f"DEFAULT '{col.default.arg}'"
-                            elif isinstance(col.default.arg, bool):
-                                default = f"DEFAULT {1 if col.default.arg else 0}"
-                            else:
-                                default = f"DEFAULT {col.default.arg}"
-
-                    sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} {nullable} {default}".strip()
-                    try:
-                        from sqlalchemy import text
-
-                        connection.execute(text(sql))
-                        connection.commit()
-                        logger.info(f"Added column: {sql}")
-                    except Exception as e:
-                        logger.error(f"Error adding column {col_name}: {e}")
 
 
 @contextmanager
