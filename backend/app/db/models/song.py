@@ -63,6 +63,9 @@ class DbSong(Base):
     # Phase 1B = Column(Text, nullable=True)  # JSON string
     youtube_raw_metadata = Column(Text, nullable=True)  # JSON string
 
+    # BPM detection
+    bpm = Column(Float, nullable=True)
+
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
     )
@@ -132,6 +135,8 @@ class DbSong(Base):
             # Lyrics
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
+            # BPM
+            "bpm": self.bpm,
             # System
             "source": self.source,
         }

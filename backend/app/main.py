@@ -15,16 +15,10 @@ import logging
 import os
 import time
 
-from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
 
-# Import configuration and logging setup
-from app.config import get_config
-from app.config.logging import setup_logging
-
-# Import the cleanup utility
-from app.utils.cleanup_jobs import cleanup_stuck_jobs
+# Load environment variables from .env file
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Import routers
 from app.api import (
@@ -36,9 +30,16 @@ from app.api import (
     sessions_router,
     songs_router,
     users_router,
-    youtube_router,
     youtube_music_router,
+    youtube_router,
 )
+
+# Import configuration and logging setup
+from app.config import get_config
+from app.config.logging import setup_logging
+
+# Import the cleanup utility
+from app.utils.cleanup_jobs import cleanup_stuck_jobs
 
 # Import WebSocket modules
 from app.ws import (
@@ -46,6 +47,9 @@ from app.ws import (
     websocket_jobs_endpoint,
     websocket_unified_session_endpoint,
 )
+from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Get configuration and setup logging
 config = get_config()

@@ -169,13 +169,23 @@ def process_audio_job(self, job_id):
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio
-        if not audio.separate_audio(
+        success, detected_bpm = audio.separate_audio(
             input_path=filepath,  # Pass the original MP3 file path
             song_dir=song_dir,  # Pass the song directory
             status_callback=lambda msg: update_progress(20, msg),
             stop_event=stop_event,
-        ):
+        )
+        if not success:
             raise AudioProcessingError("Audio separation failed")
+
+        # Update song with BPM if detected
+        if detected_bpm is not None:
+            from app.db.database import get_db_session
+            from app.repositories.song_repository import SongRepository
+
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                repo.update(song_id, bpm=detected_bpm)
 
         job.status = JobStatus.COMPLETED
         job.progress = 100
@@ -382,12 +392,13 @@ def process_youtube_job(self, job_id, video_id, metadata):
             update_progress(current_progress, f"Audio processing: {msg}")
 
         # Separate audio - pass song_dir which is based on song_id
-        if not audio.separate_audio(
+        success, detected_bpm = audio.separate_audio(
             input_path=original_file,
             song_dir=song_dir,
             status_callback=audio_progress_callback,
             stop_event=stop_event,
-        ):
+        )
+        if not success:
             raise AudioProcessingError("Audio separation failed")
 
         update_progress(
@@ -440,6 +451,8 @@ def process_youtube_job(self, job_id, video_id, metadata):
                         "processing_status": "completed",
                         "has_audio_files": True,
                     }
+                    if detected_bpm is not None:
+                        update_fields["bpm"] = detected_bpm
                     updated_song = repo.update(song_id, **update_fields)
                     success = updated_song is not None
 

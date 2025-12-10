@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
+import librosa
+import numpy as np
 import torch
 from app.config import get_config
 from demucs.api import Separator
@@ -135,6 +137,46 @@ def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]
     return vocals_path, instrumental_path
 
 
+def detect_bpm(audio_path: Path, status_callback: Callable[[str], None]) -> Optional[float]:
+    """
+    Detect the BPM (beats per minute) of an audio file using Librosa.
+
+    Args:
+        audio_path: Path to the audio file
+        status_callback: Function to call with status updates
+
+    Returns:
+        Detected BPM as float, or None if detection fails
+    """
+    try:
+        status_callback("Detecting BPM...")
+        logger.info(f"Detecting BPM for: {audio_path}")
+
+        # Load audio file
+        y, sr = librosa.load(str(audio_path), sr=None)
+
+        # Use Librosa's beat tracking
+        # start_bpm provides a rough estimate to help the algorithm
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=120)
+
+        # Convert to float (tempo is typically a numpy float)
+        bpm = float(tempo)
+
+        # Round to 1 decimal place for cleaner display
+        bpm_rounded = round(bpm, 1)
+
+        status_callback(f"BPM detected: {bpm_rounded}")
+        logger.info(f"BPM detection complete: {bpm_rounded} BPM for {audio_path}")
+
+        return bpm_rounded
+
+    except Exception as e:
+        error_msg = f"BPM detection failed: {e}"
+        logger.error(error_msg)
+        status_callback(f"Warning: {error_msg}")
+        return None
+
+
 def save_stem(
     tensor: torch.Tensor,
     path: Path,
@@ -191,7 +233,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         stop_event: A threading.Event to check for stop requests. Can be None.
 
     Returns:
-        True on success, False on failure.
+        Tuple of (success: bool, bpm: Optional[float])
 
     Raises:
         StopProcessingError: If processing is stopped by the user.
@@ -222,6 +264,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         status_callback(f"Loading audio file: {input_path.name}...")
         origin_wave, separated = separator.separate_audio_file(input_path)
         status_callback("Separation models finished.")
+
+        # Detect BPM from the original audio
+        detected_bpm = detect_bpm(input_path, status_callback)
+
         instrumental_tensor = calculate_instrumental(
             separated, status_callback, stop_event
         )
@@ -255,7 +301,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         complete_msg = f"Processing complete for {input_path.name}!"
         logger.info(complete_msg)
         status_callback(complete_msg)
-        return True
+        return True, detected_bpm
     except StopProcessingError:
         raise
     except Exception as e:
@@ -263,4 +309,4 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             f"Error during separation for {input_path.name}: {e}", exc_info=True
         )
         status_callback(f"** Error during separation: {e} **")
-        return False
+        return False, None

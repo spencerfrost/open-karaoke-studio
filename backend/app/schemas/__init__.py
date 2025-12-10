@@ -2,6 +2,6 @@
 API schemas package
 """
 
-from .song import SongResponse, SongCreateRequest, SongUpdateRequest
+from .song import SongCreateRequest, SongResponse, SongUpdateRequest
 
 __all__ = ["SongResponse", "SongCreateRequest", "SongUpdateRequest"]

@@ -6,7 +6,6 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # ============================================================================
 # Pydantic Models for Songs
 # ============================================================================
@@ -59,6 +58,9 @@ class SongResponse(BaseModel):
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
 
+    # BPM
+    bpm: Optional[float] = None
+
     # iTunes data
     itunesArtistId: Optional[int] = None
     itunesCollectionId: Optional[int] = None
@@ -101,6 +103,7 @@ class SongUpdateRequest(BaseModel):
     language: Optional[str] = Field(None, max_length=50)
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    bpm: Optional[float] = Field(None, ge=0)
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
