@@ -13,6 +13,7 @@ interface KnobControlProps {
   unit?: string;
   onReset?: () => void;
   className?: string;
+  size?: "small" | "medium" | "large" | "xl"; // Added "xl" size
 }
 
 const KnobControl: React.FC<KnobControlProps> = ({
@@ -26,11 +27,22 @@ const KnobControl: React.FC<KnobControlProps> = ({
   unit = "",
   onReset,
   className = "",
+  size = "medium", // Default size
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [startValue, setStartValue] = useState(0);
   const knobRef = useRef<HTMLDivElement>(null);
+
+  // Define size classes
+  const sizeClasses = {
+    small: { knob: "w-12 h-12", indicatorOrigin: "50% 20px", resetBtn: "h-6 w-6" },
+    medium: { knob: "w-16 h-16", indicatorOrigin: "50% 30px", resetBtn: "h-8 w-8" },
+    large: { knob: "w-20 h-20", indicatorOrigin: "50% 40px", resetBtn: "h-10 w-10" },
+    xl: { knob: "w-24 h-24", indicatorOrigin: "50% 50px", resetBtn: "h-12 w-12" }, // Extra-large size
+  };
+
+  const currentSize = sizeClasses[size];
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -103,7 +115,8 @@ const KnobControl: React.FC<KnobControlProps> = ({
   }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   // Calculate rotation angle based on value (for visual feedback)
-  const rotation = ((value - startValue) * 2) % 360; // 2 degrees per unit change
+  // One full rotation (360°) across entire -5000 to +5000 range (10000ms)
+  const rotation = (value * 0.036) % 360; // 0.036 degrees per ms = realistic rotation speed
 
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`}>
@@ -115,7 +128,7 @@ const KnobControl: React.FC<KnobControlProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className={currentSize.resetBtn} // Dynamic size
             onClick={onReset}
             title="Reset to 0"
           >
@@ -127,9 +140,9 @@ const KnobControl: React.FC<KnobControlProps> = ({
         <div
           ref={knobRef}
           className={`
-            relative w-16 h-16 rounded-full bg-gradient-to-br from-gray-600 to-gray-800 
+            relative rounded-full bg-gradient-to-br from-gray-600 to-gray-800 
             border-2 border-gray-500 cursor-ns-resize select-none
-            ${isDragging ? "ring-2 ring-orange-peel" : ""}
+            ${currentSize.knob} ${isDragging ? "ring-2 ring-orange-peel" : ""}
             hover:ring-1 hover:ring-orange-peel/50 transition-all
           `}
           onMouseDown={handleMouseDown}
@@ -140,7 +153,7 @@ const KnobControl: React.FC<KnobControlProps> = ({
             className="absolute top-1 left-1/2 w-1 h-4 bg-orange-peel rounded-full transform -translate-x-1/2"
             style={{
               transform: `translateX(-50%) rotate(${rotation}deg)`,
-              transformOrigin: "50% 30px", // Rotate around center of knob
+              transformOrigin: currentSize.indicatorOrigin, // Dynamic origin
             }}
           />
           
@@ -152,11 +165,6 @@ const KnobControl: React.FC<KnobControlProps> = ({
       {/* Value display */}
       <div className="text-lg font-mono text-lemon-chiffon">
         {value > 0 ? '+' : ''}{value}{unit}
-      </div>
-      
-      {/* Instructions */}
-      <div className="text-xs text-lemon-chiffon/60 text-center">
-        Drag up/down to adjust
       </div>
     </div>
   );

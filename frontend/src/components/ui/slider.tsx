@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 interface SliderProps
   extends React.ComponentProps<typeof SliderPrimitive.Root> {
-  variant?: "default" | "performance";
+  variant?: "default" | "performance" | "performance-hero";
 }
 
 function Slider({
@@ -43,7 +43,9 @@ function Slider({
       <SliderPrimitive.Track
         data-slot="slider-track"
         className={cn(
-          "bg-russet/50 relative grow overflow-hidden rounded-full data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5"
+          "bg-russet/50 relative grow overflow-hidden rounded-full data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5",
+          variant === "performance-hero" &&
+            "data-[orientation=vertical]:w-2 data-[orientation=horizontal]:h-2"
         )}
       >
         <SliderPrimitive.Range
@@ -60,7 +62,8 @@ function Slider({
           className={cn(
             "border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
             variant === "default" && "h-4 w-4",
-            variant === "performance" && "h-8 w-16"
+            variant === "performance" && "h-8 w-16",
+            variant === "performance-hero" && "h-16 w-24 rounded-2xl shadow-lg"
           )}
         />
       ))}

@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import AppLayout from "@/components/layout/AppLayout";
-import { SessionStatusHeader, SessionRecoveryLoading } from "@/features/session";
+import { SessionRecoveryLoading } from "@/features/session";
 import { ConnectedPerformanceControls } from "@/features/performance";
 
 /**
@@ -40,7 +40,6 @@ const PerformanceControlsPage: React.FC = () => {
         className="h-full flex flex-col"
         style={{ touchAction: "none" }} // Prevent dragging on mobile
       >
-        <SessionStatusHeader />
         {renderContent()}
       </div>
     </AppLayout>
