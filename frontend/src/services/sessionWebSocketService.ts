@@ -40,11 +40,10 @@ type ControlValue = number | string | boolean;
 
 interface SessionWebSocketEvents {
   // Session connection events
-  session_connected: (data: { session_id: string; device_id: string; performance_state: PerformanceState }) => void;
+  session_connected: (data: { session_id: string; device_id: string; is_host: boolean; performance_state: PerformanceState }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
-  host_registered: (data: { success: boolean; error?: string }) => void;
-  
+
   // Performance control events
   performance_state: (data: { state: PerformanceState }) => void;
   control_updated: (data: { control: string; value: ControlValue }) => void;
@@ -52,7 +51,7 @@ interface SessionWebSocketEvents {
   playback_pause: () => void;
   song_loaded: (data: { state: PerformanceState }) => void;
   song_ready: (data: { state: PerformanceState }) => void;
-  
+
   // Queue events
   queue_joined: (data: { room: string }) => void;
   queue_updated: (data: { items?: QueueItem[]; trigger?: string }) => void;
@@ -75,27 +74,13 @@ class SessionWebSocketService {
     // Don't initialize connection immediately - wait for session
   }
 
-  private initializeConnection(sessionId: string) {
+  private initializeConnection(sessionId: string, url: string) {
     try {
-      let socketUrl: string;
+      console.log("Attempting to connect to unified session WebSocket at:", url);
 
-      if (import.meta.env.DEV) {
-        // Development mode - use the current host to leverage Vite proxy
-        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${sessionId}`;
-        console.log("Development mode - using unified session WebSocket:", socketUrl);
-      } else {
-        // Production mode - use direct URLs
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 
-                          `${window.location.protocol}//${window.location.host}`;
-        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${sessionId}`;
-        console.log("Production mode - using unified session WebSocket:", socketUrl);
-      }
-
-      console.log("Attempting to connect to unified session WebSocket at:", socketUrl);
-      
-      this.websocket = new WebSocket(socketUrl);
+      this.websocket = new WebSocket(url);
       this.setupEventHandlers();
-      
+
     } catch (error) {
       console.error("Failed to initialize unified session WebSocket connection:", error);
       this.scheduleReconnect();
@@ -109,12 +94,6 @@ class SessionWebSocketService {
       console.log("Connected to unified session WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
-
-      // If this device is the host, register it with the backend
-      if (this.hostDeviceId) {
-        console.log("Registering as host with device ID:", this.hostDeviceId);
-        this.send({ type: "register_as_host", device_id: this.hostDeviceId });
-      }
 
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
@@ -165,11 +144,25 @@ class SessionWebSocketService {
     // Cap at 30 seconds, but never stop trying
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
     console.log(`Scheduling unified session WebSocket reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       if (this.currentSessionId) {
-        this.initializeConnection(this.currentSessionId);
+        // Rebuild the WebSocket URL with device_id query parameter if host
+        let baseSocketUrl: string;
+        if (import.meta.env.DEV) {
+          baseSocketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${this.currentSessionId}`;
+        } else {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL ||
+                            `${window.location.protocol}//${window.location.host}`;
+          baseSocketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${this.currentSessionId}`;
+        }
+
+        const socketUrl = this.hostDeviceId
+          ? `${baseSocketUrl}?device_id=${encodeURIComponent(this.hostDeviceId)}`
+          : baseSocketUrl;
+
+        this.initializeConnection(this.currentSessionId, socketUrl);
       }
     }, delay);
   }
@@ -237,11 +230,29 @@ class SessionWebSocketService {
    */
   connectToSession(sessionId: string, hostDeviceId?: string) {
     console.log("Connecting to unified session WebSocket for session:", sessionId, hostDeviceId ? "(as host)" : "(as performer)");
+    this.disconnect(); // Clean up any existing connection first
     this.currentSessionId = sessionId;
     this.hostDeviceId = hostDeviceId || null;
-    this.disconnect(); // Clean up any existing connection
     this.reconnectAttempts = 0;
-    this.initializeConnection(sessionId);
+
+    // Build WebSocket URL with device_id query parameter if host
+    let baseSocketUrl: string;
+    if (import.meta.env.DEV) {
+      // Development mode - use the current host to leverage Vite proxy
+      baseSocketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${sessionId}`;
+    } else {
+      // Production mode - use direct URLs
+      const backendUrl = import.meta.env.VITE_BACKEND_URL ||
+                        `${window.location.protocol}//${window.location.host}`;
+      baseSocketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${sessionId}`;
+    }
+
+    // Add device_id query parameter if this is the host
+    const socketUrl = hostDeviceId
+      ? `${baseSocketUrl}?device_id=${encodeURIComponent(hostDeviceId)}`
+      : baseSocketUrl;
+
+    this.initializeConnection(sessionId, socketUrl);
   }
 
   /**
@@ -364,9 +375,10 @@ class SessionWebSocketService {
    */
   reconnect() {
     if (this.currentSessionId) {
+      const sessionId = this.currentSessionId;
+      const hostDeviceId = this.hostDeviceId;
       this.disconnect();
-      this.reconnectAttempts = 0;
-      this.initializeConnection(this.currentSessionId);
+      this.connectToSession(sessionId, hostDeviceId || undefined);
     }
   }
 }

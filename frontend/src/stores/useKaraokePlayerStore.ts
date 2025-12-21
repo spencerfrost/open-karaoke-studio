@@ -358,9 +358,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     // Actions
     connect: () => {
-      // Connection is now handled by the unified session service
-      // Just update the connected status based on service state
-      set({ connected: sessionWebSocketService.isConnectionActive() });
+      // Don't set connected immediately - wait for session_connected event
+      // This prevents showing connected state before WebSocket is actually ready
+      console.log('[KaraokePlayerStore] Setting up WebSocket listeners');
 
       // Set up listeners for performance events
       const cleanupPerformanceState = sessionWebSocketService.on("performance_state", (data) => {
@@ -385,9 +385,22 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         get().pause();
       });
 
-      // Add listener for session connection status
-      const cleanupSessionConnected = sessionWebSocketService.on("session_connected", () => {
+      // Add listener for session connection status - this is THE signal that we're ready
+      const cleanupSessionConnected = sessionWebSocketService.on("session_connected", (data) => {
+        console.log('[KaraokePlayerStore] Received session_connected event', data);
         set({ connected: true });
+      });
+
+      // Also listen for session_error to handle connection failures
+      const cleanupSessionError = sessionWebSocketService.on("session_error", (data) => {
+        console.error('[KaraokePlayerStore] Session error:', data);
+        set({ connected: false });
+      });
+
+      // Listen for session_ended to clean up when session terminates
+      const cleanupSessionEnded = sessionWebSocketService.on("session_ended", (data) => {
+        console.log('[KaraokePlayerStore] Session ended:', data);
+        set({ connected: false });
       });
 
       // Store cleanup functions for later
@@ -397,7 +410,15 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         cleanupPlaybackPlay,
         cleanupPlaybackPause,
         cleanupSessionConnected,
+        cleanupSessionError,
+        cleanupSessionEnded,
       ];
+
+      // Check if already connected (for immediate feedback if connection already exists)
+      if (sessionWebSocketService.isConnectionActive()) {
+        console.log('[KaraokePlayerStore] WebSocket already connected');
+        set({ connected: true });
+      }
     },
 
     disconnect: () => {

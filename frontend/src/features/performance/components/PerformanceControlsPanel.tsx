@@ -8,6 +8,7 @@ import { usePerformanceControlsLogic } from "../hooks/usePerformanceControlsLogi
 import LyricsTimingControls from "@/features/lyrics/components/LyricsTimingControls";
 import LyricsSizeControl from "@/features/lyrics/components/LyricsSizeControl";
 import { useSessionStore } from "@/stores/sessionStore";
+import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
 const PerformanceControlsPanel: React.FC = () => {
   const {
@@ -46,11 +47,15 @@ const PerformanceControlsPanel: React.FC = () => {
 
       </div>
 
-      <div className="flex-1 grid grid-cols-2 grid">
+      <div className="flex-1 grid grid-cols-2">
         <div className="flex flex-col items-stretch gap-4 justify-between border-r border-orange-peel/30 pr-4">
           {sessionId && displayCode && (
-            <div className="text-sm text-center text-lemon-chiffon bg-black/40 rounded px-2 py-1">
-              Session: {displayCode} {isHost ? "(Host)" : ""}
+            <div className="text-sm text-center">
+              <SessionInfoDisplay
+                variant="code"
+                trigger="click"
+                visibility="all"
+              />
             </div>
           )}
           <LyricsSizeControl />

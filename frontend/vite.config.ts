@@ -96,7 +96,7 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         "/ws": {
-          target: "http://localhost:5124", // FastAPI WebSocket endpoints
+          target: backendUrl, // FastAPI WebSocket endpoints (same as API)
           changeOrigin: true,
           secure: false,
           ws: true, // Enable WebSocket proxying

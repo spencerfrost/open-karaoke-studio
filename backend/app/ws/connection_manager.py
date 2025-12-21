@@ -75,9 +75,9 @@ class SessionConnectionManager:
                     # Handle disconnected clients
                     disconnected.append(connection)
 
-            # Clean up disconnected clients
+            # Clean up disconnected clients - use disconnect() for proper cleanup
             for conn in disconnected:
-                self.rooms[room].remove(conn)
+                self.disconnect(conn)  # Properly removes from all data structures
         else:
             print(f"🚫 Room '{room}' not found!")
 

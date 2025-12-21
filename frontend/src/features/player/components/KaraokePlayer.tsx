@@ -19,7 +19,7 @@ import AudioVisualizer from './subcomponents/AudioVisualizer';
 import ProgressBar from './subcomponents/ProgressBar';
 import { formatTime } from '@/utils/formatters';
 import type { KaraokePlayerProps } from '../types/KaraokePlayer.types';
-import { SessionCodeDisplay } from './subcomponents';
+import SessionInfoDisplay from '@/components/session/SessionInfoDisplay';
 import { Settings2, Maximize, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IndeterminateProgress } from '@/components/ui/indeterminate-progress';
@@ -268,7 +268,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       )}
 
       {/* Session Code Display */}
-      <SessionCodeDisplay variant="player" />
+      <SessionInfoDisplay variant="code" colorScheme="player" trigger="hover" visibility="host-only" className="absolute top-2 right-3 z-30" />
 
       {/* Main Lyrics Display or No Song Message - positioned above controls */}
       <div className={`absolute top-0 left-0 right-0 ${lyricsBottomOffset[size]}`}>
