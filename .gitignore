@@ -72,9 +72,10 @@ lrclip
 backend/karaoke.db-shm
 backend/karaoke.db-wal
 docs/archived/
-.github/copilot-instructions.md
 htmlcov
 frontend/dev-dist/registerSW.js
 frontend/dev-dist/sw.js
 frontend/dev-dist/workbox-31862777.js
 docs/claude.xml
+backend/app_flask_backup
+backend/benchmark_results_*
