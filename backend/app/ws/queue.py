@@ -19,16 +19,17 @@ from app.db.models.song import DbSong
 from .connection_manager import SessionConnectionManager
 
 
-async def get_current_queue_state():
+async def get_current_queue_state(session_id: str):
     """
-    Get current karaoke queue state using real database queries.
+    Get current karaoke queue state for a specific session using real database queries.
     Updated for PostgreSQL compatibility.
     """
     try:
         with get_db_session() as session:
-            # Get queue items with song data - PostgreSQL handles this efficiently
+            # Get queue items with song data for the specific session
             queue_items = (
                 session.query(KaraokeQueueItem)
+                .filter(KaraokeQueueItem.session_id == session_id)
                 .options(joinedload(KaraokeQueueItem.song))
                 .order_by(KaraokeQueueItem.position)
                 .all()
@@ -88,17 +89,17 @@ async def get_current_queue_state():
 
 
 async def websocket_queue_endpoint(
-    websocket: WebSocket, manager: SessionConnectionManager
+    websocket: WebSocket, manager: SessionConnectionManager, session_id: str
 ):
     """
     WebSocket endpoint for real-time karaoke queue updates.
     Replaces Flask-SocketIO queue functionality with FastAPI WebSockets.
     """
-    await manager.connect(websocket)
-    queue_room = "karaoke_queue"
+    await manager.connect(websocket, session_id)
+    queue_room = f"session-{session_id}-queue"
     await manager.join_room(websocket, queue_room)
 
-    print(f"Queue client connected: {id(websocket)}")
+    print(f"Queue client connected to session {session_id}: {id(websocket)}")
 
     try:
         # Send connection confirmation
@@ -107,7 +108,7 @@ async def websocket_queue_endpoint(
         )
 
         # Send current queue state
-        queue_data = await get_current_queue_state()
+        queue_data = await get_current_queue_state(session_id)
         await websocket.send_text(
             json.dumps({"type": "queue_updated", "items": queue_data})
         )
@@ -124,12 +125,12 @@ async def websocket_queue_endpoint(
                 )
 
                 # Send current queue
-                queue_data = await get_current_queue_state()
+                queue_data = await get_current_queue_state(session_id)
                 await websocket.send_text(
                     json.dumps({"type": "queue_updated", "items": queue_data})
                 )
 
-                print(f"Client {id(websocket)} joined queue room")
+                print(f"Client {id(websocket)} joined queue room for session {session_id}")
 
             elif message_type == "leave_queue_room":
                 # Client left queue room
@@ -138,11 +139,11 @@ async def websocket_queue_endpoint(
                     json.dumps({"type": "queue_left", "room": queue_room})
                 )
 
-                print(f"Client {id(websocket)} left queue room")
+                print(f"Client {id(websocket)} left queue room for session {session_id}")
 
             elif message_type == "request_queue_update":
                 # Send current queue state on demand
-                queue_data = await get_current_queue_state()
+                queue_data = await get_current_queue_state(session_id)
                 await websocket.send_text(
                     json.dumps({"type": "queue_updated", "items": queue_data})
                 )
@@ -158,21 +159,18 @@ async def websocket_queue_endpoint(
                 )
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        print(f"Queue client disconnected: {id(websocket)}")
+        manager.disconnect(websocket, session_id)
+        print(f"Queue client disconnected from session {session_id}: {id(websocket)}")
 
 
 # Queue broadcasting functions
-async def broadcast_queue_update(manager: SessionConnectionManager):
-    """Broadcast queue update to all active session rooms."""
-    queue_data = await get_current_queue_state()
-
-    # Broadcast to all active session rooms
-    for session_id in manager.sessions.keys():
-        session_room = manager.get_session_room_name(session_id)
-        await manager.broadcast_to_room(
-            session_room, {"type": "queue_updated", "items": queue_data}
-        )
+async def broadcast_queue_update(manager: SessionConnectionManager, session_id: str):
+    """Broadcast queue update to a specific session room."""
+    queue_data = await get_current_queue_state(session_id)
+    session_room = manager.get_session_room_name(session_id)
+    await manager.broadcast_to_room(
+        session_room, {"type": "queue_updated", "items": queue_data}
+    )
 
 
 async def broadcast_queue_item_added(

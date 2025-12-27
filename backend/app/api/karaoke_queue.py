@@ -12,10 +12,11 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import Generator, List, Optional
 
+from app.ws.connection_manager import SessionConnectionManager
+from app.ws.queue import broadcast_queue_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
-
 
 from app.db.database import SessionLocal
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
@@ -23,10 +24,14 @@ from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/karaoke-queue", tags=["queue"])
 
+# Initialize the WebSocket connection manager
+# This is a lightweight, in-memory manager, so creating an instance is fine.
+manager = SessionConnectionManager()
 
 # ============================================================================
 # Pydantic Models
 # ============================================================================
+
 
 class SongInfo(BaseModel):
     """Song information for queue items"""
@@ -83,6 +88,7 @@ class QueuePlayResponse(BaseModel):
 # Dependencies
 # ============================================================================
 
+
 def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
@@ -111,18 +117,6 @@ def get_session_code(
 # Helper Functions
 # ============================================================================
 
-async def broadcast_queue_update():
-    """Broadcast queue update via FastAPI WebSocket service"""
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                "http://localhost:5124/api/broadcast/queue-update",
-                timeout=1.0,
-            )
-    except Exception as e:
-        logger.warning(f"Failed to broadcast queue update: {e}")
-
 
 def song_to_info(song: DbSong) -> SongInfo:
     """Convert database song to SongInfo"""
@@ -145,7 +139,11 @@ def queue_item_to_response(item: KaraokeQueueItem) -> QueueItemResponse:
         songId=item.song_id,
         singer=item.singer_name,
         position=item.position,
-        addedAt=item.created_at.isoformat() if hasattr(item, "created_at") and item.created_at else None,
+        addedAt=(
+            item.created_at.isoformat()
+            if hasattr(item, "created_at") and item.created_at
+            else None
+        ),
         song=song_to_info(item.song),
     )
 
@@ -153,6 +151,7 @@ def queue_item_to_response(item: KaraokeQueueItem) -> QueueItemResponse:
 # ============================================================================
 # Endpoints
 # ============================================================================
+
 
 @router.get("", response_model=List[QueueItemResponse])
 async def get_queue(
@@ -226,14 +225,18 @@ async def add_to_queue(
     db.refresh(new_item)
 
     # Broadcast queue update
-    await broadcast_queue_update()
+    await broadcast_queue_update(manager, session_code)
 
     return QueueItemResponse(
         id=new_item.id,
         songId=new_item.song_id,
         singer=new_item.singer_name,
         position=new_item.position,
-        addedAt=new_item.created_at.isoformat() if hasattr(new_item, "created_at") and new_item.created_at else None,
+        addedAt=(
+            new_item.created_at.isoformat()
+            if hasattr(new_item, "created_at") and new_item.created_at
+            else None
+        ),
         song=song_to_info(song),
     )
 
@@ -276,7 +279,7 @@ async def remove_from_queue(
     db.commit()
 
     # Broadcast queue update
-    await broadcast_queue_update()
+    await broadcast_queue_update(manager, session_code)
 
     return {"success": True}
 
@@ -305,7 +308,7 @@ async def reorder_queue(
     db.commit()
 
     # Broadcast queue update
-    await broadcast_queue_update()
+    await broadcast_queue_update(manager, session_code)
 
     return {"success": True}
 
@@ -369,7 +372,7 @@ async def play_queue_item(
     db.commit()
 
     # Broadcast queue update
-    await broadcast_queue_update()
+    await broadcast_queue_update(manager, session_code)
 
     return QueuePlayResponse(
         id=item.song.id,

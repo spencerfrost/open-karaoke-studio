@@ -13,7 +13,7 @@ from fastapi import WebSocket, WebSocketDisconnect, Query
 from typing import Optional
 
 
-from app.db.database import SessionLocal
+from app.db.database import get_db_session
 from app.db.models.queue import KaraokeQueueItem
 from app.db.models.song import DbSong
 
@@ -73,8 +73,7 @@ async def websocket_unified_session_endpoint(
     Only devices in the specified session can access this endpoint.
     """
     # Verify session exists in database and check if this is the host
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         from app.db.models import KaraokeSession
 
         db_session = (
@@ -98,8 +97,6 @@ async def websocket_unified_session_endpoint(
 
         # Determine if this connection is the host based on device_id query param
         is_host = (device_id is not None and device_id == host_device_id)
-    finally:
-        db.close()
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -228,11 +225,11 @@ async def websocket_unified_session_endpoint(
                 )
 
             elif message_type == "request_queue_update":
-                # Get current queue from database
-                db = SessionLocal()
-                try:
+                # Get current queue from database for this session
+                with get_db_session() as db:
                     queue_items = (
                         db.query(KaraokeQueueItem)
+                        .filter(KaraokeQueueItem.session_id == session_id)
                         .order_by(KaraokeQueueItem.position)
                         .all()
                     )
@@ -250,7 +247,7 @@ async def websocket_unified_session_endpoint(
                                     "position": item.position,
                                     "addedAt": (
                                         item.created_at.isoformat()
-                                        if hasattr(item, "created_at")
+                                        if hasattr(item, "created_at") and item.created_at
                                         else None
                                     ),
                                     "song": {
@@ -271,8 +268,6 @@ async def websocket_unified_session_endpoint(
                     await websocket.send_text(
                         json.dumps({"type": "queue_updated", "items": queue_data})
                     )
-                finally:
-                    db.close()
 
             elif message_type == "queue_changed":
                 # Broadcast queue changes to all devices in session
@@ -303,23 +298,21 @@ async def websocket_unified_session_endpoint(
                 await asyncio.sleep(0.2)
 
                 # Delete the session from the database to recycle the session code
-                db = SessionLocal()
                 try:
-                    from app.db.models import KaraokeSession
+                    with get_db_session() as db:
+                        from app.db.models import KaraokeSession
 
-                    session = (
-                        db.query(KaraokeSession)
-                        .filter(KaraokeSession.session_id == session_id)
-                        .first()
-                    )
-                    if session:
-                        db.delete(session)
-                        db.commit()
-                        print(f"🗑️  Session {session_id} deleted from database (code recycled)")
+                        session = (
+                            db.query(KaraokeSession)
+                            .filter(KaraokeSession.session_id == session_id)
+                            .first()
+                        )
+                        if session:
+                            db.delete(session)
+                            db.commit()
+                            print(f"🗑️  Session {session_id} deleted from database (code recycled)")
                 except Exception as e:
                     print(f"❌ Failed to delete session from database: {e}")
-                finally:
-                    db.close()
 
                 # Force close all other connections in this session
                 if session_room in manager.rooms:
@@ -352,8 +345,7 @@ async def websocket_session_performance_endpoint(
     await manager.connect(websocket, device_id)
 
     # Verify session exists in database
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         from app.db.models import KaraokeSession
 
         session = (
@@ -371,8 +363,6 @@ async def websocket_session_performance_endpoint(
             )
             await websocket.close()
             return
-    finally:
-        db.close()
 
     # Add device to session (in-memory for WebSocket management)
     manager.join_session(session_id, device_id, "performer")
@@ -476,8 +466,7 @@ async def websocket_session_queue_endpoint(
     await manager.connect(websocket, device_id)
 
     # Verify session exists in database
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         from app.db.models import KaraokeSession
 
         session = (
@@ -495,8 +484,6 @@ async def websocket_session_queue_endpoint(
             )
             await websocket.close()
             return
-    finally:
-        db.close()
 
     # Add device to session (in-memory for WebSocket management)
     manager.join_session(session_id, device_id, "controller")
@@ -520,8 +507,7 @@ async def websocket_session_queue_endpoint(
 
             elif message_type == "request_queue_update":
                 # Get current queue from database
-                db = SessionLocal()
-                try:
+                with get_db_session() as db:
                     queue_items = (
                         db.query(KaraokeQueueItem)
                         .order_by(KaraokeQueueItem.position)
@@ -562,8 +548,6 @@ async def websocket_session_queue_endpoint(
                     await websocket.send_text(
                         json.dumps({"type": "queue_updated", "items": queue_data})
                     )
-                finally:
-                    db.close()
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

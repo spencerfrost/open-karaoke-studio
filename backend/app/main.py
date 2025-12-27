@@ -125,20 +125,6 @@ async def root():
     }
 
 
-@app.post("/api/broadcast/queue-update")
-async def trigger_queue_broadcast():
-    """
-    HTTP endpoint to trigger queue update broadcasts.
-    Called when queue changes occur.
-    """
-    try:
-        from app.ws.queue import broadcast_queue_update
-        await broadcast_queue_update(manager)
-        return {"status": "broadcast_sent"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to broadcast: {str(e)}")
-
-
 # WebSocket Routes - Clean session architecture with only two endpoints
 @app.websocket("/ws/jobs")
 async def jobs_ws(websocket: WebSocket):
