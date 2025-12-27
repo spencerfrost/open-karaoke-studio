@@ -25,6 +25,7 @@ class YouTubeDownloadRequest(BaseModel):
     artist: Optional[str] = Field(None, max_length=200, description="Custom artist override")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
     searchThumbnailUrl: Optional[str] = Field(None, max_length=500, description="Original search result thumbnail URL")
+    engine_type: str = Field("demucs", description="Separation engine to use (demucs, roformer, hybrid)")
 
     @field_validator("video_id", "song_id")
     @classmethod
@@ -41,6 +42,14 @@ class YouTubeDownloadRequest(BaseModel):
             if stripped == "":
                 return None
             return stripped
+        return v
+
+    @field_validator("engine_type")
+    @classmethod
+    def validate_engine_type(cls, v: str) -> str:
+        valid_engines = {"demucs", "roformer", "hybrid"}
+        if v not in valid_engines:
+            raise ValueError(f"Invalid engine_type. Must be one of: {', '.join(valid_engines)}")
         return v
 
 
@@ -119,6 +128,7 @@ async def download_youtube(request: YouTubeDownloadRequest):
             video_id_or_url=request.video_id,
             artist=request.artist or "",
             title=request.title or "",
+            engine_type=request.engine_type,
         )
 
         logger.info(

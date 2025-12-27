@@ -36,6 +36,8 @@ black>=22.0.0
 isort>=5.10.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
+# Audio separation experiments - UVR/Roformer models for lead/backing vocal isolation
+audio-separator[gpu]>=0.17.0
 colorlog>=6.0.0
 ytmusicapi>=1.3.0
 gunicorn

@@ -255,6 +255,7 @@ class YouTubeService(YouTubeServiceInterface):
         artist: str = None,
         title: str = None,
         song_id: str = None,
+        engine_type: str = "demucs",
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
@@ -353,7 +354,7 @@ class YouTubeService(YouTubeServiceInterface):
 
             task = celery.send_task(
                 "process_youtube_job",
-                args=[job_id, video_id, metadata_dict],
+                args=[job_id, video_id, metadata_dict, engine_type],
             )
 
             # Update job with task ID

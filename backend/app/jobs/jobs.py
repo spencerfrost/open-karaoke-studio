@@ -10,6 +10,11 @@ from app.config.logging import get_structured_logger
 from app.db.models import JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio, file_management
+from app.services.separation_engines import (
+    separate_with_demucs,
+    separate_with_roformer,
+    separate_with_hybrid,
+)
 from celery.utils.log import get_task_logger
 
 from .celery_app import celery
@@ -54,12 +59,13 @@ def get_filepath_from_job(job):
 
 
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
-def process_audio_job(self, job_id):
+def process_audio_job(self, job_id, engine_type="demucs"):
     """
     Celery task to process audio file
 
     Args:
         job_id: Unique identifier for the job
+        engine_type: Separation engine to use ('demucs', 'roformer', 'hybrid')
     """
     logger.info("Starting audio processing job for job %s", job_id)
 
@@ -98,6 +104,7 @@ def process_audio_job(self, job_id):
     # Update job status to processing
     job.status = JobStatus.PROCESSING
     job.started_at = datetime.now()
+    job.engine_type = engine_type
     job_repository.update(job)
 
     # Create a stop event (for compatibility with audio.separate_audio)
@@ -168,13 +175,29 @@ def process_audio_job(self, job_id):
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
         update_progress(5, f"Created directory for {job_id}")
 
-        # Separate audio
-        success, detected_bpm = audio.separate_audio(
-            input_path=filepath,  # Pass the original MP3 file path
-            song_dir=song_dir,  # Pass the song directory
-            status_callback=lambda msg: update_progress(20, msg),
-            stop_event=stop_event,
-        )
+        # Separate audio using the selected engine
+        logger.info("Using separation engine: %s", engine_type)
+        if engine_type == "roformer":
+            success, detected_bpm = separate_with_roformer(
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+            )
+        elif engine_type == "hybrid":
+            success, detected_bpm = separate_with_hybrid(
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+            )
+        else:  # default to demucs
+            success, detected_bpm = separate_with_demucs(
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
@@ -247,7 +270,7 @@ def cleanup_old_jobs(self):
 
 
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
-def process_youtube_job(self, job_id, video_id, metadata):
+def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
     """
     Unified task for processing YouTube videos from start to finish
 
@@ -255,6 +278,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
         job_id: Job identifier
         video_id: YouTube video ID
         metadata: Dict with artist, title, album, etc.
+        engine_type: Separation engine to use ('demucs', 'roformer', 'hybrid')
     """
     logger.info(
         "Starting unified YouTube processing job for job %s (artist: %s, title: %s, video_id: %s)",
@@ -298,6 +322,7 @@ def process_youtube_job(self, job_id, video_id, metadata):
     job.status_message = "Downloading video from YouTube"
     job.started_at = datetime.now()
     job.progress = 5
+    job.engine_type = engine_type
     job_repository.update(job)
 
     def update_progress(progress, message, status=None):
@@ -391,13 +416,29 @@ def process_youtube_job(self, job_id, video_id, metadata):
             current_progress = min(90, 30 + int((job.progress - 30) * 1.5))
             update_progress(current_progress, f"Audio processing: {msg}")
 
-        # Separate audio - pass song_dir which is based on song_id
-        success, detected_bpm = audio.separate_audio(
-            input_path=original_file,
-            song_dir=song_dir,
-            status_callback=audio_progress_callback,
-            stop_event=stop_event,
-        )
+        # Separate audio using the selected engine - pass song_dir which is based on song_id
+        logger.info("Using separation engine: %s", engine_type)
+        if engine_type == "roformer":
+            success, detected_bpm = separate_with_roformer(
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+            )
+        elif engine_type == "hybrid":
+            success, detected_bpm = separate_with_hybrid(
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+            )
+        else:  # default to demucs
+            success, detected_bpm = separate_with_demucs(
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
