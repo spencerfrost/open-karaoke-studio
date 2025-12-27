@@ -441,12 +441,25 @@ async def update_song(
         field_mapping = {
             "syncedLyrics": "synced_lyrics",
             "plainLyrics": "plain_lyrics",
+            "releaseDate": "release_date",
+            "itunesTrackId": "itunes_track_id",
+            "itunesArtistId": "itunes_artist_id",
+            "itunesCollectionId": "itunes_collection_id",
+            "itunesArtworkUrls": "itunes_artwork_urls",
+            "itunesExplicit": "itunes_explicit",
+            "itunesPreviewUrl": "itunes_preview_url",
+            "trackTimeMillis": "track_time_millis",
         }
 
         for key, value in update_dict.items():
             if value is not None:
                 db_field = field_mapping.get(key, key)
-                update_fields[db_field] = value
+                # Serialize list fields to JSON for TEXT columns
+                if db_field == "itunes_artwork_urls" and isinstance(value, list):
+                    import json
+                    update_fields[db_field] = json.dumps(value)
+                else:
+                    update_fields[db_field] = value
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
