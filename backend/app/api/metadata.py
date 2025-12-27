@@ -129,3 +129,55 @@ async def search_metadata(
             status_code=500,
             detail=f"Unexpected error during metadata search: {str(e)}"
         )
+
+
+
+@router.get("/lookup/{track_id}")
+async def lookup_metadata(track_id: int):
+    """
+    Lookup comprehensive metadata for a specific iTunes track.
+    
+    This provides much richer metadata than search, including:
+    - All artwork URLs
+    - Complete genre information (primary genre + IDs)
+    - Full collection/album details
+    - Track/disc counts
+    - Content advisory ratings
+    - Copyright information
+    
+    Args:
+        track_id: iTunes track ID from search results
+        
+    Returns:
+        Comprehensive track metadata
+    """
+    logger.info("Received metadata lookup request for track ID: %s", track_id)
+    
+    try:
+        from app.services.itunes_service import lookup_itunes
+        
+        # Lookup using iTunes service
+        result = lookup_itunes(track_id)
+        
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Track not found for iTunes ID: {track_id}"
+            )
+        
+        logger.info("Metadata lookup successful for track ID %s", track_id)
+        
+        return {
+            "track": result,
+            "trackId": track_id,
+            "success": True,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unexpected metadata lookup error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during metadata lookup: {str(e)}"
+        )

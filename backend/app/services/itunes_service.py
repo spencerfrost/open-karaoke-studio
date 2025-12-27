@@ -97,6 +97,10 @@ def search_itunes(
                     "trackExplicitness": track.get("trackExplicitness"),
                     "collectionExplicitness": track.get("collectionExplicitness"),
                     "isStreamable": track.get("isStreamable", False),
+                    # Artwork URLs - Phase 1 fix
+                    "artworkUrl30": track.get("artworkUrl30"),
+                    "artworkUrl60": track.get("artworkUrl60"),
+                    "artworkUrl100": track.get("artworkUrl100"),
                 }
 
                 # Convert release date to a more readable format
@@ -180,6 +184,167 @@ def search_itunes(
         logger.error("  Stack trace: %s", traceback.format_exc())
 
     return []
+
+
+def lookup_itunes(track_id: int) -> dict[str, Any] | None:
+    """
+    Lookup comprehensive metadata for a specific iTunes track.
+    
+    This provides much richer metadata than search, including:
+    - All artwork URLs (30, 60, 100px)
+    - Complete genre information (primary genre name + ID)
+    - Full collection/album details
+    - Track/disc counts
+    - Content advisory ratings
+    - Copyright information
+    
+    Args:
+        track_id (int): iTunes track ID from search results
+        
+    Returns:
+        Dict[str, Any]: Comprehensive track metadata, or None if not found/error
+    """
+    try:
+        url = "https://itunes.apple.com/lookup"
+        params = {
+            "id": track_id,
+            "entity": "song",
+        }
+        
+        logger.info("Looking up iTunes track ID: %s", track_id)
+        
+        headers = {"User-Agent": "curl/8.0.0", "Accept": "*/*"}
+        
+        logging.debug("iTunes Lookup API Request Details:")
+        logging.debug("  URL: %s", url)
+        logging.debug("  Params: %s", params)
+        logging.debug("  Headers: %s", headers)
+        
+        response = requests.get(url, params=params, timeout=10, headers=headers)
+        
+        logging.debug("iTunes Lookup API Response Details:")
+        logging.debug("  Status Code: %s", response.status_code)
+        logging.debug("  Headers: %s", dict(response.headers))
+        logging.debug("  URL Used: %s", response.url)
+        
+        response.raise_for_status()
+        
+        data = response.json()
+        results = data.get("results", [])
+        
+        if not results:
+            logger.warning("No results found for iTunes track ID: %s", track_id)
+            return None
+            
+        # iTunes lookup returns the track as the first result
+        track = results[0]
+        
+        logger.info("iTunes lookup successful for track ID %s: '%s' by %s", 
+                   track_id, track.get("trackName"), track.get("artistName"))
+        
+        # Extract comprehensive metadata
+        track_data = {
+            "id": track.get("trackId"),
+            "title": track.get("trackName"),
+            "artist": track.get("artistName"),
+            "artistId": track.get("artistId"),
+            "album": track.get("collectionName"),
+            "albumId": track.get("collectionId"),
+            "releaseDate": track.get("releaseDate"),
+            
+            # Genre information (potentially includes subgenres)
+            "genre": track.get("primaryGenreName"),
+            "primaryGenreId": track.get("primaryGenreId"),
+            "genreIds": track.get("genreIds", []),  # Array of genre IDs
+            
+            # Track details
+            "trackNumber": track.get("trackNumber"),
+            "trackCount": track.get("trackCount"),
+            "discNumber": track.get("discNumber"),
+            "discCount": track.get("discCount"),
+            "trackTimeMillis": track.get("trackTimeMillis"),
+            
+            # Artwork URLs - all sizes
+            "artworkUrl30": track.get("artworkUrl30"),
+            "artworkUrl60": track.get("artworkUrl60"),
+            "artworkUrl100": track.get("artworkUrl100"),
+            # Note: 600px version typically needs URL manipulation
+            
+            # Content and pricing
+            "previewUrl": track.get("previewUrl"),
+            "trackExplicitness": track.get("trackExplicitness"),
+            "collectionExplicitness": track.get("collectionExplicitness"),
+            "contentAdvisoryRating": track.get("contentAdvisoryRating"),
+            "trackPrice": track.get("trackPrice"),
+            "collectionPrice": track.get("collectionPrice"),
+            "trackRentalPrice": track.get("trackRentalPrice"),
+            "collectionHdPrice": track.get("collectionHdPrice"),
+            "currency": track.get("currency"),
+            "country": track.get("country"),
+            
+            # Additional metadata
+            "isStreamable": track.get("isStreamable", False),
+            "copyright": track.get("copyright"),
+            "description": track.get("longDescription") or track.get("shortDescription"),
+            
+            # Collection/Album details
+            "collectionCensoredName": track.get("collectionCensoredName"),
+            "trackCensoredName": track.get("trackCensoredName"),
+            "artistViewUrl": track.get("artistViewUrl"),
+            "collectionViewUrl": track.get("collectionViewUrl"),
+            "trackViewUrl": track.get("trackViewUrl"),
+            
+            # Store the complete raw response for debugging/future use
+            "rawData": track,
+        }
+        
+        # Convert release date to a more readable format
+        if track_data["releaseDate"]:
+            try:
+                release_dt = datetime.fromisoformat(
+                    track_data["releaseDate"].replace("Z", "+00:00")
+                )
+                track_data["releaseYear"] = release_dt.year
+                track_data["releaseDateFormatted"] = release_dt.strftime("%Y-%m-%d")
+            except (ValueError, AttributeError):
+                track_data["releaseYear"] = None
+                track_data["releaseDateFormatted"] = None
+        
+        # Generate 600px artwork URL from 100px version (iTunes URL pattern)
+        if track_data["artworkUrl100"]:
+            track_data["artworkUrl600"] = track_data["artworkUrl100"].replace(
+                "100x100", "600x600"
+            )
+        
+        return track_data
+        
+    except requests.RequestException as e:
+        logger.error("iTunes lookup API request error for track ID %s: %s", track_id, e)
+        
+        if hasattr(e, "response") and e.response is not None:
+            response = e.response
+            logger.error("iTunes Lookup API Error Details:")
+            logger.error("  Status Code: %s", response.status_code)
+            logger.error("  Reason: %s", response.reason)
+            logger.error("  URL: %s", response.url)
+            
+            try:
+                content = response.text[:1000]
+                if content:
+                    logger.error("  Response Body (first 1000 chars): %s", content)
+            except Exception:
+                logger.error("  Could not read response body")
+        else:
+            logger.error("  Network error (no response): %s", type(e).__name__)
+            
+        return None
+        
+    except Exception as e:
+        logger.error("iTunes lookup error for track ID %s: %s", track_id, e)
+        logger.error("  Error type: %s", type(e).__name__)
+        import traceback
+        logger.error("  Stack trace: %s", traceback.format_exc())
+        return None
 
 
 def _filter_canonical_releases(
