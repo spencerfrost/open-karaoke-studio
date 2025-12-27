@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   Card,
   CardHeader,
@@ -75,15 +76,18 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
     null
   );
 
+  // Debounce the query to avoid excessive API calls while typing
+  const debouncedQuery = useDebouncedValue(query, 400);
+
   // Use existing search hooks
   const youtubeMusicSearch = useYoutubeMusicSearch(
-    query,
-    activeSource === "youtube-music" && !!query
+    debouncedQuery,
+    activeSource === "youtube-music" && !!debouncedQuery
   );
 
   const youtubeSearch = useYoutubeVideoSearch({
-    query,
-    enabled: activeSource === "youtube" && !!query,
+    query: debouncedQuery,
+    enabled: activeSource === "youtube" && !!debouncedQuery,
   });
 
   // Single song creation hook for both flows
