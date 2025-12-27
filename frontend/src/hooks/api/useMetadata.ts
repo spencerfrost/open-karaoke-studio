@@ -99,8 +99,34 @@ export const useMetadata = () => {
     });
   };
 
+  /**
+   * Lookup comprehensive metadata for a specific iTunes track
+   * This provides much richer metadata than search
+   */
+  const useLookupMetadata = () => {
+    return useMutation({
+      mutationFn: async (trackId: number) => {
+        const response = await fetch(`/api/metadata/lookup/${trackId}`);
+        if (!response.ok) {
+          let errorMessage = `HTTP error! Status: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage =
+              errorData?.message || errorData?.detail || errorMessage;
+          } catch {
+            throw new Error(errorMessage);
+          }
+          throw new Error(errorMessage);
+        }
+        const data = await response.json();
+        return data.track; // Extract the track object from response
+      },
+    });
+  };
+
   return {
     useSearchMetadata,
+    useLookupMetadata,
     useSaveMetadata,
   };
 };

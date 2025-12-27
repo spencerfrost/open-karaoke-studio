@@ -48,6 +48,7 @@ export const useSongCreation = () => {
       title: song.title,
       artist: song.artist,
       album: song.album,
+      engine_type: "hybrid",
     });
   };
 

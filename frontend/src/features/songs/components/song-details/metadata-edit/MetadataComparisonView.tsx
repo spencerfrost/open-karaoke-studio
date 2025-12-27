@@ -37,6 +37,21 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
       changed:
         (currentSong.genre || "") !== (selectedResult.primaryGenreName || ""),
     },
+    {
+      field: "Year",
+      current: currentSong.year?.toString() || "Not set",
+      new: selectedResult.releaseYear?.toString() || "Not set",
+      changed:
+        (currentSong.year?.toString() || "") !== (selectedResult.releaseYear?.toString() || ""),
+    },
+    {
+      field: "Track Number",
+      current: "Not set",
+      new: selectedResult.trackNumber
+        ? `${selectedResult.trackNumber}${selectedResult.trackCount ? ` of ${selectedResult.trackCount}` : ""}`
+        : "Not set",
+      changed: !!selectedResult.trackNumber,
+    },
   ];
 
   return (
@@ -66,13 +81,33 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
 
       <div className="pt-2 text-xs text-muted-foreground space-y-1">
         <p>
-          <strong>Note:</strong> Audio Duration (from your file) will be
-          preserved. iTunes Duration is stored separately for reference.
+          <strong>Additional metadata:</strong>
         </p>
-        <p>
-          iTunes IDs will be updated: Track ID {selectedResult.trackId}, Artist
-          ID {selectedResult.artistId}, Collection ID{" "}
-          {selectedResult.collectionId}
+        <ul className="list-disc list-inside space-y-1">
+          <li>
+            iTunes IDs: Track {selectedResult.trackId}, Artist{" "}
+            {selectedResult.artistId}, Collection {selectedResult.collectionId}
+          </li>
+          {selectedResult.artworkUrl600 && (
+            <li>High-resolution artwork (600x600px) will be saved</li>
+          )}
+          {selectedResult.trackTimeMillis && (
+            <li>
+              iTunes duration: {Math.floor(selectedResult.trackTimeMillis / 60000)}:
+              {String(Math.floor((selectedResult.trackTimeMillis % 60000) / 1000)).padStart(2, "0")}
+            </li>
+          )}
+          {selectedResult.previewUrl && (
+            <li>30-second preview URL will be saved</li>
+          )}
+          {selectedResult.trackExplicitness && (
+            <li>
+              Content advisory: {selectedResult.trackExplicitness === "explicit" ? "Explicit" : "Clean"}
+            </li>
+          )}
+        </ul>
+        <p className="pt-2">
+          <strong>Note:</strong> Your original audio file duration will be preserved.
         </p>
       </div>
     </div>

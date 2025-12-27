@@ -5,6 +5,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Song } from "@/types/Song";
 import { useMetadata } from "@/hooks/api/useMetadata";
+import { ITunesSearchResult } from "@/hooks/useItunesSearch";
 import {
   StepIndicator,
   SearchStep,
@@ -15,18 +16,6 @@ import {
 interface MetadataEditContentProps {
   song: Song;
   onBack: () => void;
-}
-
-interface ITunesResult {
-  trackName: string;
-  artistName: string;
-  collectionName: string;
-  primaryGenreName: string;
-  releaseDate: string;
-  artworkUrl60: string;
-  artworkUrl100: string;
-  artworkUrl600: string;
-  releaseYear?: number;
 }
 
 type Step = "search" | "select" | "review";
@@ -42,17 +31,18 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   onBack,
 }) => {
   const [currentStep, setCurrentStep] = useState<Step>("search");
-  const [selectedResult, setSelectedResult] = useState<ITunesResult | null>(
+  const [selectedResult, setSelectedResult] = useState<ITunesSearchResult | null>(
     null,
   );
   const [searchArtist, setSearchArtist] = useState(song.artist || "");
   const [searchTitle, setSearchTitle] = useState(song.title || "");
   const [searchAlbum, setSearchAlbum] = useState(song.album || "");
-  const [searchResults, setSearchResults] = useState<ITunesResult[]>([]);
+  const [searchResults, setSearchResults] = useState<ITunesSearchResult[]>([]);
 
   const queryClient = useQueryClient();
-  const { useSearchMetadata } = useMetadata();
+  const { useSearchMetadata, useLookupMetadata } = useMetadata();
   const searchMutation = useSearchMetadata();
+  const lookupMutation = useLookupMetadata();
 
   const updateSongMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
@@ -86,9 +76,36 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     };
 
     searchMutation.mutate(params, {
-      onSuccess: (results) => {
-        setSearchResults(results);
-        if (results.length > 0) {
+      onSuccess: (response) => {
+        // Transform backend results to ITunesSearchResult format
+        const transformedResults: ITunesSearchResult[] = response.results.map(
+          (result: any) => ({
+            trackId: parseInt(result.metadataId || result.id),
+            artistId: result.artistId,
+            collectionId: result.albumId,
+            trackName: result.title,
+            artistName: result.artist,
+            collectionName: result.album,
+            primaryGenreName: result.genre,
+            artworkUrl100: result.rawData?.artworkUrl100,
+            artworkUrl60: result.rawData?.artworkUrl60,
+            artworkUrl30: result.rawData?.artworkUrl30,
+            releaseYear: result.releaseYear,
+            releaseDate: result.releaseDate,
+            trackNumber: result.trackNumber,
+            discNumber: result.discNumber,
+            trackExplicitness: result.explicit ? "explicit" : "notExplicit",
+            previewUrl: result.previewUrl,
+            isStreamable: result.isStreamable,
+            trackTimeMillis: result.rawData?.trackTimeMillis,
+            durationSeconds: result.rawData?.trackTimeMillis
+              ? Math.floor(result.rawData.trackTimeMillis / 1000)
+              : undefined,
+          }),
+        );
+        
+        setSearchResults(transformedResults);
+        if (transformedResults.length > 0) {
           setCurrentStep("select");
         }
       },
@@ -101,9 +118,81 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     }
   };
 
-  const handleSelectResult = (result: ITunesResult) => {
-    setSelectedResult(result);
-    setCurrentStep("review");
+  const handleSelectResult = (result: ITunesSearchResult) => {
+    // Call lookup API to get comprehensive metadata
+    lookupMutation.mutate(result.trackId, {
+      onSuccess: (lookupData) => {
+        // Transform lookup response to ITunesSearchResult with comprehensive data
+        const comprehensiveResult: ITunesSearchResult = {
+          ...result, // Keep search result data as fallback
+          // Override with comprehensive lookup data
+          trackName: lookupData.title || result.trackName,
+          artistName: lookupData.artist || result.artistName,
+          collectionName: lookupData.album || result.collectionName,
+          primaryGenreName: lookupData.genre || result.primaryGenreName,
+          
+          // Artwork URLs (all sizes from lookup)
+          artworkUrl30: lookupData.artworkUrl30,
+          artworkUrl60: lookupData.artworkUrl60,
+          artworkUrl100: lookupData.artworkUrl100,
+          artworkUrl600: lookupData.artworkUrl600,
+          
+          // Track details
+          trackNumber: lookupData.trackNumber,
+          trackCount: lookupData.trackCount,
+          discNumber: lookupData.discNumber,
+          discCount: lookupData.discCount,
+          trackTimeMillis: lookupData.trackTimeMillis,
+          durationSeconds: lookupData.trackTimeMillis
+            ? Math.floor(lookupData.trackTimeMillis / 1000)
+            : undefined,
+          
+          // Release information
+          releaseDate: lookupData.releaseDate,
+          releaseYear: lookupData.releaseYear,
+          releaseDateFormatted: lookupData.releaseDateFormatted,
+          
+          // Content advisory
+          trackExplicitness: lookupData.trackExplicitness,
+          collectionExplicitness: lookupData.collectionExplicitness,
+          contentAdvisoryRating: lookupData.contentAdvisoryRating,
+          
+          // Pricing and availability
+          trackPrice: lookupData.trackPrice,
+          collectionPrice: lookupData.collectionPrice,
+          currency: lookupData.currency,
+          country: lookupData.country,
+          isStreamable: lookupData.isStreamable,
+          
+          // URLs
+          previewUrl: lookupData.previewUrl,
+          artistViewUrl: lookupData.artistViewUrl,
+          collectionViewUrl: lookupData.collectionViewUrl,
+          trackViewUrl: lookupData.trackViewUrl,
+          
+          // Censored names
+          trackCensoredName: lookupData.trackCensoredName,
+          collectionCensoredName: lookupData.collectionCensoredName,
+          
+          // Additional metadata
+          copyright: lookupData.copyright,
+          description: lookupData.description,
+          
+          // Genre information
+          primaryGenreId: lookupData.primaryGenreId,
+          genreIds: lookupData.genreIds || [],
+        };
+        
+        setSelectedResult(comprehensiveResult);
+        setCurrentStep("review");
+      },
+      onError: (error) => {
+        // If lookup fails, fall back to using search result
+        console.error("Lookup failed, using search result:", error);
+        setSelectedResult(result);
+        setCurrentStep("review");
+      },
+    });
   };
 
   const handleBackToSearch = () => {
@@ -122,30 +211,40 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       artist: selectedResult.artistName,
       album: selectedResult.collectionName,
       genre: selectedResult.primaryGenreName,
-      year: selectedResult.releaseYear
-        ? selectedResult.releaseYear.toString()
-        : undefined,
+      year: selectedResult.releaseYear,
     };
 
-    // Convert artwork URLs to the format expected by the backend (array of strings)
+    // Artwork URLs - collect all available sizes
     const artworkUrls: string[] = [];
-    if (selectedResult.artworkUrl60)
-      artworkUrls.push(selectedResult.artworkUrl60);
-    if (selectedResult.artworkUrl100)
-      artworkUrls.push(selectedResult.artworkUrl100);
-    if (selectedResult.artworkUrl600) {
-      artworkUrls.push(selectedResult.artworkUrl600);
-    } else if (selectedResult.artworkUrl100) {
-      // Generate 600x600 version from 100x100
-      artworkUrls.push(
-        selectedResult.artworkUrl100.replace("100x100", "600x600"),
-      );
-    }
+    if (selectedResult.artworkUrl30) artworkUrls.push(selectedResult.artworkUrl30);
+    if (selectedResult.artworkUrl60) artworkUrls.push(selectedResult.artworkUrl60);
+    if (selectedResult.artworkUrl100) artworkUrls.push(selectedResult.artworkUrl100);
+    if (selectedResult.artworkUrl600) artworkUrls.push(selectedResult.artworkUrl600);
 
-    // Prepare updates for backend with proper types
+    // Prepare comprehensive updates for backend
     const updatesForBackend: Record<string, unknown> = {
       ...updates,
+      
+      // iTunes IDs
+      itunesTrackId: selectedResult.trackId,
+      itunesArtistId: selectedResult.artistId,
+      itunesCollectionId: selectedResult.collectionId,
+      
+      // Artwork URLs
       itunesArtworkUrls: artworkUrls.length > 0 ? artworkUrls : undefined,
+      
+      // Track details
+      trackTimeMillis: selectedResult.trackTimeMillis,
+      duration: selectedResult.durationSeconds,
+      
+      // Release information
+      releaseDate: selectedResult.releaseDateFormatted || selectedResult.releaseDate,
+      
+      // Content advisory
+      itunesExplicit: selectedResult.trackExplicitness === "explicit",
+      
+      // Preview URL
+      itunesPreviewUrl: selectedResult.previewUrl,
     };
 
     // Remove undefined values
@@ -182,7 +281,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
             results={searchResults}
             onSelect={handleSelectResult}
             onBackToSearch={handleBackToSearch}
-            isLoading={false}
+            isLoading={lookupMutation.isPending}
             error={searchMutation.error as Error | null}
           />
         );
@@ -235,6 +334,15 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Failed to update song metadata. Please try again.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {lookupMutation.error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to fetch comprehensive metadata from iTunes. Using basic search data instead.
           </AlertDescription>
         </Alert>
       )}
