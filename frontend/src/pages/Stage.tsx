@@ -62,9 +62,17 @@ const Stage: React.FC = () => {
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
-    const handleQueueUpdate = () => {
-      console.log("Queue updated via unified session WebSocket, refetching queue data");
-      queueQuery.refetch();
+    // This handler now receives the full queue data from the WebSocket
+    const handleQueueUpdate = (data: { items?: any[] }) => {
+      if (data.items) {
+        console.log("Queue updated via WebSocket, updating cache directly.");
+        // Update the React Query cache with the new queue data
+        queueQuery.setData(data.items);
+      } else {
+        // Fallback for older message formats or simple triggers
+        console.log("Queue update notification received, refetching queue data.");
+        queueQuery.refetch();
+      }
     };
 
     const handleQueueJoined = (data: { room?: string } = {}) => {
@@ -114,8 +122,7 @@ const Stage: React.FC = () => {
   const handleRemoveFromQueue = async (id: string) => {
     try {
       await removeFromQueueMutation.mutateAsync(id);
-      // Notify unified WebSocket service about queue changes
-      sessionWebSocketService.notifyQueueChanged();
+      // Backend now automatically broadcasts updates, no need to notify manually
       toast.success("Song removed from queue");
     } catch (error) {
       console.error("Failed to remove song from queue:", error);
@@ -126,8 +133,7 @@ const Stage: React.FC = () => {
   const handlePlayFromQueue = async (id: string) => {
     try {
       await playFromQueueMutation.mutateAsync(id);
-      // Notify unified WebSocket service about queue changes
-      sessionWebSocketService.notifyQueueChanged();
+      // Backend now automatically broadcasts updates, no need to notify manually
       toast.success("Song is being loaded...");
     } catch (error) {
       console.error("Failed to play song from queue:", error);

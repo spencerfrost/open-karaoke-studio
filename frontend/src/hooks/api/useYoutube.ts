@@ -10,6 +10,7 @@ export interface YouTubeDownloadRequest {
   album?: string;
   song_id?: string;
   searchThumbnailUrl?: string; // Add field for original search thumbnail
+  engine_type?: "demucs" | "roformer" | "hybrid"; // Separation engine to use
 }
 
 export interface YouTubeDownloadResponse {
