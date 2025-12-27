@@ -46,12 +46,14 @@ class DbSong(Base):
     synced_lyrics = Column(Text, nullable=True)
     channel_name = Column(String, nullable=True)  # Legacy field
 
-    # Phase 1B = Column(Integer, nullable=True)
+    # Phase 1B iTunes metadata
+    itunes_track_id = Column(Integer, nullable=True)
     itunes_artist_id = Column(Integer, nullable=True)
     itunes_collection_id = Column(Integer, nullable=True)
     track_time_millis = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
     itunes_preview_url = Column(String, nullable=True)
+    itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
     # Phase 1B = Column(Integer, nullable=True)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string

@@ -95,15 +95,31 @@ class SongCreateRequest(BaseModel):
 class SongUpdateRequest(BaseModel):
     """Request model for updating a song"""
 
+    # Basic metadata
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
     duration: Optional[float] = Field(None, ge=0)
     genre: Optional[str] = Field(None, max_length=100)
     language: Optional[str] = Field(None, max_length=50)
+    year: Optional[int] = Field(None, ge=1800, le=2100)
+    releaseDate: Optional[str] = Field(None, max_length=50)
+    
+    # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    
+    # BPM
     bpm: Optional[float] = Field(None, ge=0)
+    
+    # iTunes metadata
+    itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
+    itunesArtistId: Optional[int] = Field(None, description="iTunes artist ID")
+    itunesCollectionId: Optional[int] = Field(None, description="iTunes collection/album ID")
+    itunesArtworkUrls: Optional[List[str]] = Field(None, description="iTunes artwork URLs")
+    itunesExplicit: Optional[bool] = Field(None, description="iTunes explicit content flag")
+    itunesPreviewUrl: Optional[str] = Field(None, max_length=500, description="iTunes preview URL")
+    trackTimeMillis: Optional[int] = Field(None, ge=0, description="Track duration in milliseconds")
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
