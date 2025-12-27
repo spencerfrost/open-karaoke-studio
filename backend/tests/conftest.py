@@ -302,7 +302,7 @@ def mock_audio_service():
     return service
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def apply_test_config(monkeypatch):
     """
     Apply test configuration before any application modules are imported.

@@ -20,6 +20,8 @@ if backend_path not in sys.path:
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from tests.conftest import create_test_app
+
 
 
 
