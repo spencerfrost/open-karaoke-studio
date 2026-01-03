@@ -4,7 +4,7 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
-  duration?: number;      // Duration in seconds
+  duration?: number; // Duration in seconds
   dateAdded?: string;
 
   // File paths (API URLs)
@@ -19,45 +19,27 @@ export interface Song {
   sourceUrl?: string;
   videoId?: string;
 
-  // YouTube data
-  uploader?: string;
-  uploaderId?: string;
-  channel?: string;
-  channelId?: string;
-  channelName?: string;
-  description?: string;
-  uploadDate?: string;
-  youtubeThumbnailUrls?: string[];
-  youtubeTags?: string[];
-  youtubeCategories?: string[];
-  youtubeChannelId?: string;
-  youtubeChannelName?: string;
-  youtubeRawMetadata?: Record<string, unknown>;
-
   // Metadata
-  mbid?: string;
   album?: string;
-  releaseId?: string;
   releaseDate?: string;
   year?: number;
   genre?: string;
-  language?: string;
 
   // Lyrics
   plainLyrics?: string;
   syncedLyrics?: string;
 
-  // iTunes data
+  // iTunes metadata
   itunesTrackId?: number;
-  itunesArtistId?: number;
-  itunesCollectionId?: number;
-  trackTimeMillis?: number;
   itunesExplicit?: boolean;
-  itunesPreviewUrl?: string;
-  itunesArtworkUrls?: string[];
+  itunesPreviewUrl?: string; // 30-sec preview for "what's this song again?"
+  itunesArtworkUrls?: string; // JSON string from backend
 
-  // Lyrics (unified field)
-  lyrics?: string;
+  // YouTube thumbnail URLs (fallback for artwork)
+  youtubeThumbnailUrls?: string; // JSON string from backend
+
+  // Processing metadata
+  engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
   status: SongStatus;
 }
