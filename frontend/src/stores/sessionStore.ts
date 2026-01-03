@@ -121,6 +121,13 @@ export const useSessionStore = create<SessionState>()(
             }
           });
 
+          // Store host session data in localStorage for recovery
+          localStorage.setItem(HOST_SESSION_STORAGE_KEY, JSON.stringify({
+            sessionId: sessionData.session_id,
+            deviceId: sessionData.device_id,
+            timestamp: Date.now(),
+          }));
+
           console.log("Session created:", sessionData);
         } catch (error) {
           console.error("Failed to create session:", error);
@@ -179,8 +186,16 @@ export const useSessionStore = create<SessionState>()(
             }
           });
 
-          // Store performer session data in localStorage if not a host
-          if (!sessionData.is_host && displayName) {
+          // Store session data in localStorage for recovery
+          if (sessionData.is_host) {
+            // Host session
+            localStorage.setItem(HOST_SESSION_STORAGE_KEY, JSON.stringify({
+              sessionId: sessionData.session_id,
+              deviceId: sessionData.device_id,
+              timestamp: Date.now(),
+            }));
+          } else if (displayName) {
+            // Performer session
             localStorage.setItem(PERFORMER_SESSION_STORAGE_KEY, JSON.stringify({
               sessionId: sessionData.session_id,
               deviceId: sessionData.device_id,
@@ -210,6 +225,14 @@ export const useSessionStore = create<SessionState>()(
 
         try {
           const { sessionId, deviceId } = JSON.parse(storedSession);
+
+          // Validate that we have the required data
+          if (!sessionId || !deviceId) {
+            console.warn("Invalid host session data in localStorage - missing sessionId or deviceId");
+            localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+            set({ isRecovering: false });
+            return;
+          }
 
           // Use new validation API endpoint from Phase 1
           const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
@@ -303,6 +326,14 @@ export const useSessionStore = create<SessionState>()(
 
         try {
           const { sessionId, deviceId, displayName } = JSON.parse(storedSession);
+
+          // Validate that we have the required data
+          if (!sessionId || !deviceId) {
+            console.warn("Invalid performer session data in localStorage - missing sessionId or deviceId");
+            localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+            set({ isRecovering: false });
+            return;
+          }
 
           // Use new validation API endpoint from Phase 1
           const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
@@ -417,6 +448,10 @@ export const useSessionStore = create<SessionState>()(
         // Disconnect WebSocket services before clearing session
         sessionWebSocketService.disconnect();
 
+        // Clear both localStorage keys to prevent stale data
+        localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+        localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+
         set({
           sessionId: null,
           displayCode: null,
@@ -435,13 +470,10 @@ export const useSessionStore = create<SessionState>()(
       },
     }),
     {
-      name: HOST_SESSION_STORAGE_KEY,
+      name: "karaoke-zustand-session",  // Different key to avoid conflicts with manual localStorage
       storage: createJSONStorage(() => localStorage),
-      // Only persist host session data
-      partialize: (state) => ({
-        sessionId: state.isHost ? state.sessionId : null,
-        deviceId: state.isHost ? state.deviceId : null,
-      }),
+      // Don't persist anything - we handle persistence manually for recovery
+      partialize: () => ({}),
     }
   )
 );
