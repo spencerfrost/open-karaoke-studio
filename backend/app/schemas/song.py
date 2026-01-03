@@ -30,43 +30,27 @@ class SongResponse(BaseModel):
     sourceUrl: Optional[str] = None
     videoId: Optional[str] = None
 
-    # YouTube data
-    uploader: Optional[str] = None
-    uploaderId: Optional[str] = None
-    channel: Optional[str] = None
-    channelId: Optional[str] = None
-    channelName: Optional[str] = None
-    description: Optional[str] = None
-    uploadDate: Optional[datetime] = None
-    youtubeThumbnailUrls: Optional[List[str]] = None
-    youtubeTags: Optional[List[str]] = None
-    youtubeCategories: Optional[List[str]] = None
-    youtubeChannelId: Optional[str] = None
-    youtubeChannelName: Optional[str] = None
-    youtubeRawMetadata: Optional[Any] = None
-
     # Metadata
-    mbid: Optional[str] = None
     album: Optional[str] = None
-    releaseId: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
     genre: Optional[str] = None
-    language: Optional[str] = None
 
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
 
-    # BPM
-    bpm: Optional[float] = None
-
-    # iTunes data
-    itunesArtistId: Optional[int] = None
-    itunesCollectionId: Optional[int] = None
-    trackTimeMillis: Optional[int] = None
+    # iTunes metadata
+    itunesTrackId: Optional[int] = None
     itunesExplicit: Optional[bool] = None
-    itunesPreviewUrl: Optional[str] = None
+    itunesPreviewUrl: Optional[str] = None  # 30-sec preview for song identification
+    itunesArtworkUrls: Optional[str] = None  # JSON string
+    
+    # YouTube thumbnail URLs (fallback for artwork)
+    youtubeThumbnailUrls: Optional[str] = None  # JSON string
+
+    # Processing metadata
+    engineType: Optional[str] = None  # Separation engine used
 
     status: str = "processed"
 
@@ -101,7 +85,6 @@ class SongUpdateRequest(BaseModel):
     album: Optional[str] = Field(None, max_length=200)
     duration: Optional[float] = Field(None, ge=0)
     genre: Optional[str] = Field(None, max_length=100)
-    language: Optional[str] = Field(None, max_length=50)
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
     
@@ -109,23 +92,36 @@ class SongUpdateRequest(BaseModel):
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
     
-    # BPM
-    bpm: Optional[float] = Field(None, ge=0)
-    
     # iTunes metadata
     itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
-    itunesArtistId: Optional[int] = Field(None, description="iTunes artist ID")
-    itunesCollectionId: Optional[int] = Field(None, description="iTunes collection/album ID")
     itunesArtworkUrls: Optional[List[str]] = Field(None, description="iTunes artwork URLs")
     itunesExplicit: Optional[bool] = Field(None, description="iTunes explicit content flag")
-    itunesPreviewUrl: Optional[str] = Field(None, max_length=500, description="iTunes preview URL")
-    trackTimeMillis: Optional[int] = Field(None, ge=0, description="Track duration in milliseconds")
+    itunesPreviewUrl: Optional[str] = Field(None, max_length=500, description="iTunes 30-sec preview URL")
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
         if v is not None and (not v or v.strip() == ""):
             raise ValueError("Field cannot be empty")
         return v.strip() if v else v
+
+
+class SongReprocessRequest(BaseModel):
+    """Request model for reprocessing a song with a different engine"""
+
+    engine_type: str = Field(
+        default="demucs",
+        description="Separation engine to use (demucs, roformer, hybrid, clean_backing)",
+    )
+
+    @field_validator("engine_type")
+    @classmethod
+    def validate_engine_type(cls, v: str) -> str:
+        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing"}
+        if v not in valid_engines:
+            raise ValueError(
+                f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"
+            )
+        return v
 
 
 class PaginationInfo(BaseModel):

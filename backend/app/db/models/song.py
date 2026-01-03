@@ -27,46 +27,28 @@ class DbSong(Base):
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
     video_id = Column(String, nullable=True)
-    uploader = Column(String, nullable=True)
-    uploader_id = Column(String, nullable=True)
-    channel = Column(String, nullable=True)
-    channel_id = Column(String, nullable=True)
-    description = Column(Text, nullable=True)  # Song/video description
-
-    # Phase 1A = Column(Text, nullable=True)
-    upload_date = Column(DateTime, nullable=True)
-    mbid = Column(String, nullable=True)
-    album = Column(String, nullable=True)  # Renamed from release_title for better UX
-    release_id = Column(String, nullable=True)
+    
+    # Core metadata
+    album = Column(String, nullable=True)
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     genre = Column(String, nullable=True)
-    language = Column(String, nullable=True)
+    
+    # Lyrics
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
-    channel_name = Column(String, nullable=True)  # Legacy field
 
-    # Phase 1B iTunes metadata
+    # iTunes metadata
     itunes_track_id = Column(Integer, nullable=True)
-    itunes_artist_id = Column(Integer, nullable=True)
-    itunes_collection_id = Column(Integer, nullable=True)
-    track_time_millis = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
-    itunes_preview_url = Column(String, nullable=True)
+    itunes_preview_url = Column(String, nullable=True)  # 30-sec preview for "what's this song?"
     itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
-    # Phase 1B = Column(Integer, nullable=True)
+    # YouTube thumbnail URLs (fallback for artwork)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
-    youtube_tags = Column(Text, nullable=True)  # JSON array as string
-    youtube_categories = Column(Text, nullable=True)  # JSON array as string
-    youtube_channel_id = Column(String, nullable=True)
-    youtube_channel_name = Column(String, nullable=True)
 
-    # Phase 1B = Column(Text, nullable=True)  # JSON string
-    youtube_raw_metadata = Column(Text, nullable=True)  # JSON string
-
-    # BPM detection
-    bpm = Column(Float, nullable=True)
+    # Processing metadata
+    engine_type = Column(String, nullable=True)  # Separation engine used (demucs, roformer, hybrid, clean_backing)
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
@@ -92,7 +74,7 @@ class DbSong(Base):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
-            "duration": self.duration,       # Duration in seconds
+            "duration": self.duration,  # Duration in seconds
             "status": "processed",
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
@@ -112,33 +94,25 @@ class DbSong(Base):
                 else None
             ),
             "thumbnail": self.thumbnail_path,
-            # YouTube data (convert to camelCase)
+            # Source info
             "videoId": self.video_id,
             "sourceUrl": self.source_url,
-            "uploader": self.uploader,
-            "uploaderId": self.uploader_id,
-            "channel": self.channel,
-            "channelId": self.channel_id,
-            "channelName": self.youtube_channel_name or self.channel_name,
-            "description": self.description,
-            "uploadDate": (
-                self.upload_date.isoformat() if self.upload_date is not None else None
-            ),
+            "source": self.source,
             # Metadata
-            "mbid": self.mbid,
-            "metadataId": self.mbid,  # Alias for frontend compatibility
             "album": self.album,
-            "releaseTitle": self.album,  # Legacy alias
-            "releaseId": self.release_id,
             "releaseDate": self.release_date,
             "year": year_value,
             "genre": self.genre,
-            "language": self.language,
             # Lyrics
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
-            # BPM
-            "bpm": self.bpm,
-            # System
-            "source": self.source,
+            # iTunes metadata
+            "itunesTrackId": self.itunes_track_id,
+            "itunesExplicit": self.itunes_explicit,
+            "itunesPreviewUrl": self.itunes_preview_url,
+            "itunesArtworkUrls": self.itunes_artwork_urls,
+            # YouTube thumbnail URLs (for artwork fallback)
+            "youtubeThumbnailUrls": self.youtube_thumbnail_urls,
+            # Processing metadata
+            "engineType": self.engine_type,
         }
