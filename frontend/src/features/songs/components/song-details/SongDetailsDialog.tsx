@@ -3,6 +3,7 @@ import { Song } from "@/types/Song";
 import { ArtworkDisplay } from "./ArtworkDisplay";
 import { PrimarySongDetails } from "./PrimarySongDetails";
 import { PrimaryActionsSection } from "./PrimaryActionsSection";
+import { ReprocessSection } from "./ReprocessSection";
 import { SongLyricsSection } from "./SongLyricsSection";
 import { MetadataEditContent } from "./MetadataEditContent";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -105,6 +106,9 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                 onEditMetadata={handleEditMetadata}
                 onSongDeleted={onClose}
               />
+
+              {/* Re-process Section */}
+              <ReprocessSection song={song} />
 
               {/* Lyrics Section */}
               <SongLyricsSection song={song} />

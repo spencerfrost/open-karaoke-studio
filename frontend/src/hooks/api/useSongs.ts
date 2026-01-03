@@ -502,6 +502,48 @@ export function useSongs() {
   };
 
   /**
+   * Reprocess a song with a different separation engine
+   */
+  const useReprocessSong = () => {
+    return useApiMutation<
+      { jobId: string; status: string; message: string },
+      { id: string; engine_type: string }
+    >("songs/:id/reprocess", "post", {
+      onMutate: async (variables) => {
+        await queryClient.cancelQueries({
+          queryKey: QUERY_KEYS.song(variables.id),
+        });
+        return {};
+      },
+      onSettled: (_data, _error, variables) => {
+        // Invalidate song queries to refresh status
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.song(variables.id),
+        });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+      },
+      mutationFn: async (data) => {
+        const { id, engine_type } = data;
+        const response = await fetch(`/api/songs/${id}/reprocess`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ engine_type }),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.detail || `Failed to reprocess: ${response.status}`,
+          );
+        }
+
+        return response.json();
+      },
+    });
+  };
+
+  /**
    * Get rich metadata for a song (includes all iTunes/YouTube metadata)
    */
   const useRichSongMetadata = (id: string, options = {}) => {
@@ -661,6 +703,7 @@ export function useSongs() {
     useUpdateItunesMetadata,
     useUpdateYoutubeMetadata,
     useDeleteSong,
+    useReprocessSong,
 
     // Utility functions
     getAudioUrl,
