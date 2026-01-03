@@ -28,6 +28,7 @@ from app.schemas.song import (
     ArtistSearchResponse,
     PaginationInfo,
     SongCreateRequest,
+    SongReprocessRequest,
     SongResponse,
     SongSearchResponse,
     SongUpdateRequest,
@@ -443,12 +444,9 @@ async def update_song(
             "plainLyrics": "plain_lyrics",
             "releaseDate": "release_date",
             "itunesTrackId": "itunes_track_id",
-            "itunesArtistId": "itunes_artist_id",
-            "itunesCollectionId": "itunes_collection_id",
             "itunesArtworkUrls": "itunes_artwork_urls",
             "itunesExplicit": "itunes_explicit",
             "itunesPreviewUrl": "itunes_preview_url",
-            "trackTimeMillis": "track_time_millis",
         }
 
         for key, value in update_dict.items():
@@ -613,3 +611,102 @@ async def download_song_track(
     except Exception as e:
         logger.error(f"Error downloading track: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to download track: {str(e)}")
+
+
+@router.post("/{song_id}/reprocess", status_code=202)
+async def reprocess_song(
+    song_id: str, request: SongReprocessRequest, db: Session = Depends(get_db)
+):
+    """
+    Re-process a song's audio with a different separation engine.
+
+    Creates a background job to reprocess the audio.
+    Returns immediately with a job ID for tracking progress.
+    
+    - **song_id**: The song ID to reprocess
+    - **engine_type**: Separation engine to use (demucs, roformer, hybrid, clean_backing)
+    """
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from app.db.models import Job, JobStatus
+    from app.repositories import JobRepository
+
+    logger.info(f"Reprocess request for song {song_id} with engine {request.engine_type}")
+
+    try:
+        # 1. Verify song exists
+        repo = SongRepository(db)
+        db_song = repo.fetch(song_id)
+
+        if not db_song:
+            raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+        # 2. Verify original.mp3 exists
+        config = get_config()
+        song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
+        original_path = song_dir / "original.mp3"
+
+        if not original_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail="Original audio file not found. Cannot reprocess.",
+            )
+
+        # 3. Check if already processing (prevent duplicate jobs)
+        job_repository = JobRepository()
+        active_jobs = job_repository.get_jobs_by_status(
+            [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
+        )
+        for job in active_jobs:
+            if job.song_id == song_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Song is already being processed",
+                )
+
+        # 4. Create job record
+        job_id = str(uuid.uuid4())
+        job = Job(
+            id=job_id,
+            filename="original.mp3",
+            status=JobStatus.PENDING,
+            status_message=f"Queued for reprocessing with {request.engine_type}",
+            progress=0,
+            song_id=song_id,
+            title=db_song.title,
+            artist=db_song.artist,
+            engine_type=request.engine_type,
+            created_at=datetime.now(timezone.utc),
+        )
+        job_repository.create(job)
+
+        # 5. Queue Celery task
+        from app.jobs.celery_app import celery
+
+        task = celery.send_task(
+            "process_audio_job",
+            args=[job_id, request.engine_type],
+        )
+
+        # 6. Update job with task ID
+        job.task_id = task.id
+        job_repository.update(job)
+
+        logger.info(
+            f"Reprocess job {job_id} queued for song {song_id} with engine {request.engine_type}"
+        )
+
+        return {
+            "jobId": job_id,
+            "status": "pending",
+            "message": f"Reprocessing started with {request.engine_type}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting reprocess: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to start reprocessing: {str(e)}"
+        )

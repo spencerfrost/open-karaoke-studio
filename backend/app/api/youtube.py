@@ -47,7 +47,7 @@ class YouTubeDownloadRequest(BaseModel):
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid"}
+        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing"}
         if v not in valid_engines:
             raise ValueError(f"Invalid engine_type. Must be one of: {', '.join(valid_engines)}")
         return v
