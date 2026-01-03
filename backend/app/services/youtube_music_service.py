@@ -55,6 +55,27 @@ class YoutubeMusicService:
             logger.error("YouTube Music search failed: %s", e, exc_info=True)
             raise
 
+
+    def _get_song_duration(self, video_id: str) -> Optional[str]:
+        """Fetch duration for a song using get_song API.
+        
+        Returns duration in mm:ss format, or None if unavailable.
+        """
+        try:
+            song_info = self.ytmusic.get_song(video_id)
+            video_details = song_info.get("videoDetails", {})
+            length_seconds = video_details.get("lengthSeconds")
+            
+            if length_seconds:
+                seconds = int(length_seconds)
+                minutes = seconds // 60
+                remaining_seconds = seconds % 60
+                return f"{minutes}:{remaining_seconds:02d}"
+            return None
+        except Exception as e:
+            logger.warning("Failed to get duration for video %s: %s", video_id, e)
+            return None
+
     def get_artist(self, artist_id: str, top_songs_limit: int = 12) -> Dict[str, Any]:
         """Get artist info, top songs, and album list."""
         # Check cache first
@@ -71,16 +92,24 @@ class YoutubeMusicService:
             top_songs = []
             songs_data = raw.get("songs", {})
             for song in songs_data.get("results", [])[:top_songs_limit]:
+                video_id = song.get("videoId")
+                duration = song.get("duration")
+                
+                # ytmusicapi's get_artist doesn't return duration for top songs,
+                # so we need to fetch it separately using get_song
+                if not duration and video_id:
+                    duration = self._get_song_duration(video_id)
+                
                 top_songs.append(
                     {
-                        "videoId": song.get("videoId"),
+                        "videoId": video_id,
                         "title": song.get("title"),
                         "artist": raw.get("name"),
                         "artistId": artist_id,
                         "album": song.get("album", {}).get("name")
                         if isinstance(song.get("album"), dict)
                         else song.get("album"),
-                        "duration": song.get("duration"),
+                        "duration": duration,
                         "thumbnails": song.get("thumbnails", []),
                     }
                 )
