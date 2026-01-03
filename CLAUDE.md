@@ -66,10 +66,40 @@ pytest                        # Run tests
 ./run_api.sh                  # Start FastAPI
 ./run_celery.sh               # Start Celery worker
 black app/ && isort app/      # Format code
-alembic upgrade head          # Run migrations
+
+# Database (PostgreSQL - requires DATABASE_URL env var)
+python3 -m alembic current    # Show current migration
+python3 -m alembic upgrade head  # Apply pending migrations
+python3 -m alembic downgrade -1  # Rollback one migration
+psql $DATABASE_URL -c "\d songs"  # Inspect table schema
+psql $DATABASE_URL -c "SELECT version_num FROM alembic_version"  # Current migration version
 ```
 
-**CRITICAL: Backend requires `source venv/bin/activate` before any command.**
+**CRITICAL: Backend commands require venv activation:**
+```bash
+# Always activate venv in backend/ directory before running Python commands
+cd backend && source venv/bin/activate
+
+# Then run commands (pytest, alembic, etc.)
+# The venv must be activated in the same shell session where commands run
+```
+
+### Tmux Dev Environment
+
+Services run in tmux session `open-karaoke`, window 0 (`services`) with 3 panes:
+- **Pane 0.0**: Backend API (FastAPI/Uvicorn)
+- **Pane 0.1**: Frontend (Vite)
+- **Pane 0.2**: Celery worker
+
+```bash
+# API server (pane 0.0)
+tmux capture-pane -t open-karaoke:0.0 -p | tail -20                              # Check logs
+tmux send-keys -t open-karaoke:0.0 C-c && sleep 2 && tmux send-keys -t open-karaoke:0.0 "./run_api.sh" Enter  # Restart
+
+# Celery worker (pane 0.2)
+tmux capture-pane -t open-karaoke:0.2 -p | tail -20                              # Check logs
+tmux send-keys -t open-karaoke:0.2 C-c && sleep 2 && tmux send-keys -t open-karaoke:0.2 "./run_celery.sh" Enter  # Restart
+```
 
 ## Development Conventions
 
