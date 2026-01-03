@@ -3,9 +3,9 @@
  * YouTube-like API: <KaraokePlayer songId="123" />
  */
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useKaraokePlayer, usePlayerUI } from '../hooks';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useKaraokePlayer, usePlayerUI } from "../hooks";
 import {
   PlayerControls,
   FullscreenContainer,
@@ -13,32 +13,32 @@ import {
   PlayerSidebar,
   PlayerSidebarTrigger,
   SongEndedOverlay,
-} from './subcomponents';
-import { LyricsDisplay } from '@/features/lyrics';
-import AudioVisualizer from './subcomponents/AudioVisualizer';
-import ProgressBar from './subcomponents/ProgressBar';
-import { formatTime } from '@/utils/formatters';
-import type { KaraokePlayerProps } from '../types/KaraokePlayer.types';
-import SessionInfoDisplay from '@/components/session/SessionInfoDisplay';
-import { Settings2, Maximize, Play } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { IndeterminateProgress } from '@/components/ui/indeterminate-progress';
+} from "./subcomponents";
+import { LyricsDisplay } from "@/features/lyrics";
+import AudioVisualizer from "./subcomponents/AudioVisualizer";
+import ProgressBar from "./subcomponents/ProgressBar";
+import { formatTime } from "@/utils/formatters";
+import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
+import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import { Settings2, Maximize, Play } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { IndeterminateProgress } from "@/components/ui/indeterminate-progress";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
   autoPlay = false,
-  size = 'full',
+  size = "full",
   controls = true,
   showInfo = true,
   showVisualizer = true,
-  sidebarMode = 'floating',
+  sidebarMode = "floating",
   showSidebarTrigger = true,
   onPlay,
   onPause,
   onEnd,
   onTimeUpdate,
   onError,
-  className = '',
+  className = "",
 }) => {
   // Navigation for song selection
   const navigate = useNavigate();
@@ -54,11 +54,14 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   // Sidebar edge hover state
-  const [isSidebarEdgeHovering, setIsSidebarEdgeHovering] = React.useState(false);
+  const [isSidebarEdgeHovering, setIsSidebarEdgeHovering] =
+    React.useState(false);
 
   // Track mouse movement for showing sidebar trigger
   const [mouseRecentlyMoved, setMouseRecentlyMoved] = React.useState(false);
-  const mouseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mouseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Reset mouse movement timer on mouse move while hovering
   const handleMouseMove = React.useCallback(() => {
@@ -97,7 +100,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     if (player.error && onError) {
       // Adapt PlayerError to Error for callback
       const err: Error = {
-        name: player.error.code || 'PlayerError',
+        name: player.error.code || "PlayerError",
         message: player.error.message,
         stack: undefined,
       };
@@ -126,7 +129,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     } else {
       player.setVocalVolume(0);
     }
-  }
+  };
 
   // Hover overlay handlers
   const handleFullscreenOnly = () => {
@@ -146,16 +149,16 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 
   // Size-based styling
   const sizeClasses = {
-    compact: 'max-h-80',
-    full: 'aspect-video',
-    stage: 'min-h-screen',
+    compact: "max-h-80",
+    full: "aspect-video",
+    stage: "min-h-screen",
   };
 
   // Bottom offset for lyrics container to avoid overlapping controls
   const lyricsBottomOffset = {
-    compact: 'bottom-14',
-    full: 'bottom-16', 
-    stage: 'bottom-20',
+    compact: "bottom-14",
+    full: "bottom-16",
+    stage: "bottom-20",
   };
 
   // Show controls based on configuration
@@ -168,11 +171,13 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   // Error state
   if (player.error) {
     return (
-      <div className={`${sizeClasses[size]} ${className} flex flex-col items-center justify-center bg-black/80 rounded-xl text-center p-8`}>
+      <div
+        className={`${sizeClasses[size]} ${className} flex flex-col items-center justify-center bg-black/80 rounded-xl text-center p-8`}
+      >
         <div className="text-red-500 text-lg font-semibold mb-4">
           {player.error.message}
         </div>
-        <button 
+        <button
           onClick={() => player.reload()}
           className="text-orange-peel hover:text-orange-peel/80 underline"
         >
@@ -211,20 +216,27 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 
       {/* Hover Buttons - Show on hover when paused (but not when song ended) */}
       {!player.isPlaying && !player.songEnded && player.song && isHovering && (
-        <div className={`absolute top-0 left-0 right-0 bottom-24 z-40 flex items-center justify-center gap-12 pointer-events-none transition-opacity duration-300 ${
-          showSidebarTriggerIcon ? 'opacity-100' : 'opacity-0'
-        }`}>
+        <div
+          className={`absolute top-0 left-0 right-0 bottom-24 z-40 flex items-center justify-center gap-12 pointer-events-none transition-opacity duration-300 ${
+            showSidebarTriggerIcon ? "opacity-100" : "opacity-0"
+          }`}
+        >
           {ui.isFullscreen ? (
             /* In fullscreen: single Play button */
             <Button
               variant="outline"
               className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
-              style={{ height: '12rem', width: '12rem' }}
+              style={{ height: "12rem", width: "12rem" }}
               onClick={() => player.isReady && player.togglePlay()}
               disabled={!player.isReady}
               aria-label="Play"
             >
-              <Play style={{ height: '6rem', width: '6rem' }} className="text-orange-peel" fill="currentColor" strokeWidth={1.5} />
+              <Play
+                style={{ height: "6rem", width: "6rem" }}
+                className="text-orange-peel"
+                fill="currentColor"
+                strokeWidth={1.5}
+              />
             </Button>
           ) : (
             /* Not fullscreen: Fullscreen and Fullscreen+Play buttons */
@@ -232,23 +244,36 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               <Button
                 variant="outline"
                 className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto"
-                style={{ height: '12rem', width: '12rem' }}
+                style={{ height: "12rem", width: "12rem" }}
                 onClick={handleFullscreenOnly}
                 aria-label="Fullscreen"
               >
-                <Maximize style={{ height: '6rem', width: '6rem' }} className="text-orange-peel" strokeWidth={1.5} />
+                <Maximize
+                  style={{ height: "6rem", width: "6rem" }}
+                  className="text-orange-peel"
+                  strokeWidth={1.5}
+                />
               </Button>
               <Button
                 variant="outline"
                 className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
-                style={{ height: '12rem', width: '12rem' }}
+                style={{ height: "12rem", width: "12rem" }}
                 onClick={handleFullscreenAndPlay}
                 disabled={!player.isReady}
                 aria-label="Fullscreen and Play"
               >
                 <div className="relative flex items-center justify-center">
-                  <Maximize style={{ height: '6rem', width: '6rem' }} className="text-orange-peel" strokeWidth={1.5} />
-                  <Play style={{ height: '3rem', width: '3rem' }} className="text-orange-peel absolute" fill="currentColor" strokeWidth={1.5} />
+                  <Maximize
+                    style={{ height: "6rem", width: "6rem" }}
+                    className="text-orange-peel"
+                    strokeWidth={1.5}
+                  />
+                  <Play
+                    style={{ height: "3rem", width: "3rem" }}
+                    className="text-orange-peel absolute"
+                    fill="currentColor"
+                    strokeWidth={1.5}
+                  />
                 </div>
               </Button>
             </>
@@ -258,20 +283,30 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       {/* Song Info Header */}
       {showInfo && player.song && (
         <div className="absolute top-2 left-3 z-30 text-background/50">
-          <h1 className={`font-bold ${size === 'stage' ? 'text-2xl' : 'text-xl'}`}>
+          <h1
+            className={`font-bold ${size === "stage" ? "text-2xl" : "text-xl"}`}
+          >
             {player.song.title}
           </h1>
-          <h2 className={`${size === 'stage' ? 'text-lg' : 'text-base'}`}>
+          <h2 className={`${size === "stage" ? "text-lg" : "text-base"}`}>
             {player.song.artist}
           </h2>
         </div>
       )}
 
       {/* Session Code Display */}
-      <SessionInfoDisplay variant="code" colorScheme="player" trigger="hover" visibility="host-only" className="absolute top-2 right-3 z-30" />
+      <SessionInfoDisplay
+        variant="code"
+        colorScheme="player"
+        trigger="hover"
+        visibility="host-only"
+        className="absolute top-2 right-3 z-30"
+      />
 
       {/* Main Lyrics Display or No Song Message - positioned above controls */}
-      <div className={`absolute top-0 left-0 right-0 ${lyricsBottomOffset[size]}`}>
+      <div
+        className={`absolute top-0 left-0 right-0 ${lyricsBottomOffset[size]}`}
+      >
         {player.song ? (
           <LyricsDisplay
             lyrics={player.lyrics}
@@ -279,6 +314,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             currentTime={player.currentTime}
             lyricsSize={player.lyricsSize}
             lyricsOffset={player.lyricsOffset}
+            onSeek={player.seek}
             songId={songId}
             songTitle={player.song?.title}
             songArtist={player.song?.artist}
@@ -300,8 +336,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         {showVisualizer && <AudioVisualizer className="w-full" />}
 
         {/* Progress Bar - show indeterminate when loading */}
-        {player.song && showProgress && (
-          player.isLoading ? (
+        {player.song &&
+          showProgress &&
+          (player.isLoading ? (
             <IndeterminateProgress className="w-full" size="sm" />
           ) : (
             <ProgressBar
@@ -309,8 +346,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               duration={player.duration}
               onSeek={player.seek}
             />
-          )
-        )}
+          ))}
 
         {/* Player Controls (always rendered, disabled if no song) */}
         <div className="flex items-center">
@@ -322,8 +358,18 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             songEnded={player.songEnded}
             isFullscreen={ui.isFullscreen}
             showVolumeSlider={ui.showVolumeSlider}
-            controls={[showPlay && 'play', showVolume && 'volume'].filter(Boolean) as Array<'play' | 'volume'>}
-            onPlayPause={player.song ? (player.songEnded ? player.replay : player.togglePlay) : noop}
+            controls={
+              [showPlay && "play", showVolume && "volume"].filter(
+                Boolean,
+              ) as Array<"play" | "volume">
+            }
+            onPlayPause={
+              player.song
+                ? player.songEnded
+                  ? player.replay
+                  : player.togglePlay
+                : noop
+            }
             onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
             onVolumeToggle={player.song ? handleVolumeToggle : noop}
             onFullscreenToggle={ui.toggleFullscreen}
@@ -332,7 +378,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 
           {/* Time Display */}
           {player.song && showProgress && (
-            <div className={`flex-1 text-sm text-background/50 ${size === 'compact' ? 'text-xs' : 'text-sm'}`}>
+            <div
+              className={`flex-1 text-sm text-background/50 ${size === "compact" ? "text-xs" : "text-sm"}`}
+            >
               {formatTime(player.currentTime)} / {formatTime(player.duration)}
             </div>
           )}
@@ -356,7 +404,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               vocalVolume={player.vocalVolume}
               isFullscreen={ui.isFullscreen}
               showVolumeSlider={ui.showVolumeSlider}
-              controls={['fullscreen']}
+              controls={["fullscreen"]}
               onPlayPause={player.song ? player.togglePlay : noop}
               onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
               onVolumeToggle={player.song ? handleVolumeToggle : noop}
@@ -378,7 +426,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
+            if (e.key === "Enter" || e.key === " ") {
               setIsSidebarOpen(true);
             }
           }}
@@ -387,13 +435,15 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           <div
             className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
               isSidebarEdgeHovering || showSidebarTriggerIcon
-                ? 'bg-gradient-to-l from-black/60 to-transparent opacity-100'
-                : 'opacity-0'
+                ? "bg-gradient-to-l from-black/60 to-transparent opacity-100"
+                : "opacity-0"
             }`}
           >
             <div
               className={`flex flex-col items-center gap-1 transition-all duration-200 ${
-                isSidebarEdgeHovering || showSidebarTriggerIcon ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
+                isSidebarEdgeHovering || showSidebarTriggerIcon
+                  ? "opacity-100 translate-x-0"
+                  : "opacity-0 translate-x-2"
               }`}
             >
               <Settings2 className="w-7 h-7 text-background/80" />
@@ -403,7 +453,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       )}
 
       {/* Player Sidebar (floating mode - inside container) */}
-      {sidebarMode === 'floating' && (
+      {sidebarMode === "floating" && (
         <PlayerSidebar
           isOpen={isSidebarOpen}
           onOpenChange={setIsSidebarOpen}
@@ -415,7 +465,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 
   return (
     <PlayerErrorBoundary onError={undefined}>
-      {sidebarMode === 'push' ? (
+      {sidebarMode === "push" ? (
         // Push mode: flex container with sidebar alongside player
         <div className="flex w-full h-full">
           {playerContent}
