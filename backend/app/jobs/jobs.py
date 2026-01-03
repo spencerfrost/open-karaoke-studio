@@ -14,6 +14,7 @@ from app.services.separation_engines import (
     separate_with_demucs,
     separate_with_roformer,
     separate_with_hybrid,
+    separate_with_clean_backing,
 )
 from celery.utils.log import get_task_logger
 
@@ -191,6 +192,13 @@ def process_audio_job(self, job_id, engine_type="demucs"):
                 status_callback=lambda msg: update_progress(20, msg),
                 stop_event=stop_event,
             )
+        elif engine_type == "clean_backing":
+            success, detected_bpm = separate_with_clean_backing(
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+            )
         else:  # default to demucs
             success, detected_bpm = separate_with_demucs(
                 input_path=filepath,
@@ -201,14 +209,16 @@ def process_audio_job(self, job_id, engine_type="demucs"):
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Update song with BPM if detected
-        if detected_bpm is not None:
-            from app.db.database import get_db_session
-            from app.repositories.song_repository import SongRepository
+        # Update song with engine_type and BPM if detected
+        from app.db.database import get_db_session
+        from app.repositories.song_repository import SongRepository
 
-            with get_db_session() as session:
-                repo = SongRepository(session)
-                repo.update(song_id, bpm=detected_bpm)
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            update_kwargs = {"engine_type": engine_type}
+            if detected_bpm is not None:
+                update_kwargs["bpm"] = detected_bpm
+            repo.update(song_id, **update_kwargs)
 
         job.status = JobStatus.COMPLETED
         job.progress = 100
@@ -432,6 +442,13 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
                 status_callback=audio_progress_callback,
                 stop_event=stop_event,
             )
+        elif engine_type == "clean_backing":
+            success, detected_bpm = separate_with_clean_backing(
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+            )
         else:  # default to demucs
             success, detected_bpm = separate_with_demucs(
                 input_path=original_file,
@@ -491,6 +508,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
                         "instrumental_path": instrumental_relative,
                         "processing_status": "completed",
                         "has_audio_files": True,
+                        "engine_type": engine_type,
                     }
                     if detected_bpm is not None:
                         update_fields["bpm"] = detected_bpm
