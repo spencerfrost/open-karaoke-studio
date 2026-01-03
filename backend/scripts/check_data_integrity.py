@@ -24,14 +24,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Set
 
+# Add the backend directory to the Python path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
+
 from app.config import get_config
 from app.db.database import get_db_session
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
-
-# Add the backend directory to the Python path
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
 
 
 # File extensions to check for thumbnails
