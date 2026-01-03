@@ -225,26 +225,17 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     const updatesForBackend: Record<string, unknown> = {
       ...updates,
       
-      // iTunes IDs
+      // iTunes metadata
       itunesTrackId: selectedResult.trackId,
-      itunesArtistId: selectedResult.artistId,
-      itunesCollectionId: selectedResult.collectionId,
-      
-      // Artwork URLs
       itunesArtworkUrls: artworkUrls.length > 0 ? artworkUrls : undefined,
-      
-      // Track details
-      trackTimeMillis: selectedResult.trackTimeMillis,
-      duration: selectedResult.durationSeconds,
+      itunesExplicit: selectedResult.trackExplicitness === "explicit",
+      itunesPreviewUrl: selectedResult.previewUrl, // 30-sec preview for song identification
       
       // Release information
       releaseDate: selectedResult.releaseDateFormatted || selectedResult.releaseDate,
       
-      // Content advisory
-      itunesExplicit: selectedResult.trackExplicitness === "explicit",
-      
-      // Preview URL
-      itunesPreviewUrl: selectedResult.previewUrl,
+      // Duration (from our audio file, not iTunes)
+      duration: selectedResult.durationSeconds,
     };
 
     // Remove undefined values
