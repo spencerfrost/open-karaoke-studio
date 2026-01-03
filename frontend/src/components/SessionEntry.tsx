@@ -23,7 +23,10 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
   redirectTo = "/stage",
 }) => {
   const [sessionCode, setSessionCode] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(() => {
+    // Load saved name from localStorage on mount
+    return localStorage.getItem("karaokeDisplayName") || "";
+  });
 
   const {
     sessionId,
@@ -75,6 +78,8 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
         'performer',
         displayName.trim()
       );
+      // Save the name to localStorage for future sessions
+      localStorage.setItem("karaokeDisplayName", displayName.trim());
       toast.success("Joined session successfully!");
     } catch (error) {
       console.error("Failed to join session:", error);
