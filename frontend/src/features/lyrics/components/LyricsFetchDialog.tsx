@@ -201,6 +201,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                 onKeyDown={handleKeyDown}
                 disabled={isRefining}
                 className="flex-1"
+                style={{ touchAction: 'manipulation' }}
               />
               <Button
                 onClick={handleSearchRefinement}
