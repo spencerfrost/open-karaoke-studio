@@ -50,12 +50,10 @@ export function useMiniPlayer() {
     }
   }, [isPlaying, userPlay, userPause]);
 
-  // Expand to full player
+  // Expand to full player (navigate to stage)
   const handleExpand = useCallback(() => {
-    if (songId) {
-      navigate(`/player/${songId}`);
-    }
-  }, [songId, navigate]);
+    navigate(`/stage`);
+  }, [navigate]);
 
   // Close/dismiss mini-player
   const handleClose = useCallback(() => {

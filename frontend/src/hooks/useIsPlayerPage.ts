@@ -10,7 +10,6 @@ export function useIsPlayerPage(): boolean {
   
   // Player-related routes where mini-player should NOT show
   const playerRoutes = [
-    '/player/',      // Direct song player /player/:id
     '/stage',        // Stage view (full player experience)
     '/controls',     // Performance controls (player is visible on stage device)
   ];

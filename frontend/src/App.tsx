@@ -10,7 +10,6 @@ import LibraryPage from "./pages/Library";
 import AddSongPage from "./pages/AddSong";
 import SettingsPage from "./pages/Settings";
 import StagePage from "./pages/Stage";
-import SongPlayerPage from "./pages/SongPlayer";
 import PerformanceControlsPage from "./pages/PerformanceControlsPage";
 import JoinSessionPage from "./pages/JoinSessionPage";
 import { SessionProvider } from "./contexts/SessionContext";
@@ -58,14 +57,6 @@ const App: React.FC = () => {
               element={
                 <SessionGuard deviceType="stage" redirectTo="/stage">
                   <StagePage />
-                </SessionGuard>
-              } 
-            />
-            <Route 
-              path="/player/:id" 
-              element={
-                <SessionGuard>
-                  <SongPlayerPage />
                 </SessionGuard>
               } 
             />
