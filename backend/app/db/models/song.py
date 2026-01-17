@@ -49,6 +49,7 @@ class DbSong(Base):
 
     # Processing metadata
     engine_type = Column(String, nullable=True)  # Separation engine used (demucs, roformer, hybrid, clean_backing)
+    bpm = Column(Float, nullable=True)  # Beats per minute for count-in timing
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
@@ -115,4 +116,5 @@ class DbSong(Base):
             "youtubeThumbnailUrls": self.youtube_thumbnail_urls,
             # Processing metadata
             "engineType": self.engine_type,
+            "bpm": self.bpm,
         }

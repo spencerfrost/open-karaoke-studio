@@ -51,6 +51,7 @@ class SongResponse(BaseModel):
 
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
+    bpm: Optional[float] = None  # Beats per minute for count-in timing
 
     status: str = "processed"
 
@@ -97,6 +98,9 @@ class SongUpdateRequest(BaseModel):
     itunesArtworkUrls: Optional[List[str]] = Field(None, description="iTunes artwork URLs")
     itunesExplicit: Optional[bool] = Field(None, description="iTunes explicit content flag")
     itunesPreviewUrl: Optional[str] = Field(None, max_length=500, description="iTunes 30-sec preview URL")
+
+    # Audio analysis
+    bpm: Optional[float] = Field(None, ge=30, le=300, description="Beats per minute")
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):

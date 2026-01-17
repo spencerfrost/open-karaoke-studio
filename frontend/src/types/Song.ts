@@ -41,6 +41,9 @@ export interface Song {
   // Processing metadata
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
+  // Audio analysis
+  bpm?: number; // Beats per minute for count-in timing
+
   status: SongStatus;
 }
 
