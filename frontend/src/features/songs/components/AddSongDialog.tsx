@@ -79,7 +79,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
   // Save mutation for YouTube video flow
   const saveMetadataMutation = useSaveMetadataMutation(activeSong?.id || "", {
     onSuccess: () => {
-      toast.success("Song added to library successfully!");
       onComplete?.();
       handleClose();
     },

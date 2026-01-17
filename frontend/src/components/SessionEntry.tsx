@@ -53,7 +53,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     try {
       // Creating a session implies host role (stage), no display name needed
       await createSession('stage');
-      toast.success("Session created successfully!");
     } catch (error) {
       console.error("Failed to create session:", error);
       toast.error("Failed to create session. Please try again.");
@@ -80,7 +79,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       );
       // Save the name to localStorage for future sessions
       localStorage.setItem("karaokeDisplayName", displayName.trim());
-      toast.success("Joined session successfully!");
     } catch (error) {
       console.error("Failed to join session:", error);
       toast.error(

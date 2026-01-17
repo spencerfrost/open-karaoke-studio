@@ -37,14 +37,13 @@ export const DeleteSongDialog: React.FC<DeleteSongDialogProps> = ({
   const handleConfirm = async () => {
     // Close the dialog FIRST before triggering the delete
     onOpenChange?.(false);
-    
+
     try {
       // Small delay to let dialog close and animation complete
       await new Promise(resolve => setTimeout(resolve, 50));
-      
+
       await Promise.resolve(onConfirm());
       onSuccess?.();
-      toast.success(`"${song.title}" has been deleted from your library`);
     } catch (error) {
       console.error("Failed to delete song:", error);
       toast.error("Failed to delete song. Please try again.");

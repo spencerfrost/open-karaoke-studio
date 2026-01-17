@@ -76,7 +76,6 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }, {
       onSuccess: () => {
         setLyricsOffset(0); // Reset offset after save
-        toast.success('Lyrics timing saved!');
       },
       onError: (error) => {
         toast.error(`Failed to save: ${error.message}`);
@@ -97,7 +96,6 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       syncedLyrics: lyricsResult.syncedLyrics,
     }, {
       onSuccess: () => {
-        toast.success("Lyrics updated successfully!");
         setIsLyricsDialogOpen(false);
       },
       onError: (error) => {
@@ -118,7 +116,6 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       syncedLyrics: undefined, // Clear synced lyrics when pasting plain lyrics
     }, {
       onSuccess: () => {
-        toast.success("Lyrics saved successfully!");
         setIsPasteLyricsDialogOpen(false);
       },
       onError: (error) => {

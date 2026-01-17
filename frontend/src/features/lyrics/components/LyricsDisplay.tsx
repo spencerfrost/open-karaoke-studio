@@ -4,16 +4,24 @@
  * Optimized for performance with smooth scrolling and proper accessibility
  */
 
-import React, { memo, useState, useCallback } from "react";
-import { Lrc } from "react-lrc";
+import React, { memo, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, FileText } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
+import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
+import { parseLrcWithCountIn } from "@/utils/lrcUtils";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
+
+interface CountInStyleConfig {
+  showCountdownNumbers?: boolean;
+  showCountdownIcons?: boolean;
+  showProgressBar?: boolean;
+  showLeadInHighlight?: boolean;
+}
 
 interface LyricsDisplayProps {
   lyrics: string;
@@ -31,6 +39,10 @@ interface LyricsDisplayProps {
   songDuration?: number; // in seconds
   // Optional seek callback for clicking on lyrics
   onSeek?: (timeSeconds: number) => void;
+  // Optional BPM for count-in (only used for synced lyrics)
+  bpm?: number;
+  // Optional count-in style configuration
+  countInStyle?: CountInStyleConfig;
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
@@ -48,6 +60,8 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     songAlbum,
     songDuration,
     onSeek,
+    bpm,
+    countInStyle,
   }) => {
     const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
     const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] =
@@ -77,7 +91,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
         },
         {
           onSuccess: () => {
-            toast.success("Lyrics updated successfully!");
             setIsLyricsDialogOpen(false);
           },
           onError: (error) => {
@@ -109,7 +122,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
         },
         {
           onSuccess: () => {
-            toast.success("Lyrics saved successfully!");
             setIsPasteLyricsDialogOpen(false);
           },
           onError: (error) => {
@@ -118,6 +130,12 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
         },
       );
     };
+    // Parse LRC content for synced lyrics
+    const parsedLrcData = useMemo(() => {
+      if (!isSync || !lyrics) return null;
+      return parseLrcWithCountIn(lyrics, bpm);
+    }, [isSync, lyrics, bpm]);
+
     const lyricsSizeClass =
       lyricsSize === "small"
         ? "text-base"
@@ -125,59 +143,35 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
           ? "text-3xl"
           : "text-xl";
 
-    const activeLyricsSizeClass =
-      lyricsSize === "small"
-        ? "text-lg"
-        : lyricsSize === "large"
-          ? "text-4xl"
-          : "text-2xl";
-
-    // Memoize lineRenderer to prevent unnecessary re-renders of all lyrics lines
-    // Only recreate when dependencies change (lyricsSize, onSeek)
-    const lineRenderer = useCallback(
-      ({ active, line }: { active: boolean; line: { content: string; startMillisecond: number } }) => (
-        <div
-          className={`py-2 px-2 transition-all duration-500 text-center ${
-            onSeek ? "cursor-pointer hover:opacity-100" : ""
-          } ${
-            active
-              ? `text-background font-bold ${activeLyricsSizeClass} text-shadow`
-              : `text-background/50 opacity-70 ${onSeek ? "hover:opacity-90" : ""} ${lyricsSizeClass}`
-          }`}
-          onClick={
-            onSeek ? () => onSeek(line.startMillisecond / 1000) : undefined
-          }
-          role={active ? "status" : onSeek ? "button" : undefined}
-          tabIndex={onSeek ? 0 : undefined}
-          onKeyDown={
-            onSeek
-              ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSeek(line.startMillisecond / 1000);
-                  }
-                }
-              : undefined
-          }
-          aria-live={active ? "polite" : undefined}
-        >
-          {line.content}
-        </div>
-      ),
-      [lyricsSizeClass, activeLyricsSizeClass, onSeek]
-    );
-
     if (isSync) {
+      if (!parsedLrcData) {
+        return (
+          <div
+            className={`flex items-center justify-center h-full w-full ${className}`}
+            role="region"
+            aria-label={ariaLabel}
+          >
+            <div className="text-background/50 text-lg">No synced lyrics available</div>
+          </div>
+        );
+      }
+
       return (
-        <Lrc
-          lrc={lyrics}
-          currentMillisecond={currentTime * 1000 + lyricsOffset}
-          verticalSpace={true}
-          lineRenderer={lineRenderer}
-          className={`lrc h-full w-full overflow-y-scroll scrollbar-hide mask-image-fade-bottom ${className}`}
-          role="region"
-          aria-label={ariaLabel}
-        />
+        <div>
+          <KaraokeLyricsRenderer
+            parsedData={parsedLrcData}
+            currentTime={currentTime}
+            lyricsSize={lyricsSize}
+            lyricsOffset={lyricsOffset}
+            bpm={bpm}
+            countInStyle={countInStyle}
+            onSeek={onSeek}
+            className={className}
+          />
+
+          {/* Bottom vignette fade */}
+          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-b from-transparent to-black/100 pointer-events-none" />
+        </div>
       );
     }
 

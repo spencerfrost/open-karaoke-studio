@@ -12,6 +12,7 @@ import {
 } from "@/hooks/api/useKaraokeQueue";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 const Stage: React.FC = () => {
   const { 
@@ -66,8 +67,8 @@ const Stage: React.FC = () => {
     const handleQueueUpdate = (data: { items?: any[] }) => {
       if (data.items) {
         console.log("Queue updated via WebSocket, updating cache directly.");
-        // Update the React Query cache with the new queue data
-        queueQuery.setData(data.items);
+        // Update the React Query cache by refetching
+        queueQuery.refetch();
       } else {
         // Fallback for older message formats or simple triggers
         console.log("Queue update notification received, refetching queue data.");
@@ -123,7 +124,6 @@ const Stage: React.FC = () => {
     try {
       await removeFromQueueMutation.mutateAsync(id);
       // Backend now automatically broadcasts updates, no need to notify manually
-      toast.success("Song removed from queue");
     } catch (error) {
       console.error("Failed to remove song from queue:", error);
       toast.error("Failed to remove song from queue");
@@ -134,7 +134,6 @@ const Stage: React.FC = () => {
     try {
       await playFromQueueMutation.mutateAsync(id);
       // Backend now automatically broadcasts updates, no need to notify manually
-      toast.success("Song is being loaded...");
     } catch (error) {
       console.error("Failed to play song from queue:", error);
       toast.error("Failed to play song from queue");
@@ -143,18 +142,33 @@ const Stage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-4 min-h-full p-6 relative z-20">
+      <div className="flex flex-col gap-4 min-h-full p-6 relative items-center z-20">
+        {/* Back button (to libary) */}
+        <Button
+          onClick={() => window.history.back()}
+          className="absolute *:top-2 left-6"
+          variant="ghost"
+          aria-label="Back to library"
+        >
+          <svg
+            className="w-6 h-6 text-orange-peel"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </Button>
 
-        <div className="aspect-video w-full max-w-[90vw] max-h-[90vh] bg-black/80 rounded-xl overflow-hidden">
-          <KaraokePlayer
-            songId={currentSong?.id || ""}
-            size="full"
-            autoPlay={false}
-            controls={true}
-            showInfo={true}
-            showVisualizer={true}
-          />
-        </div>
+        <KaraokePlayer 
+          songId={currentSong?.id || ""}
+          queueItems={queueQuery.data}
+        />
         <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
           Up Next
         </h2>

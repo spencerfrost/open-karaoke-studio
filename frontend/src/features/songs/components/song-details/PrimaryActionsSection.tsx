@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Play, PlusCircle, Edit, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
-import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useAddToKaraokeQueue, usePlayFromKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useSessionStore } from "@/stores/sessionStore";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { toast } from "sonner";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 
@@ -23,13 +25,47 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
 }) => {
   const navigate = useNavigate();
   const addToQueueMutation = useAddToKaraokeQueue();
+  const playFromQueueMutation = usePlayFromKaraokeQueue();
   const { useDeleteSong } = useSongs();
   const deleteSongMutation = useDeleteSong();
-  const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+  const { displayCode, isHost } = useSessionStore();
+  const playerStore = useKaraokePlayerStore();
+  const [isPlayingNow, setIsPlayingNow] = useState(false);
 
-  const handlePlayNow = () => {
-    onClose(); // Close dialog first
-    navigate(`/player/${song.id}`); // Navigate to player
+  const handlePlayNow = async () => {
+    if (!isHost) {
+      toast.error("Only the host device can start playing songs");
+      return;
+    }
+
+    if (song.status !== "processed") {
+      toast.error("Song is not ready for playback yet");
+      return;
+    }
+
+    setIsPlayingNow(true);
+    try {
+      // Step 1: Add song to queue
+      const queueResponse = await addToQueueMutation.mutateAsync({
+        songId: song.id,
+        singer: "Unknown Singer", // TODO: Get from user preferences or input
+      });
+
+      // Step 2: Immediately play it from queue (moves to position 0)
+      await playFromQueueMutation.mutateAsync(String(queueResponse.id));
+
+      // Step 3: Clear player playback state
+      playerStore.cleanup();
+      playerStore.setSongId(song.id, song.duration);
+
+      // Step 4: Navigate to stage
+      onClose();
+      navigate("/stage");
+    } catch (error) {
+      console.error("Failed to play song now:", error);
+      toast.error("Failed to start playback. Please try again.");
+      setIsPlayingNow(false);
+    }
   };
 
   const handleAddToQueue = async () => {
@@ -38,18 +74,14 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
       return;
     }
 
-    setIsAddingToQueue(true);
     try {
       await addToQueueMutation.mutateAsync({
         songId: song.id,
         singer: "Unknown Singer", // TODO: Get from user preferences or input
       });
-      toast.success(`"${song.title}" added to queue`);
     } catch (error) {
       console.error("Failed to add song to queue:", error);
       toast.error("Failed to add song to queue");
-    } finally {
-      setIsAddingToQueue(false);
     }
   };
 
@@ -58,25 +90,28 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   return (
     <div className="border-t pt-6 mt-6">
       <div className="flex gap-3 flex-col sm:flex-row">
-        <Button
-          onClick={handlePlayNow}
-          disabled={!isProcessed}
-          className="flex-1 sm:max-w-[200px] flex items-center gap-2"
-          size="lg"
-        >
-          <Play size={16} />
-          Play Now
-        </Button>
+        {/* Play Now button - only show for hosts */}
+        {isHost && (
+          <Button
+            onClick={handlePlayNow}
+            disabled={!isProcessed || isPlayingNow}
+            className="flex-1 sm:max-w-[200px] flex items-center gap-2"
+            size="lg"
+          >
+            <Play size={16} />
+            {isPlayingNow ? "Starting..." : "Play Now"}
+          </Button>
+        )}
 
         <Button
           variant="outline"
           onClick={handleAddToQueue}
-          disabled={!isProcessed || isAddingToQueue}
+          disabled={!isProcessed || addToQueueMutation.isPending}
           className="flex-1 sm:max-w-[160px] flex items-center gap-2"
           size="lg"
         >
           <PlusCircle size={16} />
-          {isAddingToQueue ? "Adding..." : "Add to Queue"}
+          {addToQueueMutation.isPending ? "Adding..." : "Add to Queue"}
         </Button>
 
         {onEditMetadata && (
@@ -113,6 +148,12 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
       {!isProcessed && (
         <p className="text-sm text-muted-foreground mt-3 text-center">
           Song is still processing and will be available for playback soon
+        </p>
+      )}
+      
+      {!isHost && (
+        <p className="text-sm text-muted-foreground mt-3 text-center">
+          Only the host device can start playing songs
         </p>
       )}
     </div>

@@ -22,7 +22,6 @@ export function useJobsQueue() {
   // Use React Query for cancel mutation
   const cancelMutation = useCancelProcessing({
     onSuccess: (_, taskId) => {
-      toast.success(`Job ${formatTaskId(taskId)} cancelled successfully.`);
       refetch();
     },
     onError: (err) => {
@@ -33,7 +32,6 @@ export function useJobsQueue() {
   // Use React Query for dismiss mutation
   const dismissMutation = useDismissJob({
     onSuccess: (_, taskId) => {
-      toast.success(`Job ${formatTaskId(taskId)} dismissed successfully.`);
       refetch();
     },
     onError: (err) => {
@@ -44,13 +42,11 @@ export function useJobsQueue() {
 
   // Handle canceling a processing task
   const handleCancel = (taskId: string) => {
-    toast.info(`Attempting to cancel job ${formatTaskId(taskId)}...`);
     cancelMutation.mutate(taskId);
   };
 
   // Handle dismissing a failed/completed task
   const handleDismiss = (taskId: string) => {
-    toast.info(`Dismissing job ${formatTaskId(taskId)}...`);
     dismissMutation.mutate(taskId);
   };
 

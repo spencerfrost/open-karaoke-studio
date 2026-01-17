@@ -34,7 +34,7 @@ export const useSongCreation = () => {
 
   const youtubeDownloadMutation = useYoutubeDownloadMutation({
     onSuccess: () => {
-      toast.success("YouTube download started in background");
+      // Download started successfully
     },
     onError: (error) => {
       toast.error(`Failed to start download: ${error.message}`);

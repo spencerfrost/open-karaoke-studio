@@ -45,10 +45,6 @@ export const ReprocessSection: React.FC<ReprocessSectionProps> = ({ song }) => {
         id: song.id,
         engine_type: selectedEngine,
       });
-      const engineLabel =
-        ENGINES.find((e) => e.value === selectedEngine)?.label ||
-        selectedEngine;
-      toast.success(`Reprocessing started with ${engineLabel}`);
     } catch (error) {
       console.error("Reprocess failed:", error);
       toast.error(
