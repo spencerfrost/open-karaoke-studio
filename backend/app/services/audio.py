@@ -137,42 +137,141 @@ def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]
     return vocals_path, instrumental_path
 
 
-def detect_bpm(audio_path: Path, status_callback: Callable[[str], None]) -> Optional[float]:
+def _filter_harmonic_duplicates(tempos: list[float]) -> list[float]:
     """
-    Detect the BPM (beats per minute) of an audio file using Librosa.
+    Filter out harmonic multiples/divisors (2x, 1/2, 3/2, 2/3, 4/3, 3/4).
+    Groups tempos that are harmonically related and keeps representative values.
+
+    Args:
+        tempos: List of tempo estimates
+
+    Returns:
+        List of filtered tempos with harmonics removed
+    """
+    if not tempos:
+        return []
+
+    # Common harmonic ratios to check
+    harmonic_ratios = [0.5, 2.0, 0.667, 1.5, 0.75, 1.333]
+    tolerance = 0.05  # 5% tolerance for matching
+
+    clusters = []
+    for tempo in tempos:
+        # Find if this tempo belongs to existing cluster
+        matched = False
+        for cluster in clusters:
+            for existing_tempo in cluster:
+                # Check if harmonically related
+                ratio = tempo / existing_tempo
+                if any(abs(ratio - hr) < tolerance for hr in harmonic_ratios) or abs(ratio - 1.0) < tolerance:
+                    cluster.append(tempo)
+                    matched = True
+                    break
+            if matched:
+                break
+
+        if not matched:
+            clusters.append([tempo])
+
+    # Return the tempo from each cluster (prefer values in 80-180 range)
+    filtered = []
+    for cluster in clusters:
+        # Prefer tempos in typical range
+        in_range = [t for t in cluster if 80 <= t <= 180]
+        if in_range:
+            filtered.append(sum(in_range) / len(in_range))
+        else:
+            filtered.append(sum(cluster) / len(cluster))
+
+    return filtered
+
+
+def _select_best_tempo(tempos: list[float]) -> float:
+    """
+    Select the most likely tempo from filtered estimates using median.
+
+    Args:
+        tempos: List of tempo estimates
+
+    Returns:
+        The selected BPM value
+    """
+    if not tempos:
+        return 120.0  # Fallback
+
+    # Use median for robustness against outliers
+    tempos_sorted = sorted(tempos)
+    n = len(tempos_sorted)
+    if n % 2 == 0:
+        return (tempos_sorted[n // 2 - 1] + tempos_sorted[n // 2]) / 2
+    else:
+        return tempos_sorted[n // 2]
+
+
+def detect_bpm(
+    audio_path: Path,
+    status_callback: Callable[[str], None],
+    instrumental_path: Optional[Path] = None
+) -> Optional[float]:
+    """
+    Detect the BPM (beats per minute) of an audio file using improved multi-pass
+    detection with harmonic filtering.
 
     Args:
         audio_path: Path to the audio file
         status_callback: Function to call with status updates
+        instrumental_path: Optional path to instrumental track (preferred for cleaner detection)
 
     Returns:
         Detected BPM as float, or None if detection fails
     """
     try:
-        status_callback("Detecting BPM...")
-        logger.info(f"Detecting BPM for: {audio_path}")
+        status_callback("Detecting BPM (improved algorithm)...")
 
-        # Load audio file
-        y, sr = librosa.load(str(audio_path), sr=None)
+        # Prefer instrumental track for cleaner beat detection
+        analysis_path = instrumental_path if instrumental_path and instrumental_path.exists() else audio_path
+        logger.info(f"BPM detection using: {analysis_path} ({'instrumental' if analysis_path == instrumental_path else 'original'})")
 
-        # Use Librosa's beat tracking
-        # start_bpm provides a rough estimate to help the algorithm
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=120)
+        # Load audio with reduced sample rate for faster processing (limit to 90 seconds)
+        y, sr = librosa.load(str(analysis_path), sr=22050, duration=90)
 
-        # Convert to float (tempo is typically a numpy float)
-        bpm = float(tempo)
+        # Strategy 1: Multi-pass tempo detection with different prior estimates
+        tempo_estimates = []
 
-        # Round to 1 decimal place for cleaner display
+        # Pass with common tempo priors to reduce bias
+        for prior in [80, 120, 140, 170]:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=prior)
+            tempo_estimates.append(float(tempo))
+
+        # Strategy 2: Use onset-based tempo detection for additional robustness
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        tempo_onset = librosa.beat.tempo(onset_envelope=onset_env, sr=sr, aggregate=None)
+
+        if tempo_onset is not None and len(tempo_onset) > 0:
+            # Add top 3 tempo estimates from onset detection
+            tempo_estimates.extend([float(t) for t in tempo_onset[:3]])
+
+        logger.info(f"Raw tempo estimates: {tempo_estimates}")
+
+        # Filter out harmonic multiples/divisors
+        filtered_tempos = _filter_harmonic_duplicates(tempo_estimates)
+        logger.info(f"Filtered tempo estimates (harmonics removed): {filtered_tempos}")
+
+        # Choose best tempo from filtered estimates
+        bpm = _select_best_tempo(filtered_tempos)
         bpm_rounded = round(bpm, 1)
 
         status_callback(f"BPM detected: {bpm_rounded}")
-        logger.info(f"BPM detection complete: {bpm_rounded} BPM for {audio_path}")
+        logger.info(
+            f"BPM detection complete: {bpm_rounded} BPM "
+            f"(from {len(tempo_estimates)} estimates, {len(filtered_tempos)} after filtering)"
+        )
 
         return bpm_rounded
 
     except Exception as e:
         error_msg = f"BPM detection failed: {e}"
-        logger.error(error_msg)
+        logger.error(error_msg, exc_info=True)
         status_callback(f"Warning: {error_msg}")
         return None
 
@@ -265,9 +364,6 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         origin_wave, separated = separator.separate_audio_file(input_path)
         status_callback("Separation models finished.")
 
-        # Detect BPM from the original audio
-        detected_bpm = detect_bpm(input_path, status_callback)
-
         instrumental_tensor = calculate_instrumental(
             separated, status_callback, stop_event
         )
@@ -298,6 +394,9 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             config,
             logger,
         )
+
+        # Detect BPM after instrumental is saved (use instrumental for cleaner detection)
+        detected_bpm = detect_bpm(input_path, status_callback, instrumental_path)
         complete_msg = f"Processing complete for {input_path.name}!"
         logger.info(complete_msg)
         status_callback(complete_msg)
