@@ -34,6 +34,7 @@ export const useKaraokePlayer = (
     cleanup,
     seek: storeSeek,
     setSongAndLoad,
+    load,
     setVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
@@ -72,9 +73,20 @@ export const useKaraokePlayer = (
       const duration = getSongDuration(song);
       // Pass song metadata for mini-player display
       setSongAndLoad(song.id, duration, song.title, song.artist);
+    } else if (
+      // If the store already has this songId but audio wasn't loaded yet,
+      // trigger a load to avoid getting stuck with disabled controls.
+      song &&
+      songId &&
+      songId === currentSongId &&
+      !isReady &&
+      !isAudioLoading
+    ) {
+      // Fire and forget; store will update isReady/isLoading accordingly.
+      void load();
     }
     // Don't cleanup on unmount - mini-player needs the audio to keep playing
-  }, [song, songId, currentSongId, setSongAndLoad]);
+  }, [song, songId, currentSongId, setSongAndLoad, isReady, isAudioLoading, load]);
 
   // Auto-play functionality
   useEffect(() => {
