@@ -4,9 +4,7 @@
 
 import { ReactNode } from 'react';
 import type { Song } from '@/types/Song';
-
-// Size variants for the player
-export type PlayerSize = 'compact' | 'full' | 'stage';
+import type { KaraokeQueueItemWithSong } from '@/types/KaraokeQueue';
 
 // Sidebar display modes
 export type SidebarMode = 'floating' | 'push';
@@ -19,9 +17,11 @@ export interface KaraokePlayerProps {
   // Song to play
   songId: string;
   
+  // Queue data (optional) - used to show queue status when song ends
+  queueItems?: KaraokeQueueItemWithSong[];
+  
   // Player configuration
   autoPlay?: boolean;
-  size?: PlayerSize;
   
   // UI options
   controls?: boolean;

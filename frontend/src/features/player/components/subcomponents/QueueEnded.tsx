@@ -1,23 +1,21 @@
 /**
- * SongEndedOverlay - Overlay displayed when a song finishes playing
+ * QueueEnded - Content displayed when a song finishes playing and queue is empty
  * 
- * Shows song suggestions (like YouTube's end screen) and a replay button.
- * Designed to encourage users to continue singing rather than replaying.
+ * Shows song suggestions (like YouTube's end screen).
+ * Replaces the lyrics display when the song ends and no more songs are in queue.
  */
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RotateCcw, Music, Play, Library } from 'lucide-react';
+import { Music, Play, Library } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongSuggestions, getSuggestionReasonText } from '../../hooks/useSongSuggestions';
 import { useSongs } from '@/hooks/api/useSongs';
 import type { Song } from '@/types/Song';
 
-interface SongEndedOverlayProps {
+interface QueueEndedProps {
   /** The song that just finished */
   currentSong: Song;
-  /** Callback to replay the current song from the beginning */
-  onReplay: () => void;
   /** Callback when a suggested song is selected */
   onSelectSong?: (song: Song) => void;
   /** Optional class name */
@@ -75,9 +73,8 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
   );
 };
 
-export const SongEndedOverlay: React.FC<SongEndedOverlayProps> = ({
+export const QueueEnded: React.FC<QueueEndedProps> = ({
   currentSong,
-  onReplay,
   onSelectSong,
   className = '',
 }) => {
@@ -93,8 +90,8 @@ export const SongEndedOverlay: React.FC<SongEndedOverlayProps> = ({
     if (onSelectSong) {
       onSelectSong(song);
     } else {
-      // Default behavior: navigate to the song's player page
-      navigate(`/player/${song.id}`);
+      // Default behavior: add to queue
+      navigate('/library');
     }
   };
 
@@ -104,15 +101,15 @@ export const SongEndedOverlay: React.FC<SongEndedOverlayProps> = ({
     : null;
 
   return (
-    <div className={`absolute top-0 left-0 right-0 bottom-14 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm ${className}`}>
+    <div className={`flex items-center justify-center w-full h-full ${className}`}>
       <div className="flex flex-col items-center gap-6 p-6 max-w-4xl w-full">
         {/* Header */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-1">
-            Song Complete! 🎤
+            Queue Complete! 🎉
           </h2>
           <p className="text-white/60">
-            Great performance!
+            No more songs left to sing
           </p>
         </div>
 
@@ -146,21 +143,12 @@ export const SongEndedOverlay: React.FC<SongEndedOverlayProps> = ({
         {!isLoading && !hasSuggestions && (
           <div className="text-white/60 text-sm text-center">
             <p>No other songs by {currentSong.artist} in your library.</p>
-            <p className="mt-1">Add more songs to get suggestions!</p>
+            <p className="mt-1">Add more songs to continue your karaoke session!</p>
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Browse Library Button */}
         <div className="flex items-center gap-4 mt-4">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={onReplay}
-            className="bg-black/50 hover:bg-black/70 border-white/30 hover:border-white/50 text-white gap-2"
-          >
-            <RotateCcw className="w-5 h-5" />
-            Replay Song
-          </Button>
           <Button
             variant="outline"
             size="lg"
@@ -176,4 +164,4 @@ export const SongEndedOverlay: React.FC<SongEndedOverlayProps> = ({
   );
 };
 
-export default SongEndedOverlay;
+export default QueueEnded;
