@@ -15,6 +15,7 @@ interface ArtistResultsSectionProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   sentinelRef?: React.RefObject<HTMLDivElement>;
+  expandArtist?: string | null;
 }
 
 const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
@@ -24,6 +25,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   sentinelRef,
+  expandArtist,
 }) => {
   // Show section header
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
@@ -45,6 +47,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
         sentinelRef={sentinelRef}
+        expandArtist={expandArtist}
       />
     </div>
   );

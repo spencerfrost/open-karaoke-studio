@@ -16,6 +16,7 @@ interface ArtistAccordionProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   sentinelRef?: React.RefObject<HTMLDivElement>;
+  expandArtist?: string | null;
 }
 
 const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
@@ -25,6 +26,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   sentinelRef,
+  expandArtist,
 }) => {
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
     new Set(),
@@ -82,6 +84,35 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
       }
     }
   }, [pendingLetter, availableLetters]);
+
+  // Handle expandArtist query parameter
+  useEffect(() => {
+    if (!expandArtist) return;
+
+    const artist = artists.find((a) => a.name === expandArtist);
+    
+    if (artist) {
+      // Artist is loaded, expand it
+      setExpandedArtists((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(expandArtist);
+        return newSet;
+      });
+      
+      // Scroll to the artist section after a delay to ensure rendering
+      const scrollTimer = setTimeout(() => {
+        const element = document.getElementById(`artist-${expandArtist}`);
+        if (element) {
+          element.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
+      }, 500);
+      
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [expandArtist, artists]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

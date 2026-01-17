@@ -22,7 +22,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
     });
 
   return (
-    <div className="border border-orange-peel rounded-lg overflow-hidden">
+    <div className="border border-orange-peel rounded-lg overflow-hidden" id={`artist-${artistName}`}>
       {/* Artist Header */}
       <button
         onClick={onToggle}

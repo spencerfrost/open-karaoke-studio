@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useInfiniteArtists } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import AppLayout from "@/components/layout/AppLayout";
@@ -9,15 +10,20 @@ import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 const LibraryPage: React.FC = () => {
   // State
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams] = useSearchParams();
+  const expandArtist = searchParams.get("expandArtist");
+
+  // Clear search term if we're expanding an artist (don't filter by search)
+  const effectiveSearchTerm = expandArtist ? "" : searchTerm;
 
   // Song search (paginated, not infinite)
   const { useSongs } = useSongsHook();
 
   // Use appropriate parameters based on whether we're searching or browsing
-  const songsParams = searchTerm.trim()
+  const songsParams = effectiveSearchTerm.trim()
     ? {
         // Search parameters - the backend should handle this in useSongs
-        q: searchTerm,
+        q: effectiveSearchTerm,
         limit: 24,
         offset: 0,
         sort: "relevance",
@@ -39,7 +45,7 @@ const LibraryPage: React.FC = () => {
     isFetchingNextPage,
     fetchNextPage,
     isLoading: artistsLoading,
-  } = useInfiniteArtists(searchTerm, 200);
+  } = useInfiniteArtists(effectiveSearchTerm, 200);
 
   // Infinite scroll for artists
   const sentinelRef = useInfiniteScroll({
@@ -50,8 +56,16 @@ const LibraryPage: React.FC = () => {
     rootMargin: "100px",
   });
 
+  // When expandArtist is set, trigger loading all artists until we find them
+  React.useEffect(() => {
+    if (expandArtist && !artists.find(a => a.name === expandArtist) && hasNextPage && !isFetchingNextPage) {
+      console.log("[LibraryPage] Fetching more artists to find:", expandArtist);
+      fetchNextPage();
+    }
+  }, [expandArtist, artists, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // hasSearch logic
-  const hasSearch = searchTerm && searchTerm.trim().length > 0;
+  const hasSearch = effectiveSearchTerm && effectiveSearchTerm.trim().length > 0;
 
   return (
     <AppLayout>
@@ -92,6 +106,7 @@ const LibraryPage: React.FC = () => {
             isFetchingNextPage={isFetchingNextPage}
             fetchNextPage={fetchNextPage}
             sentinelRef={sentinelRef}
+            expandArtist={expandArtist}
           />
         </div>
       </div>
