@@ -7,34 +7,25 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useKaraokePlayer, usePlayerUI } from "../hooks";
 import {
-  PlayerControls,
   FullscreenContainer,
   PlayerErrorBoundary,
   PlayerSidebar,
-  PlayerSidebarTrigger,
-  SongEndedOverlay,
-  TapTempoButton,
+  SongEnded,
+  QueueEnded,
+  BottomControlsArea,
 } from "./subcomponents";
 import { LyricsDisplayWithCountIn } from "@/features/lyrics";
-import AudioVisualizer from "./subcomponents/AudioVisualizer";
-import ProgressBar from "./subcomponents/ProgressBar";
-import { formatTime } from "@/utils/formatters";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
-import { Settings2, Maximize, Play } from "lucide-react";
+import { Settings2, Maximize, Play, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { IndeterminateProgress } from "@/components/ui/indeterminate-progress";
 import { useTapTempo } from "@/hooks/useTapTempo";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
+  queueItems,
   autoPlay = false,
-  size = "full",
-  controls = true,
-  showInfo = true,
-  showVisualizer = true,
   sidebarMode = "floating",
-  showSidebarTrigger = true,
   onPlay,
   onPause,
   onEnd,
@@ -42,12 +33,10 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   onError,
   className = "",
 }) => {
-  // Navigation for song selection
-  const navigate = useNavigate();
-
   // Initialize player and UI hooks
   const player = useKaraokePlayer(songId, { autoPlay });
   const ui = usePlayerUI();
+  const navigate = useNavigate();
 
   // Hover state for overlay controls
   const [isHovering, setIsHovering] = React.useState(false);
@@ -113,7 +102,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     }
     mouseTimeoutRef.current = setTimeout(() => {
       setMouseRecentlyMoved(false);
-    }, 3000);
+    }, 30000);
   }, []);
 
   // Clear timeout on unmount
@@ -213,32 +202,11 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const noop = () => {};
   const noopVolume = (/*volume: number*/) => {};
 
-  // Size-based styling
-  const sizeClasses = {
-    compact: "max-h-80",
-    full: "aspect-video",
-    stage: "min-h-screen",
-  };
-
-  // Bottom offset for lyrics container to avoid overlapping controls
-  const lyricsBottomOffset = {
-    compact: "bottom-14",
-    full: "bottom-16",
-    stage: "bottom-20",
-  };
-
-  // Show controls based on configuration
-  const showControls = controls;
-  const showPlay = showControls;
-  const showVolume = showControls;
-  const showProgress = showControls;
-  const showFullscreen = showControls;
-
   // Error state
   if (player.error) {
     return (
       <div
-        className={`${sizeClasses[size]} ${className} flex flex-col items-center justify-center bg-black/80 rounded-xl text-center p-8`}
+        className={`aspect-video flex flex-col items-center justify-center bg-black/80 rounded-xl text-center p-8 ${className}`}
       >
         <div className="text-red-500 text-lg font-semibold mb-4">
           {player.error.message}
@@ -260,7 +228,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       isFullscreen={ui.isFullscreen}
       containerRef={ui.containerRef}
       fsError={ui.fsError}
-      className={`${sizeClasses[size]} ${className} bg-black/80 rounded-xl overflow-hidden relative flex-1`}
+      className={`$aspect-video bg-black/80 rounded-xl overflow-hidden relative flex-1 ${className}`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false);
@@ -271,14 +239,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       }}
       onMouseMove={handleMouseMove}
     >
-      {/* Song Ended Overlay - Shows suggestions when song finishes */}
-      {player.songEnded && player.song && (
-        <SongEndedOverlay
-          currentSong={player.song}
-          onReplay={player.replay}
-          onSelectSong={(song) => navigate(`/player/${song.id}`)}
-        />
-      )}
+
 
       {/* Hover Buttons - Show on hover when paused (but not when song ended) */}
       {!player.isPlaying && !player.songEnded && player.song && isHovering && (
@@ -347,14 +308,22 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         </div>
       )}
       {/* Song Info Header */}
-      {showInfo && player.song && (
+      {player.song && (
         <div className="absolute top-2 left-3 z-30 text-background/50">
-          <h1
-            className={`font-bold ${size === "stage" ? "text-2xl" : "text-xl"}`}
-          >
+          <h1 className="font-bold text-xl">
             {player.song.title}
           </h1>
-          <h2 className={`${size === "stage" ? "text-lg" : "text-base"}`}>
+          <h2 
+            className="text-base cursor-pointer hover:text-orange-peel transition-colors"
+            onClick={() => navigate(`/library?expandArtist=${encodeURIComponent(player.song.artist)}`)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                navigate(`/library?expandArtist=${encodeURIComponent(player.song.artist)}`);
+              }
+            }}
+          >
             {player.song.artist}
           </h2>
         </div>
@@ -369,11 +338,23 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         className="absolute top-2 right-3 z-30"
       />
 
-      {/* Main Lyrics Display or No Song Message - positioned above controls */}
+      {/* Main Lyrics Display or End States - positioned above controls */}
       <div
-        className={`absolute top-0 left-0 right-0 ${lyricsBottomOffset[size]}`}
+        className={`absolute top-0 left-0 right-0 bottom-0`}
       >
-        {player.song ? (
+        {player.song && player.songEnded ? (
+          // Determine if queue has more songs (position 0 is current, position > 0 are remaining)
+          queueItems && queueItems.length > 1 ? (
+            <SongEnded
+              currentSong={player.song}
+              nextQueueItem={queueItems.find((item) => item.position === 1)}
+            />
+          ) : (
+            <QueueEnded
+              currentSong={player.song}
+            />
+          )
+        ) : player.song ? (
           <LyricsDisplayWithCountIn
             lyrics={player.lyrics}
             isSync={player.isLyricsSync}
@@ -388,123 +369,65 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             songDuration={player.song?.duration}
             bpm={player.song?.bpm}
             // Count-in props (hardcoded for initial testing)
-            showCountdownNumbers={true}
+            showCountdownNumbers={false}
             showCountdownIcons={false}
             showProgressBar={true}
             showLeadInHighlight={false}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center w-full h-full">
-            <div className="text-background/60 text-xl font-semibold py-12">
+          <div className="flex flex-col items-center justify-center w-full h-full gap-4">
+            <div className="text-background/60 text-xl font-semibold">
               No songs in the queue
             </div>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => navigate("/library")}
+              className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
+            >
+              <Library className="w-5 h-5" />
+              Browse Library
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Tap Tempo Button - Bottom Left Corner */}
-      {player.song && (
-        <div className="absolute bottom-20 left-3 z-30">
-          <TapTempoButton
-            bpm={effectiveBpm}
-            songBpm={player.song.bpm ?? null}
-            isPlaying={player.isPlaying}
-            isActive={tapTempo.isActive}
-            tapCount={tapTempo.tapCount}
-            minTaps={MIN_TAPS}
-            hasUnsavedChanges={tapTempo.hasUnsavedChanges}
-            onTap={tapTempo.handleTap}
-            onSave={handleSaveBpm}
-            onReset={tapTempo.reset}
-            isSaving={isSavingBpm}
-          />
-        </div>
-      )}
+      {/* Tap Tempo Button - Removed, now in bottom controls */}
 
       {/* Bottom Controls Area */}
-      <div className="w-full absolute bottom-0 left-0 right-0 z-20">
-        {/* Audio Visualizer */}
-        {showVisualizer && <AudioVisualizer className="w-full" />}
-
-        {/* Progress Bar - show indeterminate when loading */}
-        {player.song &&
-          showProgress &&
-          (player.isLoading ? (
-            <IndeterminateProgress className="w-full" size="sm" />
-          ) : (
-            <ProgressBar
-              currentTime={player.currentTime}
-              duration={player.duration}
-              onSeek={player.seek}
-            />
-          ))}
-
-        {/* Player Controls (always rendered, disabled if no song) */}
-        <div className="flex items-center">
-          {/* Main Controls (Play/Pause, Volume) */}
-          <PlayerControls
-            isPlaying={player.isPlaying}
-            isReady={!!player.song && player.isReady}
-            vocalVolume={player.vocalVolume}
-            songEnded={player.songEnded}
-            isFullscreen={ui.isFullscreen}
-            showVolumeSlider={ui.showVolumeSlider}
-            controls={
-              [showPlay && "play", showVolume && "volume"].filter(
-                Boolean,
-              ) as Array<"play" | "volume">
-            }
-            onPlayPause={
-              player.song
-                ? player.songEnded
-                  ? player.replay
-                  : player.togglePlay
-                : noop
-            }
-            onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
-            onVolumeToggle={player.song ? handleVolumeToggle : noop}
-            onFullscreenToggle={ui.toggleFullscreen}
-            onVolumeSliderShow={ui.setShowVolumeSlider}
-          />
-
-          {/* Time Display */}
-          {player.song && showProgress && (
-            <div
-              className={`flex-1 text-sm text-background/50 ${size === "compact" ? "text-xs" : "text-sm"}`}
-            >
-              {formatTime(player.currentTime)} / {formatTime(player.duration)}
-            </div>
-          )}
-
-          {/* Spacer to push controls to far right */}
-          <div className="flex-1" />
-
-          {/* Sidebar Trigger */}
-          {showSidebarTrigger && (
-            <PlayerSidebarTrigger
-              onClick={() => setIsSidebarOpen(true)}
-              className="mr-1"
-            />
-          )}
-
-          {/* Fullscreen Control (always rendered, disabled if no song) */}
-          {showFullscreen && (
-            <PlayerControls
-              isPlaying={player.isPlaying}
-              isReady={!!player.song && player.isReady}
-              vocalVolume={player.vocalVolume}
-              isFullscreen={ui.isFullscreen}
-              showVolumeSlider={ui.showVolumeSlider}
-              controls={["fullscreen"]}
-              onPlayPause={player.song ? player.togglePlay : noop}
-              onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
-              onVolumeToggle={player.song ? handleVolumeToggle : noop}
-              onFullscreenToggle={ui.toggleFullscreen}
-              onVolumeSliderShow={ui.setShowVolumeSlider}
-            />
-          )}
-        </div>
-      </div>
+      <BottomControlsArea
+        song={player.song}
+        isLoading={player.isLoading}
+        isReady={player.isReady}
+        isPlaying={player.isPlaying}
+        songEnded={player.songEnded}
+        currentTime={player.currentTime}
+        duration={player.duration}
+        vocalVolume={player.vocalVolume}
+        isFullscreen={ui.isFullscreen}
+        tapTempoBpm={effectiveBpm}
+        tapTempoSongBpm={player.song?.bpm ?? null}
+        tapTempoIsActive={tapTempo.isActive}
+        tapTempoTapCount={tapTempo.tapCount}
+        tapTempoMinTaps={MIN_TAPS}
+        tapTempoHasUnsavedChanges={tapTempo.hasUnsavedChanges}
+        tapTempoIsSaving={isSavingBpm}
+        mouseRecentlyMoved={mouseRecentlyMoved}
+        onPlayPause={
+          player.song
+            ? player.songEnded
+              ? player.replay
+              : player.togglePlay
+            : noop
+        }
+        onSeek={player.seek}
+        onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
+        onVolumeToggle={player.song ? handleVolumeToggle : noop}
+        onFullscreenToggle={ui.toggleFullscreen}
+        onTapTempoTap={tapTempo.handleTap}
+        onTapTempoSave={handleSaveBpm}
+        onTapTempoReset={tapTempo.reset}
+      />
 
       {/* Right Edge Hover Zone - Opens sidebar on click */}
       {!isSidebarOpen && (
@@ -558,7 +481,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     <PlayerErrorBoundary onError={undefined}>
       {sidebarMode === "push" ? (
         // Push mode: flex container with sidebar alongside player
-        <div className="flex w-full h-full">
+        <div className="flex aspect-video">
           {playerContent}
           <PlayerSidebar
             isOpen={isSidebarOpen}
