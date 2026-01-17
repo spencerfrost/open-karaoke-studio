@@ -10,3 +10,4 @@ export { LyricsResults } from './components/LyricsResults';
 export { default as LyricsTimingControls } from './components/LyricsTimingControls';
 export { default as LyricsDisplay } from './components/LyricsDisplay';
 export { default as LyricsDisplayWithCountIn } from './components/LyricsDisplayWithCountIn';
+export { default as KaraokeLyricsRenderer } from './components/KaraokeLyricsRenderer';
