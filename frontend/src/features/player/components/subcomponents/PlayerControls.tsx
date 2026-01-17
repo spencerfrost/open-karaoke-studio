@@ -3,7 +3,7 @@
  * Configurable controls with accessibility features and keyboard support
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState, useRef } from 'react';
 import {
   Play,
   Pause,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { TapTempoButton } from './TapTempoButton';
 import type { PlayerControl } from '../../types/KaraokePlayer.types';
 
 interface PlayerControlsProps {
@@ -24,21 +25,31 @@ interface PlayerControlsProps {
   isReady: boolean;
   vocalVolume: number;
   songEnded?: boolean; // True when song finished naturally
-  
+
   // UI state
   isFullscreen: boolean;
-  showVolumeSlider: boolean;
-  
+
+  // Tap tempo props
+  tapTempoBpm: number | null;
+  tapTempoSongBpm: number | null;
+  tapTempoIsActive: boolean;
+  tapTempoTapCount: number;
+  tapTempoMinTaps: number;
+  tapTempoHasUnsavedChanges: boolean;
+  tapTempoIsSaving?: boolean;
+
   // Controls configuration
   controls?: PlayerControl[];
-  
+
   // Event handlers
   onPlayPause: () => void;
   onVolumeChange: (volume: number) => void;
   onVolumeToggle: () => void;
   onFullscreenToggle: () => void;
-  onVolumeSliderShow: (show: boolean) => void;
-  
+  onTapTempoTap?: () => void;
+  onTapTempoSave?: () => void;
+  onTapTempoReset?: () => void;
+
   className?: string;
 }
 
@@ -48,19 +59,38 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(({
   vocalVolume,
   songEnded = false,
   isFullscreen,
-  showVolumeSlider,
-  controls = ['play', 'volume', 'fullscreen'],
+  tapTempoBpm,
+  tapTempoSongBpm,
+  tapTempoIsActive,
+  tapTempoTapCount,
+  tapTempoMinTaps,
+  tapTempoHasUnsavedChanges,
+  tapTempoIsSaving = false,
   onPlayPause,
   onVolumeChange,
   onVolumeToggle,
   onFullscreenToggle,
-  onVolumeSliderShow,
+  onTapTempoTap = () => {},
+  onTapTempoSave = () => {},
+  onTapTempoReset = () => {},
   className = "",
 }) => {
-  const showPlay = controls.includes('play');
-  const showVolume = controls.includes('volume');
-  const showFullscreen = controls.includes('fullscreen');
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const handleMouseEnter = () => {
+    setShowVolumeSlider(true);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setShowVolumeSlider(false);
+    }, 200);
+  };
   // Determine play button icon and label
   const getPlayButtonProps = () => {
     if (isPlaying) {
@@ -84,71 +114,87 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(({
   const playButtonProps = getPlayButtonProps();
 
   return (
-    <div className={`flex items-center ${className}`} role="toolbar" aria-label="Player controls">
-      {/* Play/Pause/Replay Button */}
-      {showPlay && (
+    <div className={`w-full grid grid-cols-3 py-6 ${className}`} role="toolbar" aria-label="Player controls">
+      {/* Volume Control */}
+      <div
+        className="relative justify-self-start flex items-center"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
         <Button
-          variant="ghost"
-          aria-label={playButtonProps.label}
-          onClick={onPlayPause}
-          disabled={!isReady}
-          className="px-4"
+          variant="pill"
+          aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
+          onClick={onVolumeToggle}
           tabIndex={0}
         >
-          {playButtonProps.icon}
+          {vocalVolume === 0 ? (
+            <VolumeX size={28} aria-hidden="true" />
+          ) : vocalVolume < 0.5 ? (
+            <Volume1 size={28} aria-hidden="true" />
+          ) : (
+            <Volume2 size={28} aria-hidden="true" />
+          )}
         </Button>
-      )}
-
-      {/* Volume Control */}
-      {showVolume && (
-        <div
-          className="relative"
-          onMouseEnter={() => onVolumeSliderShow(true)}
-          onMouseLeave={() => onVolumeSliderShow(false)}
-        >
-          <Button
-            variant="ghost"
-            aria-label={vocalVolume === 0 ? "Unmute vocals" : "Mute vocals"}
-            className="px-4"
-            onClick={onVolumeToggle}
-            tabIndex={0}
+        {showVolumeSlider && (
+          <div
+            className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 bg-transparent z-50"
+            role="region"
+            aria-label="Volume control"
           >
-            {vocalVolume === 0 ? (
-              <VolumeX size={28} aria-hidden="true" />
-            ) : vocalVolume < 0.5 ? (
-              <Volume1 size={28} aria-hidden="true" />
-            ) : (
-              <Volume2 size={28} aria-hidden="true" />
-            )}
-          </Button>
-          {showVolumeSlider && (
-            <div 
-              className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-primary rounded-md px-4 py-2 z-50 flex flex-col items-center"
-              role="region"
-              aria-label="Volume control"
+            <div
+              className="p-3"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
             >
               <Slider
-                orientation="vertical"
                 min={0}
                 max={1}
                 step={0.01}
                 value={[vocalVolume]}
                 onValueChange={([val]) => onVolumeChange(val)}
                 aria-label="Vocals volume"
-                className="h-24 w-4"
+                className="w-24 h-4"
               />
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* Fullscreen Button */}
-      {showFullscreen && (
+      {/* Play/Pause/Replay Button */}
+      <Button
+        aria-label={playButtonProps.label}
+        onClick={onPlayPause}
+        disabled={!isReady}
+        className="p-4 justify-self-center rounded-full"
+        variant="pill"
+        size="lg"
+        tabIndex={0}
+      >
+        {playButtonProps.icon}
+      </Button>
+
+      {/* Right Controls Group - Fullscreen and Tap Tempo */}
+      <div className="flex items-center gap-2 justify-self-end">
+        {/* Tap Tempo Button */}
+        <TapTempoButton
+          bpm={tapTempoBpm}
+          songBpm={tapTempoSongBpm}
+          isPlaying={isPlaying}
+          isActive={tapTempoIsActive}
+          tapCount={tapTempoTapCount}
+          minTaps={tapTempoMinTaps}
+          hasUnsavedChanges={tapTempoHasUnsavedChanges}
+          onTap={onTapTempoTap}
+          onSave={onTapTempoSave}
+          onReset={onTapTempoReset}
+          isSaving={tapTempoIsSaving}
+        />
+
+        {/* Fullscreen Button */}
         <Button
-          variant="ghost"
+          variant="pill"
           aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           onClick={onFullscreenToggle}
-          className="px-4"
           tabIndex={0}
         >
           {isFullscreen ? (
@@ -157,7 +203,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(({
             <Maximize size={24} aria-hidden="true" />
           )}
         </Button>
-      )}
+      </div>
     </div>
   );
 });

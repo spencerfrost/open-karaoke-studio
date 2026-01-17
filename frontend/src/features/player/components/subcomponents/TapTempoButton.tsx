@@ -96,6 +96,34 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
+      {/* Save button - show when BPM has changed */}
+      {bpmChanged && (
+        <>
+          <Button
+            size="sm"
+            onClick={onSave}
+            disabled={isSaving}
+            className={cn(
+              "h-9 px-3 bg-orange-peel hover:bg-orange-peel/90",
+              "border border-orange-peel/50",
+              hasUnsavedChanges && "animate-pulse"
+            )}
+            title="Save BPM to song"
+          >
+            <Save className="w-4 h-4" />
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onReset}
+            className="h-9 px-3 bg-black/40 hover:bg-black/60 border border-orange-peel/30 hover:border-orange-peel/60"
+            title={songBpm ? `Reset to ${songBpm.toFixed(1)} BPM` : "Clear tempo"}
+          >
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </>
+      )}
       <button
         onClick={onTap}
         onMouseEnter={() => setIsHovering(true)}
@@ -144,36 +172,6 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
           )}
         </div>
       </button>
-
-      {/* Save button - show when BPM has changed */}
-      {bpmChanged && (
-        <Button
-          size="sm"
-          onClick={onSave}
-          disabled={isSaving}
-          className={cn(
-            "h-9 px-3 bg-orange-peel hover:bg-orange-peel/90",
-            "border border-orange-peel/50",
-            hasUnsavedChanges && "animate-pulse"
-          )}
-          title="Save BPM to song"
-        >
-          <Save className="w-4 h-4" />
-        </Button>
-      )}
-
-      {/* Reset button - show when BPM has been tapped */}
-      {showBpm && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onReset}
-          className="h-9 px-3 bg-black/40 hover:bg-black/60 border border-orange-peel/30 hover:border-orange-peel/60"
-          title={songBpm ? `Reset to ${songBpm.toFixed(1)} BPM` : "Clear tempo"}
-        >
-          <RotateCcw className="w-4 h-4" />
-        </Button>
-      )}
     </div>
   );
 };

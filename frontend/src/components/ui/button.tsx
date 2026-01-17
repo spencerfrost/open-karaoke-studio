@@ -23,6 +23,7 @@ const buttonVariants = cva(
         ghost: "text-primary hover:bg-primary/20",
         icon: "text-primary hover:bg-primary/20 rounded-full",
         link: "text-primary underline-offset-4 hover:underline",
+        pill: "rounded-full bg-primary/20 text-accent-foreground hover:bg-primary/70",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
