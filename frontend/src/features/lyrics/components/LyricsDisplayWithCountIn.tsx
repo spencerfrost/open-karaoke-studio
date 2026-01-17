@@ -34,7 +34,7 @@ interface LyricsDisplayWithCountInProps extends LyricsDisplayProps {
   showLeadInHighlight?: boolean;
 }
 
-const LyricsDisplayWithCountIn: React.FC<LyricsDisplayWithCountInProps> = ({
+const LyricsDisplayWithCountInComponent: React.FC<LyricsDisplayWithCountInProps> = ({
   lyrics,
   bpm,
   showCountdownNumbers = false,
@@ -84,5 +84,39 @@ const LyricsDisplayWithCountIn: React.FC<LyricsDisplayWithCountInProps> = ({
     </div>
   );
 };
+
+// Memoize component with custom comparison to prevent unnecessary re-renders
+// Only re-render when currentTime crosses a 100ms boundary (10Hz)
+// This balances smooth animations with reduced React overhead
+const LyricsDisplayWithCountIn = React.memo(
+  LyricsDisplayWithCountInComponent,
+  (prevProps, nextProps) => {
+    // Always re-render if non-time props changed
+    // NOTE: onSeek is intentionally excluded - function reference changes don't affect rendering
+    if (
+      prevProps.lyrics !== nextProps.lyrics ||
+      prevProps.isSync !== nextProps.isSync ||
+      prevProps.lyricsSize !== nextProps.lyricsSize ||
+      prevProps.lyricsOffset !== nextProps.lyricsOffset ||
+      prevProps.bpm !== nextProps.bpm ||
+      prevProps.showCountdownNumbers !== nextProps.showCountdownNumbers ||
+      prevProps.showCountdownIcons !== nextProps.showCountdownIcons ||
+      prevProps.showProgressBar !== nextProps.showProgressBar ||
+      prevProps.showLeadInHighlight !== nextProps.showLeadInHighlight ||
+      prevProps.songId !== nextProps.songId
+    ) {
+      return false; // Props changed, re-render
+    }
+
+    // For currentTime, only re-render if it crosses a 100ms boundary
+    // This reduces updates from 60Hz to 10Hz while keeping animations acceptably smooth
+    const prevTimeBucket = Math.floor((prevProps.currentTime * 1000) / 100);
+    const nextTimeBucket = Math.floor((nextProps.currentTime * 1000) / 100);
+
+    return prevTimeBucket === nextTimeBucket; // Same bucket = skip render
+  }
+);
+
+LyricsDisplayWithCountIn.displayName = "LyricsDisplayWithCountIn";
 
 export default LyricsDisplayWithCountIn;
