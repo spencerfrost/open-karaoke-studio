@@ -79,3 +79,4 @@ frontend/dev-dist/workbox-31862777.js
 docs/claude.xml
 backend/app_flask_backup
 backend/benchmark_results_*
+backend/reports
