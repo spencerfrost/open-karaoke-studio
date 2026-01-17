@@ -13,8 +13,9 @@ import {
   PlayerSidebar,
   PlayerSidebarTrigger,
   SongEndedOverlay,
+  TapTempoButton,
 } from "./subcomponents";
-import { LyricsDisplay } from "@/features/lyrics";
+import { LyricsDisplayWithCountIn } from "@/features/lyrics";
 import AudioVisualizer from "./subcomponents/AudioVisualizer";
 import ProgressBar from "./subcomponents/ProgressBar";
 import { formatTime } from "@/utils/formatters";
@@ -23,6 +24,7 @@ import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 import { Settings2, Maximize, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IndeterminateProgress } from "@/components/ui/indeterminate-progress";
+import { useTapTempo } from "@/hooks/useTapTempo";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
@@ -63,6 +65,46 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     null,
   );
 
+  // Tap tempo hook with minimum 3 taps before setting BPM
+  const MIN_TAPS = 3;
+  const tapTempo = useTapTempo({
+    minTaps: MIN_TAPS,
+  });
+
+  // Track saving state
+  const [isSavingBpm, setIsSavingBpm] = React.useState(false);
+
+  // Get effective BPM (from tap tempo if active, otherwise from song)
+  const effectiveBpm = tapTempo.bpm ?? player.song?.bpm ?? null;
+
+  // Save BPM to database
+  const handleSaveBpm = React.useCallback(async () => {
+    if (songId && tapTempo.bpm && tapTempo.bpm >= 30 && tapTempo.bpm <= 300) {
+      setIsSavingBpm(true);
+      try {
+        const response = await fetch(`/api/songs/${songId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ bpm: tapTempo.bpm }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update BPM: ${response.status}`);
+        }
+
+        // Reset the tap tempo after successful save
+        tapTempo.reset();
+      } catch (error) {
+        console.error("Failed to update BPM:", error);
+      } finally {
+        setIsSavingBpm(false);
+      }
+    }
+  }, [songId, tapTempo]);
+
   // Reset mouse movement timer on mouse move while hovering
   const handleMouseMove = React.useCallback(() => {
     setMouseRecentlyMoved(true);
@@ -82,6 +124,30 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       }
     };
   }, []);
+
+  // Global spacebar handler for tap tempo
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle spacebar if not focused on an input element
+      if (
+        e.code === "Space" &&
+        e.target instanceof HTMLElement &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)
+      ) {
+        // Don't prevent default if the player isn't loaded or ready
+        if (!player.song || !player.isReady) {
+          return;
+        }
+
+        // Prevent default space behavior (scrolling) when tapping tempo
+        e.preventDefault();
+        tapTempo.handleTap();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [player.song, player.isReady, tapTempo]);
 
   // Show sidebar trigger when hovering and mouse recently moved
   const showSidebarTriggerIcon = isHovering && mouseRecentlyMoved;
@@ -308,7 +374,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         className={`absolute top-0 left-0 right-0 ${lyricsBottomOffset[size]}`}
       >
         {player.song ? (
-          <LyricsDisplay
+          <LyricsDisplayWithCountIn
             lyrics={player.lyrics}
             isSync={player.isLyricsSync}
             currentTime={player.currentTime}
@@ -320,6 +386,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             songArtist={player.song?.artist}
             songAlbum={player.song?.album}
             songDuration={player.song?.duration}
+            bpm={player.song?.bpm}
+            // Count-in props (hardcoded for initial testing)
+            showCountdownNumbers={true}
+            showCountdownIcons={false}
+            showProgressBar={true}
+            showLeadInHighlight={false}
           />
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full">
@@ -329,6 +401,25 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           </div>
         )}
       </div>
+
+      {/* Tap Tempo Button - Bottom Left Corner */}
+      {player.song && (
+        <div className="absolute bottom-20 left-3 z-30">
+          <TapTempoButton
+            bpm={effectiveBpm}
+            songBpm={player.song.bpm ?? null}
+            isPlaying={player.isPlaying}
+            isActive={tapTempo.isActive}
+            tapCount={tapTempo.tapCount}
+            minTaps={MIN_TAPS}
+            hasUnsavedChanges={tapTempo.hasUnsavedChanges}
+            onTap={tapTempo.handleTap}
+            onSave={handleSaveBpm}
+            onReset={tapTempo.reset}
+            isSaving={isSavingBpm}
+          />
+        </div>
+      )}
 
       {/* Bottom Controls Area */}
       <div className="w-full absolute bottom-0 left-0 right-0 z-20">
