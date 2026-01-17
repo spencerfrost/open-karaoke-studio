@@ -15,15 +15,4 @@ export interface SongArtworkProps {
   artworkUrl: string | null;
   showSyncedBadge?: boolean;
   onPlay: (e?: React.MouseEvent) => void;
-}
-
-export interface SongInfoProps {
-  song: Song;
-}
-
-export interface SongActionsProps {
-  onPlay?: (e?: React.MouseEvent) => void;
-  onQueue?: (e: React.MouseEvent) => void;
-  onDelete?: (e: React.MouseEvent) => void;
-  onDetails?: (e: React.MouseEvent) => void;
-}
+  showPlayButton?: boolean;

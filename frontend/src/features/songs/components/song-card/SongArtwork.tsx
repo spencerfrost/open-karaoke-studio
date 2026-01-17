@@ -14,6 +14,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
   artworkUrl,
   showSyncedBadge = true,
   onPlay,
+  showPlayButton = true,
 }) => {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -27,12 +28,14 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
     >
       {showSyncedBadge && song.syncedLyrics && <SyncedLyricsBadge />}
 
-      {/* Play button overlay */}
-      <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
-        <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
-          <Play className="w-12 h-12 text-white fill-white" />
+      {/* Play button overlay - only show if showPlayButton is true */}
+      {showPlayButton && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
+          <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+            <Play className="w-12 h-12 text-white fill-white" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="aspect-video w-full">
         {artworkUrl ? (

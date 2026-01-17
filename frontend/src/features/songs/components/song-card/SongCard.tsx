@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useSessionStore } from "@/stores/sessionStore";
 import { useSongActions } from "../../hooks/useSongActions";
 import { useSongDialogs } from "../../hooks/useSongDialogs";
 import { SongArtwork } from "./SongArtwork";
@@ -18,6 +19,7 @@ export const SongCard: React.FC<SongCardProps> = ({
   sessionId,
 }) => {
   const { getArtworkUrl } = useSongs();
+  const { isHost } = useSessionStore();
   const artworkUrl = getArtworkUrl(song, "medium");
 
   const songActions = useSongActions(song, {  }, sessionId);
@@ -64,6 +66,7 @@ export const SongCard: React.FC<SongCardProps> = ({
             artworkUrl={artworkUrl}
             showSyncedBadge={variant === "detailed"}
             onPlay={songActions.handlePlay}
+            showPlayButton={isHost}
           />
           <SongInfo song={song} />
         </div>
