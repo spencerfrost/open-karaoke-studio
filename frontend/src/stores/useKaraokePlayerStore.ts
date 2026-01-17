@@ -101,7 +101,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   let instrumentalGain: GainNode | null = null;
   let vocalGain: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
-  let interval: NodeJS.Timeout | null = null;
+  let animationFrameId: number | null = null;
+  let websocketInterval: NodeJS.Timeout | null = null;
 
   let playbackStartTime: number | null = null; // audioContext.currentTime when playback started
   let playbackOffset: number = 0; // seconds into the track when playback started
@@ -131,7 +132,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   }
 
   function clearIntervals() {
-    if (interval) clearInterval(interval);
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (websocketInterval) clearInterval(websocketInterval);
+    animationFrameId = null;
+    websocketInterval = null;
   }
 
   function socketEmit(messageType: string, data?: Record<string, unknown>) {
@@ -237,19 +241,38 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     playbackOffset = 0;
   }
 
-  function startTimeInterval() {
-    if (interval) clearInterval(interval);
+  function startTimeUpdate() {
+    // Cancel any existing animation frame and websocket interval
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (websocketInterval) clearInterval(websocketInterval);
     if (!audioContext) return;
-    interval = setInterval(() => {
-      const { isReady, isPlaying, duration } = get();
-      if (!isReady) return;
+
+    // High-frequency currentTime updates using requestAnimationFrame (~60Hz)
+    const updateCurrentTime = () => {
+      const { isReady, isPlaying } = get();
+      if (!isReady || !isPlaying) {
+        animationFrameId = null;
+        return;
+      }
+
       let currentTime = playbackOffset;
       if (isPlaying && playbackStartTime !== null && audioContext) {
         currentTime =
           playbackOffset + (audioContext.currentTime - playbackStartTime);
       }
       set({ currentTime });
-      if (audioContext && isPlaying) {
+
+      // Continue animation loop
+      animationFrameId = requestAnimationFrame(updateCurrentTime);
+    };
+
+    // Start the animation frame loop
+    animationFrameId = requestAnimationFrame(updateCurrentTime);
+
+    // Separate low-frequency WebSocket broadcasts (300ms interval)
+    websocketInterval = setInterval(() => {
+      const { isReady, isPlaying, currentTime, duration } = get();
+      if (isReady && isPlaying && audioContext) {
         socketEmit("update_player_state", {
           isPlaying: true,
           currentTime,
@@ -553,7 +576,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       playbackStartTime = audioContext.currentTime;
       updatePlayerState({ isPlaying: true });
 
-      startTimeInterval();
+      startTimeUpdate();
     },
 
     pause: () => {
@@ -593,7 +616,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       if (get().isPlaying) {
         setupAudioGraph(audioContext.currentTime, timeSeconds);
         playbackStartTime = audioContext.currentTime;
-        startTimeInterval();
+        startTimeUpdate();
         updatePlayerState({ currentTime: timeSeconds });
       } else {
         playbackStartTime = null;

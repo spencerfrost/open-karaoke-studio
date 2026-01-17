@@ -159,4 +159,4 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
   );
 };
 
-export default CountInDisplay;
+export default React.memo(CountInDisplay);

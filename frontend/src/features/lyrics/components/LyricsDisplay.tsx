@@ -4,7 +4,7 @@
  * Optimized for performance with smooth scrolling and proper accessibility
  */
 
-import React, { memo, useState } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { Lrc } from "react-lrc";
 import { Button } from "@/components/ui/button";
 import { Search, FileText } from "lucide-react";
@@ -132,41 +132,48 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
           ? "text-4xl"
           : "text-2xl";
 
+    // Memoize lineRenderer to prevent unnecessary re-renders of all lyrics lines
+    // Only recreate when dependencies change (lyricsSize, onSeek)
+    const lineRenderer = useCallback(
+      ({ active, line }: { active: boolean; line: { content: string; startMillisecond: number } }) => (
+        <div
+          className={`py-2 px-2 transition-all duration-500 text-center ${
+            onSeek ? "cursor-pointer hover:opacity-100" : ""
+          } ${
+            active
+              ? `text-background font-bold ${activeLyricsSizeClass} text-shadow`
+              : `text-background/50 opacity-70 ${onSeek ? "hover:opacity-90" : ""} ${lyricsSizeClass}`
+          }`}
+          onClick={
+            onSeek ? () => onSeek(line.startMillisecond / 1000) : undefined
+          }
+          role={active ? "status" : onSeek ? "button" : undefined}
+          tabIndex={onSeek ? 0 : undefined}
+          onKeyDown={
+            onSeek
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSeek(line.startMillisecond / 1000);
+                  }
+                }
+              : undefined
+          }
+          aria-live={active ? "polite" : undefined}
+        >
+          {line.content}
+        </div>
+      ),
+      [lyricsSizeClass, activeLyricsSizeClass, onSeek]
+    );
+
     if (isSync) {
       return (
         <Lrc
           lrc={lyrics}
           currentMillisecond={currentTime * 1000 + lyricsOffset}
           verticalSpace={true}
-          lineRenderer={({ active, line }) => (
-            <div
-              className={`py-2 px-2 transition-all duration-500 text-center ${
-                onSeek ? "cursor-pointer hover:opacity-100" : ""
-              } ${
-                active
-                  ? `text-background font-bold ${activeLyricsSizeClass} text-shadow`
-                  : `text-background/50 opacity-70 ${onSeek ? "hover:opacity-90" : ""} ${lyricsSizeClass}`
-              }`}
-              onClick={
-                onSeek ? () => onSeek(line.startMillisecond / 1000) : undefined
-              }
-              role={active ? "status" : onSeek ? "button" : undefined}
-              tabIndex={onSeek ? 0 : undefined}
-              onKeyDown={
-                onSeek
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSeek(line.startMillisecond / 1000);
-                      }
-                    }
-                  : undefined
-              }
-              aria-live={active ? "polite" : undefined}
-            >
-              {line.content}
-            </div>
-          )}
+          lineRenderer={lineRenderer}
           className={`lrc h-full w-full overflow-y-scroll scrollbar-hide mask-image-fade-bottom ${className}`}
           role="region"
           aria-label={ariaLabel}
