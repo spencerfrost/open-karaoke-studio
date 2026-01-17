@@ -63,3 +63,12 @@ export function hasLrcTimestamps(content: string): boolean {
   const timestampRegex = /\[\d{2}:\d{2}\.\d{2,3}\]/;
   return timestampRegex.test(content);
 }
+
+// Export LRC parser for count-in system
+export {
+  parseLrcWithCountIn,
+  type ParsedLrcData,
+  type CountInTrigger,
+  type LrcLine,
+  type InstrumentalGap,
+} from "./lrcParser";
