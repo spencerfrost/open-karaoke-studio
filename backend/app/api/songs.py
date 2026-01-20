@@ -19,6 +19,14 @@ import uuid
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
+from app.api.validators import (
+    CAMEL_TO_SNAKE_CASE,
+    VALID_ARTIST_SORT_FIELDS,
+    VALID_SONG_SORT_FIELDS,
+    map_fields_to_db,
+    validate_direction,
+    validate_sort_field,
+)
 from app.config import get_config
 from app.db.database import SessionLocal
 from app.db.models.song import DbSong
@@ -84,13 +92,9 @@ async def get_songs(
     """
     logger.info("Received request for /api/songs")
 
-    # Validate sort_by
-    valid_sort_fields = {"date_added", "title", "artist", "album", "year"}
-    if sort_by not in valid_sort_fields:
-        sort_by = "date_added"
-
-    if direction.lower() not in ["asc", "desc"]:
-        direction = "desc"
+    # Validate sort_by and direction
+    sort_by = validate_sort_field(sort_by, VALID_SONG_SORT_FIELDS)
+    direction = validate_direction(direction)
 
     try:
         repo = SongRepository(db)
@@ -134,11 +138,8 @@ async def search_songs(
             pagination=PaginationInfo(total=0, limit=limit, offset=offset, hasMore=False),
         )
 
-    if direction not in ["asc", "desc"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
-        )
+    # Validate direction
+    direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
         search_filter = or_(
@@ -286,30 +287,15 @@ async def get_songs_by_artist(
     """
     # Decode the artist name
     artist_name = unquote(artist_name)
-    
-    # Validate sort field
-    valid_sorts = {"title", "album", "year", "dateAdded", "date_added"}
-    if sort not in valid_sorts:
+
+    # Validate sort field and direction
+    if sort not in VALID_ARTIST_SORT_FIELDS:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid sort field: {sort}. Must be one of: title, album, year, dateAdded",
         )
-    
-    # Map camelCase to snake_case for database field
-    sort_field_map = {
-        "title": "title",
-        "album": "album", 
-        "year": "year",
-        "dateAdded": "date_added",
-        "date_added": "date_added",
-    }
-    db_sort_field = sort_field_map.get(sort, "title")
-    
-    if direction not in ["asc", "desc"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sort direction: {direction}. Must be 'asc' or 'desc'",
-        )
+    db_sort_field = CAMEL_TO_SNAKE_CASE.get(sort, sort)
+    direction = validate_direction(direction, raise_on_invalid=True)
     
     try:
         base_query = db.query(DbSong).filter(DbSong.artist == artist_name)
@@ -435,29 +421,8 @@ async def update_song(
             raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
 
         # Build update fields from provided data
-        update_fields = {}
         update_dict = update_data.model_dump(exclude_unset=True)
-
-        # Handle field mapping (camelCase to snake_case)
-        field_mapping = {
-            "syncedLyrics": "synced_lyrics",
-            "plainLyrics": "plain_lyrics",
-            "releaseDate": "release_date",
-            "itunesTrackId": "itunes_track_id",
-            "itunesArtworkUrls": "itunes_artwork_urls",
-            "itunesExplicit": "itunes_explicit",
-            "itunesPreviewUrl": "itunes_preview_url",
-        }
-
-        for key, value in update_dict.items():
-            if value is not None:
-                db_field = field_mapping.get(key, key)
-                # Serialize list fields to JSON for TEXT columns
-                if db_field == "itunes_artwork_urls" and isinstance(value, list):
-                    import json
-                    update_fields[db_field] = json.dumps(value)
-                else:
-                    update_fields[db_field] = value
+        update_fields = map_fields_to_db(update_dict)
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
