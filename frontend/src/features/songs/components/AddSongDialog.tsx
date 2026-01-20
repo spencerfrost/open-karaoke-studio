@@ -9,15 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MetadataResults } from "./MetadataResults";
+import { Separator } from "@/components/ui/separator";
 import { LyricsResults } from "@/features/lyrics/components/LyricsResults";
+import { MetadataEditForm, MetadataFormData } from "./MetadataEditForm";
 import { useSongCreation } from "../hooks/useSongCreation";
 import { useAddSongDialog } from "../hooks/useAddSongDialog";
-import { useMetadata } from "@/hooks/api/useMetadata";
 import { useSaveMetadataMutation } from "@/hooks/api/useYoutube";
-import type { MetadataOption } from "@/hooks/api/useMetadata";
 import type { CreateSongResponse } from "@/hooks/api/useYoutube";
-import { Search, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 interface AddSongDialogContainerProps {
@@ -57,24 +56,18 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
   const activeDuration =
     flow === "youtube-video" ? videoDuration : currentSong?.duration;
 
-  // Page navigation for YouTube video flow (lyrics -> metadata)
-  const [currentPage, setCurrentPage] = useState<"lyrics" | "metadata">(
-    "lyrics",
-  );
-
-  // State for search refinement
+  // State for search refinement (lyrics only)
   const [refinedQuery, setRefinedQuery] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [hasRefined, setHasRefined] = useState(false);
 
-  // YouTube video flow specific state
-  const [selectedMetadata, setSelectedMetadata] =
-    useState<MetadataOption | null>(null);
-
-  // Metadata search for YouTube video flow
-  const { useSearchMetadata } = useMetadata();
-  const searchMetadata = useSearchMetadata();
-  const metadataOptions = searchMetadata.data?.results || [];
+  // YouTube video flow specific state - metadata form
+  const [editedMetadata, setEditedMetadata] = useState<MetadataFormData>({
+    title: "",
+    artist: "",
+    album: "",
+    genre: "",
+  });
 
   // Save mutation for YouTube video flow
   const saveMetadataMutation = useSaveMetadataMutation(activeSong?.id || "", {
@@ -90,11 +83,9 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setCurrentPage("lyrics");
       setRefinedQuery("");
       setIsRefining(false);
       setHasRefined(false);
-      setSelectedMetadata(null);
 
       // Pre-populate search field with current song metadata when dialog opens
       if (currentSong) {
@@ -106,28 +97,31 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         setRefinedQuery(defaultQuery);
       }
 
-      // For YouTube video flow, immediately start metadata search
+      // Initialize metadata form for YouTube video flow
       if (flow === "youtube-video" && currentSong) {
-        setTimeout(() => {
-          searchMetadata.mutate({
-            artist: currentSong.artist,
-            title: currentSong.title,
-            album: currentSong.album,
-          });
-        }, 100);
+        setEditedMetadata({
+          title: videoTitle || currentSong.title || "",
+          artist: currentSong.artist || "",
+          album: currentSong.album || "",
+          genre: "",
+        });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, currentSong, flow]);
+  }, [isOpen, currentSong, flow, videoTitle]);
 
   const handleClose = () => {
     closeDialog();
     songCreation.resetState();
-    setCurrentPage("lyrics");
     setRefinedQuery("");
     setIsRefining(false);
     setHasRefined(false);
-    setSelectedMetadata(null);
+    setEditedMetadata({
+      title: "",
+      artist: "",
+      album: "",
+      genre: "",
+    });
   };
 
   const handleSearchRefinement = async () => {
@@ -156,15 +150,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         }
       }
 
-      if (currentPage === "lyrics") {
-        await searchLyrics(customTitle, customArtist, currentSong.album);
-      } else if (currentPage === "metadata") {
-        searchMetadata.mutate({
-          artist: customArtist,
-          title: customTitle,
-          album: currentSong.album,
-        });
-      }
+      await searchLyrics(customTitle, customArtist, currentSong.album);
     } catch (error) {
       console.error("Failed to refine search:", error);
     } finally {
@@ -181,19 +167,11 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
 
     try {
       // Reset to original search using original song metadata
-      if (currentPage === "lyrics") {
-        await searchLyrics(
-          currentSong.title,
-          currentSong.artist,
-          currentSong.album,
-        );
-      } else if (currentPage === "metadata") {
-        searchMetadata.mutate({
-          artist: currentSong.artist,
-          title: currentSong.title,
-          album: currentSong.album,
-        });
-      }
+      await searchLyrics(
+        currentSong.title,
+        currentSong.artist,
+        currentSong.album,
+      );
     } catch (error) {
       console.error("Failed to reset search:", error);
     } finally {
@@ -207,26 +185,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
     }
   };
 
-  // Handle page navigation for YouTube video flow
-  const handleLyricsNext = () => {
-    if (flow === "youtube-video") {
-      setCurrentPage("metadata");
-    } else {
-      handleYoutubeMusicConfirm();
-    }
-  };
-
-  const handleMetadataConfirm = () => {
-    saveMetadataMutation.mutate({
-      title: selectedMetadata?.title || currentSong?.title || "",
-      artist: selectedMetadata?.artist || currentSong?.artist || "",
-      album: selectedMetadata?.album || currentSong?.album || "",
-      plainlyrics: selectedLyrics?.plainLyrics,
-      syncedLyrics: selectedLyrics?.syncedLyrics,
-      metadataId: selectedMetadata?.metadataId,
-    });
-  };
-
   const handleYoutubeMusicConfirm = async () => {
     if (selectedLyrics) {
       try {
@@ -238,12 +196,33 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
     handleClose();
   };
 
+  const handleYoutubeVideoConfirm = async () => {
+    if (!activeSong || !selectedLyrics) return;
+
+    // Validate required fields
+    if (!editedMetadata.title.trim() || !editedMetadata.artist.trim()) {
+      toast.error("Title and Artist are required");
+      return;
+    }
+
+    try {
+      await saveMetadataMutation.mutateAsync({
+        title: editedMetadata.title,
+        artist: editedMetadata.artist,
+        album: editedMetadata.album,
+        genre: editedMetadata.genre,
+        plainlyrics: selectedLyrics.plainLyrics,
+        syncedLyrics: selectedLyrics.syncedLyrics,
+      });
+    } catch (error) {
+      console.error("Failed to save metadata and lyrics:", error);
+    }
+  };
+
   if (!currentSong || !activeSong) {
     return null;
   }
 
-  const isLyricsPage = currentPage === "lyrics";
-  const isMetadataPage = currentPage === "metadata";
   const isYouTubeVideo = flow === "youtube-video";
 
   return (
@@ -253,47 +232,45 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
           <DialogTitle>Add Song to Library</DialogTitle>
           <DialogDescription>
             Adding: <strong>{activeTitle}</strong>
-            {isYouTubeVideo && (
-              <span className="ml-2 text-xs text-muted-foreground">
-                Step {currentPage === "lyrics" ? "1" : "2"} of 2
-              </span>
-            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
-          {isLyricsPage && (
-            <LyricsResults
-              isLoading={isLoadingLyrics || isRefining}
-              options={lyricsOptions || []}
-              selectedOption={selectedLyrics}
-              onSelectionChange={selectLyrics}
-              {...(flow === "youtube-video"
-                ? { youtubeDurationSeconds: Number(activeDuration) || 0 }
-                : {
-                    youtubeMusicDurationSeconds:
-                      activeDuration?.toString() || "0",
-                  })}
-            />
+          {isYouTubeVideo && (
+            <>
+              <MetadataEditForm
+                initialTitle={editedMetadata.title}
+                initialArtist={editedMetadata.artist}
+                initialAlbum={editedMetadata.album}
+                initialGenre={editedMetadata.genre}
+                onChange={setEditedMetadata}
+              />
+              <Separator className="my-6" />
+              <Label className="text-sm font-medium mb-3 block">
+                Select Lyrics
+              </Label>
+            </>
           )}
 
-          {isMetadataPage && isYouTubeVideo && (
-            <MetadataResults
-              isLoading={searchMetadata.isPending || isRefining}
-              options={metadataOptions}
-              selectedOption={selectedMetadata}
-              onSelectionChange={setSelectedMetadata}
-              autoSelectFirst={true}
-              emptyMessage="No metadata found for this search"
-            />
-          )}
+          <LyricsResults
+            isLoading={isLoadingLyrics || isRefining}
+            options={lyricsOptions || []}
+            selectedOption={selectedLyrics}
+            onSelectionChange={selectLyrics}
+            {...(flow === "youtube-video"
+              ? { youtubeDurationSeconds: Number(activeDuration) || 0 }
+              : {
+                  youtubeMusicDurationSeconds:
+                    activeDuration?.toString() || "0",
+                })}
+          />
         </div>
 
         {/* Search Refinement Section */}
         <div className="flex-shrink-0 pt-4 border-t space-y-3">
           <div className="space-y-2">
             <Label htmlFor="refine-search" className="text-sm font-medium">
-              Refine {currentPage} search {hasRefined && "(using custom query)"}
+              Refine lyrics search {hasRefined && "(using custom query)"}
             </Label>
             <div className="flex gap-2">
               <Input
@@ -328,50 +305,28 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
             <p className="text-xs text-muted-foreground">
               {hasRefined
                 ? "You're viewing results for a custom search. Click reset to return to the original search."
-                : `Not finding the right ${currentPage}? Try searching with different terms like the exact song title or artist name.`}
+                : "Not finding the right lyrics? Try searching with different terms like the exact song title or artist name."}
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between pt-4">
-          <div>
-            {isYouTubeVideo && isMetadataPage && (
-              <Button
-                onClick={() => setCurrentPage("lyrics")}
-                variant="outline"
-                size="sm"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back to Lyrics
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            {isYouTubeVideo && isMetadataPage && (
-              <Button onClick={handleMetadataConfirm} variant="outline">
-                Skip Metadata
-              </Button>
-            )}
-
-            <Button
-              onClick={isLyricsPage ? handleLyricsNext : handleMetadataConfirm}
-              disabled={isLyricsPage ? !selectedLyrics : false}
-            >
-              {isLyricsPage ? (
-                isYouTubeVideo ? (
-                  <>
-                    Next: Metadata <ChevronRight className="h-4 w-4 ml-1" />
-                  </>
-                ) : (
-                  "Confirm"
-                )
-              ) : (
-                "Confirm"
-              )}
-            </Button>
-          </div>
+        <div className="flex justify-end pt-4">
+          <Button
+            onClick={
+              isYouTubeVideo
+                ? handleYoutubeVideoConfirm
+                : handleYoutubeMusicConfirm
+            }
+            disabled={
+              !selectedLyrics ||
+              (isYouTubeVideo &&
+                (!editedMetadata.title.trim() ||
+                  !editedMetadata.artist.trim()))
+            }
+          >
+            {isYouTubeVideo ? "Confirm & Save" : "Confirm"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
