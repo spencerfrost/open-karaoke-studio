@@ -9,6 +9,7 @@ import { SongProcessingStatus, SongStatus } from "../../types/Song";
 
 interface JobData {
   id: string;
+  song_id?: string;
   progress?: number;
   status: string;
   error?: string;
@@ -29,7 +30,9 @@ function mapBackendStatus(backendStatus: string): SongStatus {
   switch (backendStatus) {
     case "pending":
       return "queued";
+    case "downloading":
     case "processing":
+    case "finalizing":
       return "processing";
     case "completed":
       return "processed";
@@ -44,9 +47,10 @@ function mapBackendStatus(backendStatus: string): SongStatus {
 /**
  * Converts backend job data to frontend processing status
  */
-function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
+function mapJobToProcessingStatus(job: JobData): SongProcessingStatus & { song_id?: string } {
   return {
     id: job.id,
+    song_id: job.song_id,
     progress: job.progress || 0,
     status: mapBackendStatus(job.status),
     message: job.error || job.notes || undefined,
@@ -103,6 +107,19 @@ export function useJobsWebSocket() {
       queryClient.invalidateQueries({
         queryKey: ["processing-status", jobData.id],
       });
+
+      // If job is completed/failed, invalidate songs to refresh thumbnail and metadata
+      if (
+        processedJob.status === "processed" ||
+        processedJob.status === "error"
+      ) {
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        if (jobData.song_id) {
+          queryClient.invalidateQueries({
+            queryKey: ["song", jobData.song_id],
+          });
+        }
+      }
     },
     [queryClient],
   );

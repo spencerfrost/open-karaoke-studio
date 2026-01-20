@@ -5,8 +5,11 @@ Handles real-time job updates and status broadcasting.
 Replaces Flask-SocketIO with native FastAPI WebSocket support.
 """
 
+import asyncio
 import json
+import logging
 from datetime import datetime
+from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -14,6 +17,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from app.services.jobs_service import JobsService
 
 from .connection_manager import SessionConnectionManager
+
+logger = logging.getLogger(__name__)
 
 
 async def get_current_jobs_list():

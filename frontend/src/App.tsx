@@ -16,8 +16,11 @@ import { SessionProvider } from "./contexts/SessionContext";
 import SessionGuard from "./components/SessionGuard";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
+import { useJobsSync } from "./hooks/useJobsSync";
 
 const App: React.FC = () => {
+  useJobsSync(); // Sync jobs to processing indicators store
+
   return (
     <>
       <Toaster />
