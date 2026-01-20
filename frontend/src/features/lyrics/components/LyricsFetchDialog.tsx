@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Search, RotateCcw } from "lucide-react";
 import { LyricsResults } from "./LyricsResults";
 import { useLyricsSearch } from "@/hooks/api/useLyrics";
-import type { LyricsOption } from "@/hooks/api/useLyrics";
+import type { LyricsOption, LyricsProvider } from "@/hooks/api/useLyrics";
 
 export interface LyricsResult {
   id?: string;
@@ -47,11 +47,13 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   const [isRefining, setIsRefining] = useState(false);
   const [hasRefined, setHasRefined] = useState(false);
   const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<LyricsProvider>("syncedlyrics");
 
   // Lyrics search hook
   const lyricsSearch = useLyricsSearch();
   const lyricsOptions = lyricsSearch.data || [];
   const isLoadingLyrics = lyricsSearch.loading;
+  const actualProvider = lyricsSearch.actualProvider;
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -60,6 +62,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
       setIsRefining(false);
       setHasRefined(false);
       setSelectedLyrics(null);
+      setSelectedProvider("syncedlyrics");
 
       // Pre-populate search field with song metadata when dialog opens
       const parts = [song.artist, song.title];
@@ -75,11 +78,26 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
           artist: song.artist,
           title: song.title,
           album: song.album,
+          provider: selectedProvider,
         });
       }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, song]);
+
+  // Handle manual provider change (user rejecting current results)
+  useEffect(() => {
+    // Only trigger if dialog is open, we have a song, and provider was manually changed
+    if (isOpen && song && actualProvider && selectedProvider !== actualProvider) {
+      lyricsSearch.search({
+        artist: song.artist,
+        title: song.title,
+        album: song.album,
+        provider: selectedProvider,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvider]);
 
   const handleClose = () => {
     onClose();
@@ -106,6 +124,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         artist,
         title,
         album,
+        provider: selectedProvider,
       });
     } catch (error) {
       console.error("Failed to refine search:", error);
@@ -133,6 +152,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         artist: song.artist,
         title: song.title,
         album: song.album,
+        provider: selectedProvider,
       });
     } catch (error) {
       console.error("Failed to reset search:", error);
@@ -178,6 +198,36 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
             Finding lyrics for: <strong>{song.title}</strong> by <strong>{song.artist}</strong>
           </DialogDescription>
         </DialogHeader>
+
+        {/* Provider Selection */}
+        <div className="border-b pb-4 flex-shrink-0">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Lyrics Provider</label>
+            <div className="flex gap-2">
+              <Button
+                variant={selectedProvider === "lrclib" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedProvider("lrclib")}
+                className="flex-1"
+              >
+                LRCLIB
+              </Button>
+              <Button
+                variant={selectedProvider === "syncedlyrics" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedProvider("syncedlyrics")}
+                className="flex-1"
+              >
+                syncedlyrics
+              </Button>
+            </div>
+            {actualProvider && actualProvider !== selectedProvider && (
+              <p className="text-xs text-muted-foreground">
+                No results from syncedlyrics, showing LRCLIB results
+              </p>
+            )}
+          </div>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <LyricsResults
