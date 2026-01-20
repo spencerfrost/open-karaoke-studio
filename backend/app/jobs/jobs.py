@@ -3,18 +3,22 @@ Celery task definitions for audio processing
 """
 
 import shutil
+import threading
 import traceback
 from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional, Tuple
 
 from app.config.logging import get_structured_logger
 from app.db.models import JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio, file_management
+from app.services.audio import create_audio_progress_mapper
 from app.services.separation_engines import (
-    separate_with_demucs,
-    separate_with_roformer,
-    separate_with_hybrid,
     separate_with_clean_backing,
+    separate_with_demucs,
+    separate_with_hybrid,
+    separate_with_roformer,
 )
 from celery.utils.log import get_task_logger
 
@@ -28,6 +32,46 @@ structured_logger = get_structured_logger(
 job_repository = JobRepository()
 
 
+def select_and_run_separation_engine(
+    engine_type: str,
+    input_path: Path,
+    song_dir: Path,
+    status_callback: Callable[[str], None],
+    stop_event: threading.Event,
+) -> Tuple[bool, Optional[float]]:
+    """
+    Select and run the appropriate audio separation engine.
+
+    Args:
+        engine_type: Engine to use ('roformer', 'hybrid', 'clean_backing', or 'demucs')
+        input_path: Path to input audio file
+        song_dir: Directory to write separated tracks
+        status_callback: Callback for progress updates
+        stop_event: Threading event to signal cancellation
+
+    Returns:
+        Tuple of (success: bool, detected_bpm: Optional[float])
+    """
+    logger.info("Using separation engine: %s", engine_type)
+
+    # Map engine types to their separation functions
+    engine_map = {
+        "roformer": separate_with_roformer,
+        "hybrid": separate_with_hybrid,
+        "clean_backing": separate_with_clean_backing,
+    }
+
+    # Get separator function, defaulting to demucs
+    separator_fn = engine_map.get(engine_type, separate_with_demucs)
+
+    return separator_fn(
+        input_path=input_path,
+        song_dir=song_dir,
+        status_callback=status_callback,
+        stop_event=stop_event,
+    )
+
+
 def _broadcast_job_event(job, was_created=False):
     """
     Broadcast a job event via WebSocket if available.
@@ -38,6 +82,7 @@ def _broadcast_job_event(job, was_created=False):
     """
     # WebSocket broadcasting has been migrated to FastAPI
     # Job events are now handled by the FastAPI WebSocket server
+    # Frontend polls the database via REST API for job status updates
     pass
 
 
@@ -177,35 +222,13 @@ def process_audio_job(self, job_id, engine_type="demucs"):
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio using the selected engine
-        logger.info("Using separation engine: %s", engine_type)
-        if engine_type == "roformer":
-            success, detected_bpm = separate_with_roformer(
-                input_path=filepath,
-                song_dir=song_dir,
-                status_callback=lambda msg: update_progress(20, msg),
-                stop_event=stop_event,
-            )
-        elif engine_type == "hybrid":
-            success, detected_bpm = separate_with_hybrid(
-                input_path=filepath,
-                song_dir=song_dir,
-                status_callback=lambda msg: update_progress(20, msg),
-                stop_event=stop_event,
-            )
-        elif engine_type == "clean_backing":
-            success, detected_bpm = separate_with_clean_backing(
-                input_path=filepath,
-                song_dir=song_dir,
-                status_callback=lambda msg: update_progress(20, msg),
-                stop_event=stop_event,
-            )
-        else:  # default to demucs
-            success, detected_bpm = separate_with_demucs(
-                input_path=filepath,
-                song_dir=song_dir,
-                status_callback=lambda msg: update_progress(20, msg),
-                stop_event=stop_event,
-            )
+        success, detected_bpm = select_and_run_separation_engine(
+            engine_type=engine_type,
+            input_path=filepath,
+            song_dir=song_dir,
+            status_callback=lambda msg: update_progress(20, msg),
+            stop_event=stop_event,
+        )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
@@ -354,7 +377,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
         # Save if: status changed, progress changed by 5% or more, or is a milestone
         progress_diff = abs(progress - last_saved_progress)
         status_changed = status and status != last_saved_status
-        is_milestone = progress in [0, 25, 50, 75, 95, 100]
+        # Updated milestones to include more checkpoints during audio processing (30-90% range)
+        is_milestone = progress in [0, 5, 25, 30, 35, 40, 50, 60, 70, 75, 80, 85, 90, 95, 100]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
         # Always save for important statuses or initial creation
@@ -405,7 +429,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
         )
 
         update_progress(
-            30, "Download complete, starting audio processing", JobStatus.PROCESSING
+            30, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING
         )
 
         # Phase 2: Audio Processing (30-90% progress)
@@ -421,46 +445,30 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
 
         stop_event = threading.Event()
 
-        def audio_progress_callback(msg):
-            # Map audio processing progress to 30-90% range
-            current_progress = min(90, 30 + int((job.progress - 30) * 1.5))
-            update_progress(current_progress, f"Audio processing: {msg}")
+        # Mark the start of audio processing
+        update_progress(35, f"Initializing {engine_type} audio processing")
 
-        # Separate audio using the selected engine - pass song_dir which is based on song_id
-        logger.info("Using separation engine: %s", engine_type)
-        if engine_type == "roformer":
-            success, detected_bpm = separate_with_roformer(
-                input_path=original_file,
-                song_dir=song_dir,
-                status_callback=audio_progress_callback,
-                stop_event=stop_event,
-            )
-        elif engine_type == "hybrid":
-            success, detected_bpm = separate_with_hybrid(
-                input_path=original_file,
-                song_dir=song_dir,
-                status_callback=audio_progress_callback,
-                stop_event=stop_event,
-            )
-        elif engine_type == "clean_backing":
-            success, detected_bpm = separate_with_clean_backing(
-                input_path=original_file,
-                song_dir=song_dir,
-                status_callback=audio_progress_callback,
-                stop_event=stop_event,
-            )
-        else:  # default to demucs
-            success, detected_bpm = separate_with_demucs(
-                input_path=original_file,
-                song_dir=song_dir,
-                status_callback=audio_progress_callback,
-                stop_event=stop_event,
-            )
+        # Create an engine-aware progress callback that maps engine progress to job progress
+        audio_progress_callback = create_audio_progress_mapper(
+            engine_type=engine_type,
+            base_start=35,
+            base_end=85,
+            update_fn=lambda prog, msg: update_progress(prog, f"Audio processing: {msg}")
+        )
+
+        # Separate audio using the selected engine
+        success, detected_bpm = select_and_run_separation_engine(
+            engine_type=engine_type,
+            input_path=original_file,
+            song_dir=song_dir,
+            status_callback=audio_progress_callback,
+            stop_event=stop_event,
+        )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
         update_progress(
-            90, "Audio processing complete, finalizing", JobStatus.FINALIZING
+            85, f"{engine_type.title()} processing complete, finalizing", JobStatus.FINALIZING
         )
 
         # Phase 3: Finalization (90-100% progress)

@@ -53,7 +53,7 @@ def separate_with_roformer(
             raise StopProcessingError("Processing stopped by user")
 
         # Initialize audio-separator with song_dir as output directory
-        status_callback("Initializing Roformer model...")
+        status_callback("Progress: 35% - Initializing Roformer model...")
         separator = Separator(
             output_dir=str(song_dir),
             output_format="mp3",
@@ -71,7 +71,7 @@ def separate_with_roformer(
             raise StopProcessingError("Processing stopped by user")
 
         # Perform separation
-        status_callback("Separating audio with Roformer...")
+        status_callback("Progress: 50% - Separating audio with Roformer...")
         logger.info("Running Roformer separation on: %s", input_path)
 
         output_files = separator.separate(str(input_path))
@@ -87,7 +87,7 @@ def separate_with_roformer(
         # - (Vocals) - lead vocals only
         # We need to rename these to match our expected names
 
-        status_callback("Organizing output files...")
+        status_callback("Progress: 70% - Organizing output files...")
 
         # Find the generated files
         # Note: audio-separator returns relative filenames, actual files are in song_dir
@@ -121,7 +121,7 @@ def separate_with_roformer(
         shutil.move(str(instrumental_file), str(instrumental_path))
 
         logger.info("Renamed outputs to: %s, %s", vocals_path, instrumental_path)
-        status_callback("Output files organized")
+        status_callback("Progress: 85% - Output files organized")
 
         # Detect BPM from the original audio
         detected_bpm = detect_bpm(input_path, status_callback)

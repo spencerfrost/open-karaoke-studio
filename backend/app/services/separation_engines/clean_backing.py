@@ -42,6 +42,7 @@ from pydub import AudioSegment
 from app.config import get_config
 from app.services import file_management
 from app.services.audio import (
+    create_audio_progress_mapper,
     StopProcessingError,
     detect_bpm,
     make_progress_callback,
@@ -87,17 +88,24 @@ def separate_with_clean_backing(
     config = get_config()
 
     try:
-        # ===== STEP 1: Demucs Separation for Clean Instrumental =====
-        status_callback("Step 1/5: Running Demucs for clean instrumental...")
+        # ===== STEP 1: Demucs Separation for Clean Instrumental (35-50% progress) =====
+        status_callback("Progress: 35% - Step 1/5: Running Demucs for clean instrumental...")
         logger.info("Step 1: Demucs separation")
 
         device = select_device_and_log(status_callback)
-        progress_callback = make_progress_callback(status_callback, stop_event)
+
+        # Create a wrapped progress callback that maps Demucs [0-100%] to job [35-50%]
+        demucs_progress_callback = create_audio_progress_mapper(
+            engine_type='demucs',
+            base_start=35,
+            base_end=50,
+            update_fn=lambda prog, msg: status_callback(f"Step 1/5 (Demucs): {msg} [{prog}%]")
+        )
 
         demucs_separator = DemucsSeparator(
             model=config.DEFAULT_MODEL,
             device=device,
-            callback=progress_callback,
+            callback=make_progress_callback(demucs_progress_callback, stop_event),
         )
 
         origin_wave, separated = demucs_separator.separate_audio_file(input_path)
@@ -128,21 +136,21 @@ def separate_with_clean_backing(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 2: Roformer Karaoke Separation =====
-        status_callback("Step 2/5: Running Roformer for lead vocal isolation...")
+        # ===== STEP 2: Roformer Karaoke Separation (50-60% progress) =====
+        status_callback("Progress: 50% - Step 2/5: Running Roformer for lead vocal isolation...")
         logger.info("Step 2: Roformer karaoke separation")
 
         karaoke_separator = Separator(
             output_dir=str(temp_dir),
             output_format="wav",
         )
-        status_callback(f"Loading model: {KARAOKE_MODEL}")
+        status_callback(f"Progress: 55% - Loading model: {KARAOKE_MODEL}")
         karaoke_separator.load_model(model_filename=KARAOKE_MODEL)
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        status_callback("Separating with Roformer karaoke model...")
+        status_callback("Progress: 60% - Separating with Roformer karaoke model...")
         karaoke_output_files = karaoke_separator.separate(str(input_path))
         logger.info("Roformer karaoke produced: %s", karaoke_output_files)
 
@@ -171,11 +179,12 @@ def separate_with_clean_backing(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 3: Extract Backing Vocals =====
-        status_callback("Step 3/5: Extracting backing vocals...")
+        # ===== STEP 3: Extract Backing Vocals (60-68% progress) =====
+        status_callback("Progress: 60% - Step 3/5: Extracting backing vocals...")
         logger.info("Step 3: Extracting backing vocals by subtraction")
 
         # Load both instrumentals
+        status_callback("Progress: 64% - Loading instrumental tracks...")
         demucs_audio, sr_demucs = librosa.load(
             str(demucs_instr_path), sr=None, mono=False
         )
@@ -219,12 +228,13 @@ def separate_with_clean_backing(
         backing_path = temp_dir / "backing_vocals.wav"
         sf.write(str(backing_path), backing_vocals.T, sr_demucs)
         logger.info("Backing vocals extracted to: %s", backing_path)
+        status_callback("Progress: 68% - Backing vocals extracted")
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 4: De-Noise Backing Vocals =====
-        status_callback("Step 4/5: Cleaning backing vocals with de-noise model...")
+        # ===== STEP 4: De-Noise Backing Vocals (68-78% progress) =====
+        status_callback("Progress: 68% - Step 4/5: Cleaning backing vocals with de-noise model...")
         logger.info("Step 4: De-noising backing vocals")
 
         cleaned_backing_path = None
@@ -234,13 +244,13 @@ def separate_with_clean_backing(
                 output_dir=str(temp_dir),
                 output_format="wav",
             )
-            status_callback(f"Loading model: {DENOISE_MODEL}")
+            status_callback(f"Progress: 73% - Loading model: {DENOISE_MODEL}")
             denoise_separator.load_model(model_filename=DENOISE_MODEL)
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
 
-            status_callback("Running de-noise on backing vocals...")
+            status_callback("Progress: 78% - Running de-noise on backing vocals...")
             denoise_output_files = denoise_separator.separate(str(backing_path))
             logger.info("De-noise produced: %s", denoise_output_files)
 
@@ -272,8 +282,8 @@ def separate_with_clean_backing(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 5: Create Final Outputs =====
-        status_callback("Step 5/5: Creating final outputs...")
+        # ===== STEP 5: Create Final Outputs (78-85% progress) =====
+        status_callback("Progress: 78% - Step 5/5: Creating final outputs...")
         logger.info("Step 5: Merging and finalizing")
 
         # Load cleaned backing
@@ -321,7 +331,7 @@ def separate_with_clean_backing(
         ).with_suffix(".mp3")
 
         # Convert lead vocals (from Roformer)
-        status_callback("Converting vocals to MP3...")
+        status_callback("Progress: 80% - Converting vocals to MP3...")
         lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
         lead_audio.export(
             str(vocals_final),
@@ -331,7 +341,7 @@ def separate_with_clean_backing(
         logger.info("Final vocals saved to: %s", vocals_final)
 
         # Convert final instrumental
-        status_callback("Converting instrumental to MP3...")
+        status_callback("Progress: 82% - Converting instrumental to MP3...")
         instr_audio = AudioSegment.from_wav(str(final_instr_wav))
         instr_audio.export(
             str(instrumental_final),
@@ -339,6 +349,7 @@ def separate_with_clean_backing(
             bitrate=config.DEFAULT_MP3_BITRATE,
         )
         logger.info("Final instrumental saved to: %s", instrumental_final)
+        status_callback("Progress: 85% - Step 5/5 complete")
 
         # Detect BPM from original audio
         detected_bpm = detect_bpm(input_path, status_callback)

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -19,6 +20,48 @@ logger = logging.getLogger(__name__)
 
 class StopProcessingError(Exception):
     """Custom exception raised when processing is stopped by user."""
+
+
+# --- Progress Tracking Helper ---
+def create_audio_progress_mapper(engine_type: str, base_start: int, base_end: int, update_fn):
+    """
+    Creates a progress callback that maps engine-specific progress to job progress.
+
+    This function is designed to handle progress updates from audio separation engines
+    that report their own progress (like Demucs), and map that progress to the
+    appropriate range within the overall job progress.
+
+    Args:
+        engine_type: Type of separation engine ('demucs', 'roformer', 'hybrid', 'clean_backing')
+        base_start: Starting job progress percentage (e.g., 35)
+        base_end: Ending job progress percentage (e.g., 85)
+        update_fn: Function to call with (progress, message)
+
+    Returns:
+        Callback function for the engine
+
+    Example:
+        >>> mapper = create_audio_progress_mapper('demucs', 35, 85, update_progress)
+        >>> mapper("Separating: Model 1/2 (Overall 50.0%)")
+        # This would call update_progress(60, "Separating: Model 1/2 (Overall 50.0%)")
+        # Because 35 + (50 / 100 * 50) = 60
+    """
+    progress_range = base_end - base_start
+
+    def callback(msg):
+        # Try to extract percentage from Demucs-style messages
+        # Format: "Separating: Model 1/2 (Overall 45.3%)"
+        match = re.search(r'\(Overall (\d+(?:\.\d+)?)\%\)', msg)
+        if match:
+            engine_progress = float(match.group(1))
+            job_progress = int(base_start + (engine_progress / 100.0) * progress_range)
+            update_fn(job_progress, msg)
+        else:
+            # No percentage found, just pass through the message without updating progress
+            # This preserves the current progress while showing status updates
+            pass
+
+    return callback
 
 
 # --- Helper Functions ---

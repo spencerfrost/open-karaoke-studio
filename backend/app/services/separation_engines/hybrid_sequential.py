@@ -25,6 +25,7 @@ from audio_separator.separator import Separator
 from demucs.api import Separator as DemucsSeparator
 from app.config import get_config
 from app.services.audio import (
+    create_audio_progress_mapper,
     detect_bpm,
     select_device_and_log,
     make_progress_callback,
@@ -65,18 +66,25 @@ def separate_with_hybrid(
     temp_dir.mkdir(exist_ok=True)
 
     try:
-        # ===== STEP 1: Demucs Separation =====
-        status_callback("Step 1/3: Running Demucs for initial separation...")
+        # ===== STEP 1: Demucs Separation (35-60% progress) =====
+        status_callback("Progress: 35% - Step 1/3: Running Demucs for initial separation...")
 
         device = select_device_and_log(status_callback)
-        progress_callback = make_progress_callback(status_callback, stop_event)
         config = get_config()
         model_name = config.DEFAULT_MODEL
+
+        # Create a wrapped progress callback that maps Demucs [0-100%] to job [35-60%]
+        demucs_progress_callback = create_audio_progress_mapper(
+            engine_type='demucs',
+            base_start=35,
+            base_end=60,
+            update_fn=lambda prog, msg: status_callback(f"Step 1/3 (Demucs): {msg} [{prog}%]")
+        )
 
         demucs_separator = DemucsSeparator(
             model=model_name,
             device=device,
-            callback=progress_callback,
+            callback=make_progress_callback(demucs_progress_callback, stop_event),
         )
 
         status_callback("Separating with Demucs...")
@@ -132,8 +140,8 @@ def separate_with_hybrid(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 2: audio-separator Vocal Refinement =====
-        status_callback("Step 2/3: Refining vocals with audio-separator...")
+        # ===== STEP 2: audio-separator Vocal Refinement (60-75% progress) =====
+        status_callback("Progress: 60% - Step 2/3: Refining vocals with audio-separator...")
 
         # Initialize audio-separator
         separator = Separator(
@@ -147,11 +155,12 @@ def separate_with_hybrid(
         separator.load_model(model_filename=model_name)
 
         # Separate the Demucs vocals into lead and backing
-        status_callback("Splitting vocals into lead and backing...")
+        status_callback("Progress: 67% - Splitting vocals into lead and backing...")
         logger.info("Running UVR separation on Demucs vocals")
 
         output_files = separator.separate(str(temp_vocals_path))
         logger.info("UVR produced output files: %s", output_files)
+        status_callback("Progress: 75% - Step 2/3 complete")
 
         # Check for stop request
         if stop_event and stop_event.is_set():
@@ -187,8 +196,8 @@ def separate_with_hybrid(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 3: Recombine Instrumental + Backing =====
-        status_callback("Step 3/3: Creating final instrumental...")
+        # ===== STEP 3: Recombine Instrumental + Backing (75-85% progress) =====
+        status_callback("Progress: 75% - Step 3/3: Creating final instrumental...")
 
         # If we have backing vocals, add them to the instrumental
         final_instrumental_path = temp_dir / "final_instrumental.wav"
@@ -231,7 +240,7 @@ def separate_with_hybrid(
             raise StopProcessingError("Processing stopped by user")
 
         # ===== STEP 4: Convert to MP3 and Move to Final Location =====
-        status_callback("Converting to MP3 and finalizing...")
+        status_callback("Progress: 80% - Converting to MP3 and finalizing...")
 
         vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
         instrumental_final = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
@@ -256,6 +265,7 @@ def separate_with_hybrid(
             bitrate=config.DEFAULT_MP3_BITRATE,
         )
         logger.info("Final instrumental saved to: %s", instrumental_final)
+        status_callback("Progress: 85% - Step 3/3 complete")
 
         # Detect BPM from the original audio
         detected_bpm = detect_bpm(input_path, status_callback)
