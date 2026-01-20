@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.lyrics_service import LyricsService
+from app.services.syncedlyrics_service import SyncedLyricsService
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +85,48 @@ async def search_lyrics(
             status_code=500,
             detail=f"Unexpected error during lyrics search: {str(e)}"
         )
+
+
+@router.get("/search-synced", response_model=List[dict])
+async def search_lyrics_synced(
+    track_name: str = Query(..., min_length=1, description="Song title (required)"),
+    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
+    album_name: Optional[str] = Query(None, description="Album name (optional)")
+):
+    """
+    Search for lyrics via syncedlyrics library (testing).
+
+    Parameters:
+    - track_name: Song title (required)
+    - artist_name: Artist name (required)
+    - album_name: Album name (optional) - may improve results
+
+    Returns:
+    - A JSON array with lyrics results from syncedlyrics
+    """
+    try:
+        service = SyncedLyricsService()
+
+        # Build params dict
+        params = {
+            "track_name": track_name,
+            "artist_name": artist_name,
+        }
+        if album_name:
+            params["album_name"] = album_name
+
+        results = service.search_lyrics_structured(params)
+
+        logger.info("Found %s syncedlyrics results for: %s - %s",
+                   len(results), artist_name, track_name)
+        return results
+
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected syncedlyrics search error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during syncedlyrics search: {str(e)}"
+        )
+
