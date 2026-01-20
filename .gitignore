@@ -80,3 +80,4 @@ docs/claude.xml
 backend/app_flask_backup
 backend/benchmark_results_*
 backend/reportsreact-lrc/
+backend/reports/
