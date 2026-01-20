@@ -26,8 +26,16 @@ export interface YoutubeMusicSearchResult {
   isExplicit?: boolean;
 }
 
+export interface YoutubeMusicArtistSearchResult {
+  browseId: string;
+  name: string;
+  subscribers?: string;
+  thumbnails: Array<{ url: string; width?: number; height?: number }>;
+}
+
 export interface YoutubeMusicSearchResponse {
-  results: YoutubeMusicSearchResult[];
+  artists: YoutubeMusicArtistSearchResult[];
+  songs: YoutubeMusicSearchResult[];
   error: string | null;
 }
 

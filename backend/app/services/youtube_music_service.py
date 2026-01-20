@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from cachetools import TTLCache
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 # Module-level caches with 15-minute TTL
 _artist_cache: TTLCache = TTLCache(maxsize=100, ttl=900)
 _album_cache: TTLCache = TTLCache(maxsize=200, ttl=900)
+# Search cache with 5-minute TTL
+_search_cache: TTLCache = TTLCache(maxsize=500, ttl=300)
 
 
 class YoutubeMusicService:
@@ -26,27 +29,108 @@ class YoutubeMusicService:
             raise ImportError("ytmusicapi is required for YoutubeMusicService.")
         self.ytmusic = YTMusic()
 
+    def _normalize_song_results(self, raw_results: List[Dict]) -> List[Dict[str, Any]]:
+        """Normalize raw song search results from ytmusicapi."""
+        songs = []
+        for item in raw_results:
+            if item.get("resultType") == "song" and item.get("videoId"):
+                artists = item.get("artists", [{}])
+                primary_artist = artists[0] if artists else {}
+                songs.append(
+                    {
+                        "videoId": item["videoId"],
+                        "title": item.get("title"),
+                        "artist": primary_artist.get("name"),
+                        "artistId": primary_artist.get("id"),
+                        "duration": item.get("duration"),
+                        "album": item.get("album", {}).get("name"),
+                        "thumbnails": item.get("thumbnails", []),
+                    }
+                )
+        return songs
+
+    def _normalize_artist_results(self, raw_results: List[Dict], max_results: int = 3) -> List[Dict[str, Any]]:
+        """Normalize raw artist search results from ytmusicapi.
+
+        Args:
+            raw_results: Raw search results from ytmusicapi
+            max_results: Maximum number of artists to return (default 3)
+        """
+        artists = []
+        for item in raw_results:
+            if item.get("resultType") == "artist" and item.get("browseId"):
+                # ytmusicapi may use "artist" or "name" field for artist name
+                artist_name = item.get("artist") or item.get("name") or "Unknown Artist"
+                artists.append(
+                    {
+                        "browseId": item["browseId"],
+                        "name": artist_name,
+                        "subscribers": item.get("subscribers"),
+                        "thumbnails": item.get("thumbnails", []),
+                    }
+                )
+                # Stop after collecting max_results
+                if len(artists) >= max_results:
+                    break
+        return artists
+
+    def search_combined(self, query: str, limit: int = 10) -> Dict[str, Any]:
+        """Search YouTube Music for both artists and songs in parallel."""
+        # Check cache first
+        cache_key = f"search:{query}:{limit}"
+        if cache_key in _search_cache:
+            logger.info("Cache hit for search: %s", query)
+            return _search_cache[cache_key]
+
+        try:
+            logger.info("Searching YouTube Music for query: %s", query)
+
+            # Limit artists to 3 results max
+            artist_limit = min(3, limit // 2)
+
+            # Parallel search for artists and songs using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                artist_future = executor.submit(
+                    self.ytmusic.search, query, filter="artists", limit=artist_limit
+                )
+                song_future = executor.submit(
+                    self.ytmusic.search, query, filter="songs", limit=limit
+                )
+
+                artist_results = artist_future.result()
+                song_results = song_future.result()
+
+            # Normalize results (limit artists to 3)
+            artists = self._normalize_artist_results(artist_results, max_results=3)
+            songs = self._normalize_song_results(song_results)
+
+            result = {"artists": artists, "songs": songs}
+
+            # Cache the result
+            _search_cache[cache_key] = result
+
+            logger.info(
+                "Found %d artists and %d songs for query: %s",
+                len(artists),
+                len(songs),
+                query,
+            )
+            return result
+
+        except Exception as e:
+            logger.error("YouTube Music search failed: %s", e, exc_info=True)
+            raise
+
     def search_songs(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Search YouTube Music for official audio tracks (type 'song')."""
+        """Search YouTube Music for official audio tracks (type 'song').
+
+        DEPRECATED: Use search_combined() instead for better performance.
+        This method is kept for backward compatibility.
+        """
         try:
             logger.info("Searching YouTube Music for query: %s", query)
             results = self.ytmusic.search(query, filter="songs", limit=limit)
-            songs = []
-            for item in results:
-                if item.get("resultType") == "song" and item.get("videoId"):
-                    artists = item.get("artists", [{}])
-                    primary_artist = artists[0] if artists else {}
-                    songs.append(
-                        {
-                            "videoId": item["videoId"],
-                            "title": item.get("title"),
-                            "artist": primary_artist.get("name"),
-                            "artistId": primary_artist.get("id"),
-                            "duration": item.get("duration"),
-                            "album": item.get("album", {}).get("name"),
-                            "thumbnails": item.get("thumbnails", []),
-                        }
-                    )
+            songs = self._normalize_song_results(results)
             logger.info(
                 "Found %d official audio tracks for query: %s", len(songs), query
             )

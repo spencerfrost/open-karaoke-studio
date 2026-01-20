@@ -14,6 +14,7 @@ import { SearchTabs } from "./SearchTabs";
 import { SearchResults } from "./SearchResults";
 import { YoutubeMusicResultCard } from "../YoutubeMusicResultCard";
 import { YouTubeResultCard } from "../YoutubeVideoResultCard";
+import { ArtistResultCard } from "../ArtistResultCard";
 import { AddSongDialog } from "../AddSongDialog";
 import { ArtistBrowsePanel } from "../artist-browse";
 
@@ -98,7 +99,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
 
   // Loading states for both result types
   const youtubeMusicLoadingStates: Record<string, boolean> = Object.fromEntries(
-    (youtubeMusicSearch.data?.results || []).map(
+    (youtubeMusicSearch.data?.songs || []).map(
       (result: YoutubeMusicSearchResult) => [
         result.videoId,
         songCreation.isAdding &&
@@ -151,11 +152,12 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   };
 
   // Get results and counts
-  const youtubeMusicResults = youtubeMusicSearch.data?.results || [];
+  const artistResults = youtubeMusicSearch.data?.artists || [];
+  const songResults = youtubeMusicSearch.data?.songs || [];
   const youtubeResults = youtubeSearch.data || [];
 
   const counts = {
-    "youtube-music": youtubeMusicResults.length,
+    "youtube-music": artistResults.length + songResults.length,
     youtube: youtubeResults.length,
   };
 
@@ -209,18 +211,56 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
           />
 
           {activeSource === "youtube-music" && (
-            <SearchResults
-              results={youtubeMusicResults}
-              isLoading={youtubeMusicSearch.isLoading}
-              error={youtubeMusicSearch.error}
-              onSelect={handleYoutubeMusicSelect}
-              loadingStates={youtubeMusicLoadingStates}
-              resultCardComponent={YoutubeMusicResultCard}
-              keyExtractor={(result) => result.videoId}
-              emptyMessage="Search YouTube Music"
-              emptyDescription="Find official tracks with high-quality audio and reliable metadata."
-              onArtistClick={handleArtistClick}
-            />
+            <div className="space-y-6">
+              {/* Artists Section - Only if results exist */}
+              {artistResults.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Artists ({artistResults.length})
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {artistResults.map((artist) => (
+                      <ArtistResultCard
+                        key={artist.browseId}
+                        result={artist}
+                        onArtistClick={handleArtistClick}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Songs Section */}
+              {songResults.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Songs ({songResults.length})
+                  </h3>
+                  <SearchResults
+                    results={songResults}
+                    isLoading={youtubeMusicSearch.isLoading}
+                    error={youtubeMusicSearch.error}
+                    onSelect={handleYoutubeMusicSelect}
+                    loadingStates={youtubeMusicLoadingStates}
+                    resultCardComponent={YoutubeMusicResultCard}
+                    keyExtractor={(result) => result.videoId}
+                    emptyMessage="Search YouTube Music"
+                    emptyDescription="Find official tracks with high-quality audio and reliable metadata."
+                    onArtistClick={handleArtistClick}
+                  />
+                </div>
+              )}
+
+              {/* Empty State - When both are empty */}
+              {artistResults.length === 0 && songResults.length === 0 && !youtubeMusicSearch.isLoading && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="font-medium">Search YouTube Music</p>
+                  <p className="text-sm">
+                    Find official tracks with high-quality audio and reliable metadata.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {activeSource === "youtube" && (

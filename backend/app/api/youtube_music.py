@@ -34,9 +34,21 @@ class YoutubeMusicSearchResult(BaseModel):
         extra = "allow"
 
 
+class YoutubeMusicArtistSearchResult(BaseModel):
+    """Individual YouTube Music artist search result."""
+    browseId: str
+    name: str
+    subscribers: Optional[str] = None
+    thumbnails: List[dict] = []
+
+    class Config:
+        extra = "allow"
+
+
 class YoutubeMusicSearchResponse(BaseModel):
     """Response model for YouTube Music search."""
-    results: List[dict]
+    artists: List[YoutubeMusicArtistSearchResult] = []
+    songs: List[dict] = []
     error: Optional[str] = None
 
 
@@ -109,65 +121,27 @@ async def search_youtube_music(
     limit: int = Query(10, ge=1, le=50, description="Maximum number of results")
 ):
     """
-    Search YouTube Music for songs.
-    
-    Returns a list of song results matching the query, with existsInLibrary flag
-    indicating if the song is already in the karaoke library.
+    Search YouTube Music for artists and songs.
+
+    Returns artists (max 3) and songs matching the query, with existsInLibrary flag
+    on songs indicating if they're already in the karaoke library.
     """
     try:
         service = YoutubeMusicService()
-        results = service.search_songs(q, limit=limit)
+        combined = service.search_combined(q, limit=limit)
 
-        # Check which songs already exist in library
-        video_ids = [r.get("videoId") for r in results if r.get("videoId")]
-        existing_video_ids: set = set()
-        existing_songs_by_artist_title: set = set()
+        # Add existsInLibrary flag to songs
+        songs = _add_exists_in_library_flags(combined.get("songs", []))
 
-        if video_ids or results:
-            with get_db_session() as session:
-                # Check by video_id for exact YouTube matches
-                if video_ids:
-                    existing_songs = session.query(DbSong.video_id).filter(
-                        DbSong.video_id.in_(video_ids)
-                    ).all()
-                    existing_video_ids = {song.video_id for song in existing_songs}
-
-                # Check by artist + title for fuzzy matches (case-insensitive)
-                for result in results:
-                    artist = result.get("artist", "")
-                    if artist:
-                        artist = artist.strip()
-                    title = result.get("title", "")
-                    if title:
-                        title = title.strip()
-                    if artist and title:
-                        existing = session.query(DbSong.id).filter(
-                            DbSong.artist.ilike(artist),
-                            DbSong.title.ilike(title)
-                        ).first()
-                        if existing:
-                            existing_songs_by_artist_title.add((artist.lower(), title.lower()))
-
-        # Add existsInLibrary flag to each result
-        for result in results:
-            video_id = result.get("videoId")
-            artist = result.get("artist", "")
-            if artist:
-                artist = artist.strip().lower()
-            title = result.get("title", "")
-            if title:
-                title = title.strip().lower()
-
-            result["existsInLibrary"] = (
-                video_id in existing_video_ids or
-                (artist, title) in existing_songs_by_artist_title
-            )
-
-        return YoutubeMusicSearchResponse(results=results, error=None)
+        return YoutubeMusicSearchResponse(
+            artists=combined.get("artists", []),
+            songs=songs,
+            error=None
+        )
 
     except Exception as e:
         logger.error("YouTube Music search failed: %s", e, exc_info=True)
-        return YoutubeMusicSearchResponse(results=[], error=str(e))
+        return YoutubeMusicSearchResponse(artists=[], songs=[], error=str(e))
 
 
 @router.get("/artist/{artist_id}", response_model=YoutubeMusicArtistResponse)
