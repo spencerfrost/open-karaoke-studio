@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Song } from "@/types/Song";
 import { useMetadata } from "@/hooks/api/useMetadata";
+import { useSongs } from "@/hooks/api/useSongs";
 import { ITunesSearchResult } from "@/hooks/useItunesSearch";
 import {
   StepIndicator,
@@ -39,33 +39,12 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   const [searchAlbum, setSearchAlbum] = useState(song.album || "");
   const [searchResults, setSearchResults] = useState<ITunesSearchResult[]>([]);
 
-  const queryClient = useQueryClient();
   const { useSearchMetadata, useLookupMetadata } = useMetadata();
   const searchMutation = useSearchMetadata();
   const lookupMutation = useLookupMetadata();
 
-  const updateSongMutation = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
-      const response = await fetch(`/api/songs/${song.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update song metadata");
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["songs"] });
-      queryClient.invalidateQueries({ queryKey: ["song", song.id] });
-      onBack();
-    },
-  });
+  const { useUpdateSong } = useSongs();
+  const updateSongMutation = useUpdateSong();
 
   const handleSearch = () => {
     const params = {
@@ -203,7 +182,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     setCurrentStep("select");
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!selectedResult) return;
 
     const updates: Partial<Song> = {
@@ -222,30 +201,33 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
     if (selectedResult.artworkUrl600) artworkUrls.push(selectedResult.artworkUrl600);
 
     // Prepare comprehensive updates for backend
-    const updatesForBackend: Record<string, unknown> = {
+    const updatesForBackend = {
+      id: song.id,
       ...updates,
-      
+
       // iTunes metadata
       itunesTrackId: selectedResult.trackId,
       itunesArtworkUrls: artworkUrls.length > 0 ? artworkUrls : undefined,
       itunesExplicit: selectedResult.trackExplicitness === "explicit",
       itunesPreviewUrl: selectedResult.previewUrl, // 30-sec preview for song identification
-      
+
       // Release information
       releaseDate: selectedResult.releaseDateFormatted || selectedResult.releaseDate,
-      
+
       // Duration (from our audio file, not iTunes)
       duration: selectedResult.durationSeconds,
     };
 
     // Remove undefined values
-    Object.keys(updatesForBackend).forEach((key) => {
-      if (updatesForBackend[key] === undefined) {
-        delete updatesForBackend[key];
-      }
-    });
+    const cleanedUpdates = Object.fromEntries(
+      Object.entries(updatesForBackend).filter(([_, v]) => v !== undefined)
+    );
 
-    updateSongMutation.mutate(updatesForBackend);
+    updateSongMutation.mutate(cleanedUpdates as Partial<Song> & { id: string }, {
+      onSuccess: () => {
+        onBack();
+      },
+    });
   };
 
   const renderStepContent = () => {

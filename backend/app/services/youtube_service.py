@@ -677,33 +677,16 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error(
                 "Failed to update database thumbnail for song %s: %s", song_id, e
             )
-        """Update database with thumbnail information"""
+
+    def _extract_audio_duration(self, audio_path) -> Optional[float]:
+        """Extract duration from audio file using librosa"""
         try:
-            from app.db.database import get_db_session
-            from app.repositories.song_repository import SongRepository
+            import librosa
 
-            thumbnail_path = f"{song_id}/{thumbnail_filename}"
-            with get_db_session() as session:
-                repo = SongRepository(session)
-                updated_song = repo.update(song_id, thumbnail_path=thumbnail_path)
-            if not updated_song:
-                logger.warning(
-                    "Failed to update thumbnail in database for song %s", song_id
-                )
+            duration = librosa.get_duration(path=str(audio_path))
+            return float(duration)
         except Exception as e:
-            logger.error(
-                "Failed to update database thumbnail for song %s: %s", song_id, e
+            logger.warning(
+                "Failed to extract duration from audio file %s: %s", audio_path, e
             )
-
-        def _extract_audio_duration(self, audio_path) -> Optional[float]:
-            """Extract duration from audio file using librosa"""
-            try:
-                import librosa
-
-                duration = librosa.get_duration(path=str(audio_path))
-                return float(duration)
-            except Exception as e:
-                logger.warning(
-                    "Failed to extract duration from audio file %s: %s", audio_path, e
-                )
-                return None
+            return None

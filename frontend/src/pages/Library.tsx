@@ -59,7 +59,6 @@ const LibraryPage: React.FC = () => {
   // When expandArtist is set, trigger loading all artists until we find them
   React.useEffect(() => {
     if (expandArtist && !artists.find(a => a.name === expandArtist) && hasNextPage && !isFetchingNextPage) {
-      console.log("[LibraryPage] Fetching more artists to find:", expandArtist);
       fetchNextPage();
     }
   }, [expandArtist, artists, hasNextPage, isFetchingNextPage, fetchNextPage]);

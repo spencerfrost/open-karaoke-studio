@@ -20,6 +20,7 @@ import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 import { Settings2, Maximize, Play, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTapTempo } from "@/hooks/useTapTempo";
+import { useSongs } from "@/hooks/api/useSongs";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
@@ -37,6 +38,10 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const player = useKaraokePlayer(songId, { autoPlay });
   const ui = usePlayerUI();
   const navigate = useNavigate();
+
+  // Song API hooks
+  const { useUpdateSong } = useSongs();
+  const updateSongMutation = useUpdateSong();
 
   // Hover state for overlay controls
   const [isHovering, setIsHovering] = React.useState(false);
@@ -60,39 +65,26 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     minTaps: MIN_TAPS,
   });
 
-  // Track saving state
-  const [isSavingBpm, setIsSavingBpm] = React.useState(false);
-
   // Get effective BPM (from tap tempo if active, otherwise from song)
   const effectiveBpm = tapTempo.bpm ?? player.song?.bpm ?? null;
 
   // Save BPM to database
-  const handleSaveBpm = React.useCallback(async () => {
+  const handleSaveBpm = React.useCallback(() => {
     if (songId && tapTempo.bpm && tapTempo.bpm >= 30 && tapTempo.bpm <= 300) {
-      setIsSavingBpm(true);
-      try {
-        const response = await fetch(`/api/songs/${songId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
+      updateSongMutation.mutate(
+        { id: songId, bpm: tapTempo.bpm },
+        {
+          onSuccess: () => {
+            // Reset the tap tempo after successful save
+            tapTempo.reset();
           },
-          credentials: "include",
-          body: JSON.stringify({ bpm: tapTempo.bpm }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update BPM: ${response.status}`);
+          onError: (error) => {
+            console.error("Failed to update BPM:", error);
+          },
         }
-
-        // Reset the tap tempo after successful save
-        tapTempo.reset();
-      } catch (error) {
-        console.error("Failed to update BPM:", error);
-      } finally {
-        setIsSavingBpm(false);
-      }
+      );
     }
-  }, [songId, tapTempo]);
+  }, [songId, tapTempo, updateSongMutation]);
 
   // Reset mouse movement timer on mouse move while hovering
   const handleMouseMove = React.useCallback(() => {
@@ -411,7 +403,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         tapTempoTapCount={tapTempo.tapCount}
         tapTempoMinTaps={MIN_TAPS}
         tapTempoHasUnsavedChanges={tapTempo.hasUnsavedChanges}
-        tapTempoIsSaving={isSavingBpm}
+        tapTempoIsSaving={updateSongMutation.isPending}
         mouseRecentlyMoved={mouseRecentlyMoved}
         onPlayPause={
           player.song
