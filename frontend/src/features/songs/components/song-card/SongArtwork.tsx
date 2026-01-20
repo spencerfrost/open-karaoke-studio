@@ -2,6 +2,8 @@ import React from "react";
 import { Music, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SongArtworkProps } from "./SongCard.types";
+import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
+import { ProcessingIndicator } from "./ProcessingIndicator";
 
 const SyncedLyricsBadge: React.FC = () => (
   <Badge className="absolute top-2 right-2 z-10" variant="accent">
@@ -16,6 +18,11 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
   onPlay,
   showPlayButton = true,
 }) => {
+  const processingStatus = useProcessingIndicators((state) =>
+    state.getStatus(song.id)
+  );
+  const isProcessing = !!processingStatus;
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onPlay?.(e);
@@ -28,13 +35,18 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
     >
       {showSyncedBadge && song.syncedLyrics && <SyncedLyricsBadge />}
 
-      {/* Play button overlay - only show if showPlayButton is true */}
-      {showPlayButton && (
+      {/* Play button overlay - hide if processing or showPlayButton is false */}
+      {showPlayButton && !isProcessing && (
         <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
           <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
             <Play className="w-12 h-12 text-white fill-white" />
           </div>
         </div>
+      )}
+
+      {/* Processing indicator overlay */}
+      {processingStatus && (
+        <ProcessingIndicator status={processingStatus} variant="overlay" />
       )}
 
       <div className="aspect-video w-full">

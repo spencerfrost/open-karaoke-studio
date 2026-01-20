@@ -73,6 +73,7 @@ export const SongCard: React.FC<SongCardProps> = ({
       </CardContent>
 
       <SongActions
+        song={song}
         onQueue={showAction("queue") ? handleQueueClick : undefined}
         onDelete={showAction("delete") ? handleDeleteClick : undefined}
         onDetails={showAction("details") ? handleDetailsClick : undefined}
