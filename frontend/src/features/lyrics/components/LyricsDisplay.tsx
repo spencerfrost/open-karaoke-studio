@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Search, FileText } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
-import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
-import { parseLrcWithCountIn } from "@/utils/lrcUtils";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
+import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
+import { parseLrcWithCountIn } from "@/utils/lrcParser";
 
 interface CountInStyleConfig {
   showCountdownNumbers?: boolean;
@@ -130,11 +130,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
         },
       );
     };
-    // Parse LRC content for synced lyrics
-    const parsedLrcData = useMemo(() => {
-      if (!isSync || !lyrics) return null;
-      return parseLrcWithCountIn(lyrics, bpm);
-    }, [isSync, lyrics, bpm]);
 
     const lyricsSizeClass =
       lyricsSize === "small"
@@ -143,21 +138,29 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
           ? "text-3xl"
           : "text-xl";
 
+    // Parse lyrics data for synced display
+    const parsedLrcData = useMemo(() => {
+      if (!isSync || !lyrics) return null;
+      return parseLrcWithCountIn(lyrics, bpm);
+    }, [isSync, lyrics, bpm]);
+
     if (isSync) {
-      if (!parsedLrcData) {
+      if (!lyrics || !parsedLrcData) {
         return (
           <div
             className={`flex items-center justify-center h-full w-full ${className}`}
             role="region"
             aria-label={ariaLabel}
           >
-            <div className="text-background/50 text-lg">No synced lyrics available</div>
+            <div className="text-background/50 text-lg">
+              No synced lyrics available
+            </div>
           </div>
         );
       }
 
       return (
-        <div>
+        <div className={`relative h-full w-full ${className}`}>
           <KaraokeLyricsRenderer
             parsedData={parsedLrcData}
             currentTime={currentTime}
@@ -166,7 +169,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             bpm={bpm}
             countInStyle={countInStyle}
             onSeek={onSeek}
-            className={className}
           />
 
           {/* Bottom vignette fade */}

@@ -9,7 +9,13 @@
  * - Responsive sizing and animations
  */
 
-import React, { useMemo, useRef, useLayoutEffect } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useLayoutEffect,
+  useState,
+  useCallback,
+} from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
 
 interface CountInStyleConfig {
@@ -51,21 +57,51 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // User scroll detection - temporarily disable auto-scroll when user scrolls manually
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const lastAutoScrollTimeRef = useRef<number>(0);
+
+  // Handle user scroll - detect manual scrolling and temporarily disable auto-scroll
+  const handleScroll = useCallback(() => {
+    // If this scroll happened very recently after an auto-scroll, ignore it
+    const timeSinceAutoScroll = Date.now() - lastAutoScrollTimeRef.current;
+    if (timeSinceAutoScroll < 100) {
+      return;
+    }
+
+    // User is scrolling manually
+    setIsUserScrolling(true);
+
+    // Clear any existing timeout
+    if (userScrollTimeoutRef.current) {
+      clearTimeout(userScrollTimeoutRef.current);
+    }
+
+    // Re-enable auto-scroll after 3 seconds of no user scrolling
+    userScrollTimeoutRef.current = setTimeout(() => {
+      setIsUserScrolling(false);
+    }, 3000);
+  }, []);
+
   // Find current line index (across ALL lines, including blanks)
   const currentLineIndex = useMemo(() => {
-    let idx = parsedData.lines.findIndex(
-      (line, i) => {
-        const nextLine = parsedData.lines[i + 1];
-        return (
-          currentTimeMs >= line.timestamp &&
-          (!nextLine || currentTimeMs < nextLine.timestamp)
-        );
-      }
-    );
+    let idx = parsedData.lines.findIndex((line, i) => {
+      const nextLine = parsedData.lines[i + 1];
+      return (
+        currentTimeMs >= line.timestamp &&
+        (!nextLine || currentTimeMs < nextLine.timestamp)
+      );
+    });
 
     // If no current line found, check if we're before first line
     if (idx === -1) {
-      idx = currentTimeMs < parsedData.lines[0]?.timestamp ? -1 : parsedData.lines.length - 1;
+      idx =
+        currentTimeMs < parsedData.lines[0]?.timestamp
+          ? -1
+          : parsedData.lines.length - 1;
     }
 
     return idx;
@@ -74,7 +110,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   // Find active count-in trigger
   const activeCountInTrigger = useMemo(() => {
     return parsedData.countInTriggers.find(
-      (trigger) => currentTimeMs >= trigger.countInStart && currentTimeMs < trigger.countInEnd
+      (trigger) =>
+        currentTimeMs >= trigger.countInStart &&
+        currentTimeMs < trigger.countInEnd,
     );
   }, [parsedData.countInTriggers, currentTimeMs]);
 
@@ -83,9 +121,12 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     if (!activeCountInTrigger) return null;
 
     const elapsed = currentTimeMs - activeCountInTrigger.countInStart;
-    const duration = activeCountInTrigger.countInEnd - activeCountInTrigger.countInStart;
+    const duration =
+      activeCountInTrigger.countInEnd - activeCountInTrigger.countInStart;
     const progress = Math.max(0, Math.min(1, elapsed / duration));
-    const currentBeatIndex = Math.floor(elapsed / activeCountInTrigger.beatInterval);
+    const currentBeatIndex = Math.floor(
+      elapsed / activeCountInTrigger.beatInterval,
+    );
 
     return {
       progress,
@@ -96,6 +137,8 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
 
   // Auto-scroll to center the active line
   useLayoutEffect(() => {
+    // Skip auto-scroll if user is manually scrolling
+    if (isUserScrolling) return;
     if (currentLineIndex === -1 || !containerRef.current) return;
 
     const lineElement = lineRefs.current[currentLineIndex];
@@ -107,15 +150,27 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     const containerHeight = container.clientHeight;
 
     // Scroll to center the line: lineTop - containerHeight/2 + lineHeight/2
-    const targetScrollTop = lineOffsetTop - containerHeight / 2 + lineHeight / 2;
-    container.scrollTop = targetScrollTop;
-  }, [currentLineIndex]);
+    const targetScrollTop =
+      lineOffsetTop - containerHeight / 2 + lineHeight / 2;
+
+    // Mark this as an auto-scroll to avoid triggering user scroll detection
+    lastAutoScrollTimeRef.current = Date.now();
+
+    // Use scrollTo with smooth behavior for smooth scrolling
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: "smooth",
+    });
+  }, [currentLineIndex, isUserScrolling]);
 
   // Recalculate scroll positions on resize
   useLayoutEffect(() => {
     if (!containerRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
+      // Skip if user is scrolling
+      if (isUserScrolling) return;
+
       // Trigger re-scroll by forcing the scroll effect to run
       if (currentLineIndex !== -1 && containerRef.current) {
         const lineElement = lineRefs.current[currentLineIndex];
@@ -124,15 +179,33 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           const lineOffsetTop = lineElement.offsetTop;
           const lineHeight = lineElement.clientHeight;
           const containerHeight = container.clientHeight;
-          const targetScrollTop = lineOffsetTop - containerHeight / 2 + lineHeight / 2;
-          container.scrollTop = targetScrollTop;
+          const targetScrollTop =
+            lineOffsetTop - containerHeight / 2 + lineHeight / 2;
+
+          // Mark as auto-scroll
+          lastAutoScrollTimeRef.current = Date.now();
+
+          // Use instant scroll on resize to avoid jarring animation
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: "instant",
+          });
         }
       }
     });
 
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
-  }, [currentLineIndex]);
+  }, [currentLineIndex, isUserScrolling]);
+
+  // Cleanup timeout on unmount
+  useLayoutEffect(() => {
+    return () => {
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Font size configurations
   const fontSizes = useMemo(() => {
@@ -174,7 +247,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
         return (
           <div
             key={line.timestamp}
-            ref={(el) => { lineRefs.current[index] = el; }}
+            ref={(el) => {
+              lineRefs.current[index] = el;
+            }}
             className="py-2 px-4 text-center min-h-[1em]"
           >
             {/* Empty blank line */}
@@ -190,7 +265,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       return (
         <div
           key={line.timestamp}
-          ref={(el) => { lineRefs.current[index] = el; }}
+          ref={(el) => {
+            lineRefs.current[index] = el;
+          }}
           className={`py-2 px-4 transition-all duration-500 ${fontSize} ${weight} ${shadow} text-background`}
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
@@ -220,9 +297,10 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
                           className={`
                             font-bold transition-all duration-150
                             ${fontSizes.countdown}
-                            ${idx === countInState.currentBeatIndex
-                              ? "text-orange-peel scale-110 opacity-100"
-                              : "text-white/30 scale-100 opacity-50"
+                            ${
+                              idx === countInState.currentBeatIndex
+                                ? "text-orange-peel scale-110 opacity-100"
+                                : "text-white/30 scale-100 opacity-50"
                             }
                           `}
                         >
@@ -241,9 +319,10 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
                           className={`
                             rounded-full transition-all duration-100
                             ${fontSizes.icon}
-                            ${idx <= countInState.currentBeatIndex
-                              ? "bg-transparent border-2 border-white/30"
-                              : "bg-orange-peel"
+                            ${
+                              idx <= countInState.currentBeatIndex
+                                ? "bg-transparent border-2 border-white/30"
+                                : "bg-orange-peel"
                             }
                           `}
                         />
@@ -258,17 +337,21 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
             <div className="text-center">
               <span
                 className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
-                onClick={isClickable ? () => onSeek?.(line.timestamp / 1000) : undefined}
+                onClick={
+                  isClickable
+                    ? () => onSeek?.(line.timestamp / 1000)
+                    : undefined
+                }
                 role={isClickable ? "button" : undefined}
                 tabIndex={isClickable ? 0 : undefined}
                 onKeyDown={
                   isClickable
                     ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSeek?.(line.timestamp / 1000);
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSeek?.(line.timestamp / 1000);
+                        }
                       }
-                    }
                     : undefined
                 }
               >
@@ -279,17 +362,16 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
             {/* Right column: Empty for balance */}
             <div />
           </div>
-
         </div>
       );
     });
   };
 
-
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-y-auto scroll-smooth scrollbar-hide ${className}`}
+      className={`relative w-full h-full overflow-y-auto scrollbar-hide flex flex-col ${className}`}
+      onScroll={handleScroll}
     >
       {/* Top spacer for vertical centering */}
       <div className="flex-1 min-h-[50vh]" />
