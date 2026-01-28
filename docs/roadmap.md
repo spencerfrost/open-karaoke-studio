@@ -24,23 +24,16 @@
   - Store additional metadata: type (plain/synced), duration, alignment info, etc.
   - This enables more flexible data management and future features.
 
-## 4. Long-Term Vision
+## 4. Synced Lyrics Enhancements
 - **AI-Generated Karaoke Features:**
   - Explore STT (Speech-to-Text) models that can generate synced lyrics from vocal tracks.
   - Use aligned vocal tracks and synced lyrics as training data for models that can generate synced lyrics from new vocal tracks.
   - Explore bouncing ball karaoke by generating word-level or syllable-level timing.
   - Potentially train custom models for even more precise lyric alignment and karaoke effects.
+
+## 5. Future Feature Ideas
 - **Other AI Features:**
   - Pitch shifting, key transposition, and more advanced audio processing.
-
-## 5. Next Steps
-- **Document and Prioritize:**
-  - Maintain this document as a living roadmap for feature ideas and technical directions.
-- **Prototype:**
-  - Start with a Python script to detect vocal onsets in isolated vocal tracks.
-  - Evaluate speech-to-text models for word-level timing.
-- **Database:**
-  - Plan and implement a migration to move lyrics into a dedicated table.
 
 ---
 
