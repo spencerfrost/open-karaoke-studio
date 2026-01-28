@@ -2,10 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useCancelProcessing, useDismissJob } from "@/services/uploadService";
 import { useJobsWebSocket } from "@/hooks/api/useJobsWebSocket";
-import {
-  formatTaskId,
-  countActiveJobs,
-} from "../components/JobsQueue.utils";
+import { countActiveJobs } from "../components/JobsQueue.utils";
 import { JobItem } from "../types/JobsQueue.types";
 
 export function useJobsQueue() {
@@ -25,6 +22,7 @@ export function useJobsQueue() {
       refetch();
     },
     onError: (err) => {
+      toast.error(`Failed to cancel job: ${err.message}`);
       console.error(err);
     },
   });
@@ -42,12 +40,16 @@ export function useJobsQueue() {
 
   // Handle canceling a processing task
   const handleCancel = (taskId: string) => {
-    cancelMutation.mutate(taskId);
+    if (!cancelMutation.isPending) {
+      cancelMutation.mutate(taskId);
+    }
   };
 
   // Handle dismissing a failed/completed task
   const handleDismiss = (taskId: string) => {
-    dismissMutation.mutate(taskId);
+    if (!dismissMutation.isPending) {
+      dismissMutation.mutate(taskId);
+    }
   };
 
   // Transform processing items to JobItem format
@@ -71,6 +73,8 @@ export function useJobsQueue() {
     isConnected,
     error,
     activeJobsCount,
+    isCancelLoading: cancelMutation.isPending,
+    isDismissLoading: dismissMutation.isPending,
 
     // Actions
     handleCancel,
