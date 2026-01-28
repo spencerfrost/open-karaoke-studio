@@ -64,6 +64,24 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   );
   const lastAutoScrollTimeRef = useRef<number>(0);
 
+  // Reset scroll position and user scroll state when lyrics change (new song)
+  useLayoutEffect(() => {
+    // Reset user scrolling state
+    setIsUserScrolling(false);
+    if (userScrollTimeoutRef.current) {
+      clearTimeout(userScrollTimeoutRef.current);
+      userScrollTimeoutRef.current = null;
+    }
+
+    // Reset scroll position to top
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+
+    // Reset line refs array for new lyrics
+    lineRefs.current = [];
+  }, [parsedData]);
+
   // Handle user scroll - detect manual scrolling and temporarily disable auto-scroll
   const handleScroll = useCallback(() => {
     // If this scroll happened very recently after an auto-scroll, ignore it

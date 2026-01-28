@@ -36,34 +36,69 @@ const KnobControl: React.FC<KnobControlProps> = ({
 
   // Define size classes
   const sizeClasses = {
-    small: { knob: "w-12 h-12", indicatorOrigin: "50% 20px", resetBtn: "h-6 w-6" },
-    medium: { knob: "w-16 h-16", indicatorOrigin: "50% 30px", resetBtn: "h-8 w-8" },
-    large: { knob: "w-20 h-20", indicatorOrigin: "50% 40px", resetBtn: "h-10 w-10" },
-    xl: { knob: "w-24 h-24", indicatorOrigin: "50% 50px", resetBtn: "h-12 w-12" }, // Extra-large size
+    small: {
+      knob: "w-12 h-12",
+      indicatorOrigin: "50% 20px",
+      resetBtn: "h-6 w-6",
+    },
+    medium: {
+      knob: "w-16 h-16",
+      indicatorOrigin: "50% 30px",
+      resetBtn: "h-8 w-8",
+    },
+    large: {
+      knob: "w-20 h-20",
+      indicatorOrigin: "50% 40px",
+      resetBtn: "h-10 w-10",
+    },
+    xl: {
+      knob: "w-24 h-24",
+      indicatorOrigin: "50% 50px",
+      resetBtn: "h-12 w-12",
+    }, // Extra-large size
   };
 
   const currentSize = sizeClasses[size];
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    setStartY(e.clientY);
-    setStartValue(value);
-    document.body.style.cursor = "ns-resize";
-  }, [value]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+      setStartY(e.clientY);
+      setStartValue(value);
+      document.body.style.cursor = "ns-resize";
+    },
+    [value],
+  );
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    
-    e.preventDefault();
-    const deltaY = startY - e.clientY; // Inverted: drag up = positive
-    const deltaSteps = Math.round(deltaY / sensitivity);
-    const newValue = Math.max(min, Math.min(max, startValue + (deltaSteps * step)));
-    
-    if (newValue !== value) {
-      onChange(newValue);
-    }
-  }, [isDragging, startY, startValue, sensitivity, step, min, max, value, onChange]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return;
+
+      e.preventDefault();
+      const deltaY = startY - e.clientY; // Inverted: drag up = positive
+      const deltaSteps = Math.round(deltaY / sensitivity);
+      const newValue = Math.max(
+        min,
+        Math.min(max, startValue + deltaSteps * step),
+      );
+
+      if (newValue !== value) {
+        onChange(newValue);
+      }
+    },
+    [
+      isDragging,
+      startY,
+      startValue,
+      sensitivity,
+      step,
+      min,
+      max,
+      value,
+      onChange,
+    ],
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -71,27 +106,46 @@ const KnobControl: React.FC<KnobControlProps> = ({
   }, []);
 
   // Touch events for mobile
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    setIsDragging(true);
-    setStartY(touch.clientY);
-    setStartValue(value);
-  }, [value]);
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setStartY(touch.clientY);
+      setStartValue(value);
+    },
+    [value],
+  );
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging) return;
-    
-    e.preventDefault();
-    const touch = e.touches[0];
-    const deltaY = startY - touch.clientY; // Inverted: drag up = positive
-    const deltaSteps = Math.round(deltaY / sensitivity);
-    const newValue = Math.max(min, Math.min(max, startValue + (deltaSteps * step)));
-    
-    if (newValue !== value) {
-      onChange(newValue);
-    }
-  }, [isDragging, startY, startValue, sensitivity, step, min, max, value, onChange]);
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!isDragging) return;
+
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaY = startY - touch.clientY; // Inverted: drag up = positive
+      const deltaSteps = Math.round(deltaY / sensitivity);
+      const newValue = Math.max(
+        min,
+        Math.min(max, startValue + deltaSteps * step),
+      );
+
+      if (newValue !== value) {
+        onChange(newValue);
+      }
+    },
+    [
+      isDragging,
+      startY,
+      startValue,
+      sensitivity,
+      step,
+      min,
+      max,
+      value,
+      onChange,
+    ],
+  );
 
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false);
@@ -102,9 +156,11 @@ const KnobControl: React.FC<KnobControlProps> = ({
     if (isDragging) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
-      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
       document.addEventListener("touchend", handleTouchEnd);
-      
+
       return () => {
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -112,7 +168,13 @@ const KnobControl: React.FC<KnobControlProps> = ({
         document.removeEventListener("touchend", handleTouchEnd);
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+  }, [
+    isDragging,
+    handleMouseMove,
+    handleMouseUp,
+    handleTouchMove,
+    handleTouchEnd,
+  ]);
 
   // Calculate rotation angle based on value (for visual feedback)
   // One full rotation (360°) across entire -5000 to +5000 range (10000ms)
@@ -121,7 +183,7 @@ const KnobControl: React.FC<KnobControlProps> = ({
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`}>
       <div className="text-sm font-medium text-lemon-chiffon">{label}</div>
-      
+
       <div className="flex items-center gap-2">
         {/* Reset button */}
         {onReset && (
@@ -135,7 +197,7 @@ const KnobControl: React.FC<KnobControlProps> = ({
             <RotateCcw size={16} />
           </Button>
         )}
-        
+
         {/* Knob */}
         <div
           ref={knobRef}
@@ -156,15 +218,17 @@ const KnobControl: React.FC<KnobControlProps> = ({
               transformOrigin: currentSize.indicatorOrigin, // Dynamic origin
             }}
           />
-          
+
           {/* Center dot */}
           <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-gray-400 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
         </div>
       </div>
-      
+
       {/* Value display */}
       <div className="text-lg font-mono text-lemon-chiffon">
-        {value > 0 ? '+' : ''}{value}{unit}
+        {value > 0 ? "+" : ""}
+        {value}
+        {unit}
       </div>
     </div>
   );

@@ -1,17 +1,17 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useSessionStore } from '@/stores/sessionStore';
-import SessionEntry from '@/components/SessionEntry';
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useSessionStore } from "@/stores/sessionStore";
+import SessionEntry from "@/components/SessionEntry";
 
 interface SessionGuardProps {
   children: React.ReactNode;
   redirectTo?: string;
   requireSession?: boolean;
-  deviceType?: 'stage' | 'performer';
+  deviceType?: "stage" | "performer";
 }
 
-const SessionGuard: React.FC<SessionGuardProps> = ({ 
-  children, 
+const SessionGuard: React.FC<SessionGuardProps> = ({
+  children,
   redirectTo,
   requireSession = true,
   deviceType,
@@ -39,14 +39,14 @@ const SessionGuard: React.FC<SessionGuardProps> = ({
   // Device type protection logic - redirect gracefully if user accesses wrong route directly
   if (sessionId && deviceType) {
     // Stage routes require host devices - redirect performers to controls
-    if (deviceType === 'stage' && !isHost) {
-      console.info('Performer device redirected from stage route to controls');
+    if (deviceType === "stage" && !isHost) {
+      console.info("Performer device redirected from stage route to controls");
       return <Navigate to="/controls" replace />;
     }
-    
+
     // Performer routes require non-host devices - redirect hosts to stage
-    if (deviceType === 'performer' && isHost) {
-      console.info('Host device redirected from performer route to stage');
+    if (deviceType === "performer" && isHost) {
+      console.info("Host device redirected from performer route to stage");
       return <Navigate to="/stage" replace />;
     }
   }

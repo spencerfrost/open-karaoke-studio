@@ -33,7 +33,7 @@ export const ConnectedPerformanceControls: React.FC = () => {
     <div className="relative h-full">
       {/* Always show performance controls (with default values if not connected) */}
       <PerformanceControlsPanel />
-      
+
       {/* Overlay join dialog when not in session */}
       {showJoinDialog && (
         <JoinSessionDialog

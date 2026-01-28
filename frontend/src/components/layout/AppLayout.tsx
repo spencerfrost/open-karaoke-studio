@@ -24,10 +24,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     // Host devices see "Stage" tab
     if (isHost) {
-      return [
-        ...baseItems,
-        { name: "Stage", path: "/stage", icon: List },
-      ];
+      return [...baseItems, { name: "Stage", path: "/stage", icon: List }];
     }
 
     // Performer devices see "Controls" tab
@@ -41,7 +38,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     <div className="flex flex-col h-screen">
       <div className="vintage-texture-overlay" />
       <div className="vintage-sunburst-pattern" />
-      <main className="flex-1 overflow-auto p-2 sm:p-4 relative z-10">{children}</main>
+      <main className="flex-1 overflow-auto p-2 sm:p-4 relative z-10">
+        {children}
+      </main>
       <NavBar items={getNavigationItems()} />
     </div>
   );

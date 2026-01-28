@@ -3,8 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -33,18 +41,18 @@ interface SessionInfoDisplayProps {
   showDetails?: ShowDetailsConfig;
 
   // Styling control - separated concerns
-  className?: string;              // Applied to outermost wrapper
-  triggerClassName?: string;       // Applied to trigger element (overrides variant defaults)
-  contentClassName?: string;       // Applied to content area inside popover
+  className?: string; // Applied to outermost wrapper
+  triggerClassName?: string; // Applied to trigger element (overrides variant defaults)
+  contentClassName?: string; // Applied to content area inside popover
 
   // Popover positioning
   popoverSide?: "top" | "right" | "bottom" | "left";
   popoverAlign?: "start" | "center" | "end";
-  popoverWidth?: string;           // Default "w-80"
+  popoverWidth?: string; // Default "w-80"
 
   // Code variant customization
-  codeSize?: string;               // e.g., "text-sm", "text-2xl" (default: "text-2xl")
-  codePadding?: string;            // e.g., "px-2 py-1", "px-4 py-2" (default: "px-4 py-2")
+  codeSize?: string; // e.g., "text-sm", "text-2xl" (default: "text-2xl")
+  codePadding?: string; // e.g., "px-2 py-1", "px-4 py-2" (default: "px-4 py-2")
 }
 
 const defaultShowDetails: ShowDetailsConfig = {
@@ -104,7 +112,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     performer: Smartphone,
     controller: Smartphone,
   };
-  const DeviceIcon = deviceTypeIcons[deviceType as keyof typeof deviceTypeIcons] || Smartphone;
+  const DeviceIcon =
+    deviceTypeIcons[deviceType as keyof typeof deviceTypeIcons] || Smartphone;
 
   // Merge user config with defaults
   const details = { ...defaultShowDetails, ...showDetails };
@@ -132,10 +141,14 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
       case "status":
         return (
-          <div className={`flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity ${baseTriggerClass}`}>
+          <div
+            className={`flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity ${baseTriggerClass}`}
+          >
             <span
               className={`h-2 w-2 rounded-full ${
-                connected ? "bg-dark-cyan animate-pulse" : "bg-rust animate-pulse"
+                connected
+                  ? "bg-dark-cyan animate-pulse"
+                  : "bg-rust animate-pulse"
               }`}
             />
             <span
@@ -150,7 +163,9 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
       case "minimal":
         return (
-          <div className={`flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity ${baseTriggerClass}`}>
+          <div
+            className={`flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity ${baseTriggerClass}`}
+          >
             <Users className="h-4 w-4" />
             <span className="text-sm font-medium">{displayCode}</span>
           </div>
@@ -167,7 +182,10 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Session Info</h4>
         {details.connectionStatus && (
-          <Badge variant={connected ? "default" : "destructive"} className="text-xs">
+          <Badge
+            variant={connected ? "default" : "destructive"}
+            className="text-xs"
+          >
             {connected ? "Connected" : "Disconnected"}
           </Badge>
         )}
@@ -184,8 +202,10 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         <div className="flex items-center gap-2">
           <DeviceIcon className="h-4 w-4 text-green-500" />
           <span className="text-sm">
-            You are {isHost ? 'the host' : 'a participant'}
-            {isHost && <Crown className="inline h-3 w-3 ml-1 text-yellow-500" />}
+            You are {isHost ? "the host" : "a participant"}
+            {isHost && (
+              <Crown className="inline h-3 w-3 ml-1 text-yellow-500" />
+            )}
           </span>
         </div>
       )}
@@ -194,23 +214,31 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-blue-500" />
           <span className="text-sm">
-            {participantCount} participant{participantCount !== 1 ? 's' : ''}
+            {participantCount} participant{participantCount !== 1 ? "s" : ""}
           </span>
         </div>
       )}
 
       {details.participants && connectedDevices.length > 0 && (
         <div className="border-t pt-2">
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Connected Devices:</h5>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">
+            Connected Devices:
+          </h5>
           <div className="space-y-1">
             {connectedDevices.map((device) => {
-              const DeviceTypeIcon = deviceTypeIcons[device.device_type as keyof typeof deviceTypeIcons] || Smartphone;
+              const DeviceTypeIcon =
+                deviceTypeIcons[
+                  device.device_type as keyof typeof deviceTypeIcons
+                ] || Smartphone;
               return (
-                <div key={device.device_id} className="flex items-center gap-2 text-xs">
+                <div
+                  key={device.device_id}
+                  className="flex items-center gap-2 text-xs"
+                >
                   <DeviceTypeIcon className="h-3 w-3" />
-                  <span className={device.is_self ? 'font-medium' : ''}>
+                  <span className={device.is_self ? "font-medium" : ""}>
                     {device.display_name || device.device_type}
-                    {device.is_self && ' (You)'}
+                    {device.is_self && " (You)"}
                   </span>
                 </div>
               );
@@ -222,7 +250,9 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
       {details.expiryTime && sessionInfo?.created_at && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground border-t pt-2">
           <Clock className="h-3 w-3" />
-          <span>Created: {new Date(sessionInfo.created_at).toLocaleTimeString()}</span>
+          <span>
+            Created: {new Date(sessionInfo.created_at).toLocaleTimeString()}
+          </span>
         </div>
       )}
 
@@ -261,10 +291,12 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     return (
       <div className={className}>
         <HoverCard openDelay={200}>
-          <HoverCardTrigger asChild>
-            {renderTrigger()}
-          </HoverCardTrigger>
-          <HoverCardContent className={popoverWidth} side={popoverSide} align={popoverAlign}>
+          <HoverCardTrigger asChild>{renderTrigger()}</HoverCardTrigger>
+          <HoverCardContent
+            className={popoverWidth}
+            side={popoverSide}
+            align={popoverAlign}
+          >
             {renderContent()}
           </HoverCardContent>
         </HoverCard>
@@ -276,10 +308,12 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     return (
       <div className={className}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            {renderTrigger()}
-          </PopoverTrigger>
-          <PopoverContent className={popoverWidth} side={popoverSide} align={popoverAlign}>
+          <PopoverTrigger asChild>{renderTrigger()}</PopoverTrigger>
+          <PopoverContent
+            className={popoverWidth}
+            side={popoverSide}
+            align={popoverAlign}
+          >
             {renderContent()}
           </PopoverContent>
         </Popover>

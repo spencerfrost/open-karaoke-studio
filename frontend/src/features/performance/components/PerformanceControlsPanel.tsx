@@ -11,19 +11,10 @@ import { useSessionStore } from "@/stores/sessionStore";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
 const PerformanceControlsPanel: React.FC = () => {
-  const {
-    isPlaying,
-    currentTime,
-    duration,
-    userPlay,
-    userPause,
-    seek,
-  } = useKaraokePlayerStore();
+  const { isPlaying, currentTime, duration, userPlay, userPause, seek } =
+    useKaraokePlayerStore();
 
-  const {
-    vocalVolume,
-    toggleVocalsVolume,
-  } = usePerformanceControlsLogic();
+  const { vocalVolume, toggleVocalsVolume } = usePerformanceControlsLogic();
 
   const { sessionId, displayCode, isHost } = useSessionStore();
 
@@ -44,7 +35,6 @@ const PerformanceControlsPanel: React.FC = () => {
           onSeek={seek}
           className="flex-1"
         />
-
       </div>
 
       <div className="flex-1 grid grid-cols-2">
@@ -65,7 +55,9 @@ const PerformanceControlsPanel: React.FC = () => {
         <div className="flex flex-col items-center gap-3 pl-4">
           <div className="flex items-center gap-2">
             <Mic className="text-primary" size={24} />
-            <span className="text-lg font-semibold text-lemon-chiffon">Volume: {Math.round(vocalVolume * 100)}%</span>
+            <span className="text-lg font-semibold text-lemon-chiffon">
+              Volume: {Math.round(vocalVolume * 100)}%
+            </span>
           </div>
 
           <div className="flex flex-col items-center gap-3 flex-1 w-full max-w-xs">
@@ -76,7 +68,9 @@ const PerformanceControlsPanel: React.FC = () => {
               step={0.05}
               variant="performance-hero"
               orientation="vertical"
-              onValueChange={([v]) => useKaraokePlayerStore.getState().setVocalVolume(v)}
+              onValueChange={([v]) =>
+                useKaraokePlayerStore.getState().setVocalVolume(v)
+              }
               className="flex-1 h-full"
             />
             <Button
@@ -91,7 +85,6 @@ const PerformanceControlsPanel: React.FC = () => {
           </div>
         </div>
       </div>
-
     </div>
   );
 };

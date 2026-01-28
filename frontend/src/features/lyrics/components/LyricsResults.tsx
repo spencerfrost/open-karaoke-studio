@@ -59,7 +59,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   function getParsedDuration(
     youtubeDurationSeconds?: number,
     youtubeMusicDurationSeconds?: string,
-    duration?: number // seconds
+    duration?: number, // seconds
   ): number {
     if (youtubeDurationSeconds !== undefined) {
       return youtubeDurationSeconds;
@@ -77,7 +77,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   const parsedDuration = getParsedDuration(
     youtubeDurationSeconds,
     youtubeMusicDurationSeconds,
-    duration
+    duration,
   );
 
   // Sort options by synced lyrics first, then by how close their duration is to the song's duration
@@ -111,8 +111,8 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
           Math.min(
             ...sortedOptions
               .filter((o) => o.duration != null)
-              .map((o) => Math.abs(parsedDuration - (o.duration ?? 0)))
-          )
+              .map((o) => Math.abs(parsedDuration - (o.duration ?? 0))),
+          ),
     );
   }, [sortedOptions, parsedDuration]);
 
@@ -144,7 +144,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   const getSelectedIndex = () => {
     if (!selectedOption) return "0";
     const index = sortedOptions.findIndex((option) =>
-      option.id ? option.id === selectedOption.id : option === selectedOption
+      option.id ? option.id === selectedOption.id : option === selectedOption,
     );
     return index >= 0 ? String(index) : "0";
   };

@@ -32,7 +32,9 @@ interface LyricsDisplayWithCountInProps extends LyricsDisplayProps {
   showLeadInHighlight?: boolean;
 }
 
-const LyricsDisplayWithCountInComponent: React.FC<LyricsDisplayWithCountInProps> = ({
+const LyricsDisplayWithCountInComponent: React.FC<
+  LyricsDisplayWithCountInProps
+> = ({
   bpm,
   showCountdownNumbers = false,
   showCountdownIcons = false,
@@ -83,7 +85,7 @@ const LyricsDisplayWithCountIn = React.memo(
     const nextTimeBucket = Math.floor((nextProps.currentTime * 1000) / 100);
 
     return prevTimeBucket === nextTimeBucket; // Same bucket = skip render
-  }
+  },
 );
 
 LyricsDisplayWithCountIn.displayName = "LyricsDisplayWithCountIn";

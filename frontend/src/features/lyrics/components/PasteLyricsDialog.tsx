@@ -52,7 +52,8 @@ export const PasteLyricsDialog: React.FC<PasteLyricsDialogProps> = ({
         <DialogHeader>
           <DialogTitle>Paste Lyrics</DialogTitle>
           <DialogDescription>
-            Paste plain text lyrics for this song. These will be saved as unsynced lyrics.
+            Paste plain text lyrics for this song. These will be saved as
+            unsynced lyrics.
           </DialogDescription>
         </DialogHeader>
 
@@ -63,7 +64,9 @@ export const PasteLyricsDialog: React.FC<PasteLyricsDialogProps> = ({
               id="lyrics-textarea"
               placeholder="Paste lyrics here..."
               value={lyrics}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setLyrics(e.target.value)
+              }
               className="min-h-[300px] font-mono"
               autoFocus
             />

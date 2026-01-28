@@ -3,7 +3,7 @@ import {
   getLyricsSizeValue,
   parseLyricsSize,
   toggleVolume,
-  type LyricsSize
+  type LyricsSize,
 } from "@/utils/performanceControls";
 
 /**

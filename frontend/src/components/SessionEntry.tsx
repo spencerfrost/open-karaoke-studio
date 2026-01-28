@@ -52,7 +52,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
   const handleCreateSession = async () => {
     try {
       // Creating a session implies host role (stage), no display name needed
-      await createSession('stage');
+      await createSession("stage");
     } catch (error) {
       console.error("Failed to create session:", error);
       toast.error("Failed to create session. Please try again.");
@@ -74,15 +74,15 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       // Joining a session implies performer role
       await joinSession(
         sessionCode.trim().toUpperCase(),
-        'performer',
-        displayName.trim()
+        "performer",
+        displayName.trim(),
       );
       // Save the name to localStorage for future sessions
       localStorage.setItem("karaokeDisplayName", displayName.trim());
     } catch (error) {
       console.error("Failed to join session:", error);
       toast.error(
-        "Failed to join session. Please check the code and try again."
+        "Failed to join session. Please check the code and try again.",
       );
     }
   };

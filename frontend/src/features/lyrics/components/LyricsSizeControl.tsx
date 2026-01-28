@@ -7,7 +7,9 @@ const LyricsSizeControl: React.FC = () => {
 
   return (
     <div className="flex flex-col items-stretch gap-4">
-      <div className="text-xs text-center text-lemon-chiffon/80">Lyrics Size</div>
+      <div className="text-xs text-center text-lemon-chiffon/80">
+        Lyrics Size
+      </div>
       <div className="flex flex-col gap-3">
         <Button
           variant={lyricsSize === "small" ? "default" : "outline"}

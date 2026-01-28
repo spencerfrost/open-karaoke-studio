@@ -7,7 +7,7 @@ import { CheckCircle, ThumbsUp, AlertTriangle, XCircle } from "lucide-react";
 // Helper function to get duration comparison status
 const getDurationComparison = (
   songDuration: number,
-  lyricsDuration: number
+  lyricsDuration: number,
 ) => {
   const diff = Math.abs(songDuration - lyricsDuration);
 
@@ -65,7 +65,7 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
 
   const durationComparison = getDurationComparison(
     parsedDuration,
-    option.duration ?? 0
+    option.duration ?? 0,
   );
   const Icon = durationComparison.icon;
 
@@ -125,8 +125,8 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
               ))}
               {cleanedLyrics?.split("\n").length > maxPreviewLines && (
                 <p className="text-muted-foreground italic mt-2 border-t pt-1">
-                  {cleanedLyrics.split("\n").length - maxPreviewLines} more lines
-                  (not shown)
+                  {cleanedLyrics.split("\n").length - maxPreviewLines} more
+                  lines (not shown)
                 </p>
               )}
             </div>

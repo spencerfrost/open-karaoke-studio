@@ -9,7 +9,6 @@ import type { CountInTrigger } from "@/utils/lrcUtils";
 interface CountInDisplayProps {
   trigger: CountInTrigger;
   currentTime: number; // seconds
-  bpm: number;
 
   // Boolean flags for each style (mix-and-match)
   showCountdownNumbers?: boolean;
@@ -25,7 +24,6 @@ interface CountInDisplayProps {
 const CountInDisplay: React.FC<CountInDisplayProps> = ({
   trigger,
   currentTime,
-  bpm,
   showCountdownNumbers = false,
   showCountdownIcons = false,
   showProgressBar = false,
@@ -37,7 +35,10 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
 
   // Check if count-in is active
   const isActive = useMemo(() => {
-    return currentTimeMs >= trigger.countInStart && currentTimeMs < trigger.countInEnd;
+    return (
+      currentTimeMs >= trigger.countInStart &&
+      currentTimeMs < trigger.countInEnd
+    );
   }, [currentTimeMs, trigger.countInStart, trigger.countInEnd]);
 
   // Calculate current beat index (0-3 for 4 beats)

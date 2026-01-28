@@ -46,8 +46,11 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   const [refinedQuery, setRefinedQuery] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [hasRefined, setHasRefined] = useState(false);
-  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<LyricsProvider>("syncedlyrics");
+  const [selectedLyrics, setSelectedLyrics] = useState<LyricsOption | null>(
+    null,
+  );
+  const [selectedProvider, setSelectedProvider] =
+    useState<LyricsProvider>("syncedlyrics");
 
   // Lyrics search hook
   const lyricsSearch = useLyricsSearch();
@@ -88,7 +91,12 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   // Handle manual provider change (user rejecting current results)
   useEffect(() => {
     // Only trigger if dialog is open, we have a song, and provider was manually changed
-    if (isOpen && song && actualProvider && selectedProvider !== actualProvider) {
+    if (
+      isOpen &&
+      song &&
+      actualProvider &&
+      selectedProvider !== actualProvider
+    ) {
       lyricsSearch.search({
         artist: song.artist,
         title: song.title,
@@ -115,7 +123,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
 
     try {
       // Parse the refined query - assume format is "artist - title - album" or "artist - title"
-      const parts = refinedQuery.split(" - ").map(part => part.trim());
+      const parts = refinedQuery.split(" - ").map((part) => part.trim());
       const artist = parts[0] || song.artist;
       const title = parts[1] || song.title;
       const album = parts[2] || song.album;
@@ -195,7 +203,8 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Search for Lyrics</DialogTitle>
           <DialogDescription>
-            Finding lyrics for: <strong>{song.title}</strong> by <strong>{song.artist}</strong>
+            Finding lyrics for: <strong>{song.title}</strong> by{" "}
+            <strong>{song.artist}</strong>
           </DialogDescription>
         </DialogHeader>
 
@@ -213,7 +222,9 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                 LRCLIB
               </Button>
               <Button
-                variant={selectedProvider === "syncedlyrics" ? "default" : "outline"}
+                variant={
+                  selectedProvider === "syncedlyrics" ? "default" : "outline"
+                }
                 size="sm"
                 onClick={() => setSelectedProvider("syncedlyrics")}
                 className="flex-1"
@@ -251,7 +262,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                 onKeyDown={handleKeyDown}
                 disabled={isRefining}
                 className="flex-1"
-                style={{ touchAction: 'manipulation' }}
+                style={{ touchAction: "manipulation" }}
               />
               <Button
                 onClick={handleSearchRefinement}
@@ -288,10 +299,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              onClick={handleLyricsConfirm}
-              disabled={!selectedLyrics}
-            >
+            <Button onClick={handleLyricsConfirm} disabled={!selectedLyrics}>
               Use Selected Lyrics
             </Button>
           </div>
