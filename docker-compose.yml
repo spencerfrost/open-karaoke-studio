@@ -23,6 +23,8 @@ services:
     image: postgres:15-alpine
     container_name: karaoke-postgres-prod
     restart: unless-stopped
+    ports:
+      - "15432:5432"  # Optional: external access for debugging/migration
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-karaoke}
       POSTGRES_USER: ${POSTGRES_USER:-karaoke_user}
@@ -47,7 +49,7 @@ services:
     ports:
       - "5123:5123"
     volumes:
-      - karaoke_library:/app/karaoke_library
+      - ./karaoke_library:/app/karaoke_library
       - backend_logs:/app/backend/logs
     environment:
       - ENVIRONMENT=production
@@ -78,7 +80,7 @@ services:
     restart: unless-stopped
     command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads
     volumes:
-      - karaoke_library:/app/karaoke_library
+      - ./karaoke_library:/app/karaoke_library
       - backend_logs:/app/backend/logs
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -124,7 +126,6 @@ services:
 volumes:
   redis_data:
   postgres_data:
-  karaoke_library:
   backend_logs:
 
 networks:
