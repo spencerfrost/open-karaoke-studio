@@ -1,17 +1,20 @@
 /**
  * QueueEnded - Content displayed when a song finishes playing and queue is empty
- * 
+ *
  * Shows song suggestions (like YouTube's end screen).
  * Replaces the lyrics display when the song ends and no more songs are in queue.
  */
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Music, Play, Library } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useSongSuggestions, getSuggestionReasonText } from '../../hooks/useSongSuggestions';
-import { useSongs } from '@/hooks/api/useSongs';
-import type { Song } from '@/types/Song';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { Music, Play, Library } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  useSongSuggestions,
+  getSuggestionReasonText,
+} from "../../hooks/useSongSuggestions";
+import { useSongs } from "@/hooks/api/useSongs";
+import type { Song } from "@/types/Song";
 
 interface QueueEndedProps {
   /** The song that just finished */
@@ -28,10 +31,10 @@ interface SuggestionCardProps {
   onClick: () => void;
 }
 
-const SuggestionCard: React.FC<SuggestionCardProps> = ({ 
-  song, 
+const SuggestionCard: React.FC<SuggestionCardProps> = ({
+  song,
   artworkUrl,
-  onClick 
+  onClick,
 }) => {
   return (
     <button
@@ -51,7 +54,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
             <Music size={32} className="text-cyan-700" />
           </div>
         )}
-        
+
         {/* Play overlay on hover */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
           <div className="bg-orange-peel/90 rounded-full p-2">
@@ -59,15 +62,13 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
           </div>
         </div>
       </div>
-      
+
       {/* Song info */}
       <div className="p-2">
         <h4 className="text-sm font-medium text-white truncate">
           {song.title}
         </h4>
-        <p className="text-xs text-white/60 truncate">
-          {song.artist}
-        </p>
+        <p className="text-xs text-white/60 truncate">{song.artist}</p>
       </div>
     </button>
   );
@@ -76,11 +77,11 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
 export const QueueEnded: React.FC<QueueEndedProps> = ({
   currentSong,
   onSelectSong,
-  className = '',
+  className = "",
 }) => {
   const navigate = useNavigate();
   const { getArtworkUrl } = useSongs();
-  
+
   const { suggestions, isLoading } = useSongSuggestions({
     currentSong,
     limit: 4, // Show up to 4 suggestions
@@ -91,26 +92,26 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
       onSelectSong(song);
     } else {
       // Default behavior: add to queue
-      navigate('/library');
+      navigate("/library");
     }
   };
 
   const hasSuggestions = suggestions.length > 0;
-  const suggestionReason = hasSuggestions 
+  const suggestionReason = hasSuggestions
     ? getSuggestionReasonText(suggestions[0].reason)
     : null;
 
   return (
-    <div className={`flex items-center justify-center w-full h-full ${className}`}>
+    <div
+      className={`flex items-center justify-center w-full h-full ${className}`}
+    >
       <div className="flex flex-col items-center gap-6 p-6 max-w-4xl w-full">
         {/* Header */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-1">
             Queue Complete! 🎉
           </h2>
-          <p className="text-white/60">
-            No more songs left to sing
-          </p>
+          <p className="text-white/60">No more songs left to sing</p>
         </div>
 
         {/* Suggestions Section */}
@@ -124,7 +125,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
                 <SuggestionCard
                   key={suggestion.song.id}
                   song={suggestion.song}
-                  artworkUrl={getArtworkUrl(suggestion.song, 'medium')}
+                  artworkUrl={getArtworkUrl(suggestion.song, "medium")}
                   onClick={() => handleSongSelect(suggestion.song)}
                 />
               ))}
@@ -134,16 +135,16 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
 
         {/* Loading state for suggestions */}
         {isLoading && (
-          <div className="text-white/60 text-sm">
-            Finding more songs...
-          </div>
+          <div className="text-white/60 text-sm">Finding more songs...</div>
         )}
 
         {/* No suggestions fallback */}
         {!isLoading && !hasSuggestions && (
           <div className="text-white/60 text-sm text-center">
             <p>No other songs by {currentSong.artist} in your library.</p>
-            <p className="mt-1">Add more songs to continue your karaoke session!</p>
+            <p className="mt-1">
+              Add more songs to continue your karaoke session!
+            </p>
           </div>
         )}
 
@@ -152,7 +153,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
           <Button
             variant="outline"
             size="lg"
-            onClick={() => navigate('/library')}
+            onClick={() => navigate("/library")}
             className="bg-black/50 hover:bg-black/70 border-white/30 hover:border-white/50 text-white gap-2"
           >
             <Library className="w-5 h-5" />

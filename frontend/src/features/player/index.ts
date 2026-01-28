@@ -4,10 +4,10 @@
  */
 
 // Component exports
-export { default as KaraokePlayer } from './components/KaraokePlayer';
+export { default as KaraokePlayer } from "./components/KaraokePlayer";
 
 // Hook exports
-export * from './hooks';
+export * from "./hooks";
 
 // Type exports
-export * from './types/KaraokePlayer.types';
+export * from "./types/KaraokePlayer.types";

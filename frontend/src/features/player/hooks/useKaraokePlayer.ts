@@ -1,19 +1,19 @@
-import { useEffect, useCallback, useMemo } from 'react';
-import { useKaraokePlayerStore } from '@/stores/useKaraokePlayerStore';
-import { useSongs } from '@/hooks/api/useSongs';
-import { getSongDuration } from '@/utils/songUtils';
-import type { 
-  KaraokePlayerHook, 
-  PlayerOptions, 
-  PlayerError
-} from '../KaraokePlayer.types';
+import { useEffect, useCallback, useMemo } from "react";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useSongs } from "@/hooks/api/useSongs";
+import { getSongDuration } from "@/utils/songUtils";
+import type {
+  KaraokePlayerHook,
+  PlayerOptions,
+  PlayerError,
+} from "../KaraokePlayer.types";
 
 export const useKaraokePlayer = (
-  songId?: string, 
-  options: PlayerOptions = {}
+  songId?: string,
+  options: PlayerOptions = {},
 ): KaraokePlayerHook => {
   const { autoPlay = false, preload = false } = options;
-  
+
   // Store state and actions
   const {
     songId: currentSongId,
@@ -46,11 +46,11 @@ export const useKaraokePlayer = (
 
   // Song data fetching
   const { useSong } = useSongs();
-  const { 
-    data: song, 
+  const {
+    data: song,
     isLoading: isMetadataLoading,
-    error: songError 
-  } = useSong(songId ?? '');
+    error: songError,
+  } = useSong(songId ?? "");
 
   // Combined loading state: either fetching metadata OR downloading/decoding audio
   const isLoading = isMetadataLoading || isAudioLoading;
@@ -86,7 +86,15 @@ export const useKaraokePlayer = (
       void load();
     }
     // Don't cleanup on unmount - mini-player needs the audio to keep playing
-  }, [song, songId, currentSongId, setSongAndLoad, isReady, isAudioLoading, load]);
+  }, [
+    song,
+    songId,
+    currentSongId,
+    setSongAndLoad,
+    isReady,
+    isAudioLoading,
+    load,
+  ]);
 
   // Auto-play functionality
   useEffect(() => {
@@ -99,7 +107,7 @@ export const useKaraokePlayer = (
   const preloadSong = useCallback(async (preloadSongId: string) => {
     // Implementation for preloading songs
     // This would involve fetching song data and potentially preparing audio
-    console.log('Preloading song:', preloadSongId);
+    console.log("Preloading song:", preloadSongId);
     // TODO: Implement actual preloading logic
   }, []);
 
@@ -132,12 +140,15 @@ export const useKaraokePlayer = (
     }
   }, [isReady, isPlaying, play, pause]);
 
-  const seek = useCallback((timeSeconds: number) => {
-    if (isReady) {
-      // Store now expects seconds
-      storeSeek(timeSeconds);
-    }
-  }, [isReady, storeSeek]);
+  const seek = useCallback(
+    (timeSeconds: number) => {
+      if (isReady) {
+        // Store now expects seconds
+        storeSeek(timeSeconds);
+      }
+    },
+    [isReady, storeSeek],
+  );
 
   // Replay from the beginning
   const replay = useCallback(() => {
@@ -160,14 +171,17 @@ export const useKaraokePlayer = (
   const error: PlayerError | null = useMemo(() => {
     if (storeError) {
       return {
-        code: 'PLAYER_ERROR',
+        code: "PLAYER_ERROR",
         message: storeError,
       };
     }
     if (songError) {
       return {
-        code: 'SONG_ERROR',
-        message: songError instanceof Error ? songError.message : 'Failed to load song',
+        code: "SONG_ERROR",
+        message:
+          songError instanceof Error
+            ? songError.message
+            : "Failed to load song",
         details: songError,
       };
     }
@@ -176,19 +190,19 @@ export const useKaraokePlayer = (
 
   // Lyrics processing
   const lyrics = useMemo(() => {
-    if (!song) return '';
-    return song.syncedLyrics || song.plainLyrics || '';
+    if (!song) return "";
+    return song.syncedLyrics || song.plainLyrics || "";
   }, [song]);
 
   const isLyricsSync = useMemo(() => {
-    return !!(song?.syncedLyrics);
+    return !!song?.syncedLyrics;
   }, [song]);
 
   // Connection status
   const connectionStatus = useMemo(() => {
-    if (connected) return 'connected';
-    return 'disconnected'; // TODO: Add 'connecting' state detection
-  }, [connected]) as 'connected' | 'disconnected' | 'connecting';
+    if (connected) return "connected";
+    return "disconnected"; // TODO: Add 'connecting' state detection
+  }, [connected]) as "connected" | "disconnected" | "connecting";
 
   // Waveform data
   const waveformData = useMemo(() => {
@@ -211,20 +225,20 @@ export const useKaraokePlayer = (
     duration: durationSeconds,
     error,
     connectionStatus,
-    
+
     // Playback controls
     play,
     pause,
     togglePlay,
     seek,
     replay,
-    
+
     // Audio controls
     setVocalVolume,
     setInstrumentalVolume,
     vocalVolume,
     instrumentalVolume,
-    
+
     // Lyrics and display
     lyrics,
     isLyricsSync,
@@ -232,10 +246,10 @@ export const useKaraokePlayer = (
     lyricsOffset,
     setLyricsSize,
     setLyricsOffset,
-    
+
     // Visualizer
     waveformData,
-    
+
     // Advanced
     reload,
     preload: preloadSong,

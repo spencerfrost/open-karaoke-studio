@@ -76,11 +76,12 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   const containerClass = cn(
     "w-full absolute bottom-0 left-0 right-0 z-20",
     "transition-all duration-300",
-    (mouseRecentlyMoved || !isPlaying) && "px-12"
+    (mouseRecentlyMoved || !isPlaying) && "px-12",
   );
 
   // Progress bar classes
-  const progressClass = "transition-all duration-300 rounded-full mb-3 shadow-lg"
+  const progressClass =
+    "transition-all duration-300 rounded-full mb-3 shadow-lg";
 
   return (
     <div className={containerClass}>
@@ -129,7 +130,6 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
               onTapTempoSave={onTapTempoSave}
               onTapTempoReset={onTapTempoReset}
             />
-
           </div>
         )}
       </div>

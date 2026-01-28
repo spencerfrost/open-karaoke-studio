@@ -106,7 +106,7 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
             className={cn(
               "h-9 px-3 bg-orange-peel hover:bg-orange-peel/90",
               "border border-orange-peel/50",
-              hasUnsavedChanges && "animate-pulse"
+              hasUnsavedChanges && "animate-pulse",
             )}
             title="Save BPM to song"
           >
@@ -118,7 +118,9 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
             variant="ghost"
             onClick={onReset}
             className="h-9 px-3 bg-black/40 hover:bg-black/60 border border-orange-peel/30 hover:border-orange-peel/60"
-            title={songBpm ? `Reset to ${songBpm.toFixed(1)} BPM` : "Clear tempo"}
+            title={
+              songBpm ? `Reset to ${songBpm.toFixed(1)} BPM` : "Clear tempo"
+            }
           >
             <RotateCcw className="w-4 h-4" />
           </Button>
@@ -133,7 +135,7 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
           "bg-black/40 hover:bg-black/60 border border-orange-peel/30 hover:border-orange-peel/60",
           "text-background/80 hover:text-background",
           isPulsing && `${pulseScale} ${pulseBg} border-orange-peel`,
-          isActive && "bg-orange-peel/10 border-orange-peel/50"
+          isActive && "bg-orange-peel/10 border-orange-peel/50",
         )}
         title={
           showTapCount
@@ -148,7 +150,7 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
           className={cn(
             "w-5 h-5 transition-all duration-150",
             isPulsing && `text-orange-peel ${pulseIconScale}`,
-            isActive && "text-orange-peel"
+            isActive && "text-orange-peel",
           )}
         />
         <div className="flex flex-col items-start text-xs leading-tight min-w-[3rem]">

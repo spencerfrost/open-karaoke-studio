@@ -3,7 +3,7 @@
  * Manages fullscreen state, events, and cross-browser compatibility
  */
 
-import React from 'react';
+import React from "react";
 
 interface FullscreenContainerProps {
   children: React.ReactNode;
@@ -42,7 +42,7 @@ const FullscreenContainer: React.FC<FullscreenContainerProps> = ({
           {fsError}
         </div>
       )}
-      
+
       {children}
     </div>
   );

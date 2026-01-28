@@ -3,9 +3,9 @@
  * Provides recovery mechanisms and user-friendly error messages
  */
 
-import { Component, ErrorInfo, ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import type { PlayerError } from '../KaraokePlayer.types';
+import { Component, ErrorInfo, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import type { PlayerError } from "../KaraokePlayer.types";
 
 interface Props {
   children: ReactNode;
@@ -29,11 +29,11 @@ class PlayerErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Player Error Boundary caught an error:', error, errorInfo);
-    
+    console.error("Player Error Boundary caught an error:", error, errorInfo);
+
     if (this.props.onError) {
       this.props.onError({
-        code: 'COMPONENT_ERROR',
+        code: "COMPONENT_ERROR",
         message: error.message,
         details: { error, errorInfo },
       });
@@ -58,16 +58,14 @@ class PlayerErrorBoundary extends Component<Props, State> {
             Karaoke Player Error
           </div>
           <div className="text-background/70 mb-6 max-w-md">
-            {this.state.error?.message || 'Something went wrong with the player.'}
+            {this.state.error?.message ||
+              "Something went wrong with the player."}
           </div>
           <div className="space-x-4">
             <Button onClick={this.handleRetry} variant="outline">
               Try Again
             </Button>
-            <Button 
-              onClick={() => window.location.reload()} 
-              variant="ghost"
-            >
+            <Button onClick={() => window.location.reload()} variant="ghost">
               Reload Page
             </Button>
           </div>

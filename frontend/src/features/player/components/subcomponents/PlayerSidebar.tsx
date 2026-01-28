@@ -5,24 +5,34 @@
  * - "push": Sidebar that takes horizontal space and pushes content over
  */
 
-import React, { useState, useRef, useCallback } from 'react';
-import { Settings2, X, ScrollText, RotateCcw, Minus, Plus, Save, Search, FileText } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { useKaraokePlayerStore } from '@/stores/useKaraokePlayerStore';
-import { useSongs } from '@/hooks/api/useSongs';
-import { applyOffsetToLrc } from '@/utils/lrcUtils';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import LyricsFetchDialog from '@/features/lyrics/components/LyricsFetchDialog';
-import PasteLyricsDialog from '@/features/lyrics/components/PasteLyricsDialog';
-import type { LyricsResult } from '@/features/lyrics/components/LyricsFetchDialog';
-import type { Song } from '@/types/Song';
+import React, { useState, useRef, useCallback } from "react";
+import {
+  Settings2,
+  X,
+  ScrollText,
+  RotateCcw,
+  Minus,
+  Plus,
+  Save,
+  Search,
+  FileText,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useSongs } from "@/hooks/api/useSongs";
+import { applyOffsetToLrc } from "@/utils/lrcUtils";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import LyricsFetchDialog from "@/features/lyrics/components/LyricsFetchDialog";
+import PasteLyricsDialog from "@/features/lyrics/components/PasteLyricsDialog";
+import type { LyricsResult } from "@/features/lyrics/components/LyricsFetchDialog";
+import type { Song } from "@/types/Song";
 
-export type SidebarMode = 'floating' | 'push';
+export type SidebarMode = "floating" | "push";
 
 interface PlayerSidebarProps {
   isOpen: boolean;
@@ -49,7 +59,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   // Fetch current song for synced lyrics
   const { useSong, useUpdateSong } = useSongs();
-  const { data: song } = useSong(songId ?? '');
+  const { data: song } = useSong(songId ?? "");
   const updateSongMutation = useUpdateSong();
 
   // Lyrics dialog state
@@ -67,108 +77,141 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const handleSaveOffset = useCallback(() => {
     if (!songId || !song?.syncedLyrics || lyricsOffset === 0) return;
-    
+
     const updatedLyrics = applyOffsetToLrc(song.syncedLyrics, lyricsOffset);
-    
-    updateSongMutation.mutate({
-      id: songId,
-      syncedLyrics: updatedLyrics,
-    }, {
-      onSuccess: () => {
-        setLyricsOffset(0); // Reset offset after save
+
+    updateSongMutation.mutate(
+      {
+        id: songId,
+        syncedLyrics: updatedLyrics,
       },
-      onError: (error) => {
-        toast.error(`Failed to save: ${error.message}`);
-      }
-    });
-  }, [songId, song?.syncedLyrics, lyricsOffset, updateSongMutation, setLyricsOffset]);
+      {
+        onSuccess: () => {
+          setLyricsOffset(0); // Reset offset after save
+        },
+        onError: (error) => {
+          toast.error(`Failed to save: ${error.message}`);
+        },
+      },
+    );
+  }, [
+    songId,
+    song?.syncedLyrics,
+    lyricsOffset,
+    updateSongMutation,
+    setLyricsOffset,
+  ]);
 
   // Lyrics search/paste handlers
-  const handleLyricsSelected = useCallback((lyricsResult: LyricsResult) => {
-    if (!songId) {
-      toast.error("Cannot update song: missing song ID");
-      return;
-    }
-
-    updateSongMutation.mutate({
-      id: songId,
-      plainLyrics: lyricsResult.plainLyrics,
-      syncedLyrics: lyricsResult.syncedLyrics,
-    }, {
-      onSuccess: () => {
-        setIsLyricsDialogOpen(false);
-      },
-      onError: (error) => {
-        toast.error(`Failed to update lyrics: ${error.message}`);
+  const handleLyricsSelected = useCallback(
+    (lyricsResult: LyricsResult) => {
+      if (!songId) {
+        toast.error("Cannot update song: missing song ID");
+        return;
       }
-    });
-  }, [songId, updateSongMutation]);
 
-  const handlePasteLyricsConfirmed = useCallback((pastedLyrics: string) => {
-    if (!songId) {
-      toast.error("Cannot update song: missing song ID");
-      return;
-    }
+      updateSongMutation.mutate(
+        {
+          id: songId,
+          plainLyrics: lyricsResult.plainLyrics,
+          syncedLyrics: lyricsResult.syncedLyrics,
+        },
+        {
+          onSuccess: () => {
+            setIsLyricsDialogOpen(false);
+          },
+          onError: (error) => {
+            toast.error(`Failed to update lyrics: ${error.message}`);
+          },
+        },
+      );
+    },
+    [songId, updateSongMutation],
+  );
 
-    updateSongMutation.mutate({
-      id: songId,
-      plainLyrics: pastedLyrics,
-      syncedLyrics: undefined, // Clear synced lyrics when pasting plain lyrics
-    }, {
-      onSuccess: () => {
-        setIsPasteLyricsDialogOpen(false);
-      },
-      onError: (error) => {
-        toast.error(`Failed to save lyrics: ${error.message}`);
+  const handlePasteLyricsConfirmed = useCallback(
+    (pastedLyrics: string) => {
+      if (!songId) {
+        toast.error("Cannot update song: missing song ID");
+        return;
       }
-    });
-  }, [songId, updateSongMutation]);
 
-  const handleOffsetMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStartY(e.clientY);
-    setDragStartValue(lyricsOffset);
-    document.body.style.cursor = 'ns-resize';
-  }, [lyricsOffset]);
+      updateSongMutation.mutate(
+        {
+          id: songId,
+          plainLyrics: pastedLyrics,
+          syncedLyrics: undefined, // Clear synced lyrics when pasting plain lyrics
+        },
+        {
+          onSuccess: () => {
+            setIsPasteLyricsDialogOpen(false);
+          },
+          onError: (error) => {
+            toast.error(`Failed to save lyrics: ${error.message}`);
+          },
+        },
+      );
+    },
+    [songId, updateSongMutation],
+  );
 
-  const handleOffsetMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const deltaY = dragStartY - e.clientY; // Drag up = positive
-    const sensitivity = 1; // pixels per 100ms step (more significant)
-    const deltaSteps = Math.round(deltaY / sensitivity);
-    const newValue = dragStartValue + (deltaSteps * 100);
-    if (newValue !== lyricsOffset) {
-      setLyricsOffset(newValue);
-    }
-  }, [isDragging, dragStartY, dragStartValue, lyricsOffset, setLyricsOffset]);
+  const handleOffsetMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStartY(e.clientY);
+      setDragStartValue(lyricsOffset);
+      document.body.style.cursor = "ns-resize";
+    },
+    [lyricsOffset],
+  );
+
+  const handleOffsetMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const deltaY = dragStartY - e.clientY; // Drag up = positive
+      const sensitivity = 1; // pixels per 100ms step (more significant)
+      const deltaSteps = Math.round(deltaY / sensitivity);
+      const newValue = dragStartValue + deltaSteps * 100;
+      if (newValue !== lyricsOffset) {
+        setLyricsOffset(newValue);
+      }
+    },
+    [isDragging, dragStartY, dragStartValue, lyricsOffset, setLyricsOffset],
+  );
 
   const handleOffsetMouseUp = useCallback(() => {
     setIsDragging(false);
-    document.body.style.cursor = 'auto';
+    document.body.style.cursor = "auto";
   }, []);
 
   // Touch support
-  const handleOffsetTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    setIsDragging(true);
-    setDragStartY(touch.clientY);
-    setDragStartValue(lyricsOffset);
-  }, [lyricsOffset]);
+  const handleOffsetTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStartY(touch.clientY);
+      setDragStartValue(lyricsOffset);
+    },
+    [lyricsOffset],
+  );
 
-  const handleOffsetTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const deltaY = dragStartY - touch.clientY;
-    const sensitivity = 1; // pixels per 100ms step (more significant)
-    const deltaSteps = Math.round(deltaY / sensitivity);
-    const newValue = dragStartValue + (deltaSteps * 100);
-    if (newValue !== lyricsOffset) {
-      setLyricsOffset(newValue);
-    }
-  }, [isDragging, dragStartY, dragStartValue, lyricsOffset, setLyricsOffset]);
+  const handleOffsetTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaY = dragStartY - touch.clientY;
+      const sensitivity = 1; // pixels per 100ms step (more significant)
+      const deltaSteps = Math.round(deltaY / sensitivity);
+      const newValue = dragStartValue + deltaSteps * 100;
+      if (newValue !== lyricsOffset) {
+        setLyricsOffset(newValue);
+      }
+    },
+    [isDragging, dragStartY, dragStartValue, lyricsOffset, setLyricsOffset],
+  );
 
   const handleOffsetTouchEnd = useCallback(() => {
     setIsDragging(false);
@@ -177,18 +220,26 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   // Global event listeners for drag
   React.useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleOffsetMouseMove);
-      document.addEventListener('mouseup', handleOffsetMouseUp);
-      document.addEventListener('touchmove', handleOffsetTouchMove, { passive: false });
-      document.addEventListener('touchend', handleOffsetTouchEnd);
+      document.addEventListener("mousemove", handleOffsetMouseMove);
+      document.addEventListener("mouseup", handleOffsetMouseUp);
+      document.addEventListener("touchmove", handleOffsetTouchMove, {
+        passive: false,
+      });
+      document.addEventListener("touchend", handleOffsetTouchEnd);
       return () => {
-        document.removeEventListener('mousemove', handleOffsetMouseMove);
-        document.removeEventListener('mouseup', handleOffsetMouseUp);
-        document.removeEventListener('touchmove', handleOffsetTouchMove);
-        document.removeEventListener('touchend', handleOffsetTouchEnd);
+        document.removeEventListener("mousemove", handleOffsetMouseMove);
+        document.removeEventListener("mouseup", handleOffsetMouseUp);
+        document.removeEventListener("touchmove", handleOffsetTouchMove);
+        document.removeEventListener("touchend", handleOffsetTouchEnd);
       };
     }
-  }, [isDragging, handleOffsetMouseMove, handleOffsetMouseUp, handleOffsetTouchMove, handleOffsetTouchEnd]);
+  }, [
+    isDragging,
+    handleOffsetMouseMove,
+    handleOffsetMouseUp,
+    handleOffsetTouchMove,
+    handleOffsetTouchEnd,
+  ]);
 
   return (
     <div className="flex flex-col h-full">
@@ -233,12 +284,18 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-background">Text Size</Label>
-              <span className="text-sm text-background/60 capitalize">{lyricsSize}</span>
+              <span className="text-sm text-background/60 capitalize">
+                {lyricsSize}
+              </span>
             </div>
             <Slider
-              value={[lyricsSize === 'small' ? 1 : lyricsSize === 'medium' ? 2 : 3]}
+              value={[
+                lyricsSize === "small" ? 1 : lyricsSize === "medium" ? 2 : 3,
+              ]}
               onValueChange={([value]) => {
-                setLyricsSize(value === 1 ? 'small' : value === 2 ? 'medium' : 'large');
+                setLyricsSize(
+                  value === 1 ? "small" : value === 2 ? "medium" : "large",
+                );
               }}
               min={1}
               max={3}
@@ -273,13 +330,15 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   "flex-1 py-2 px-3 rounded-md bg-white/5 border border-white/10",
                   "cursor-ns-resize select-none text-center font-mono text-lg",
                   "hover:bg-white/10 hover:border-white/20 transition-colors",
-                  isDragging && "bg-white/15 border-orange-peel ring-1 ring-orange-peel"
+                  isDragging &&
+                    "bg-white/15 border-orange-peel ring-1 ring-orange-peel",
                 )}
                 onMouseDown={handleOffsetMouseDown}
                 onTouchStart={handleOffsetTouchStart}
               >
                 <span className="text-background">
-                  {lyricsOffset > 0 ? '+' : ''}{lyricsOffset}ms
+                  {lyricsOffset > 0 ? "+" : ""}
+                  {lyricsOffset}ms
                 </span>
               </div>
 
@@ -366,7 +425,9 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-background">Vocals</Label>
-              <span className="text-sm text-background/60">{Math.round(vocalVolume * 100)}%</span>
+              <span className="text-sm text-background/60">
+                {Math.round(vocalVolume * 100)}%
+              </span>
             </div>
             <Slider
               value={[vocalVolume]}
@@ -382,7 +443,9 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-background">Instrumental</Label>
-              <span className="text-sm text-background/60">{Math.round(instrumentalVolume * 100)}%</span>
+              <span className="text-sm text-background/60">
+                {Math.round(instrumentalVolume * 100)}%
+              </span>
             </div>
             <Slider
               value={[instrumentalVolume]}
@@ -402,13 +465,15 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <LyricsFetchDialog
             isOpen={isLyricsDialogOpen}
             onClose={() => setIsLyricsDialogOpen(false)}
-            song={{
-              id: songId,
-              title: song.title,
-              artist: song.artist,
-              album: song.album || '',
-              duration: song.duration,
-            } as Song}
+            song={
+              {
+                id: songId,
+                title: song.title,
+                artist: song.artist,
+                album: song.album || "",
+                duration: song.duration,
+              } as Song
+            }
             onLyricsSelected={handleLyricsSelected}
           />
           <PasteLyricsDialog
@@ -433,7 +498,7 @@ export const PlayerSidebarTrigger: React.FC<{
     onClick={onClick}
     className={cn(
       "text-background/60 hover:text-background hover:bg-white/10",
-      className
+      className,
     )}
     aria-label="Open settings"
   >
@@ -444,7 +509,7 @@ export const PlayerSidebarTrigger: React.FC<{
 const PlayerSidebar: React.FC<PlayerSidebarProps> = ({
   isOpen,
   onOpenChange,
-  mode = 'floating',
+  mode = "floating",
   className,
 }) => {
   if (!isOpen) {
@@ -454,10 +519,10 @@ const PlayerSidebar: React.FC<PlayerSidebarProps> = ({
   const baseClasses = cn(
     "flex flex-col bg-black/90 backdrop-blur-md border-l border-white/10",
     "w-72 min-w-72 max-w-72", // Fixed width
-    className
+    className,
   );
 
-  if (mode === 'floating') {
+  if (mode === "floating") {
     return (
       <>
         {/* Backdrop for floating mode */}
@@ -471,7 +536,7 @@ const PlayerSidebar: React.FC<PlayerSidebarProps> = ({
           className={cn(
             baseClasses,
             "absolute top-0 right-0 bottom-0 z-50",
-            "animate-in slide-in-from-right duration-300"
+            "animate-in slide-in-from-right duration-300",
           )}
         >
           <SidebarContent onClose={() => onOpenChange(false)} />
@@ -486,7 +551,7 @@ const PlayerSidebar: React.FC<PlayerSidebarProps> = ({
       className={cn(
         baseClasses,
         "relative h-full",
-        "animate-in slide-in-from-right duration-300"
+        "animate-in slide-in-from-right duration-300",
       )}
     >
       <SidebarContent onClose={() => onOpenChange(false)} />

@@ -4,10 +4,10 @@
  */
 
 // Export the main component
-export { default as KaraokePlayer } from './KaraokePlayer';
+export { default as KaraokePlayer } from "./KaraokePlayer";
 
 // Export hooks for advanced usage (if needed)
-export * from './hooks';
+export * from "./hooks";
 
 // Export types
-export * from './KaraokePlayer.types';
+export * from "./KaraokePlayer.types";

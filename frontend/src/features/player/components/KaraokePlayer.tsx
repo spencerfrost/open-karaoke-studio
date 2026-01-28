@@ -81,7 +81,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           onError: (error) => {
             console.error("Failed to update BPM:", error);
           },
-        }
+        },
       );
     }
   }, [songId, tapTempo, updateSongMutation]);
@@ -231,8 +231,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       }}
       onMouseMove={handleMouseMove}
     >
-
-
       {/* Hover Buttons - Show on hover when paused (but not when song ended) */}
       {!player.isPlaying && !player.songEnded && player.song && isHovering && (
         <div
@@ -302,17 +300,21 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       {/* Song Info Header */}
       {player.song && (
         <div className="absolute top-2 left-3 z-30 text-background/50">
-          <h1 className="font-bold text-xl">
-            {player.song.title}
-          </h1>
-          <h2 
+          <h1 className="font-bold text-xl">{player.song.title}</h1>
+          <h2
             className="text-base cursor-pointer hover:text-orange-peel transition-colors"
-            onClick={() => navigate(`/library?expandArtist=${encodeURIComponent(player.song.artist)}`)}
+            onClick={() =>
+              navigate(
+                `/library?expandArtist=${encodeURIComponent(player.song.artist)}`,
+              )
+            }
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
-                navigate(`/library?expandArtist=${encodeURIComponent(player.song.artist)}`);
+                navigate(
+                  `/library?expandArtist=${encodeURIComponent(player.song.artist)}`,
+                );
               }
             }}
           >
@@ -331,9 +333,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       />
 
       {/* Main Lyrics Display or End States - positioned above controls */}
-      <div
-        className={`absolute top-0 left-0 right-0 bottom-0`}
-      >
+      <div className={`absolute top-0 left-0 right-0 bottom-0`}>
         {player.song && player.songEnded ? (
           // Determine if queue has more songs (position 0 is current, position > 0 are remaining)
           queueItems && queueItems.length > 1 ? (
@@ -342,9 +342,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               nextQueueItem={queueItems.find((item) => item.position === 1)}
             />
           ) : (
-            <QueueEnded
-              currentSong={player.song}
-            />
+            <QueueEnded currentSong={player.song} />
           )
         ) : player.song ? (
           <LyricsDisplayWithCountIn

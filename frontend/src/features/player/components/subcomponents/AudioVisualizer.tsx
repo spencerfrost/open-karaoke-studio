@@ -89,7 +89,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
               y + radius,
               radius,
               Math.PI,
-              1.5 * Math.PI
+              1.5 * Math.PI,
             );
             ctx.lineTo(x + actualBarWidth - radius, y);
             ctx.arc(
@@ -97,7 +97,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
               y + radius,
               radius,
               1.5 * Math.PI,
-              0
+              0,
             );
             ctx.lineTo(x + actualBarWidth, y + barHeight);
             ctx.closePath();
@@ -144,7 +144,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           y + radius,
           radius,
           Math.PI,
-          1.5 * Math.PI
+          1.5 * Math.PI,
         );
         ctx.lineTo(x + actualBarWidth - radius, y);
         ctx.arc(
@@ -152,7 +152,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           y + radius,
           radius,
           1.5 * Math.PI,
-          0
+          0,
         );
         ctx.lineTo(x + actualBarWidth, y + minBarHeight);
         ctx.closePath();

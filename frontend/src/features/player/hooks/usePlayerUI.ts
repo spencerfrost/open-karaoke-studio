@@ -3,8 +3,8 @@
  * Handles fullscreen, volume slider visibility, keyboard shortcuts, etc.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { PlayerUIHook } from '../KaraokePlayer.types';
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import type { PlayerUIHook } from "../KaraokePlayer.types";
 
 export const usePlayerUI = (): PlayerUIHook => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,12 +23,15 @@ export const usePlayerUI = (): PlayerUIHook => {
       setIsFullscreen(!!fsElement && fsElement === containerRef.current);
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange,
+      );
     };
   }, []);
 
@@ -39,18 +42,18 @@ export const usePlayerUI = (): PlayerUIHook => {
       if (containerRef.current) {
         if (containerRef.current.requestFullscreen) {
           await containerRef.current.requestFullscreen();
-        } else if ('webkitRequestFullscreen' in containerRef.current!) {
+        } else if ("webkitRequestFullscreen" in containerRef.current!) {
           (
             containerRef.current! as HTMLElement & {
               webkitRequestFullscreen?: () => void;
             }
           ).webkitRequestFullscreen?.();
         } else {
-          setFsError('Fullscreen not supported in this browser.');
+          setFsError("Fullscreen not supported in this browser.");
         }
       }
     } catch {
-      setFsError('Failed to enter fullscreen.');
+      setFsError("Failed to enter fullscreen.");
     }
   }, []);
 
@@ -68,7 +71,7 @@ export const usePlayerUI = (): PlayerUIHook => {
         ).webkitExitFullscreen?.();
       }
     } catch {
-      setFsError('Failed to exit fullscreen.');
+      setFsError("Failed to exit fullscreen.");
     }
   }, []);
 
@@ -81,36 +84,40 @@ export const usePlayerUI = (): PlayerUIHook => {
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
 
   // Keyboard shortcuts
-  const keyboardShortcuts = useMemo(() => ({
-    'Escape': () => {
-      if (isFullscreen) {
-        exitFullscreen();
-      }
-    },
-    ' ': () => {
-      // Space bar for play/pause - will be handled by parent component
-      // This is just the mapping, actual implementation in parent
-    },
-    'f': () => {
-      toggleFullscreen();
-    },
-    'F': () => {
-      toggleFullscreen();
-    },
-  }), [isFullscreen, exitFullscreen, toggleFullscreen]);
+  const keyboardShortcuts = useMemo(
+    () => ({
+      Escape: () => {
+        if (isFullscreen) {
+          exitFullscreen();
+        }
+      },
+      " ": () => {
+        // Space bar for play/pause - will be handled by parent component
+        // This is just the mapping, actual implementation in parent
+      },
+      f: () => {
+        toggleFullscreen();
+      },
+      F: () => {
+        toggleFullscreen();
+      },
+    }),
+    [isFullscreen, exitFullscreen, toggleFullscreen],
+  );
 
   // Keyboard event handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const handler = keyboardShortcuts[e.key as keyof typeof keyboardShortcuts];
+      const handler =
+        keyboardShortcuts[e.key as keyof typeof keyboardShortcuts];
       if (handler) {
         e.preventDefault();
         handler();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [keyboardShortcuts]);
 
   // Auto-hide controls in fullscreen (optional enhancement)
@@ -121,7 +128,7 @@ export const usePlayerUI = (): PlayerUIHook => {
     }
 
     let hideTimer: NodeJS.Timeout;
-    
+
     const showControls = () => {
       setIsControlsVisible(true);
       clearTimeout(hideTimer);
@@ -136,13 +143,13 @@ export const usePlayerUI = (): PlayerUIHook => {
     // Show controls initially
     showControls();
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       clearTimeout(hideTimer);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isFullscreen]);
 
@@ -163,17 +170,17 @@ export const usePlayerUI = (): PlayerUIHook => {
     isFullscreen,
     showVolumeSlider,
     isControlsVisible,
-    
+
     // UI actions
     toggleFullscreen,
     setShowVolumeSlider: handleSetShowVolumeSlider,
-    
+
     // Keyboard shortcuts
     keyboardShortcuts,
-    
+
     // Focus management
     focusPlayer,
-    
+
     // Internal refs and error state
     containerRef,
     fsError,

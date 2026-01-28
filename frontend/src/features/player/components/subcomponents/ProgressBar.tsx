@@ -14,7 +14,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   className = "",
 }) => {
   const totalDuration = duration ?? 0;
-  const progressPercentage = totalDuration ? (currentTime / totalDuration) * 100 : 0;
+  const progressPercentage = totalDuration
+    ? (currentTime / totalDuration) * 100
+    : 0;
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const seekTime = Number(e.target.value);
