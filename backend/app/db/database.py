@@ -61,7 +61,15 @@ if DATABASE_URL.startswith("sqlite:"):
         echo=False,  # Set to True for SQL debugging if needed
     )
 else:
-    engine = create_engine(DATABASE_URL)
+    # PostgreSQL configuration with connection pooling
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=10,  # Base pool connections
+        max_overflow=20,  # Additional connections when pool is exhausted
+        pool_timeout=30,  # Seconds to wait for a connection
+        pool_pre_ping=True,  # Verify connections before use
+        pool_recycle=1800,  # Recycle connections every 30 minutes
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
