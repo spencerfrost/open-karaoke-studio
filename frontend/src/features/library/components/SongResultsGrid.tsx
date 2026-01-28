@@ -13,7 +13,7 @@ interface SongResultsGridProps {
   searchTerm?: string;
 }
 
-const SongResultsGrid: React.FC<SongResultsGridProps> = ({ 
+const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   songs,
   hasNextPage,
   isFetchingNextPage,
@@ -50,10 +50,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
       {/* Song Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {songs.filter(Boolean).map((song) => (
-          <SongCard 
-            key={song.id} 
-            song={song}
-          />
+          <SongCard key={song.id} song={song} />
         ))}
       </div>
 

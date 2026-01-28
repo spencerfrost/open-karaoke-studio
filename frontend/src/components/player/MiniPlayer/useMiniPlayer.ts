@@ -2,15 +2,15 @@
  * useMiniPlayer - Logic hook for mini-player behavior
  */
 
-import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useKaraokePlayerStore } from '@/stores/useKaraokePlayerStore';
-import { useIsPlayerPage } from '@/hooks/useIsPlayerPage';
+import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useIsPlayerPage } from "@/hooks/useIsPlayerPage";
 
 export function useMiniPlayer() {
   const navigate = useNavigate();
   const isPlayerPage = useIsPlayerPage();
-  
+
   const {
     songId,
     songTitle,
@@ -32,13 +32,13 @@ export function useMiniPlayer() {
   // Determine if mini-player should be visible
   // Only show when song is actively playing, not when ended
   const shouldShow = Boolean(
-    songId &&                    // Has a song loaded
-    isReady &&                   // Song is ready to play
-    isPlaying &&                 // Song is currently playing
-    !songEnded &&                // Song hasn't finished
-    miniPlayerEnabled &&         // User has mini-player enabled
-    !miniPlayerDismissed &&      // User hasn't dismissed it for this song
-    !isPlayerPage               // Not on a player-related page
+    songId && // Has a song loaded
+      isReady && // Song is ready to play
+      isPlaying && // Song is currently playing
+      !songEnded && // Song hasn't finished
+      miniPlayerEnabled && // User has mini-player enabled
+      !miniPlayerDismissed && // User hasn't dismissed it for this song
+      !isPlayerPage, // Not on a player-related page
   );
 
   // Toggle play/pause
@@ -61,9 +61,12 @@ export function useMiniPlayer() {
   }, [dismissMiniPlayer]);
 
   // Update position (for draggable feature)
-  const handleDrag = useCallback((x: number, y: number) => {
-    setMiniPlayerPosition({ x, y });
-  }, [setMiniPlayerPosition]);
+  const handleDrag = useCallback(
+    (x: number, y: number) => {
+      setMiniPlayerPosition({ x, y });
+    },
+    [setMiniPlayerPosition],
+  );
 
   return {
     // State
@@ -75,7 +78,7 @@ export function useMiniPlayer() {
     currentTime,
     duration,
     position: miniPlayerPosition,
-    
+
     // Actions
     handlePlayPause,
     handleExpand,

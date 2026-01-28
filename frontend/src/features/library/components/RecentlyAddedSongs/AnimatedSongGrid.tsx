@@ -31,7 +31,11 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
         }`}
       >
         {currentPageSongs.map((song: Song) => (
-          <SongCard key={`${song.id}-${displayPage}`} song={song} sessionId={sessionId} />
+          <SongCard
+            key={`${song.id}-${displayPage}`}
+            song={song}
+            sessionId={sessionId}
+          />
         ))}
       </div>
 
@@ -45,7 +49,11 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
           }`}
         >
           {nextPageSongs.map((song: Song) => (
-            <SongCard key={`${song.id}-${displayPage + 1}`} song={song} sessionId={sessionId} />
+            <SongCard
+              key={`${song.id}-${displayPage + 1}`}
+              song={song}
+              sessionId={sessionId}
+            />
           ))}
         </div>
       )}

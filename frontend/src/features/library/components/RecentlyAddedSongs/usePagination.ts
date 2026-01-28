@@ -29,10 +29,10 @@ interface PaginationActions {
 interface UsePaginationResult {
   // Core pagination info
   pagination: PaginationInfo;
-  
+
   // Actions
   actions: PaginationActions;
-  
+
   // Utility methods
   currentPageItems: <T>(items: T[]) => T[];
   getPageItems: <T>(items: T[], page: number) => T[];
@@ -72,12 +72,15 @@ export const usePagination = ({
   }, [endIndex, startIndex]);
 
   // Internal setter that handles callback
-  const setPage = useCallback((page: number) => {
-    if (page >= 0 && page < totalPages && page !== currentPage) {
-      setCurrentPage(page);
-      onPageChange?.(page);
-    }
-  }, [totalPages, currentPage, onPageChange]);
+  const setPage = useCallback(
+    (page: number) => {
+      if (page >= 0 && page < totalPages && page !== currentPage) {
+        setCurrentPage(page);
+        onPageChange?.(page);
+      }
+    },
+    [totalPages, currentPage, onPageChange],
+  );
 
   const nextPage = useCallback(() => {
     if (hasNextPage) {
@@ -91,9 +94,12 @@ export const usePagination = ({
     }
   }, [hasPreviousPage, currentPage, setPage]);
 
-  const goToPage = useCallback((page: number) => {
-    setPage(page);
-  }, [setPage]);
+  const goToPage = useCallback(
+    (page: number) => {
+      setPage(page);
+    },
+    [setPage],
+  );
 
   const goToFirstPage = useCallback(() => {
     setPage(0);
@@ -132,24 +138,38 @@ export const usePagination = ({
     [currentPage, totalPages],
   );
 
-  const pagination: PaginationInfo = useMemo(() => ({
-    currentPage,
-    totalPages,
-    hasNextPage,
-    hasPreviousPage,
-    startIndex,
-    endIndex,
-    itemsOnCurrentPage,
-  }), [currentPage, totalPages, hasNextPage, hasPreviousPage, startIndex, endIndex, itemsOnCurrentPage]);
+  const pagination: PaginationInfo = useMemo(
+    () => ({
+      currentPage,
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
+      startIndex,
+      endIndex,
+      itemsOnCurrentPage,
+    }),
+    [
+      currentPage,
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
+      startIndex,
+      endIndex,
+      itemsOnCurrentPage,
+    ],
+  );
 
-  const actions: PaginationActions = useMemo(() => ({
-    nextPage,
-    previousPage,
-    goToPage,
-    goToFirstPage,
-    goToLastPage,
-    reset,
-  }), [nextPage, previousPage, goToPage, goToFirstPage, goToLastPage, reset]);
+  const actions: PaginationActions = useMemo(
+    () => ({
+      nextPage,
+      previousPage,
+      goToPage,
+      goToFirstPage,
+      goToLastPage,
+      reset,
+    }),
+    [nextPage, previousPage, goToPage, goToFirstPage, goToLastPage, reset],
+  );
 
   return {
     pagination,

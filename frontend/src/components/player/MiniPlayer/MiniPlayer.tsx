@@ -1,20 +1,20 @@
 /**
  * MiniPlayer - Floating mini-player component
- * 
+ *
  * A persistent UI element that appears when navigating away from the player page
  * while a song is playing. Renders at the app root level using React Portal.
  */
 
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Music } from 'lucide-react';
-import { useMiniPlayer } from './useMiniPlayer';
-import MiniPlayerControls from './MiniPlayerControls';
-import MiniPlayerProgress from './MiniPlayerProgress';
-import { formatTime } from '@/utils/formatters';
-import type { MiniPlayerProps } from './MiniPlayer.types';
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { Music } from "lucide-react";
+import { useMiniPlayer } from "./useMiniPlayer";
+import MiniPlayerControls from "./MiniPlayerControls";
+import MiniPlayerProgress from "./MiniPlayerProgress";
+import { formatTime } from "@/utils/formatters";
+import type { MiniPlayerProps } from "./MiniPlayer.types";
 
-const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = '' }) => {
+const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = "" }) => {
   const {
     shouldShow,
     songTitle,
@@ -61,9 +61,11 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = '' }) => {
       style={{
         bottom: position.y,
         right: position.x,
-        width: '320px',
+        width: "320px",
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
+        transform: isVisible
+          ? "translateY(0) scale(1)"
+          : "translateY(20px) scale(0.95)",
       }}
       role="region"
       aria-label="Mini player"
@@ -85,10 +87,10 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = '' }) => {
             {/* Song title and artist */}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-white truncate">
-                {songTitle || 'Unknown Title'}
+                {songTitle || "Unknown Title"}
               </div>
               <div className="text-xs text-white/60 truncate">
-                {songArtist || 'Unknown Artist'}
+                {songArtist || "Unknown Artist"}
               </div>
             </div>
           </div>

@@ -18,10 +18,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   animated = true,
 }) => {
   const { useSongs } = useSongsHook();
-  const { 
-    data: allSongs, 
-    isLoading 
-  } = useSongs({
+  const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,
     sort_by: "date_added",
     direction: "desc",
@@ -53,7 +50,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
             {songs.length} songs
           </span>
         </div>
-        
+
         {/* Pagination Controls */}
         {pagination.totalPages > 1 && (
           <div className="flex items-center gap-2">
@@ -67,11 +64,11 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
               <ChevronLeft size={16} />
               Previous
             </Button>
-            
+
             <span className="text-sm text-lemon-chiffon/80 px-2">
               {pagination.currentPage + 1} of {pagination.totalPages}
             </span>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -90,29 +87,29 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
       {animated ? (
         /* Horizontal Sliding Carousel Container */
         <div className="relative overflow-hidden min-h-[400px]">
-          <div 
+          <div
             className="flex transition-transform duration-300 ease-in-out"
             style={{
               transform: `translateX(-${pagination.currentPage * (100 / pagination.totalPages)}%)`,
-              width: `${pagination.totalPages * 100}%`
+              width: `${pagination.totalPages * 100}%`,
             }}
           >
             {Array.from({ length: pagination.totalPages }, (_, pageIndex) => {
               const pageStartIndex = pageIndex * songsPerPage;
-              const pageSongs = songs.slice(pageStartIndex, pageStartIndex + songsPerPage);
-              
+              const pageSongs = songs.slice(
+                pageStartIndex,
+                pageStartIndex + songsPerPage,
+              );
+
               return (
-                <div 
+                <div
                   key={pageIndex}
                   className="w-full flex-shrink-0"
                   style={{ width: `${100 / pagination.totalPages}%` }}
                 >
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {pageSongs.map((song: Song) => (
-                      <SongCard
-                        key={`${song.id}-${pageIndex}`}
-                        song={song}
-                      />
+                      <SongCard key={`${song.id}-${pageIndex}`} song={song} />
                     ))}
                   </div>
                 </div>
@@ -124,10 +121,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
         /* Simple Paginated Grid */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {currentPageSongs.map((song: Song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-            />
+            <SongCard key={song.id} song={song} />
           ))}
         </div>
       )}

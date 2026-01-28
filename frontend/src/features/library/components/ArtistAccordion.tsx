@@ -70,7 +70,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   useEffect(() => {
     if (pendingLetter && availableLetters.includes(pendingLetter)) {
       // Letter is now loaded, navigate to it
-      const element = document.getElementById(`artist-section-${pendingLetter}`);
+      const element = document.getElementById(
+        `artist-section-${pendingLetter}`,
+      );
       if (element) {
         element.scrollIntoView({
           behavior: "smooth",
@@ -90,7 +92,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
     if (!expandArtist) return;
 
     const artist = artists.find((a) => a.name === expandArtist);
-    
+
     if (artist) {
       // Artist is loaded, expand it
       setExpandedArtists((prev) => {
@@ -98,7 +100,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
         newSet.add(expandArtist);
         return newSet;
       });
-      
+
       // Scroll to the artist section after a delay to ensure rendering
       const scrollTimer = setTimeout(() => {
         const element = document.getElementById(`artist-${expandArtist}`);
@@ -109,7 +111,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
           });
         }
       }, 500);
-      
+
       return () => clearTimeout(scrollTimer);
     }
   }, [expandArtist, artists]);
@@ -126,7 +128,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   // Handle navigation letter click
   const handleLetterClick = (letter: string) => {
     const isAvailable = availableLetters.includes(letter);
-    
+
     if (isAvailable) {
       // Letter is already loaded, navigate immediately
       const element = document.getElementById(`artist-section-${letter}`);
@@ -139,7 +141,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
     } else if (hasNextPage && fetchNextPage) {
       // Letter not loaded yet, trigger loading
       setPendingLetter(letter);
-      
+
       // Scroll to bottom to trigger sentinel
       if (sentinelRef?.current) {
         sentinelRef.current.scrollIntoView({
@@ -147,10 +149,10 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
           block: "end",
         });
       }
-      
+
       // Trigger initial page load
       fetchNextPage();
-      
+
       // Set up repeated loading until letter appears or timeout
       const startLoading = () => {
         const loadInterval = setInterval(() => {
@@ -160,7 +162,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
           }
           fetchNextPage();
         }, 1000);
-        
+
         // Timeout after 30 seconds
         loadingTimeoutRef.current = setTimeout(() => {
           clearInterval(loadInterval);
@@ -168,7 +170,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
           console.warn(`Timed out waiting for letter ${letter}`);
         }, 30000);
       };
-      
+
       startLoading();
     }
   };
@@ -217,7 +219,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
               </div>
             </div>
           ))}
-          
+
           {/* Infinite scroll sentinel and loading indicator */}
           {sentinelRef && (
             <div ref={sentinelRef} className="h-4">

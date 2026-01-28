@@ -41,7 +41,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
       </div>
 
       {/* Artist Accordion - now a pure presentational component */}
-      <ArtistAccordion 
+      <ArtistAccordion
         artists={artists}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}

@@ -2,9 +2,9 @@
  * MiniPlayerControls - Play/pause, expand, and close buttons
  */
 
-import React from 'react';
-import { Play, Pause, Maximize2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React from "react";
+import { Play, Pause, Maximize2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface MiniPlayerControlsProps {
   isPlaying: boolean;
@@ -19,7 +19,7 @@ const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
   onPlayPause,
   onExpand,
   onClose,
-  className = '',
+  className = "",
 }) => {
   return (
     <div className={`flex items-center justify-between gap-2 ${className}`}>
@@ -29,7 +29,7 @@ const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
         size="icon"
         onClick={onPlayPause}
         className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
-        aria-label={isPlaying ? 'Pause' : 'Play'}
+        aria-label={isPlaying ? "Pause" : "Play"}
       >
         {isPlaying ? (
           <Pause size={18} aria-hidden="true" />
