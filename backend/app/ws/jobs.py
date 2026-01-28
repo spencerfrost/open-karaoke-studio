@@ -32,7 +32,7 @@ async def get_current_jobs_list():
         jobs = jobs_service.get_all_jobs()
         return [job.to_dict() for job in jobs]
     except Exception as e:
-        print(f"Error getting jobs list from PostgreSQL: {e}")
+        logger.error(f"Error getting jobs list from PostgreSQL: {e}")
         # Fallback to mock data if service fails
         return [
             {
@@ -58,7 +58,7 @@ async def websocket_jobs_endpoint(
     jobs_room = "jobs_updates"
     await manager.join_room(websocket, jobs_room)
 
-    print(f"Jobs client connected: {id(websocket)}")
+    logger.info(f"Jobs client connected: {id(websocket)}")
 
     try:
         # Send connection confirmation
@@ -87,7 +87,7 @@ async def websocket_jobs_endpoint(
                     )
                 )
 
-                print(f"Client {id(websocket)} subscribed to job updates")
+                logger.info(f"Client {id(websocket)} subscribed to job updates")
 
             elif message_type == "unsubscribe_from_jobs":
                 # Client unsubscribed from job updates
@@ -101,7 +101,7 @@ async def websocket_jobs_endpoint(
                     )
                 )
 
-                print(f"Client {id(websocket)} unsubscribed from job updates")
+                logger.info(f"Client {id(websocket)} unsubscribed from job updates")
 
             elif message_type == "request_jobs_list":
                 # Send current jobs list on demand
@@ -123,7 +123,7 @@ async def websocket_jobs_endpoint(
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        print(f"Jobs client disconnected: {id(websocket)}")
+        logger.info(f"Jobs client disconnected: {id(websocket)}")
 
 
 # Job broadcasting functions for Celery integration

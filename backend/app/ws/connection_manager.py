@@ -6,11 +6,14 @@ for the FastAPI WebSocket implementation.
 """
 
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 
 class SessionConnectionManager:
@@ -61,17 +64,17 @@ class SessionConnectionManager:
     ):
         if room in self.rooms:
             room_size = len(self.rooms[room])
-            print(f"🔊 Broadcasting to room '{room}' with {room_size} clients")
+            logger.debug(f"🔊 Broadcasting to room '{room}' with {room_size} clients")
             disconnected = []
             for connection in self.rooms[room]:
                 if connection == exclude:
-                    print(f"  ⏭️ Skipping sender {id(connection)}")
+                    logger.debug(f"  ⏭️ Skipping sender {id(connection)}")
                     continue  # Skip the excluded connection
                 try:
                     await connection.send_text(json.dumps(message))
-                    print(f"  ✅ Sent to client {id(connection)}")
+                    logger.debug(f"  ✅ Sent to client {id(connection)}")
                 except Exception as e:
-                    print(f"  ❌ Failed to send to client {id(connection)}: {e}")
+                    logger.error(f"  ❌ Failed to send to client {id(connection)}: {e}")
                     # Handle disconnected clients
                     disconnected.append(connection)
 
@@ -79,18 +82,18 @@ class SessionConnectionManager:
             for conn in disconnected:
                 self.disconnect(conn)  # Properly removes from all data structures
         else:
-            print(f"🚫 Room '{room}' not found!")
+            logger.debug(f"🚫 Room '{room}' not found!")
 
     async def join_room(self, websocket: WebSocket, room: str):
         if room not in self.rooms:
             self.rooms[room] = []
         if websocket not in self.rooms[room]:
             self.rooms[room].append(websocket)
-            print(
+            logger.debug(
                 f"🏠 Client {id(websocket)} joined room '{room}' (now {len(self.rooms[room])} clients)"
             )
         else:
-            print(f"🔄 Client {id(websocket)} already in room '{room}'")
+            logger.debug(f"🔄 Client {id(websocket)} already in room '{room}'")
 
     async def leave_room(self, websocket: WebSocket, room: str):
         if room in self.rooms and websocket in self.rooms[room]:
@@ -220,9 +223,9 @@ class SessionConnectionManager:
             for websocket in connections_to_close:
                 try:
                     await websocket.close(code=1000, reason=reason)
-                    print(f"🔌 Force closed WebSocket {id(websocket)} for session {session_id}")
+                    logger.debug(f"🔌 Force closed WebSocket {id(websocket)} for session {session_id}")
                 except Exception as e:
-                    print(f"❌ Failed to close WebSocket {id(websocket)}: {e}")
+                    logger.error(f"❌ Failed to close WebSocket {id(websocket)}: {e}")
             
             # Clean up the room
             self.rooms[session_room] = []

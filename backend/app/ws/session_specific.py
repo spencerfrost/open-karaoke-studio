@@ -7,10 +7,13 @@ Includes unified session endpoints and legacy session-specific performance/queue
 
 import asyncio
 import json
+import logging
 import secrets
 
 from fastapi import WebSocket, WebSocketDisconnect, Query
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 from app.db.database import get_db_session
@@ -53,12 +56,12 @@ def cleanup_session_performance_state(session_id: str):
     """Clean up performance state for a specific session when it ends."""
     if session_id in session_performance_states:
         del session_performance_states[session_id]
-        print(f"🧹 Cleaned up performance state for session {session_id}")
+        logger.info(f"🧹 Cleaned up performance state for session {session_id}")
 
     # Also clean up the lock
     if session_id in session_cleanup_locks:
         del session_cleanup_locks[session_id]
-        print(f"🔓 Cleaned up lock for session {session_id}")
+        logger.info(f"🔓 Cleaned up lock for session {session_id}")
 
 
 async def websocket_unified_session_endpoint(
@@ -109,7 +112,7 @@ async def websocket_unified_session_endpoint(
     session_room = manager.get_session_room_name(session_id)
     await manager.join_room(websocket, session_room)
 
-    print(f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})")
+    logger.info(f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})")
 
     try:
         # Send current state to new connection
@@ -278,14 +281,14 @@ async def websocket_unified_session_endpoint(
                 )
 
     except WebSocketDisconnect:
-        print(f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})")
+        logger.info(f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})")
 
         # If host disconnected, terminate the session for all connected devices
         if is_host:
             # Use lock to prevent race conditions during cleanup
             cleanup_lock = get_session_cleanup_lock(session_id)
             async with cleanup_lock:
-                print(f"🛑 Host disconnected from session {session_id} - terminating session")
+                logger.warning(f"🛑 Host disconnected from session {session_id} - terminating session")
 
                 # Broadcast session_ended to all connected devices FIRST
                 await manager.broadcast_to_room(
@@ -310,9 +313,9 @@ async def websocket_unified_session_endpoint(
                         if session:
                             db.delete(session)
                             db.commit()
-                            print(f"🗑️  Session {session_id} deleted from database (code recycled)")
+                            logger.info(f"🗑️  Session {session_id} deleted from database (code recycled)")
                 except Exception as e:
-                    print(f"❌ Failed to delete session from database: {e}")
+                    logger.error(f"❌ Failed to delete session from database: {e}")
 
                 # Force close all other connections in this session
                 if session_room in manager.rooms:
@@ -320,9 +323,9 @@ async def websocket_unified_session_endpoint(
                     for conn in connections_to_close:
                         try:
                             await conn.close(code=1000, reason="Session ended by host")
-                            print(f"🔌 Force closed connection {id(conn)} for session {session_id}")
+                            logger.debug(f"🔌 Force closed connection {id(conn)} for session {session_id}")
                         except Exception as e:
-                            print(f"❌ Failed to close connection {id(conn)}: {e}")
+                            logger.error(f"❌ Failed to close connection {id(conn)}: {e}")
 
                     # Clear the room
                     manager.rooms[session_room] = []
@@ -371,7 +374,7 @@ async def websocket_session_performance_endpoint(
     performance_room = manager.get_session_room_name(session_id, "controls")
     await manager.join_room(websocket, performance_room)
 
-    print(f"Session {session_id} performance client connected: {device_id}")
+    logger.info(f"Session {session_id} performance client connected: {device_id}")
 
     try:
         # Send current performance state to new connection
@@ -452,7 +455,7 @@ async def websocket_session_performance_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         manager.leave_session(device_id, session_id)
-        print(f"Session {session_id} performance client disconnected: {device_id}")
+        logger.info(f"Session {session_id} performance client disconnected: {device_id}")
 
 
 async def websocket_session_queue_endpoint(
@@ -492,7 +495,7 @@ async def websocket_session_queue_endpoint(
     queue_room = manager.get_session_room_name(session_id, "queue")
     await manager.join_room(websocket, queue_room)
 
-    print(f"Session {session_id} queue client connected: {device_id}")
+    logger.info(f"Session {session_id} queue client connected: {device_id}")
 
     try:
         while True:
@@ -552,4 +555,4 @@ async def websocket_session_queue_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         manager.leave_session(device_id, session_id)
-        print(f"Session {session_id} queue client disconnected: {device_id}")
+        logger.info(f"Session {session_id} queue client disconnected: {device_id}")

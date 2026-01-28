@@ -6,11 +6,14 @@ Manages karaoke sessions with display codes and multi-device synchronization.
 """
 
 import json
+import logging
 import secrets
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .connection_manager import SessionConnectionManager
+
+logger = logging.getLogger(__name__)
 
 
 async def websocket_session_endpoint(
@@ -247,4 +250,4 @@ async def websocket_session_endpoint(
                 )
 
         manager.disconnect(websocket)
-        print(f"Device {device_id} disconnected from session WebSocket")
+        logger.info(f"Device {device_id} disconnected from session WebSocket")
