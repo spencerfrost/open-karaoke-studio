@@ -4,10 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { useYoutubeMusicAlbumTracks } from "@/hooks/api/useYoutubeMusic";
-import {
-  YoutubeMusicAlbum,
-  YoutubeMusicSearchResult,
-} from "@/types/Youtube";
+import { YoutubeMusicAlbum, YoutubeMusicSearchResult } from "@/types/Youtube";
 
 interface AlbumTracksExpanderProps {
   album: YoutubeMusicAlbum;
@@ -25,7 +22,7 @@ export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
   // Only fetch when expanded
   const { data, isLoading, error } = useYoutubeMusicAlbumTracks(
     album.browseId,
-    isOpen
+    isOpen,
   );
 
   const tracks = data?.data?.tracks || [];
@@ -161,12 +158,12 @@ const TrackRow: React.FC<TrackRowProps> = ({
       </div>
 
       {/* Add button */}
-          <Button
-            size="sm"
-            onClick={onSelect}
-            disabled={isDisabled || isLoading}
-            className="flex-shrink-0"
-          >
+      <Button
+        size="sm"
+        onClick={onSelect}
+        disabled={isDisabled || isLoading}
+        className="flex-shrink-0"
+      >
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : !track.videoId ? (

@@ -22,7 +22,7 @@ export const SongCard: React.FC<SongCardProps> = ({
   const { isHost } = useSessionStore();
   const artworkUrl = getArtworkUrl(song, "medium");
 
-  const songActions = useSongActions(song, {  }, sessionId);
+  const songActions = useSongActions(song, {}, sessionId);
   const dialogs = useSongDialogs();
   const [showJoinDialog, setShowJoinDialog] = useState(false);
 

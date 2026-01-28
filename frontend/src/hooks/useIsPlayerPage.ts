@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation } from "react-router-dom";
 
 /**
  * Hook to detect if the current route is a player-related page.
@@ -7,14 +7,14 @@ import { useLocation } from 'react-router-dom';
  */
 export function useIsPlayerPage(): boolean {
   const location = useLocation();
-  
+
   // Player-related routes where mini-player should NOT show
   const playerRoutes = [
-    '/stage',        // Stage view (full player experience)
-    '/controls',     // Performance controls (player is visible on stage device)
+    "/stage", // Stage view (full player experience)
+    "/controls", // Performance controls (player is visible on stage device)
   ];
-  
-  return playerRoutes.some(route => location.pathname.startsWith(route));
+
+  return playerRoutes.some((route) => location.pathname.startsWith(route));
 }
 
 export default useIsPlayerPage;

@@ -55,7 +55,10 @@ export function getLyricsSizeLabel(lyricsSize: LyricsSize): string {
 /**
  * Toggle volume between 0 and 1 (or custom max value)
  */
-export function toggleVolume(currentVolume: number, maxVolume: number = 1): number {
+export function toggleVolume(
+  currentVolume: number,
+  maxVolume: number = 1,
+): number {
   return currentVolume > 0 ? 0 : maxVolume;
 }
 

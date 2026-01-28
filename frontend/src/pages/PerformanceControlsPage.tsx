@@ -11,11 +11,7 @@ import { ConnectedPerformanceControls } from "@/features/performance";
  */
 const PerformanceControlsPage: React.FC = () => {
   // Session state
-  const {
-    sessionId,
-    isRecovering,
-    recoverSession,
-  } = useSessionStore();
+  const { sessionId, isRecovering, recoverSession } = useSessionStore();
 
   useEffect(() => {
     // Try to recover existing session on page load

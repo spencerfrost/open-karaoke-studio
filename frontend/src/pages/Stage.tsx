@@ -15,22 +15,26 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 const Stage: React.FC = () => {
-  const { 
-    displayCode, 
-    createSession, 
-    recoverSession,  // Changed from recoverHostSession
-    isRecovering, 
+  const {
+    displayCode,
+    createSession,
+    recoverSession, // Changed from recoverHostSession
+    isRecovering,
     recoveryError,
     isConnecting,
-    connectionError 
+    connectionError,
   } = useSessionStore();
 
   const { useSong } = useSongs();
 
   // API hooks - must be called before any conditional returns
   const queueQuery = useQueue(displayCode || undefined);
-  const removeFromQueueMutation = useRemoveFromKaraokeQueue(displayCode || undefined);
-  const playFromQueueMutation = usePlayFromKaraokeQueue(displayCode || undefined);
+  const removeFromQueueMutation = useRemoveFromKaraokeQueue(
+    displayCode || undefined,
+  );
+  const playFromQueueMutation = usePlayFromKaraokeQueue(
+    displayCode || undefined,
+  );
 
   // Get the current song (position 0) from the queue
   const currentQueueItem = queueQuery.data?.find((item) => item.position === 0);
@@ -44,7 +48,7 @@ const Stage: React.FC = () => {
         try {
           // First try to recover existing session (host or performer)
           await recoverSession();
-          
+
           // If recovery didn't work (no stored session), create new host session
           const state = useSessionStore.getState();
           if (!state.displayCode) {
@@ -71,7 +75,9 @@ const Stage: React.FC = () => {
         queueQuery.refetch();
       } else {
         // Fallback for older message formats or simple triggers
-        console.log("Queue update notification received, refetching queue data.");
+        console.log(
+          "Queue update notification received, refetching queue data.",
+        );
         queueQuery.refetch();
       }
     };
@@ -83,8 +89,14 @@ const Stage: React.FC = () => {
     };
 
     // Set up WebSocket event listeners using unified session service
-    const cleanupJoined = sessionWebSocketService.on("queue_joined", handleQueueJoined);
-    const cleanupUpdated = sessionWebSocketService.on("queue_updated", handleQueueUpdate);
+    const cleanupJoined = sessionWebSocketService.on(
+      "queue_joined",
+      handleQueueJoined,
+    );
+    const cleanupUpdated = sessionWebSocketService.on(
+      "queue_updated",
+      handleQueueUpdate,
+    );
 
     // Cleanup
     return () => {
@@ -102,10 +114,9 @@ const Stage: React.FC = () => {
             {isRecovering ? "Restoring Session" : "Creating Session"}
           </h1>
           <p className="text-xl text-center text-muted-foreground max-w-md">
-            {isRecovering 
-              ? "Reconnecting to your existing karaoke session..." 
-              : "Setting up your karaoke session..."
-            }
+            {isRecovering
+              ? "Reconnecting to your existing karaoke session..."
+              : "Setting up your karaoke session..."}
           </p>
           {(recoveryError || connectionError) && (
             <div className="text-center text-destructive">
@@ -165,7 +176,7 @@ const Stage: React.FC = () => {
           </svg>
         </Button>
 
-        <KaraokePlayer 
+        <KaraokePlayer
           songId={currentSong?.id || ""}
           queueItems={queueQuery.data}
         />

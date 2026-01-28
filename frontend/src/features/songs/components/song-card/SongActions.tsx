@@ -11,7 +11,7 @@ export const SongActions: React.FC<SongActionsProps> = ({
   onDetails,
 }) => {
   const isProcessing = useProcessingIndicators((state) =>
-    state.isProcessing(song.id)
+    state.isProcessing(song.id),
   );
   return (
     <div className="flex items-center justify-around">

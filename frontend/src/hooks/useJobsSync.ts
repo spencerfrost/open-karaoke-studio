@@ -13,8 +13,9 @@ import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 export function useJobsSync() {
   const { jobs } = useJobsWebSocket();
   const setProcessing = useProcessingIndicators((state) => state.setProcessing);
-  const removeProcessing = useProcessingIndicators((state) => state.removeProcessing);
-  const processingSongs = useProcessingIndicators((state) => state.processingSongs);
+  const removeProcessing = useProcessingIndicators(
+    (state) => state.removeProcessing,
+  );
 
   useEffect(() => {
     // Create a set of current job IDs
@@ -31,11 +32,13 @@ export function useJobsSync() {
 
     // Remove jobs that are no longer in the jobs array
     // This handles cleanup when jobs complete and are removed by useJobsWebSocket
-    for (const [songId, status] of processingSongs.entries()) {
+    // Get current state directly to avoid dependency loop
+    const currentProcessingSongs = useProcessingIndicators.getState().processingSongs;
+    for (const [songId, status] of currentProcessingSongs.entries()) {
       if (!currentJobIds.has(status.id)) {
         removeProcessing(songId);
       }
     }
-    // Only depend on jobs and processingSongs - the Zustand actions are stable references
-  }, [jobs, processingSongs, setProcessing, removeProcessing]);
+    // Only depend on jobs - Zustand actions are stable and processingSongs causes infinite loops
+  }, [jobs, setProcessing, removeProcessing]);
 }

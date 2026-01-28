@@ -19,7 +19,7 @@ export const BpmEditor: React.FC<BpmEditorProps> = ({ song }) => {
     (variables) => `/api/songs/${variables.id}`,
     {
       invalidateQueries: ["songs", `song-${song.id}`],
-    }
+    },
   );
 
   useEffect(() => {
@@ -75,9 +75,7 @@ export const BpmEditor: React.FC<BpmEditorProps> = ({ song }) => {
     return (
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">BPM:</span>
-        <span className="font-medium">
-          {song.bpm?.toFixed(1) ?? "Unknown"}
-        </span>
+        <span className="font-medium">{song.bpm?.toFixed(1) ?? "Unknown"}</span>
         <Button
           variant="ghost"
           size="sm"

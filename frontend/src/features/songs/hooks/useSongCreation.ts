@@ -55,7 +55,11 @@ export const useSongCreation = () => {
   const getMetadata = (songId: string, song: SongInput) => {
     const metadataPromise = Promise.all([
       downloadFromYouTube(songId, song),
-      lyricsSearch.search({ title: song.title, artist: song.artist, album: song.album })
+      lyricsSearch.search({
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+      }),
     ]);
 
     metadataPromise.then(() => {
@@ -70,7 +74,10 @@ export const useSongCreation = () => {
     // Convert duration to seconds if it's provided
     let duration: number | undefined;
     if (song.duration) {
-      const durationValue = typeof song.duration === 'string' ? parseFloat(song.duration) : song.duration;
+      const durationValue =
+        typeof song.duration === "string"
+          ? parseFloat(song.duration)
+          : song.duration;
       // Assume duration is already in seconds (no conversion needed)
       duration = durationValue;
     }
@@ -89,10 +96,10 @@ export const useSongCreation = () => {
       .then((createdSong) => {
         setCreatedSong(createdSong);
         console.log("Song created successfully:", createdSong);
-        
+
         // Start parallel processes for lyrics and download
         getMetadata(createdSong.id, song);
-        
+
         return createdSong;
       })
       .catch((error) => {

@@ -12,14 +12,12 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
   onDeviceTypeChange,
 }) => {
   const [sessionCode, setSessionCode] = useState("");
-  const [deviceType, setDeviceType] = useState<"performer" | "controller">("performer");
+  const [deviceType, setDeviceType] = useState<"performer" | "controller">(
+    "performer",
+  );
 
-  const {
-    joinSession,
-    createSession,
-    connectionError,
-    isConnecting
-  } = useSessionStore();
+  const { joinSession, createSession, connectionError, isConnecting } =
+    useSessionStore();
 
   const handleSessionCodeChange = (value: string) => {
     setSessionCode(value);
@@ -60,7 +58,9 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
           <input
             type="text"
             value={sessionCode}
-            onChange={(e) => handleSessionCodeChange(e.target.value.toUpperCase())}
+            onChange={(e) =>
+              handleSessionCodeChange(e.target.value.toUpperCase())
+            }
             placeholder="ABCD"
             maxLength={4}
             className="w-full text-center text-4xl font-bold tracking-widest bg-gray-800 border-2 border-orange-peel/50 rounded-lg px-4 py-6 focus:outline-none focus:border-orange-peel focus:ring-2 focus:ring-orange-peel/20 uppercase"
@@ -75,7 +75,11 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
           </label>
           <select
             value={deviceType}
-            onChange={(e) => handleDeviceTypeChange(e.target.value as "performer" | "controller")}
+            onChange={(e) =>
+              handleDeviceTypeChange(
+                e.target.value as "performer" | "controller",
+              )
+            }
             className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-peel"
           >
             <option value="performer">Performer</option>
@@ -86,7 +90,9 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
         {/* Join Button */}
         <Button
           onClick={handleJoinSession}
-          disabled={!sessionCode.trim() || sessionCode.length !== 4 || isConnecting}
+          disabled={
+            !sessionCode.trim() || sessionCode.length !== 4 || isConnecting
+          }
           className="w-full bg-orange-peel hover:bg-orange-peel/80 text-black font-bold py-4 text-lg"
         >
           {isConnecting ? "Joining..." : "Join Session"}

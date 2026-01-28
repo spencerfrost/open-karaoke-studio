@@ -21,13 +21,9 @@ interface UseTapTempoReturn {
  * BPM persists until explicitly reset - no auto-timeout
  */
 export const useTapTempo = (
-  options: UseTapTempoOptions = {}
+  options: UseTapTempoOptions = {},
 ): UseTapTempoReturn => {
-  const {
-    minTaps = 3,
-    maxTaps = 8,
-    onBpmChange,
-  } = options;
+  const { minTaps = 3, maxTaps = 8, onBpmChange } = options;
 
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [bpm, setBpm] = useState<number | null>(null);
@@ -48,7 +44,8 @@ export const useTapTempo = (
         }
 
         // Average interval in milliseconds
-        const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+        const avgInterval =
+          intervals.reduce((a, b) => a + b) / intervals.length;
 
         // Convert to BPM (60000 ms per minute / interval in ms)
         const calculatedBpm = 60000 / avgInterval;

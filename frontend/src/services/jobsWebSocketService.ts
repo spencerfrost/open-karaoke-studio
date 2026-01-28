@@ -47,21 +47,27 @@ class JobsWebSocketService {
 
       if (import.meta.env.DEV) {
         // Development mode - use the current host to leverage Vite proxy (/ws -> localhost:5124)
-        socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/jobs`;
-        console.log("Development mode - using Vite proxy for WebSocket:", socketUrl);
+        socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/jobs`;
+        console.log(
+          "Development mode - using Vite proxy for WebSocket:",
+          socketUrl,
+        );
       } else {
         // Production mode - use FastAPI WebSocket directly
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 
-                          `${window.location.protocol}//${window.location.host}`;
-        socketUrl = `${backendUrl.replace('http', 'ws')}/ws/jobs`;
-        console.log("Production mode - using direct FastAPI WebSocket:", socketUrl);
+        const backendUrl =
+          import.meta.env.VITE_BACKEND_URL ||
+          `${window.location.protocol}//${window.location.host}`;
+        socketUrl = `${backendUrl.replace("http", "ws")}/ws/jobs`;
+        console.log(
+          "Production mode - using direct FastAPI WebSocket:",
+          socketUrl,
+        );
       }
 
       console.log("Attempting to connect to FastAPI WebSocket at:", socketUrl);
-      
+
       this.websocket = new WebSocket(socketUrl);
       this.setupEventHandlers();
-      
     } catch (error) {
       console.error("Failed to initialize WebSocket connection:", error);
       this.scheduleReconnect();
@@ -81,12 +87,17 @@ class JobsWebSocketService {
     };
 
     this.websocket.onclose = (event) => {
-      console.log("Disconnected from FastAPI jobs WebSocket:", event.code, event.reason);
+      console.log(
+        "Disconnected from FastAPI jobs WebSocket:",
+        event.code,
+        event.reason,
+      );
       this.isConnected = false;
       this.websocket = null;
-      
+
       // Attempt to reconnect if it wasn't a manual disconnect
-      if (event.code !== 1000) { // 1000 = normal closure
+      if (event.code !== 1000) {
+        // 1000 = normal closure
         this.scheduleReconnect();
       }
     };
@@ -100,50 +111,50 @@ class JobsWebSocketService {
       try {
         const data = JSON.parse(event.data);
         console.log("FastAPI WebSocket received:", data);
-        
+
         switch (data.type) {
           case "connected":
             console.log("FastAPI WebSocket connection confirmed");
             break;
-            
+
           case "subscribed":
             console.log("Subscribed to job updates:", data);
             break;
-            
+
           case "jobs_list":
             console.log("Received jobs list:", data);
             this.emit("jobs_list", { jobs: data.jobs });
             break;
-            
+
           case "job_created":
             console.log("Received job_created event:", data.job);
             this.emit("job_created", data.job);
             break;
-            
+
           case "job_updated":
             console.log("Received job_updated event:", data.job);
             this.emit("job_updated", data.job);
             break;
-            
+
           case "job_completed":
             console.log("Received job_completed event:", data.job);
             this.emit("job_completed", data.job);
             break;
-            
+
           case "job_failed":
             console.log("Received job_failed event:", data.job);
             this.emit("job_failed", data.job);
             break;
-            
+
           case "job_cancelled":
             console.log("Received job_cancelled event:", data.job);
             this.emit("job_cancelled", data.job);
             break;
-            
+
           case "error":
             console.error("WebSocket error:", data.message);
             break;
-            
+
           default:
             console.log("Unknown message type:", data.type);
         }
@@ -161,8 +172,10 @@ class JobsWebSocketService {
 
     // Cap at 30 seconds, but never stop trying
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-    console.log(`Scheduling reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
-    
+    console.log(
+      `Scheduling reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts + 1})`,
+    );
+
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       this.initializeConnection();
@@ -240,7 +253,7 @@ class JobsWebSocketService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.websocket) {
       this.send({ type: "unsubscribe_from_jobs" });
       this.websocket.close(1000, "Manual disconnect"); // Normal closure

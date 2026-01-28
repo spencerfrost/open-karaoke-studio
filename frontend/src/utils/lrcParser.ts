@@ -48,7 +48,8 @@ export function parseLrc(lrcContent: string): LrcLine[] {
     // Handle both 2-digit (centiseconds) and 3-digit (milliseconds) precision
     const msValue = ms.length === 2 ? parseInt(ms) * 10 : parseInt(ms);
 
-    const timestamp = parseInt(minutes) * 60000 + parseInt(seconds) * 1000 + msValue;
+    const timestamp =
+      parseInt(minutes) * 60000 + parseInt(seconds) * 1000 + msValue;
 
     lines.push({
       timestamp,
@@ -67,7 +68,7 @@ export function parseLrc(lrcContent: string): LrcLine[] {
  */
 export function findInstrumentalGaps(
   lines: LrcLine[],
-  minGapMs: number = 2000
+  minGapMs: number = 2000,
 ): InstrumentalGap[] {
   if (lines.length === 0) return [];
 
@@ -116,7 +117,7 @@ export function calculateCountInTriggers(
   lines: LrcLine[],
   gaps: InstrumentalGap[],
   bpm: number | undefined,
-  minBeats: number = 4
+  minBeats: number = 4,
 ): CountInTrigger[] {
   if (!bpm || bpm < 30 || bpm > 300) return [];
   if (lines.length === 0) return [];
@@ -128,7 +129,10 @@ export function calculateCountInTriggers(
   // Check first line for count-in (if it starts after 3 seconds)
   const firstLine = lines.find((l) => !l.isBlank);
   if (firstLine && firstLine.timestamp > 3000) {
-    const countInStart = Math.max(0, firstLine.timestamp - beatInterval * minBeats);
+    const countInStart = Math.max(
+      0,
+      firstLine.timestamp - beatInterval * minBeats,
+    );
     const hasEnoughTime = firstLine.timestamp - countInStart >= minGapDuration;
 
     if (hasEnoughTime) {
@@ -179,7 +183,7 @@ export function calculateCountInTriggers(
  */
 export function parseLrcWithCountIn(
   lrcContent: string,
-  bpm: number | undefined
+  bpm: number | undefined,
 ): ParsedLrcData | null {
   if (!lrcContent) return null;
 

@@ -77,7 +77,9 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
               {getStatusText()}
             </span>
             {status.message && (
-              <span className="text-white/70 ml-2 truncate">{status.message}</span>
+              <span className="text-white/70 ml-2 truncate">
+                {status.message}
+              </span>
             )}
           </div>
         </div>

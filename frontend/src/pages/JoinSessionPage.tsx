@@ -3,8 +3,11 @@ import { useSessionStore } from "../stores/sessionStore";
 
 export default function JoinSessionPage() {
   const [sessionCode, setSessionCode] = useState("");
-  const [deviceType, setDeviceType] = useState<"stage" | "performer" | "controller">("performer");
-  const { joinSession, isConnecting, connectionError, createSession } = useSessionStore();
+  const [deviceType, setDeviceType] = useState<
+    "stage" | "performer" | "controller"
+  >("performer");
+  const { joinSession, isConnecting, connectionError, createSession } =
+    useSessionStore();
 
   const handleJoin = async () => {
     if (!sessionCode.trim()) return;
@@ -31,7 +34,11 @@ export default function JoinSessionPage() {
               <label className="block text-sm font-medium">Device Type</label>
               <select
                 value={deviceType}
-                onChange={(e) => setDeviceType(e.target.value as "stage" | "performer" | "controller")}
+                onChange={(e) =>
+                  setDeviceType(
+                    e.target.value as "stage" | "performer" | "controller",
+                  )
+                }
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="stage">Stage (Host)</option>
@@ -66,7 +73,11 @@ export default function JoinSessionPage() {
               <label className="block text-sm font-medium">Device Type</label>
               <select
                 value={deviceType}
-                onChange={(e) => setDeviceType(e.target.value as "stage" | "performer" | "controller")}
+                onChange={(e) =>
+                  setDeviceType(
+                    e.target.value as "stage" | "performer" | "controller",
+                  )
+                }
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="performer">Performer</option>
@@ -92,7 +103,10 @@ export default function JoinSessionPage() {
         </div>
 
         <div className="text-center text-sm text-gray-400">
-          <p>Enter a 4-character session code to join an existing karaoke session,</p>
+          <p>
+            Enter a 4-character session code to join an existing karaoke
+            session,
+          </p>
           <p>or create a new session to get started!</p>
         </div>
       </div>

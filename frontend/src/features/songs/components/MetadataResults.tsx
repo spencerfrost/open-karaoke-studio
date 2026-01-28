@@ -45,7 +45,7 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
     const index = options.findIndex((option) =>
       option.metadataId
         ? option.metadataId === selectedOption.metadataId
-        : option === selectedOption
+        : option === selectedOption,
     );
     return index >= 0 ? String(index) : "0";
   };

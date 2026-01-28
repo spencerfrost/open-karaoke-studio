@@ -25,7 +25,8 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   onSelectSong,
   loadingStates,
 }) => {
-  const [visibleSongsCount, setVisibleSongsCount] = useState(INITIAL_SONGS_COUNT);
+  const [visibleSongsCount, setVisibleSongsCount] =
+    useState(INITIAL_SONGS_COUNT);
   const { data, isLoading, error } = useYoutubeMusicArtist(artistId);
 
   const artistData = data?.data;
@@ -34,7 +35,8 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   const albums = artistData?.albums || [];
 
   // Get artist thumbnail
-  const artistThumbnail = artist?.thumbnails?.[artist.thumbnails.length - 1]?.url;
+  const artistThumbnail =
+    artist?.thumbnails?.[artist.thumbnails.length - 1]?.url;
 
   // Calculate visible songs and whether there are more to show
   const visibleTopSongs = topSongs.slice(0, visibleSongsCount);
@@ -47,10 +49,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <ArtistHeader
-          name={artistName}
-          onBack={onBack}
-        />
+        <ArtistHeader name={artistName} onBack={onBack} />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           <span className="ml-3 text-muted-foreground">Loading artist...</span>
@@ -62,13 +61,12 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   if (error) {
     return (
       <div className="space-y-4">
-        <ArtistHeader
-          name={artistName}
-          onBack={onBack}
-        />
+        <ArtistHeader name={artistName} onBack={onBack} />
         <Card>
           <CardContent className="py-8 text-center">
-            <p className="text-destructive">Failed to load artist information.</p>
+            <p className="text-destructive">
+              Failed to load artist information.
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
               Please try again later.
             </p>
@@ -187,7 +185,9 @@ const ArtistHeader: React.FC<ArtistHeaderProps> = ({
       <div className="flex-1 min-w-0">
         <h2 className="text-xl font-bold line-clamp-1">{name}</h2>
         {subscribers && (
-          <p className="text-sm text-muted-foreground">{subscribers} subscribers</p>
+          <p className="text-sm text-muted-foreground">
+            {subscribers} subscribers
+          </p>
         )}
       </div>
     </div>

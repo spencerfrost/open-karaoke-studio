@@ -4,6 +4,6 @@
  */
 
 // Component exports
-export { default as KaraokeQueueItem } from './components/KaraokeQueueItem';
-export { default as KaraokeQueueList } from './components/KaraokeQueueList';
-export { default as QRCodeDisplay } from './components/QRCodeDisplay';
+export { default as KaraokeQueueItem } from "./components/KaraokeQueueItem";
+export { default as KaraokeQueueList } from "./components/KaraokeQueueList";
+export { default as QRCodeDisplay } from "./components/QRCodeDisplay";

@@ -19,7 +19,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
   showPlayButton = true,
 }) => {
   const processingStatus = useProcessingIndicators((state) =>
-    state.getStatus(song.id)
+    state.getStatus(song.id),
   );
   const isProcessing = !!processingStatus;
 

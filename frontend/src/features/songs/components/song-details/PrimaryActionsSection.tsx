@@ -3,10 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Play, PlusCircle, Edit, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
-import { useAddToKaraokeQueue, usePlayFromKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useAddToKaraokeQueue,
+  usePlayFromKaraokeQueue,
+} from "@/hooks/api/useKaraokeQueue";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { toast } from "sonner";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 
@@ -24,12 +27,14 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   onSongDeleted,
 }) => {
   const navigate = useNavigate();
-  const addToQueueMutation = useAddToKaraokeQueue();
-  const playFromQueueMutation = usePlayFromKaraokeQueue();
+  const queryClient = useQueryClient();
+  const { displayCode, isHost } = useSessionStore();
+  const addToQueueMutation = useAddToKaraokeQueue(displayCode || undefined);
+  const playFromQueueMutation = usePlayFromKaraokeQueue(
+    displayCode || undefined,
+  );
   const { useDeleteSong } = useSongs();
   const deleteSongMutation = useDeleteSong();
-  const { displayCode, isHost } = useSessionStore();
-  const playerStore = useKaraokePlayerStore();
   const [isPlayingNow, setIsPlayingNow] = useState(false);
 
   const handlePlayNow = async () => {
@@ -54,11 +59,14 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
       // Step 2: Immediately play it from queue (moves to position 0)
       await playFromQueueMutation.mutateAsync(String(queueResponse.id));
 
-      // Step 3: Clear player playback state
-      playerStore.cleanup();
-      playerStore.setSongId(song.id, song.duration);
+      // Step 3: Invalidate queue cache to ensure Stage.tsx gets the updated queue
+      // This is critical to avoid a race condition where the stale cache causes
+      // the wrong song to be loaded
+      await queryClient.invalidateQueries({
+        queryKey: ["karaoke-queue", displayCode || ""],
+      });
 
-      // Step 4: Navigate to stage
+      // Step 4: Navigate to stage - the queue will now have the correct song at position 0
       onClose();
       navigate("/stage");
     } catch (error) {
@@ -150,7 +158,7 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
           Song is still processing and will be available for playback soon
         </p>
       )}
-      
+
       {!isHost && (
         <p className="text-sm text-muted-foreground mt-3 text-center">
           Only the host device can start playing songs

@@ -1,4 +1,4 @@
-import { Song } from '@/types/Song';
+import { Song } from "@/types/Song";
 
 /**
  * Get song duration in seconds

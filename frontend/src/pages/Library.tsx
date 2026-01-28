@@ -3,7 +3,12 @@ import { useSearchParams } from "react-router-dom";
 import { useInfiniteArtists } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import AppLayout from "@/components/layout/AppLayout";
-import { LibrarySearchInput, SongResultsSection, ArtistResultsSection, RecentlyAddedSongs } from "@/features/library";
+import {
+  LibrarySearchInput,
+  SongResultsSection,
+  ArtistResultsSection,
+  RecentlyAddedSongs,
+} from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
@@ -58,17 +63,29 @@ const LibraryPage: React.FC = () => {
 
   // When expandArtist is set, trigger loading all artists until we find them
   React.useEffect(() => {
-    if (expandArtist && !artists.find(a => a.name === expandArtist) && hasNextPage && !isFetchingNextPage) {
+    if (
+      expandArtist &&
+      !artists.find((a) => a.name === expandArtist) &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
       fetchNextPage();
     }
   }, [expandArtist, artists, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // hasSearch logic
-  const hasSearch = effectiveSearchTerm && effectiveSearchTerm.trim().length > 0;
+  const hasSearch =
+    effectiveSearchTerm && effectiveSearchTerm.trim().length > 0;
 
   return (
     <AppLayout>
-      <SessionInfoDisplay variant="code" colorScheme="page" trigger="hover" visibility="host-only" className="absolute top-2 right-3 z-30" />
+      <SessionInfoDisplay
+        variant="code"
+        colorScheme="page"
+        trigger="hover"
+        visibility="host-only"
+        className="absolute top-2 right-3 z-30"
+      />
       <div className="mb-6">
         {/* Search Input */}
         <div className="mb-6">

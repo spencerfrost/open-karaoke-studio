@@ -31,7 +31,9 @@ export function useLyricsSearch() {
   const [data, setData] = useState<LyricsOption[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [actualProvider, setActualProvider] = useState<LyricsProvider | null>(null);
+  const [actualProvider, setActualProvider] = useState<LyricsProvider | null>(
+    null,
+  );
 
   const search = async (params: LyricsSearchRequest, skipFallback = false) => {
     setLoading(true);
@@ -40,9 +42,10 @@ export function useLyricsSearch() {
 
     try {
       // Determine endpoint based on provider
-      const endpoint = params.provider === "syncedlyrics"
-        ? "/api/lyrics/search-synced"
-        : "/api/lyrics/search";
+      const endpoint =
+        params.provider === "syncedlyrics"
+          ? "/api/lyrics/search-synced"
+          : "/api/lyrics/search";
 
       const queryString = new URLSearchParams({
         track_name: params.title,
@@ -53,7 +56,8 @@ export function useLyricsSearch() {
       try {
         response = await fetch(`${endpoint}?${queryString}`);
       } catch (fetchError) {
-        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        const errorMessage =
+          fetchError instanceof Error ? fetchError.message : String(fetchError);
         throw new Error(`Network error: ${errorMessage}`);
       }
       if (!response.ok) throw new Error("Failed to fetch lyrics");
@@ -64,7 +68,9 @@ export function useLyricsSearch() {
 
       // Automatic fallback: if syncedlyrics returns no results and fallback not disabled
       if (!hasResults && params.provider === "syncedlyrics" && !skipFallback) {
-        console.log("🎵 No results from syncedlyrics, falling back to LRCLIB...");
+        console.log(
+          "🎵 No results from syncedlyrics, falling back to LRCLIB...",
+        );
         // Retry with LRCLIB, but skip further fallback to avoid infinite loop
         await search({ ...params, provider: "lrclib" }, true);
         return;

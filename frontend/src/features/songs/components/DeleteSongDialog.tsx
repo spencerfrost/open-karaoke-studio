@@ -40,7 +40,7 @@ export const DeleteSongDialog: React.FC<DeleteSongDialogProps> = ({
 
     try {
       // Small delay to let dialog close and animation complete
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       await Promise.resolve(onConfirm());
       onSuccess?.();
@@ -52,11 +52,7 @@ export const DeleteSongDialog: React.FC<DeleteSongDialogProps> = ({
 
   const alertDialog = (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-      {trigger && (
-        <AlertDialogTrigger asChild>
-          {trigger}
-        </AlertDialogTrigger>
-      )}
+      {trigger && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}
       <AlertDialogContent
         onKeyDown={(e) => {
           if (e.key === "Enter" && !isDeleting) {
@@ -69,13 +65,12 @@ export const DeleteSongDialog: React.FC<DeleteSongDialogProps> = ({
           <AlertDialogTitle>Delete this song?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete{" "}
-            <span className="font-semibold">"{song.title}"</span> and all its data.
+            <span className="font-semibold">"{song.title}"</span> and all its
+            data.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>
-            Cancel
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={isDeleting}

@@ -31,9 +31,8 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
   onBack,
 }) => {
   const [currentStep, setCurrentStep] = useState<Step>("search");
-  const [selectedResult, setSelectedResult] = useState<ITunesSearchResult | null>(
-    null,
-  );
+  const [selectedResult, setSelectedResult] =
+    useState<ITunesSearchResult | null>(null);
   const [searchArtist, setSearchArtist] = useState(song.artist || "");
   const [searchTitle, setSearchTitle] = useState(song.title || "");
   const [searchAlbum, setSearchAlbum] = useState(song.album || "");
@@ -82,7 +81,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
               : undefined,
           }),
         );
-        
+
         setSearchResults(transformedResults);
         if (transformedResults.length > 0) {
           setCurrentStep("select");
@@ -109,13 +108,13 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           artistName: lookupData.artist || result.artistName,
           collectionName: lookupData.album || result.collectionName,
           primaryGenreName: lookupData.genre || result.primaryGenreName,
-          
+
           // Artwork URLs (all sizes from lookup)
           artworkUrl30: lookupData.artworkUrl30,
           artworkUrl60: lookupData.artworkUrl60,
           artworkUrl100: lookupData.artworkUrl100,
           artworkUrl600: lookupData.artworkUrl600,
-          
+
           // Track details
           trackNumber: lookupData.trackNumber,
           trackCount: lookupData.trackCount,
@@ -125,43 +124,43 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           durationSeconds: lookupData.trackTimeMillis
             ? Math.floor(lookupData.trackTimeMillis / 1000)
             : undefined,
-          
+
           // Release information
           releaseDate: lookupData.releaseDate,
           releaseYear: lookupData.releaseYear,
           releaseDateFormatted: lookupData.releaseDateFormatted,
-          
+
           // Content advisory
           trackExplicitness: lookupData.trackExplicitness,
           collectionExplicitness: lookupData.collectionExplicitness,
           contentAdvisoryRating: lookupData.contentAdvisoryRating,
-          
+
           // Pricing and availability
           trackPrice: lookupData.trackPrice,
           collectionPrice: lookupData.collectionPrice,
           currency: lookupData.currency,
           country: lookupData.country,
           isStreamable: lookupData.isStreamable,
-          
+
           // URLs
           previewUrl: lookupData.previewUrl,
           artistViewUrl: lookupData.artistViewUrl,
           collectionViewUrl: lookupData.collectionViewUrl,
           trackViewUrl: lookupData.trackViewUrl,
-          
+
           // Censored names
           trackCensoredName: lookupData.trackCensoredName,
           collectionCensoredName: lookupData.collectionCensoredName,
-          
+
           // Additional metadata
           copyright: lookupData.copyright,
           description: lookupData.description,
-          
+
           // Genre information
           primaryGenreId: lookupData.primaryGenreId,
           genreIds: lookupData.genreIds || [],
         };
-        
+
         setSelectedResult(comprehensiveResult);
         setCurrentStep("review");
       },
@@ -195,10 +194,14 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
 
     // Artwork URLs - collect all available sizes
     const artworkUrls: string[] = [];
-    if (selectedResult.artworkUrl30) artworkUrls.push(selectedResult.artworkUrl30);
-    if (selectedResult.artworkUrl60) artworkUrls.push(selectedResult.artworkUrl60);
-    if (selectedResult.artworkUrl100) artworkUrls.push(selectedResult.artworkUrl100);
-    if (selectedResult.artworkUrl600) artworkUrls.push(selectedResult.artworkUrl600);
+    if (selectedResult.artworkUrl30)
+      artworkUrls.push(selectedResult.artworkUrl30);
+    if (selectedResult.artworkUrl60)
+      artworkUrls.push(selectedResult.artworkUrl60);
+    if (selectedResult.artworkUrl100)
+      artworkUrls.push(selectedResult.artworkUrl100);
+    if (selectedResult.artworkUrl600)
+      artworkUrls.push(selectedResult.artworkUrl600);
 
     // Prepare comprehensive updates for backend
     const updatesForBackend = {
@@ -212,7 +215,8 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       itunesPreviewUrl: selectedResult.previewUrl, // 30-sec preview for song identification
 
       // Release information
-      releaseDate: selectedResult.releaseDateFormatted || selectedResult.releaseDate,
+      releaseDate:
+        selectedResult.releaseDateFormatted || selectedResult.releaseDate,
 
       // Duration (from our audio file, not iTunes)
       duration: selectedResult.durationSeconds,
@@ -220,14 +224,17 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
 
     // Remove undefined values
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(updatesForBackend).filter(([_, v]) => v !== undefined)
+      Object.entries(updatesForBackend).filter(([_, v]) => v !== undefined),
     );
 
-    updateSongMutation.mutate(cleanedUpdates as Partial<Song> & { id: string }, {
-      onSuccess: () => {
-        onBack();
+    updateSongMutation.mutate(
+      cleanedUpdates as Partial<Song> & { id: string },
+      {
+        onSuccess: () => {
+          onBack();
+        },
       },
-    });
+    );
   };
 
   const renderStepContent = () => {
@@ -310,12 +317,13 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           </AlertDescription>
         </Alert>
       )}
-      
+
       {lookupMutation.error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Failed to fetch comprehensive metadata from iTunes. Using basic search data instead.
+            Failed to fetch comprehensive metadata from iTunes. Using basic
+            search data instead.
           </AlertDescription>
         </Alert>
       )}

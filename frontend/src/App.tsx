@@ -29,53 +29,53 @@ const App: React.FC = () => {
           <Routes>
             {/* Session entry point - public route */}
             <Route path="/join" element={<JoinSessionPage />} />
-            
+
             {/* Session-required routes */}
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
                 <SessionGuard>
                   <LibraryPage />
                 </SessionGuard>
-              } 
+              }
             />
-            <Route 
-              path="/add" 
+            <Route
+              path="/add"
               element={
                 <SessionGuard>
                   <AddSongPage />
                 </SessionGuard>
-              } 
+              }
             />
-            <Route 
-              path="/settings" 
+            <Route
+              path="/settings"
               element={
                 <SessionGuard requireSession={false}>
                   <SettingsPage />
                 </SessionGuard>
-              } 
+              }
             />
-            <Route 
-              path="/stage" 
+            <Route
+              path="/stage"
               element={
                 <SessionGuard deviceType="stage" redirectTo="/stage">
                   <StagePage />
                 </SessionGuard>
-              } 
+              }
             />
-            <Route 
-              path="/controls" 
+            <Route
+              path="/controls"
               element={
                 <SessionGuard deviceType="performer" redirectTo="/controls">
                   <PerformanceControlsPage />
                 </SessionGuard>
-              } 
+              }
             />
 
             {/* Fallback route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          
+
           {/* Mini-player renders outside routes, always available */}
           <MiniPlayer />
         </SessionProvider>

@@ -7,7 +7,7 @@ interface ConnectedDevice {
   device_type: string;
   joined_at: string;
   is_self: boolean;
-  display_name: string | null;  // Add display_name to connected devices
+  display_name: string | null; // Add display_name to connected devices
 }
 
 interface SessionInfo {
@@ -27,7 +27,7 @@ interface SessionState {
   sessionId: string | null;
   displayCode: string | null;
   deviceId: string | null;
-  displayName: string | null;  // Add display name for the current user
+  displayName: string | null; // Add display name for the current user
   isHost: boolean;
   deviceType: string;
   connectedDevices: ConnectedDevice[];
@@ -44,10 +44,14 @@ interface SessionState {
 
   // Actions
   createSession: (deviceType?: string, displayName?: string) => Promise<void>;
-  joinSession: (codeOrId: string, deviceType?: string, displayName?: string) => Promise<void>;
+  joinSession: (
+    codeOrId: string,
+    deviceType?: string,
+    displayName?: string,
+  ) => Promise<void>;
   recoverHostSession: () => Promise<void>;
-  recoverPerformerSession: () => Promise<void>;  // Add performer recovery method
-  recoverSession: () => Promise<void>;  // Add general recovery method
+  recoverPerformerSession: () => Promise<void>; // Add performer recovery method
+  recoverSession: () => Promise<void>; // Add general recovery method
   leaveSession: () => Promise<void>;
   refreshSessionInfo: () => Promise<void>;
   clearSession: () => void;
@@ -65,7 +69,7 @@ export const useSessionStore = create<SessionState>()(
       sessionId: null,
       displayCode: null,
       deviceId: null,
-      displayName: null,  // Initialize display name
+      displayName: null, // Initialize display name
       isHost: false,
       deviceType: "performer",
       connectedDevices: [],
@@ -83,9 +87,9 @@ export const useSessionStore = create<SessionState>()(
           const response = await fetch("/api/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               device_type: deviceType,
-              display_name: displayName 
+              display_name: displayName,
             }),
           });
 
@@ -99,7 +103,7 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
-            displayName: displayName || null,  // Store the display name
+            displayName: displayName || null, // Store the display name
             isHost: true,
             deviceType,
             isConnected: true,
@@ -109,41 +113,58 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Update WebSocket services for new session - pass device_id for host registration
-          sessionWebSocketService.connectToSession(sessionData.session_id, sessionData.device_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            sessionData.device_id,
+          );
 
           // Setup session_ended event handler
-          sessionWebSocketService.on('session_ended', (data) => {
-            console.log('Session ended by host:', data?.reason);
+          sessionWebSocketService.on("session_ended", (data) => {
+            console.log("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/';
+            if (
+              typeof window !== "undefined" &&
+              window.location.pathname !== "/"
+            ) {
+              window.location.href = "/";
             }
           });
 
           // Store host session data in localStorage for recovery
-          localStorage.setItem(HOST_SESSION_STORAGE_KEY, JSON.stringify({
-            sessionId: sessionData.session_id,
-            deviceId: sessionData.device_id,
-            timestamp: Date.now(),
-          }));
+          localStorage.setItem(
+            HOST_SESSION_STORAGE_KEY,
+            JSON.stringify({
+              sessionId: sessionData.session_id,
+              deviceId: sessionData.device_id,
+              timestamp: Date.now(),
+            }),
+          );
 
           console.log("Session created:", sessionData);
         } catch (error) {
           console.error("Failed to create session:", error);
           set({
-            connectionError: error instanceof Error ? error.message : "Failed to create session",
+            connectionError:
+              error instanceof Error
+                ? error.message
+                : "Failed to create session",
             isConnecting: false,
           });
           throw error; // Re-throw to allow caller to handle
         }
       },
 
-      joinSession: async (codeOrId: string, deviceType = "performer", displayName?: string) => {
+      joinSession: async (
+        codeOrId: string,
+        deviceType = "performer",
+        displayName?: string,
+      ) => {
         set({ isConnecting: true, connectionError: null });
 
         try {
-          const endpoint = codeOrId.length === 4 ? "join-by-code" : "join-by-id";
+          const endpoint =
+            codeOrId.length === 4 ? "join-by-code" : "join-by-id";
           const response = await fetch(`/api/sessions/${endpoint}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -151,7 +172,7 @@ export const useSessionStore = create<SessionState>()(
               code: codeOrId.length === 4 ? codeOrId : undefined,
               session_id: codeOrId.length !== 4 ? codeOrId : undefined,
               device_type: deviceType,
-              display_name: displayName,  // Send display name to backend
+              display_name: displayName, // Send display name to backend
             }),
           });
 
@@ -165,7 +186,7 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
-            displayName: displayName || null,  // Store the display name
+            displayName: displayName || null, // Store the display name
             isHost: sessionData.is_host,
             deviceType,
             isConnected: true,
@@ -177,38 +198,48 @@ export const useSessionStore = create<SessionState>()(
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
           // Setup session_ended event handler
-          sessionWebSocketService.on('session_ended', (data) => {
-            console.log('Session ended by host:', data?.reason);
+          sessionWebSocketService.on("session_ended", (data) => {
+            console.log("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/';
+            if (
+              typeof window !== "undefined" &&
+              window.location.pathname !== "/"
+            ) {
+              window.location.href = "/";
             }
           });
 
           // Store session data in localStorage for recovery
           if (sessionData.is_host) {
             // Host session
-            localStorage.setItem(HOST_SESSION_STORAGE_KEY, JSON.stringify({
-              sessionId: sessionData.session_id,
-              deviceId: sessionData.device_id,
-              timestamp: Date.now(),
-            }));
+            localStorage.setItem(
+              HOST_SESSION_STORAGE_KEY,
+              JSON.stringify({
+                sessionId: sessionData.session_id,
+                deviceId: sessionData.device_id,
+                timestamp: Date.now(),
+              }),
+            );
           } else if (displayName) {
             // Performer session
-            localStorage.setItem(PERFORMER_SESSION_STORAGE_KEY, JSON.stringify({
-              sessionId: sessionData.session_id,
-              deviceId: sessionData.device_id,
-              displayName,
-              timestamp: Date.now(),
-            }));
+            localStorage.setItem(
+              PERFORMER_SESSION_STORAGE_KEY,
+              JSON.stringify({
+                sessionId: sessionData.session_id,
+                deviceId: sessionData.device_id,
+                displayName,
+                timestamp: Date.now(),
+              }),
+            );
           }
 
           console.log("Joined session:", sessionData);
         } catch (error) {
           console.error("Failed to join session:", error);
           set({
-            connectionError: error instanceof Error ? error.message : "Failed to join session",
+            connectionError:
+              error instanceof Error ? error.message : "Failed to join session",
             isConnecting: false,
           });
           throw error;
@@ -228,22 +259,31 @@ export const useSessionStore = create<SessionState>()(
 
           // Validate that we have the required data
           if (!sessionId || !deviceId) {
-            console.warn("Invalid host session data in localStorage - missing sessionId or deviceId");
+            console.warn(
+              "Invalid host session data in localStorage - missing sessionId or deviceId",
+            );
             localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
 
           // Use new validation API endpoint from Phase 1
-          const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
+          const validationResponse = await fetch(
+            `/api/sessions/${sessionId}/validate`,
+          );
           if (!validationResponse.ok) {
-            if (validationResponse.status === 404 || validationResponse.status === 410) {
+            if (
+              validationResponse.status === 404 ||
+              validationResponse.status === 410
+            ) {
               // Session not found or expired - clear stored data
               localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
-            throw new Error(`Failed to validate session: ${validationResponse.statusText}`);
+            throw new Error(
+              `Failed to validate session: ${validationResponse.statusText}`,
+            );
           }
 
           const validationData = await validationResponse.json();
@@ -257,7 +297,9 @@ export const useSessionStore = create<SessionState>()(
           // Get full session info
           const response = await fetch(`/api/sessions/${sessionId}/info`);
           if (!response.ok) {
-            throw new Error(`Failed to get session info: ${response.statusText}`);
+            throw new Error(
+              `Failed to get session info: ${response.statusText}`,
+            );
           }
 
           const sessionData = await response.json();
@@ -281,15 +323,21 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Reconnect WebSocket - pass device_id for host registration
-          sessionWebSocketService.connectToSession(sessionData.session_id, deviceId);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            deviceId,
+          );
 
           // Setup session_ended event handler
-          sessionWebSocketService.on('session_ended', (data) => {
-            console.log('Session ended by host:', data?.reason);
+          sessionWebSocketService.on("session_ended", (data) => {
+            console.log("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/';
+            if (
+              typeof window !== "undefined" &&
+              window.location.pathname !== "/"
+            ) {
+              window.location.href = "/";
             }
           });
 
@@ -297,7 +345,10 @@ export const useSessionStore = create<SessionState>()(
         } catch (error) {
           console.error("Failed to recover host session:", error);
           set({
-            recoveryError: error instanceof Error ? error.message : "Failed to recover session",
+            recoveryError:
+              error instanceof Error
+                ? error.message
+                : "Failed to recover session",
             isRecovering: false,
           });
           // Clear corrupted stored data
@@ -308,7 +359,7 @@ export const useSessionStore = create<SessionState>()(
       recoverSession: async () => {
         // Try to recover host session first
         await get().recoverHostSession();
-        
+
         // If no host session was recovered, try performer session
         const state = get();
         if (!state.sessionId) {
@@ -317,7 +368,9 @@ export const useSessionStore = create<SessionState>()(
       },
 
       recoverPerformerSession: async () => {
-        const storedSession = localStorage.getItem(PERFORMER_SESSION_STORAGE_KEY);
+        const storedSession = localStorage.getItem(
+          PERFORMER_SESSION_STORAGE_KEY,
+        );
         if (!storedSession) {
           return; // No stored session to recover
         }
@@ -325,26 +378,36 @@ export const useSessionStore = create<SessionState>()(
         set({ isRecovering: true, recoveryError: null });
 
         try {
-          const { sessionId, deviceId, displayName } = JSON.parse(storedSession);
+          const { sessionId, deviceId, displayName } =
+            JSON.parse(storedSession);
 
           // Validate that we have the required data
           if (!sessionId || !deviceId) {
-            console.warn("Invalid performer session data in localStorage - missing sessionId or deviceId");
+            console.warn(
+              "Invalid performer session data in localStorage - missing sessionId or deviceId",
+            );
             localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
 
           // Use new validation API endpoint from Phase 1
-          const validationResponse = await fetch(`/api/sessions/${sessionId}/validate`);
+          const validationResponse = await fetch(
+            `/api/sessions/${sessionId}/validate`,
+          );
           if (!validationResponse.ok) {
-            if (validationResponse.status === 404 || validationResponse.status === 410) {
+            if (
+              validationResponse.status === 404 ||
+              validationResponse.status === 410
+            ) {
               // Session not found or expired - clear stored data
               localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
-            throw new Error(`Failed to validate session: ${validationResponse.statusText}`);
+            throw new Error(
+              `Failed to validate session: ${validationResponse.statusText}`,
+            );
           }
 
           const validationData = await validationResponse.json();
@@ -358,7 +421,9 @@ export const useSessionStore = create<SessionState>()(
           // Get full session info
           const response = await fetch(`/api/sessions/${sessionId}/info`);
           if (!response.ok) {
-            throw new Error(`Failed to get session info: ${response.statusText}`);
+            throw new Error(
+              `Failed to get session info: ${response.statusText}`,
+            );
           }
 
           const sessionData = await response.json();
@@ -379,12 +444,15 @@ export const useSessionStore = create<SessionState>()(
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
           // Setup session_ended event handler
-          sessionWebSocketService.on('session_ended', (data) => {
-            console.log('Session ended by host:', data?.reason);
+          sessionWebSocketService.on("session_ended", (data) => {
+            console.log("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/';
+            if (
+              typeof window !== "undefined" &&
+              window.location.pathname !== "/"
+            ) {
+              window.location.href = "/";
             }
           });
 
@@ -392,7 +460,10 @@ export const useSessionStore = create<SessionState>()(
         } catch (error) {
           console.error("Failed to recover performer session:", error);
           set({
-            recoveryError: error instanceof Error ? error.message : "Failed to recover session",
+            recoveryError:
+              error instanceof Error
+                ? error.message
+                : "Failed to recover session",
             isRecovering: false,
           });
           // Clear corrupted stored data
@@ -410,7 +481,10 @@ export const useSessionStore = create<SessionState>()(
           });
 
           if (!response.ok) {
-            console.warn("Failed to leave session on server:", response.statusText);
+            console.warn(
+              "Failed to leave session on server:",
+              response.statusText,
+            );
           }
         } catch (error) {
           console.warn("Error leaving session:", error);
@@ -434,7 +508,9 @@ export const useSessionStore = create<SessionState>()(
         try {
           const response = await fetch(`/api/sessions/${sessionId}/info`);
           if (!response.ok) {
-            throw new Error(`Failed to get session info: ${response.statusText}`);
+            throw new Error(
+              `Failed to get session info: ${response.statusText}`,
+            );
           }
 
           const sessionData = await response.json();
@@ -456,7 +532,7 @@ export const useSessionStore = create<SessionState>()(
           sessionId: null,
           displayCode: null,
           deviceId: null,
-          displayName: null,  // Clear display name
+          displayName: null, // Clear display name
           isHost: false,
           deviceType: "performer",
           connectedDevices: [],
@@ -470,10 +546,10 @@ export const useSessionStore = create<SessionState>()(
       },
     }),
     {
-      name: "karaoke-zustand-session",  // Different key to avoid conflicts with manual localStorage
+      name: "karaoke-zustand-session", // Different key to avoid conflicts with manual localStorage
       storage: createJSONStorage(() => localStorage),
       // Don't persist anything - we handle persistence manually for recovery
       partialize: () => ({}),
-    }
-  )
+    },
+  ),
 );

@@ -2,7 +2,7 @@
  * Unified Session WebSocket Service
  * Handles all session-related WebSocket communication:
  * - Performance controls and player state
- * - Queue management 
+ * - Queue management
  * - Real-time session synchronization
  */
 
@@ -40,7 +40,12 @@ type ControlValue = number | string | boolean;
 
 interface SessionWebSocketEvents {
   // Session connection events
-  session_connected: (data: { session_id: string; device_id: string; is_host: boolean; performance_state: PerformanceState }) => void;
+  session_connected: (data: {
+    session_id: string;
+    device_id: string;
+    is_host: boolean;
+    performance_state: PerformanceState;
+  }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
 
@@ -57,7 +62,13 @@ interface SessionWebSocketEvents {
   queue_updated: (data: { items?: QueueItem[]; trigger?: string }) => void;
 }
 
-type EventData = PerformanceState | { error: string } | { room: string } | { items?: QueueItem[]; trigger?: string } | { control: string; value: ControlValue } | undefined;
+type EventData =
+  | PerformanceState
+  | { error: string }
+  | { room: string }
+  | { items?: QueueItem[]; trigger?: string }
+  | { control: string; value: ControlValue }
+  | undefined;
 
 class SessionWebSocketService {
   private websocket: WebSocket | null = null;
@@ -76,13 +87,18 @@ class SessionWebSocketService {
 
   private initializeConnection(sessionId: string, url: string) {
     try {
-      console.log("Attempting to connect to unified session WebSocket at:", url);
+      console.log(
+        "Attempting to connect to unified session WebSocket at:",
+        url,
+      );
 
       this.websocket = new WebSocket(url);
       this.setupEventHandlers();
-
     } catch (error) {
-      console.error("Failed to initialize unified session WebSocket connection:", error);
+      console.error(
+        "Failed to initialize unified session WebSocket connection:",
+        error,
+      );
       this.scheduleReconnect();
     }
   }
@@ -101,12 +117,17 @@ class SessionWebSocketService {
     };
 
     this.websocket.onclose = (event) => {
-      console.log("Disconnected from unified session WebSocket:", event.code, event.reason);
+      console.log(
+        "Disconnected from unified session WebSocket:",
+        event.code,
+        event.reason,
+      );
       this.isConnected = false;
       this.websocket = null;
-      
+
       // Attempt to reconnect if it wasn't a manual disconnect
-      if (event.code !== 1000) { // 1000 = normal closure
+      if (event.code !== 1000) {
+        // 1000 = normal closure
         this.scheduleReconnect();
       }
     };
@@ -120,12 +141,14 @@ class SessionWebSocketService {
       try {
         const data = JSON.parse(event.data);
         console.log("Unified session WebSocket received:", data);
-        
+
         // Emit the event to all registered listeners
         this.emit(data.type, data);
-        
       } catch (error) {
-        console.error("Error parsing unified session WebSocket message:", error);
+        console.error(
+          "Error parsing unified session WebSocket message:",
+          error,
+        );
       }
     };
   }
@@ -143,7 +166,9 @@ class SessionWebSocketService {
 
     // Cap at 30 seconds, but never stop trying
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-    console.log(`Scheduling unified session WebSocket reconnect in ${delay/1000}s (attempt ${this.reconnectAttempts + 1})`);
+    console.log(
+      `Scheduling unified session WebSocket reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts + 1})`,
+    );
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
@@ -151,11 +176,12 @@ class SessionWebSocketService {
         // Rebuild the WebSocket URL with device_id query parameter if host
         let baseSocketUrl: string;
         if (import.meta.env.DEV) {
-          baseSocketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${this.currentSessionId}`;
+          baseSocketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${this.currentSessionId}`;
         } else {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL ||
-                            `${window.location.protocol}//${window.location.host}`;
-          baseSocketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${this.currentSessionId}`;
+          const backendUrl =
+            import.meta.env.VITE_BACKEND_URL ||
+            `${window.location.protocol}//${window.location.host}`;
+          baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${this.currentSessionId}`;
         }
 
         const socketUrl = this.hostDeviceId
@@ -171,7 +197,9 @@ class SessionWebSocketService {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       this.websocket.send(JSON.stringify(message));
     } else {
-      console.warn("Cannot send unified session message: WebSocket not connected");
+      console.warn(
+        "Cannot send unified session message: WebSocket not connected",
+      );
     }
   }
 
@@ -182,7 +210,10 @@ class SessionWebSocketService {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in unified session ${eventName} listener:`, error);
+          console.error(
+            `Error in unified session ${eventName} listener:`,
+            error,
+          );
         }
       });
     }
@@ -229,7 +260,11 @@ class SessionWebSocketService {
    * @param hostDeviceId Optional: The REST API device ID if this device is the host
    */
   connectToSession(sessionId: string, hostDeviceId?: string) {
-    console.log("Connecting to unified session WebSocket for session:", sessionId, hostDeviceId ? "(as host)" : "(as performer)");
+    console.log(
+      "Connecting to unified session WebSocket for session:",
+      sessionId,
+      hostDeviceId ? "(as host)" : "(as performer)",
+    );
     this.disconnect(); // Clean up any existing connection first
     this.currentSessionId = sessionId;
     this.hostDeviceId = hostDeviceId || null;
@@ -239,12 +274,13 @@ class SessionWebSocketService {
     let baseSocketUrl: string;
     if (import.meta.env.DEV) {
       // Development mode - use the current host to leverage Vite proxy
-      baseSocketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/session/${sessionId}`;
+      baseSocketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
     } else {
       // Production mode - use direct URLs
-      const backendUrl = import.meta.env.VITE_BACKEND_URL ||
-                        `${window.location.protocol}//${window.location.host}`;
-      baseSocketUrl = `${backendUrl.replace('http', 'ws')}/ws/session/${sessionId}`;
+      const backendUrl =
+        import.meta.env.VITE_BACKEND_URL ||
+        `${window.location.protocol}//${window.location.host}`;
+      baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
     }
 
     // Add device_id query parameter if this is the host
@@ -270,7 +306,7 @@ class SessionWebSocketService {
   }
 
   // === PERFORMANCE CONTROL METHODS ===
-  
+
   /**
    * Update performance control (volume, lyrics, etc.)
    */
@@ -278,17 +314,21 @@ class SessionWebSocketService {
     this.send({
       type: "update_performance_control",
       control,
-      value
+      value,
     });
   }
 
   /**
    * Update player state (playback position, duration, etc.)
    */
-  updatePlayerState(state: { isPlaying?: boolean; currentTime?: number; duration?: number }) {
+  updatePlayerState(state: {
+    isPlaying?: boolean;
+    currentTime?: number;
+    duration?: number;
+  }) {
     this.send({
       type: "update_player_state",
-      ...state
+      ...state,
     });
   }
 
@@ -300,7 +340,7 @@ class SessionWebSocketService {
   }
 
   /**
-   * Send pause command  
+   * Send pause command
    */
   pause() {
     this.send({ type: "playback_pause" });
@@ -315,7 +355,7 @@ class SessionWebSocketService {
       songId,
       duration,
       currentTime: 0,
-      isPlaying: false
+      isPlaying: false,
     });
   }
 
@@ -329,7 +369,7 @@ class SessionWebSocketService {
       duration,
       currentTime: 0,
       isPlaying: false,
-      isReady: true
+      isReady: true,
     });
   }
 
@@ -357,12 +397,12 @@ class SessionWebSocketService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.websocket) {
       this.websocket.close(1000, "Manual disconnect"); // Normal closure
       this.websocket = null;
     }
-    
+
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.currentSessionId = null;

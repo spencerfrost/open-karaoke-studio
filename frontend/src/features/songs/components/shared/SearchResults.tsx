@@ -46,10 +46,7 @@ export const SearchResults = <TResult,>({
   // Show empty state when no query has been made
   if (results.length === 0) {
     return (
-      <EmptySearchState
-        message={emptyMessage}
-        description={emptyDescription}
-      />
+      <EmptySearchState message={emptyMessage} description={emptyDescription} />
     );
   }
 

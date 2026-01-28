@@ -42,7 +42,8 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
       current: currentSong.year?.toString() || "Not set",
       new: selectedResult.releaseYear?.toString() || "Not set",
       changed:
-        (currentSong.year?.toString() || "") !== (selectedResult.releaseYear?.toString() || ""),
+        (currentSong.year?.toString() || "") !==
+        (selectedResult.releaseYear?.toString() || ""),
     },
     {
       field: "Track Number",
@@ -93,8 +94,11 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
           )}
           {selectedResult.trackTimeMillis && (
             <li>
-              iTunes duration: {Math.floor(selectedResult.trackTimeMillis / 60000)}:
-              {String(Math.floor((selectedResult.trackTimeMillis % 60000) / 1000)).padStart(2, "0")}
+              iTunes duration:{" "}
+              {Math.floor(selectedResult.trackTimeMillis / 60000)}:
+              {String(
+                Math.floor((selectedResult.trackTimeMillis % 60000) / 1000),
+              ).padStart(2, "0")}
             </li>
           )}
           {selectedResult.previewUrl && (
@@ -102,12 +106,16 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
           )}
           {selectedResult.trackExplicitness && (
             <li>
-              Content advisory: {selectedResult.trackExplicitness === "explicit" ? "Explicit" : "Clean"}
+              Content advisory:{" "}
+              {selectedResult.trackExplicitness === "explicit"
+                ? "Explicit"
+                : "Clean"}
             </li>
           )}
         </ul>
         <p className="pt-2">
-          <strong>Note:</strong> Your original audio file duration will be preserved.
+          <strong>Note:</strong> Your original audio file duration will be
+          preserved.
         </p>
       </div>
     </div>

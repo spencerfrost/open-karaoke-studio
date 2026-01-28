@@ -33,7 +33,11 @@ export const JoinSessionDialog: React.FC<JoinSessionDialogProps> = ({
     e.preventDefault();
     if (singerName.trim() && sessionCode.length === 4) {
       try {
-        await joinSession(sessionCode.toUpperCase(), "controller", singerName.trim());
+        await joinSession(
+          sessionCode.toUpperCase(),
+          "controller",
+          singerName.trim(),
+        );
 
         // Call success callback with the captured information
         onJoinSuccess?.(singerName.trim());

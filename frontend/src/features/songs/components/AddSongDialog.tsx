@@ -321,8 +321,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
             disabled={
               !selectedLyrics ||
               (isYouTubeVideo &&
-                (!editedMetadata.title.trim() ||
-                  !editedMetadata.artist.trim()))
+                (!editedMetadata.title.trim() || !editedMetadata.artist.trim()))
             }
           >
             {isYouTubeVideo ? "Confirm & Save" : "Confirm"}

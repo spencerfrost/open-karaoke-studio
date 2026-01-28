@@ -50,5 +50,5 @@ export const useProcessingIndicators = create<ProcessingIndicatorsState>(
     getProgress: (songId) => get().processingSongs.get(songId)?.progress,
 
     getStatus: (songId) => get().processingSongs.get(songId),
-  })
+  }),
 );

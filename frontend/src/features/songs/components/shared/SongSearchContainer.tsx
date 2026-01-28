@@ -31,7 +31,7 @@ import {
 
 // Data mappers to convert search results to unified SongInput
 const mapYoutubeMusicToSongInput = (
-  result: YoutubeMusicSearchResult
+  result: YoutubeMusicSearchResult,
 ): SongInput => ({
   title: result.title,
   artist: result.artist,
@@ -44,7 +44,7 @@ const mapYoutubeMusicToSongInput = (
 });
 
 const mapYouTubeToSongInput = (
-  result: YoutubeVideoSearchResult
+  result: YoutubeVideoSearchResult,
 ): SongInput => ({
   title: result.title,
   artist: result.channel,
@@ -74,7 +74,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   const [activeSource, setActiveSource] =
     useState<SearchSource>("youtube-music");
   const [browsingArtist, setBrowsingArtist] = useState<BrowsingArtist | null>(
-    null
+    null,
   );
 
   // Debounce the query to avoid excessive API calls while typing
@@ -83,7 +83,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   // Use existing search hooks
   const youtubeMusicSearch = useYoutubeMusicSearch(
     debouncedQuery,
-    activeSource === "youtube-music" && !!debouncedQuery
+    activeSource === "youtube-music" && !!debouncedQuery,
   );
 
   const youtubeSearch = useYoutubeVideoSearch({
@@ -104,15 +104,15 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
         result.videoId,
         songCreation.isAdding &&
           songCreation.currentSong?.videoId === result.videoId,
-      ]
-    )
+      ],
+    ),
   );
 
   const youtubeLoadingStates: Record<string, boolean> = Object.fromEntries(
     (youtubeSearch.data || []).map((result: YoutubeVideoSearchResult) => [
       result.id,
       songCreation.isAdding && songCreation.currentSong?.videoId === result.id,
-    ])
+    ]),
   );
 
   const handleSearch = (searchQuery: string) => {
@@ -252,14 +252,17 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               )}
 
               {/* Empty State - When both are empty */}
-              {artistResults.length === 0 && songResults.length === 0 && !youtubeMusicSearch.isLoading && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p className="font-medium">Search YouTube Music</p>
-                  <p className="text-sm">
-                    Find official tracks with high-quality audio and reliable metadata.
-                  </p>
-                </div>
-              )}
+              {artistResults.length === 0 &&
+                songResults.length === 0 &&
+                !youtubeMusicSearch.isLoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="font-medium">Search YouTube Music</p>
+                    <p className="text-sm">
+                      Find official tracks with high-quality audio and reliable
+                      metadata.
+                    </p>
+                  </div>
+                )}
             </div>
           )}
 

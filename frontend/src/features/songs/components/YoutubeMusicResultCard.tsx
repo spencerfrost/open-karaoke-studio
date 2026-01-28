@@ -73,7 +73,10 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                   <span>{result.artist}</span>
                 )}
                 {result.album && (
-                  <span className="text-muted-foreground"> • {result.album}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    • {result.album}
+                  </span>
                 )}
               </p>
               {duration && (

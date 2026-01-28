@@ -36,7 +36,8 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
   }
 
   // Prioritize synced lyrics, then plain lyrics, then unified lyrics field
-  const displayLyrics = song.syncedLyrics || song.plainLyrics || song.lyrics || "";
+  const displayLyrics =
+    song.syncedLyrics || song.plainLyrics || song.lyrics || "";
   const isUsingSyncedLyrics = !!song.syncedLyrics;
 
   // Process lyrics for display - handle both synced (LRC) and plain text formats
@@ -49,7 +50,9 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
         .split("\n")
         .map((line) => {
           // Remove LRC timestamp format [mm:ss.xx] or [mm:ss.xxx]
-          const cleanedLine = line.replace(/^\[\d{2}:\d{2}\.\d{2,3}\]\s*/, "").trim();
+          const cleanedLine = line
+            .replace(/^\[\d{2}:\d{2}\.\d{2,3}\]\s*/, "")
+            .trim();
           return cleanedLine;
         })
         .filter((line) => line.length > 0);

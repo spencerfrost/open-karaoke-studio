@@ -1,7 +1,10 @@
 /**
  * Format seconds into MM:SS format
  */
-export const formatTime = (seconds: number, showMs: boolean = false): string => {
+export const formatTime = (
+  seconds: number,
+  showMs: boolean = false,
+): string => {
   if (isNaN(seconds) || seconds < 0) return "0:00";
   const totalSeconds = Math.floor(seconds);
   const mins = Math.floor(totalSeconds / 60);
