@@ -87,19 +87,18 @@ cd backend && source venv/bin/activate
 ### Tmux Dev Environment
 
 Services run in tmux session `open-karaoke`, window 0 (`services`) with 3 panes:
-- **Pane 0.0**: Backend API (FastAPI/Uvicorn)
-- **Pane 0.1**: Frontend (Vite)
-- **Pane 0.2**: Celery worker
+- **Pane 0.0**: Backend API (FastAPI/Uvicorn) - **auto-reloads on file changes**
+- **Pane 0.1**: Frontend (Vite) - **auto-reloads on file changes**
+- **Pane 0.2**: Celery worker - **does NOT auto-reload**
 
 ```bash
-# API server (pane 0.0)
-tmux capture-pane -t open-karaoke:0.0 -p | tail -20                              # Check logs
-tmux send-keys -t open-karaoke:0.0 C-c && sleep 2 && tmux send-keys -t open-karaoke:0.0 "./run_api.sh" Enter  # Restart
-
-# Celery worker (pane 0.2)
-tmux capture-pane -t open-karaoke:0.2 -p | tail -20                              # Check logs
-tmux send-keys -t open-karaoke:0.2 C-c && sleep 2 && tmux send-keys -t open-karaoke:0.2 "./run_celery.sh" Enter  # Restart
+# Check logs
+tmux capture-pane -t open-karaoke:0.0 -p | tail -20  # API server
+tmux capture-pane -t open-karaoke:0.1 -p | tail -20  # Frontend
+tmux capture-pane -t open-karaoke:0.2 -p | tail -20  # Celery worker
 ```
+
+**IMPORTANT: DO NOT restart services via tmux commands.** The API and frontend hot-reload automatically in development. If Celery changes are made, ask the user to restart Celery before continuing.
 
 ## Development Conventions
 
@@ -109,6 +108,10 @@ tmux send-keys -t open-karaoke:0.2 C-c && sleep 2 && tmux send-keys -t open-kara
 - **Errors**: Use `app.exceptions` types, `@handle_api_error` decorator, `exc_info=True` in logs
 
 ### Frontend
+- **Logging**: Use `createLogger(namespace)` from `@/lib/logger`, NOT console.log
+  - Development: All levels visible (debug, info, warn, error)
+  - Production: Only warn/error visible (controlled by `VITE_LOG_LEVEL`)
+  - Namespace pattern: `createLogger("component:Name")`, `createLogger("service:api")`, `createLogger("store:session")`
 - **Style**: Prettier + ESLint, TypeScript strict mode
 - **State**: TanStack Query (`useApiQuery`, `useApiMutation`) for server state, Zustand for client state
 - **Components**: Shadcn/UI primitives, React Hook Form + Zod for forms
@@ -123,14 +126,26 @@ YouTube URL → yt-dlp → Celery → Demucs → vocals.mp3 + instrumental.mp3
 ## Critical Constraints
 
 1. **Session Isolation**: All WebSocket state keyed by `session_id` (NEVER global)
-2. **Celery Hot-Reload**: Does NOT auto-reload - manually restart after backend changes
-3. **Virtual Environment**: Required for all backend commands
+2. **Celery Hot-Reload**: Does NOT auto-reload - ask user to restart after Celery job changes
+3. **Virtual Environment**: Required for all backend commands (Python 3.13)
 4. **Scale**: Optimized for 5-10 concurrent users, not enterprise
+5. **Service Restarts**: NEVER restart API/frontend via tmux - they hot-reload automatically
 
 ## Common Gotchas
 
-- **Celery changes not applied**: Restart Celery worker manually
+- **Celery changes not applied**: Ask user to restart Celery worker before continuing
 - **Backend import errors**: Activate venv (`source venv/bin/activate`)
 - **WebSocket issues**: Verify `session_id` is passed correctly
 - **Global state bugs**: All session state must be session-isolated
 - **Celery debugging**: Check `logs/celery.log` (console output not visible)
+- **API/Frontend hot-reload**: Both services auto-reload on file changes - never restart via tmux
+
+## Documentation
+
+This file (CLAUDE.md) provides AI assistant context and development workflows. For comprehensive documentation:
+
+- **[FEATURES.md](FEATURES.md)** - Complete feature inventory with user stories (24 features across 8 domains)
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical deep-dive: WebSocket design, processing pipeline, database schema, state management
+- **[TECH-DEBT.md](TECH-DEBT.md)** - Known issues and tech debt (21 items prioritized by severity)
+- **[ROADMAP.md](ROADMAP.md)** - Future improvements and feature ideas organized by theme
+- **[docs/](docs/)** - Detailed guides for complex topics (future)
