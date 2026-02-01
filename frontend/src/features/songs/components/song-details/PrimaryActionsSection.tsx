@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, PlusCircle, Edit, Trash2 } from "lucide-react";
+import { Play, PlusCircle, Trash2 } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,18 +12,19 @@ import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";
 import { toast } from "sonner";
 import { DeleteSongDialog } from "../DeleteSongDialog";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:primary-actions");
 
 interface PrimaryActionsSectionProps {
   song: Song;
   onClose: () => void;
-  onEditMetadata?: () => void;
   onSongDeleted?: () => void;
 }
 
 export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   song,
   onClose,
-  onEditMetadata,
   onSongDeleted,
 }) => {
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
       onClose();
       navigate("/stage");
     } catch (error) {
-      console.error("Failed to play song now:", error);
+      logger.error("Failed to play song now:", error);
       toast.error("Failed to start playback. Please try again.");
       setIsPlayingNow(false);
     }
@@ -88,7 +89,7 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
         singer: "Unknown Singer", // TODO: Get from user preferences or input
       });
     } catch (error) {
-      console.error("Failed to add song to queue:", error);
+      logger.error("Failed to add song to queue:", error);
       toast.error("Failed to add song to queue");
     }
   };
@@ -96,17 +97,17 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   const isProcessed = song.status === "processed";
 
   return (
-    <div className="border-t pt-6 mt-6">
+    <div>
       <div className="flex gap-3 flex-col sm:flex-row">
         {/* Play Now button - only show for hosts */}
         {isHost && (
           <Button
             onClick={handlePlayNow}
             disabled={!isProcessed || isPlayingNow}
-            className="flex-1 sm:max-w-[200px] flex items-center gap-2"
+            className="flex-1 sm:flex-initial sm:min-w-[180px] flex items-center justify-center gap-2"
             size="lg"
           >
-            <Play size={16} />
+            <Play size={18} />
             {isPlayingNow ? "Starting..." : "Play Now"}
           </Button>
         )}
@@ -115,24 +116,12 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
           variant="outline"
           onClick={handleAddToQueue}
           disabled={!isProcessed || addToQueueMutation.isPending}
-          className="flex-1 sm:max-w-[160px] flex items-center gap-2"
+          className="flex-1 sm:flex-initial sm:min-w-[160px] flex items-center justify-center gap-2"
           size="lg"
         >
-          <PlusCircle size={16} />
+          <PlusCircle size={18} />
           {addToQueueMutation.isPending ? "Adding..." : "Add to Queue"}
         </Button>
-
-        {onEditMetadata && (
-          <Button
-            variant="outline"
-            onClick={onEditMetadata}
-            className="flex-1 sm:max-w-[160px] flex items-center gap-2"
-            size="lg"
-          >
-            <Edit size={16} />
-            Edit Metadata
-          </Button>
-        )}
 
         <DeleteSongDialog
           song={song}
@@ -142,11 +131,11 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
           trigger={
             <Button
               variant="outline"
-              className="flex-1 sm:max-w-[160px] flex items-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
+              className="flex-1 sm:flex-initial sm:min-w-[140px] flex items-center justify-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
               size="lg"
               disabled={deleteSongMutation.isPending}
             >
-              <Trash2 size={16} />
+              <Trash2 size={18} />
               {deleteSongMutation.isPending ? "Removing..." : "Remove"}
             </Button>
           }

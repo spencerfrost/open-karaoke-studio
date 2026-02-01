@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Song } from "@/types/Song";
-import { ArtworkDisplay } from "./ArtworkDisplay";
-import { PrimarySongDetails } from "./PrimarySongDetails";
-import { PrimaryActionsSection } from "./PrimaryActionsSection";
-import { ReprocessSection } from "./ReprocessSection";
-import { SongLyricsSection } from "./SongLyricsSection";
-import { MetadataEditContent } from "./MetadataEditContent";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OverviewTab, DetailsTab, LyricsTab, AudioTab } from "./tabs";
+import { MetadataEditContent } from "./MetadataEditContent";
 import { cn } from "@/lib/utils";
+import { Info, FileText, Music2, Settings } from "lucide-react";
 
 interface SongDetailsDialogProps {
   song: Song;
@@ -16,7 +14,8 @@ interface SongDetailsDialogProps {
   className?: string;
 }
 
-type DialogView = "main" | "edit-metadata";
+type DialogView = "tabs" | "itunes-search";
+type TabValue = "overview" | "details" | "lyrics" | "audio";
 
 export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   song,
@@ -24,7 +23,8 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   onClose,
   className = "",
 }) => {
-  const [currentView, setCurrentView] = useState<DialogView>("main");
+  const [currentView, setCurrentView] = useState<DialogView>("tabs");
+  const [activeTab, setActiveTab] = useState<TabValue>("overview");
 
   // Close audio when dialog closes
   useEffect(() => {
@@ -36,7 +36,8 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
         audio.currentTime = 0;
       });
       // Reset view when dialog closes
-      setCurrentView("main");
+      setCurrentView("tabs");
+      setActiveTab("overview");
     }
   }, [isOpen]);
 
@@ -44,8 +45,8 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        if (currentView === "edit-metadata") {
-          setCurrentView("main");
+        if (currentView === "itunes-search") {
+          setCurrentView("tabs");
         } else {
           onClose();
         }
@@ -58,12 +59,12 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
     }
   }, [isOpen, onClose, currentView]);
 
-  const handleEditMetadata = () => {
-    setCurrentView("edit-metadata");
+  const handleLaunchItunesSearch = () => {
+    setCurrentView("itunes-search");
   };
 
-  const handleBackToMain = () => {
-    setCurrentView("main");
+  const handleBackFromItunesSearch = () => {
+    setCurrentView("tabs");
   };
 
   return (
@@ -73,51 +74,106 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
           // Mobile: full screen
           "w-screen h-screen max-w-none max-h-none rounded-none",
           // Desktop: large dialog
-          "md:w-[90vw] md:h-[90vh] md:max-w-6xl md:max-h-[90vh] md:rounded-lg",
-          "overflow-y-auto p-0",
+          "md:w-[90vw] md:h-[90vh] md:max-w-5xl md:max-h-[90vh] md:rounded-lg",
+          "overflow-hidden p-0",
           className,
         )}
       >
-        <div className="p-8 space-y-8">
-          {currentView === "main" ? (
-            <>
-              {/* Main content grid - Cover art and primary details */}
-              <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
-                {/* Left column - Cover art */}
-                <div className="flex justify-center lg:justify-start">
-                  <ArtworkDisplay
+        {currentView === "tabs" ? (
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as TabValue)}
+            className="flex flex-col h-full"
+          >
+            <div className="border-b">
+              <TabsList className="w-full grid grid-cols-4 p-0 h-auto bg-transparent rounded-none">
+                <TabsTrigger
+                  value="overview"
+                  className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
+                >
+                  <Info size={18} className="text-muted-foreground" />
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Overview
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="details"
+                  className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
+                >
+                  <Settings size={18} className="text-muted-foreground" />
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Details
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="lyrics"
+                  className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
+                >
+                  <FileText size={18} className="text-muted-foreground" />
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Lyrics
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="audio"
+                  className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
+                >
+                  <Music2 size={18} className="text-muted-foreground" />
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Audio
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-6">
+                <TabsContent
+                  value="overview"
+                  className="mt-0 data-[state=inactive]:hidden"
+                >
+                  <OverviewTab
                     song={song}
-                    size="large"
-                    className="w-full max-w-[300px]"
-                    showFallback={true}
+                    onClose={onClose}
+                    onSongDeleted={onClose}
                   />
-                </div>
+                </TabsContent>
 
-                {/* Right column - Primary song details */}
-                <div className="min-w-0 space-y-6">
-                  <PrimarySongDetails song={song} />
-                </div>
+                <TabsContent
+                  value="details"
+                  className="mt-0 data-[state=inactive]:hidden"
+                >
+                  <DetailsTab
+                    song={song}
+                    onLaunchItunesSearch={handleLaunchItunesSearch}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value="lyrics"
+                  className="mt-0 data-[state=inactive]:hidden"
+                >
+                  <LyricsTab song={song} />
+                </TabsContent>
+
+                <TabsContent
+                  value="audio"
+                  className="mt-0 data-[state=inactive]:hidden"
+                >
+                  <AudioTab song={song} />
+                </TabsContent>
               </div>
-
-              {/* Primary Actions Section - Prominent placement below song details */}
-              <PrimaryActionsSection
-                song={song}
-                onClose={onClose}
-                onEditMetadata={handleEditMetadata}
-                onSongDeleted={onClose}
-              />
-
-              {/* Re-process Section */}
-              <ReprocessSection song={song} />
-
-              {/* Lyrics Section */}
-              <SongLyricsSection song={song} />
-            </>
-          ) : (
-            /* Metadata Editing View */
-            <MetadataEditContent song={song} onBack={handleBackToMain} />
-          )}
-        </div>
+            </div>
+          </Tabs>
+        ) : (
+          /* iTunes Search View */
+          <div className="p-6 h-full overflow-y-auto">
+            <MetadataEditContent
+              song={song}
+              onBack={handleBackFromItunesSearch}
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
