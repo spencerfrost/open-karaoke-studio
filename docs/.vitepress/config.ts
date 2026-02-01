@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
+  base: '/docs/',
   title: 'Open Karaoke Studio',
   description: 'Self-hosted AI-powered karaoke application',
   lang: 'en-US',
