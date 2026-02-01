@@ -47,9 +47,7 @@ function mapBackendStatus(backendStatus: string): SongStatus {
 /**
  * Converts backend job data to frontend processing status
  */
-function mapJobToProcessingStatus(
-  job: JobData,
-): SongProcessingStatus & { song_id?: string } {
+function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
   return {
     id: job.id,
     song_id: job.song_id,

@@ -24,7 +24,7 @@ export function useJobsSync() {
     // Update store with current jobs, keyed by song_id
     jobs.forEach((job) => {
       // Jobs from WebSocket should include song_id in the response
-      const songId = (job as any).song_id;
+      const songId = job.song_id;
       if (songId) {
         setProcessing(songId, job);
       }
@@ -33,7 +33,8 @@ export function useJobsSync() {
     // Remove jobs that are no longer in the jobs array
     // This handles cleanup when jobs complete and are removed by useJobsWebSocket
     // Get current state directly to avoid dependency loop
-    const currentProcessingSongs = useProcessingIndicators.getState().processingSongs;
+    const currentProcessingSongs =
+      useProcessingIndicators.getState().processingSongs;
     for (const [songId, status] of currentProcessingSongs.entries()) {
       if (!currentJobIds.has(status.id)) {
         removeProcessing(songId);

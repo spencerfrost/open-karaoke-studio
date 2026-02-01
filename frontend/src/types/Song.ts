@@ -55,6 +55,7 @@ export interface SongProcessingRequest {
 
 export interface SongProcessingStatus {
   id: string;
+  song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
   message?: string;
