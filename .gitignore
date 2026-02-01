@@ -71,7 +71,6 @@ lrclip
 
 backend/karaoke.db-shm
 backend/karaoke.db-wal
-docs/archived/
 htmlcov
 frontend/dev-dist/registerSW.js
 frontend/dev-dist/sw.js
@@ -81,3 +80,14 @@ backend/app_flask_backup
 backend/benchmark_results_*
 backend/reportsreact-lrc/
 backend/reports/
+
+# Docs / VitePress
+docs/archived/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/dist/
+docs/.env.local
+docs/.env.*.local
+frontend/public/docs/
+frontend/public/dev-dist/
+frontend/vite.config.ts
