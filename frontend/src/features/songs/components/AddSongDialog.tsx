@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:add-song");
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { LyricsResults } from "@/features/lyrics/components/LyricsResults";
@@ -152,7 +155,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
 
       await searchLyrics(customTitle, customArtist, currentSong.album);
     } catch (error) {
-      console.error("Failed to refine search:", error);
+      logger.error("Failed to refine search:", error);
     } finally {
       setIsRefining(false);
     }
@@ -173,7 +176,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         currentSong.album,
       );
     } catch (error) {
-      console.error("Failed to reset search:", error);
+      logger.error("Failed to reset search:", error);
     } finally {
       setIsRefining(false);
     }
@@ -190,7 +193,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
       try {
         await songCreation.saveLyrics(selectedLyrics);
       } catch (error) {
-        console.error("Failed to save lyrics:", error);
+        logger.error("Failed to save lyrics:", error);
       }
     }
     handleClose();
@@ -215,7 +218,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         syncedLyrics: selectedLyrics.syncedLyrics,
       });
     } catch (error) {
-      console.error("Failed to save metadata and lyrics:", error);
+      logger.error("Failed to save metadata and lyrics:", error);
     }
   };
 

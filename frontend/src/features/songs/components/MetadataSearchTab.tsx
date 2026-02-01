@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Music, Search, Check } from "lucide-react";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:metadata-search");
 import { Song } from "@/types/Song";
 import { useMetadata } from "@/hooks/api/useMetadata";
 
@@ -44,7 +47,7 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
       setSearchResults(results || []);
       setNoResults(results?.length === 0);
     } catch (error) {
-      console.error("Metadata search failed:", error);
+      logger.error("Metadata search failed:", error);
       setNoResults(true);
     }
   };

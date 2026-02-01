@@ -8,6 +8,9 @@ import {
 import { useSessionStore } from "@/stores/sessionStore";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:song-actions");
 
 export interface SongActionsConfig {
   onPlay?: (song: Song) => void;
@@ -72,7 +75,7 @@ export const useSongActions = (
       // Step 4: Navigate to stage - the queue will now have the correct song at position 0
       navigate("/stage");
     } catch (error) {
-      console.error("Failed to play song now:", error);
+      logger.error("Failed to play song now:", error);
       toast.error("Failed to start playback. Please try again.");
     }
   };

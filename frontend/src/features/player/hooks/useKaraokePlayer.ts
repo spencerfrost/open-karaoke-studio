@@ -7,6 +7,9 @@ import type {
   PlayerOptions,
   PlayerError,
 } from "../KaraokePlayer.types";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:karaoke-player");
 
 export const useKaraokePlayer = (
   songId?: string,
@@ -107,7 +110,7 @@ export const useKaraokePlayer = (
   const preloadSong = useCallback(async (preloadSongId: string) => {
     // Implementation for preloading songs
     // This would involve fetching song data and potentially preparing audio
-    console.log("Preloading song:", preloadSongId);
+    logger.debug("Preloading song:", preloadSongId);
     // TODO: Implement actual preloading logic
   }, []);
 

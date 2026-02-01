@@ -23,6 +23,8 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // Prevent console.log usage - use logger instead
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
 )

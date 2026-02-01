@@ -6,6 +6,10 @@
  * - Real-time session synchronization
  */
 
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("websocket:session");
+
 interface QueueItem {
   id: string;
   songId: string;
@@ -87,7 +91,7 @@ class SessionWebSocketService {
 
   private initializeConnection(sessionId: string, url: string) {
     try {
-      console.log(
+      logger.debug(
         "Attempting to connect to unified session WebSocket at:",
         url,
       );
@@ -95,7 +99,7 @@ class SessionWebSocketService {
       this.websocket = new WebSocket(url);
       this.setupEventHandlers();
     } catch (error) {
-      console.error(
+      logger.error(
         "Failed to initialize unified session WebSocket connection:",
         error,
       );
@@ -107,7 +111,7 @@ class SessionWebSocketService {
     if (!this.websocket) return;
 
     this.websocket.onopen = () => {
-      console.log("Connected to unified session WebSocket");
+      logger.debug("Connected to unified session WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
@@ -117,7 +121,7 @@ class SessionWebSocketService {
     };
 
     this.websocket.onclose = (event) => {
-      console.log(
+      logger.debug(
         "Disconnected from unified session WebSocket:",
         event.code,
         event.reason,
@@ -133,29 +137,26 @@ class SessionWebSocketService {
     };
 
     this.websocket.onerror = (error) => {
-      console.error("Unified session WebSocket connection error:", error);
+      logger.error("Unified session WebSocket connection error:", error);
       this.isConnected = false;
     };
 
     this.websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("Unified session WebSocket received:", data);
+        logger.debug("Unified session WebSocket received:", data);
 
         // Emit the event to all registered listeners
         this.emit(data.type, data);
       } catch (error) {
-        console.error(
-          "Error parsing unified session WebSocket message:",
-          error,
-        );
+        logger.error("Error parsing unified session WebSocket message:", error);
       }
     };
   }
 
   private scheduleReconnect() {
     if (!this.currentSessionId) {
-      console.log("No session ID - not scheduling reconnect");
+      logger.debug("No session ID - not scheduling reconnect");
       return;
     }
 
@@ -166,7 +167,7 @@ class SessionWebSocketService {
 
     // Cap at 30 seconds, but never stop trying
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-    console.log(
+    logger.debug(
       `Scheduling unified session WebSocket reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts + 1})`,
     );
 
@@ -197,7 +198,7 @@ class SessionWebSocketService {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       this.websocket.send(JSON.stringify(message));
     } else {
-      console.warn(
+      logger.warn(
         "Cannot send unified session message: WebSocket not connected",
       );
     }
@@ -210,7 +211,7 @@ class SessionWebSocketService {
         try {
           listener(data);
         } catch (error) {
-          console.error(
+          logger.error(
             `Error in unified session ${eventName} listener:`,
             error,
           );
@@ -260,7 +261,7 @@ class SessionWebSocketService {
    * @param hostDeviceId Optional: The REST API device ID if this device is the host
    */
   connectToSession(sessionId: string, hostDeviceId?: string) {
-    console.log(
+    logger.debug(
       "Connecting to unified session WebSocket for session:",
       sessionId,
       hostDeviceId ? "(as host)" : "(as performer)",

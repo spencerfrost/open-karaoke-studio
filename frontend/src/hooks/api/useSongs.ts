@@ -2,6 +2,9 @@ import { useCallback } from "react";
 import { useApiQuery, useApiMutation, uploadFile } from "./useApi";
 import { Song, SongProcessingStatus } from "../../types/Song";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:songs");
 
 // Query keys for React Query
 const QUERY_KEYS = {
@@ -62,7 +65,7 @@ export function useSongs() {
               errorData?.error || errorData?.message || errorMessage;
           }
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -739,7 +742,7 @@ async function downloadFile(endpoint: string, filename: string): Promise<void> {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Download error:", error);
+    logger.error("Download error:", error);
     throw error;
   }
 }

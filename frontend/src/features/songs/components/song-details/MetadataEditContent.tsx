@@ -12,6 +12,9 @@ import {
   SelectStep,
   ReviewStep,
 } from "./metadata-edit";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:metadata-edit-content");
 
 interface MetadataEditContentProps {
   song: Song;
@@ -166,7 +169,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       },
       onError: (error) => {
         // If lookup fails, fall back to using search result
-        console.error("Lookup failed, using search result:", error);
+        logger.error("Lookup failed, using search result:", error);
         setSelectedResult(result);
         setCurrentStep("review");
       },

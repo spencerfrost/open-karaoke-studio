@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:lyrics");
 
 export type LyricsProvider = "lrclib" | "syncedlyrics";
 
@@ -68,7 +71,7 @@ export function useLyricsSearch() {
 
       // Automatic fallback: if syncedlyrics returns no results and fallback not disabled
       if (!hasResults && params.provider === "syncedlyrics" && !skipFallback) {
-        console.log(
+        logger.debug(
           "🎵 No results from syncedlyrics, falling back to LRCLIB...",
         );
         // Retry with LRCLIB, but skip further fallback to avoid infinite loop
@@ -79,7 +82,7 @@ export function useLyricsSearch() {
       setData(result);
       setActualProvider(params.provider || "lrclib");
     } catch (err) {
-      console.error(
+      logger.error(
         `🎵 Lyrics search failed for: ${params.artist} - ${params.title}`,
         err,
       );

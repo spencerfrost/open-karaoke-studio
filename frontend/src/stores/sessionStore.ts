@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("store:session");
 
 interface ConnectedDevice {
   device_id: string;
@@ -120,7 +123,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Setup session_ended event handler
           sessionWebSocketService.on("session_ended", (data) => {
-            console.log("Session ended by host:", data?.reason);
+            logger.info("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification
             if (
@@ -141,9 +144,9 @@ export const useSessionStore = create<SessionState>()(
             }),
           );
 
-          console.log("Session created:", sessionData);
+          logger.info("Session created:", sessionData);
         } catch (error) {
-          console.error("Failed to create session:", error);
+          logger.error("Failed to create session:", error);
           set({
             connectionError:
               error instanceof Error
@@ -199,7 +202,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Setup session_ended event handler
           sessionWebSocketService.on("session_ended", (data) => {
-            console.log("Session ended by host:", data?.reason);
+            logger.info("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
             if (
@@ -234,9 +237,9 @@ export const useSessionStore = create<SessionState>()(
             );
           }
 
-          console.log("Joined session:", sessionData);
+          logger.info("Joined session:", sessionData);
         } catch (error) {
-          console.error("Failed to join session:", error);
+          logger.error("Failed to join session:", error);
           set({
             connectionError:
               error instanceof Error ? error.message : "Failed to join session",
@@ -259,7 +262,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Validate that we have the required data
           if (!sessionId || !deviceId) {
-            console.warn(
+            logger.warn(
               "Invalid host session data in localStorage - missing sessionId or deviceId",
             );
             localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
@@ -330,7 +333,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Setup session_ended event handler
           sessionWebSocketService.on("session_ended", (data) => {
-            console.log("Session ended by host:", data?.reason);
+            logger.info("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
             if (
@@ -341,9 +344,9 @@ export const useSessionStore = create<SessionState>()(
             }
           });
 
-          console.log("Host session recovered:", sessionData);
+          logger.info("Host session recovered:", sessionData);
         } catch (error) {
-          console.error("Failed to recover host session:", error);
+          logger.error("Failed to recover host session:", error);
           set({
             recoveryError:
               error instanceof Error
@@ -383,7 +386,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Validate that we have the required data
           if (!sessionId || !deviceId) {
-            console.warn(
+            logger.warn(
               "Invalid performer session data in localStorage - missing sessionId or deviceId",
             );
             localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
@@ -445,7 +448,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Setup session_ended event handler
           sessionWebSocketService.on("session_ended", (data) => {
-            console.log("Session ended by host:", data?.reason);
+            logger.info("Session ended by host:", data?.reason);
             get().clearSession();
             // Show toast notification and redirect
             if (
@@ -456,9 +459,9 @@ export const useSessionStore = create<SessionState>()(
             }
           });
 
-          console.log("Performer session recovered:", sessionData);
+          logger.info("Performer session recovered:", sessionData);
         } catch (error) {
-          console.error("Failed to recover performer session:", error);
+          logger.error("Failed to recover performer session:", error);
           set({
             recoveryError:
               error instanceof Error
@@ -481,13 +484,13 @@ export const useSessionStore = create<SessionState>()(
           });
 
           if (!response.ok) {
-            console.warn(
+            logger.warn(
               "Failed to leave session on server:",
               response.statusText,
             );
           }
         } catch (error) {
-          console.warn("Error leaving session:", error);
+          logger.warn("Error leaving session:", error);
         }
 
         // Clear stored session data for hosts and performers
@@ -516,7 +519,7 @@ export const useSessionStore = create<SessionState>()(
           const sessionData = await response.json();
           set({ sessionInfo: sessionData });
         } catch (error) {
-          console.error("Failed to refresh session info:", error);
+          logger.error("Failed to refresh session info:", error);
         }
       },
 

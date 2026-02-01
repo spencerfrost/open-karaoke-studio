@@ -9,6 +9,9 @@ import {
   FileUploaderContent,
   FileUploaderItem,
 } from "@/components/ui/file-uploader";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:file-upload");
 
 // Interface for props provided by FormField render prop (simplified)
 interface FileUploadFieldProps {
@@ -37,7 +40,7 @@ const generateAcceptObject = (
     const extensions = acceptString.split(",").map((ext) => ext.trim());
     return { "application/octet-stream": extensions };
   } catch (error) {
-    console.error("Error parsing accept string:", error);
+    logger.error("Error parsing accept string:", error);
     return undefined;
   }
 };
@@ -85,7 +88,7 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
       if (file) {
         // Optional: Perform extra checks NOT handled by dropzone (like isAudioFile)
         if (!isAudioFile(file)) {
-          console.warn(
+          logger.warn(
             "File passed dropzone but failed isAudioFile check:",
             file.name,
           );

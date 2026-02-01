@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:session-entry");
 import { toast } from "sonner";
 
 interface SessionEntryProps {
@@ -54,7 +57,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       // Creating a session implies host role (stage), no display name needed
       await createSession("stage");
     } catch (error) {
-      console.error("Failed to create session:", error);
+      logger.error("Failed to create session:", error);
       toast.error("Failed to create session. Please try again.");
     }
   };
@@ -80,7 +83,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       // Save the name to localStorage for future sessions
       localStorage.setItem("karaokeDisplayName", displayName.trim());
     } catch (error) {
-      console.error("Failed to join session:", error);
+      logger.error("Failed to join session:", error);
       toast.error(
         "Failed to join session. Please check the code and try again.",
       );

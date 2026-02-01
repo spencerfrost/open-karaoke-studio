@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import ArtistSection from "./ArtistSection";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import AlphabeticalNavigation from "./AlphabeticalNavigation";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:artist-accordion");
 
 interface Artist {
   name: string;
@@ -167,7 +170,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
         loadingTimeoutRef.current = setTimeout(() => {
           clearInterval(loadInterval);
           setPendingLetter(null);
-          console.warn(`Timed out waiting for letter ${letter}`);
+          logger.warn(`Timed out waiting for letter ${letter}`);
         }, 30000);
       };
 

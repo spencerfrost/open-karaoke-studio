@@ -7,6 +7,9 @@ import { Song } from "@/types/Song";
 import { useSongs } from "@/hooks/api/useSongs";
 import MetadataEditorTab from "./MetadataEditorTab";
 import MetadataSearchTab from "./MetadataSearchTab";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:metadata-editor");
 
 interface MetadataEditorProps {
   song: Song;
@@ -40,7 +43,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       }
       setOpen(false);
     } catch (error) {
-      console.error("Failed to update metadata:", error);
+      logger.error("Failed to update metadata:", error);
     }
   };
 
@@ -70,7 +73,7 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
         setOpen(false);
         alert("Song deleted successfully.");
       } catch (error) {
-        console.error("Failed to delete song:", error);
+        logger.error("Failed to delete song:", error);
         alert("Failed to delete the song. Please try again.");
       }
     }

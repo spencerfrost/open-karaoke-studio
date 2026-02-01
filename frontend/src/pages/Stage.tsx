@@ -13,6 +13,9 @@ import {
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("page:stage");
 
 const Stage: React.FC = () => {
   const {
@@ -55,7 +58,7 @@ const Stage: React.FC = () => {
             await createSession("stage");
           }
         } catch (error) {
-          console.error("Failed to initialize session:", error);
+          logger.error("Failed to initialize session:", error);
           toast.error("Failed to initialize session");
         }
       }
@@ -70,12 +73,12 @@ const Stage: React.FC = () => {
     // This handler now receives the full queue data from the WebSocket
     const handleQueueUpdate = (data: { items?: any[] }) => {
       if (data.items) {
-        console.log("Queue updated via WebSocket, updating cache directly.");
+        logger.debug("Queue updated via WebSocket, updating cache directly.");
         // Update the React Query cache by refetching
         queueQuery.refetch();
       } else {
         // Fallback for older message formats or simple triggers
-        console.log(
+        logger.debug(
           "Queue update notification received, refetching queue data.",
         );
         queueQuery.refetch();
@@ -83,7 +86,7 @@ const Stage: React.FC = () => {
     };
 
     const handleQueueJoined = (data: { room?: string } = {}) => {
-      console.log("Joined queue room:", data?.room);
+      logger.debug("Joined queue room:", data?.room);
       // Request initial queue state
       sessionWebSocketService.requestQueueUpdate();
     };
@@ -136,7 +139,7 @@ const Stage: React.FC = () => {
       await removeFromQueueMutation.mutateAsync(id);
       // Backend now automatically broadcasts updates, no need to notify manually
     } catch (error) {
-      console.error("Failed to remove song from queue:", error);
+      logger.error("Failed to remove song from queue:", error);
       toast.error("Failed to remove song from queue");
     }
   };
@@ -146,7 +149,7 @@ const Stage: React.FC = () => {
       await playFromQueueMutation.mutateAsync(id);
       // Backend now automatically broadcasts updates, no need to notify manually
     } catch (error) {
-      console.error("Failed to play song from queue:", error);
+      logger.error("Failed to play song from queue:", error);
       toast.error("Failed to play song from queue");
     }
   };

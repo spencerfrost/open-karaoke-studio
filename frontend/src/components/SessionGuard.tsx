@@ -2,6 +2,9 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import SessionEntry from "@/components/SessionEntry";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:session-guard");
 
 interface SessionGuardProps {
   children: React.ReactNode;
@@ -40,13 +43,13 @@ const SessionGuard: React.FC<SessionGuardProps> = ({
   if (sessionId && deviceType) {
     // Stage routes require host devices - redirect performers to controls
     if (deviceType === "stage" && !isHost) {
-      console.info("Performer device redirected from stage route to controls");
+      logger.info("Performer device redirected from stage route to controls");
       return <Navigate to="/controls" replace />;
     }
 
     // Performer routes require non-host devices - redirect hosts to stage
     if (deviceType === "performer" && isHost) {
-      console.info("Host device redirected from performer route to stage");
+      logger.info("Host device redirected from performer route to stage");
       return <Navigate to="/stage" replace />;
     }
   }

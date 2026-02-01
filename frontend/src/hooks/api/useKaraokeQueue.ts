@@ -10,6 +10,9 @@ import {
   KaraokeQueueItemWithSong as KaraokeQueueItem,
   AddToKaraokeQueueRequest,
 } from "@/types/KaraokeQueue";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:queue");
 
 /**
  * Hook: Get the current queue
@@ -100,7 +103,7 @@ export function useRemoveFromKaraokeQueue(
           const errorData: any = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError: any) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -129,7 +132,7 @@ export function usePlayFromKaraokeQueue(
           const errorData: any = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError: any) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }

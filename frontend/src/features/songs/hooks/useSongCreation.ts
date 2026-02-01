@@ -5,6 +5,9 @@ import { useLyricsSearch } from "@/hooks/api/useLyrics";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
 import { Song } from "@/types/Song";
 import type { LyricsOption } from "@/hooks/api/useLyrics";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:song-creation");
 
 // Generic song input interface for both YouTube sources
 export interface SongInput {
@@ -63,7 +66,7 @@ export const useSongCreation = () => {
     ]);
 
     metadataPromise.then(() => {
-      console.log("All download and lyrics search operations started");
+      logger.debug("All download and lyrics search operations started");
     });
   };
 
@@ -95,7 +98,7 @@ export const useSongCreation = () => {
       .mutateAsync(songData)
       .then((createdSong) => {
         setCreatedSong(createdSong);
-        console.log("Song created successfully:", createdSong);
+        logger.debug("Song created successfully:", createdSong);
 
         // Start parallel processes for lyrics and download
         getMetadata(createdSong.id, song);
@@ -103,7 +106,7 @@ export const useSongCreation = () => {
         return createdSong;
       })
       .catch((error) => {
-        console.error("Error creating song:", error);
+        logger.error("Error creating song:", error);
         throw error;
       })
       .finally(() => {

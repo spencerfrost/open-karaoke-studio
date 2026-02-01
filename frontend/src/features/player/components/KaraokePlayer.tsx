@@ -14,6 +14,9 @@ import {
   QueueEnded,
   BottomControlsArea,
 } from "./subcomponents";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:karaoke-player");
 import { LyricsDisplayWithCountIn } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
@@ -79,7 +82,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             tapTempo.reset();
           },
           onError: (error) => {
-            console.error("Failed to update BPM:", error);
+            logger.error("Failed to update BPM:", error);
           },
         },
       );

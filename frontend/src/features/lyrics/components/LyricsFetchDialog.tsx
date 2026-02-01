@@ -8,6 +8,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:lyrics-fetch");
 import { Input } from "@/components/ui/input";
 import { Search, RotateCcw } from "lucide-react";
 import { LyricsResults } from "./LyricsResults";
@@ -135,7 +138,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         provider: selectedProvider,
       });
     } catch (error) {
-      console.error("Failed to refine search:", error);
+      logger.error("Failed to refine search:", error);
     } finally {
       setIsRefining(false);
     }
@@ -163,7 +166,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         provider: selectedProvider,
       });
     } catch (error) {
-      console.error("Failed to reset search:", error);
+      logger.error("Failed to reset search:", error);
     } finally {
       setIsRefining(false);
     }

@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("store:player");
 
 // Extend window interface for cleanup storage
 declare global {
@@ -335,7 +338,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       timestamp: Date.now(),
     };
 
-    console.log(
+    logger.debug(
       "Sending performance control update:",
       backendControl,
       "=",
@@ -404,7 +407,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     connect: () => {
       // Don't set connected immediately - wait for session_connected event
       // This prevents showing connected state before WebSocket is actually ready
-      console.log("[KaraokePlayerStore] Setting up WebSocket listeners");
+      logger.debug("[KaraokePlayerStore] Setting up WebSocket listeners");
 
       // Set up listeners for performance events
       const cleanupPerformanceState = sessionWebSocketService.on(
@@ -453,7 +456,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const cleanupSessionConnected = sessionWebSocketService.on(
         "session_connected",
         (data) => {
-          console.log(
+          logger.debug(
             "[KaraokePlayerStore] Received session_connected event",
             data,
           );
@@ -465,7 +468,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const cleanupSessionError = sessionWebSocketService.on(
         "session_error",
         (data) => {
-          console.error("[KaraokePlayerStore] Session error:", data);
+          logger.error("[KaraokePlayerStore] Session error:", data);
           set({ connected: false });
         },
       );
@@ -474,7 +477,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const cleanupSessionEnded = sessionWebSocketService.on(
         "session_ended",
         (data) => {
-          console.log("[KaraokePlayerStore] Session ended:", data);
+          logger.debug("[KaraokePlayerStore] Session ended:", data);
           set({ connected: false });
         },
       );
@@ -492,7 +495,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
       // Check if already connected (for immediate feedback if connection already exists)
       if (sessionWebSocketService.isConnectionActive()) {
-        console.log("[KaraokePlayerStore] WebSocket already connected");
+        logger.debug("[KaraokePlayerStore] WebSocket already connected");
         set({ connected: true });
       }
     },
@@ -564,7 +567,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         Object.keys(lastLocalUpdate).forEach(
           (key) => delete lastLocalUpdate[key],
         );
-        console.log("Re-enabled WebSocket performance state updates");
+        logger.debug("Re-enabled WebSocket performance state updates");
       }, 500);
     },
 
@@ -746,7 +749,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     updateFromWebSocket: (data: any) => {
       // Ignore updates during song loading to prevent interference
       if (isLoadingNewSong) {
-        console.log("Ignoring WebSocket update during song loading");
+        logger.debug("Ignoring WebSocket update during song loading");
         return;
       }
 

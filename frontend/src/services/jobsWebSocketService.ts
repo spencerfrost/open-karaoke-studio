@@ -3,6 +3,10 @@
  * Migrated from Socket.IO to native WebSocket for FastAPI compatibility
  */
 
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("websocket:jobs");
+
 interface JobData {
   id: string;
   progress?: number;
@@ -48,7 +52,7 @@ class JobsWebSocketService {
       if (import.meta.env.DEV) {
         // Development mode - use the current host to leverage Vite proxy (/ws -> localhost:5124)
         socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/jobs`;
-        console.log(
+        logger.debug(
           "Development mode - using Vite proxy for WebSocket:",
           socketUrl,
         );
@@ -58,18 +62,18 @@ class JobsWebSocketService {
           import.meta.env.VITE_BACKEND_URL ||
           `${window.location.protocol}//${window.location.host}`;
         socketUrl = `${backendUrl.replace("http", "ws")}/ws/jobs`;
-        console.log(
+        logger.debug(
           "Production mode - using direct FastAPI WebSocket:",
           socketUrl,
         );
       }
 
-      console.log("Attempting to connect to FastAPI WebSocket at:", socketUrl);
+      logger.debug("Attempting to connect to FastAPI WebSocket at:", socketUrl);
 
       this.websocket = new WebSocket(socketUrl);
       this.setupEventHandlers();
     } catch (error) {
-      console.error("Failed to initialize WebSocket connection:", error);
+      logger.error("Failed to initialize WebSocket connection:", error);
       this.scheduleReconnect();
     }
   }
@@ -78,7 +82,7 @@ class JobsWebSocketService {
     if (!this.websocket) return;
 
     this.websocket.onopen = () => {
-      console.log("Connected to FastAPI jobs WebSocket");
+      logger.info("Connected to FastAPI jobs WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
@@ -87,7 +91,7 @@ class JobsWebSocketService {
     };
 
     this.websocket.onclose = (event) => {
-      console.log(
+      logger.info(
         "Disconnected from FastAPI jobs WebSocket:",
         event.code,
         event.reason,
@@ -103,63 +107,63 @@ class JobsWebSocketService {
     };
 
     this.websocket.onerror = (error) => {
-      console.error("FastAPI WebSocket connection error:", error);
+      logger.error("FastAPI WebSocket connection error:", error);
       this.isConnected = false;
     };
 
     this.websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("FastAPI WebSocket received:", data);
+        logger.debug("FastAPI WebSocket received:", data);
 
         switch (data.type) {
           case "connected":
-            console.log("FastAPI WebSocket connection confirmed");
+            logger.debug("FastAPI WebSocket connection confirmed");
             break;
 
           case "subscribed":
-            console.log("Subscribed to job updates:", data);
+            logger.debug("Subscribed to job updates:", data);
             break;
 
           case "jobs_list":
-            console.log("Received jobs list:", data);
+            logger.debug("Received jobs list:", data);
             this.emit("jobs_list", { jobs: data.jobs });
             break;
 
           case "job_created":
-            console.log("Received job_created event:", data.job);
+            logger.debug("Received job_created event:", data.job);
             this.emit("job_created", data.job);
             break;
 
           case "job_updated":
-            console.log("Received job_updated event:", data.job);
+            logger.debug("Received job_updated event:", data.job);
             this.emit("job_updated", data.job);
             break;
 
           case "job_completed":
-            console.log("Received job_completed event:", data.job);
+            logger.debug("Received job_completed event:", data.job);
             this.emit("job_completed", data.job);
             break;
 
           case "job_failed":
-            console.log("Received job_failed event:", data.job);
+            logger.debug("Received job_failed event:", data.job);
             this.emit("job_failed", data.job);
             break;
 
           case "job_cancelled":
-            console.log("Received job_cancelled event:", data.job);
+            logger.debug("Received job_cancelled event:", data.job);
             this.emit("job_cancelled", data.job);
             break;
 
           case "error":
-            console.error("WebSocket error:", data.message);
+            logger.error("WebSocket error:", data.message);
             break;
 
           default:
-            console.log("Unknown message type:", data.type);
+            logger.debug("Unknown message type:", data.type);
         }
       } catch (error) {
-        console.error("Error parsing FastAPI WebSocket message:", error);
+        logger.error("Error parsing FastAPI WebSocket message:", error);
       }
     };
   }
@@ -172,7 +176,7 @@ class JobsWebSocketService {
 
     // Cap at 30 seconds, but never stop trying
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-    console.log(
+    logger.debug(
       `Scheduling reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts + 1})`,
     );
 
@@ -186,7 +190,7 @@ class JobsWebSocketService {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       this.websocket.send(JSON.stringify(message));
     } else {
-      console.warn("Cannot send message: WebSocket not connected");
+      logger.warn("Cannot send message: WebSocket not connected");
     }
   }
 
@@ -197,7 +201,7 @@ class JobsWebSocketService {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in ${eventName} listener:`, error);
+          logger.error(`Error in ${eventName} listener:`, error);
         }
       });
     }
@@ -280,7 +284,7 @@ class JobsWebSocketService {
     if (this.isConnectionActive()) {
       this.send({ type: "request_jobs_list" });
     } else {
-      console.warn("Cannot request jobs list: WebSocket not connected");
+      logger.warn("Cannot request jobs list: WebSocket not connected");
     }
   }
 }

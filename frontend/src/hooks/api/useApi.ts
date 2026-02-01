@@ -4,6 +4,9 @@ import {
   UseQueryOptions,
   UseMutationOptions,
 } from "@tanstack/react-query";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:api");
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
@@ -17,7 +20,7 @@ const apiGet = async <T>(url: string): Promise<T> => {
       errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
     } catch (jsonError: any) {
       // Type as 'any' temporarily, refine later
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
@@ -66,7 +69,7 @@ const apiSend = async <T, V>(
         }
       }
     } catch (jsonError: unknown) {
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
@@ -169,7 +172,7 @@ export const uploadFile = async <T>(
       const errorData: { message?: string } = await response.json();
       errorMessage = errorData?.message || errorMessage;
     } catch (jsonError: unknown) {
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }

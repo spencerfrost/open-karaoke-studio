@@ -3,6 +3,9 @@
  */
 import { useMutation } from "@tanstack/react-query";
 import { uploadFile } from "@/hooks/api/useApi";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("service:upload");
 
 /**
  * Hook: Upload and process an audio file
@@ -70,7 +73,7 @@ export function useProcessYouTubeVideo(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -105,7 +108,7 @@ export function useCancelProcessing(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -140,7 +143,7 @@ export function useDismissJob(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }

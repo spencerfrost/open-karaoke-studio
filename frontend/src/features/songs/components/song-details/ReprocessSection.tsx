@@ -11,6 +11,9 @@ import { RefreshCw } from "lucide-react";
 import { Song } from "@/types/Song";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:reprocess");
 
 const ENGINES = [
   { value: "demucs", label: "Demucs", description: "Standard quality, fast" },
@@ -46,7 +49,7 @@ export const ReprocessSection: React.FC<ReprocessSectionProps> = ({ song }) => {
         engine_type: selectedEngine,
       });
     } catch (error) {
-      console.error("Reprocess failed:", error);
+      logger.error("Reprocess failed:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to start reprocessing",
       );

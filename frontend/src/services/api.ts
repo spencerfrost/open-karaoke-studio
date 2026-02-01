@@ -1,3 +1,7 @@
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("service:api");
+
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface ApiOptions {
@@ -54,7 +58,7 @@ export async function apiRequest<T>(
 
     return { data, error: null };
   } catch (error) {
-    console.error("API request error:", error);
+    logger.error("API request error:", error);
     return {
       data: null,
       error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -96,7 +100,7 @@ export async function uploadFile<T>(
 
     return { data, error: null };
   } catch (error) {
-    console.error("File upload error:", error);
+    logger.error("File upload error:", error);
     return {
       data: null,
       error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -131,7 +135,7 @@ export async function downloadFile(
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Download error:", error);
+    logger.error("Download error:", error);
     throw error;
   }
 }

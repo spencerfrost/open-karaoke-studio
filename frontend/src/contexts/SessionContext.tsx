@@ -1,5 +1,8 @@
 import React, { createContext, useEffect, useState, useCallback } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("context:session");
 
 export interface SessionContextType {
   isInitialized: boolean;
@@ -27,7 +30,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   const initializeSession = useCallback(async () => {
     if (isInitialized) return;
 
-    console.log("🚀 SessionProvider: Initializing session recovery...");
+    logger.debug("🚀 SessionProvider: Initializing session recovery...");
 
     try {
       // Clear any previous session state
@@ -36,9 +39,9 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
       // Attempt session recovery
       await recoverSession();
 
-      console.log("✅ SessionProvider: Session recovery completed");
+      logger.debug("✅ SessionProvider: Session recovery completed");
     } catch (error) {
-      console.error("❌ SessionProvider: Session recovery failed:", error);
+      logger.error("❌ SessionProvider: Session recovery failed:", error);
     } finally {
       setIsInitialized(true);
     }

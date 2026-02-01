@@ -13,6 +13,9 @@ import { SearchInput } from "./SearchInput";
 import { SearchTabs } from "./SearchTabs";
 import { SearchResults } from "./SearchResults";
 import { YoutubeMusicResultCard } from "../YoutubeMusicResultCard";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:song-search");
 import { YouTubeResultCard } from "../YoutubeVideoResultCard";
 import { ArtistResultCard } from "../ArtistResultCard";
 import { AddSongDialog } from "../AddSongDialog";
@@ -135,7 +138,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       await songCreation.createSong(songInput);
       dialog.openDialog();
     } catch (error) {
-      console.error("Failed to create YouTube Music song:", error);
+      logger.error("Failed to create YouTube Music song:", error);
       toast.error("Failed to add song");
     }
   };
@@ -146,7 +149,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       await songCreation.createSong(songInput);
       dialog.openDialog();
     } catch (error) {
-      console.error("Failed to create YouTube song:", error);
+      logger.error("Failed to create YouTube song:", error);
       toast.error("Failed to add song");
     }
   };

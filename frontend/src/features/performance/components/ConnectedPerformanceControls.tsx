@@ -3,6 +3,9 @@ import { useSessionConnection } from "@/features/session";
 import { useSessionStore } from "@/stores/sessionStore";
 import { JoinSessionDialog } from "@/features/songs/components/JoinSessionDialog";
 import PerformanceControlsPanel from "./PerformanceControlsPanel";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:performance-controls");
 
 /**
  * Component that handles WebSocket connection and renders performance controls
@@ -41,7 +44,7 @@ export const ConnectedPerformanceControls: React.FC = () => {
           onClose={() => {}} // Uncloseable - user must join a session
           context="control the karaoke performance"
           onJoinSuccess={(name) => {
-            console.log(`${name} joined as performer`);
+            logger.debug(`${name} joined as performer`);
           }}
         />
       )}

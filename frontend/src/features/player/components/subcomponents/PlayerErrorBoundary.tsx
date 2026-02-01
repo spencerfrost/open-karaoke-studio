@@ -6,6 +6,9 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { PlayerError } from "../KaraokePlayer.types";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:player-error-boundary");
 
 interface Props {
   children: ReactNode;
@@ -29,7 +32,7 @@ class PlayerErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Player Error Boundary caught an error:", error, errorInfo);
+    logger.error("Player Error Boundary caught an error:", error, errorInfo);
 
     if (this.props.onError) {
       this.props.onError({

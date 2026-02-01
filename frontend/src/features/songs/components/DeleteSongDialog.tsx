@@ -1,6 +1,7 @@
 import React from "react";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
+import { createLogger } from "@/lib/logger";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -12,6 +13,8 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+
+const logger = createLogger("component:delete-song");
 
 interface DeleteSongDialogProps {
   song: Song;
@@ -45,7 +48,7 @@ export const DeleteSongDialog: React.FC<DeleteSongDialogProps> = ({
       await Promise.resolve(onConfirm());
       onSuccess?.();
     } catch (error) {
-      console.error("Failed to delete song:", error);
+      logger.error("Failed to delete song:", error);
       toast.error("Failed to delete song. Please try again.");
     }
   };

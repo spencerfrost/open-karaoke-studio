@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("component:join-session");
 import { Label } from "@/components/ui/label";
 import { useSessionStore } from "@/stores/sessionStore";
 
@@ -47,7 +50,7 @@ export const JoinSessionDialog: React.FC<JoinSessionDialogProps> = ({
         setSessionCode("");
         onClose();
       } catch (error) {
-        console.error("Failed to join session:", error);
+        logger.error("Failed to join session:", error);
         // Error is handled by the session store
       }
     }

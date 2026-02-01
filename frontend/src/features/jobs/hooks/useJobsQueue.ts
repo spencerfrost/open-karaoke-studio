@@ -4,6 +4,9 @@ import { useCancelProcessing, useDismissJob } from "@/services/uploadService";
 import { useJobsWebSocket } from "@/hooks/api/useJobsWebSocket";
 import { countActiveJobs } from "../components/JobsQueue.utils";
 import { JobItem } from "../types/JobsQueue.types";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("hook:jobs-queue");
 
 export function useJobsQueue() {
   const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +26,7 @@ export function useJobsQueue() {
     },
     onError: (err) => {
       toast.error(`Failed to cancel job: ${err.message}`);
-      console.error(err);
+      logger.error(err);
     },
   });
 
@@ -34,7 +37,7 @@ export function useJobsQueue() {
     },
     onError: (err) => {
       toast.error(`Failed to dismiss job: ${err.message}`);
-      console.error(err);
+      logger.error(err);
     },
   });
 
