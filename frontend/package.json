@@ -40,6 +40,7 @@
     "@tanstack/react-query": "^5.74.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "loglevel": "^1.9.2",
     "lucide-react": "^0.503.0",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
@@ -58,23 +59,30 @@
   "devDependencies": {
     "@eslint/js": "^9.22.0",
     "@tanstack/react-query-devtools": "^5.74.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.14.1",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@typescript-eslint/parser": "^8.31.1",
     "@vitejs/plugin-react": "^4.4.1",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
     "babel-plugin-react-compiler": "19.0.0-beta-af1b7da-20250417",
     "eslint": "^9.25.1",
     "eslint-plugin-react-compiler": "19.0.0-beta-af1b7da-20250417",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "jsdom": "^27.4.0",
+    "msw": "^2.12.7",
     "prettier": "^3.5.3",
     "prettier-eslint": "^16.4.1",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.2",
-    "vite-plugin-pwa": "^1.0.2"
-  },
-  "packageManager": "pnpm@10.9.0+sha512.0486e394640d3c1fb3c9d43d49cf92879ff74f8516959c235308f5a8f62e2e19528a65cdc2a3058f587cde71eba3d5b56327c8c33a97e4c4051ca48a10ca2d5f"
+    "vite-plugin-pwa": "^1.0.2",
+    "vitest": "^4.0.18"
+  }
 }
