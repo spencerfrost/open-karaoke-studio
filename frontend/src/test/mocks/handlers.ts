@@ -74,7 +74,10 @@ export const handlers = [
   }),
 
   http.post("/api/queue", async ({ request }) => {
-    const body = (await request.json()) as { songId: string; singerName: string };
+    const body = (await request.json()) as {
+      songId: string;
+      singerName: string;
+    };
     return HttpResponse.json({
       ...mockQueueItem,
       songId: body.songId,
