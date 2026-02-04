@@ -66,8 +66,6 @@ karaoke_library
 downloads
 job_store
 temp_job_cache
-lrclip
-.serena
 
 backend/karaoke.db-shm
 backend/karaoke.db-wal
@@ -91,3 +89,4 @@ docs/.env.*.local
 frontend/public/docs/
 frontend/public/dev-dist/
 frontend/vite.config.ts
+frontend/dev-dist/
