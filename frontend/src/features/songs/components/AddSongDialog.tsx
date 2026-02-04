@@ -110,7 +110,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isOpen, currentSong, flow, videoTitle]);
 
   const handleClose = () => {
