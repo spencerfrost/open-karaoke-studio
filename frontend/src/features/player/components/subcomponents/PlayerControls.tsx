@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { TapTempoButton } from "./TapTempoButton";
+import SpeedControl from "./SpeedControl";
 import type { PlayerControl } from "../../types/KaraokePlayer.types";
 
 interface PlayerControlsProps {
@@ -25,6 +26,7 @@ interface PlayerControlsProps {
   isReady: boolean;
   vocalVolume: number;
   songEnded?: boolean; // True when song finished naturally
+  playbackSpeed: number; // 0.5 to 2.0, pitch-preserved
 
   // UI state
   isFullscreen: boolean;
@@ -46,6 +48,7 @@ interface PlayerControlsProps {
   onVolumeChange: (volume: number) => void;
   onVolumeToggle: () => void;
   onFullscreenToggle: () => void;
+  onSpeedChange: (speed: number) => void;
   onTapTempoTap?: () => void;
   onTapTempoSave?: () => void;
   onTapTempoReset?: () => void;
@@ -59,6 +62,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
     isReady,
     vocalVolume,
     songEnded = false,
+    playbackSpeed,
     isFullscreen,
     tapTempoBpm,
     tapTempoSongBpm,
@@ -71,6 +75,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
     onVolumeChange,
     onVolumeToggle,
     onFullscreenToggle,
+    onSpeedChange,
     onTapTempoTap = () => {},
     onTapTempoSave = () => {},
     onTapTempoReset = () => {},
@@ -178,8 +183,11 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
           {playButtonProps.icon}
         </Button>
 
-        {/* Right Controls Group - Fullscreen and Tap Tempo */}
+        {/* Right Controls Group - Speed, Tap Tempo, and Fullscreen */}
         <div className="flex items-center gap-2 justify-self-end">
+          {/* Speed Control */}
+          <SpeedControl speed={playbackSpeed} onSpeedChange={onSpeedChange} />
+
           {/* Tap Tempo Button */}
           <TapTempoButton
             bpm={tapTempoBpm}

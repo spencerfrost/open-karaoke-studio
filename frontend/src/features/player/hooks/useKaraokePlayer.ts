@@ -34,6 +34,7 @@ export const useKaraokePlayer = (
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
+    playbackSpeed,
     cleanup,
     seek: storeSeek,
     setSongAndLoad,
@@ -42,6 +43,7 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
+    setPlaybackSpeed,
     userPlay,
     userPause,
     getWaveformData,
@@ -241,6 +243,10 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     vocalVolume,
     instrumentalVolume,
+
+    // Playback speed
+    playbackSpeed,
+    setPlaybackSpeed,
 
     // Lyrics and display
     lyrics,

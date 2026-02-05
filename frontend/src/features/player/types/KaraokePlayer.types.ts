@@ -84,6 +84,10 @@ export interface KaraokePlayerHook {
   vocalVolume: number;
   instrumentalVolume: number;
 
+  // Playback speed (pitch-preserving)
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
+
   // Lyrics and display
   lyrics: string;
   isLyricsSync: boolean;

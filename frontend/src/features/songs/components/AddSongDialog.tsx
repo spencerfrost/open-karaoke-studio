@@ -110,7 +110,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         });
       }
     }
-     
   }, [isOpen, currentSong, flow, videoTitle]);
 
   const handleClose = () => {

@@ -1,8 +1,25 @@
 import { create } from "zustand";
+import * as Tone from "tone";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("store:player");
+
+// Tone.js GrainPlayer configuration for pitch-preserving speed control
+// Dynamic grain sizing reduces transient artifacts (doubling/slap delay) at slower speeds
+const BASE_GRAIN_SIZE = 0.07; // 100ms at 1.0x speed
+const GRAIN_OVERLAP_RATIO = 0.5; // 50% overlap for smooth crossfade
+
+/**
+ * Calculate grain size and overlap based on playback speed
+ * Smaller grains at slower speeds reduce transient smearing (snare doubling, etc.)
+ * Formula: grainSize = baseSize * speed
+ */
+function getGrainParams(speed: number) {
+  const grainSize = BASE_GRAIN_SIZE * speed;
+  const overlap = grainSize * GRAIN_OVERLAP_RATIO;
+  return { grainSize, overlap };
+}
 
 // Extend window interface for cleanup storage
 declare global {
@@ -24,6 +41,7 @@ interface PerformanceState {
   is_playing: boolean;
   current_song_id?: string | null;
   is_ready?: boolean;
+  playback_speed: number;
 }
 
 // Mini-player position interface
@@ -57,6 +75,7 @@ interface KaraokePlayerState {
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
   autoScrollEnabled: boolean;
+  playbackSpeed: number; // 0.5 to 2.0, pitch-preserved via granular synthesis
 
   // Connection state (managed by unified service)
   connected: boolean;
@@ -88,6 +107,7 @@ interface KaraokePlayerState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
+  setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
   // Mini-player actions
@@ -104,13 +124,14 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
   let audioContext: AudioContext | null = null;
   let instrumentalBuffer: AudioBuffer | null = null;
   let vocalBuffer: AudioBuffer | null = null;
-  let instrumentalSource: AudioBufferSourceNode | null = null;
-  let vocalSource: AudioBufferSourceNode | null = null;
+  // Tone.js GrainPlayers for pitch-preserving speed control
+  let instrumentalPlayer: Tone.GrainPlayer | null = null;
+  let vocalPlayer: Tone.GrainPlayer | null = null;
   let instrumentalGain: GainNode | null = null;
   let vocalGain: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
   let animationFrameId: number | null = null;
-  let websocketInterval: NodeJS.Timeout | null = null;
+  let websocketInterval: number | null = null;
 
   let playbackStartTime: number | null = null; // audioContext.currentTime when playback started
   let playbackOffset: number = 0; // seconds into the track when playback started
@@ -178,36 +199,77 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     }
   }
 
-  function setupAudioGraph(startTime: number, offset?: number) {
-    // Clean up any previous sources
-    if (instrumentalSource) instrumentalSource.stop();
-    if (vocalSource) vocalSource.stop();
+  function setupAudioGraph(_startTime: number, offset?: number) {
+    // Clean up any previous GrainPlayers
+    if (instrumentalPlayer) {
+      try {
+        instrumentalPlayer.stop();
+      } catch {
+        // Ignore if already stopped
+      }
+      instrumentalPlayer.dispose();
+    }
+    if (vocalPlayer) {
+      try {
+        vocalPlayer.stop();
+      } catch {
+        // Ignore if already stopped
+      }
+      vocalPlayer.dispose();
+    }
+
     if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
-    // Create new sources and connect them to the audio graph
-    instrumentalSource = audioContext.createBufferSource();
-    instrumentalSource.buffer = instrumentalBuffer;
-    vocalSource = audioContext.createBufferSource();
-    vocalSource.buffer = vocalBuffer;
+
+    // Set Tone.js to use our AudioContext
+    Tone.setContext(audioContext);
+
+    // Calculate grain parameters based on current playback speed
+    const speed = get().playbackSpeed;
+    const { grainSize, overlap } = getGrainParams(speed);
+
+    // Create GrainPlayers for pitch-preserving speed control
+    instrumentalPlayer = new Tone.GrainPlayer({
+      url: instrumentalBuffer,
+      loop: false,
+      grainSize,
+      overlap,
+      playbackRate: speed,
+    });
+
+    vocalPlayer = new Tone.GrainPlayer({
+      url: vocalBuffer,
+      loop: false,
+      grainSize,
+      overlap,
+      playbackRate: speed,
+    });
+
     // Create gain nodes for volume control
     instrumentalGain = audioContext.createGain();
     instrumentalGain.gain.value = get().instrumentalVolume;
     vocalGain = audioContext.createGain();
     vocalGain.gain.value = get().vocalVolume;
+
     // Create or reuse the analyser node
     setupAnalyser();
-    // Connect the graph
-    instrumentalSource.connect(instrumentalGain).connect(analyser!);
-    vocalSource.connect(vocalGain).connect(analyser!);
+
+    // Connect the graph: GrainPlayer -> Gain -> Analyser -> Destination
+    instrumentalPlayer.connect(instrumentalGain);
+    vocalPlayer.connect(vocalGain);
+    instrumentalGain.connect(analyser!);
+    vocalGain.connect(analyser!);
     analyser!.connect(audioContext.destination);
 
     // Handle playback end - use instrumental track as the reference
-    // Only trigger once when playback naturally ends (not when stopped manually)
-    instrumentalSource.onended = () => {
+    // GrainPlayer uses onstop callback
+    instrumentalPlayer.onstop = () => {
       // Check if we're still playing (wasn't manually stopped)
-      const { isPlaying, duration } = get();
+      const { isPlaying, duration, playbackSpeed } = get();
       if (isPlaying && playbackStartTime !== null && audioContext) {
+        // Account for playback speed in time calculation
         const currentTime =
-          playbackOffset + (audioContext.currentTime - playbackStartTime);
+          playbackOffset +
+          (audioContext.currentTime - playbackStartTime) * playbackSpeed;
         // Only auto-stop if we're near or past the end of the song
         if (currentTime >= duration - 0.5) {
           clearIntervals();
@@ -223,27 +285,37 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       }
     };
 
-    // Start the sources in sync
-    if (typeof offset === "number") {
-      instrumentalSource.start(startTime, offset);
-      vocalSource.start(startTime, offset);
-    } else {
-      instrumentalSource.start(startTime);
-      vocalSource.start(startTime);
-    }
-    // Set the playback start time
+    // Start the GrainPlayers in sync
+    const playOffset = typeof offset === "number" ? offset : 0;
+    instrumentalPlayer.start(Tone.now(), playOffset);
+    vocalPlayer.start(Tone.now(), playOffset);
+
     syncGainValues();
   }
 
   function resetAudioNodes() {
-    if (instrumentalSource) instrumentalSource.stop();
-    if (vocalSource) vocalSource.stop();
+    if (instrumentalPlayer) {
+      try {
+        instrumentalPlayer.stop();
+      } catch {
+        // Ignore if already stopped
+      }
+      instrumentalPlayer.dispose();
+    }
+    if (vocalPlayer) {
+      try {
+        vocalPlayer.stop();
+      } catch {
+        // Ignore if already stopped
+      }
+      vocalPlayer.dispose();
+    }
     if (audioContext) audioContext.close();
     audioContext = null;
     instrumentalBuffer = null;
     vocalBuffer = null;
-    instrumentalSource = null;
-    vocalSource = null;
+    instrumentalPlayer = null;
+    vocalPlayer = null;
     instrumentalGain = null;
     vocalGain = null;
     analyser = null;
@@ -260,7 +332,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     // High-frequency currentTime updates using requestAnimationFrame (~60Hz)
     const updateCurrentTime = () => {
-      const { isReady, isPlaying } = get();
+      const { isReady, isPlaying, playbackSpeed } = get();
       if (!isReady || !isPlaying) {
         animationFrameId = null;
         return;
@@ -268,8 +340,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
       let currentTime = playbackOffset;
       if (isPlaying && playbackStartTime !== null && audioContext) {
-        currentTime =
-          playbackOffset + (audioContext.currentTime - playbackStartTime);
+        // Account for playback speed in time calculation
+        const elapsedRealTime = audioContext.currentTime - playbackStartTime;
+        const elapsedSongTime = elapsedRealTime * playbackSpeed;
+        currentTime = playbackOffset + elapsedSongTime;
       }
       set({ currentTime });
 
@@ -398,6 +472,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     lyricsSize: "medium",
     lyricsOffset: 0,
     autoScrollEnabled: true,
+    playbackSpeed: 1.0,
     connected: false,
     miniPlayerEnabled: true,
     miniPlayerPosition: { x: 24, y: 24 }, // Bottom-right with 24px margin
@@ -643,13 +718,26 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
 
     pause: () => {
-      if (instrumentalSource) instrumentalSource.stop();
-      if (vocalSource) vocalSource.stop();
+      if (instrumentalPlayer) {
+        try {
+          instrumentalPlayer.stop();
+        } catch {
+          // Ignore if already stopped
+        }
+      }
+      if (vocalPlayer) {
+        try {
+          vocalPlayer.stop();
+        } catch {
+          // Ignore if already stopped
+        }
+      }
       clearIntervals();
       if (audioContext && playbackStartTime !== null) {
-        // Calculate how much time has elapsed since playback started
-        const elapsed = audioContext.currentTime - playbackStartTime;
-        playbackOffset = playbackOffset + elapsed;
+        // Calculate how much time has elapsed since playback started, accounting for speed
+        const elapsedRealTime = audioContext.currentTime - playbackStartTime;
+        const elapsedSongTime = elapsedRealTime * get().playbackSpeed;
+        playbackOffset = playbackOffset + elapsedSongTime;
         playbackStartTime = null;
         updatePlayerState({ currentTime: playbackOffset, isPlaying: false });
       } else {
@@ -677,6 +765,21 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       set({ songEnded: false });
 
       if (get().isPlaying) {
+        // Stop current players before recreating
+        if (instrumentalPlayer) {
+          try {
+            instrumentalPlayer.stop();
+          } catch {
+            // Ignore if already stopped
+          }
+        }
+        if (vocalPlayer) {
+          try {
+            vocalPlayer.stop();
+          } catch {
+            // Ignore if already stopped
+          }
+        }
         setupAudioGraph(audioContext.currentTime, timeSeconds);
         playbackStartTime = audioContext.currentTime;
         startTimeUpdate();
@@ -716,6 +819,41 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       set({ autoScrollEnabled: enabled });
     },
 
+    setPlaybackSpeed: (speed: number) => {
+      // Clamp speed to valid range (0.5x to 2.0x)
+      const clamped = Math.max(0.5, Math.min(2.0, speed));
+
+      // Track this as a local update to prevent WebSocket echo
+      lastLocalUpdate["playback_speed"] = {
+        value: clamped,
+        timestamp: Date.now(),
+      };
+
+      // Update state
+      set({ playbackSpeed: clamped });
+
+      // Calculate new grain parameters for the speed
+      const { grainSize, overlap } = getGrainParams(clamped);
+
+      // Apply to active GrainPlayers immediately
+      if (instrumentalPlayer) {
+        instrumentalPlayer.playbackRate = clamped;
+        instrumentalPlayer.grainSize = grainSize;
+        instrumentalPlayer.overlap = overlap;
+      }
+      if (vocalPlayer) {
+        vocalPlayer.playbackRate = clamped;
+        vocalPlayer.grainSize = grainSize;
+        vocalPlayer.overlap = overlap;
+      }
+
+      // Sync via WebSocket
+      socketEmit("update_performance_control", {
+        control: "playback_speed",
+        value: clamped,
+      });
+    },
+
     cleanup: () => {
       resetAudioNodes();
       // Clear any pending local update tracking to avoid stale state
@@ -746,6 +884,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       set({ miniPlayerDismissed: true });
     },
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateFromWebSocket: (data: any) => {
       // Ignore updates during song loading to prevent interference
       if (isLoadingNewSong) {
@@ -785,6 +924,31 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         !shouldIgnoreWebSocketUpdate("lyrics_offset", data.lyrics_offset)
       ) {
         updates.lyricsOffset = data.lyrics_offset as number;
+      }
+      if (
+        data.playback_speed !== undefined &&
+        !shouldIgnoreWebSocketUpdate("playback_speed", data.playback_speed)
+      ) {
+        const speed = Math.max(
+          0.5,
+          Math.min(2.0, data.playback_speed as number),
+        );
+        updates.playbackSpeed = speed;
+
+        // Calculate new grain parameters for the speed
+        const { grainSize, overlap } = getGrainParams(speed);
+
+        // Apply to active GrainPlayers
+        if (instrumentalPlayer) {
+          instrumentalPlayer.playbackRate = speed;
+          instrumentalPlayer.grainSize = grainSize;
+          instrumentalPlayer.overlap = overlap;
+        }
+        if (vocalPlayer) {
+          vocalPlayer.playbackRate = speed;
+          vocalPlayer.grainSize = grainSize;
+          vocalPlayer.overlap = overlap;
+        }
       }
 
       // Handle player state updates

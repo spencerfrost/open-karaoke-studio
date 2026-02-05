@@ -38,6 +38,7 @@ interface PerformanceState {
   is_playing: boolean;
   current_song_id?: string | null;
   is_ready?: boolean;
+  playback_speed: number;
 }
 
 type ControlValue = number | string | boolean;

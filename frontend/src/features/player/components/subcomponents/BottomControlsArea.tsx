@@ -21,6 +21,7 @@ interface BottomControlsAreaProps {
   currentTime: number;
   duration: number;
   vocalVolume: number;
+  playbackSpeed: number;
   isFullscreen: boolean;
 
   // Tap tempo state
@@ -41,6 +42,7 @@ interface BottomControlsAreaProps {
   onVolumeChange: (volume: number) => void;
   onVolumeToggle: () => void;
   onFullscreenToggle: () => void;
+  onSpeedChange: (speed: number) => void;
   onTapTempoTap?: () => void;
   onTapTempoSave?: () => void;
   onTapTempoReset?: () => void;
@@ -54,6 +56,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   currentTime,
   duration,
   vocalVolume,
+  playbackSpeed,
   isFullscreen,
   tapTempoBpm,
   tapTempoSongBpm,
@@ -68,6 +71,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   onVolumeChange,
   onVolumeToggle,
   onFullscreenToggle,
+  onSpeedChange,
   onTapTempoTap = () => {},
   onTapTempoSave = () => {},
   onTapTempoReset = () => {},
@@ -114,6 +118,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
               isReady={isReady}
               vocalVolume={vocalVolume}
               songEnded={songEnded}
+              playbackSpeed={playbackSpeed}
               isFullscreen={isFullscreen}
               tapTempoBpm={tapTempoBpm}
               tapTempoSongBpm={tapTempoSongBpm}
@@ -126,6 +131,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
               onVolumeChange={onVolumeChange}
               onVolumeToggle={onVolumeToggle}
               onFullscreenToggle={onFullscreenToggle}
+              onSpeedChange={onSpeedChange}
               onTapTempoTap={onTapTempoTap}
               onTapTempoSave={onTapTempoSave}
               onTapTempoReset={onTapTempoReset}
