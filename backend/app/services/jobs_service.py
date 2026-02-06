@@ -7,15 +7,11 @@ separation between API controllers and data management.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Optional
 
 from app.db.models import Job, JobStatus
 from app.jobs.celery_app import celery
 from app.repositories import JobRepository
-
-from . import file_management
-from .file_service import FileService
 from .interfaces.jobs_service import JobsServiceInterface
 
 logger = logging.getLogger(__name__)
@@ -32,7 +28,6 @@ class JobsService(JobsServiceInterface):
             job_repository: Optional JobRepository instance. If None, creates a new one.
         """
         self.job_repository = job_repository or JobRepository()
-        self.file_service = FileService()
 
     def get_all_jobs(self, include_dismissed: bool = False) -> list[Job]:
         """Get all jobs sorted by creation time (newest first)."""
@@ -88,22 +83,6 @@ class JobsService(JobsServiceInterface):
 
         response = job.to_dict()
 
-        # Add additional info for completed jobs
-        if job.status == JobStatus.COMPLETED:
-            song_dir = self.file_service.get_song_directory(Path(job.filename).stem)
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
-                ".mp3"
-            )
-            instrumental_path = file_management.get_instrumental_path_stem(
-                song_dir
-            ).with_suffix(".mp3")
-
-            response.update(
-                {
-                    "vocals_path": str(vocals_path),
-                    "instrumental_path": str(instrumental_path),
-                }
-            )
 
         # Estimate completion time if processing
         if job.status == JobStatus.PROCESSING and job.started_at:

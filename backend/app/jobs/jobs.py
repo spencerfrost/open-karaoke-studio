@@ -19,6 +19,7 @@ from app.services.separation_engines import (
     separate_with_demucs,
     separate_with_hybrid,
     separate_with_roformer,
+    separate_with_three_track,
 )
 from celery.utils.log import get_task_logger
 
@@ -59,6 +60,7 @@ def select_and_run_separation_engine(
         "roformer": separate_with_roformer,
         "hybrid": separate_with_hybrid,
         "clean_backing": separate_with_clean_backing,
+        "three_track": separate_with_three_track,
     }
 
     # Get separator function, defaulting to demucs
@@ -105,7 +107,7 @@ def get_filepath_from_job(job):
 
 
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
-def process_audio_job(self, job_id, engine_type="demucs"):
+def process_audio_job(self, job_id, engine_type="three_track"):
     """
     Celery task to process audio file
 
@@ -254,16 +256,6 @@ def process_audio_job(self, job_id, engine_type="demucs"):
             "status": "success",
             "job_id": job_id,
             "filename": filename,
-            "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(
-                    filepath.suffix
-                )
-            ),
-            "instrumental_path": str(
-                file_management.get_instrumental_path_stem(song_dir).with_suffix(
-                    filepath.suffix
-                )
-            ),
         }
 
     except audio.StopProcessingError:
@@ -303,7 +295,7 @@ def cleanup_old_jobs(self):
 
 
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
-def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
+def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_track"):
     """
     Unified task for processing YouTube videos from start to finish
 
@@ -499,23 +491,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
 
             # Verify the files actually exist before updating database
             if vocals_path.exists() and instrumental_path.exists():
-                # Get relative paths from library directory
-                from app.config import get_config
-
-                config = get_config()
-
-                vocals_relative = str(vocals_path.relative_to(config.LIBRARY_DIR))
-                instrumental_relative = str(
-                    instrumental_path.relative_to(config.LIBRARY_DIR)
-                )
-
                 with get_db_session() as session:
                     repo = SongRepository(session)
                     update_fields = {
-                        "vocals_path": vocals_relative,
-                        "instrumental_path": instrumental_relative,
-                        "processing_status": "completed",
-                        "has_audio_files": True,
                         "engine_type": engine_type,
                     }
                     if detected_bpm is not None:
@@ -524,7 +502,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
                     success = updated_song is not None
 
                 if not success:
-                    logger.warning("Failed to update audio paths for song %s", song_id)
+                    logger.warning("Failed to update song metadata for song %s", song_id)
             else:
                 logger.warning(
                     "Audio files not found after processing for song %s", song_id
@@ -548,12 +526,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="demucs"):
             "status": "success",
             "job_id": job_id,
             "song_id": song_id,
-            "vocals_path": str(
-                file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-            ),
-            "instrumental_path": str(
-                file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
-            ),
         }
 
     except audio.StopProcessingError:

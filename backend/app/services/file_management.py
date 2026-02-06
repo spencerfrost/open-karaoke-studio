@@ -32,6 +32,11 @@ def get_instrumental_path_stem(song_dir: Path) -> Path:
     return song_dir / "instrumental"
 
 
+def get_backing_vocals_path_stem(song_dir: Path) -> Path:
+    """Returns the standard path stem (without extension) for the backing vocals file."""
+    return song_dir / "backing_vocals"
+
+
 # =============================================================================
 # FILE OPERATIONS WITH BUSINESS LOGIC
 # =============================================================================
