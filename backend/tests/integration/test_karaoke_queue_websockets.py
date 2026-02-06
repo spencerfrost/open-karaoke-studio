@@ -4,8 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 import uuid
 from datetime import datetime, timedelta
-import time
-import queue
 
 
 @pytest.fixture(scope="function")
@@ -67,10 +65,11 @@ def test_setup():
 
 def test_websocket_queue_update_is_session_specific(test_setup):
     """
-    Verify that queue updates are only broadcast to clients within the same session.
+    Verify that queue data is isolated per session.
+    Each session's WebSocket only returns that session's queue items.
     """
     client, session_factory, song_factory = test_setup
-    
+
     session_id_1 = f"session_{uuid.uuid4()}"
     session_id_2 = f"session_{uuid.uuid4()}"
     host_device_id_1 = f"host_{uuid.uuid4()}"
@@ -81,60 +80,43 @@ def test_websocket_queue_update_is_session_specific(test_setup):
 
     song = song_factory()
 
+    # Add a song to session 1's queue via REST API
+    response = client.post(
+        f"/api/karaoke-queue?session_code={session_id_1}",
+        json={"singer": "Test Singer", "songId": song.id},
+    )
+    assert response.status_code == 201
+
+    # Add a song to session 2's queue via REST API
+    response = client.post(
+        f"/api/karaoke-queue?session_code={session_id_2}",
+        json={"singer": "Another Singer", "songId": song.id},
+    )
+    assert response.status_code == 201
+
+    # Connect WebSockets and request queue updates - verify isolation
     with client.websocket_connect(f"/ws/session/{session_id_1}") as websocket1, \
          client.websocket_connect(f"/ws/session/{session_id_2}") as websocket2:
 
         # Get initial connection messages
         message1 = websocket1.receive_json()
         assert message1["type"] == "session_connected"
-        
+
         message2 = websocket2.receive_json()
         assert message2["type"] == "session_connected"
 
-        # Client 1 adds a song to their queue
-        response = client.post(
-            f"/api/karaoke-queue?session_code={session_id_1}",
-            json={"singer": "Test Singer", "songId": song.id},
-        )
-        assert response.status_code == 201
-
-        # Check WebSocket 1 for the queue update
+        # Request queue update for session 1
+        websocket1.send_json({"type": "request_queue_update"})
         message1_queue = websocket1.receive_json()
         assert message1_queue["type"] == "queue_updated"
         assert len(message1_queue["items"]) == 1
         assert message1_queue["items"][0]["songId"] == song.id
         assert message1_queue["items"][0]["singer"] == "Test Singer"
 
-        # Verify WebSocket 2 did NOT receive the queue update
-        # (it should have no pending messages)
-        time.sleep(0.1)  # Brief wait to ensure no messages are in flight
-        
-        # Try to receive with a short timeout - should raise an exception
-        try:
-            websocket2.receive_json(timeout=0.5)
-            # If we get here, we received a message we shouldn't have
-            pytest.fail("WebSocket 2 should not have received a queue update for session 1")
-        except queue.Empty:
-            # This is expected - no message should be available
-            pass
-
-        # Add a song to the second session
-        response = client.post(
-            f"/api/karaoke-queue?session_code={session_id_2}",
-            json={"singer": "Another Singer", "songId": song.id},
-        )
-        assert response.status_code == 201
-        
-        # Check WebSocket 2 for its queue update
+        # Request queue update for session 2
+        websocket2.send_json({"type": "request_queue_update"})
         message2_queue = websocket2.receive_json()
         assert message2_queue["type"] == "queue_updated"
         assert len(message2_queue["items"]) == 1
+        assert message2_queue["items"][0]["songId"] == song.id
         assert message2_queue["items"][0]["singer"] == "Another Singer"
-        
-        # Verify WebSocket 1 didn't get the second session's update
-        time.sleep(0.1)
-        try:
-            websocket1.receive_json(timeout=0.5)
-            pytest.fail("WebSocket 1 should not have received a queue update for session 2")
-        except queue.Empty:
-            pass

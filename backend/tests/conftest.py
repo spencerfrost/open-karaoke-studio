@@ -70,9 +70,6 @@ def populate_test_songs(test_db_session):
             album=random.choice(albums),
             duration=180.0 + i,  # Duration in seconds
             date_added=None,
-            vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
-            instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",
-            original_path=f"/tmp/test_songs/original_{i+1}.wav",
             thumbnail_path=f"/tmp/test_songs/thumb_{i+1}.jpg",
             cover_art_path=f"/tmp/test_songs/cover_{i+1}.jpg",
             source="test",
@@ -295,10 +292,7 @@ def mock_file_service():
 def mock_audio_service():
     """Mock audio processing service"""
     service = Mock()
-    service.separate_audio.return_value = {
-        "vocals_path": "/tmp/vocals.wav",
-        "instrumental_path": "/tmp/instrumental.wav",
-    }
+    service.separate_audio.return_value = {}
     return service
 
 
