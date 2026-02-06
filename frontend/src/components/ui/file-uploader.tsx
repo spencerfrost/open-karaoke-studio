@@ -152,8 +152,10 @@ export const FileUploader = forwardRef<
           setActiveIndex(-1);
         }
       },
+      // dropzoneState is intentionally excluded: it's declared after this callback
+      // (used via useDropzone below) and only accessed for its inputRef at event time
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [value, activeIndex, removeFileFromSet]
+      [value, activeIndex, removeFileFromSet, orientation, direction]
     );
 
     const onDrop = useCallback(
@@ -194,8 +196,7 @@ export const FileUploader = forwardRef<
           }
         }
       },
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [reSelectAll, value]
+      [reSelectAll, value, onValueChange, maxFiles, maxSize]
     );
 
     useEffect(() => {

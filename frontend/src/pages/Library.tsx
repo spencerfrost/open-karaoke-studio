@@ -80,15 +80,15 @@ const LibraryPage: React.FC = () => {
   return (
     <AppLayout>
       <SessionInfoDisplay
-        variant="code"
+        variant="qr"
         colorScheme="page"
         trigger="hover"
         visibility="host-only"
-        className="absolute top-2 right-3 z-30"
+        className="fixed top-2 right-3 z-30"
       />
       <div className="mb-6">
         {/* Search Input */}
-        <div className="mb-6">
+        <div className="my-12">
           <LibrarySearchInput
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}

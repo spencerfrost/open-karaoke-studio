@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Song } from "@/types/Song";
 import {
   Dialog,
@@ -61,6 +61,12 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   const isLoadingLyrics = lyricsSearch.loading;
   const actualProvider = lyricsSearch.actualProvider;
 
+  // Refs for values read by effects that shouldn't trigger re-execution
+  const lyricsSearchRef = useRef(lyricsSearch);
+  lyricsSearchRef.current = lyricsSearch;
+  const actualProviderRef = useRef(actualProvider);
+  actualProviderRef.current = actualProvider;
+
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen && song) {
@@ -80,15 +86,14 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
 
       // Immediately start lyrics search
       setTimeout(() => {
-        lyricsSearch.search({
+        lyricsSearchRef.current.search({
           artist: song.artist,
           title: song.title,
           album: song.album,
-          provider: selectedProvider,
+          provider: "syncedlyrics",
         });
       }, 100);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, song]);
 
   // Handle manual provider change (user rejecting current results)
@@ -97,18 +102,17 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
     if (
       isOpen &&
       song &&
-      actualProvider &&
-      selectedProvider !== actualProvider
+      actualProviderRef.current &&
+      selectedProvider !== actualProviderRef.current
     ) {
-      lyricsSearch.search({
+      lyricsSearchRef.current.search({
         artist: song.artist,
         title: song.title,
         album: song.album,
         provider: selectedProvider,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProvider]);
+  }, [selectedProvider, isOpen, song]);
 
   const handleClose = () => {
     onClose();

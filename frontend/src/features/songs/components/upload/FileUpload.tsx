@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useId, useEffect } from "react"; // Added useEffect
+import React, { useState, useCallback, useId, useEffect, useRef } from "react";
 import { Upload, X, Paperclip } from "lucide-react";
 import { isAudioFile } from "@/utils/validators";
 import { Button } from "@/components/ui/button";
@@ -58,18 +58,20 @@ const FileUpload: React.FC<FileUploadFieldProps> = ({
   const [error, setError] = useState<string | null>(null);
   const fileInputId = useId();
 
+  // Ref for internalFiles to read without triggering the sync effect
+  const internalFilesRef = useRef(internalFiles);
+  internalFilesRef.current = internalFiles;
+
   // Sync internal state <-> react-hook-form state
   useEffect(() => {
     // Update internal state when react-hook-form value changes externally
     // (e.g., form reset)
-    if (rhfValue && !internalFiles?.some((f) => f === rhfValue)) {
+    if (rhfValue && !internalFilesRef.current?.some((f) => f === rhfValue)) {
       setInternalFiles([rhfValue]);
-    } else if (!rhfValue && internalFiles) {
+    } else if (!rhfValue && internalFilesRef.current) {
       setInternalFiles(null);
     }
-    // Intentionally simplified dependency array to only react on RHF value change
-    // Avoids potential loops if internalFiles was included.
-  }, [rhfValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rhfValue]);
 
   const dropZoneConfig = {
     maxFiles: 1,

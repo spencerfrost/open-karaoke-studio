@@ -23,6 +23,7 @@ export const isYouTubeResult = (
 export interface SongSearchContainerProps {
   className?: string;
   initialQuery?: string;
+  autoBrowseArtist?: boolean;
 }
 
 export interface SearchInputProps {

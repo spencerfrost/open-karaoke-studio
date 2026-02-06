@@ -4,6 +4,7 @@ import { Song } from "@/types/Song";
 import { SongCard } from "@/features/songs/components/song-card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Youtube } from "lucide-react";
+import { BrowseArtistCard } from "./BrowseArtistCard";
 
 interface SongResultsGridProps {
   songs: Song[];
@@ -11,6 +12,7 @@ interface SongResultsGridProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   searchTerm?: string;
+  artistName?: string;
 }
 
 const SongResultsGrid: React.FC<SongResultsGridProps> = ({
@@ -19,6 +21,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   isFetchingNextPage,
   fetchNextPage,
   searchTerm,
+  artistName,
 }) => {
   const navigate = useNavigate();
 
@@ -48,10 +51,11 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   return (
     <div className="space-y-4">
       {/* Song Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {songs.filter(Boolean).map((song) => (
           <SongCard key={song.id} song={song} />
         ))}
+        {artistName && <BrowseArtistCard artistName={artistName} />}
       </div>
 
       {/* Load More Button */}

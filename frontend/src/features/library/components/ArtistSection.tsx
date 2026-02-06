@@ -58,6 +58,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
             fetchNextPage={fetchNextPage}
+            artistName={artistName}
           />
         </div>
       )}

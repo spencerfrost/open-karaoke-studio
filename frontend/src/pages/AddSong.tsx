@@ -8,6 +8,7 @@ import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 const AddSongPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
+  const autoBrowseArtist = searchParams.get("browseArtist") === "true";
 
   return (
     <AppLayout>
@@ -20,7 +21,10 @@ const AddSongPage: React.FC = () => {
       />
       <div className="md:p-6 space-y-6 container mx-auto">
         <JobsQueue />
-        <SongSearchContainer initialQuery={initialQuery} />
+        <SongSearchContainer
+          initialQuery={initialQuery}
+          autoBrowseArtist={autoBrowseArtist}
+        />
       </div>
     </AppLayout>
   );

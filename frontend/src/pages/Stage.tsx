@@ -65,8 +65,7 @@ const Stage: React.FC = () => {
     };
 
     initializeSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [displayCode, recoverSession, createSession]);
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {

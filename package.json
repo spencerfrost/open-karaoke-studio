@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "description": "Open Karaoke Studio - vocal separation for karaoke creation",
   "scripts": {
-    "dev": "./scripts/dev.sh",
-    "dev:frontend": "cd frontend && pnpm dev",
-    "dev:backend": "cd backend && ./run_api.sh",
+    "docs:dev": "cd docs && pnpm dev",
+    "docs:build": "cd docs && pnpm build",
+    "docs:preview": "cd docs && pnpm preview",
     "setup": "./scripts/setup.sh",
     "build": "cd frontend && pnpm build",
     "test": "./scripts/test.sh",

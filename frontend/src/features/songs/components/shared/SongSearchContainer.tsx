@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
@@ -72,6 +72,7 @@ interface BrowsingArtist {
 export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   className = "",
   initialQuery = "",
+  autoBrowseArtist = false,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [activeSource, setActiveSource] =
@@ -79,6 +80,8 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   const [browsingArtist, setBrowsingArtist] = useState<BrowsingArtist | null>(
     null,
   );
+
+  const hasAttemptedAutoBrowse = useRef(false);
 
   // Debounce the query to avoid excessive API calls while typing
   const debouncedQuery = useDebouncedValue(query, 400);
@@ -93,6 +96,30 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
     query: debouncedQuery,
     enabled: activeSource === "youtube" && !!debouncedQuery,
   });
+
+  // Auto-browse: when navigating from library with browseArtist=true,
+  // automatically open the first matching artist result
+  useEffect(() => {
+    if (
+      autoBrowseArtist &&
+      !hasAttemptedAutoBrowse.current &&
+      !browsingArtist &&
+      !youtubeMusicSearch.isLoading &&
+      youtubeMusicSearch.data
+    ) {
+      hasAttemptedAutoBrowse.current = true;
+      const artists = youtubeMusicSearch.data.artists || [];
+      if (artists.length > 0) {
+        const firstArtist = artists[0];
+        setBrowsingArtist({ id: firstArtist.browseId, name: firstArtist.name });
+      }
+    }
+  }, [
+    autoBrowseArtist,
+    browsingArtist,
+    youtubeMusicSearch.isLoading,
+    youtubeMusicSearch.data,
+  ]);
 
   // Single song creation hook for both flows
   const songCreation = useSongCreation();

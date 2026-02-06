@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Search, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,12 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
   const [inputValue, setInputValue] = useState(searchTerm);
   const debouncedValue = useDebouncedValue(inputValue, debounceMs);
 
+  // Refs for values that should be read but not trigger the debounce effect
+  const searchTermRef = useRef(searchTerm);
+  searchTermRef.current = searchTerm;
+  const onSearchChangeRef = useRef(onSearchChange);
+  onSearchChangeRef.current = onSearchChange;
+
   // Keep local input in sync with external searchTerm
   useEffect(() => {
     setInputValue(searchTerm);
@@ -39,10 +45,9 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
 
   // Emit debounced value
   useEffect(() => {
-    if (debouncedValue !== searchTerm) {
-      onSearchChange(debouncedValue);
+    if (debouncedValue !== searchTermRef.current) {
+      onSearchChangeRef.current(debouncedValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedValue]);
 
   const handleClear = () => {
@@ -64,7 +69,7 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         placeholder={placeholder}
-        className="pl-10 pr-20 border-orange-peel text-lemon-chiffon bg-dark-cyan/20
+        className="px-12 py-6 border-orange-peel text-lemon-chiffon bg-dark-cyan/20
                    placeholder:text-lemon-chiffon/60 focus:ring-orange-peel focus:border-orange-peel"
       />
 
