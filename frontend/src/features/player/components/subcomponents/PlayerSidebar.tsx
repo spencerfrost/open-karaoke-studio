@@ -46,11 +46,14 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const {
     songId,
     vocalVolume,
+    backingVocalVolume,
+    backingVocalUrl,
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
     autoScrollEnabled,
     setVocalVolume,
+    setBackingVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
@@ -424,7 +427,9 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {/* Vocal Volume */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-background">Vocals</Label>
+              <Label className="text-background">
+                {backingVocalUrl ? "Lead Vocals" : "Vocals"}
+              </Label>
               <span className="text-sm text-background/60">
                 {Math.round(vocalVolume * 100)}%
               </span>
@@ -438,6 +443,26 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               className="w-full"
             />
           </div>
+
+          {/* Backing Vocal Volume (only for three-track songs) */}
+          {backingVocalUrl && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-background">Backing Vocals</Label>
+                <span className="text-sm text-background/60">
+                  {Math.round(backingVocalVolume * 100)}%
+                </span>
+              </div>
+              <Slider
+                value={[backingVocalVolume]}
+                onValueChange={([value]) => setBackingVocalVolume(value)}
+                min={0}
+                max={1}
+                step={0.05}
+                className="w-full"
+              />
+            </div>
+          )}
 
           {/* Instrumental Volume */}
           <div className="space-y-2">

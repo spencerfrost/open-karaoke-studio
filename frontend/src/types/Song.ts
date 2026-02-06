@@ -7,10 +7,7 @@ export interface Song {
   duration?: number; // Duration in seconds
   dateAdded?: string;
 
-  // File paths (API URLs)
-  vocalPath?: string;
-  instrumentalPath?: string;
-  originalPath?: string;
+  backingVocalPath?: string;
   coverArt?: string;
   thumbnail?: string;
 
