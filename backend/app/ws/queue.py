@@ -7,10 +7,11 @@ Queue management is handled through the unified session WebSocket endpoint.
 
 import logging
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, subqueryload
 
 from app.db.database import get_db_session
 from app.db.models.queue import KaraokeQueueItem
+from app.db.models.song import DbSong
 
 from .connection_manager import SessionConnectionManager
 
@@ -28,7 +29,9 @@ async def get_current_queue_state(session_id: str):
             queue_items = (
                 session.query(KaraokeQueueItem)
                 .filter(KaraokeQueueItem.session_id == session_id)
-                .options(joinedload(KaraokeQueueItem.song))
+                .options(
+                    joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics)
+                )
                 .order_by(KaraokeQueueItem.position)
                 .all()
             )
@@ -56,8 +59,8 @@ async def get_current_queue_state(session_id: str):
                                 "album": item.song.album,
                                 "duration": item.song.duration,
                                 "coverArt": getattr(item.song, "cover_art_url", None),
-                                "syncedLyrics": item.song.synced_lyrics,
-                                "plainLyrics": item.song.plain_lyrics,
+                                "syncedLyrics": item.song._get_active_lyrics_content("synced"),
+                                "plainLyrics": item.song._get_active_lyrics_content("plain"),
                             },
                         }
                     )

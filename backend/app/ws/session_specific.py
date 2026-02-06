@@ -16,6 +16,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+from sqlalchemy.orm import joinedload
+
 from app.db.database import get_db_session
 from app.db.models.queue import KaraokeQueueItem
 from app.db.models.song import DbSong
@@ -40,6 +42,7 @@ def get_session_performance_state(session_id: str):
     if session_id not in session_performance_states:
         session_performance_states[session_id] = {
             "vocal_volume": 1.0,
+            "backing_vocal_volume": 1.0,
             "instrumental_volume": 1.0,
             "lyrics_size": "medium",
             "lyrics_offset": 0,
@@ -240,7 +243,10 @@ async def websocket_unified_session_endpoint(
                     queue_data = []
                     for item in queue_items:
                         song = (
-                            db.query(DbSong).filter(DbSong.id == item.song_id).first()
+                            db.query(DbSong)
+                            .options(joinedload(DbSong.lyrics))
+                            .filter(DbSong.id == item.song_id)
+                            .first()
                         )
                         if song:
                             queue_data.append(
@@ -263,8 +269,8 @@ async def websocket_unified_session_endpoint(
                                         "coverArt": getattr(
                                             song, "cover_art_url", None
                                         ),
-                                        "syncedLyrics": song.synced_lyrics,
-                                        "plainLyrics": song.plain_lyrics,
+                                        "syncedLyrics": song._get_active_lyrics_content("synced"),
+                                        "plainLyrics": song._get_active_lyrics_content("plain"),
                                     },
                                 }
                             )
@@ -520,7 +526,10 @@ async def websocket_session_queue_endpoint(
                     queue_data = []
                     for item in queue_items:
                         song = (
-                            db.query(DbSong).filter(DbSong.id == item.song_id).first()
+                            db.query(DbSong)
+                            .options(joinedload(DbSong.lyrics))
+                            .filter(DbSong.id == item.song_id)
+                            .first()
                         )
                         if song:
                             queue_data.append(
@@ -543,8 +552,8 @@ async def websocket_session_queue_endpoint(
                                         "coverArt": getattr(
                                             song, "cover_art_url", None
                                         ),
-                                        "syncedLyrics": song.synced_lyrics,
-                                        "plainLyrics": song.plain_lyrics,
+                                        "syncedLyrics": song._get_active_lyrics_content("synced"),
+                                        "plainLyrics": song._get_active_lyrics_content("plain"),
                                     },
                                 }
                             )

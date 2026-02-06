@@ -16,7 +16,7 @@ from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.db.database import SessionLocal
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
@@ -127,8 +127,8 @@ def song_to_info(song: DbSong) -> SongInfo:
         album=song.album,
         duration=song.duration,
         coverArt=getattr(song, "cover_art_url", None),
-        syncedLyrics=song.synced_lyrics,
-        plainLyrics=song.plain_lyrics,
+        syncedLyrics=song._get_active_lyrics_content("synced"),
+        plainLyrics=song._get_active_lyrics_content("plain"),
     )
 
 
@@ -163,7 +163,7 @@ async def get_queue(
     """
     queue = (
         db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song))
+        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
         .filter(KaraokeQueueItem.session_id == session_code)
         .order_by(KaraokeQueueItem.position)
         .all()
@@ -324,7 +324,7 @@ async def play_queue_item(
     """
     item = (
         db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song))
+        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
         .filter(
             KaraokeQueueItem.id == item_id,
             KaraokeQueueItem.session_id == session_code,
@@ -381,7 +381,7 @@ async def play_queue_item(
         album=item.song.album,
         duration=item.song.duration,
         coverArt=getattr(item.song, "cover_art_url", None),
-        syncedLyrics=item.song.synced_lyrics,
-        plainLyrics=item.song.plain_lyrics,
+        syncedLyrics=item.song._get_active_lyrics_content("synced"),
+        plainLyrics=item.song._get_active_lyrics_content("plain"),
         singer=item.singer_name,
     )

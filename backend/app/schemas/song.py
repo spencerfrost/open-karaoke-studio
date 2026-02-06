@@ -19,10 +19,6 @@ class SongResponse(BaseModel):
     duration: Optional[float] = None
     dateAdded: Optional[datetime] = None
 
-    # File paths (API URLs)
-    vocalPath: Optional[str] = None
-    instrumentalPath: Optional[str] = None
-    originalPath: Optional[str] = None
     thumbnail: Optional[str] = None
 
     # Source
