@@ -255,7 +255,7 @@ class YouTubeService(YouTubeServiceInterface):
         artist: str = None,
         title: str = None,
         song_id: str = None,
-        engine_type: str = "demucs",
+        engine_type: str = "three_track",
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
