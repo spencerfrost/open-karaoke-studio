@@ -3,24 +3,22 @@ Three-Track Separation Engine
 
 Multi-pass separation that produces three independent audio tracks:
 1. Lead Vocals (isolated via Roformer karaoke model)
-2. Backing Vocals (extracted by subtraction + de-noised)
+2. Backing Vocals (extracted from Demucs vocals + de-noised)
 3. Instrumental (pure instrumental from Demucs, no vocals)
 
 Pipeline:
     Input Audio
         │
-        ├──[Demucs htdemucs_ft]──→ Pure Instrumental (bass + drums + other)
-        │
-        ├──[Roformer Karaoke]──→ Lead Vocals + (Instrumental+Backing)
-        │                              │
-        │                              └──→ Backing = Roformer_Instr - Demucs_Instr
-        │
-        └──[De-Noise Model]──→ Cleaned Backing Vocals
+        └──[Demucs htdemucs_ft]──→ Vocals (lead+backing) + Pure Instrumental
+                    │
+                    └── Vocals ──[Roformer Karaoke]──→ Lead Vocals + Backing Vocals
+                                                                        │
+                                                                        └──[De-Noise]──→ Cleaned Backing
 
     Output: 3 separate MP3 files (vocals.mp3, backing_vocals.mp3, instrumental.mp3)
 
-Based on the clean_backing engine but saves all three tracks independently
-instead of merging backing vocals into the instrumental.
+Key advantage: Roformer operates on vocals-only audio, eliminating instrumental bleed-through
+that occurs when using subtraction methods.
 """
 
 import logging
@@ -29,8 +27,6 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-import librosa
-import numpy as np
 import soundfile as sf
 import torch
 from audio_separator.separator import Separator
@@ -87,9 +83,9 @@ def separate_with_three_track(
     config = get_config()
 
     try:
-        # ===== STEP 1: Demucs Separation for Pure Instrumental (35-50% progress) =====
-        status_callback("Progress: 35% - Step 1/5: Running Demucs for pure instrumental...")
-        logger.info("Step 1: Demucs separation")
+        # ===== STEP 1: Demucs Separation (35-50% progress) =====
+        status_callback("Progress: 35% - Step 1/4: Running Demucs separation...")
+        logger.info("Step 1: Demucs separation for vocals and instrumental")
 
         device = select_device_and_log(status_callback)
 
@@ -98,7 +94,7 @@ def separate_with_three_track(
             base_start=35,
             base_end=50,
             update_fn=lambda prog, msg: status_callback(
-                f"Step 1/5 (Demucs): {msg} [{prog}%]"
+                f"Step 1/4 (Demucs): {msg} [{prog}%]"
             ),
         )
 
@@ -113,6 +109,12 @@ def separate_with_three_track(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
+        # Extract vocals and instrumental from Demucs
+        if "vocals" not in separated:
+            raise Exception("Vocals stem not found in Demucs output")
+
+        demucs_vocals = separated["vocals"]
+
         # Calculate Demucs instrumental (all non-vocal stems)
         instrumental_stems = [s_name for s_name in separated if s_name != "vocals"]
         if not instrumental_stems:
@@ -121,6 +123,17 @@ def separate_with_three_track(
         demucs_instrumental = torch.zeros_like(separated[instrumental_stems[0]])
         for stem_name in instrumental_stems:
             demucs_instrumental += separated[stem_name]
+
+        # Save Demucs vocals to temp (input for Roformer)
+        demucs_vocals_path = temp_dir / "demucs_vocals.wav"
+        demucs_vocals_numpy = demucs_vocals.cpu().numpy().T
+        sf.write(
+            str(demucs_vocals_path),
+            demucs_vocals_numpy,
+            demucs_separator.samplerate,
+            subtype="PCM_16",
+        )
+        logger.info("Demucs vocals saved to: %s", demucs_vocals_path)
 
         # Save Demucs instrumental to temp
         demucs_instr_path = temp_dir / "demucs_instrumental.wav"
@@ -136,11 +149,11 @@ def separate_with_three_track(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 2: Roformer Karaoke Separation (50-60% progress) =====
+        # ===== STEP 2: Roformer Karaoke on Demucs Vocals (50-60% progress) =====
         status_callback(
-            "Progress: 50% - Step 2/5: Running Roformer for lead vocal isolation..."
+            "Progress: 50% - Step 2/4: Running Roformer to separate lead from backing vocals..."
         )
-        logger.info("Step 2: Roformer karaoke separation")
+        logger.info("Step 2: Roformer karaoke separation on Demucs vocals")
 
         karaoke_separator = Separator(
             output_dir=str(temp_dir),
@@ -152,13 +165,16 @@ def separate_with_three_track(
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        status_callback("Progress: 60% - Separating with Roformer karaoke model...")
-        karaoke_output_files = karaoke_separator.separate(str(input_path))
+        status_callback("Progress: 60% - Separating lead and backing vocals...")
+        karaoke_output_files = karaoke_separator.separate(str(demucs_vocals_path))
         logger.info("Roformer karaoke produced: %s", karaoke_output_files)
 
-        # Find lead vocals and roformer instrumental
+        # Find lead vocals and backing vocals
+        # When Roformer karaoke processes vocals-only audio:
+        # - "Vocals" output = lead vocals
+        # - "Instrumental" output = backing vocals (no instruments since input was vocals-only)
         lead_vocals_path = None
-        roformer_instr_path = None
+        backing_vocals_path = None
 
         for file_path in karaoke_output_files:
             file_obj = Path(file_path)
@@ -168,76 +184,25 @@ def separate_with_three_track(
             if "(Vocals)" in file_obj.name:
                 lead_vocals_path = file_obj
             elif "(Instrumental)" in file_obj.name:
-                roformer_instr_path = file_obj
+                # This is actually backing vocals since we fed it vocals-only audio
+                backing_vocals_path = file_obj
 
-        if not lead_vocals_path or not roformer_instr_path:
+        if not lead_vocals_path or not backing_vocals_path:
             raise Exception(
                 f"Expected karaoke output files not found. Got: {karaoke_output_files}"
             )
 
         logger.info("Lead vocals: %s", lead_vocals_path)
-        logger.info("Roformer instrumental: %s", roformer_instr_path)
+        logger.info("Backing vocals (raw): %s", backing_vocals_path)
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 3: Extract Backing Vocals (60-68% progress) =====
-        status_callback("Progress: 60% - Step 3/5: Extracting backing vocals...")
-        logger.info("Step 3: Extracting backing vocals by subtraction")
-
-        # Load both instrumentals
-        status_callback("Progress: 64% - Loading instrumental tracks...")
-        demucs_audio, sr_demucs = librosa.load(
-            str(demucs_instr_path), sr=None, mono=False
-        )
-        roformer_audio, sr_roformer = librosa.load(
-            str(roformer_instr_path), sr=None, mono=False
-        )
-
-        # Ensure same sample rate
-        if sr_demucs != sr_roformer:
-            roformer_audio = librosa.resample(
-                roformer_audio, orig_sr=sr_roformer, target_sr=sr_demucs
-            )
-            sr_roformer = sr_demucs
-
-        # Ensure same length (pad shorter one with zeros)
-        if demucs_audio.shape[-1] != roformer_audio.shape[-1]:
-            max_len = max(demucs_audio.shape[-1], roformer_audio.shape[-1])
-            if demucs_audio.shape[-1] < max_len:
-                pad_width = [(0, 0)] * (demucs_audio.ndim - 1) + [
-                    (0, max_len - demucs_audio.shape[-1])
-                ]
-                demucs_audio = np.pad(demucs_audio, pad_width, mode="constant")
-            if roformer_audio.shape[-1] < max_len:
-                pad_width = [(0, 0)] * (roformer_audio.ndim - 1) + [
-                    (0, max_len - roformer_audio.shape[-1])
-                ]
-                roformer_audio = np.pad(roformer_audio, pad_width, mode="constant")
-
-        # Extract backing vocals: roformer_instrumental - demucs_instrumental
-        # The roformer instrumental contains backing vocals, demucs doesn't
-        backing_vocals = roformer_audio - demucs_audio
-
-        # Normalize to prevent clipping
-        max_val = np.max(np.abs(backing_vocals))
-        if max_val > 0.95:
-            backing_vocals = backing_vocals * (0.95 / max_val)
-
-        # Save backing vocals for de-noise processing
-        backing_path = temp_dir / "backing_vocals.wav"
-        sf.write(str(backing_path), backing_vocals.T, sr_demucs)
-        logger.info("Backing vocals extracted to: %s", backing_path)
-        status_callback("Progress: 68% - Backing vocals extracted")
-
-        if stop_event and stop_event.is_set():
-            raise StopProcessingError("Processing stopped by user")
-
-        # ===== STEP 4: De-Noise Backing Vocals (68-78% progress) =====
+        # ===== STEP 3: De-Noise Backing Vocals (60-75% progress) =====
         status_callback(
-            "Progress: 68% - Step 4/5: Cleaning backing vocals with de-noise model..."
+            "Progress: 60% - Step 3/4: Cleaning backing vocals with de-noise model..."
         )
-        logger.info("Step 4: De-noising backing vocals")
+        logger.info("Step 3: De-noising backing vocals")
 
         cleaned_backing_path = None
 
@@ -246,14 +211,14 @@ def separate_with_three_track(
                 output_dir=str(temp_dir),
                 output_format="wav",
             )
-            status_callback(f"Progress: 73% - Loading model: {DENOISE_MODEL}")
+            status_callback(f"Progress: 65% - Loading model: {DENOISE_MODEL}")
             denoise_separator.load_model(model_filename=DENOISE_MODEL)
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
 
-            status_callback("Progress: 78% - Running de-noise on backing vocals...")
-            denoise_output_files = denoise_separator.separate(str(backing_path))
+            status_callback("Progress: 70% - Running de-noise on backing vocals...")
+            denoise_output_files = denoise_separator.separate(str(backing_vocals_path))
             logger.info("De-noise produced: %s", denoise_output_files)
 
             # Find the "dry" (cleaned) stem
@@ -273,20 +238,20 @@ def separate_with_three_track(
                 logger.warning(
                     "De-noise dry stem not found, using original backing vocals"
                 )
-                cleaned_backing_path = backing_path
+                cleaned_backing_path = backing_vocals_path
 
         except Exception as e:
             # Graceful fallback: use uncleaned backing if de-noise fails
             logger.warning("De-noise failed, using original backing: %s", e)
             status_callback("De-noise model unavailable, using original backing...")
-            cleaned_backing_path = backing_path
+            cleaned_backing_path = backing_vocals_path
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 5: Save Three Independent Tracks (78-85% progress) =====
-        status_callback("Progress: 78% - Step 5/5: Saving three tracks...")
-        logger.info("Step 5: Saving three independent tracks")
+        # ===== STEP 4: Save Three Independent Tracks (75-85% progress) =====
+        status_callback("Progress: 75% - Step 4/4: Saving three tracks...")
+        logger.info("Step 4: Saving three independent tracks")
 
         vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(
             ".mp3"
@@ -299,7 +264,7 @@ def separate_with_three_track(
         ).with_suffix(".mp3")
 
         # 1. Convert lead vocals (from Roformer) to MP3
-        status_callback("Progress: 79% - Converting lead vocals to MP3...")
+        status_callback("Progress: 77% - Converting lead vocals to MP3...")
         lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
         lead_audio.export(
             str(vocals_final),
@@ -309,7 +274,7 @@ def separate_with_three_track(
         logger.info("Lead vocals saved to: %s", vocals_final)
 
         # 2. Convert cleaned backing vocals to MP3
-        status_callback("Progress: 81% - Converting backing vocals to MP3...")
+        status_callback("Progress: 80% - Converting backing vocals to MP3...")
         backing_audio = AudioSegment.from_wav(str(cleaned_backing_path))
         backing_audio.export(
             str(backing_vocals_final),
@@ -327,7 +292,7 @@ def separate_with_three_track(
             bitrate=config.DEFAULT_MP3_BITRATE,
         )
         logger.info("Instrumental saved to: %s", instrumental_final)
-        status_callback("Progress: 85% - Step 5/5 complete")
+        status_callback("Progress: 85% - Step 4/4 complete")
 
         # Detect BPM from original audio
         detected_bpm = detect_bpm(input_path, status_callback)
