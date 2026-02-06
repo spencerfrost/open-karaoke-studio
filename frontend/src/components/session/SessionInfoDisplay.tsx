@@ -17,8 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Users, Crown, Monitor, Smartphone, Clock, LogOut } from "lucide-react";
+import { QRCodeDisplay } from "@/features/queue";
 
-type DisplayVariant = "code" | "status" | "minimal";
+type DisplayVariant = "code" | "qr" | "status" | "minimal";
 type TriggerType = "click" | "hover" | "both";
 type VisibilityMode = "host-only" | "all" | "performers-only";
 type ColorScheme = "player" | "page";
@@ -53,6 +54,9 @@ interface SessionInfoDisplayProps {
   // Code variant customization
   codeSize?: string; // e.g., "text-sm", "text-2xl" (default: "text-2xl")
   codePadding?: string; // e.g., "px-2 py-1", "px-4 py-2" (default: "px-4 py-2")
+
+  // QR variant customization
+  qrSize?: number; // QR code pixel size (default: 100)
 }
 
 const defaultShowDetails: ShowDetailsConfig = {
@@ -78,6 +82,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   popoverWidth = "w-80",
   codeSize = "text-2xl",
   codePadding = "px-4 py-2",
+  qrSize = 100,
 }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -139,6 +144,18 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
           </div>
         );
 
+      case "qr":
+        return (
+          <div className={`cursor-pointer ${baseTriggerClass}`}>
+            <QRCodeDisplay
+              value={`${window.location.origin}/?code=${displayCode}`}
+              size={qrSize}
+              title=""
+              description=""
+            />
+          </div>
+        );
+
       case "status":
         return (
           <div
@@ -192,10 +209,18 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
       </div>
 
       {details.code && displayCode && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Session Code</span>
-          <span className="font-mono text-lg font-bold">{displayCode}</span>
-        </div>
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Session Code</span>
+            <span className="font-mono text-lg font-bold">{displayCode}</span>
+          </div>
+          <QRCodeDisplay
+            value={`${window.location.origin}/?code=${displayCode}`}
+            size={120}
+            title=""
+            description=""
+          />
+        </>
       )}
 
       {details.deviceType && (

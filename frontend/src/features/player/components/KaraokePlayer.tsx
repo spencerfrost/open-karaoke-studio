@@ -326,13 +326,13 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         </div>
       )}
 
-      {/* Session Code Display */}
+      {/* Session QR Code - scan to join */}
       <SessionInfoDisplay
-        variant="code"
-        colorScheme="player"
+        variant="qr"
         trigger="hover"
         visibility="host-only"
         className="absolute top-2 right-3 z-30"
+        qrSize={100}
       />
 
       {/* Main Lyrics Display or End States - positioned above controls */}

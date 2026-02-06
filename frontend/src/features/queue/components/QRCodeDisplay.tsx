@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { QrCode } from "lucide-react";
+import React from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 interface QRCodeDisplayProps {
   value: string;
@@ -16,17 +16,6 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   description = "Use your phone to add songs to the queue",
   className = "",
 }) => {
-  const [qrCodeUrl, setQrCodeUrl] = useState("");
-
-  // Generate QR code URL when component mounts or value changes
-  useEffect(() => {
-    // Using Google Charts API to generate QR code
-    // In a production app, you might want to use a dedicated QR code library
-    const encodedValue = encodeURIComponent(value);
-    const url = `https://chart.googleapis.com/chart?cht=qr&chl=${encodedValue}&chs=${size}x${size}&chco=000000`;
-    setQrCodeUrl(url);
-  }, [value, size]);
-
   return (
     <div className={`flex flex-col items-center ${className}`}>
       {title && (
@@ -49,25 +38,7 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
           height: `${size + 32}px`,
         }}
       >
-        {qrCodeUrl ? (
-          <img
-            src={qrCodeUrl}
-            alt="QR Code"
-            width={size}
-            height={size}
-            style={{
-              display: "block",
-              maxWidth: "100%",
-            }}
-          />
-        ) : (
-          <div
-            className="flex items-center justify-center"
-            style={{ width: size, height: size }}
-          >
-            <QrCode size={size * 0.8} className="text-russet" />
-          </div>
-        )}
+        <QRCodeSVG value={value} size={size} level="M" />
       </div>
     </div>
   );

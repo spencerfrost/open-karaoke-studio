@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,10 @@ interface SessionEntryProps {
 const SessionEntry: React.FC<SessionEntryProps> = ({
   redirectTo = "/stage",
 }) => {
-  const [sessionCode, setSessionCode] = useState("");
+  const [searchParams] = useSearchParams();
+  const [sessionCode, setSessionCode] = useState(
+    () => searchParams.get("code")?.toUpperCase().slice(0, 4) || "",
+  );
   const [displayName, setDisplayName] = useState(() => {
     // Load saved name from localStorage on mount
     return localStorage.getItem("karaokeDisplayName") || "";
@@ -40,12 +43,29 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     clearSession,
   } = useSessionStore();
 
+  const codeFromUrl = searchParams.get("code")?.toUpperCase().slice(0, 4);
+
   // Clear any connection errors when component mounts
   useEffect(() => {
     if (connectionError) {
       clearSession();
     }
   }, [connectionError, clearSession]);
+
+  // Auto-join when code is in the URL and user has a saved display name
+  useEffect(() => {
+    if (codeFromUrl?.length === 4 && displayName.trim() && !sessionId && !isConnecting) {
+      logger.info("Auto-joining session from QR code", { code: codeFromUrl });
+      joinSession(codeFromUrl, "performer", displayName.trim())
+        .then(() => localStorage.setItem("karaokeDisplayName", displayName.trim()))
+        .catch((error) => {
+          logger.error("Auto-join failed:", error);
+          toast.error("Failed to join session. Please try manually.");
+        });
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Redirect if already in a session
   if (sessionId) {
