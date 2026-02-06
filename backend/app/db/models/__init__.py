@@ -7,7 +7,8 @@ from .base import UNKNOWN_ARTIST, Base
 from .job import DbJob, Job, JobStatus
 from .queue import KaraokeQueueItem
 from .session import KaraokeSession, SessionDevice
-from .song import DbSong  # Only DbSong now - cancer removed
+from .lyrics import DbLyrics
+from .song import DbSong
 from .user import User
 
 # Make all models available when importing from this package
@@ -20,6 +21,7 @@ __all__ = [
     "KaraokeSession",
     "KaraokeQueueItem",
     "SessionDevice",
+    "DbLyrics",
     "DbSong",
     "User",
 ]

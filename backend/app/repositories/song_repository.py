@@ -27,7 +27,7 @@ Song repository for managing song records in the database.
 from typing import Any, Dict, List, Optional
 
 from app.db.models import DbSong
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 
 class SongRepository:
@@ -95,7 +95,12 @@ class SongRepository:
         """
         Fetch a single song by its ID.
         """
-        return self.db.query(DbSong).filter(DbSong.id == song_id).first()
+        return (
+            self.db.query(DbSong)
+            .options(joinedload(DbSong.lyrics))
+            .filter(DbSong.id == song_id)
+            .first()
+        )
 
     def fetch_all(
         self, *, filters=None, sort_by=None, direction="desc", limit=None, offset=None
@@ -108,7 +113,7 @@ class SongRepository:
         :param limit: max number of results (default None)
         :param offset: number of results to skip (default None)
         """
-        query = self.db.query(DbSong)
+        query = self.db.query(DbSong).options(subqueryload(DbSong.lyrics))
         if filters:
             for attr, value in filters.items():
                 query = query.filter(getattr(DbSong, attr) == value)
@@ -151,10 +156,6 @@ class SongRepository:
         if not song:
             logger.warning(f"Song {song_id} not found for update")
             return None
-            
-        # Log the update for debugging race conditions
-        if "synced_lyrics" in fields or "plain_lyrics" in fields:
-            logger.info(f"Updating lyrics for song {song_id}: {song.title} by {song.artist}")
             
         for key, value in fields.items():
             setattr(song, key, value)

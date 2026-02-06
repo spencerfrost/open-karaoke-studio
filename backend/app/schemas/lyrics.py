@@ -2,6 +2,8 @@
 Pydantic Schemas for Lyrics related requests.
 """
 
+from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -29,3 +31,27 @@ class SaveLyricsRequest(BaseModel):
             raise ValueError("Lyrics cannot be empty")
         # Remove excessive whitespace but preserve line breaks
         return v.strip()
+
+
+class LyricsCreateRequest(BaseModel):
+    """Schema for creating a new lyrics version"""
+
+    type: str = Field(..., pattern="^(plain|synced)$", description="Lyrics type")
+    content: str = Field(..., min_length=1, max_length=100000, description="Lyrics content")
+    source: Optional[str] = Field(None, max_length=50, description="Source of lyrics")
+    metadata: Optional[dict] = Field(None, description="Additional metadata")
+    isActive: bool = Field(True, description="Whether this version is active")
+
+
+class LyricsResponse(BaseModel):
+    """Schema for lyrics version response"""
+
+    id: int
+    songId: str
+    type: str
+    content: str
+    source: Optional[str] = None
+    metadata: Optional[dict] = None
+    isActive: bool
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None

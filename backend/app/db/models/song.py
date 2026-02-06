@@ -20,9 +20,6 @@ class DbSong(Base):
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
     duration = Column(Float, nullable=True)  # Duration in seconds
     date_added = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    vocals_path = Column(String, nullable=True)
-    instrumental_path = Column(String, nullable=True)
-    original_path = Column(String, nullable=True)
     thumbnail_path = Column(String, nullable=True)
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
@@ -54,6 +51,22 @@ class DbSong(Base):
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
     )
+    lyrics = relationship(
+        "DbLyrics", back_populates="song", cascade="all, delete-orphan"
+    )
+
+    def _get_active_lyrics_content(self, lyrics_type: str) -> Optional[str]:
+        """Get active lyrics content by type, falling back to legacy columns."""
+        if self.lyrics:
+            for lyric in self.lyrics:
+                if lyric.type == lyrics_type and lyric.is_active:
+                    return lyric.content
+        # Fallback to legacy columns during transition
+        if lyrics_type == "plain":
+            return self.plain_lyrics
+        elif lyrics_type == "synced":
+            return self.synced_lyrics
+        return None
 
     def to_dict(self) -> dict:
         """Convert to API response format - replaces to_pydantic()"""
@@ -80,18 +93,9 @@ class DbSong(Base):
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),
-            # File paths for API
-            "vocalPath": (
-                f"/api/songs/{self.id}/vocal" if self.vocals_path is not None else None
-            ),
-            "instrumentalPath": (
-                f"/api/songs/{self.id}/instrumental"
-                if self.instrumental_path is not None
-                else None
-            ),
-            "originalPath": (
-                f"/api/songs/{self.id}/original"
-                if self.original_path is not None
+            "backingVocalPath": (
+                f"/api/songs/{self.id}/download/backing-vocals"
+                if self.engine_type == "three_track"
                 else None
             ),
             "thumbnail": self.thumbnail_path,
@@ -105,8 +109,8 @@ class DbSong(Base):
             "year": year_value,
             "genre": self.genre,
             # Lyrics
-            "plainLyrics": self.plain_lyrics,
-            "syncedLyrics": self.synced_lyrics,
+            "plainLyrics": self._get_active_lyrics_content("plain"),
+            "syncedLyrics": self._get_active_lyrics_content("synced"),
             # iTunes metadata
             "itunesTrackId": self.itunes_track_id,
             "itunesExplicit": self.itunes_explicit,
