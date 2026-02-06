@@ -40,6 +40,19 @@ def validate_direction(
     return normalized
 
 
+LYRICS_FIELDS = {"plainLyrics", "syncedLyrics"}
+
+
+def extract_lyrics_fields(data: dict) -> dict:
+    """Extract lyrics fields from update data, returning them separately.
+    Modifies data in place by removing lyrics fields."""
+    lyrics = {}
+    for key in list(data.keys()):
+        if key in LYRICS_FIELDS:
+            lyrics[key] = data.pop(key)
+    return lyrics
+
+
 def map_fields_to_db(data: dict) -> dict:
     """Convert camelCase fields to snake_case for database"""
     result = {}

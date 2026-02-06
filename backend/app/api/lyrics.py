@@ -5,11 +5,15 @@ FastAPI router for lyrics search endpoints.
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-
+from app.db.database import SessionLocal
 from app.exceptions import NetworkError, ServiceError, ValidationError
+from app.repositories.lyrics_repository import LyricsRepository
+from app.repositories.song_repository import SongRepository
+from app.schemas.lyrics import LyricsCreateRequest, LyricsResponse
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
 
@@ -129,4 +133,83 @@ async def search_lyrics_synced(
             status_code=500,
             detail=f"Unexpected error during syncedlyrics search: {str(e)}"
         )
+
+
+# ============================================================================
+# Lyrics version management endpoints
+# ============================================================================
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _lyrics_to_response(lyrics) -> dict:
+    """Convert a DbLyrics record to a response dict."""
+    return {
+        "id": lyrics.id,
+        "songId": lyrics.song_id,
+        "type": lyrics.type,
+        "content": lyrics.content,
+        "source": lyrics.source,
+        "metadata": lyrics.metadata_,
+        "isActive": lyrics.is_active,
+        "createdAt": lyrics.created_at.isoformat() if lyrics.created_at else None,
+        "updatedAt": lyrics.updated_at.isoformat() if lyrics.updated_at else None,
+    }
+
+
+@router.get("/songs/{song_id}", response_model=List[dict])
+async def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
+    """Get all lyrics versions for a song."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    all_lyrics = lyrics_repo.get_all_lyrics(song_id)
+    return [_lyrics_to_response(l) for l in all_lyrics]
+
+
+@router.post("/songs/{song_id}", response_model=dict, status_code=201)
+async def create_song_lyrics(
+    song_id: str, request: LyricsCreateRequest, db: Session = Depends(get_db)
+):
+    """Add a new lyrics version for a song."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.save_lyrics(
+        song_id=song_id,
+        lyrics_type=request.type,
+        content=request.content,
+        source=request.source,
+        metadata=request.metadata,
+        is_active=request.isActive,
+    )
+    return _lyrics_to_response(lyrics)
+
+
+@router.patch("/{lyrics_id}/activate", response_model=dict)
+async def activate_lyrics(lyrics_id: int, db: Session = Depends(get_db)):
+    """Set a specific lyrics version as active."""
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.set_active(lyrics_id)
+    if not lyrics:
+        raise HTTPException(status_code=404, detail=f"Lyrics not found: {lyrics_id}")
+    return _lyrics_to_response(lyrics)
+
+
+@router.delete("/{lyrics_id}", status_code=204)
+async def delete_lyrics(lyrics_id: int, db: Session = Depends(get_db)):
+    """Delete a specific lyrics version."""
+    lyrics_repo = LyricsRepository(db)
+    if not lyrics_repo.delete_lyrics(lyrics_id):
+        raise HTTPException(status_code=404, detail=f"Lyrics not found: {lyrics_id}")
 

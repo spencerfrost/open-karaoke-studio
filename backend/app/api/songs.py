@@ -23,6 +23,7 @@ from app.api.validators import (
     CAMEL_TO_SNAKE_CASE,
     VALID_ARTIST_SORT_FIELDS,
     VALID_SONG_SORT_FIELDS,
+    extract_lyrics_fields,
     map_fields_to_db,
     validate_direction,
     validate_sort_field,
@@ -30,6 +31,7 @@ from app.api.validators import (
 from app.config import get_config
 from app.db.database import SessionLocal
 from app.db.models.song import DbSong
+from app.repositories.lyrics_repository import LyricsRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
@@ -422,6 +424,11 @@ async def update_song(
 
         # Build update fields from provided data
         update_dict = update_data.model_dump(exclude_unset=True)
+
+        # Extract lyrics fields for separate handling via LyricsRepository
+        lyrics_data = extract_lyrics_fields(update_dict)
+
+        # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
 
         if update_fields:
@@ -430,8 +437,27 @@ async def update_song(
                 raise HTTPException(
                     status_code=500, detail="Failed to update song metadata"
                 )
-            return updated_song.to_dict()
 
+        # Save lyrics via LyricsRepository
+        if lyrics_data:
+            lyrics_repo = LyricsRepository(db)
+            if "plainLyrics" in lyrics_data:
+                if lyrics_data["plainLyrics"]:
+                    lyrics_repo.save_lyrics(
+                        song_id, "plain", lyrics_data["plainLyrics"], source="manual"
+                    )
+                else:
+                    lyrics_repo.deactivate_type(song_id, "plain")
+            if "syncedLyrics" in lyrics_data:
+                if lyrics_data["syncedLyrics"]:
+                    lyrics_repo.save_lyrics(
+                        song_id, "synced", lyrics_data["syncedLyrics"], source="manual"
+                    )
+                else:
+                    lyrics_repo.deactivate_type(song_id, "synced")
+
+        # Re-fetch to get updated lyrics relationship
+        db_song = repo.fetch(song_id)
         return db_song.to_dict()
 
     except HTTPException:
@@ -533,7 +559,7 @@ async def download_song_track(
     logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
 
     track_type = track_type.lower()
-    valid_track_types = ["vocals", "instrumental", "original"]
+    valid_track_types = ["vocals", "instrumental", "backing-vocals", "original"]
 
     if track_type not in valid_track_types:
         raise HTTPException(
@@ -548,7 +574,9 @@ async def download_song_track(
         if not song_dir.is_dir():
             raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
 
-        track_file = song_dir / f"{track_type}.mp3"
+        # Map track type to filename (backing-vocals uses underscore on disk)
+        track_filename = track_type.replace("-", "_")
+        track_file = song_dir / f"{track_filename}.mp3"
 
         if not track_file.is_file():
             raise HTTPException(
@@ -675,3 +703,93 @@ async def reprocess_song(
         raise HTTPException(
             status_code=500, detail=f"Failed to start reprocessing: {str(e)}"
         )
+
+
+@router.post("/reprocess-all", status_code=202)
+async def reprocess_all_songs(db: Session = Depends(get_db)):
+    """
+    Reprocess all songs that haven't been processed with the three_track engine.
+
+    Creates Celery jobs for each eligible song. Songs are processed sequentially
+    through the Celery queue.
+    """
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from app.db.models import Job, JobStatus
+    from app.repositories import JobRepository
+
+    config = get_config()
+    repo = SongRepository(db)
+    job_repository = JobRepository()
+
+    # Find songs not yet processed with three_track engine
+    songs = (
+        db.query(DbSong)
+        .filter(
+            or_(
+                DbSong.engine_type != "three_track",
+                DbSong.engine_type.is_(None),
+            )
+        )
+        .all()
+    )
+
+    jobs_created = 0
+    skipped = 0
+
+    for song in songs:
+        song_dir = Path(config.BASE_LIBRARY_DIR) / song.id
+        original_path = song_dir / "original.mp3"
+
+        # Skip songs without original audio
+        if not original_path.exists():
+            skipped += 1
+            continue
+
+        # Skip songs already being processed
+        active_jobs = job_repository.get_jobs_by_status(
+            [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
+        )
+        already_processing = any(j.song_id == song.id for j in active_jobs)
+        if already_processing:
+            skipped += 1
+            continue
+
+        # Create job
+        job_id = str(uuid.uuid4())
+        job = Job(
+            id=job_id,
+            filename="original.mp3",
+            status=JobStatus.PENDING,
+            status_message="Queued for three-track reprocessing",
+            progress=0,
+            song_id=song.id,
+            title=song.title,
+            artist=song.artist,
+            engine_type="three_track",
+            created_at=datetime.now(timezone.utc),
+        )
+        job_repository.create(job)
+
+        # Queue Celery task
+        from app.jobs.celery_app import celery
+
+        task = celery.send_task(
+            "process_audio_job",
+            args=[job_id, "three_track"],
+        )
+        job.task_id = task.id
+        job_repository.update(job)
+
+        jobs_created += 1
+
+    logger.info(
+        f"Reprocess-all: {jobs_created} jobs created, {skipped} skipped"
+    )
+
+    return {
+        "jobsCreated": jobs_created,
+        "skipped": skipped,
+        "message": f"Queued {jobs_created} songs for three-track reprocessing",
+    }
