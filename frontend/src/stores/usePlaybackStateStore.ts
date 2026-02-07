@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as Tone from "tone";
 import { createLogger } from "@/lib/logger";
+import { useAudioControlsStore } from "./useAudioControlsStore";
 import { getGrainParams } from "./shared/audioHelpers";
 
 const logger = createLogger("store:playbackState");
@@ -257,6 +258,13 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     playbackStartTime = null;
     playbackOffset = 0;
   }
+
+  useAudioControlsStore.subscribe((state) => {
+    const { applyVolumeToGainNode } = useAudioControlsStore.getState();
+    applyVolumeToGainNode(vocalGain, state.vocalVolume);
+    applyVolumeToGainNode(backingVocalGain, state.backingVocalVolume);
+    applyVolumeToGainNode(instrumentalGain, state.instrumentalVolume);
+  });
 
   return {
     songId: null,
