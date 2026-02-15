@@ -6,9 +6,6 @@ import { ReactNode } from "react";
 import type { Song } from "@/types/Song";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
-// Sidebar display modes
-export type SidebarMode = "floating" | "push";
-
 // Player control types
 export type PlayerControl = "play" | "volume" | "fullscreen";
 
@@ -27,10 +24,6 @@ export interface KaraokePlayerProps {
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
-
-  // Sidebar options
-  sidebarMode?: SidebarMode; // 'floating' = overlay, 'push' = takes space
-  showSidebarTrigger?: boolean; // Show the settings button
 
   // Event callbacks
   onPlay?: () => void;

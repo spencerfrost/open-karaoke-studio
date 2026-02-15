@@ -9,7 +9,6 @@ import { useKaraokePlayer, usePlayerUI } from "../hooks";
 import {
   FullscreenContainer,
   PlayerErrorBoundary,
-  PlayerSidebar,
   SongEnded,
   QueueEnded,
   BottomControlsArea,
@@ -20,7 +19,7 @@ const logger = createLogger("component:karaoke-player");
 import { LyricsDisplayWithCountIn } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
-import { Settings2, Maximize, Play, Library } from "lucide-react";
+import { Maximize, Play, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTapTempo } from "@/hooks/useTapTempo";
 import { useSongs } from "@/hooks/api/useSongs";
@@ -29,7 +28,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
   queueItems,
   autoPlay = false,
-  sidebarMode = "floating",
   onPlay,
   onPause,
   onEnd,
@@ -49,14 +47,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   // Hover state for overlay controls
   const [isHovering, setIsHovering] = React.useState(false);
 
-  // Sidebar state
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-
-  // Sidebar edge hover state
-  const [isSidebarEdgeHovering, setIsSidebarEdgeHovering] =
-    React.useState(false);
-
-  // Track mouse movement for showing sidebar trigger
+  // Track mouse movement for showing controls
   const [mouseRecentlyMoved, setMouseRecentlyMoved] = React.useState(false);
   const mouseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -133,8 +124,8 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [player.song, player.isReady, tapTempo]);
 
-  // Show sidebar trigger when hovering and mouse recently moved
-  const showSidebarTriggerIcon = isHovering && mouseRecentlyMoved;
+  // Show control overlays when hovering and mouse recently moved
+  const showControlOverlays = isHovering && mouseRecentlyMoved;
 
   // Handle play/pause callbacks
   React.useEffect(() => {
@@ -216,14 +207,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     );
   }
 
-  // Show player UI even if no song is loaded
-  // For push mode, we need a flex container wrapper
   const playerContent = (
     <FullscreenContainer
       isFullscreen={ui.isFullscreen}
       containerRef={ui.containerRef}
       fsError={ui.fsError}
-      className={`$aspect-video bg-black/80 rounded-xl overflow-hidden relative flex-1 ${className}`}
+      className={`bg-black/80 rounded-xl overflow-hidden relative ${className}`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false);
@@ -238,7 +227,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       {!player.isPlaying && !player.songEnded && player.song && isHovering && (
         <div
           className={`absolute top-0 left-0 right-0 bottom-24 z-40 flex items-center justify-center gap-12 pointer-events-none transition-opacity duration-300 ${
-            showSidebarTriggerIcon ? "opacity-100" : "opacity-0"
+            showControlOverlays ? "opacity-100" : "opacity-0"
           }`}
         >
           {ui.isFullscreen ? (
@@ -385,8 +374,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         )}
       </div>
 
-      {/* Tap Tempo Button - Removed, now in bottom controls */}
-
       {/* Bottom Controls Area */}
       <BottomControlsArea
         song={player.song}
@@ -397,7 +384,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         currentTime={player.currentTime}
         duration={player.duration}
         vocalVolume={player.vocalVolume}
-        playbackSpeed={player.playbackSpeed}
         isFullscreen={ui.isFullscreen}
         tapTempoBpm={effectiveBpm}
         tapTempoSongBpm={player.song?.bpm ?? null}
@@ -418,76 +404,18 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
         onVolumeToggle={player.song ? handleVolumeToggle : noop}
         onFullscreenToggle={ui.toggleFullscreen}
-        onSpeedChange={player.setPlaybackSpeed}
         onTapTempoTap={tapTempo.handleTap}
         onTapTempoSave={handleSaveBpm}
         onTapTempoReset={tapTempo.reset}
       />
-
-      {/* Right Edge Hover Zone - Opens sidebar on click */}
-      {!isSidebarOpen && (
-        <div
-          className="absolute top-0 right-0 bottom-24 w-12 z-35 cursor-pointer group"
-          onMouseEnter={() => setIsSidebarEdgeHovering(true)}
-          onMouseLeave={() => setIsSidebarEdgeHovering(false)}
-          onClick={() => setIsSidebarOpen(true)}
-          aria-label="Open controls"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              setIsSidebarOpen(true);
-            }
-          }}
-        >
-          {/* Hover indicator - shows when hovering over player and mouse recently moved */}
-          <div
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
-              isSidebarEdgeHovering || showSidebarTriggerIcon
-                ? "bg-gradient-to-l from-black/60 to-transparent opacity-100"
-                : "opacity-0"
-            }`}
-          >
-            <div
-              className={`flex flex-col items-center gap-1 transition-all duration-200 ${
-                isSidebarEdgeHovering || showSidebarTriggerIcon
-                  ? "opacity-100 translate-x-0"
-                  : "opacity-0 translate-x-2"
-              }`}
-            >
-              <Settings2 className="w-7 h-7 text-background/80" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Player Sidebar (floating mode - inside container) */}
-      {sidebarMode === "floating" && (
-        <PlayerSidebar
-          isOpen={isSidebarOpen}
-          onOpenChange={setIsSidebarOpen}
-          mode="floating"
-        />
-      )}
     </FullscreenContainer>
   );
 
   return (
     <PlayerErrorBoundary onError={undefined}>
-      {sidebarMode === "push" ? (
-        // Push mode: flex container with sidebar alongside player
-        <div className="flex aspect-video">
-          {playerContent}
-          <PlayerSidebar
-            isOpen={isSidebarOpen}
-            onOpenChange={setIsSidebarOpen}
-            mode="push"
-          />
-        </div>
-      ) : (
-        // Floating mode: just the player content
-        playerContent
-      )}
+      <div className="h-[70vh] max-w-full aspect-video mx-auto">
+        {playerContent}
+      </div>
     </PlayerErrorBoundary>
   );
 };

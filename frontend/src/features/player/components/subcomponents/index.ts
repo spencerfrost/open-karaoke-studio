@@ -9,8 +9,8 @@ export {
   default as PlayerSidebar,
   PlayerSidebarTrigger,
 } from "./PlayerSidebar";
+export { SettingsMenu, SettingsMenuTrigger } from "./SettingsMenu";
 export { SongEnded } from "./SongEnded";
 export { QueueEnded } from "./QueueEnded";
 export { TapTempoButton } from "./TapTempoButton";
 export { default as BottomControlsArea } from "./BottomControlsArea";
-export type { SidebarMode } from "./PlayerSidebar";
