@@ -214,12 +214,6 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
             <span className="text-sm text-muted-foreground">Session Code</span>
             <span className="font-mono text-lg font-bold">{displayCode}</span>
           </div>
-          <QRCodeDisplay
-            value={`${window.location.origin}/?code=${displayCode}`}
-            size={120}
-            title=""
-            description=""
-          />
         </>
       )}
 
