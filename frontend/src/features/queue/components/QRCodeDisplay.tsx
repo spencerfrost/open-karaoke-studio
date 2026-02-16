@@ -11,7 +11,7 @@ interface QRCodeDisplayProps {
 
 const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   value,
-  size = 200,
+  size = 256,
   title = "Scan to Add Songs",
   description = "Use your phone to add songs to the queue",
   className = "",
