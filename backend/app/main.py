@@ -72,12 +72,7 @@ app = FastAPI(
 # Configure CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:3000",  # Alternative dev port
-        "http://192.168.50.112:5173",  # Network access
-        "*",  # Allow all origins for development
-    ],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,6 +80,7 @@ app.add_middleware(
 
 # Initialize the WebSocket connection manager
 manager = SessionConnectionManager()
+app.state.session_manager = manager
 
 # Include all API routers
 app.include_router(health_router)
