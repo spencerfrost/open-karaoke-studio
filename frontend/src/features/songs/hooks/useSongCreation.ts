@@ -62,6 +62,7 @@ export const useSongCreation = () => {
         title: song.title,
         artist: song.artist,
         album: song.album,
+        provider: "syncedlyrics",
       }),
     ]);
 
@@ -135,6 +136,7 @@ export const useSongCreation = () => {
       title: customTitle || currentSong.title,
       artist: customArtist || currentSong.artist,
       album: customAlbum || currentSong.album || "",
+      provider: "syncedlyrics",
     });
   };
 
