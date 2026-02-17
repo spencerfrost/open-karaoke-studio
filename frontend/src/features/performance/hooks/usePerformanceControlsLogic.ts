@@ -13,9 +13,11 @@ import {
 export const usePerformanceControlsLogic = () => {
   const {
     vocalVolume,
+    backingVocalVolume,
     instrumentalVolume,
     lyricsSize,
     setVocalVolume,
+    setBackingVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
   } = useKaraokePlayerStore();
@@ -23,6 +25,11 @@ export const usePerformanceControlsLogic = () => {
   const toggleVocalsVolume = () => {
     const newVolume = toggleVolume(vocalVolume, 1); // Max volume is 1 (100%)
     setVocalVolume(newVolume);
+  };
+
+  const toggleBackingVocalsVolume = () => {
+    const newVolume = toggleVolume(backingVocalVolume, 1);
+    setBackingVocalVolume(newVolume);
   };
 
   const toggleInstrumentalVolume = () => {
@@ -42,17 +49,20 @@ export const usePerformanceControlsLogic = () => {
   return {
     // State
     vocalVolume,
+    backingVocalVolume,
     instrumentalVolume,
     lyricsSize,
 
     // Actions
     toggleVocalsVolume,
+    toggleBackingVocalsVolume,
     toggleInstrumentalVolume,
     handleLyricsSizeChange,
     getLyricsSizeNumericValue,
 
     // Setters (for direct access if needed)
     setVocalVolume,
+    setBackingVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
   };
