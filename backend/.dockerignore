@@ -12,7 +12,8 @@ logs/
 *.db
 *.db-journal
 karaoke_library/
-scripts/
+scripts/*
+!scripts/manage_users.py
 tests/
 .env
 .env.*

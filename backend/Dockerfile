@@ -20,8 +20,9 @@ WORKDIR /app/backend
 # Install heavy/stable dependencies first (these rarely change)
 # This layer gets cached and won't rebuild when requirements.txt changes
 RUN pip install --no-cache-dir \
-    "torch>=2.0.0" \
-    "torchaudio>=2.2.0" \
+    torch torchaudio \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    && pip install --no-cache-dir \
     "numpy<2.0.0" \
     librosa \
     soundfile

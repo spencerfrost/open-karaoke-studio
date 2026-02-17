@@ -12,6 +12,7 @@ pydantic>=2.11.3
 yt-dlp
 celery[redis]>=5.0.0,<6.0
 python-dotenv
+python-jose[cryptography]>=3.3.0
 requests
 sqlalchemy
 psycopg2-binary>=2.9.0
