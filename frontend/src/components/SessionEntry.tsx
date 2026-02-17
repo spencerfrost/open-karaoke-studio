@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Camera, Keyboard, LogOut } from "lucide-react";
+import { LoginForm } from "@/components/auth/LoginForm";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("component:session-entry");
@@ -34,6 +36,8 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     return localStorage.getItem("karaokeDisplayName") || "";
   });
 
+  const [showHostLogin, setShowHostLogin] = useState(false);
+
   const {
     sessionId,
     isConnecting,
@@ -42,6 +46,8 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     joinSession,
     clearSession,
   } = useSessionStore();
+
+  const { isAuthenticated, user, logout } = useAuthStore();
 
   const codeFromUrl = searchParams.get("code")?.toUpperCase().slice(0, 4);
 
@@ -54,10 +60,17 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
 
   // Auto-join when code is in the URL and user has a saved display name
   useEffect(() => {
-    if (codeFromUrl?.length === 4 && displayName.trim() && !sessionId && !isConnecting) {
+    if (
+      codeFromUrl?.length === 4 &&
+      displayName.trim() &&
+      !sessionId &&
+      !isConnecting
+    ) {
       logger.info("Auto-joining session from QR code", { code: codeFromUrl });
       joinSession(codeFromUrl, "performer", displayName.trim())
-        .then(() => localStorage.setItem("karaokeDisplayName", displayName.trim()))
+        .then(() =>
+          localStorage.setItem("karaokeDisplayName", displayName.trim()),
+        )
         .catch((error) => {
           logger.error("Auto-join failed:", error);
           toast.error("Failed to join session. Please try manually.");
@@ -73,11 +86,25 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
   }
 
   const handleCreateSession = async () => {
+    if (!isAuthenticated) {
+      setShowHostLogin(true);
+      return;
+    }
+
     try {
-      // Creating a session implies host role (stage), no display name needed
       await createSession("stage");
     } catch (error) {
       logger.error("Failed to create session:", error);
+      toast.error("Failed to create session. Please try again.");
+    }
+  };
+
+  const handleLoginSuccess = async () => {
+    setShowHostLogin(false);
+    try {
+      await createSession("stage");
+    } catch (error) {
+      logger.error("Failed to create session after login:", error);
       toast.error("Failed to create session. Please try again.");
     }
   };
@@ -128,42 +155,77 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Join Karaoke Session</CardTitle>
-            <CardDescription>Enter a 4-character session code</CardDescription>
+            <CardDescription>
+              Scan the QR code on the stage screen to join
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="sessionCode">Session Code</Label>
-              <Input
-                id="sessionCode"
-                type="text"
-                value={sessionCode}
-                onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                placeholder="ABCD"
-                maxLength={4}
-                className="uppercase text-center text-lg tracking-widest"
-              />
+            {/* QR Code - Primary */}
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="rounded-full bg-orange-peel/10 p-6">
+                <Camera className="h-12 w-12 text-orange-peel" />
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Point your phone's camera at the QR code displayed on the stage
+                screen
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Your Name</Label>
-              <Input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Enter your name"
-                maxLength={50}
-              />
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  or enter code manually
+                </span>
+              </div>
             </div>
-            <Button
-              onClick={handleJoinSession}
-              disabled={
-                isConnecting || sessionCode.length !== 4 || !displayName.trim()
-              }
-              variant="accent"
-              className="w-full"
-            >
-              {isConnecting ? "Joining..." : "Join Session"}
-            </Button>
+
+            {/* Session Code - Secondary */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sessionCode">Session Code</Label>
+                <div className="relative">
+                  <Keyboard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="sessionCode"
+                    type="text"
+                    value={sessionCode}
+                    onChange={(e) =>
+                      setSessionCode(e.target.value.toUpperCase())
+                    }
+                    placeholder="ABCD"
+                    maxLength={4}
+                    className="uppercase text-center text-lg tracking-widest pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="displayName">Your Name</Label>
+                <Input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your name"
+                  maxLength={50}
+                />
+              </div>
+              <Button
+                onClick={handleJoinSession}
+                disabled={
+                  isConnecting ||
+                  sessionCode.length !== 4 ||
+                  !displayName.trim()
+                }
+                variant="accent"
+                className="w-full"
+              >
+                {isConnecting ? "Joining..." : "Join Session"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -171,17 +233,36 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Create New Session</CardTitle>
-            <CardDescription>Start a new karaoke session</CardDescription>
+            <CardDescription>
+              {isAuthenticated
+                ? `Logged in as ${user?.displayName || "Host"}`
+                : "Host login required to create a session"}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button
-              onClick={handleCreateSession}
-              disabled={isConnecting}
-              variant="primary"
-              className="w-full"
-            >
-              {isConnecting ? "Creating..." : "Create Session as Host"}
-            </Button>
+          <CardContent className="space-y-4">
+            {showHostLogin && !isAuthenticated ? (
+              <LoginForm onSuccess={handleLoginSuccess} />
+            ) : (
+              <Button
+                onClick={handleCreateSession}
+                disabled={isConnecting}
+                variant="primary"
+                className="w-full"
+              >
+                {isConnecting ? "Creating..." : "Create Session as Host"}
+              </Button>
+            )}
+            {isAuthenticated && (
+              <Button
+                onClick={logout}
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+              >
+                <LogOut className="h-3 w-3 mr-1" />
+                Log out
+              </Button>
+            )}
           </CardContent>
         </Card>
 
