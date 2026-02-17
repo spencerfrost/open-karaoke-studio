@@ -28,6 +28,7 @@ Cons: Longest processing time (3 model passes)
 import logging
 import shutil
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
@@ -330,6 +331,12 @@ def separate_with_clean_backing(
             song_dir
         ).with_suffix(".mp3")
 
+        # Start BPM detection in background — runs while MP3 conversions execute
+        _bpm_log = lambda msg: logger.debug("BPM: %s", msg)
+        bpm_executor = ThreadPoolExecutor(max_workers=1)
+        bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
+        logger.info("BPM detection started in background thread")
+
         # Convert lead vocals (from Roformer)
         status_callback("Progress: 80% - Converting vocals to MP3...")
         lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
@@ -351,8 +358,17 @@ def separate_with_clean_backing(
         logger.info("Final instrumental saved to: %s", instrumental_final)
         status_callback("Progress: 85% - Step 5/5 complete")
 
-        # Detect BPM from original audio
-        detected_bpm = detect_bpm(input_path, status_callback)
+        # Collect BPM result (started before MP3 conversion, should already be done)
+        try:
+            detected_bpm = bpm_future.result(timeout=30)
+            logger.info("BPM detection complete: %s BPM", detected_bpm)
+            if detected_bpm:
+                status_callback(f"BPM detected: {detected_bpm}")
+        except Exception as e:
+            logger.warning("BPM detection failed or timed out: %s", e)
+            detected_bpm = None
+        finally:
+            bpm_executor.shutdown(wait=False)
 
         # Clean up temp directory
         status_callback("Cleaning up temporary files...")

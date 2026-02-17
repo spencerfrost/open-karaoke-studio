@@ -5,6 +5,7 @@ Celery task definitions for audio processing
 import shutil
 import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -177,11 +178,9 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         is_milestone = progress in [0, 5, 25, 50, 75, 90, 100]
         should_save = progress_diff >= 5 or is_milestone
 
-        # Update database with throttling
-        job_repository.update(job, skip_events=not should_save)
-
-        # Update our tracking variable only when we actually save
+        # Update database only on milestones — skip entirely otherwise
         if should_save:
+            job_repository.update(job)
             update_progress._last_saved_progress = progress
 
         if hasattr(self, "update_state"):
@@ -294,6 +293,17 @@ def cleanup_old_jobs(self):
     # Implement cleanup logic here
 
 
+def _fetch_thumbnail_safe(youtube_service, video_id: str, song_id: str) -> Optional[str]:
+    """Fetch thumbnail in a background thread. Returns URL on success, None on failure."""
+    try:
+        url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
+        logger.info("Background thumbnail download complete for video %s", video_id)
+        return url
+    except Exception as e:
+        logger.warning("Background thumbnail download failed for %s: %s", video_id, e)
+        return None
+
+
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
 def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_track"):
     """
@@ -373,10 +383,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         is_milestone = progress in [0, 5, 25, 30, 35, 40, 50, 60, 70, 75, 80, 85, 90, 95, 100]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
-        # Always save for important statuses or initial creation
-        if status or should_save:
-            job_repository.update(job, skip_events=not should_save)
-            # Update our tracking variables
+        # Update database only on milestones or status changes — skip entirely otherwise
+        if should_save:
+            job_repository.update(job)
             update_progress._last_saved_progress = progress
             update_progress._last_saved_status = job.status
 
@@ -393,6 +402,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         # Only log major progress milestones to reduce noise
         if progress % 25 == 0 or progress >= 95:
             logger.info("Job %s: %s%% - %s", job_id, progress, message)
+
+    thumbnail_executor = None
+    thumbnail_future = None
 
     try:
         # Phase 1: Download (5-30% progress)
@@ -423,6 +435,13 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         update_progress(
             30, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING
         )
+
+        # Start thumbnail download in background — overlaps with audio separation (pure I/O)
+        thumbnail_executor = ThreadPoolExecutor(max_workers=1)
+        thumbnail_future = thumbnail_executor.submit(
+            _fetch_thumbnail_safe, youtube_service, video_id, song_id
+        )
+        logger.info("Background thumbnail download started for video %s", video_id)
 
         # Phase 2: Audio Processing (30-90% progress)
         original_file = song_dir / "original.mp3"
@@ -464,18 +483,19 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         )
 
         # Phase 3: Finalization (90-100% progress)
-        update_progress(93, "Downloading thumbnail")
-
-        # Phase 3A: Download thumbnail (separate from stepper-sensitive operations)
+        # Phase 3A: Collect thumbnail result (started during audio separation)
+        update_progress(93, "Collecting thumbnail")
         try:
-            thumbnail_url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
+            thumbnail_url = thumbnail_future.result(timeout=10) if thumbnail_future else None
+            thumbnail_executor.shutdown(wait=False)
             if thumbnail_url:
                 update_progress(95, "Thumbnail download complete")
             else:
                 update_progress(95, "Thumbnail download failed, continuing")
         except Exception as e:
-            # Thumbnail failures should not break the job
-            logger.warning("Thumbnail download failed for %s: %s", video_id, e)
+            logger.warning("Thumbnail collection failed for %s: %s", video_id, e)
+            if thumbnail_executor:
+                thumbnail_executor.shutdown(wait=False)
             update_progress(95, "Thumbnail download failed, continuing")
 
         update_progress(99, "Finalizing processing")
@@ -529,6 +549,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         }
 
     except audio.StopProcessingError:
+        if thumbnail_executor is not None:
+            thumbnail_executor.shutdown(wait=False)
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
@@ -540,6 +562,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
+        if thumbnail_executor is not None:
+            thumbnail_executor.shutdown(wait=False)
         error_message = str(e)
         logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()

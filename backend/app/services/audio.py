@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -412,6 +413,13 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         )
         vocals_path, instrumental_path = get_output_paths(song_dir, output_extension)
         vocals_tensor = separated.get("vocals")
+
+        # Start BPM detection in background — runs while stems are saved
+        _bpm_log = lambda msg: logger.debug("BPM: %s", msg)
+        bpm_executor = ThreadPoolExecutor(max_workers=1)
+        bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
+        logger.info("BPM detection started in background thread")
+
         if vocals_tensor is not None:
             save_stem(
                 vocals_tensor,
@@ -438,8 +446,15 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             logger,
         )
 
-        # Detect BPM after instrumental is saved (use instrumental for cleaner detection)
-        detected_bpm = detect_bpm(input_path, status_callback, instrumental_path)
+        # Collect BPM result (started before stem saves, should already be done)
+        try:
+            detected_bpm = bpm_future.result(timeout=30)
+            logger.info("BPM detection complete: %s BPM", detected_bpm)
+        except Exception as e:
+            logger.warning("BPM detection failed or timed out: %s", e)
+            detected_bpm = None
+        finally:
+            bpm_executor.shutdown(wait=False)
         complete_msg = f"Processing complete for {input_path.name}!"
         logger.info(complete_msg)
         status_callback(complete_msg)
