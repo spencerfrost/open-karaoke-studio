@@ -20,8 +20,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
+from app.api.dependencies import get_current_user
 from app.db.database import SessionLocal
-from app.db.models import KaraokeSession, SessionDevice
+from app.db.models import KaraokeSession, SessionDevice, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -124,6 +125,7 @@ async def create_session(
     session_data: SessionCreateRequest,
     user_agent: Optional[str] = Header(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create a new karaoke session.

@@ -28,9 +28,11 @@ from app.api.validators import (
     validate_direction,
     validate_sort_field,
 )
+from app.api.dependencies import get_current_user
 from app.config import get_config
 from app.db.database import SessionLocal
 from app.db.models.song import DbSong
+from app.db.models.user import User
 from app.repositories.lyrics_repository import LyricsRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
@@ -468,7 +470,11 @@ async def update_song(
 
 
 @router.delete("/{song_id}")
-async def delete_song(song_id: str, db: Session = Depends(get_db)):
+async def delete_song(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Delete a song by its ID.
     """
@@ -608,7 +614,10 @@ async def download_song_track(
 
 @router.post("/{song_id}/reprocess", status_code=202)
 async def reprocess_song(
-    song_id: str, request: SongReprocessRequest, db: Session = Depends(get_db)
+    song_id: str,
+    request: SongReprocessRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Re-process a song's audio with a different separation engine.
@@ -706,7 +715,10 @@ async def reprocess_song(
 
 
 @router.post("/reprocess-all", status_code=202)
-async def reprocess_all_songs(db: Session = Depends(get_db)):
+async def reprocess_all_songs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Reprocess all songs that haven't been processed with the three_track engine.
 

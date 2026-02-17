@@ -14,7 +14,7 @@ from typing import Generator, List, Optional
 
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -24,9 +24,9 @@ from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/karaoke-queue", tags=["queue"])
 
-# Initialize the WebSocket connection manager
-# This is a lightweight, in-memory manager, so creating an instance is fine.
-manager = SessionConnectionManager()
+def get_session_manager(request: Request) -> SessionConnectionManager:
+    """Get the shared SessionConnectionManager from app state."""
+    return request.app.state.session_manager
 
 # ============================================================================
 # Pydantic Models
@@ -182,6 +182,7 @@ async def add_to_queue(
     queue_data: QueueAddRequest,
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
 ):
     """
     Add a new item to the karaoke queue.
@@ -246,6 +247,7 @@ async def remove_from_queue(
     item_id: int,
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
 ):
     """
     Remove an item from the karaoke queue.
@@ -289,6 +291,7 @@ async def reorder_queue(
     reorder_data: QueueReorderRequest,
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
 ):
     """
     Reorder the karaoke queue.
@@ -318,6 +321,7 @@ async def play_queue_item(
     item_id: int,
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
 ):
     """
     Play a specific item from the queue (moves it to the player).
