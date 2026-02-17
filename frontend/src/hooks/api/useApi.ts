@@ -5,13 +5,21 @@ import {
   UseMutationOptions,
 } from "@tanstack/react-query";
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("hook:api");
+
+/** Get Authorization header if a token is available. */
+function getAuthHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
-    credentials: "include", // Added credentials
+    headers: { ...getAuthHeaders() },
+    credentials: "include",
   });
   if (!response.ok) {
     let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -44,12 +52,13 @@ const apiSend = async <T, V>(
   data: V | null = null,
 ): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
-    method: method.toUpperCase(), // Ensure method is uppercase
+    method: method.toUpperCase(),
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: data ? JSON.stringify(data) : null,
-    credentials: "include", // Added credentials
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -163,6 +172,7 @@ export const uploadFile = async <T>(
 
   const response = await fetch(`/api/${url}`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
 

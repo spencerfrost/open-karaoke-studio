@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "./authStore";
 
 const logger = createLogger("store:session");
 
@@ -87,9 +88,18 @@ export const useSessionStore = create<SessionState>()(
         set({ isConnecting: true, connectionError: null });
 
         try {
+          // Get auth token for the request
+          const token = useAuthStore.getState().token;
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           const response = await fetch("/api/sessions", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
               device_type: deviceType,
               display_name: displayName,
