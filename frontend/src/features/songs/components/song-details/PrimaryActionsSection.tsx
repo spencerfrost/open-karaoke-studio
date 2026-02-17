@@ -11,6 +11,7 @@ import {
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";
 import { toast } from "sonner";
+import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 import { createLogger } from "@/lib/logger";
 
@@ -88,6 +89,10 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
         songId: song.id,
         singer: "Unknown Singer", // TODO: Get from user preferences or input
       });
+      queryClient.invalidateQueries({
+        queryKey: ["karaoke-queue"],
+      });
+      sessionWebSocketService.notifyQueueChanged();
     } catch (error) {
       logger.error("Failed to add song to queue:", error);
       toast.error("Failed to add song to queue");
