@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.db import SessionLocal
 from app.db.models import User
+from app.services.auth_service import create_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ class LoginResponse(BaseModel):
     success: bool
     id: str
     display_name: Optional[str] = None
+    token: str
+    is_admin: bool = False
 
 
 class UpdateResponse(BaseModel):
@@ -114,19 +117,21 @@ async def login_user(request: LoginUserRequest):
                 detail="Invalid username or password"
             )
         
-        # Check password if user has one set
-        has_password = getattr(user, "password_hash", None)
-        if has_password:
-            if not request.password or not user.check_password(request.password):
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid username or password"
-                )
+        # Password is required for login
+        if not request.password or not user.check_password(request.password):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid username or password"
+            )
+
+        token = create_access_token(user)
 
         return LoginResponse(
             success=True,
             id=str(user.id),
-            display_name=user.display_name
+            display_name=user.display_name,
+            token=token,
+            is_admin=user.is_admin,
         )
         
     except HTTPException:
