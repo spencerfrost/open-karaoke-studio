@@ -1,5 +1,9 @@
 import React from "react";
-import { SongCard } from "@/features/songs/components/song-card";
+import {
+  SongCard,
+  PerformerSongCard,
+} from "@/features/songs/components/song-card";
+import { useSessionStore } from "@/stores/sessionStore";
 import { Song } from "@/types/Song";
 
 interface AnimatedSongGridProps {
@@ -20,6 +24,9 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
   displayPage,
   sessionId,
 }) => {
+  const { isHost } = useSessionStore();
+  const CardComponent = isHost ? SongCard : PerformerSongCard;
+
   return (
     <div className="relative overflow-hidden">
       {/* Current page content - slides out to the left */}
@@ -31,7 +38,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
         }`}
       >
         {currentPageSongs.map((song: Song) => (
-          <SongCard
+          <CardComponent
             key={`${song.id}-${displayPage}`}
             song={song}
             sessionId={sessionId}
@@ -49,7 +56,7 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
           }`}
         >
           {nextPageSongs.map((song: Song) => (
-            <SongCard
+            <CardComponent
               key={`${song.id}-${displayPage + 1}`}
               song={song}
               sessionId={sessionId}

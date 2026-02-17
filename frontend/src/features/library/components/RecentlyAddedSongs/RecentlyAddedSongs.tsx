@@ -1,6 +1,10 @@
 import React from "react";
 import { Song } from "@/types/Song";
-import { SongCard } from "@/features/songs/components/song-card";
+import {
+  SongCard,
+  PerformerSongCard,
+} from "@/features/songs/components/song-card";
+import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
@@ -17,6 +21,8 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   maxSongs = 48,
   animated = true,
 }) => {
+  const { isHost } = useSessionStore();
+  const CardComponent = isHost ? SongCard : PerformerSongCard;
   const { useSongs } = useSongsHook();
   const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,
@@ -109,7 +115,10 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
                 >
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {pageSongs.map((song: Song) => (
-                      <SongCard key={`${song.id}-${pageIndex}`} song={song} />
+                      <CardComponent
+                        key={`${song.id}-${pageIndex}`}
+                        song={song}
+                      />
                     ))}
                   </div>
                 </div>
@@ -121,7 +130,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
         /* Simple Paginated Grid */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {currentPageSongs.map((song: Song) => (
-            <SongCard key={song.id} song={song} />
+            <CardComponent key={song.id} song={song} />
           ))}
         </div>
       )}

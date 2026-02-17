@@ -1,7 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Song } from "@/types/Song";
-import { SongCard } from "@/features/songs/components/song-card";
+import {
+  SongCard,
+  PerformerSongCard,
+} from "@/features/songs/components/song-card";
+import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { Loader2, Youtube } from "lucide-react";
 import { BrowseArtistCard } from "./BrowseArtistCard";
@@ -24,6 +28,8 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   artistName,
 }) => {
   const navigate = useNavigate();
+  const { isHost } = useSessionStore();
+  const CardComponent = isHost ? SongCard : PerformerSongCard;
 
   if (songs.length === 0 && searchTerm) {
     return (
@@ -53,7 +59,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
       {/* Song Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {songs.filter(Boolean).map((song) => (
-          <SongCard key={song.id} song={song} />
+          <CardComponent key={song.id} song={song} />
         ))}
         {artistName && <BrowseArtistCard artistName={artistName} />}
       </div>
