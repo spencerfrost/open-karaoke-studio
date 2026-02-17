@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { PlayerUIHook } from "../KaraokePlayer.types";
+import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 
 export const usePlayerUI = (): PlayerUIHook => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,6 +153,14 @@ export const usePlayerUI = (): PlayerUIHook => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isFullscreen]);
+
+  // Listen for remote fullscreen commands from performer devices
+  useEffect(() => {
+    const cleanup = sessionWebSocketService.on("toggle_fullscreen", () => {
+      toggleFullscreen();
+    });
+    return cleanup;
+  }, [toggleFullscreen]);
 
   // Focus management
   const focusPlayer = useCallback(() => {

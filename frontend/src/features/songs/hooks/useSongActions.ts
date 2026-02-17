@@ -8,6 +8,7 @@ import {
 import { useSessionStore } from "@/stores/sessionStore";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
+import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:song-actions");
@@ -85,10 +86,10 @@ export const useSongActions = (
       { songId: song.id, singer: singerName },
       {
         onSuccess: () => {
-          // If we joined a session, we might want to refresh session info
-          if (sessionCode) {
-            // Could add session refresh logic here if needed
-          }
+          queryClient.invalidateQueries({
+            queryKey: ["karaoke-queue"],
+          });
+          sessionWebSocketService.notifyQueueChanged();
         },
       },
     );

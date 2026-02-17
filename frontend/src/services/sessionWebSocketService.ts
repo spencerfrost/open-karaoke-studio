@@ -65,6 +65,9 @@ interface SessionWebSocketEvents {
   // Queue events
   queue_joined: (data: { room: string }) => void;
   queue_updated: (data: { items?: QueueItem[]; trigger?: string }) => void;
+
+  // UI control events (performer → host)
+  toggle_fullscreen: () => void;
 }
 
 type EventData =
@@ -389,6 +392,13 @@ class SessionWebSocketService {
    */
   notifyQueueChanged() {
     this.send({ type: "queue_changed" });
+  }
+
+  /**
+   * Tell the host device to toggle fullscreen
+   */
+  toggleFullscreen() {
+    this.send({ type: "toggle_fullscreen" });
   }
 
   /**
