@@ -279,6 +279,14 @@ async def websocket_unified_session_endpoint(
                         json.dumps({"type": "queue_updated", "items": queue_data})
                     )
 
+            elif message_type == "toggle_fullscreen":
+                # Broadcast fullscreen toggle to all other devices in session (host will act on it)
+                await manager.broadcast_to_room(
+                    session_room,
+                    {"type": "toggle_fullscreen"},
+                    exclude=websocket,
+                )
+
             elif message_type == "queue_changed":
                 # Broadcast queue changes to all devices in session
                 await manager.broadcast_to_room(
