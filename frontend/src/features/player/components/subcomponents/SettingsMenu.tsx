@@ -4,7 +4,7 @@
  * Non-modal to allow interaction with rest of player while open
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,22 @@ interface SettingsMenuProps {
 export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewStack, setViewStack] = useState<MenuView[]>(["main"]);
+  const [fsContainer, setFsContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    // Initialize from current state in case we mounted while already in fullscreen
+    setFsContainer((document.fullscreenElement as HTMLElement) ?? null);
+
+    const handleFullscreenChange = () => {
+      setFsContainer((document.fullscreenElement as HTMLElement) ?? null);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   const currentView = viewStack[viewStack.length - 1];
 
@@ -109,6 +125,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
         side="top"
         sideOffset={16}
         className="w-80 p-0 border-none bg-transparent shadow-none overflow-visible"
+        container={fsContainer}
       >
         <motion.div
           layout
