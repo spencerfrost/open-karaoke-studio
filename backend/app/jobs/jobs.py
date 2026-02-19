@@ -15,6 +15,7 @@ from app.db.models import JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio, file_management
 from app.services.audio import create_audio_progress_mapper
+from app.services.chord_detection_service import detect_chords
 from app.services.separation_engines import (
     separate_with_clean_backing,
     separate_with_demucs,
@@ -233,7 +234,19 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Update song with engine_type and BPM if detected
+        # Detect chords from instrumental track
+        try:
+            instrumental_path = song_dir / "instrumental.mp3"
+            chord_data = (
+                detect_chords(str(instrumental_path))
+                if instrumental_path.exists()
+                else None
+            )
+        except Exception as e:
+            logger.warning("Chord detection failed for job %s: %s", job_id, e)
+            chord_data = None
+
+        # Update song with engine_type, BPM, and chords
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
 
@@ -242,6 +255,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             update_kwargs = {"engine_type": engine_type}
             if detected_bpm is not None:
                 update_kwargs["bpm"] = detected_bpm
+            if chord_data is not None:
+                update_kwargs["chords_data"] = chord_data
             repo.update(song_id, **update_kwargs)
 
         job.status = JobStatus.COMPLETED
@@ -293,7 +308,9 @@ def cleanup_old_jobs(self):
     # Implement cleanup logic here
 
 
-def _fetch_thumbnail_safe(youtube_service, video_id: str, song_id: str) -> Optional[str]:
+def _fetch_thumbnail_safe(
+    youtube_service, video_id: str, song_id: str
+) -> Optional[str]:
     """Fetch thumbnail in a background thread. Returns URL on success, None on failure."""
     try:
         url = youtube_service.fetch_and_save_thumbnail(video_id, song_id)
@@ -380,7 +397,23 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         progress_diff = abs(progress - last_saved_progress)
         status_changed = status and status != last_saved_status
         # Updated milestones to include more checkpoints during audio processing (30-90% range)
-        is_milestone = progress in [0, 5, 25, 30, 35, 40, 50, 60, 70, 75, 80, 85, 90, 95, 100]
+        is_milestone = progress in [
+            0,
+            5,
+            25,
+            30,
+            35,
+            40,
+            50,
+            60,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+        ]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
         # Update database only on milestones or status changes — skip entirely otherwise
@@ -433,7 +466,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         )
 
         update_progress(
-            30, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING
+            30,
+            f"Download complete, preparing {engine_type} engine",
+            JobStatus.PROCESSING,
         )
 
         # Start thumbnail download in background — overlaps with audio separation (pure I/O)
@@ -464,7 +499,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             engine_type=engine_type,
             base_start=35,
             base_end=85,
-            update_fn=lambda prog, msg: update_progress(prog, f"Audio processing: {msg}")
+            update_fn=lambda prog, msg: update_progress(
+                prog, f"Audio processing: {msg}"
+            ),
         )
 
         # Separate audio using the selected engine
@@ -479,14 +516,34 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             raise AudioProcessingError("Audio separation failed")
 
         update_progress(
-            85, f"{engine_type.title()} processing complete, finalizing", JobStatus.FINALIZING
+            85,
+            f"{engine_type.title()} processing complete, finalizing",
+            JobStatus.FINALIZING,
         )
+
+        # Phase 2B: Chord detection from instrumental track
+        chord_data = None
+        try:
+            instrumental_file = song_dir / "instrumental.mp3"
+            if instrumental_file.exists():
+                update_progress(88, "Detecting chords")
+                chord_data = detect_chords(str(instrumental_file))
+                if chord_data:
+                    logger.info(
+                        "Detected %d chord changes for song %s",
+                        len(chord_data),
+                        song_id,
+                    )
+        except Exception as e:
+            logger.warning("Chord detection failed for song %s: %s", song_id, e)
 
         # Phase 3: Finalization (90-100% progress)
         # Phase 3A: Collect thumbnail result (started during audio separation)
         update_progress(93, "Collecting thumbnail")
         try:
-            thumbnail_url = thumbnail_future.result(timeout=10) if thumbnail_future else None
+            thumbnail_url = (
+                thumbnail_future.result(timeout=10) if thumbnail_future else None
+            )
             thumbnail_executor.shutdown(wait=False)
             if thumbnail_url:
                 update_progress(95, "Thumbnail download complete")
@@ -518,11 +575,15 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                     }
                     if detected_bpm is not None:
                         update_fields["bpm"] = detected_bpm
+                    if chord_data is not None:
+                        update_fields["chords_data"] = chord_data
                     updated_song = repo.update(song_id, **update_fields)
                     success = updated_song is not None
 
                 if not success:
-                    logger.warning("Failed to update song metadata for song %s", song_id)
+                    logger.warning(
+                        "Failed to update song metadata for song %s", song_id
+                    )
             else:
                 logger.warning(
                     "Audio files not found after processing for song %s", song_id

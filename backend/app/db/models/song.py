@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import relationship
 
 from .base import UNKNOWN_ARTIST, Base
@@ -24,13 +25,13 @@ class DbSong(Base):
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
     video_id = Column(String, nullable=True)
-    
+
     # Core metadata
     album = Column(String, nullable=True)
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     genre = Column(String, nullable=True)
-    
+
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
@@ -38,15 +39,20 @@ class DbSong(Base):
     # iTunes metadata
     itunes_track_id = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
-    itunes_preview_url = Column(String, nullable=True)  # 30-sec preview for "what's this song?"
+    itunes_preview_url = Column(
+        String, nullable=True
+    )  # 30-sec preview for "what's this song?"
     itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
 
     # YouTube thumbnail URLs (fallback for artwork)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
 
     # Processing metadata
-    engine_type = Column(String, nullable=True)  # Separation engine used (demucs, roformer, hybrid, clean_backing)
+    engine_type = Column(
+        String, nullable=True
+    )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
     bpm = Column(Float, nullable=True)  # Beats per minute for count-in timing
+    chords_data = Column(JSON, nullable=True)  # Chord detection data
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
@@ -121,4 +127,5 @@ class DbSong(Base):
             # Processing metadata
             "engineType": self.engine_type,
             "bpm": self.bpm,
+            "chordsData": self.chords_data,
         }

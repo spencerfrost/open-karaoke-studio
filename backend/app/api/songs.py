@@ -19,6 +19,7 @@ import uuid
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
+from app.api.dependencies import get_current_user
 from app.api.validators import (
     CAMEL_TO_SNAKE_CASE,
     VALID_ARTIST_SORT_FIELDS,
@@ -28,7 +29,6 @@ from app.api.validators import (
     validate_direction,
     validate_sort_field,
 )
-from app.api.dependencies import get_current_user
 from app.config import get_config
 from app.db.database import SessionLocal
 from app.db.models.song import DbSong
@@ -61,6 +61,7 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 # Dependencies
 # ============================================================================
 
+
 def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
@@ -78,9 +79,12 @@ def get_db() -> Generator[Session, None, None]:
 # Endpoints
 # ============================================================================
 
+
 @router.get("", response_model=List[SongResponse])
 async def get_songs(
-    limit: Optional[int] = Query(None, ge=1, le=500, description="Maximum number of songs to return"),
+    limit: Optional[int] = Query(
+        None, ge=1, le=500, description="Maximum number of songs to return"
+    ),
     offset: int = Query(0, ge=0, description="Number of songs to skip"),
     sort_by: str = Query("date_added", description="Field to sort by"),
     direction: str = Query("desc", description="Sort direction (asc or desc)"),
@@ -88,7 +92,7 @@ async def get_songs(
 ):
     """
     Get all songs with optional pagination and sorting.
-    
+
     - **limit**: Maximum number of songs to return (default: all)
     - **offset**: Number of songs to skip for pagination
     - **sort_by**: Field to sort by (date_added, title, artist, album, year)
@@ -112,7 +116,9 @@ async def get_songs(
 
     except Exception as e:
         logger.error(f"Error retrieving songs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve songs: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve songs: {str(e)}"
+        )
 
 
 @router.get("/search", response_model=SongSearchResponse | ArtistSearchResponse)
@@ -139,7 +145,9 @@ async def search_songs(
     if not query:
         return SongSearchResponse(
             songs=[],
-            pagination=PaginationInfo(total=0, limit=limit, offset=offset, hasMore=False),
+            pagination=PaginationInfo(
+                total=0, limit=limit, offset=offset, hasMore=False
+            ),
         )
 
     # Validate direction
@@ -226,7 +234,7 @@ async def get_artists(
 ):
     """
     Get a list of all unique artists with their song counts.
-    
+
     - **search**: Optional search term to filter artists
     - **limit**: Maximum number of artists to return (default: all)
     - **offset**: Number of artists to skip for pagination
@@ -274,7 +282,9 @@ async def get_artists(
 @router.get("/by-artist/{artist_name}")
 async def get_songs_by_artist(
     artist_name: str,
-    limit: int = Query(20, ge=1, le=500, description="Maximum number of songs to return"),
+    limit: int = Query(
+        20, ge=1, le=500, description="Maximum number of songs to return"
+    ),
     offset: int = Query(0, ge=0, description="Number of songs to skip"),
     sort: str = Query("title", description="Sort field: title, album, year, dateAdded"),
     direction: str = Query("asc", description="Sort direction: asc or desc"),
@@ -282,7 +292,7 @@ async def get_songs_by_artist(
 ):
     """
     Get songs for a specific artist with pagination.
-    
+
     - **artist_name**: The artist name (URL-encoded)
     - **limit**: Maximum number of songs to return (1-100)
     - **offset**: Number of songs to skip
@@ -300,20 +310,20 @@ async def get_songs_by_artist(
         )
     db_sort_field = CAMEL_TO_SNAKE_CASE.get(sort, sort)
     direction = validate_direction(direction, raise_on_invalid=True)
-    
+
     try:
         base_query = db.query(DbSong).filter(DbSong.artist == artist_name)
-        
+
         # Apply sorting
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
         if direction.lower() == "desc":
             base_query = base_query.order_by(sort_column.desc())
         else:
             base_query = base_query.order_by(sort_column.asc())
-        
+
         total_count = base_query.count()
         songs = base_query.offset(offset).limit(limit).all()
-        
+
         return {
             "songs": [song.to_dict() for song in songs],
             "artist": artist_name,
@@ -324,14 +334,46 @@ async def get_songs_by_artist(
                 "hasMore": offset + limit < total_count,
             },
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching songs for artist '{artist_name}': {e}", exc_info=True)
+        logger.error(
+            f"Error fetching songs for artist '{artist_name}': {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get songs for artist: {str(e)}",
+        )
+
+
+@router.get("/{song_id}/chords")
+async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
+    """
+    Get chord detection data for a song.
+
+    Returns timestamped chord progression as a JSON array.
+    """
+    try:
+        repo = SongRepository(db)
+        db_song = repo.fetch(song_id)
+
+        if not db_song:
+            raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+        if db_song.chords_data is None:
+            raise HTTPException(
+                status_code=404, detail="No chord data available for this song"
+            )
+
+        return db_song.chords_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching chords for song {song_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get chord data: {str(e)}"
         )
 
 
@@ -355,7 +397,9 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error fetching song details: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get song details: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get song details: {str(e)}"
+        )
 
 
 @router.post("", response_model=SongResponse, status_code=201)
@@ -550,7 +594,9 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error serving thumbnail: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get thumbnail: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get thumbnail: {str(e)}"
+        )
 
 
 @router.get("/{song_id}/download/{track_type}")
@@ -559,7 +605,7 @@ async def download_song_track(
 ):
     """
     Download a specific audio track for a song.
-    
+
     - **track_type**: Type of track to download (vocals, instrumental, original)
     """
     logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
@@ -609,7 +655,9 @@ async def download_song_track(
         raise
     except Exception as e:
         logger.error(f"Error downloading track: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to download track: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to download track: {str(e)}"
+        )
 
 
 @router.post("/{song_id}/reprocess", status_code=202)
@@ -624,7 +672,7 @@ async def reprocess_song(
 
     Creates a background job to reprocess the audio.
     Returns immediately with a job ID for tracking progress.
-    
+
     - **song_id**: The song ID to reprocess
     - **engine_type**: Separation engine to use (demucs, roformer, hybrid, clean_backing)
     """
@@ -634,7 +682,9 @@ async def reprocess_song(
     from app.db.models import Job, JobStatus
     from app.repositories import JobRepository
 
-    logger.info(f"Reprocess request for song {song_id} with engine {request.engine_type}")
+    logger.info(
+        f"Reprocess request for song {song_id} with engine {request.engine_type}"
+    )
 
     try:
         # 1. Verify song exists
@@ -796,9 +846,7 @@ async def reprocess_all_songs(
 
         jobs_created += 1
 
-    logger.info(
-        f"Reprocess-all: {jobs_created} jobs created, {skipped} skipped"
-    )
+    logger.info(f"Reprocess-all: {jobs_created} jobs created, {skipped} skipped")
 
     return {
         "jobsCreated": jobs_created,

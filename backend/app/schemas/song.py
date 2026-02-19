@@ -1,6 +1,7 @@
 """
 Pydantic Schemas for Song objects.
 """
+
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 # ============================================================================
 # Pydantic Models for Songs
 # ============================================================================
+
 
 class SongResponse(BaseModel):
     """Full song response model"""
@@ -41,13 +43,14 @@ class SongResponse(BaseModel):
     itunesExplicit: Optional[bool] = None
     itunesPreviewUrl: Optional[str] = None  # 30-sec preview for song identification
     itunesArtworkUrls: Optional[str] = None  # JSON string
-    
+
     # YouTube thumbnail URLs (fallback for artwork)
     youtubeThumbnailUrls: Optional[str] = None  # JSON string
 
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
     bpm: Optional[float] = None  # Beats per minute for count-in timing
+    chordsData: Optional[list] = None  # Chord detection data
 
     status: str = "processed"
 
@@ -58,13 +61,19 @@ class SongResponse(BaseModel):
 class SongCreateRequest(BaseModel):
     """Request model for creating a new song"""
 
-    id: Optional[str] = Field(None, description="Optional song ID, will be generated if not provided")
+    id: Optional[str] = Field(
+        None, description="Optional song ID, will be generated if not provided"
+    )
     title: str = Field(..., min_length=1, max_length=200, description="Song title")
     artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
-    duration: Optional[float] = Field(None, ge=0, description="Song duration in seconds")
+    duration: Optional[float] = Field(
+        None, ge=0, description="Song duration in seconds"
+    )
     source: Optional[str] = Field(None, max_length=50, description="Source of the song")
-    video_id: Optional[str] = Field(None, max_length=100, description="YouTube video ID")
+    video_id: Optional[str] = Field(
+        None, max_length=100, description="YouTube video ID"
+    )
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
@@ -84,16 +93,22 @@ class SongUpdateRequest(BaseModel):
     genre: Optional[str] = Field(None, max_length=100)
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
-    
+
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    
+
     # iTunes metadata
     itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
-    itunesArtworkUrls: Optional[List[str]] = Field(None, description="iTunes artwork URLs")
-    itunesExplicit: Optional[bool] = Field(None, description="iTunes explicit content flag")
-    itunesPreviewUrl: Optional[str] = Field(None, max_length=500, description="iTunes 30-sec preview URL")
+    itunesArtworkUrls: Optional[List[str]] = Field(
+        None, description="iTunes artwork URLs"
+    )
+    itunesExplicit: Optional[bool] = Field(
+        None, description="iTunes explicit content flag"
+    )
+    itunesPreviewUrl: Optional[str] = Field(
+        None, max_length=500, description="iTunes 30-sec preview URL"
+    )
 
     # Audio analysis
     bpm: Optional[float] = Field(None, ge=30, le=300, description="Beats per minute")
