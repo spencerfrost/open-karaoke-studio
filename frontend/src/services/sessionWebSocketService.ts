@@ -160,6 +160,11 @@ class SessionWebSocketService {
         const data = JSON.parse(event.data);
         logger.debug("Unified session WebSocket received:", data);
 
+        // Hydrate the ephemeral WebSocket device ID from the server's greeting
+        if (data.type === "session_connected" && data.device_id) {
+          this.deviceId = data.device_id;
+        }
+
         // Emit the event to all registered listeners
         this.emit(data.type, data);
       } catch (error) {
@@ -428,7 +433,7 @@ class SessionWebSocketService {
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.currentSessionId = null;
-    this.deviceId = null;
+    this.deviceId = null; // cleared until next session_connected
     this.hostDeviceId = null;
   }
 

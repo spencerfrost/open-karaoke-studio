@@ -66,6 +66,11 @@ const HOST_SESSION_STORAGE_KEY = "karaoke-host-session";
 // Storage key for performer sessions
 const PERFORMER_SESSION_STORAGE_KEY = "karaoke-performer-session";
 
+// Module-level reference to the active session_ended listener cleanup function.
+// Ensures only one listener is registered at a time regardless of how many times
+// createSession/joinSession/recoverSession is called.
+let sessionEndedCleanup: (() => void) | null = null;
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -131,11 +136,11 @@ export const useSessionStore = create<SessionState>()(
             sessionData.device_id,
           );
 
-          // Setup session_ended event handler
-          sessionWebSocketService.on("session_ended", (data) => {
+          // Register session_ended handler (replacing any previous registration)
+          sessionEndedCleanup?.();
+          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
             logger.info("Session ended by host:", data?.reason);
             get().clearSession();
-            // Show toast notification
             if (
               typeof window !== "undefined" &&
               window.location.pathname !== "/"
@@ -210,11 +215,11 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Setup session_ended event handler
-          sessionWebSocketService.on("session_ended", (data) => {
+          // Register session_ended handler (replacing any previous registration)
+          sessionEndedCleanup?.();
+          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
             logger.info("Session ended by host:", data?.reason);
             get().clearSession();
-            // Show toast notification and redirect
             if (
               typeof window !== "undefined" &&
               window.location.pathname !== "/"
@@ -307,8 +312,11 @@ export const useSessionStore = create<SessionState>()(
             return;
           }
 
-          // Get full session info
-          const response = await fetch(`/api/sessions/${sessionId}/info`);
+          // Get full session info, passing device_id so is_host is computed correctly
+          // (host_device_id is a 'rest_xxx' token, not an IP address)
+          const response = await fetch(
+            `/api/sessions/${sessionId}/info?device_id=${encodeURIComponent(deviceId)}`,
+          );
           if (!response.ok) {
             throw new Error(
               `Failed to get session info: ${response.statusText}`,
@@ -341,11 +349,11 @@ export const useSessionStore = create<SessionState>()(
             deviceId,
           );
 
-          // Setup session_ended event handler
-          sessionWebSocketService.on("session_ended", (data) => {
+          // Register session_ended handler (replacing any previous registration)
+          sessionEndedCleanup?.();
+          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
             logger.info("Session ended by host:", data?.reason);
             get().clearSession();
-            // Show toast notification and redirect
             if (
               typeof window !== "undefined" &&
               window.location.pathname !== "/"
@@ -456,11 +464,11 @@ export const useSessionStore = create<SessionState>()(
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Setup session_ended event handler
-          sessionWebSocketService.on("session_ended", (data) => {
+          // Register session_ended handler (replacing any previous registration)
+          sessionEndedCleanup?.();
+          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
             logger.info("Session ended by host:", data?.reason);
             get().clearSession();
-            // Show toast notification and redirect
             if (
               typeof window !== "undefined" &&
               window.location.pathname !== "/"
@@ -534,6 +542,10 @@ export const useSessionStore = create<SessionState>()(
       },
 
       clearSession: () => {
+        // Remove session_ended listener before disconnecting
+        sessionEndedCleanup?.();
+        sessionEndedCleanup = null;
+
         // Disconnect WebSocket services before clearing session
         sessionWebSocketService.disconnect();
 

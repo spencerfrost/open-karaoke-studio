@@ -31,12 +31,9 @@ import {
 
 const logger = createLogger("store:player");
 
-// Extend window interface for cleanup storage
-declare global {
-  interface Window {
-    __playerWebSocketCleanup?: (() => void)[];
-  }
-}
+// Module-private cleanup functions for WebSocket listeners.
+// Stored here instead of on window to avoid global namespace pollution.
+let playerWebSocketCleanups: Array<() => void> = [];
 
 interface KaraokePlayerState {
   // Audio/track info (from playbackState)
@@ -315,7 +312,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         },
       );
 
-      window.__playerWebSocketCleanup = [
+      playerWebSocketCleanups = [
         cleanupPerformanceState,
         cleanupControlUpdated,
         cleanupPlaybackPlay,
@@ -332,12 +329,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
 
     disconnect: () => {
-      if (window.__playerWebSocketCleanup) {
-        window.__playerWebSocketCleanup.forEach((cleanup: () => void) =>
-          cleanup(),
-        );
-        delete window.__playerWebSocketCleanup;
-      }
+      playerWebSocketCleanups.forEach((cleanup) => cleanup());
+      playerWebSocketCleanups = [];
       set({ connected: false });
     },
 

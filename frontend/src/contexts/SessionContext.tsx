@@ -25,7 +25,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   sessionRequired = true,
 }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { isRecovering, recoverSession, clearSession } = useSessionStore();
+  const { isRecovering, recoverSession } = useSessionStore();
 
   const initializeSession = useCallback(async () => {
     if (isInitialized) return;
@@ -33,10 +33,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
     logger.debug("🚀 SessionProvider: Initializing session recovery...");
 
     try {
-      // Clear any previous session state
-      clearSession();
-
-      // Attempt session recovery
+      // Attempt session recovery (do NOT clear localStorage keys before recovery -
+      // clearSession() would delete the keys needed for recovery to succeed)
       await recoverSession();
 
       logger.debug("✅ SessionProvider: Session recovery completed");
@@ -45,7 +43,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
     } finally {
       setIsInitialized(true);
     }
-  }, [isInitialized, clearSession, recoverSession]);
+  }, [isInitialized, recoverSession]);
 
   useEffect(() => {
     initializeSession();
