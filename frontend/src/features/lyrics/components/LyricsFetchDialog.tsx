@@ -61,11 +61,9 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
   const isLoadingLyrics = lyricsSearch.loading;
   const actualProvider = lyricsSearch.actualProvider;
 
-  // Refs for values read by effects that shouldn't trigger re-execution
+  // Ref for search function so the open effect doesn't re-fire on every render
   const lyricsSearchRef = useRef(lyricsSearch);
   lyricsSearchRef.current = lyricsSearch;
-  const actualProviderRef = useRef(actualProvider);
-  actualProviderRef.current = actualProvider;
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -96,23 +94,18 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
     }
   }, [isOpen, song]);
 
-  // Handle manual provider change (user rejecting current results)
-  useEffect(() => {
-    // Only trigger if dialog is open, we have a song, and provider was manually changed
-    if (
-      isOpen &&
-      song &&
-      actualProviderRef.current &&
-      selectedProvider !== actualProviderRef.current
-    ) {
-      lyricsSearchRef.current.search({
+  // Handle manual provider change - triggered directly by button click, not via useEffect
+  const handleProviderChange = (provider: LyricsProvider) => {
+    setSelectedProvider(provider);
+    if (song) {
+      lyricsSearch.search({
         artist: song.artist,
         title: song.title,
         album: song.album,
-        provider: selectedProvider,
+        provider,
       });
     }
-  }, [selectedProvider, isOpen, song]);
+  };
 
   const handleClose = () => {
     onClose();
@@ -223,7 +216,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
               <Button
                 variant={selectedProvider === "lrclib" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedProvider("lrclib")}
+                onClick={() => handleProviderChange("lrclib")}
                 className="flex-1"
               >
                 LRCLIB
@@ -233,7 +226,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
                   selectedProvider === "syncedlyrics" ? "default" : "outline"
                 }
                 size="sm"
-                onClick={() => setSelectedProvider("syncedlyrics")}
+                onClick={() => handleProviderChange("syncedlyrics")}
                 className="flex-1"
               >
                 syncedlyrics
