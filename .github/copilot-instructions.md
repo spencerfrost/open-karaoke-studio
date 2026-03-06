@@ -14,6 +14,16 @@ Backend commands must be prefixed with `source /mnt/ssd-data/spencer/code/open-k
 
 The dev environment runs via `./scripts/dev-tmux.sh` and is typically already running - do not start dev servers unless explicitly asked. Celery workers do not hot-reload and require manual restart after backend changes.
 
+Environment:
+- Do not attempt to read .env files directly. Ask the user to provide necessary environment variables explicitly.
+- For local development, the following environment variables are typically set to:
+  - DATABASE_URL=postgresql://karaoke_user:karaoke_pass@localhost/karaoke
+  - REDIS_URL=redis://localhost:6379/0
+- Tmux pane layout:
+	- Pane `0.0` = API logs
+	- Pane `0.1` = Celery logs
+	- Pane `0.2` = Frontend logs
+
 We use ShadCN/UI components with Tailwind CSS for styling. Forms use React Hook Form with Zod validation schemas.
 
 Audio processing uses Demucs for vocal/instrumental separation via Celery background jobs. Audio playback uses Web Audio API with synchronized controls across devices via WebSocket.
