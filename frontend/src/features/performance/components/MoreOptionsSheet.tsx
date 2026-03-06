@@ -33,7 +33,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
         <div className="pt-4 flex flex-col gap-5">
           {/* Instrumental volume */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-lemon-chiffon/80">
+            <span className="text-xs">
               Instrumental Volume {Math.round(instrumentalVolume * 100)}%
             </span>
             <Slider
@@ -41,7 +41,6 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
               min={0}
               max={1}
               step={0.05}
-              variant="performance"
               orientation="horizontal"
               onValueChange={([v]) => setInstrumentalVolume(v)}
             />
@@ -49,7 +48,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
 
           {/* Playback speed */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-lemon-chiffon/80">
+            <span className="text-xs">
               Playback Speed {playbackSpeed.toFixed(2)}x
             </span>
             <Slider
@@ -57,7 +56,6 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
               min={0.5}
               max={1.5}
               step={0.05}
-              variant="performance"
               orientation="horizontal"
               onValueChange={([v]) => setPlaybackSpeed(v)}
             />
@@ -74,7 +72,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
           {/* Session info */}
           {sessionId && displayCode && (
             <div className="border-t border-orange-peel/20 pt-4">
-              <span className="text-xs text-lemon-chiffon/80 block mb-2">
+              <span className="text-xs block mb-2">
                 Session
               </span>
               <SessionInfoDisplay
