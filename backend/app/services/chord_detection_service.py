@@ -63,7 +63,14 @@ def detect_chords(instrumental_path: str) -> list[dict] | None:
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
 
         _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-        beat_chroma = librosa.util.sync(chroma, beat_frames)
+
+        if len(beat_frames) == 0:
+            logger.info("No beats detected for %s", instrumental_path)
+            return []
+
+        # Use pad=False so the number of synchronized frames aligns with
+        # detected beat frames (avoids an extra trailing segment).
+        beat_chroma = librosa.util.sync(chroma, beat_frames, pad=False)
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
 
         chord_names, chord_templates = _build_chord_templates()
@@ -71,7 +78,9 @@ def detect_chords(instrumental_path: str) -> list[dict] | None:
         chords: list[dict] = []
         previous_chord = None
 
-        for i in range(beat_chroma.shape[1]):
+        frame_count = min(beat_chroma.shape[1], len(beat_times))
+
+        for i in range(frame_count):
             frame = beat_chroma[:, i]
             similarities = _cosine_similarity(frame, chord_templates)
             best_chord = chord_names[int(np.argmax(similarities))]
