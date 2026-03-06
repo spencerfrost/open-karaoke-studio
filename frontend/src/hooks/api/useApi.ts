@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
+import { toast } from "sonner";
 
 const logger = createLogger("hook:api");
 
@@ -15,6 +16,14 @@ function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/** Handle 401 responses by clearing stale auth state and prompting re-login. */
+export function handleUnauthorized(response: Response): void {
+  if (response.status === 401 && useAuthStore.getState().isAuthenticated) {
+    useAuthStore.getState().logout();
+    toast.error("Session expired. Please log in again.");
+  }
+}
+
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
@@ -22,12 +31,13 @@ const apiGet = async <T>(url: string): Promise<T> => {
     credentials: "include",
   });
   if (!response.ok) {
+    handleUnauthorized(response);
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+      const errorData: any = await response.json();
+      errorMessage =
+        errorData?.detail || errorData?.message || errorMessage;
     } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
       logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
@@ -62,6 +72,7 @@ const apiSend = async <T, V>(
   });
 
   if (!response.ok) {
+    handleUnauthorized(response);
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
       const contentType = response.headers.get("Content-Type");
@@ -69,7 +80,11 @@ const apiSend = async <T, V>(
         const text = await response.text();
         if (text) {
           const errorData = JSON.parse(text);
-          errorMessage = errorData?.error || errorData?.message || errorMessage;
+          errorMessage =
+            errorData?.detail ||
+            errorData?.error ||
+            errorData?.message ||
+            errorMessage;
         }
       } else {
         const text = await response.text();
