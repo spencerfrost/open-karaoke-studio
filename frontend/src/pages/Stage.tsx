@@ -181,6 +181,7 @@ const Stage: React.FC = () => {
         <KaraokePlayer
           songId={currentSong?.id || ""}
           queueItems={queueQuery.data}
+          onPlayNext={handlePlayFromQueue}
         />
         <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
           Up Next

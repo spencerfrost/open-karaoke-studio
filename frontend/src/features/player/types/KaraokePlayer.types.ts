@@ -29,6 +29,7 @@ export interface KaraokePlayerProps {
   onPlay?: () => void;
   onPause?: () => void;
   onEnd?: () => void;
+  onPlayNext?: (queueItemId: string) => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
 
