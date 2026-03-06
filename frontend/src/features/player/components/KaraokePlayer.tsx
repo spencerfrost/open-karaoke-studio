@@ -12,6 +12,7 @@ import {
   SongEnded,
   QueueEnded,
   BottomControlsArea,
+  ChordCarousel,
 } from "./subcomponents";
 import { createLogger } from "@/lib/logger";
 
@@ -31,6 +32,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   onPlay,
   onPause,
   onEnd,
+  onPlayNext,
   onTimeUpdate,
   onError,
   className = "",
@@ -41,8 +43,11 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const navigate = useNavigate();
 
   // Song API hooks
-  const { useUpdateSong } = useSongs();
+  const { useUpdateSong, useSongChords } = useSongs();
   const updateSongMutation = useUpdateSong();
+  const { data: songChords = [] } = useSongChords(songId, {
+    enabled: !!songId,
+  });
 
   // Hover state for overlay controls
   const [isHovering, setIsHovering] = React.useState(false);
@@ -321,7 +326,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         trigger="hover"
         visibility="host-only"
         className="absolute top-2 right-3 z-30"
-        qrSize={100}
+        qrSize={180}
       />
 
       {/* Main Lyrics Display or End States - positioned above controls */}
@@ -332,30 +337,43 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             <SongEnded
               currentSong={player.song}
               nextQueueItem={queueItems.find((item) => item.position === 1)}
+              onPlayNext={
+                onPlayNext
+                  ? () => {
+                      const nextItem = queueItems.find(
+                        (item) => item.position === 1,
+                      );
+                      if (nextItem) onPlayNext(String(nextItem.id));
+                    }
+                  : undefined
+              }
             />
           ) : (
             <QueueEnded currentSong={player.song} />
           )
         ) : player.song ? (
-          <LyricsDisplayWithCountIn
-            lyrics={player.lyrics}
-            isSync={player.isLyricsSync}
-            currentTime={player.currentTime}
-            lyricsSize={player.lyricsSize}
-            lyricsOffset={player.lyricsOffset}
-            onSeek={player.seek}
-            songId={songId}
-            songTitle={player.song?.title}
-            songArtist={player.song?.artist}
-            songAlbum={player.song?.album}
-            songDuration={player.song?.duration}
-            bpm={player.song?.bpm}
-            // Count-in props (hardcoded for initial testing)
-            showCountdownNumbers={false}
-            showCountdownIcons={false}
-            showProgressBar={true}
-            showLeadInHighlight={false}
-          />
+          <>
+            <ChordCarousel chords={songChords} currentTime={player.currentTime} />
+            <LyricsDisplayWithCountIn
+              lyrics={player.lyrics}
+              isSync={player.isLyricsSync}
+              currentTime={player.currentTime}
+              lyricsSize={player.lyricsSize}
+              lyricsOffset={player.lyricsOffset}
+              onSeek={player.seek}
+              songId={songId}
+              songTitle={player.song?.title}
+              songArtist={player.song?.artist}
+              songAlbum={player.song?.album}
+              songDuration={player.song?.duration}
+              bpm={player.song?.bpm}
+              // Count-in props (hardcoded for initial testing)
+              showCountdownNumbers={false}
+              showCountdownIcons={false}
+              showProgressBar={true}
+              showLeadInHighlight={false}
+            />
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full gap-4">
             <div className="text-background/60 text-xl font-semibold">
@@ -393,10 +411,25 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         tapTempoHasUnsavedChanges={tapTempo.hasUnsavedChanges}
         tapTempoIsSaving={updateSongMutation.isPending}
         mouseRecentlyMoved={mouseRecentlyMoved}
+        hasNextSong={
+          !!(
+            player.songEnded &&
+            onPlayNext &&
+            queueItems &&
+            queueItems.length > 1
+          )
+        }
         onPlayPause={
           player.song
             ? player.songEnded
-              ? player.replay
+              ? onPlayNext && queueItems && queueItems.length > 1
+                ? () => {
+                    const nextItem = queueItems.find(
+                      (item) => item.position === 1,
+                    );
+                    if (nextItem) onPlayNext(String(nextItem.id));
+                  }
+                : player.replay
               : player.togglePlay
             : noop
         }
