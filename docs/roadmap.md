@@ -14,98 +14,37 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 - **Background Processing:** Celery handles long-running audio jobs without blocking UI
 - **Multiple Separation Engines:** Demucs, Roformer, and Hybrid options for audio quality
 - **Comprehensive Backend Tests:** 2,277 test files ensure backend reliability
+- **Job Cancellation:** Celery tasks can now be properly revoked/cancelled
+- **Structured Logging:** Both backend (Python logging) and frontend (createLogger utility) use proper logging
+- **Type Safety:** Removed `as any` type bypasses in frontend code
+- **Frontend Test Foundation:** Vitest configured with mock data and API handlers
 
 ### Known Pain Points 😓
 
-- **No Frontend Tests:** Zero test coverage for UI components
-- **Logging Issues:** Console.log and print() statements instead of proper logging
 - **Session State Bugs:** Global performance state violates session isolation
-- **Resource Management:** Job cancellation UI exists but doesn't actually cancel jobs
-- **Type Safety Gaps:** Some `as any` type bypasses in frontend code
-
----
-
-## Critical Fixes
-
-These should be addressed ASAP to improve stability and correctness.
-
-### 1. Implement Celery Job Cancellation
-**Problem:** Cancel button in UI doesn't actually stop Celery tasks
-
-**Impact:** Wastes CPU/GPU resources running unwanted audio processing jobs
-
-**Solution:**
-```python
-from celery import current_app
-current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
-```
-
-**Effort:** Small (1-2 hours)
-
----
-
-### 2. Replace Print Statements with Logging
-**Problem:** 6 WebSocket files use `print()` instead of `logging` module
-
-**Files:**
-- backend/app/ws/session_specific.py
-- backend/app/ws/sessions.py
-- backend/app/ws/connection_manager.py
-- backend/app/ws/queue.py
-- backend/app/ws/jobs.py
-
-**Impact:** Can't debug production issues, logs are invisible in Celery
-
-**Solution:** Replace all print() with logger.info/debug/error
-
-**Effort:** Small (1-2 hours)
-
----
-
-### 3. Remove Console.log Spam
-**Problem:** 50+ console.log statements across frontend
-
-**Impact:** Production performance overhead, cluttered console, potential data leaks
-
-**Solution:**
-- Add proper logging library (loglevel, pino)
-- Add debug environment variable
-- Remove or guard console statements in production
-
-**Effort:** Medium (2-3 hours)
-
----
-
-### 5. Fix Type Safety Issues
-**Problem:** Type bypasses with `as any` in frontend
-
-**Impact:** Runtime errors possible, TypeScript benefits lost
-
-**Solution:** Define proper interfaces, remove type bypasses
-
-**Effort:** Small (1 hour)
+- **Limited Frontend Test Coverage:** Test infrastructure exists but coverage is minimal
 
 ---
 
 ## Quality & Testing
 
 ### Frontend Test Infrastructure
-**Status:** 🚧 Not started
+**Status:** 🚧 Foundation complete, coverage needed
 
-**Problem:** Zero test coverage for React components, hooks, stores
+**Progress:**
+- ✅ Vitest configured (commit `cba2713`)
+- ✅ Mock data and API handlers added (commit `38a37a5`)
+- 🚧 Test coverage still minimal
 
-**Impact:** Risky refactoring, no quality assurance for UI
-
-**Plan:**
-1. Set up Vitest or Jest + React Testing Library
-2. Start with critical paths:
+**Remaining Work:**
+1. Write tests for critical paths:
    - Player component and hooks
    - Queue management
    - Session connection logic
-3. Add test coverage to CI/CD pipeline
-4. Aim for 70%+ coverage of critical paths
+2. Add test coverage to CI/CD pipeline
+3. Aim for 70%+ coverage of critical paths
 
-**Effort:** Large (1-2 days initial setup, ongoing)
+**Effort:** Medium (ongoing, foundation is done)
 
 ---
 
@@ -136,6 +75,83 @@ current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
 - Document why disables are needed
 
 **Effort:** Small (2-3 hours)
+
+---
+
+### Code Refactoring: Oversized Files
+**Status:** 📋 Planned (Tech Debt)
+
+**Problem:** Several critical files have exceeded healthy size limits and violate Single Responsibility Principle, making them harder to maintain and test.
+
+**Analysis Results:**
+- **1,092 lines** - `frontend/src/stores/useKaraokePlayerStore.ts` (36KB)
+- **795 lines** - `backend/app/api/songs.py` (28KB)
+- **692 lines** - `backend/app/services/youtube_service.py` (28KB)
+- Plus 5 additional large files (400-750 lines each)
+
+**Refactoring Tasks (Priority Order):**
+
+#### Phase 1: Frontend Store Splitting (CRITICAL)
+**Status:** ✅ Complete (2026-02-05)
+
+Split `useKaraokePlayerStore.ts` into focused stores:
+- ✅ `useAudioControlsStore.ts` - Volume, speed, pitch controls (88 lines)
+- ✅ `usePlaybackStateStore.ts` - Current time, duration, playing status (440 lines)
+- ✅ `useUIPreferencesStore.ts` - Mini-player position, lyrics settings, display preferences (76 lines)
+- ✅ `useKaraokePlayerStore.ts` - Thin integration layer/facade (562 lines, down from 1,092)
+- ✅ `shared/` - Shared utilities (types, helpers, WebSocket sync) (3 files)
+- **Completed:** 2026-02-05
+- **Actual Effort:** ~6 hours
+- **Impact:** Easier to test, maintain, and extend individual concerns. Reduced main store by 48%.
+
+#### Phase 2: Backend API Router Split
+Break `backend/app/api/songs.py` (795 lines) into focused modules:
+- `songs_crud.py` - Basic CRUD operations (GET list, POST create, etc.)
+- `songs_search.py` - Search, filtering, and query logic
+- `songs_files.py` - Audio downloads, thumbnails, file operations
+- `artists_endpoints.py` - Artist enumeration and metadata
+- **Effort:** Medium (4-5 hours)
+- **Impact:** Clearer API organization, easier to locate functionality
+
+#### Phase 3: React Component Extraction
+Break `frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx` (587 lines) into subcomponents:
+- Extract lyrics display area into separate component
+- Extract volume/playback control sections
+- Extract song info section
+- **Effort:** Small-Medium (3-4 hours)
+- **Impact:** Easier component reuse, simplified component logic
+
+#### Phase 4: WebSocket Handler Organization
+Reorganize `backend/app/ws/session_specific.py` (568 lines) by event domain:
+- `session_player_events.py` - Player playback events
+- `session_queue_events.py` - Queue management events  
+- `session_performance_events.py` - Audio control events
+- `session_connection_events.py` - Connection lifecycle events
+- **Effort:** Medium (4-5 hours)
+- **Impact:** Logical grouping, easier to find and modify event handlers
+
+#### Phase 5: Service Layer Review
+Review `backend/app/services/youtube_service.py` (692 lines) for further optimization:
+- Consider extracting metadata parsing logic
+- Evaluate moving complex download handling to job layer
+- Add rate limiting helpers if needed
+- **Effort:** Small-Medium (2-3 hours for initial assessment)
+- **Impact:** Better separation of concerns
+
+**Testing Strategy:**
+- Write tests for each new module during refactoring
+- Maintain backward compatibility with existing API contracts
+- Run existing test suite after each phase
+- Add integration tests for new module boundaries
+
+**Estimated Total Effort:** 18-25 hours (spread across 2-3 sprints)
+
+**Benefits:**
+- Easier to understand and navigate code
+- Better testability - smaller modules are easier to unit test
+- Reduced merge conflicts in team environments
+- Clearer function responsibilities
+- Faster onboarding for new contributors
 
 ---
 
@@ -347,6 +363,14 @@ current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
 ## Future Ideas
 
 ### Audio Processing
+
+**Speed Control for Karaoke Playback**
+- Adjustable playback speed (0.5x - 2.0x range)
+- Real-time speed adjustment during playback
+- Per-song speed preferences saved to library
+- Synchronized speed changes across session devices
+- Lyrics display timing adjusted to match playback speed
+- Consider preserving pitch when slowing down (time-stretching)
 
 **Pitch Shifting & Key Transposition**
 - Real-time pitch shifting for singers
@@ -596,4 +620,4 @@ current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
 
 ---
 
-**Last Updated:** 2026-01-28
+**Last Updated:** 2026-02-04
