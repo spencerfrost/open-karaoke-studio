@@ -6,10 +6,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Timer, Settings, Mic, Music, Play, Pause, Maximize } from "lucide-react";
+import {
+  Timer,
+  Settings,
+  Mic,
+  Music,
+  Play,
+  Pause,
+  Maximize,
+} from "lucide-react";
 import { usePerformanceControlsLogic } from "../hooks/usePerformanceControlsLogic";
 import LyricsTimingControls from "@/features/lyrics/components/LyricsTimingControls";
-import LyricsSizeControl from "@/features/lyrics/components/LyricsSizeControl";
 import VolumeChannel from "./VolumeChannel";
 import MoreOptionsSheet from "./MoreOptionsSheet";
 import ProgressBar from "@/features/player/components/subcomponents/ProgressBar";
@@ -56,15 +63,12 @@ const PerformanceControlsPanel: React.FC = () => {
             onToggleMute={toggleBackingVocalsVolume}
             className="flex-1"
           />
-
         </div>
       </div>
 
       <div className="border-t border-orange-peel/30" />
 
       <div className="flex flex-col gap-3">
-        <LyricsSizeControl />
-
         <Button
           variant="outline"
           size="sm"

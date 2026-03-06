@@ -19,6 +19,7 @@ interface MoreOptionsSheetProps {
 }
 
 const SPEED_PRESETS = [0.75, 0.9, 1, 1.5, 2];
+const LYRICS_SIZE_PRESETS = ["small", "medium", "large"] as const;
 
 const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
   open,
@@ -27,6 +28,8 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
   const {
     instrumentalVolume,
     setInstrumentalVolume,
+    lyricsSize,
+    setLyricsSize,
     playbackSpeed,
     setPlaybackSpeed,
     showChords,
@@ -96,10 +99,41 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
               </div>
             </div>
 
+            {/* Lyrics size */}
+            <div className="rounded-md border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
+              <span className="text-xs uppercase tracking-wide text-background/70">
+                Lyrics Size
+              </span>
+              <div className="flex gap-2">
+                {LYRICS_SIZE_PRESETS.map((size) => {
+                  const isSelected = lyricsSize === size;
+
+                  return (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant="outline"
+                      className={
+                        isSelected
+                          ? "h-9 flex-1 border-white/40 bg-white/20 px-3 text-xs font-semibold uppercase text-background hover:bg-white/20"
+                          : "h-9 flex-1 border-white/20 bg-transparent px-3 text-xs font-semibold uppercase text-background hover:bg-white/10"
+                      }
+                      onClick={() => setLyricsSize(size)}
+                    >
+                      {size === "small" ? "S" : size === "medium" ? "M" : "L"}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Guitar chords toggle */}
             <div className="rounded-md border border-white/10 bg-white/5 p-4">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="show-guitar-chords" className="text-sm text-background">
+                <Label
+                  htmlFor="show-guitar-chords"
+                  className="text-sm text-background"
+                >
                   Show Guitar Chords
                 </Label>
                 <Switch
