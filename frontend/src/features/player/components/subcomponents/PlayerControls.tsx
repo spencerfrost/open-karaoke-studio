@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   RotateCcw,
+  SkipForward,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -26,6 +27,7 @@ interface PlayerControlsProps {
   isReady: boolean;
   vocalVolume: number;
   songEnded?: boolean; // True when song finished naturally
+  hasNextSong?: boolean; // True when queue has a next song
   // UI state
   isFullscreen: boolean;
 
@@ -59,6 +61,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
     isReady,
     vocalVolume,
     songEnded = false,
+    hasNextSong = false,
     isFullscreen,
     tapTempoBpm,
     tapTempoSongBpm,
@@ -101,6 +104,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
         };
       }
       if (songEnded) {
+        if (hasNextSong) {
+          return {
+            icon: <SkipForward size={48} aria-hidden="true" />,
+            label: "Play next",
+          };
+        }
         return {
           icon: <RotateCcw size={48} aria-hidden="true" />,
           label: "Replay from beginning",

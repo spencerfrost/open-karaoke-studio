@@ -33,6 +33,7 @@ interface BottomControlsAreaProps {
   tapTempoIsSaving?: boolean;
 
   // Configuration
+  hasNextSong?: boolean;
   mouseRecentlyMoved: boolean;
 
   // Callbacks
@@ -62,6 +63,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   tapTempoMinTaps,
   tapTempoHasUnsavedChanges,
   tapTempoIsSaving = false,
+  hasNextSong = false,
   mouseRecentlyMoved,
   onPlayPause,
   onSeek,
@@ -114,6 +116,7 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
               isReady={isReady}
               vocalVolume={vocalVolume}
               songEnded={songEnded}
+              hasNextSong={hasNextSong}
               isFullscreen={isFullscreen}
               tapTempoBpm={tapTempoBpm}
               tapTempoSongBpm={tapTempoSongBpm}
