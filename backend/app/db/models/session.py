@@ -146,7 +146,7 @@ class SessionPlaybackState(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(
-        String(4),
+        String(32),
         ForeignKey("karaoke_sessions.session_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,

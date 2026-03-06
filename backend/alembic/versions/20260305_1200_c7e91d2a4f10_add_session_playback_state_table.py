@@ -26,7 +26,7 @@ def upgrade() -> None:
     op.create_table(
         "session_playback_states",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("session_id", sa.String(length=4), nullable=False),
+        sa.Column("session_id", sa.String(length=32), nullable=False),
         sa.Column("current_queue_item_id", sa.Integer(), nullable=True),
         sa.Column("current_song_id", sa.String(), nullable=True),
         sa.Column(
@@ -98,7 +98,7 @@ def upgrade() -> None:
                         current_queue_item_id,
                         current_song_id,
                         is_playing,
-                        current_time,
+                        "current_time",
                         duration,
                         is_ready
                     ) VALUES (
