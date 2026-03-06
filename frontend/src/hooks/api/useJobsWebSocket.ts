@@ -12,6 +12,7 @@ interface JobData {
   song_id?: string;
   progress?: number;
   status: string;
+  status_message?: string;
   error?: string;
   notes?: string;
   created_at?: string;
@@ -53,7 +54,8 @@ function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
     song_id: job.song_id,
     progress: job.progress || 0,
     status: mapBackendStatus(job.status),
-    message: job.error || job.notes || undefined,
+    rawStatus: job.status,
+    message: job.status_message || job.error || job.notes || undefined,
     artist: job.artist,
     title: job.title,
   };
@@ -134,15 +136,57 @@ export function useJobsWebSocket() {
     [queryClient],
   );
 
-  // Handle jobs list update (initial load)
-  const handleJobsList = useCallback((data: { jobs: JobData[] }) => {
-    const processingJobs = data.jobs
-      .filter((job) => ["pending", "processing", "failed"].includes(job.status))
-      .map(mapJobToProcessingStatus);
+  // Handle jobs list update (initial load and polling)
+  const handleJobsList = useCallback(
+    (data: { jobs: JobData[] }) => {
+      const processingJobs = data.jobs
+        .filter((job) =>
+          ["pending", "downloading", "processing", "finalizing", "failed"].includes(job.status),
+        )
+        .map(mapJobToProcessingStatus);
 
-    setJobs(processingJobs);
-    setError(null);
-  }, []);
+      setJobs((prevJobs) => {
+        // Detect jobs that were active but are now gone (completed)
+        const newJobIds = new Set(processingJobs.map((j) => j.id));
+        const completedJobs = prevJobs.filter((j) => !newJobIds.has(j.id));
+        if (completedJobs.length > 0) {
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
+          completedJobs.forEach((j) => {
+            if (j.song_id) {
+              queryClient.invalidateQueries({ queryKey: ["song", j.song_id] });
+            }
+          });
+        }
+        return processingJobs;
+      });
+      setError(null);
+    },
+    [queryClient],
+  );
+
+  const handleJobCreated = useCallback(
+    (jobData: JobData) => {
+      updateJob(jobData);
+      queryClient.invalidateQueries({ queryKey: ["songs"] });
+    },
+    [updateJob, queryClient],
+  );
+
+  // Poll for progress updates while jobs are actively processing
+  useEffect(() => {
+    const hasActiveJobs = jobs.some(
+      (j) => j.status === "queued" || j.status === "processing",
+    );
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      if (jobsWebSocketService.isConnectionActive()) {
+        jobsWebSocketService.requestJobsList();
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [jobs]);
 
   // Set up WebSocket event listeners
   useEffect(() => {
@@ -151,7 +195,7 @@ export function useJobsWebSocket() {
     try {
       // Job lifecycle events
       cleanupFunctions.push(
-        jobsWebSocketService.on("job_created", updateJob),
+        jobsWebSocketService.on("job_created", handleJobCreated),
         jobsWebSocketService.on("job_updated", updateJob),
         jobsWebSocketService.on("job_completed", updateJob),
         jobsWebSocketService.on("job_failed", updateJob),
@@ -189,7 +233,7 @@ export function useJobsWebSocket() {
         cleanupFunctionsRef.current = [];
       };
     }
-  }, [updateJob, removeJob, handleJobsList]);
+  }, [handleJobCreated, updateJob, removeJob, handleJobsList]);
 
   return {
     jobs,

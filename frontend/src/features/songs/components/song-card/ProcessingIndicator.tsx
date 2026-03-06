@@ -13,15 +13,29 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
   variant = "overlay",
 }) => {
   const getStatusText = () => {
-    switch (status.status) {
-      case "queued":
+    switch (status.rawStatus) {
+      case "pending":
         return "Queued";
+      case "downloading":
+        return "Downloading";
       case "processing":
-        return `Processing ${status.progress}%`;
-      case "error":
+        return `Separating Audio ${status.progress}%`;
+      case "finalizing":
+        return `Finalizing ${status.progress}%`;
+      case "failed":
+      case "cancelled":
         return "Failed";
       default:
-        return "Processing";
+        switch (status.status) {
+          case "queued":
+            return "Queued";
+          case "processing":
+            return `Processing ${status.progress}%`;
+          case "error":
+            return "Failed";
+          default:
+            return "Processing";
+        }
     }
   };
 
