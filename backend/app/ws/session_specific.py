@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 from app.db.database import get_db_session
+from app.db.models import SessionPlaybackState
 
 from .connection_manager import SessionConnectionManager
 from .queue import get_current_queue_state
@@ -52,6 +53,62 @@ def get_session_performance_state(session_id: str):
             "playback_speed": 1.0,
         }
     return session_performance_states[session_id]
+
+
+def hydrate_session_performance_state_from_db(session_id: str):
+    """Hydrate in-memory performance state from persisted playback state."""
+    with get_db_session() as db:
+        playback_state = (
+            db.query(SessionPlaybackState)
+            .filter(SessionPlaybackState.session_id == session_id)
+            .first()
+        )
+
+        if not playback_state:
+            return
+
+        session_state = get_session_performance_state(session_id)
+        session_state["is_playing"] = playback_state.is_playing
+        session_state["current_time"] = playback_state.current_time
+        session_state["duration"] = playback_state.duration
+        session_state["current_song_id"] = playback_state.current_song_id
+        session_state["is_ready"] = playback_state.is_ready
+
+
+def persist_session_playback_state(
+    session_id: str,
+    *,
+    is_playing: Optional[bool] = None,
+    current_time: Optional[float] = None,
+    duration: Optional[float] = None,
+    current_song_id: Optional[str] = None,
+    is_ready: Optional[bool] = None,
+) -> None:
+    """Persist playback state updates for a session."""
+    with get_db_session() as db:
+        playback_state = (
+            db.query(SessionPlaybackState)
+            .filter(SessionPlaybackState.session_id == session_id)
+            .first()
+        )
+
+        if not playback_state:
+            playback_state = SessionPlaybackState(session_id=session_id)
+            db.add(playback_state)
+            db.flush()
+
+        if is_playing is not None:
+            playback_state.is_playing = is_playing
+        if current_time is not None:
+            playback_state.current_time = current_time
+        if duration is not None:
+            playback_state.duration = duration
+        if current_song_id is not None:
+            playback_state.current_song_id = current_song_id
+        if is_ready is not None:
+            playback_state.is_ready = is_ready
+
+        db.commit()
 
 
 def cleanup_session_performance_state(session_id: str):
@@ -119,6 +176,9 @@ async def websocket_unified_session_endpoint(
     )
 
     try:
+        # Hydrate in-memory state from persisted playback state before greeting client
+        hydrate_session_performance_state_from_db(session_id)
+
         # Send current state to new connection
         session_state = get_session_performance_state(session_id)
         await websocket.send_text(
@@ -181,6 +241,13 @@ async def websocket_unified_session_endpoint(
                 if duration is not None:
                     session_state["duration"] = duration
 
+                persist_session_playback_state(
+                    session_id,
+                    is_playing=is_playing,
+                    current_time=current_time,
+                    duration=duration,
+                )
+
                 # Broadcast player state to all devices in session
                 await manager.broadcast_to_room(
                     session_room,
@@ -198,11 +265,18 @@ async def websocket_unified_session_endpoint(
                 session_state = get_session_performance_state(session_id)
                 if message_type == "playback_play":
                     session_state["is_playing"] = True
+                    persist_session_playback_state(session_id, is_playing=True)
                 elif message_type == "playback_pause":
                     session_state["is_playing"] = False
+                    persist_session_playback_state(session_id, is_playing=False)
                 elif message_type == "reset_player_state":
                     session_state["current_time"] = 0
                     session_state["is_playing"] = False
+                    persist_session_playback_state(
+                        session_id,
+                        current_time=0,
+                        is_playing=False,
+                    )
                 elif message_type in ["song_loaded", "song_ready"]:
                     # Update song info from message
                     song_id = message.get("songId")
@@ -215,6 +289,15 @@ async def websocket_unified_session_endpoint(
                     session_state["is_playing"] = message.get("isPlaying", False)
                     session_state["is_ready"] = message.get(
                         "isReady", message_type == "song_ready"
+                    )
+
+                    persist_session_playback_state(
+                        session_id,
+                        current_song_id=song_id,
+                        duration=duration,
+                        current_time=session_state["current_time"],
+                        is_playing=session_state["is_playing"],
+                        is_ready=session_state["is_ready"],
                     )
 
                 # Broadcast to all devices in this session
@@ -370,6 +453,8 @@ async def websocket_session_performance_endpoint(
     logger.info(f"Session {session_id} performance client connected: {device_id}")
 
     try:
+        hydrate_session_performance_state_from_db(session_id)
+
         # Send current performance state to new connection
         session_state = get_session_performance_state(session_id)
         await websocket.send_text(
@@ -422,6 +507,13 @@ async def websocket_session_performance_endpoint(
                 if duration is not None:
                     session_state["duration"] = duration
 
+                persist_session_playback_state(
+                    session_id,
+                    is_playing=is_playing,
+                    current_time=current_time,
+                    duration=duration,
+                )
+
                 await websocket.send_text(
                     json.dumps({"type": "performance_state", "state": session_state})
                 )
@@ -434,11 +526,18 @@ async def websocket_session_performance_endpoint(
                 session_state = get_session_performance_state(session_id)
                 if message_type == "playback_play":
                     session_state["is_playing"] = True
+                    persist_session_playback_state(session_id, is_playing=True)
                 elif message_type == "playback_pause":
                     session_state["is_playing"] = False
+                    persist_session_playback_state(session_id, is_playing=False)
                 elif message_type == "reset_player_state":
                     session_state["current_time"] = 0
                     session_state["is_playing"] = False
+                    persist_session_playback_state(
+                        session_id,
+                        current_time=0,
+                        is_playing=False,
+                    )
 
                 # Broadcast to all devices in this session
                 await manager.broadcast_to_room(

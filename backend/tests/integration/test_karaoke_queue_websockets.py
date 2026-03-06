@@ -176,3 +176,73 @@ def test_queue_rest_state_exposes_current_and_upcoming(test_setup):
     assert queue_payload["current"]["position"] == 0
     assert queue_payload["upcoming"] == []
     assert len(queue_payload["items"]) == 1
+
+    # Add another song after current is loaded; it should appear in upcoming only
+    next_song = song_factory()
+    second_add_response = client.post(
+        f"/api/karaoke-queue?session_code={session_id}",
+        json={"singer": "Next Singer", "songId": next_song.id},
+    )
+    assert second_add_response.status_code == 201
+
+    queue_response = client.get(f"/api/karaoke-queue?session_code={session_id}")
+    assert queue_response.status_code == 200
+    queue_payload = queue_response.json()
+
+    assert queue_payload["current"] is not None
+    assert queue_payload["current"]["songId"] == song.id
+    assert len(queue_payload["upcoming"]) == 1
+    assert queue_payload["upcoming"][0]["songId"] == next_song.id
+    assert queue_payload["upcoming"][0]["position"] == 1
+    assert all(
+        item["id"] != queue_payload["current"]["id"]
+        for item in queue_payload["upcoming"]
+    )
+
+
+def test_playback_state_persists_across_websocket_reconnect(test_setup):
+    """Verify persisted playback state is restored when reconnecting to unified session websocket."""
+    client, session_factory, song_factory = test_setup
+
+    session_id = f"session_{uuid.uuid4()}"
+    host_device_id = f"host_{uuid.uuid4()}"
+    session_factory(session_id, host_device_id)
+
+    song = song_factory()
+
+    add_response = client.post(
+        f"/api/karaoke-queue?session_code={session_id}",
+        json={"singer": "Test Singer", "songId": song.id},
+    )
+    assert add_response.status_code == 201
+    queue_item_id = add_response.json()["id"]
+
+    load_response = client.post(
+        f"/api/karaoke-queue/{queue_item_id}/play?session_code={session_id}"
+    )
+    assert load_response.status_code == 200
+
+    with client.websocket_connect(f"/ws/session/{session_id}") as websocket:
+        connected_message = websocket.receive_json()
+        assert connected_message["type"] == "session_connected"
+        assert connected_message["performance_state"]["current_song_id"] == song.id
+
+        websocket.send_json(
+            {
+                "type": "update_player_state",
+                "isPlaying": False,
+                "currentTime": 42.5,
+                "duration": 180,
+            }
+        )
+        websocket.send_json({"type": "playback_play"})
+
+    with client.websocket_connect(f"/ws/session/{session_id}") as websocket:
+        connected_message = websocket.receive_json()
+        assert connected_message["type"] == "session_connected"
+
+        state = connected_message["performance_state"]
+        assert state["current_song_id"] == song.id
+        assert state["is_playing"] is True
+        assert state["current_time"] == 42.5
+        assert state["duration"] == 180

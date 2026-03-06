@@ -203,7 +203,7 @@ def reindex_upcoming_positions(
 
 
 def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
-    """Build explicit queue state (current + upcoming) with legacy items compatibility."""
+    """Build explicit queue state (current + upcoming)."""
     playback_state = (
         db.query(SessionPlaybackState)
         .filter(SessionPlaybackState.session_id == session_code)
@@ -225,14 +225,6 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
         candidate = queue_items_by_id.get(playback_state.current_queue_item_id)
         if candidate and candidate.song:
             current_item = candidate
-
-    if current_item is None:
-        legacy_current = next(
-            (item for item in queue_items if item.position == 0 and item.song),
-            None,
-        )
-        if legacy_current:
-            current_item = legacy_current
 
     upcoming_items = [
         item
@@ -467,8 +459,7 @@ async def play_queue_item(
         if previous_current_item:
             db.delete(previous_current_item)
 
-    # Keep legacy sentinel for compatibility while current song is explicit in playback_state
-    item.position = 0
+    # Mark selected queue item as the explicit current loaded item
     playback_state.current_queue_item_id = item.id
     playback_state.current_song_id = item.song.id
     playback_state.is_playing = False

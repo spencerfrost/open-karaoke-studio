@@ -51,12 +51,6 @@ async def get_current_queue_state(session_id: str):
                 if candidate and candidate.song:
                     current_item = candidate
 
-            if current_item is None:
-                current_item = next(
-                    (item for item in queue_items if item.position == 0 and item.song),
-                    None,
-                )
-
             # Format data for frontend
             upcoming_data = []
             for idx, item in enumerate(
