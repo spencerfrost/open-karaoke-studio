@@ -99,14 +99,15 @@ if [ "$BUILD_FRONTEND" = true ]; then
     tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5192'" C-m
     tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5192'" C-m
 else
-    tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5192'" C-m
-    tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5192'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   🎤 Main Device:     http://localhost:5193'" C-m
+    tmux send-keys -t $SESSION_NAME:status "echo '   📱 Other Devices:   http://$HOST_IP:5193'" C-m
 fi
 
 tmux send-keys -t $SESSION_NAME:status "echo '   🔧 Backend API:     http://$HOST_IP:5123'" C-m
+tmux send-keys -t $SESSION_NAME:status "echo '   📚 Docs Site:       http://localhost:5194/docs/'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '📋 Tmux Controls:'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   Ctrl+B + 0-1:   Switch between windows (services/status)'" C-m
+tmux send-keys -t $SESSION_NAME:status "echo '   Ctrl+B + 0-2:   Switch between windows (services/status/docs)'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   Ctrl+B + o:     Cycle through panes in services window'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   Ctrl+B + arrow: Navigate between panes'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   Ctrl+B + d:     Detach from session'" C-m
@@ -139,7 +140,13 @@ tmux send-keys -t $SESSION_NAME:status "echo ''" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '💡 Tips:'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   - Use \"tmux attach -t $SESSION_NAME\" to reattach'" C-m
 tmux send-keys -t $SESSION_NAME:status "echo '   - Use \"tmux kill-session -t $SESSION_NAME\" to stop all services'" C-m
-tmux send-keys -t $SESSION_NAME:status "echo '   - Switch to services window (Ctrl+B + 0) to see all logs'" C-m
+tmux send-keys -t $SESSION_NAME:status "echo '   - Switch to services window (Ctrl+B + 0) to see app logs'" C-m
+tmux send-keys -t $SESSION_NAME:status "echo '   - Switch to docs window (Ctrl+B + 2) to see docs logs'" C-m
+
+# Create hidden docs window for VitePress docs server
+echo "📚 Adding hidden docs window..."
+tmux new-window -t $SESSION_NAME -n "docs" -c "$(pwd)/docs"
+tmux send-keys -t $SESSION_NAME:docs "pnpm run dev --host 0.0.0.0 --port 5194 --strictPort" C-m
 
 # Select the services window as default
 tmux select-window -t $SESSION_NAME:services
@@ -153,15 +160,17 @@ if [ "$BUILD_FRONTEND" = true ]; then
     echo "   🎤 Main Device:     http://localhost:5192 (Production Build)"
     echo "   📱 Other Devices:   http://$HOST_IP:5192"
 else
-    echo "   🎤 Main Device:     http://localhost:5192 (Development Mode)"
-    echo "   📱 Other Devices:   http://$HOST_IP:5192"
+    echo "   🎤 Main Device:     http://localhost:5193 (Development Mode)"
+    echo "   📱 Other Devices:   http://$HOST_IP:5193"
 fi
 
 echo "   🔧 Backend API:     http://$HOST_IP:5123"
+echo "   📚 Docs Site:       http://localhost:5194/docs/"
 echo ""
 echo "📋 Tmux Commands:"
 echo "   Attach to session:  tmux attach -t $SESSION_NAME"
 echo "   Kill all services:  tmux kill-session -t $SESSION_NAME"
+echo "   Docs logs:          tmux capture-pane -t $SESSION_NAME:docs -p | tail -20"
 echo ""
 
 if [ "$BUILD_FRONTEND" = true ]; then

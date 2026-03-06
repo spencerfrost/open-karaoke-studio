@@ -88,7 +88,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,
-      port: 5192,
+      port: 5193,
       proxy: {
         "/api": {
           target: backendUrl,
