@@ -92,3 +92,4 @@ frontend/vite.config.ts
 frontend/dev-dist/
 frontend/src/stores/useKaraokePlayerStore.ts.backup
 .claude/
+.worktrees/
