@@ -13,7 +13,7 @@ import { useSongs } from "@/hooks/api/useSongs";
 import type { Song } from "@/types/Song";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
-const COUNTDOWN_SECONDS = 100;
+const COUNTDOWN_SECONDS = 30;
 
 interface SongEndedProps {
   /** The song that just finished */
