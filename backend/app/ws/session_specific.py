@@ -9,26 +9,24 @@ import asyncio
 import json
 import logging
 import secrets
-
-from fastapi import WebSocket, WebSocketDisconnect, Query
 from typing import Optional
+
+from fastapi import Query, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
 
-from sqlalchemy.orm import joinedload
-
 from app.db.database import get_db_session
-from app.db.models.queue import KaraokeQueueItem
-from app.db.models.song import DbSong
 
 from .connection_manager import SessionConnectionManager
+from .queue import get_current_queue_state
 
 # Session-based performance state - separate state for each session
 session_performance_states = {}
 
 # Session-level locks to prevent race conditions during disconnect/cleanup
 session_cleanup_locks = {}
+
 
 def get_session_cleanup_lock(session_id: str) -> asyncio.Lock:
     """Get or create cleanup lock for a specific session."""
@@ -72,7 +70,7 @@ async def websocket_unified_session_endpoint(
     websocket: WebSocket,
     session_id: str,
     manager: SessionConnectionManager,
-    device_id: Optional[str] = Query(None)
+    device_id: Optional[str] = Query(None),
 ):
     """
     Unified session WebSocket endpoint.
@@ -103,7 +101,7 @@ async def websocket_unified_session_endpoint(
         host_device_id = db_session.host_device_id
 
         # Determine if this connection is the host based on device_id query param
-        is_host = (device_id is not None and device_id == host_device_id)
+        is_host = device_id is not None and device_id == host_device_id
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -116,7 +114,9 @@ async def websocket_unified_session_endpoint(
     session_room = manager.get_session_room_name(session_id)
     await manager.join_room(websocket, session_room)
 
-    logger.info(f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})")
+    logger.info(
+        f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})"
+    )
 
     try:
         # Send current state to new connection
@@ -142,7 +142,10 @@ async def websocket_unified_session_endpoint(
             if message_type == "join_performance":
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": get_session_performance_state(session_id)}
+                        {
+                            "type": "performance_state",
+                            "state": get_session_performance_state(session_id),
+                        }
                     )
                 )
 
@@ -208,12 +211,8 @@ async def websocket_unified_session_endpoint(
                         session_state["current_song_id"] = song_id
                     if duration > 0:
                         session_state["duration"] = duration
-                    session_state["current_time"] = message.get(
-                        "currentTime", 0
-                    )
-                    session_state["is_playing"] = message.get(
-                        "isPlaying", False
-                    )
+                    session_state["current_time"] = message.get("currentTime", 0)
+                    session_state["is_playing"] = message.get("isPlaying", False)
                     session_state["is_ready"] = message.get(
                         "isReady", message_type == "song_ready"
                     )
@@ -232,52 +231,17 @@ async def websocket_unified_session_endpoint(
                 )
 
             elif message_type == "request_queue_update":
-                # Get current queue from database for this session
-                with get_db_session() as db:
-                    queue_items = (
-                        db.query(KaraokeQueueItem)
-                        .filter(KaraokeQueueItem.session_id == session_id)
-                        .order_by(KaraokeQueueItem.position)
-                        .all()
+                queue_state = await get_current_queue_state(session_id)
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "queue_updated",
+                            "current": queue_state.get("current"),
+                            "upcoming": queue_state.get("upcoming", []),
+                            "items": queue_state.get("items", []),
+                        }
                     )
-                    queue_data = []
-                    for item in queue_items:
-                        song = (
-                            db.query(DbSong)
-                            .options(joinedload(DbSong.lyrics))
-                            .filter(DbSong.id == item.song_id)
-                            .first()
-                        )
-                        if song:
-                            queue_data.append(
-                                {
-                                    "id": item.id,
-                                    "songId": item.song_id,
-                                    "singer": item.singer_name,
-                                    "position": item.position,
-                                    "addedAt": (
-                                        item.created_at.isoformat()
-                                        if hasattr(item, "created_at") and item.created_at
-                                        else None
-                                    ),
-                                    "song": {
-                                        "id": song.id,
-                                        "title": song.title,
-                                        "artist": song.artist,
-                                        "album": song.album,
-                                        "duration": song.duration,
-                                        "coverArt": getattr(
-                                            song, "cover_art_url", None
-                                        ),
-                                        "syncedLyrics": song._get_active_lyrics_content("synced"),
-                                        "plainLyrics": song._get_active_lyrics_content("plain"),
-                                    },
-                                }
-                            )
-
-                    await websocket.send_text(
-                        json.dumps({"type": "queue_updated", "items": queue_data})
-                    )
+                )
 
             elif message_type == "toggle_fullscreen":
                 # Broadcast fullscreen toggle to all other devices in session (host will act on it)
@@ -296,14 +260,18 @@ async def websocket_unified_session_endpoint(
                 )
 
     except WebSocketDisconnect:
-        logger.info(f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})")
+        logger.info(
+            f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})"
+        )
 
         # If host disconnected, terminate the session for all connected devices
         if is_host:
             # Use lock to prevent race conditions during cleanup
             cleanup_lock = get_session_cleanup_lock(session_id)
             async with cleanup_lock:
-                logger.warning(f"🛑 Host disconnected from session {session_id} - terminating session")
+                logger.warning(
+                    f"🛑 Host disconnected from session {session_id} - terminating session"
+                )
 
                 # Broadcast session_ended to all connected devices FIRST
                 await manager.broadcast_to_room(
@@ -328,19 +296,29 @@ async def websocket_unified_session_endpoint(
                         if session:
                             db.delete(session)
                             db.commit()
-                            logger.info(f"🗑️  Session {session_id} deleted from database (code recycled)")
+                            logger.info(
+                                f"🗑️  Session {session_id} deleted from database (code recycled)"
+                            )
                 except Exception as e:
                     logger.error(f"❌ Failed to delete session from database: {e}")
 
                 # Force close all other connections in this session
                 if session_room in manager.rooms:
-                    connections_to_close = [conn for conn in manager.rooms[session_room] if conn != websocket]
+                    connections_to_close = [
+                        conn
+                        for conn in manager.rooms[session_room]
+                        if conn != websocket
+                    ]
                     for conn in connections_to_close:
                         try:
                             await conn.close(code=1000, reason="Session ended by host")
-                            logger.debug(f"🔌 Force closed connection {id(conn)} for session {session_id}")
+                            logger.debug(
+                                f"🔌 Force closed connection {id(conn)} for session {session_id}"
+                            )
                         except Exception as e:
-                            logger.error(f"❌ Failed to close connection {id(conn)}: {e}")
+                            logger.error(
+                                f"❌ Failed to close connection {id(conn)}: {e}"
+                            )
 
                     # Clear the room
                     manager.rooms[session_room] = []
@@ -406,7 +384,10 @@ async def websocket_session_performance_endpoint(
             if message_type == "join_performance":
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "performance_state", "state": get_session_performance_state(session_id)}
+                        {
+                            "type": "performance_state",
+                            "state": get_session_performance_state(session_id),
+                        }
                     )
                 )
 
@@ -442,9 +423,7 @@ async def websocket_session_performance_endpoint(
                     session_state["duration"] = duration
 
                 await websocket.send_text(
-                    json.dumps(
-                        {"type": "performance_state", "state": session_state}
-                    )
+                    json.dumps({"type": "performance_state", "state": session_state})
                 )
 
             elif message_type in [
@@ -470,7 +449,9 @@ async def websocket_session_performance_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         manager.leave_session(device_id, session_id)
-        logger.info(f"Session {session_id} performance client disconnected: {device_id}")
+        logger.info(
+            f"Session {session_id} performance client disconnected: {device_id}"
+        )
 
 
 async def websocket_session_queue_endpoint(
@@ -524,51 +505,17 @@ async def websocket_session_queue_endpoint(
                 )
 
             elif message_type == "request_queue_update":
-                # Get current queue from database
-                with get_db_session() as db:
-                    queue_items = (
-                        db.query(KaraokeQueueItem)
-                        .order_by(KaraokeQueueItem.position)
-                        .all()
+                queue_state = await get_current_queue_state(session_id)
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "queue_updated",
+                            "current": queue_state.get("current"),
+                            "upcoming": queue_state.get("upcoming", []),
+                            "items": queue_state.get("items", []),
+                        }
                     )
-                    queue_data = []
-                    for item in queue_items:
-                        song = (
-                            db.query(DbSong)
-                            .options(joinedload(DbSong.lyrics))
-                            .filter(DbSong.id == item.song_id)
-                            .first()
-                        )
-                        if song:
-                            queue_data.append(
-                                {
-                                    "id": item.id,
-                                    "songId": item.song_id,
-                                    "singer": item.singer_name,
-                                    "position": item.position,
-                                    "addedAt": (
-                                        item.created_at.isoformat()
-                                        if hasattr(item, "created_at")
-                                        else None
-                                    ),
-                                    "song": {
-                                        "id": song.id,
-                                        "title": song.title,
-                                        "artist": song.artist,
-                                        "album": song.album,
-                                        "duration": song.duration,
-                                        "coverArt": getattr(
-                                            song, "cover_art_url", None
-                                        ),
-                                        "syncedLyrics": song._get_active_lyrics_content("synced"),
-                                        "plainLyrics": song._get_active_lyrics_content("plain"),
-                                    },
-                                }
-                            )
-
-                    await websocket.send_text(
-                        json.dumps({"type": "queue_updated", "items": queue_data})
-                    )
+                )
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

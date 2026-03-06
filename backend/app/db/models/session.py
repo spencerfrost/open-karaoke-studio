@@ -14,6 +14,7 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .queue import KaraokeQueueItem
+    from .song import DbSong
 
 
 class KaraokeSession(Base):
@@ -39,6 +40,14 @@ class KaraokeSession(Base):
         "KaraokeQueueItem", back_populates="session", cascade="all, delete-orphan"
     )
 
+    # Relationship to playback state
+    playback_state: Mapped[Optional["SessionPlaybackState"]] = relationship(
+        "SessionPlaybackState",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
     @classmethod
     def generate_session_id(cls) -> str:
         """Generate a unique session ID."""
@@ -56,11 +65,15 @@ class KaraokeSession(Base):
             code = "".join(secrets.choice(chars) for _ in range(4))
 
             # Check if this code is already in use by an active session
-            existing = db_session.query(cls).filter(
-                cls.display_code == code,
-                cls.is_active == True,
-                cls.expires_at > datetime.utcnow(),
-            ).first()
+            existing = (
+                db_session.query(cls)
+                .filter(
+                    cls.display_code == code,
+                    cls.is_active == True,
+                    cls.expires_at > datetime.utcnow(),
+                )
+                .first()
+            )
 
             if not existing:
                 return code
@@ -124,3 +137,49 @@ class SessionDevice(Base):
         if device_type and device_type not in self.DEVICE_TYPES:
             raise ValueError(f"Invalid device type: {device_type}")
         super().__init__(**kwargs)
+
+
+class SessionPlaybackState(Base):
+    """Persisted playback state for a karaoke session."""
+
+    __tablename__ = "session_playback_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        String(4),
+        ForeignKey("karaoke_sessions.session_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    current_queue_item_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("karaoke_queue.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    current_song_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        ForeignKey("songs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    is_playing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    current_time: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    duration: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    is_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    session: Mapped["KaraokeSession"] = relationship(
+        "KaraokeSession", back_populates="playback_state"
+    )
+    current_queue_item: Mapped[Optional["KaraokeQueueItem"]] = relationship(
+        "KaraokeQueueItem",
+        foreign_keys=[current_queue_item_id],
+    )
+    current_song: Mapped[Optional["DbSong"]] = relationship(
+        "DbSong",
+        foreign_keys=[current_song_id],
+    )

@@ -12,21 +12,27 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import Generator, List, Optional
 
+from app.db.database import SessionLocal
+from app.db.models import (
+    DbSong,
+    KaraokeQueueItem,
+    KaraokeSession,
+    SessionPlaybackState,
+)
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
-from app.db.database import SessionLocal
-from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/karaoke-queue", tags=["queue"])
+
 
 def get_session_manager(request: Request) -> SessionConnectionManager:
     """Get the shared SessionConnectionManager from app state."""
     return request.app.state.session_manager
+
 
 # ============================================================================
 # Pydantic Models
@@ -84,6 +90,14 @@ class QueuePlayResponse(BaseModel):
     singer: str
 
 
+class QueueStateResponse(BaseModel):
+    """Response model for explicit queue state."""
+
+    current: Optional[QueueItemResponse] = None
+    upcoming: List[QueueItemResponse]
+    items: List[QueueItemResponse]
+
+
 # ============================================================================
 # Dependencies
 # ============================================================================
@@ -132,13 +146,16 @@ def song_to_info(song: DbSong) -> SongInfo:
     )
 
 
-def queue_item_to_response(item: KaraokeQueueItem) -> QueueItemResponse:
+def queue_item_to_response(
+    item: KaraokeQueueItem,
+    position_override: Optional[int] = None,
+) -> QueueItemResponse:
     """Convert queue item to response model"""
     return QueueItemResponse(
         id=item.id,
         songId=item.song_id,
         singer=item.singer_name,
-        position=item.position,
+        position=position_override if position_override is not None else item.position,
         addedAt=(
             item.created_at.isoformat()
             if hasattr(item, "created_at") and item.created_at
@@ -148,12 +165,107 @@ def queue_item_to_response(item: KaraokeQueueItem) -> QueueItemResponse:
     )
 
 
+def get_or_create_playback_state(
+    db: Session,
+    session_code: str,
+) -> SessionPlaybackState:
+    """Get or create persisted playback state for the session."""
+    state = (
+        db.query(SessionPlaybackState)
+        .filter(SessionPlaybackState.session_id == session_code)
+        .first()
+    )
+    if state:
+        return state
+
+    state = SessionPlaybackState(session_id=session_code)
+    db.add(state)
+    db.flush()
+    return state
+
+
+def reindex_upcoming_positions(
+    db: Session,
+    session_code: str,
+    current_queue_item_id: Optional[int],
+) -> None:
+    """Ensure upcoming queue item positions are contiguous and start at 1."""
+    query = (
+        db.query(KaraokeQueueItem)
+        .filter(KaraokeQueueItem.session_id == session_code)
+        .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
+    )
+    if current_queue_item_id is not None:
+        query = query.filter(KaraokeQueueItem.id != current_queue_item_id)
+
+    for idx, queue_item in enumerate(query.all(), start=1):
+        queue_item.position = idx
+
+
+def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
+    """Build explicit queue state (current + upcoming) with legacy items compatibility."""
+    playback_state = (
+        db.query(SessionPlaybackState)
+        .filter(SessionPlaybackState.session_id == session_code)
+        .first()
+    )
+
+    queue_items = (
+        db.query(KaraokeQueueItem)
+        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
+        .filter(KaraokeQueueItem.session_id == session_code)
+        .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
+        .all()
+    )
+
+    queue_items_by_id = {item.id: item for item in queue_items}
+
+    current_item: Optional[KaraokeQueueItem] = None
+    if playback_state and playback_state.current_queue_item_id:
+        candidate = queue_items_by_id.get(playback_state.current_queue_item_id)
+        if candidate and candidate.song:
+            current_item = candidate
+
+    if current_item is None:
+        legacy_current = next(
+            (item for item in queue_items if item.position == 0 and item.song),
+            None,
+        )
+        if legacy_current:
+            current_item = legacy_current
+
+    upcoming_items = [
+        item
+        for item in queue_items
+        if item.song and (current_item is None or item.id != current_item.id)
+    ]
+
+    upcoming_responses = [
+        queue_item_to_response(item, position_override=idx)
+        for idx, item in enumerate(upcoming_items, start=1)
+    ]
+    current_response = (
+        queue_item_to_response(current_item, position_override=0)
+        if current_item
+        else None
+    )
+
+    items = [current_response] if current_response else []
+    items.extend(upcoming_responses)
+
+    return QueueStateResponse(
+        current=current_response,
+        upcoming=upcoming_responses,
+        items=items,
+    )
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
 
 
-@router.get("", response_model=List[QueueItemResponse])
+@router.get("", response_model=QueueStateResponse)
 async def get_queue(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
@@ -161,20 +273,7 @@ async def get_queue(
     """
     Retrieve the current karaoke queue with song details for a session.
     """
-    queue = (
-        db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
-        .filter(KaraokeQueueItem.session_id == session_code)
-        .order_by(KaraokeQueueItem.position)
-        .all()
-    )
-
-    result = []
-    for item in queue:
-        if item.song:  # Ensure song exists
-            result.append(queue_item_to_response(item))
-
-    return result
+    return build_queue_state(db, session_code)
 
 
 @router.post("", response_model=QueueItemResponse, status_code=201)
@@ -205,13 +304,18 @@ async def add_to_queue(
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    # Get max position
-    max_position = (
-        db.query(KaraokeQueueItem.position)
-        .filter(KaraokeQueueItem.session_id == session_code)
-        .order_by(KaraokeQueueItem.position.desc())
-        .first()
+    playback_state = get_or_create_playback_state(db, session_code)
+
+    # Get max upcoming position (exclude current loaded item)
+    max_position_query = db.query(KaraokeQueueItem.position).filter(
+        KaraokeQueueItem.session_id == session_code
     )
+    if playback_state.current_queue_item_id is not None:
+        max_position_query = max_position_query.filter(
+            KaraokeQueueItem.id != playback_state.current_queue_item_id
+        )
+
+    max_position = max_position_query.order_by(KaraokeQueueItem.position.desc()).first()
     new_position = (max_position[0] + 1) if max_position else 1
 
     # Create new queue item
@@ -264,19 +368,18 @@ async def remove_from_queue(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    playback_state = get_or_create_playback_state(db, session_code)
+
+    if playback_state.current_queue_item_id == item.id:
+        playback_state.current_queue_item_id = None
+        playback_state.current_song_id = None
+        playback_state.is_playing = False
+        playback_state.current_time = 0
+        playback_state.duration = 0
+        playback_state.is_ready = False
+
     db.delete(item)
-    db.commit()
-
-    # Reindex positions to be contiguous
-    remaining_items = (
-        db.query(KaraokeQueueItem)
-        .filter(KaraokeQueueItem.session_id == session_code)
-        .order_by(KaraokeQueueItem.position)
-        .all()
-    )
-
-    for idx, queue_item in enumerate(remaining_items):
-        queue_item.position = idx
+    reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 
     db.commit()
 
@@ -296,6 +399,8 @@ async def reorder_queue(
     """
     Reorder the karaoke queue.
     """
+    playback_state = get_or_create_playback_state(db, session_code)
+
     for item in reorder_data.queue:
         queue_item = (
             db.query(KaraokeQueueItem)
@@ -305,8 +410,10 @@ async def reorder_queue(
             )
             .first()
         )
-        if queue_item:
+        if queue_item and queue_item.id != playback_state.current_queue_item_id:
             queue_item.position = item["position"]
+
+    reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 
     db.commit()
 
@@ -342,36 +449,34 @@ async def play_queue_item(
     if not item.song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    # Remove current song (position 0) if it exists
-    current_song = (
-        db.query(KaraokeQueueItem)
-        .filter(
-            KaraokeQueueItem.position == 0,
-            KaraokeQueueItem.session_id == session_code,
+    playback_state = get_or_create_playback_state(db, session_code)
+
+    # Remove previous current item from queue once a new current item is loaded
+    if (
+        playback_state.current_queue_item_id is not None
+        and playback_state.current_queue_item_id != item.id
+    ):
+        previous_current_item = (
+            db.query(KaraokeQueueItem)
+            .filter(
+                KaraokeQueueItem.id == playback_state.current_queue_item_id,
+                KaraokeQueueItem.session_id == session_code,
+            )
+            .first()
         )
-        .first()
-    )
+        if previous_current_item:
+            db.delete(previous_current_item)
 
-    if current_song:
-        db.delete(current_song)
-
-    # Move the played item to position 0 (current song)
+    # Keep legacy sentinel for compatibility while current song is explicit in playback_state
     item.position = 0
-    db.commit()
+    playback_state.current_queue_item_id = item.id
+    playback_state.current_song_id = item.song.id
+    playback_state.is_playing = False
+    playback_state.current_time = 0
+    playback_state.duration = item.song.duration or 0
+    playback_state.is_ready = False
 
-    # Reindex remaining positions to be contiguous (1, 2, 3, ...)
-    remaining_items = (
-        db.query(KaraokeQueueItem)
-        .filter(
-            KaraokeQueueItem.position > 0,
-            KaraokeQueueItem.session_id == session_code,
-        )
-        .order_by(KaraokeQueueItem.position)
-        .all()
-    )
-
-    for idx, queue_item in enumerate(remaining_items, start=1):
-        queue_item.position = idx
+    reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 
     db.commit()
 
