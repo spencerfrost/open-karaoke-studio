@@ -17,6 +17,12 @@ export interface KaraokeQueueState {
   currentSong: KaraokeQueueItemWithSong | null;
 }
 
+export interface KaraokeQueueStateResponse {
+  current: KaraokeQueueItemWithSong | null;
+  upcoming: KaraokeQueueItemWithSong[];
+  items: KaraokeQueueItemWithSong[];
+}
+
 export interface AddToKaraokeQueueRequest {
   songId: string;
   singer: string;

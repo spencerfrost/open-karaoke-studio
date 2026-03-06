@@ -39,8 +39,8 @@ const Stage: React.FC = () => {
     displayCode || undefined,
   );
 
-  // Get the current song (position 0) from the queue
-  const currentQueueItem = queueQuery.data?.find((item) => item.position === 0);
+  // Get the current loaded song from explicit queue state
+  const currentQueueItem = queueQuery.data?.current;
   const currentSongId = currentQueueItem?.song?.id;
   const { data: currentSong } = useSong(currentSongId ?? "");
 
@@ -70,8 +70,12 @@ const Stage: React.FC = () => {
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
     // This handler now receives the full queue data from the WebSocket
-    const handleQueueUpdate = (data: { items?: any[] }) => {
-      if (data.items) {
+    const handleQueueUpdate = (data: {
+      current?: unknown;
+      upcoming?: unknown[];
+      items?: unknown[];
+    }) => {
+      if (data.items || data.current || data.upcoming) {
         logger.debug("Queue updated via WebSocket, updating cache directly.");
         // Update the React Query cache by refetching
         queueQuery.refetch();
@@ -180,7 +184,7 @@ const Stage: React.FC = () => {
 
         <KaraokePlayer
           songId={currentSong?.id || ""}
-          queueItems={queueQuery.data}
+          queueItems={queueQuery.data?.items}
           onPlayNext={handlePlayFromQueue}
         />
         <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
@@ -189,8 +193,8 @@ const Stage: React.FC = () => {
 
         <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-background border border-orange-peel">
           <KaraokeQueueList
-            items={queueQuery.data || []}
-            emptyMessage="No songs in the queue"
+            items={queueQuery.data?.upcoming || []}
+            emptyMessage="No upcoming songs in the queue"
             onRemove={handleRemoveFromQueue}
             onPlay={handlePlayFromQueue}
           />

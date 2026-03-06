@@ -64,7 +64,12 @@ interface SessionWebSocketEvents {
 
   // Queue events
   queue_joined: (data: { room: string }) => void;
-  queue_updated: (data: { items?: QueueItem[]; trigger?: string }) => void;
+  queue_updated: (data: {
+    current?: QueueItem | null;
+    upcoming?: QueueItem[];
+    items?: QueueItem[];
+    trigger?: string;
+  }) => void;
 
   // UI control events (performer → host)
   toggle_fullscreen: () => void;
@@ -74,7 +79,12 @@ type EventData =
   | PerformanceState
   | { error: string }
   | { room: string }
-  | { items?: QueueItem[]; trigger?: string }
+  | {
+      current?: QueueItem | null;
+      upcoming?: QueueItem[];
+      items?: QueueItem[];
+      trigger?: string;
+    }
   | { control: string; value: ControlValue }
   | undefined;
 

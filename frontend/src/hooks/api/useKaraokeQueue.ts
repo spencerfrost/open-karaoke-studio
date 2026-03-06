@@ -9,52 +9,110 @@ import type {
 import {
   KaraokeQueueItemWithSong as KaraokeQueueItem,
   AddToKaraokeQueueRequest,
+  KaraokeQueueStateResponse,
 } from "@/types/KaraokeQueue";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:queue");
 
+type QueueApiResponse = KaraokeQueueStateResponse | KaraokeQueueItem[];
+
+interface QueuePlayResponse {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string | null;
+  duration?: number | null;
+  coverArt?: string | null;
+  syncedLyrics?: string | null;
+  plainLyrics?: string | null;
+  singer: string;
+}
+
+type QueueQueryOptions = Omit<
+  UseQueryOptions<
+    QueueApiResponse,
+    Error,
+    QueueApiResponse,
+    ["karaoke-queue", string]
+  >,
+  "queryKey" | "queryFn"
+>;
+
+type CurrentSongQueryOptions = Omit<
+  UseQueryOptions<
+    QueueApiResponse,
+    Error,
+    QueueApiResponse,
+    ["karaoke-queue", string]
+  >,
+  "queryKey" | "queryFn"
+>;
+
+function normalizeQueueState(
+  data: QueueApiResponse,
+): KaraokeQueueStateResponse {
+  if (Array.isArray(data)) {
+    const current = data.find((item) => item.position === 0) || null;
+    const upcoming = data.filter((item) => item.position !== 0);
+    return {
+      current,
+      upcoming,
+      items: data,
+    };
+  }
+
+  const current = data.current ?? null;
+  const upcoming = data.upcoming ?? [];
+  const items = data.items ?? [...(current ? [current] : []), ...upcoming];
+
+  return {
+    current,
+    upcoming,
+    items,
+  };
+}
+
+function parseErrorMessage(payload: unknown, fallback: string): string {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string"
+  ) {
+    return payload.message;
+  }
+  return fallback;
+}
+
 /**
  * Hook: Get the current queue
  */
-export function useQueue(
-  sessionCode?: string,
-  options?: Omit<
-    UseQueryOptions<
-      KaraokeQueueItem[],
-      Error,
-      KaraokeQueueItem[],
-      ["karaoke-queue", string]
-    >,
-    "queryKey" | "queryFn"
-  >,
-) {
-  return useApiQuery<KaraokeQueueItem[], ["karaoke-queue", string]>(
+export function useQueue(sessionCode?: string, options?: QueueQueryOptions) {
+  const query = useApiQuery<QueueApiResponse, ["karaoke-queue", string]>(
     ["karaoke-queue", sessionCode || ""],
     `karaoke-queue${sessionCode ? `?session_code=${sessionCode}` : ""}`,
     options,
   );
+
+  return {
+    ...query,
+    data: query.data ? normalizeQueueState(query.data) : undefined,
+  };
 }
 
 /**
  * Hook: Get the current playing item
  */
 export function useCurrentSong(
-  options?: Omit<
-    UseQueryOptions<
-      KaraokeQueueItem | null,
-      Error,
-      KaraokeQueueItem | null,
-      ["karaoke-queue", "current"]
-    >,
-    "queryKey" | "queryFn"
-  >,
+  sessionCode?: string,
+  options?: CurrentSongQueryOptions,
 ) {
-  return useApiQuery<KaraokeQueueItem | null, ["karaoke-queue", "current"]>(
-    ["karaoke-queue", "current"],
-    "karaoke-queue/current",
-    options,
-  );
+  const queue = useQueue(sessionCode, options);
+  return {
+    ...queue,
+    data: queue.data?.current ?? null,
+  };
 }
 
 /**
@@ -100,9 +158,9 @@ export function useRemoveFromKaraokeQueue(
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
-          const errorData: any = await response.json();
-          errorMessage = errorData?.message || errorMessage;
-        } catch (jsonError: any) {
+          const errorData: unknown = await response.json();
+          errorMessage = parseErrorMessage(errorData, errorMessage);
+        } catch (jsonError: unknown) {
           logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
@@ -118,9 +176,12 @@ export function useRemoveFromKaraokeQueue(
  */
 export function usePlayFromKaraokeQueue(
   sessionCode?: string,
-  options?: Omit<UseMutationOptions<any, Error, string, unknown>, "mutationFn">,
+  options?: Omit<
+    UseMutationOptions<QueuePlayResponse, Error, string, unknown>,
+    "mutationFn"
+  >,
 ) {
-  return useMutation<any, Error, string, unknown>({
+  return useMutation<QueuePlayResponse, Error, string, unknown>({
     mutationFn: async (id: string) => {
       const url = `/api/karaoke-queue/${id}/play${sessionCode ? `?session_code=${sessionCode}` : ""}`;
       const response = await fetch(url, {
@@ -129,9 +190,9 @@ export function usePlayFromKaraokeQueue(
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
         try {
-          const errorData: any = await response.json();
-          errorMessage = errorData?.message || errorMessage;
-        } catch (jsonError: any) {
+          const errorData: unknown = await response.json();
+          errorMessage = parseErrorMessage(errorData, errorMessage);
+        } catch (jsonError: unknown) {
           logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
