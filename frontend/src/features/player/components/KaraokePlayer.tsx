@@ -338,7 +338,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       {/* Main Lyrics Display or End States - positioned above controls */}
       <div className={`absolute top-0 left-0 right-0 bottom-0`}>
         {player.song && player.songEnded ? (
-          // Determine if queue has more songs (position 0 is current, position > 0 are remaining)
+          // Determine if queue has more songs in explicit upcoming list
           upcomingQueueItems.length > 0 ? (
             <SongEnded
               currentSong={player.song}
