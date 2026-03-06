@@ -353,7 +353,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           )
         ) : player.song ? (
           <>
-            <ChordCarousel chords={songChords} currentTime={player.currentTime} />
+            {player.showChords && (
+              <ChordCarousel chords={songChords} currentTime={player.currentTime} />
+            )}
             <LyricsDisplayWithCountIn
               lyrics={player.lyrics}
               isSync={player.isLyricsSync}
