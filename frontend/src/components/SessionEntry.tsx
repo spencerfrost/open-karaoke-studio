@@ -165,10 +165,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
               <div className="rounded-full bg-orange-peel/10 p-6">
                 <Camera className="h-12 w-12 text-orange-peel" />
               </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Point your phone's camera at the QR code displayed on the stage
-                screen
-              </p>
             </div>
 
             {/* Divider */}
@@ -182,6 +178,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
                 </span>
               </div>
             </div>
+
 
             {/* Session Code - Secondary */}
             <div className="space-y-4">
