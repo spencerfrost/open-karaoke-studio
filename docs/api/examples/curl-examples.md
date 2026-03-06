@@ -245,7 +245,7 @@ curl -X POST "http://localhost:5123/api/jobs/{job_id}/dismiss" \
 
 ```bash
 # Get the current karaoke queue
-curl -X GET "http://localhost:5123/karaoke-queue/" \
+curl -X GET "http://localhost:5123/api/karaoke-queue?session_code=ABCD" \
   -H "Accept: application/json"
 ```
 
@@ -253,11 +253,11 @@ curl -X GET "http://localhost:5123/karaoke-queue/" \
 
 ```bash
 # Add a song to the karaoke queue
-curl -X POST "http://localhost:5123/karaoke-queue/" \
+curl -X POST "http://localhost:5123/api/karaoke-queue?session_code=ABCD" \
   -H "Content-Type: application/json" \
   -d '{
-    "singer_name": "John Doe",
-    "song_id": "123e4567-e89b-12d3-a456-426614174000"
+    "singer": "John Doe",
+    "songId": "123e4567-e89b-12d3-a456-426614174000"
   }'
 ```
 
@@ -265,14 +265,14 @@ curl -X POST "http://localhost:5123/karaoke-queue/" \
 
 ```bash
 # Remove a song from the queue
-curl -X DELETE "http://localhost:5123/karaoke-queue/{item_id}"
+curl -X DELETE "http://localhost:5123/api/karaoke-queue/{item_id}?session_code=ABCD"
 ```
 
 ### Reorder Queue
 
 ```bash
 # Reorder the entire queue
-curl -X PUT "http://localhost:5123/karaoke-queue/reorder" \
+curl -X PUT "http://localhost:5123/api/karaoke-queue/reorder?session_code=ABCD" \
   -H "Content-Type: application/json" \
   -d '{
     "queue": [
@@ -281,6 +281,13 @@ curl -X PUT "http://localhost:5123/karaoke-queue/reorder" \
       {"id": 3, "position": 3}
     ]
   }'
+```
+
+### Load Queue Item as Current
+
+```bash
+# Load a queued song as current (does not auto-play)
+curl -X POST "http://localhost:5123/api/karaoke-queue/{item_id}/play?session_code=ABCD"
 ```
 
 ## 👥 User Management

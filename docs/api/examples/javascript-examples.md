@@ -476,63 +476,103 @@ await jobsService.cancelJob("job-id-123");
 
 ```javascript
 class KaraokeQueueService {
-  constructor(baseUrl = "http://localhost:5123") {
+  constructor(baseUrl = "http://localhost:5123/api", sessionCode = "ABCD") {
     this.baseUrl = baseUrl;
+    this.sessionCode = sessionCode;
   }
 
   async getQueue() {
-    const response = await fetch(`${this.baseUrl}/karaoke-queue/`, {
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue?session_code=${this.sessionCode}`,
+      {
+        credentials: "include",
+      }
+    );
     return response.json();
   }
 
+  async getCurrentAndUpcoming() {
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue?session_code=${this.sessionCode}`,
+      {
+        credentials: "include",
+      }
+    );
+    const payload = await response.json();
+    return {
+      current: payload.current,
+      upcoming: payload.upcoming,
+    };
+  }
+
   async addToQueue(singerName, songId) {
-    const response = await fetch(`${this.baseUrl}/karaoke-queue/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        singer_name: singerName,
-        song_id: songId,
-      }),
-    });
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue?session_code=${this.sessionCode}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          singer: singerName,
+          songId,
+        }),
+      }
+    );
     return response.json();
   }
 
   async removeFromQueue(itemId) {
-    const response = await fetch(`${this.baseUrl}/karaoke-queue/${itemId}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue/${itemId}?session_code=${this.sessionCode}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      }
+    );
     return response.json();
   }
 
   async reorderQueue(queueItems) {
-    const response = await fetch(`${this.baseUrl}/karaoke-queue/reorder`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ queue: queueItems }),
-    });
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue/reorder?session_code=${this.sessionCode}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ queue: queueItems }),
+      }
+    );
+    return response.json();
+  }
+
+  async loadAsCurrent(itemId) {
+    const response = await fetch(
+      `${this.baseUrl}/karaoke-queue/${itemId}/play?session_code=${this.sessionCode}`,
+      {
+        method: "POST",
+        credentials: "include",
+      }
+    );
     return response.json();
   }
 
   // WebSocket for real-time queue updates
   connectToQueueUpdates(callbacks = {}) {
-    const socket = io(`${this.baseUrl.replace("http", "ws")}/karaoke_queue`);
+    const socket = new WebSocket(
+      `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/session/${this.sessionCode}`
+    );
 
-    socket.on("queue_updated", (data) => {
-      callbacks.onQueueUpdate?.(data);
-    });
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ type: "join_queue_room" }));
+      socket.send(JSON.stringify({ type: "request_queue_update" }));
+    };
 
-    socket.on("song_started", (data) => {
-      callbacks.onSongStarted?.(data);
-    });
-
-    socket.on("song_finished", (data) => {
-      callbacks.onSongFinished?.(data);
-    });
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "queue_updated") {
+        callbacks.onQueueUpdate?.(data);
+      }
+    };
 
     return socket;
   }
@@ -541,12 +581,18 @@ class KaraokeQueueService {
 // Usage examples
 const queueService = new KaraokeQueueService();
 
-// Get current queue
+// Get explicit queue state
 const queue = await queueService.getQueue();
-console.log("Current queue:", queue);
+console.log("Current:", queue.current);
+console.log("Upcoming:", queue.upcoming);
 
 // Add to queue
 await queueService.addToQueue("John Doe", "song-id-123");
+
+// Load next as current (host action)
+if (queue.upcoming?.length) {
+  await queueService.loadAsCurrent(queue.upcoming[0].id);
+}
 
 // Real-time queue monitoring
 const queueSocket = queueService.connectToQueueUpdates({
