@@ -1,7 +1,6 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
-import { JobsQueue } from "@/features/jobs";
 import { SongSearchContainer } from "@/features/songs/components/shared/SongSearchContainer";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
@@ -20,7 +19,6 @@ const AddSongPage: React.FC = () => {
         className="absolute top-2 right-3 z-30"
       />
       <div className="md:p-6 space-y-6 container mx-auto">
-        <JobsQueue />
         <SongSearchContainer
           initialQuery={initialQuery}
           autoBrowseArtist={autoBrowseArtist}
