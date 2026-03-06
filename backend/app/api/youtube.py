@@ -5,16 +5,22 @@ FastAPI router for YouTube search and download endpoints.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
 
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.youtube_service import YouTubeService
+from app.ws.connection_manager import SessionConnectionManager
+from app.ws.jobs import broadcast_job_created
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/youtube", tags=["youtube"])
+
+
+def get_session_manager(request: Request) -> SessionConnectionManager:
+    return request.app.state.session_manager
 
 
 class YouTubeDownloadRequest(BaseModel):
@@ -114,7 +120,11 @@ async def search_youtube(
 
 
 @router.post("/download", response_model=YouTubeDownloadResponse, status_code=202)
-async def download_youtube(request: YouTubeDownloadRequest):
+async def download_youtube(
+    body: YouTubeDownloadRequest,
+    request: Request,
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
     """
     Download and process a YouTube video.
     
@@ -124,19 +134,28 @@ async def download_youtube(request: YouTubeDownloadRequest):
     try:
         youtube_service = YouTubeService()
         job_id = youtube_service.download_and_process_async(
-            song_id=request.song_id,
-            video_id_or_url=request.video_id,
-            artist=request.artist or "",
-            title=request.title or "",
-            engine_type=request.engine_type,
+            song_id=body.song_id,
+            video_id_or_url=body.video_id,
+            artist=body.artist or "",
+            title=body.title or "",
+            engine_type=body.engine_type,
         )
 
         logger.info(
             "YouTube processing started for song %s, video %s, job %s",
-            request.song_id,
-            request.video_id,
+            body.song_id,
+            body.video_id,
             job_id,
         )
+
+        await broadcast_job_created(manager, {
+            "id": job_id,
+            "song_id": body.song_id,
+            "status": "pending",
+            "progress": 0,
+            "artist": body.artist,
+            "title": body.title,
+        })
 
         return YouTubeDownloadResponse(
             success=True,
