@@ -396,10 +396,17 @@ async def join_session_by_id(
 
 @router.get("/{session_id}/info", response_model=SessionResponse)
 async def get_session_info(
-    session_id: str, request: Request, db: Session = Depends(get_db)
+    session_id: str,
+    request: Request,
+    device_id: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
     """
     Get information about a specific session.
+
+    Pass `device_id` as a query parameter to correctly determine `is_host`
+    for REST-created sessions (where host_device_id is a 'rest_xxx' token,
+    not an IP address).
     """
     # Find session
     session = (
@@ -417,7 +424,8 @@ async def get_session_info(
     if session.is_expired():
         raise HTTPException(status_code=410, detail="Session has expired")
 
-    client_host = request.client.host if request.client else "unknown"
+    # Use provided device_id for identity if supplied, otherwise fall back to IP
+    client_identity = device_id or (request.client.host if request.client else "unknown")
 
     # Get all active devices in the session
     active_devices = (
@@ -434,7 +442,7 @@ async def get_session_info(
             device_id=d.device_id,
             device_type=d.device_type,
             joined_at=d.joined_at.isoformat(),
-            is_self=d.device_id == client_host,
+            is_self=d.device_id == client_identity,
             display_name=d.display_name,
         )
         for d in active_devices
@@ -443,7 +451,7 @@ async def get_session_info(
     return SessionResponse(
         session_id=session.session_id,
         display_code=session.display_code,
-        is_host=client_host == session.host_device_id,
+        is_host=client_identity == session.host_device_id,
         device_count=len(connected_devices),
         connected_devices=connected_devices,
         created_at=session.created_at.isoformat(),
