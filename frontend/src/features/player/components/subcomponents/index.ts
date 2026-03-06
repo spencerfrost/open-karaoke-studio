@@ -14,3 +14,4 @@ export { SongEnded } from "./SongEnded";
 export { QueueEnded } from "./QueueEnded";
 export { TapTempoButton } from "./TapTempoButton";
 export { default as BottomControlsArea } from "./BottomControlsArea";
+export { default as ChordCarousel } from "./ChordCarousel";

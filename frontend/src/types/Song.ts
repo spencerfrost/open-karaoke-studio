@@ -1,5 +1,10 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
+export interface ChordEvent {
+  time: number;
+  chord: string;
+}
+
 export interface Song {
   id: string;
   title: string;
@@ -40,6 +45,7 @@ export interface Song {
 
   // Audio analysis
   bpm?: number; // Beats per minute for count-in timing
+  chordsData?: ChordEvent[];
 
   status: SongStatus;
 }
@@ -55,7 +61,8 @@ export interface SongProcessingStatus {
   song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
-  message?: string;
+  rawStatus?: string; // Backend status: pending | downloading | processing | finalizing | failed
+  message?: string; // Detailed status message from backend (status_message field)
   artist?: string;
   title?: string;
 }
