@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { ChevronRight, ScrollText, Volume2, Gauge, FileText } from "lucide-react";
+import { ChevronRight, ScrollText, Volume2, Gauge, FileText, Guitar } from "lucide-react";
 import { Settings2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
@@ -30,6 +30,8 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
   const setAutoScrollEnabled = useKaraokePlayerStore(
     (state) => state.setAutoScrollEnabled,
   );
+  const showChords = useKaraokePlayerStore((state) => state.showChords);
+  const setShowChords = useKaraokePlayerStore((state) => state.setShowChords);
   const setLyricsSize = useKaraokePlayerStore(
     (state) => state.setLyricsSize,
   );
@@ -150,6 +152,25 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
           <Switch
             checked={autoScrollEnabled}
             onCheckedChange={setAutoScrollEnabled}
+          />
+        </div>
+
+        {/* Guitar chords inline toggle */}
+        <div
+          className={cn(
+            "w-full px-4 py-3 flex items-center justify-between",
+            "text-left",
+          )}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Guitar className="w-5 h-5 text-background/60 shrink-0" />
+            <span className="text-sm font-medium text-background">
+              Guitar Chords
+            </span>
+          </div>
+          <Switch
+            checked={showChords}
+            onCheckedChange={setShowChords}
           />
         </div>
       </div>
