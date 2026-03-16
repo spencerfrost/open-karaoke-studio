@@ -53,6 +53,10 @@ class DbSong(Base):
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
     bpm = Column(Float, nullable=True)  # Beats per minute for count-in timing
     chords_data = Column(JSON, nullable=True)  # Chord detection data
+    vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
+    vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
+    loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
+    gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
@@ -128,4 +132,8 @@ class DbSong(Base):
             "engineType": self.engine_type,
             "bpm": self.bpm,
             "chordsData": self.chords_data,
+            "vocalRangeLow": self.vocal_range_low,
+            "vocalRangeHigh": self.vocal_range_high,
+            "loudnessDbfs": self.loudness_dbfs,
+            "gainDb": self.gain_db,
         }

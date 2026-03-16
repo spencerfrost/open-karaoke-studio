@@ -51,6 +51,12 @@ class SongResponse(BaseModel):
     engineType: Optional[str] = None  # Separation engine used
     bpm: Optional[float] = None  # Beats per minute for count-in timing
     chordsData: Optional[list] = None  # Chord detection data
+    vocalRangeLow: Optional[str] = None  # Lowest sung note, e.g. "G2"
+    vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
+
+    # Loudness normalization
+    loudnessDbfs: Optional[float] = None  # RMS loudness in dBFS
+    gainDb: Optional[float] = None  # Gain correction to reach -14 dBFS target
 
     status: str = "processed"
 
@@ -112,6 +118,8 @@ class SongUpdateRequest(BaseModel):
 
     # Audio analysis
     bpm: Optional[float] = Field(None, ge=30, le=300, description="Beats per minute")
+    loudnessDbfs: Optional[float] = Field(None, description="RMS loudness in dBFS")
+    gainDb: Optional[float] = Field(None, ge=-20, le=20, description="Gain correction in dB")
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
@@ -124,14 +132,14 @@ class SongReprocessRequest(BaseModel):
     """Request model for reprocessing a song with a different engine"""
 
     engine_type: str = Field(
-        default="demucs",
-        description="Separation engine to use (demucs, roformer, hybrid, clean_backing)",
+        default="three_track",
+        description="Separation engine to use (three_track, demucs, roformer, hybrid, clean_backing)",
     )
 
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing"}
+        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
         if v not in valid_engines:
             raise ValueError(
                 f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"

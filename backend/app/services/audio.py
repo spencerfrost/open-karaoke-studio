@@ -13,6 +13,7 @@ import torch
 from app.config import get_config
 from demucs.api import Separator
 from demucs.audio import save_audio
+from pydub import AudioSegment
 
 from . import file_management
 
@@ -315,6 +316,100 @@ def detect_bpm(
 
     except Exception as e:
         error_msg = f"BPM detection failed: {e}"
+        logger.error(error_msg, exc_info=True)
+        status_callback(f"Warning: {error_msg}")
+        return None
+
+
+def detect_vocal_range(
+    vocals_path: Path,
+    status_callback: Callable[[str], None],
+) -> Optional[Tuple[str, str]]:
+    """
+    Detect the vocal range (lowest and highest note) from a vocals audio file.
+
+    Uses probabilistic YIN (pyin) pitch detection on the isolated vocal track.
+    Returns note names in scientific pitch notation (e.g., "G2", "E5").
+
+    Args:
+        vocals_path: Path to the vocals audio file (ideally isolated by Demucs)
+        status_callback: Function to call with status updates
+
+    Returns:
+        Tuple of (low_note, high_note) strings, or None if detection fails
+    """
+    try:
+        status_callback("Detecting vocal range...")
+        y, sr = librosa.load(str(vocals_path), sr=22050, mono=True)
+
+        f0, voiced_flag, voiced_probs = librosa.pyin(
+            y,
+            fmin=librosa.note_to_hz("C2"),  # ~65 Hz, below bass vocal range
+            fmax=librosa.note_to_hz("C7"),  # ~2093 Hz, above soprano range
+            sr=sr,
+        )
+
+        # Filter: only voiced frames with high confidence, no NaN
+        mask = voiced_flag & (voiced_probs > 0.75) & ~np.isnan(f0)
+        confident_f0 = f0[mask]
+
+        if len(confident_f0) < 10:
+            status_callback("Warning: insufficient voiced frames for vocal range detection")
+            return None
+
+        midi_notes = librosa.hz_to_midi(confident_f0)
+        low_note = librosa.midi_to_note(int(np.percentile(midi_notes, 5)))
+        high_note = librosa.midi_to_note(int(np.percentile(midi_notes, 95)))
+
+        status_callback(f"Vocal range detected: {low_note} – {high_note}")
+        logger.info("Vocal range: %s – %s", low_note, high_note)
+        return low_note, high_note
+
+    except Exception as e:
+        logger.error("Vocal range detection failed: %s", e, exc_info=True)
+        status_callback(f"Warning: vocal range detection failed: {e}")
+        return None
+
+
+_LOUDNESS_TARGET_DBFS = -14.0
+_LOUDNESS_GAIN_MAX_DB = 12.0
+
+
+def detect_loudness(
+    audio_path: Path,
+    status_callback: Callable[[str], None],
+) -> Optional[Tuple[float, float]]:
+    """
+    Measure the RMS loudness of an audio file and compute a normalization gain.
+
+    Args:
+        audio_path: Path to the audio file (MP3 or WAV)
+        status_callback: Function to call with status updates
+
+    Returns:
+        Tuple of (loudness_dbfs, gain_db) or None if detection fails.
+        loudness_dbfs: RMS loudness relative to full scale (e.g. -20.0)
+        gain_db: dB gain needed to reach -14 dBFS target, clamped to ±12 dB
+    """
+    try:
+        status_callback("Detecting loudness...")
+        audio = AudioSegment.from_file(str(audio_path))
+        loudness_dbfs = audio.dBFS
+        if loudness_dbfs == float("-inf"):
+            # Silent file — skip normalization
+            status_callback("Warning: Silent audio file, skipping loudness detection")
+            return None
+        raw_gain = _LOUDNESS_TARGET_DBFS - loudness_dbfs
+        gain_db = max(-_LOUDNESS_GAIN_MAX_DB, min(_LOUDNESS_GAIN_MAX_DB, raw_gain))
+        status_callback(f"Loudness detected: {loudness_dbfs:.1f} dBFS (gain: {gain_db:+.1f} dB)")
+        logger.info(
+            "Loudness detection complete: %.1f dBFS, gain correction: %+.1f dB",
+            loudness_dbfs,
+            gain_db,
+        )
+        return loudness_dbfs, gain_db
+    except Exception as e:
+        error_msg = f"Loudness detection failed: {e}"
         logger.error(error_msg, exc_info=True)
         status_callback(f"Warning: {error_msg}")
         return None

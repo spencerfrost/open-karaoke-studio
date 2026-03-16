@@ -10,11 +10,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
+import librosa
+
 from app.config.logging import get_structured_logger
 from app.db.models import JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio, file_management
-from app.services.audio import create_audio_progress_mapper
+from app.services.audio import create_audio_progress_mapper, detect_loudness, detect_vocal_range
 from app.services.chord_detection_service import detect_chords
 from app.services.separation_engines import (
     separate_with_clean_backing,
@@ -30,7 +32,7 @@ from .celery_app import celery
 logger = get_task_logger(__name__)
 # Add structured logging for better job tracking
 structured_logger = get_structured_logger(
-    "app.jobs", {"module": "jobs", "component": "task_processor"}
+    "app.jobs", {"job_module": "jobs", "component": "task_processor"}
 )
 job_repository = JobRepository()
 
@@ -246,7 +248,28 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             logger.warning("Chord detection failed for job %s: %s", job_id, e)
             chord_data = None
 
-        # Update song with engine_type, BPM, and chords
+        # Detect vocal range from vocals track
+        vocal_range_result = None
+        try:
+            vocals_path = song_dir / "vocals.mp3"
+            if vocals_path.exists():
+                vocal_range_result = detect_vocal_range(
+                    vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
+                )
+        except Exception as e:
+            logger.warning("Vocal range detection failed for job %s: %s", job_id, e)
+
+        # Detect loudness from instrumental track
+        loudness_result = None
+        try:
+            if instrumental_path.exists():
+                loudness_result = detect_loudness(
+                    instrumental_path, lambda msg: logger.debug("Loudness: %s", msg)
+                )
+        except Exception as e:
+            logger.warning("Loudness detection failed for job %s: %s", job_id, e)
+
+        # Update song with engine_type, BPM, chords, vocal range, and duration
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
 
@@ -257,6 +280,16 @@ def process_audio_job(self, job_id, engine_type="three_track"):
                 update_kwargs["bpm"] = detected_bpm
             if chord_data is not None:
                 update_kwargs["chords_data"] = chord_data
+            if vocal_range_result is not None:
+                update_kwargs["vocal_range_low"] = vocal_range_result[0]
+                update_kwargs["vocal_range_high"] = vocal_range_result[1]
+            if loudness_result is not None:
+                update_kwargs["loudness_dbfs"] = loudness_result[0]
+                update_kwargs["gain_db"] = loudness_result[1]
+            try:
+                update_kwargs["duration"] = librosa.get_duration(path=str(filepath))
+            except Exception as e:
+                logger.warning("Duration detection failed for job %s: %s", job_id, e)
             repo.update(song_id, **update_kwargs)
 
         job.status = JobStatus.COMPLETED
@@ -537,6 +570,29 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         except Exception as e:
             logger.warning("Chord detection failed for song %s: %s", song_id, e)
 
+        # Phase 2C: Vocal range detection from vocals track
+        vocal_range_result = None
+        try:
+            vocals_file = song_dir / "vocals.mp3"
+            if vocals_file.exists():
+                update_progress(91, "Detecting vocal range")
+                vocal_range_result = detect_vocal_range(
+                    vocals_file, lambda msg: logger.debug("VocalRange: %s", msg)
+                )
+        except Exception as e:
+            logger.warning("Vocal range detection failed for song %s: %s", song_id, e)
+
+        # Phase 2D: Loudness detection from instrumental track
+        loudness_result = None
+        try:
+            if instrumental_file.exists():
+                update_progress(92, "Detecting loudness")
+                loudness_result = detect_loudness(
+                    instrumental_file, lambda msg: logger.debug("Loudness: %s", msg)
+                )
+        except Exception as e:
+            logger.warning("Loudness detection failed for song %s: %s", song_id, e)
+
         # Phase 3: Finalization (90-100% progress)
         # Phase 3A: Collect thumbnail result (started during audio separation)
         update_progress(93, "Collecting thumbnail")
@@ -577,6 +633,20 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                         update_fields["bpm"] = detected_bpm
                     if chord_data is not None:
                         update_fields["chords_data"] = chord_data
+                    if vocal_range_result is not None:
+                        update_fields["vocal_range_low"] = vocal_range_result[0]
+                        update_fields["vocal_range_high"] = vocal_range_result[1]
+                    if loudness_result is not None:
+                        update_fields["loudness_dbfs"] = loudness_result[0]
+                        update_fields["gain_db"] = loudness_result[1]
+                    try:
+                        update_fields["duration"] = librosa.get_duration(
+                            path=str(original_file)
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Duration detection failed for song %s: %s", song_id, e
+                        )
                     updated_song = repo.update(song_id, **update_fields)
                     success = updated_song is not None
 
