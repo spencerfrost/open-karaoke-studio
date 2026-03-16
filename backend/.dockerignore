@@ -14,6 +14,7 @@ logs/
 karaoke_library/
 scripts/*
 !scripts/manage_users.py
+!scripts/reprocess_all_songs.py
 tests/
 .env
 .env.*
