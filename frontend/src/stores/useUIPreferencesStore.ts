@@ -27,6 +27,7 @@ export interface UIPreferencesState {
   setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
   dismissMiniPlayer: () => void;
   resetMiniPlayerDismissed: () => void;
+  resetLyricsOffset: () => void;
 }
 
 export const useUIPreferencesStore = create<UIPreferencesState>((set) => ({
@@ -75,5 +76,9 @@ export const useUIPreferencesStore = create<UIPreferencesState>((set) => ({
 
   resetMiniPlayerDismissed: () => {
     set({ miniPlayerDismissed: false });
+  },
+
+  resetLyricsOffset: () => {
+    set({ lyricsOffset: 0 });
   },
 }));

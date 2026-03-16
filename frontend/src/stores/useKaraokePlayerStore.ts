@@ -362,6 +362,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         .getState()
         .setSongMetadata(title || null, artist || null);
       usePlaybackStateStore.getState().resetSongEnded();
+      useAudioControlsStore.getState().resetAudioControls();
+      useUIPreferencesStore.getState().resetLyricsOffset();
 
       socketEmit("song_loaded", {
         songId: id,

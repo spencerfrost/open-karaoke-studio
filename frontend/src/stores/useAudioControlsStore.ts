@@ -21,6 +21,7 @@ export interface AudioControlsState {
   setBackingVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
   setPlaybackSpeed: (speed: number) => void;
+  resetAudioControls: () => void;
 
   // Internal methods for Web Audio API integration
   applyVolumeToGainNode: (node: GainNode | null, volume: number) => void;
@@ -56,6 +57,15 @@ export const useAudioControlsStore = create<AudioControlsState>((set) => ({
     const clamped = clampSpeed(speed);
     logger.debug("Setting playback speed:", clamped);
     set({ playbackSpeed: clamped });
+  },
+
+  resetAudioControls: () => {
+    set({
+      vocalVolume: 0,
+      backingVocalVolume: 1.0,
+      instrumentalVolume: 1.0,
+      playbackSpeed: 1.0,
+    });
   },
 
   // Helper to apply volume to Web Audio gain node
