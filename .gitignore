@@ -93,3 +93,4 @@ frontend/dev-dist/
 frontend/src/stores/useKaraokePlayerStore.ts.backup
 .claude/
 .worktrees/
+.superpowers/brainstorm
