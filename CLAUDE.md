@@ -57,8 +57,10 @@ frontend/src/
 ./scripts/dev-tmux.sh         # Start all services
 
 # Frontend (cd frontend/)
-pnpm run check                # Format, lint, type-check
-pnpm run fix                  # Auto-fix issues
+pnpm run type-check           # TypeScript only (run this first — clean signal)
+pnpm run lint:check           # ESLint only
+pnpm run format               # Auto-format all files (prettier --write)
+pnpm run check                # All three — fails fast on format, noisy with pre-existing issues
 pnpm build                    # Production build
 
 # Backend (cd backend/ && source venv/bin/activate)
