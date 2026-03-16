@@ -141,7 +141,7 @@ export function useJobsWebSocket() {
     (data: { jobs: JobData[] }) => {
       const processingJobs = data.jobs
         .filter((job) =>
-          ["pending", "downloading", "processing", "finalizing", "failed"].includes(job.status),
+          ["pending", "downloading", "processing", "finalizing"].includes(job.status),
         )
         .map(mapJobToProcessingStatus);
 

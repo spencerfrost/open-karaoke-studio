@@ -138,6 +138,22 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
           ? "text-3xl"
           : "text-xl";
 
+    // Stable song object for LyricsFetchDialog — prevents re-triggering the
+    // dialog's search useEffect on every currentTime re-render (every 100ms)
+    const songForDialog = useMemo(
+      () =>
+        songId && songTitle && songArtist
+          ? ({
+              id: songId,
+              title: songTitle,
+              artist: songArtist,
+              album: songAlbum || "",
+              duration: songDuration,
+            } as Song)
+          : null,
+      [songId, songTitle, songArtist, songAlbum, songDuration],
+    );
+
     // Parse lyrics data for synced display
     const parsedLrcData = useMemo(() => {
       if (!isSync || !lyrics) return null;
@@ -201,7 +217,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             <div className="text-gray-500 text-sm mb-4">
               Enjoy the music and sing along if you know the words!
             </div>
-            {songId && songTitle && songArtist && (
+            {songForDialog && (
               <div className="flex gap-2">
                 <Button
                   onClick={handleLyricsSearch}
@@ -227,20 +243,12 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
         )}
 
         {/* Lyrics Search Dialog */}
-        {songId && songTitle && songArtist && (
+        {songForDialog && (
           <>
             <LyricsFetchDialog
               isOpen={isLyricsDialogOpen}
               onClose={() => setIsLyricsDialogOpen(false)}
-              song={
-                {
-                  id: songId,
-                  title: songTitle,
-                  artist: songArtist,
-                  album: songAlbum || "",
-                  duration: songDuration,
-                } as Song
-              }
+              song={songForDialog}
               onLyricsSelected={handleLyricsSelected}
             />
             <PasteLyricsDialog

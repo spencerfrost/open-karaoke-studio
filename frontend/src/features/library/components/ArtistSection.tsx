@@ -29,7 +29,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       {/* Artist Header */}
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-opacity-50 transition-colors bg-lemon-chiffon/10 text-lemon-chiffon"
+        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-lemon-chiffon/5 transition-colors bg-lemon-chiffon/10 text-lemon-chiffon"
       >
         <div className="flex items-center gap-3">
           {isExpanded ? (
@@ -44,9 +44,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
               {songCount} {songCount === 1 ? "song" : "songs"}
             </p>
           </div>
-        </div>
-        <div className="px-3 py-1 rounded-full text-sm font-medium bg-orange-peel text-dark-cyan">
-          {songCount}
         </div>
       </button>
 

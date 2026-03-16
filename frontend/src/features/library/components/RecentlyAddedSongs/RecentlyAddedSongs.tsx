@@ -8,6 +8,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { usePagination } from "./usePagination";
 
 interface RecentlyAddedSongsProps {
@@ -39,8 +40,15 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
 
   const currentPageSongs = currentPageItems(songs);
 
-  // Don't render if loading or no songs
-  if (isLoading || songs.length === 0) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <LoadingSpinner size={24} />
+      </div>
+    );
+  }
+
+  if (songs.length === 0) {
     return null;
   }
 

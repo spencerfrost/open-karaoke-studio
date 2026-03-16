@@ -99,13 +99,11 @@ const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
             const isAvailable = availableLetters.includes(letter);
             const isActive = letter === activeSection;
             const isPending = letter === pendingLetter;
-            const isClickable = isAvailable || hasNextPage;
 
             return (
               <button
                 key={letter}
                 onClick={() => handleLetterClick(letter)}
-                disabled={!isClickable}
                 className={`
                   ${isMobile ? "w-7 h-7 text-xs flex-shrink-0" : "w-8 h-8 text-sm"} 
                   font-medium rounded transition-all duration-200 relative

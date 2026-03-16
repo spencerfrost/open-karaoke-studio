@@ -145,6 +145,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         );
 
       case "qr":
+        // Performer devices never display a QR code
+        if (!isHost) return null;
         return (
           <div className={`cursor-pointer ${baseTriggerClass}`}>
             <QRCodeDisplay
