@@ -174,6 +174,27 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
         </CardContent>
       </Card>
 
+      {/* Vocal Range */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Vocal Range</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {song.vocalRangeLow || song.vocalRangeHigh ? (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm">
+                {song.vocalRangeLow ?? "?"} – {song.vocalRangeHigh ?? "?"}
+              </span>
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">Unknown</span>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Lowest and highest notes detected in the vocal track
+          </p>
+        </CardContent>
+      </Card>
+
       {/* iTunes Metadata */}
       {song.itunesTrackId && (
         <Card>

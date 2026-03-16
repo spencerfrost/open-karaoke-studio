@@ -37,6 +37,11 @@ export const SongInfo: React.FC<SongInfoProps> = ({ song }) => {
             ? song.album.slice(0, 25) + "..."
             : song.album}
         </p>
+        {(song.vocalRangeLow || song.vocalRangeHigh) && (
+          <span className="text-xs opacity-60 whitespace-nowrap ml-auto">
+            {song.vocalRangeLow ?? "?"}–{song.vocalRangeHigh ?? "?"}
+          </span>
+        )}
       </div>
     </CardContent>
   );

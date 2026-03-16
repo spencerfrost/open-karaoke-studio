@@ -46,6 +46,12 @@ export interface Song {
   // Audio analysis
   bpm?: number; // Beats per minute for count-in timing
   chordsData?: ChordEvent[];
+  vocalRangeLow?: string; // Lowest note detected, e.g. "G2"
+  vocalRangeHigh?: string; // Highest note detected, e.g. "E5"
+
+  // Loudness normalization
+  loudnessDbfs?: number; // RMS loudness in dBFS (e.g. -20.0)
+  gainDb?: number; // Gain correction to reach -14 dBFS target
 
   status: SongStatus;
 }
@@ -61,8 +67,7 @@ export interface SongProcessingStatus {
   song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
-  rawStatus?: string; // Backend status: pending | downloading | processing | finalizing | failed
-  message?: string; // Detailed status message from backend (status_message field)
+  message?: string;
   artist?: string;
   title?: string;
 }
