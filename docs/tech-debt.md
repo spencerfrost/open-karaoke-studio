@@ -394,29 +394,11 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 ---
 
-### 17. WebSocket Cleanup Management
+### ~~17. WebSocket Cleanup Management~~ ✅ RESOLVED (2026-03-06)
 
-**Severity:** 🟢 LOW
+**Was:** `window.__playerWebSocketCleanup` global used for tracking WebSocket listener teardown in [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts).
 
-**Location:** [useKaraokePlayerStore.ts:4-9](frontend/src/stores/useKaraokePlayerStore.ts#L4-L9)
-
-**Problem:**
-```typescript
-declare global {
-  interface Window {
-    __playerWebSocketCleanup?: (() => void)[];
-  }
-}
-```
-
-Uses global window object for cleanup tracking.
-
-**Impact:** LOW - Could be cleaner with proper React patterns
-
-**Recommendation:**
-- Use refs or context for cleanup
-- Avoid polluting global namespace
-- More idiomatic React approach
+**Fixed:** Replaced with a module-private `playerWebSocketCleanups` array. No longer pollutes the global namespace.
 
 ---
 

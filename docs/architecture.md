@@ -203,31 +203,34 @@ ws://server:5123/ws/session/{session_id}?device_id={uuid}
 
 **Message Types:**
 
-**Performance:**
-- `update_performance_control` - Client updates setting
+**Performance (any client):**
+- `update_performance_control` - Client updates setting (volume, lyrics size, etc.)
 - `control_updated` - Broadcast to all (server → clients)
 - `join_performance` - Subscribe to performance updates
 
-**Player:**
+**Player (host only):**
 - `playback_play` - Start playback
 - `playback_pause` - Pause playback
 - `update_player_state` - Sync player state
 - `song_loaded` - New song loaded
 - `song_ready` - Audio ready to play
+- `reset_player_state` - Reset to beginning
 
-**Queue:**
+**Queue (any client):**
 - `request_queue_update` - Get current queue
-- `queue_changed` - Queue modified
+- `queue_updated` - Queue state snapshot broadcast (`current`, `upcoming`, `items`)
+- `queue_changed` - Notify other devices after an API mutation
 
 **Session:**
-- `session_connected` - Connection established
-- `session_ended` - Host disconnected
+- `session_connected` - Connection established (includes initial performance state)
+- `session_ended` - Session terminated (grace period expired or explicit leave)
+- `permission_denied` - Non-host attempted a host-only action (`action`, `reason` fields)
 
 ---
 
 ### Session State Structure
 
-**Per-session state** (in-memory dictionary keyed by `session_id`):
+**Per-session runtime state** (in-memory dictionary keyed by `session_id`):
 
 ```python
 session_performance_states[session_id] = {
@@ -243,7 +246,17 @@ session_performance_states[session_id] = {
 }
 ```
 
-**CRITICAL:** State is **session-isolated**. Never use global dictionaries.
+**Persisted playback state** (`session_playback_states` table):
+- `current_queue_item_id`
+- `current_song_id`
+- `is_playing`
+- `current_time`
+- `duration`
+- `is_ready`
+
+In-memory runtime state is hydrated from persisted playback state on reconnect.
+
+**CRITICAL:** State is **session-isolated** by `session_id`.
 
 ---
 
@@ -281,15 +294,22 @@ manager.join_session(
 
 ### Host Disconnect Behavior
 
-**Sequence:**
+**Sequence (grace period model):**
 1. Detect host WebSocket disconnect
-2. Acquire session-specific cleanup lock
-3. Broadcast `session_ended` to all devices
-4. Force close all WebSocket connections
-5. Delete session from database (recycle code)
-6. Clean up in-memory state: `del session_performance_states[session_id]`
+2. Start a 30-second grace timer (`asyncio.Task`)
+3. If host reconnects within grace window:
+   - Cancel pending termination task (transparent to performers)
+   - Re-register as host (same `device_id` required)
+4. If grace period expires:
+   - Acquire session-specific cleanup lock
+   - Broadcast `session_ended` to all devices
+   - Force close all WebSocket connections
+   - Delete session from database (recycle code)
+   - Clean up in-memory state: `del session_performance_states[session_id]`
 
-**Why?** Host is authoritative. When host leaves, session is over.
+**Why grace period?** A normal browser refresh or brief network interruption previously terminated the session immediately, evicting all performers. The 30-second window survives refreshes and temporary drops without visible impact.
+
+**Explicit termination** (host choosing to leave) is handled via `POST /api/sessions/{session_id}/leave`, which does NOT go through this path and terminates immediately.
 
 ---
 
@@ -380,15 +400,20 @@ const ws = new WebSocket(
 
 - Verify session validity
 - Check if device is host (`device_id == host_device_id`)
+- Cancel any pending host-disconnect termination task if host reconnects
 - Join session room: `session_ABCD`
-- Send current performance state to joining device
+- Send `session_connected` with current performance state to joining device
+
+**Host identity:** The `device_id` query parameter is the `rest_xxx` token issued by the REST API at session creation. Passing it to `GET /api/sessions/{id}/info?device_id=xxx` correctly determines `is_host` (the endpoint falls back to client IP only if the parameter is absent).
+
+**Role enforcement:** Host-only WebSocket actions (`playback_play`, `playback_pause`, `update_player_state`, `song_loaded`, `song_ready`, `reset_player_state`) are rejected with a `permission_denied` event for non-host clients.
 
 **4. Session Termination**
 
 Triggers:
-- Host disconnects (immediate)
+- Host disconnects (30-second grace period before termination)
 - 24-hour expiration (configurable)
-- Manual leave (`POST /api/sessions/{session_id}/leave`)
+- Manual leave (`POST /api/sessions/{session_id}/leave` — immediate)
 
 Actions:
 - Broadcast `session_ended` to all devices
@@ -577,11 +602,11 @@ class SongRepository:
 - `POST /api/sessions/{session_id}/leave` - Leave session
 
 **Queue** - `/api/karaoke-queue`
-- `GET /api/karaoke-queue` - Get queue (requires `X-Session-ID` header)
+- `GET /api/karaoke-queue` - Get queue state (`current`, `upcoming`, `items`)
 - `POST /api/karaoke-queue` - Add song to queue
 - `DELETE /api/karaoke-queue/{queue_id}` - Remove from queue
 - `PUT /api/karaoke-queue/reorder` - Reorder queue
-- `POST /api/karaoke-queue/{queue_id}/play` - Play specific item
+- `POST /api/karaoke-queue/{queue_id}/play` - Load specific item as current (does not auto-play)
 
 **Jobs** - `/api/jobs`
 - `GET /api/jobs` - List all jobs
@@ -671,11 +696,11 @@ User clicks "Add to Queue"
     ↓
 Backend creates queue item
     ↓
-Backend broadcasts via WebSocket: {"type": "queue_changed"}
+Backend broadcasts via WebSocket: {"type": "queue_updated", "current": ..., "upcoming": ...}
     ↓
 Frontend WebSocket receives event
     ↓
-[sessionWebSocketService.ts] - Handle queue_changed
+[sessionWebSocketService.ts] - Handle queue_updated
     ↓
 [TanStack Query] - Invalidate queue cache
     ↓
@@ -724,7 +749,6 @@ backend/app/
 │   ├── connection_manager.py  # WebSocket lifecycle
 │   ├── jobs.py                # Job updates
 │   ├── session_specific.py    # Unified session endpoint (CRITICAL)
-│   ├── performance.py          # Legacy global endpoint (DEPRECATED)
 │   └── queue.py               # Queue helpers
 │
 ├── services/          # Business logic
@@ -972,4 +996,4 @@ WebSocket → Service → Repository → Database
 
 ---
 
-**Last Updated:** 2026-01-28
+**Last Updated:** 2026-03-06

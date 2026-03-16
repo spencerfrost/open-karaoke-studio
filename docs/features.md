@@ -149,7 +149,8 @@ Complete inventory of features in the application, organized by domain and descr
 **As a user, I want to see the karaoke queue** so I know what's coming up next.
 
 **Features:**
-- Queue list showing all queued songs (except currently playing)
+- Queue list showing all **upcoming** songs
+- Currently loaded song handled separately by player state
 - Song artwork thumbnails
 - Singer name display
 - Position indicators
@@ -175,7 +176,7 @@ Complete inventory of features in the application, organized by domain and descr
 
 **Features:**
 - Remove songs from queue
-- Play any queued song immediately (moves to position 0)
+- Load any queued song as current (host action; playback stays paused until Play)
 - All actions broadcast via WebSocket to all connected devices
 - Real-time sync across all devices in session
 
