@@ -15,16 +15,18 @@ interface Artist {
 interface ArtistAccordionProps {
   artists: Artist[];
   className?: string;
+  isLoading?: boolean;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
-  sentinelRef?: React.RefObject<HTMLDivElement>;
+  sentinelRef?: React.RefObject<HTMLDivElement | null>;
   expandArtist?: string | null;
 }
 
 const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   artists = [],
   className = "",
+  isLoading = false,
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
@@ -177,6 +179,14 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
       startLoading();
     }
   };
+
+  if (isLoading && !artists.length) {
+    return (
+      <div className={`flex justify-center py-12 ${className}`}>
+        <LoadingSpinner size={24} />
+      </div>
+    );
+  }
 
   if (!artists.length) {
     return (

@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useInfiniteArtists } from "@/hooks/api/useInfiniteLibraryBrowsing";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import AppLayout from "@/components/layout/AppLayout";
 import {
   LibrarySearchInput,
@@ -13,7 +11,6 @@ import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
 const LibraryPage: React.FC = () => {
-  // State
   const [searchTerm, setSearchTerm] = useState("");
   const [searchParams] = useSearchParams();
   const expandArtist = searchParams.get("expandArtist");
@@ -24,10 +21,8 @@ const LibraryPage: React.FC = () => {
   // Song search (paginated, not infinite)
   const { useSongs } = useSongsHook();
 
-  // Use appropriate parameters based on whether we're searching or browsing
   const songsParams = effectiveSearchTerm.trim()
     ? {
-        // Search parameters - the backend should handle this in useSongs
         q: effectiveSearchTerm,
         limit: 24,
         offset: 0,
@@ -43,37 +38,6 @@ const LibraryPage: React.FC = () => {
 
   const songsQuery = useSongs(songsParams);
 
-  // Artist search with infinite scrolling to fetch ALL artists
-  const {
-    artists,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    isLoading: artistsLoading,
-  } = useInfiniteArtists(effectiveSearchTerm, 200);
-
-  // Infinite scroll for artists
-  const sentinelRef = useInfiniteScroll({
-    loading: isFetchingNextPage,
-    hasMore: hasNextPage,
-    onLoadMore: fetchNextPage,
-    threshold: 0.1,
-    rootMargin: "100px",
-  });
-
-  // When expandArtist is set, trigger loading all artists until we find them
-  React.useEffect(() => {
-    if (
-      expandArtist &&
-      !artists.find((a) => a.name === expandArtist) &&
-      hasNextPage &&
-      !isFetchingNextPage
-    ) {
-      fetchNextPage();
-    }
-  }, [expandArtist, artists, hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  // hasSearch logic
   const hasSearch =
     effectiveSearchTerm && effectiveSearchTerm.trim().length > 0;
 
@@ -88,11 +52,11 @@ const LibraryPage: React.FC = () => {
       />
       <div className="mb-6">
         {/* Search Input */}
-        <div className="my-12">
+        <div className="my-4 sm:my-12">
           <LibrarySearchInput
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
-            isLoading={songsQuery.isLoading || artistsLoading}
+            isLoading={songsQuery.isLoading}
             placeholder="Search songs and artists..."
             className="w-full max-w-xl mx-auto"
           />
@@ -108,20 +72,15 @@ const LibraryPage: React.FC = () => {
           ) : (
             <SongResultsSection
               songs={songsQuery.data || []}
-              hasNextPage={false} // Pagination can be added later
+              hasNextPage={false}
               isFetchingNextPage={false}
               fetchNextPage={() => {}}
               searchTerm={searchTerm}
             />
           )}
-          {/* Artist Results Section - Always visible for browsing */}
+          {/* Artist Results Section - owns its own data fetching */}
           <ArtistResultsSection
-            artists={artists}
             searchTerm={searchTerm}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            sentinelRef={sentinelRef}
             expandArtist={expandArtist}
           />
         </div>
