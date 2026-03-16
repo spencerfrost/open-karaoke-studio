@@ -4,12 +4,11 @@
  */
 
 import React from "react";
-import { ChevronRight, ScrollText, Volume2, Gauge, FileText, Guitar } from "lucide-react";
+import { ChevronRight, ScrollText, Volume2, Gauge, Guitar } from "lucide-react";
 import { Settings2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { useAudioControlsStore } from "@/stores/useAudioControlsStore";
-import type { LyricsSize } from "@/utils/performanceControls";
 import { cn } from "@/lib/utils";
 import type { MenuView } from "../SettingsMenu";
 
@@ -19,7 +18,6 @@ interface MainViewProps {
 
 const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
   const lyricsSize = useKaraokePlayerStore((state) => state.lyricsSize);
-  const lyricsOffset = useKaraokePlayerStore((state) => state.lyricsOffset);
   const vocalVolume = useKaraokePlayerStore((state) => state.vocalVolume);
   const instrumentalVolume = useKaraokePlayerStore(
     (state) => state.instrumentalVolume,
@@ -32,25 +30,15 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
   );
   const showChords = useKaraokePlayerStore((state) => state.showChords);
   const setShowChords = useKaraokePlayerStore((state) => state.setShowChords);
-  const setLyricsSize = useKaraokePlayerStore(
-    (state) => state.setLyricsSize,
-  );
   const playbackSpeed = useAudioControlsStore((state) => state.playbackSpeed);
 
   const menuItems = [
     {
-      id: "lyricsTiming",
+      id: "lyrics",
       icon: ScrollText,
-      label: "Lyrics Timing",
-      summary: "Fine-tune lyrics sync",
-      onClick: () => onNavigate("lyricsTiming"),
-    },
-    {
-      id: "lyricsEdit",
-      icon: FileText,
-      label: "Edit Lyrics",
-      summary: "Modify or fetch lyrics",
-      onClick: () => onNavigate("lyricsEdit"),
+      label: "Lyrics",
+      summary: `${lyricsSize.charAt(0).toUpperCase() + lyricsSize.slice(1)} text · Timing & edit`,
+      onClick: () => onNavigate("lyrics"),
     },
     {
       id: "volume",
@@ -105,37 +93,6 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
           </button>
         ))}
 
-        {/* Lyrics size inline button group */}
-        <div
-          className={cn(
-            "w-full px-4 py-3 flex items-center justify-between",
-            "text-left",
-          )}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <ScrollText className="w-5 h-5 text-background/60 shrink-0" />
-            <span className="text-sm font-medium text-background">
-              Text Size
-            </span>
-          </div>
-          <div className="flex rounded-md overflow-hidden border border-white/10">
-            {(["small", "medium", "large"] as LyricsSize[]).map((size) => (
-              <button
-                key={size}
-                onClick={() => setLyricsSize(size)}
-                className={cn(
-                  "px-2.5 py-1 text-xs font-medium transition-colors",
-                  lyricsSize === size
-                    ? "bg-orange-peel text-black"
-                    : "text-background/60 hover:bg-white/10 hover:text-background",
-                )}
-              >
-                {size === "small" ? "S" : size === "medium" ? "M" : "L"}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Auto-scroll inline toggle */}
         <div
           className={cn(
@@ -168,10 +125,7 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
               Guitar Chords
             </span>
           </div>
-          <Switch
-            checked={showChords}
-            onCheckedChange={setShowChords}
-          />
+          <Switch checked={showChords} onCheckedChange={setShowChords} />
         </div>
       </div>
     </div>

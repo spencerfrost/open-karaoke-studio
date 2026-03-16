@@ -19,8 +19,15 @@ import SpeedView from "./settings-menu/SpeedView.js";
 import { motion, AnimatePresence } from "framer-motion";
 import LyricsEditView from "./settings-menu/LyricsEditView.js";
 import LyricsTimingView from "./settings-menu/LyricsTimingView.js";
+import LyricsView from "./settings-menu/LyricsView.js";
 
-export type MenuView = "main" | "lyricsTiming" | "lyricsEdit" | "volume" | "speed";
+export type MenuView =
+  | "main"
+  | "lyrics"
+  | "lyricsTiming"
+  | "lyricsEdit"
+  | "volume"
+  | "speed";
 
 interface SettingsMenuProps {
   className?: string;
@@ -42,7 +49,10 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange,
+      );
     };
   }, []);
 
@@ -91,6 +101,8 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
     switch (currentView) {
       case "main":
         return <MainView onNavigate={navigateTo} />;
+      case "lyrics":
+        return <LyricsView onBack={navigateBack} onNavigate={navigateTo} />;
       case "lyricsTiming":
         return <LyricsTimingView onBack={navigateBack} />;
       case "lyricsEdit":
