@@ -1,54 +1,70 @@
-# 🎶 Open Karaoke Studio 🎤
+# Open Karaoke Studio
 
-**Your open-source AI powered karaoke studio!**
+**Self-hosted AI-powered karaoke for small gatherings.**
 
-Open Karaoke Studio is a web application designed to make it easy for you to generate instrumental versions of your favorite songs. By using AI-powered vocal separation, it provides the tools to create custom karaoke tracks.
+Open Karaoke Studio lets you build a karaoke library from YouTube, separates vocals with AI, displays synchronized lyrics, and keeps multiple devices in sync in real time. Designed for 5–10 people at a party or event.
 
-## Current Features
-* 🎸  **Create Instrumentals:** Cleanly extract vocals from any song and get high-quality instrumental tracks for your karaoke sessions.
-* 📂  **Song Library:** Keep track of your processed songs in a user-friendly library.
-* 🚀  **Modern & Fast:** Built with cutting-edge web technologies for a smooth experience.
-* 🖥️  **Multi-Device First:** Karaoke on the main screen while friends join from their phones to browse, search, and queue up songs. Perfect for parties!
-* 🔄  **Asynchronous Processing:** Queue up multiple song processing jobs to run in the background
-* 🎙️  **Vocal Guide:** Adjust the volume of the original vocals to sing along.
-* 🛜  **Self-hosting:** Self-host your own personal karaoke library and player
+## Features
 
-## Planned Features
-* ⚙️  **Settings/Configuration:** Customize your experience and song processing options.
-* 🩺  **Beat Detection:** Automatic beat synchronization for improved lyrics display (countdowns, etc)
-* 🤖  **Lyrics Display:** Auto-generate karaoke-style lyrics graphics
+- **YouTube to Karaoke:** Search YouTube Music, download any song, and automatically separate vocals from the instrumental using AI (Demucs, Roformer, or three-track separation)
+- **Synchronized Lyrics:** Auto-fetches LRC lyrics from multiple providers; displays them synchronized to music with auto-scroll, tap-to-seek, and timing offset adjustment
+- **Multi-Device Sessions:** Host on the main screen, performers join by session code or QR code from their phones to queue songs and control the performance
+- **Performance Controls:** Independent volume sliders for vocals, instrumental, and backing vocals; lyrics size; guitar chord display — all synchronized across devices in real time
+- **Chord & BPM Analysis:** Automatic chord detection and BPM analysis during processing; guitar chord carousel displays upcoming chords during playback
+- **Vocal Range Detection:** Detects the lowest and highest sung notes for each song (e.g. G2–E5); displayed on song cards and in song details
+- **Loudness Normalization:** Measures RMS loudness and applies per-song gain correction at playback time so every song plays at a consistent volume
+- **Session Resilience:** 30-second grace period on host disconnect so a browser refresh doesn't end the session for everyone
+- **Authentication:** JWT-based login; admin actions (delete songs, reprocess audio) are gated behind authentication
+- **Queue Management:** Add songs with singer names, reorder, and skip — all reflected instantly on all connected devices
+- **Background Processing:** Celery worker handles downloads and separation without blocking the UI; live progress via WebSocket
 
 ## Tech Stack
 
-Open Karaoke Studio is built using a combination of modern web technologies. For detailed information, please refer to the specific README files:
-
-* **Frontend:** The user interface is built with React, Vite, Tailwind, and ShadCN.
-  * [Frontend README](./frontend/README.md)
-* **Backend:** The API is handled by a Flask/Python backend using Demucs for audio processing.
-  * [Backend README](./backend/README.md)
-
-## Contributing
-
-We welcome contributions to Open Karaoke Studio! The codebase is actively being improved, and your help is appreciated. If you'd like to contribute, please follow these steps:
-
-1. **Fork the repository.**
-2. **Create a branch off the `develop` branch** for your changes.
-3. **Implement your feature or bug fix.**
-4. **Submit a pull request targeting the `develop` branch** when your changes are ready.
-
-Thank you for helping make Open Karaoke Studio better!
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + TypeScript + Vite + Tailwind CSS v4 |
+| UI Components | Shadcn/UI + React Hook Form + Zod |
+| State | TanStack Query (server state) + Zustand (client state) |
+| Backend | FastAPI + Uvicorn + SQLAlchemy + Alembic |
+| Database | PostgreSQL (production) / SQLite (dev) |
+| Queue | Celery + Redis |
+| Audio AI | Demucs + Audio-Sep Roformer + librosa + pydub |
+| Downloader | yt-dlp |
 
 ## Getting Started
 
- Unfortunately, this app is still in development and a consumer version is yet to be released. If you have some knowledge of web development, you can follow the getting started instructions below.
- 
-**_Unified, 1-click setup coming soon!_**
+```bash
+# 1. Clone the repo
+git clone https://github.com/your-org/open-karaoke-studio.git
+cd open-karaoke-studio
 
-To get the application up and running:
+# 2. Run initial setup (creates venvs, installs deps, sets up DB)
+./setup.sh
 
-1.  **Clone the Repository:** Obtain the project code.
-2.  **Follow the Setup Guides:** Detailed setup instructions are available in the [Frontend README](./frontend/README.md) and [Backend README](./backend/README.md).
+# 3. Start all services in a tmux session
+./scripts/dev-tmux.sh
+```
 
+Services run at:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5123
+
+See [ARCHITECTURE.md](docs/architecture.md) for a full technical overview and [FEATURES.md](docs/features.md) for a complete feature inventory.
+
+## Documentation
+
+- [FEATURES.md](docs/features.md) — Complete feature inventory with user stories
+- [ARCHITECTURE.md](docs/architecture.md) — Technical deep-dive: WebSocket design, processing pipeline, database schema
+- [TECH-DEBT.md](docs/tech-debt.md) — Known issues prioritized by severity
+- [ROADMAP.md](ROADMAP.md) — Future improvements
+
+## Contributing
+
+1. Fork the repository
+2. Create a branch off `develop`
+3. Implement your change
+4. Submit a pull request targeting `develop`
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+MIT — see [LICENSE](./LICENSE) for details.

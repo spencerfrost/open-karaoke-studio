@@ -12,6 +12,7 @@ Complete inventory of features in the application, organized by domain and descr
 6. [Performance Controls](#6-performance-controls)
 7. [Background Processing](#7-background-processing)
 8. [Metadata & Search](#8-metadata--search)
+9. [Authentication & User Management](#9-authentication--user-management)
 
 ---
 
@@ -89,6 +90,8 @@ Complete inventory of features in the application, organized by domain and descr
 - **Comprehensive Song View:**
   - Large album artwork display
   - Primary metadata (title, artist, album, genre, year, duration, BPM)
+  - Vocal range (lowest/highest detected note, e.g. G2–E5)
+  - Loudness info (dBFS measurement and gain correction)
   - Source badges (YouTube Music vs YouTube Video)
   - Processing status indicators
   - Full lyrics display (synced/plain)
@@ -126,11 +129,12 @@ Complete inventory of features in the application, organized by domain and descr
 **Features:**
 - **Add to Queue:** Add song to karaoke queue with singer name
 - **Play Now:** Immediately add to queue and start playback (host only)
-- **Delete Song:** Confirmation dialog for song removal
+- **Delete Song:** Confirmation dialog for song removal (authenticated users only)
 - **Quick Play:** Hover over artwork to show play button (host only)
-- **Reprocess Audio:** Re-run vocal separation with different engine
+- **Reprocess Audio:** Re-run vocal separation with different engine (authenticated users only)
 - **Session Integration:** Shows join dialog if not in session
 - **Processing Awareness:** Disables actions if song is still processing
+- **Performer Song Card:** Tap-to-open drawer for performers showing lyrics preview, audio preview, and Add to Queue
 
 **Status:** ✅ Fully working
 
@@ -198,8 +202,9 @@ Complete inventory of features in the application, organized by domain and descr
 
 **Features:**
 - **Audio Playback:**
-  - Dual-track playback (vocals + instrumental)
+  - Multi-track playback (vocals + instrumental + optional backing vocals)
   - Independent volume control for each track
+  - Per-song loudness normalization (gain correction applied in Web Audio graph)
   - Play/pause/replay controls
   - Progress bar with seek functionality
   - Time display (current/total)
@@ -227,6 +232,22 @@ Complete inventory of features in the application, organized by domain and descr
 - [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts) - Player state
 
 **Known Limitations:** None
+
+---
+
+### Guitar Chord Display
+**As a user, I want to see guitar chords during playback** so I can play along on an instrument.
+
+**Features:**
+- ChordCarousel shows current and upcoming chords synchronized to playback position
+- Toggle on/off from the settings menu during playback
+- Chord data detected automatically during audio processing
+
+**Status:** ✅ Fully working
+
+**Key Files:**
+- [ChordCarousel.tsx](frontend/src/features/player/components/subcomponents/ChordCarousel.tsx) - Chord display
+- [useSongChords.ts](frontend/src/hooks/api/useSongs.ts) - Chord data hook
 
 ---
 
