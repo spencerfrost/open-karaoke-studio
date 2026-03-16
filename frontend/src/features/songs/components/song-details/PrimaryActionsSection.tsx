@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("component:primary-actions");
 
@@ -37,6 +38,7 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
   );
   const { useDeleteSong } = useSongs();
   const deleteSongMutation = useDeleteSong();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [isPlayingNow, setIsPlayingNow] = useState(false);
 
   const handlePlayNow = async () => {
@@ -128,23 +130,25 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
           {addToQueueMutation.isPending ? "Adding..." : "Add to Queue"}
         </Button>
 
-        <DeleteSongDialog
-          song={song}
-          onConfirm={() => deleteSongMutation.mutateAsync({ id: song.id })}
-          isDeleting={deleteSongMutation.isPending}
-          onSuccess={onSongDeleted}
-          trigger={
-            <Button
-              variant="outline"
-              className="flex-1 sm:flex-initial sm:min-w-[140px] flex items-center justify-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
-              size="lg"
-              disabled={deleteSongMutation.isPending}
-            >
-              <Trash2 size={18} />
-              {deleteSongMutation.isPending ? "Removing..." : "Remove"}
-            </Button>
-          }
-        />
+        {isAuthenticated && (
+          <DeleteSongDialog
+            song={song}
+            onConfirm={() => deleteSongMutation.mutateAsync({ id: song.id })}
+            isDeleting={deleteSongMutation.isPending}
+            onSuccess={onSongDeleted}
+            trigger={
+              <Button
+                variant="outline"
+                className="flex-1 sm:flex-initial sm:min-w-[140px] flex items-center justify-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
+                size="lg"
+                disabled={deleteSongMutation.isPending}
+              >
+                <Trash2 size={18} />
+                {deleteSongMutation.isPending ? "Removing..." : "Remove"}
+              </Button>
+            }
+          />
+        )}
       </div>
 
       {!isProcessed && (

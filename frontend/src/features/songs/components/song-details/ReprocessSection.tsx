@@ -12,10 +12,16 @@ import { Song } from "@/types/Song";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("component:reprocess");
 
 const ENGINES = [
+  {
+    value: "three_track",
+    label: "Three-Track",
+    description: "Vocals + Backing + Instrumental",
+  },
   { value: "demucs", label: "Demucs", description: "Standard quality, fast" },
   { value: "roformer", label: "Roformer", description: "High quality, fast" },
   { value: "hybrid", label: "Hybrid", description: "Best quality, slower" },
@@ -33,6 +39,7 @@ interface ReprocessSectionProps {
 export const ReprocessSection: React.FC<ReprocessSectionProps> = ({ song }) => {
   const { useReprocessSong } = useSongs();
   const reprocessMutation = useReprocessSong();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [selectedEngine, setSelectedEngine] = useState<string>(
     song.engineType || "demucs",
   );
@@ -62,6 +69,8 @@ export const ReprocessSection: React.FC<ReprocessSectionProps> = ({ song }) => {
 
   const currentEngineLabel =
     ENGINES.find((e) => e.value === song.engineType)?.label || song.engineType;
+
+  if (!isAuthenticated) return null;
 
   return (
     <div className="border-t pt-4 mt-4">
