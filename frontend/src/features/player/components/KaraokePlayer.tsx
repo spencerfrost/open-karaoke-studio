@@ -41,12 +41,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const player = useKaraokePlayer(songId, { autoPlay });
   const ui = usePlayerUI();
   const navigate = useNavigate();
-  const upcomingQueueItems = React.useMemo(() => {
-    if (!queueItems?.length) return [];
-    return [...queueItems]
-      .filter((item) => item.position > 0)
-      .sort((a, b) => a.position - b.position);
-  }, [queueItems]);
 
   // Song API hooks
   const { useUpdateSong, useSongChords } = useSongs();
@@ -338,15 +332,17 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       {/* Main Lyrics Display or End States - positioned above controls */}
       <div className={`absolute top-0 left-0 right-0 bottom-0`}>
         {player.song && player.songEnded ? (
-          // Determine if queue has more songs in explicit upcoming list
-          upcomingQueueItems.length > 0 ? (
+          // Determine if queue has more songs (position 0 is current, position > 0 are remaining)
+          queueItems && queueItems.length > 1 ? (
             <SongEnded
               currentSong={player.song}
-              nextQueueItem={upcomingQueueItems[0]}
+              nextQueueItem={queueItems.find((item) => item.position === 1)}
               onPlayNext={
                 onPlayNext
                   ? () => {
-                      const nextItem = upcomingQueueItems[0];
+                      const nextItem = queueItems.find(
+                        (item) => item.position === 1,
+                      );
                       if (nextItem) onPlayNext(String(nextItem.id));
                     }
                   : undefined
@@ -357,12 +353,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           )
         ) : player.song ? (
           <>
-            {player.showChords && (
-              <ChordCarousel
-                chords={songChords}
-                currentTime={player.currentTime}
-              />
-            )}
+            <ChordCarousel chords={songChords} currentTime={player.currentTime} />
             <LyricsDisplayWithCountIn
               lyrics={player.lyrics}
               isSync={player.isLyricsSync}
@@ -385,54 +376,18 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           </>
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-            {upcomingQueueItems.length > 0 ? (
-              <>
-                <div className="text-background/60 text-xl font-semibold">
-                  Songs are queued but not loaded
-                </div>
-                {onPlayNext ? (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => {
-                      const nextItem = upcomingQueueItems[0];
-                      if (nextItem) {
-                        onPlayNext(String(nextItem.id));
-                      }
-                    }}
-                    className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
-                  >
-                    <Play className="w-5 h-5" />
-                    Load Next Song
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => navigate("/library")}
-                    className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
-                  >
-                    <Library className="w-5 h-5" />
-                    Browse Library
-                  </Button>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="text-background/60 text-xl font-semibold">
-                  No songs in the queue
-                </div>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => navigate("/library")}
-                  className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
-                >
-                  <Library className="w-5 h-5" />
-                  Browse Library
-                </Button>
-              </>
-            )}
+            <div className="text-background/60 text-xl font-semibold">
+              No songs in the queue
+            </div>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => navigate("/library")}
+              className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
+            >
+              <Library className="w-5 h-5" />
+              Browse Library
+            </Button>
           </div>
         )}
       </div>
@@ -457,14 +412,21 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         tapTempoIsSaving={updateSongMutation.isPending}
         mouseRecentlyMoved={mouseRecentlyMoved}
         hasNextSong={
-          !!(player.songEnded && onPlayNext && upcomingQueueItems.length > 0)
+          !!(
+            player.songEnded &&
+            onPlayNext &&
+            queueItems &&
+            queueItems.length > 1
+          )
         }
         onPlayPause={
           player.song
             ? player.songEnded
-              ? onPlayNext && upcomingQueueItems.length > 0
+              ? onPlayNext && queueItems && queueItems.length > 1
                 ? () => {
-                    const nextItem = upcomingQueueItems[0];
+                    const nextItem = queueItems.find(
+                      (item) => item.position === 1,
+                    );
                     if (nextItem) onPlayNext(String(nextItem.id));
                   }
                 : player.replay

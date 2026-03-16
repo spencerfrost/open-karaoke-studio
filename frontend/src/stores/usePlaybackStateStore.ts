@@ -23,7 +23,7 @@ export interface PlaybackStateState {
   songEnded: boolean; // True when song has finished playing (not just paused)
 
   // Actions
-  setSongId: (id: string, duration?: number) => void;
+  setSongId: (id: string, duration?: number, gainDb?: number) => void;
   load: () => Promise<void>;
   play: (
     playbackSpeed: number,
@@ -80,6 +80,9 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
 
   // Add a variable to store song duration in seconds
   let songDuration: number | undefined = undefined;
+  // Per-song normalization gain in dB (stored when song is loaded, applied in audio graph)
+  let normalizationGainDb: number = 0;
+  let normalizationGainNode: GainNode | null = null;
 
   // --- Audio graph helpers ---
   function setupAnalyser() {
@@ -177,15 +180,20 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     // Create or reuse the analyser node
     setupAnalyser();
 
-    // Connect the graph: GrainPlayer -> Gain -> Analyser -> Destination
+    // Create normalization gain node (converts dB to linear amplitude)
+    normalizationGainNode = audioContext.createGain();
+    normalizationGainNode.gain.value = Math.pow(10, normalizationGainDb / 20);
+
+    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> Analyser -> Destination
     instrumentalPlayer.connect(instrumentalGain);
     vocalPlayer.connect(vocalGain);
-    instrumentalGain.connect(analyser!);
-    vocalGain.connect(analyser!);
+    instrumentalGain.connect(normalizationGainNode);
+    vocalGain.connect(normalizationGainNode);
     if (backingVocalPlayer) {
       backingVocalPlayer.connect(backingVocalGain);
-      backingVocalGain.connect(analyser!);
+      backingVocalGain.connect(normalizationGainNode);
     }
+    normalizationGainNode.connect(analyser!);
     analyser!.connect(audioContext.destination);
 
     // Handle playback end - use instrumental track as the reference
@@ -253,6 +261,10 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     instrumentalGain = null;
     vocalGain = null;
     backingVocalGain = null;
+    if (normalizationGainNode) {
+      normalizationGainNode.disconnect();
+      normalizationGainNode = null;
+    }
     analyser = null;
     clearIntervals();
     playbackStartTime = null;
@@ -279,9 +291,10 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     currentTime: 0,
     songEnded: false,
 
-    setSongId: (id: string, duration?: number) => {
-      // Accept duration from the backend if available
+    setSongId: (id: string, duration?: number, gainDb?: number) => {
+      // Accept duration and normalization gain from the backend if available
       songDuration = duration;
+      normalizationGainDb = gainDb ?? 0;
       // Reset playback state when changing songs
       playbackOffset = 0;
       playbackStartTime = null;

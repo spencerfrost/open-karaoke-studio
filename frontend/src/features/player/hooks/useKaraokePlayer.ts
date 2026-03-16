@@ -79,7 +79,7 @@ export const useKaraokePlayer = (
     if (song && songId && songId !== currentSongId) {
       const duration = getSongDuration(song);
       // Pass song metadata for mini-player display
-      setSongAndLoad(song.id, duration, song.title, song.artist);
+      setSongAndLoad(song.id, duration, song.title, song.artist, song.gainDb);
     } else if (
       // If the store already has this songId but audio wasn't loaded yet,
       // trigger a load to avoid getting stuck with disabled controls.

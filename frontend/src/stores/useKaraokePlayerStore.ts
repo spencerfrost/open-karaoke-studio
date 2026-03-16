@@ -31,9 +31,12 @@ import {
 
 const logger = createLogger("store:player");
 
-// Module-private cleanup functions for WebSocket listeners.
-// Stored here instead of on window to avoid global namespace pollution.
-let playerWebSocketCleanups: Array<() => void> = [];
+// Extend window interface for cleanup storage
+declare global {
+  interface Window {
+    __playerWebSocketCleanup?: (() => void)[];
+  }
+}
 
 interface KaraokePlayerState {
   // Audio/track info (from playbackState)
@@ -65,7 +68,6 @@ interface KaraokePlayerState {
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
   autoScrollEnabled: boolean;
-  showChords: boolean;
 
   // Connection state
   connected: boolean;
@@ -78,12 +80,13 @@ interface KaraokePlayerState {
   // Actions
   connect: () => void;
   disconnect: () => void;
-  setSongId: (id: string, duration?: number) => void;
+  setSongId: (id: string, duration?: number, gainDb?: number) => void;
   setSongAndLoad: (
     id: string,
     duration?: number,
     title?: string,
     artist?: string,
+    gainDb?: number,
   ) => Promise<void>;
   load: () => Promise<void>;
   play: () => void;
@@ -98,7 +101,6 @@ interface KaraokePlayerState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  setShowChords: (enabled: boolean) => void;
   setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
@@ -201,7 +203,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       lyricsSize: state.lyricsSize,
       lyricsOffset: state.lyricsOffset,
       autoScrollEnabled: state.autoScrollEnabled,
-      showChords: state.showChords,
       songTitle: state.songTitle,
       songArtist: state.songArtist,
       miniPlayerEnabled: state.miniPlayerEnabled,
@@ -232,7 +233,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     lyricsSize: "medium",
     lyricsOffset: 0,
     autoScrollEnabled: true,
-    showChords: true,
     connected: false,
     miniPlayerEnabled: true,
     miniPlayerPosition: { x: 24, y: 24 },
@@ -312,7 +312,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         },
       );
 
-      playerWebSocketCleanups = [
+      window.__playerWebSocketCleanup = [
         cleanupPerformanceState,
         cleanupControlUpdated,
         cleanupPlaybackPlay,
@@ -329,13 +329,17 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
 
     disconnect: () => {
-      playerWebSocketCleanups.forEach((cleanup) => cleanup());
-      playerWebSocketCleanups = [];
+      if (window.__playerWebSocketCleanup) {
+        window.__playerWebSocketCleanup.forEach((cleanup: () => void) =>
+          cleanup(),
+        );
+        delete window.__playerWebSocketCleanup;
+      }
       set({ connected: false });
     },
 
-    setSongId: (id: string, duration?: number) => {
-      usePlaybackStateStore.getState().setSongId(id, duration);
+    setSongId: (id: string, duration?: number, gainDb?: number) => {
+      usePlaybackStateStore.getState().setSongId(id, duration, gainDb);
       useUIPreferencesStore.getState().resetMiniPlayerDismissed();
     },
 
@@ -344,11 +348,12 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       duration?: number,
       title?: string,
       artist?: string,
+      gainDb?: number,
     ) => {
       isLoadingNewSong = true;
 
       get().cleanup();
-      get().setSongId(id, duration);
+      get().setSongId(id, duration, gainDb);
       useUIPreferencesStore
         .getState()
         .setSongMetadata(title || null, artist || null);
@@ -471,10 +476,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     setAutoScrollEnabled: (enabled: boolean) => {
       useUIPreferencesStore.getState().setAutoScrollEnabled(enabled);
-    },
-
-    setShowChords: (enabled: boolean) => {
-      useUIPreferencesStore.getState().setShowChords(enabled);
     },
 
     setPlaybackSpeed: (speed: number) => {
