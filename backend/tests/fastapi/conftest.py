@@ -74,19 +74,22 @@ def mock_youtube_music_service():
     with patch("app.api.youtube_music.YoutubeMusicService") as mock:
         service_instance = Mock()
         mock.return_value = service_instance
-        
+
         # Default mock responses
-        service_instance.search_songs.return_value = [
-            {
-                "videoId": "utwMHfDZ6SA",
-                "title": "Bohemian Rhapsody",
-                "artist": "Queen",
-                "artistId": "UCEPMVbUzImPl4p8k4LkGevA",
-                "duration": "5:55",
-                "album": "A Night At The Opera",
-                "thumbnails": []
-            }
-        ]
+        service_instance.search_combined.return_value = {
+            "songs": [
+                {
+                    "videoId": "utwMHfDZ6SA",
+                    "title": "Bohemian Rhapsody",
+                    "artist": "Queen",
+                    "artistId": "UCEPMVbUzImPl4p8k4LkGevA",
+                    "duration": "5:55",
+                    "album": "A Night At The Opera",
+                    "thumbnails": [],
+                }
+            ],
+            "artists": [],
+        }
         service_instance.get_artist.return_value = {
             "name": "Queen",
             "description": "British rock band",

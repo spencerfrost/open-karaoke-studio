@@ -6,6 +6,7 @@ Database models package exports
 from .base import UNKNOWN_ARTIST, Base
 from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus
+from .performance import PerformanceHistory
 from .queue import KaraokeQueueItem
 from .session import KaraokeSession, SessionDevice, SessionPlaybackState
 from .lyrics import DbLyrics
@@ -22,6 +23,7 @@ __all__ = [
     "HostSettings",
     "KaraokeSession",
     "KaraokeQueueItem",
+    "PerformanceHistory",
     "SessionDevice",
     "SessionPlaybackState",
     "DbLyrics",

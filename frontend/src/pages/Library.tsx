@@ -6,9 +6,11 @@ import {
   SongResultsSection,
   ArtistResultsSection,
   RecentlyAddedSongs,
+  RecentlySang,
 } from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const LibraryPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,11 +66,22 @@ const LibraryPage: React.FC = () => {
 
         <div className="space-y-8">
           {!hasSearch ? (
-            <RecentlyAddedSongs
-              songsPerPage={12}
-              maxSongs={48}
-              animated={true}
-            />
+            <Tabs defaultValue="recently-added">
+              <TabsList className="mb-4">
+                <TabsTrigger value="recently-added">Recently Added</TabsTrigger>
+                <TabsTrigger value="recently-sang">Recently Sang</TabsTrigger>
+              </TabsList>
+              <TabsContent value="recently-added">
+                <RecentlyAddedSongs
+                  songsPerPage={12}
+                  maxSongs={48}
+                  animated={true}
+                />
+              </TabsContent>
+              <TabsContent value="recently-sang">
+                <RecentlySang />
+              </TabsContent>
+            </Tabs>
           ) : (
             <SongResultsSection
               songs={songsQuery.data || []}

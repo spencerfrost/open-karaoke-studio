@@ -8,6 +8,7 @@ import random
 import sys
 import tempfile
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -105,6 +106,7 @@ def create_test_app():
         jobs_router,
         lyrics_router,
         metadata_router,
+        performance_history_router,
         queue_router,
         sessions_router,
         songs_router,
@@ -112,12 +114,21 @@ def create_test_app():
         youtube_music_router,
         youtube_router,
     )
+    from fastapi import WebSocket
     from fastapi.middleware.cors import CORSMiddleware
+
+    from app.ws import (
+        SessionConnectionManager,
+        websocket_jobs_endpoint,
+        websocket_unified_session_endpoint,
+    )
 
     test_app = FastAPI(
         title="Open Karaoke Studio API (Test)",
         version="2.0.0-test",
     )
+    manager = SessionConnectionManager()
+    test_app.state.session_manager = manager
 
     test_app.add_middleware(
         CORSMiddleware,
@@ -138,6 +149,20 @@ def create_test_app():
     test_app.include_router(metadata_router)
     test_app.include_router(lyrics_router)
     test_app.include_router(users_router)
+    test_app.include_router(performance_history_router)
+
+    # WebSocket routes
+    @test_app.websocket("/ws/jobs")
+    async def jobs_ws(websocket: WebSocket):
+        await websocket_jobs_endpoint(websocket, manager)
+
+    @test_app.websocket("/ws/session/{session_id}")
+    async def unified_session_ws(
+        websocket: WebSocket,
+        session_id: str,
+        device_id: Optional[str] = None,
+    ):
+        await websocket_unified_session_endpoint(websocket, session_id, manager, device_id)
 
     # Root endpoint for testing
     @test_app.get("/")
@@ -155,6 +180,10 @@ def create_test_app():
                 "metadata": "/api/metadata",
                 "lyrics": "/api/lyrics",
                 "users": "/api/users",
+            },
+            "websockets": {
+                "jobs": "/ws/jobs",
+                "session": "/ws/session/{session_id}",
             },
         }
 

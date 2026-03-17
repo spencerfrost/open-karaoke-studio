@@ -19,6 +19,7 @@ from app.db.models import (
     HostSettings,
     KaraokeQueueItem,
     KaraokeSession,
+    PerformanceHistory,
     SessionPlaybackState,
     User,
 )
@@ -531,6 +532,12 @@ async def play_queue_item(
             .first()
         )
         if previous_current_item:
+            history_entry = PerformanceHistory(
+                song_id=previous_current_item.song_id,
+                singer_name=previous_current_item.singer_name,
+                session_id=session_code,
+            )
+            db.add(history_entry)
             db.delete(previous_current_item)
 
     # Mark selected queue item as the explicit current loaded item
