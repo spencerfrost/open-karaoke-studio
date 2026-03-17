@@ -129,12 +129,13 @@ async def login_user(request: LoginUserRequest):
                 detail="Invalid username or password"
             )
         
-        # Password is required for login
-        if not request.password or not user.check_password(request.password):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid username or password"
-            )
+        # If user has a password, verify it; otherwise allow passwordless login
+        if user.password_hash:
+            if not request.password or not user.check_password(request.password):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid username or password"
+                )
 
         token = create_access_token(user)
 
