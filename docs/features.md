@@ -300,6 +300,11 @@ Complete inventory of features in the application, organized by domain and descr
 - **Volume Controls:**
   - Vocals volume slider (0-100%)
   - Instrumental volume slider (0-100%)
+  - Backing vocals volume slider (0-100%, when three-track engine was used)
+- **Options Sheet:**
+  - Guitar chords toggle
+  - Lyrics size selection
+  - Additional playback settings
 - **UI Modes:**
   - Floating mode: Overlay on right side
   - Right edge hover zone reveals trigger
@@ -563,12 +568,13 @@ Complete inventory of features in the application, organized by domain and descr
 - **Session Display:**
   - Shows session code (hover or click to reveal)
   - Different display modes (code only, full info, QR code)
+  - QR code hidden from performer devices (host-only)
   - Visibility options (host-only, all users)
   - Color schemes for different contexts
 - **Session Termination:**
-  - Host disconnect terminates session for all
+  - Host disconnect starts a 30-second grace period before termination — survives browser refreshes and brief network drops
+  - Explicit leave (`POST /api/sessions/{id}/leave`) terminates immediately
   - 24-hour expiration (configurable)
-  - Manual leave option
   - Clean resource cleanup
 - **Route Protection:**
   - Redirects to join page if no session
@@ -604,13 +610,19 @@ Complete inventory of features in the application, organized by domain and descr
   - Play/pause button (large circular)
   - Progress bar with seek
   - Vocals volume (vertical slider, mute button)
+  - Instrumental volume (vertical slider)
+  - Backing vocals volume (vertical slider, when three-track engine was used)
   - Lyrics size control
   - Lyrics timing controls
+  - Guitar chords toggle
+  - Fullscreen toggle
   - Session info display
 - **Session Integration:**
   - Requires joining a session first
-  - Shows join dialog overlay if not connected
+  - Shows inline join form overlay if not connected
   - Session recovery on page load
+- **Real-Time Sync:**
+  - All control changes broadcast via WebSocket to all devices instantly
 
 **Status:** ✅ Fully working
 
@@ -667,21 +679,27 @@ Complete inventory of features in the application, organized by domain and descr
 - **Processing Flow:**
   1. YouTube download via yt-dlp
   2. Audio separation using AI
-  3. Metadata extraction
-  4. File storage and database update
+  3. BPM detection (librosa beat tracking)
+  4. Chord detection (librosa chroma + beat sync)
+  5. Vocal range detection (librosa pyin on vocals track)
+  6. Loudness measurement (pydub RMS → gain correction)
+  7. Duration measurement
+  8. File storage and database update
 - **Separation Engines:**
-  - Demucs Standard (htdemucs_ft model)
-  - Audio-Sep Roformer (better vocal isolation)
-  - Hybrid Sequential (Roformer + Demucs)
-  - Clean Backing (3-stage advanced processing)
+  - **Three-Track** (default) — Demucs + Roformer + de-noise: produces `vocals.mp3`, `backing_vocals.mp3`, `instrumental.mp3`
+  - **Demucs Standard** — htdemucs_ft, fast 2-stem separation
+  - **Audio-Sep Roformer** — better vocal isolation
+  - **Hybrid Sequential** — Roformer → Demucs, highest quality, slowest
+  - **Clean Backing** — 3-stage advanced processing
 - **Progress Tracking:**
   - 0-30%: Download
   - 30-90%: Separation
-  - 90-100%: Finalization
-- **Output:**
+  - 90-100%: Analysis & finalization (BPM, chords, vocal range, loudness)
+- **Output (three-track engine):**
   - `original.mp3` - Original audio
-  - `vocals.mp3` - Isolated vocals
-  - `instrumental.mp3` - Isolated backing track
+  - `vocals.mp3` - Lead vocals only
+  - `backing_vocals.mp3` - Cleaned backing vocals
+  - `instrumental.mp3` - Pure instrumental
 - **GPU Acceleration:**
   - Automatically uses CUDA if available
   - Falls back to CPU processing
@@ -690,12 +708,13 @@ Complete inventory of features in the application, organized by domain and descr
 
 **Key Files:**
 - [jobs.py](backend/app/jobs/jobs.py) - Celery tasks
-- [audio.py](backend/app/services/audio.py) - Separation logic
+- [audio.py](backend/app/services/audio.py) - Analysis functions (BPM, chords, vocal range, loudness)
+- [separation_engines/](backend/app/services/separation_engines/) - Per-engine separation logic
 - [youtube_service.py](backend/app/services/youtube_service.py) - YouTube download
 
 **Known Limitations:**
 - CPU processing is slow (10-20 minutes per song)
-- No progress feedback for download phase
+- No progress feedback during download phase
 
 ---
 
@@ -746,19 +765,64 @@ Complete inventory of features in the application, organized by domain and descr
 
 ---
 
+## 9. Authentication & User Management
+
+### Login & Access Control
+**As an admin, I want to protect destructive actions** so guests can't delete songs or modify processing settings.
+
+**Features:**
+- **JWT Authentication:**
+  - Username/password login via `POST /api/users/login`
+  - JWT token returned on login, stored in auth store
+  - Token sent as Authorization header on all API requests
+  - Unauthenticated sessions can still browse library, join sessions, and add to queue
+- **Auth-Gated Actions:**
+  - Delete song (hidden from unauthenticated users)
+  - Reprocess audio with different engine (hidden from unauthenticated users)
+- **User Registration:** `POST /api/users/register`
+- **User Update:** `PATCH /api/users/{user_id}`
+- **Error Handling:** 401 responses clear the token and redirect to login
+
+**Status:** ✅ Fully working
+
+**Key Files:**
+- [users.py](backend/app/api/users.py) - Auth endpoints
+- [auth_service.py](backend/app/services/auth_service.py) - JWT creation/verification
+- [authStore.ts](frontend/src/stores/authStore.ts) - Frontend auth state
+- [dependencies.py](backend/app/api/dependencies.py) - FastAPI auth dependencies
+
+---
+
+### User Management CLI
+**As an operator, I want to manage user accounts from the command line** so I can set up accounts without a UI.
+
+**Features:**
+- Create user accounts
+- List all users
+- Delete users
+- Reset passwords
+
+**Status:** ✅ Fully working
+
+**Key Files:**
+- [cli/](cli/) - Go CLI tool
+
+---
+
 ## Feature Summary
 
 | Domain | Features | Status |
 |--------|----------|--------|
 | **Song Library** | 5 features | ✅ All working |
 | **Queue** | 2 features | ✅ All working |
-| **Playback** | 5 features | ✅ All working |
+| **Playback** | 6 features | ✅ All working |
 | **Lyrics** | 4 features | ✅ All working |
 | **Session** | 3 features | ✅ All working |
 | **Performance** | 1 feature | ✅ All working |
 | **Processing** | 2 features | ✅ All working |
 | **Metadata** | 2 features | ✅ All working |
-| **TOTAL** | **24 features** | **✅ All working** |
+| **Auth & Users** | 2 features | ✅ All working |
+| **TOTAL** | **27 features** | **✅ All working** |
 
 ---
 

@@ -79,7 +79,8 @@ Open Karaoke Studio is a **self-hosted AI-powered karaoke application** designed
 - **yt-dlp** - YouTube downloader
 - **Demucs** - AI vocal separation (PyTorch)
 - **Audio-Sep** - Roformer model integration
-- **librosa** - Audio analysis (BPM detection)
+- **librosa** - Audio analysis (BPM, chord detection, vocal range via pyin)
+- **pydub** - Loudness measurement (RMS dBFS)
 
 ---
 
@@ -102,49 +103,57 @@ User Input (YouTube URL + Metadata)
             │   └─→ yt-dlp downloads audio as original.mp3
             │
             ├─→ [Phase 2: Separation] (30-90% progress)
-            │   ├─→ Select engine (Demucs/Roformer/Hybrid)
+            │   ├─→ Select engine (Three-Track/Demucs/Roformer/Hybrid)
             │   ├─→ PyTorch processes audio (GPU or CPU)
-            │   └─→ Generate vocals.mp3 + instrumental.mp3
+            │   └─→ Generate vocals.mp3 + instrumental.mp3 (+ backing_vocals.mp3 for three-track)
             │
-            ├─→ [Phase 3: Finalization] (90-100% progress)
-            │   ├─→ BPM detection (librosa)
-            │   ├─→ Update song record
-            │   └─→ Update job status
+            ├─→ [Phase 3: Analysis & Finalization] (90-100% progress)
+            │   ├─→ BPM detection (librosa beat tracking)
+            │   ├─→ Chord detection (librosa chroma + beat sync)
+            │   ├─→ Vocal range detection (librosa pyin on vocals.mp3)
+            │   ├─→ Loudness measurement (pydub RMS on instrumental.mp3)
+            │   ├─→ Duration measurement (librosa)
+            │   ├─→ Update song record (bpm, chords_data, vocal_range_low/high, loudness_dbfs, gain_db, duration)
+            │   └─→ Update job status → COMPLETED
             │
             └─→ [WebSocket Broadcast] - Notify all clients
 ```
 
 ### Separation Engines
 
-**1. Demucs Standard** ([demucs_standard.py](backend/app/services/separation_engines/demucs_standard.py))
+**1. Three-Track** ([three_track.py](backend/app/services/separation_engines/three_track.py)) — **Default**
+- Pipeline: Demucs (htdemucs_ft) → Roformer Karaoke → De-Noise
+- Produces 3 independent tracks: lead vocals, backing vocals, instrumental
+- Roformer runs on vocals-only audio, eliminating instrumental bleed-through
+- Best overall separation quality
+
+**2. Demucs Standard** ([demucs_standard.py](backend/app/services/separation_engines/demucs_standard.py))
 - Model: `htdemucs_ft`
 - 2-stem separation (vocals + instrumental)
 - Fast, balanced quality
-- Default choice
 
-**2. Audio-Sep Roformer** ([audio_sep_roformer.py](backend/app/services/separation_engines/audio_sep_roformer.py))
+**3. Audio-Sep Roformer** ([audio_sep_roformer.py](backend/app/services/separation_engines/audio_sep_roformer.py))
 - Model: Roformer architecture
-- Better vocal isolation
+- Better vocal isolation than Demucs alone
 - Slower, higher quality
-- Good for vocal-focused tracks
 
-**3. Hybrid Sequential** ([hybrid_sequential.py](backend/app/services/separation_engines/hybrid_sequential.py))
+**4. Hybrid Sequential** ([hybrid_sequential.py](backend/app/services/separation_engines/hybrid_sequential.py))
 - Multi-stage: Roformer → Demucs
-- Best quality, slowest
-- For critical tracks
+- Highest 2-stem quality, slowest
 
-**4. Clean Backing** ([clean_backing.py](backend/app/services/separation_engines/clean_backing.py))
+**5. Clean Backing** ([clean_backing.py](backend/app/services/separation_engines/clean_backing.py))
 - 3-stage advanced processing
-- Experimental, highest quality
+- Experimental
 
 ### File Storage
 
 ```
 karaoke_library/
   └── {song_id}/
-      ├── original.mp3       # Downloaded audio
-      ├── vocals.mp3         # Isolated vocals
-      └── instrumental.mp3   # Isolated backing track
+      ├── original.mp3         # Downloaded audio
+      ├── vocals.mp3           # Lead vocals (isolated)
+      ├── instrumental.mp3     # Isolated backing track
+      └── backing_vocals.mp3   # Backing vocals (three-track engine only)
 ```
 
 ### Performance
@@ -491,8 +500,13 @@ def update_volume(volume: float):
 | itunes_preview_url | String (nullable) | 30s preview URL |
 | itunes_artwork_urls | Text (nullable) | JSON array of artwork |
 | youtube_thumbnail_urls | Text (nullable) | JSON array of thumbnails |
-| engine_type | String | "demucs", "roformer", "hybrid" |
+| engine_type | String | "three_track", "demucs", "roformer", "hybrid", "clean_backing" |
 | bpm | Float | Beats per minute |
+| chords_data | JSON (nullable) | Chord event list (time + chord label) |
+| vocal_range_low | String (nullable) | Lowest sung note, e.g. "G2" |
+| vocal_range_high | String (nullable) | Highest sung note, e.g. "E5" |
+| loudness_dbfs | Float (nullable) | RMS loudness in dBFS (e.g. -20.0) |
+| gain_db | Float (nullable) | Gain correction to reach -14 dBFS target |
 | year | Integer | Release year |
 | genre | String (nullable) | Music genre |
 | release_date | String (nullable) | Full release date |
@@ -629,13 +643,19 @@ class SongRepository:
 - `GET /api/metadata/search` - Search iTunes
 - `GET /api/metadata/artwork` - Get artwork URL
 
+**Users / Auth** - `/api/users`
+- `POST /api/users/register` - Create user account
+- `POST /api/users/login` - Authenticate and receive JWT token
+- `PATCH /api/users/{user_id}` - Update user (password reset, etc.)
+
 ---
 
 ### API Conventions
 
 **Headers:**
 ```
-X-Session-ID: {session_id}  # Required for queue operations
+X-Session-ID: {session_id}      # Required for queue operations
+Authorization: Bearer {token}   # Required for auth-gated endpoints (delete, reprocess)
 Content-Type: application/json
 ```
 
@@ -996,4 +1016,4 @@ WebSocket → Service → Repository → Database
 
 ---
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-16
