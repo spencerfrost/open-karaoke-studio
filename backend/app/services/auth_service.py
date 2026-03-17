@@ -42,6 +42,7 @@ def create_access_token(user: User) -> str:
         "sub": str(user.id),
         "username": user.username,
         "is_admin": user.is_admin,
+        "is_host": user.is_host,
         "exp": expire,
     }
     return jwt.encode(payload, _get_secret_key(), algorithm=ALGORITHM)

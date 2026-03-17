@@ -5,13 +5,16 @@ FastAPI router for user management endpoints.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-
+from app.api.dependencies import get_db, require_admin
 from app.db import SessionLocal
 from app.db.models import User
 from app.services.auth_service import create_access_token
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,15 @@ class LoginResponse(BaseModel):
 class UpdateResponse(BaseModel):
     """Response model for user update."""
     success: bool
+
+
+class UserListItem(BaseModel):
+    """User info for admin listing."""
+    id: int
+    username: str
+    display_name: Optional[str]
+    is_admin: bool
+    is_host: bool
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
@@ -189,3 +201,39 @@ async def update_user(user_id: int, request: UpdateUserRequest):
         )
     finally:
         session.close()
+
+
+@router.get("", response_model=List[UserListItem])
+async def list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all users. Admin only."""
+    users = db.query(User).order_by(User.id).all()
+    return [
+        UserListItem(
+            id=u.id,
+            username=u.username,
+            display_name=u.display_name,
+            is_admin=u.is_admin,
+            is_host=u.is_host,
+        )
+        for u in users
+    ]
+
+
+@router.post("/{user_id}/set-host", response_model=UpdateResponse)
+async def set_user_host(
+    user_id: int,
+    is_host: bool,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Toggle is_host on a user. Admin only."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_host = is_host
+    db.commit()
+    logger.info("Admin %s set user %s is_host=%s", current_user.username, user.username, is_host)
+    return UpdateResponse(success=True)

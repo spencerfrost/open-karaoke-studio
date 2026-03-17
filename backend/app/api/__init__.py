@@ -5,6 +5,7 @@ This package contains all API endpoint routers organized by domain.
 """
 
 from .health import router as health_router
+from .host_settings import router as host_settings_router
 from .jobs import router as jobs_router
 from .karaoke_queue import router as queue_router
 from .lyrics import router as lyrics_router
@@ -17,6 +18,7 @@ from .youtube_music import router as youtube_music_router
 
 __all__ = [
     "health_router",
+    "host_settings_router",
     "songs_router",
     "jobs_router",
     "sessions_router",
