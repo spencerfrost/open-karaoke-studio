@@ -20,7 +20,7 @@ func IsPortAvailable(port int) bool {
 			return false // Port in use
 		}
 	}
-	// Try UDP (for QUIC/game server)
+	// Try UDP
 	udpAddr := fmt.Sprintf("127.0.0.1:%d", port)
 	ln, err := net.ListenPacket("udp", udpAddr)
 	if err != nil {

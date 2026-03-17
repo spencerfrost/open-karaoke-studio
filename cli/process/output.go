@@ -15,6 +15,23 @@ const (
 	SourceDocs
 )
 
+func (s Source) String() string {
+	switch s {
+	case SourceSystem:
+		return "system"
+	case SourceBackend:
+		return "backend"
+	case SourceCelery:
+		return "celery"
+	case SourceFrontend:
+		return "frontend"
+	case SourceDocs:
+		return "docs"
+	default:
+		return "unknown"
+	}
+}
+
 type LogLine struct {
 	Time    time.Time
 	Source  Source

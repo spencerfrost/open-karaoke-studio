@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -194,12 +195,11 @@ func (p *Process) Stop() error {
 	p.log(fmt.Sprintf("Stopping %s...", p.Name), false)
 
 	// For Backend and Celery, attempt graceful shutdown first
-	if (p.Source == SourceBackend || p.Source == SourceCelery) && stdin != nil {
-		_, _ = io.WriteString(stdin, "\n")
-		// Give it a moment to shut down gracefully
+	if (p.Source == SourceBackend || p.Source == SourceCelery) && cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 		done := make(chan struct{})
 		go func() {
-			cmd.Wait()
+			_ = cmd.Wait()
 			close(done)
 		}()
 		select {
@@ -210,6 +210,7 @@ func (p *Process) Stop() error {
 			p.log(fmt.Sprintf("%s stopped gracefully", p.Name), false)
 			return nil
 		case <-time.After(5 * time.Second):
+			// Grace period expired, force kill below
 		}
 	}
 
