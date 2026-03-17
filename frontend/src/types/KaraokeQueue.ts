@@ -6,6 +6,7 @@ export interface KaraokeQueueItem {
   singer: string;
   position: number;
   addedAt: string;
+  status: "active" | "pending";
 }
 
 export interface KaraokeQueueItemWithSong extends KaraokeQueueItem {
@@ -21,6 +22,7 @@ export interface KaraokeQueueStateResponse {
   current: KaraokeQueueItemWithSong | null;
   upcoming: KaraokeQueueItemWithSong[];
   items: KaraokeQueueItemWithSong[];
+  pending?: KaraokeQueueItemWithSong[];
 }
 
 export interface AddToKaraokeQueueRequest {

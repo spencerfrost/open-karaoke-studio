@@ -47,6 +47,7 @@ interface SessionState {
   recoveryError: string | null;
 
   // Actions
+  joinAsHost: () => Promise<void>;
   createSession: (deviceType?: string, displayName?: string) => Promise<void>;
   joinSession: (
     codeOrId: string,
@@ -88,6 +89,86 @@ export const useSessionStore = create<SessionState>()(
       connectionError: null,
       isRecovering: false,
       recoveryError: null,
+
+      joinAsHost: async () => {
+        set({ isConnecting: true, connectionError: null });
+
+        try {
+          const token = useAuthStore.getState().token;
+          if (!token) {
+            throw new Error("Not authenticated");
+          }
+
+          const response = await fetch("/api/sessions/my", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to create host session: ${response.statusText}`,
+            );
+          }
+
+          const sessionData = await response.json();
+
+          set({
+            sessionId: sessionData.session_id,
+            displayCode: sessionData.display_code,
+            deviceId: sessionData.device_id,
+            isHost: true,
+            deviceType: "stage",
+            isConnected: true,
+            isConnecting: false,
+            sessionInfo: sessionData,
+            recoveryError: null,
+          });
+
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            sessionData.device_id,
+          );
+
+          sessionEndedCleanup?.();
+          sessionEndedCleanup = sessionWebSocketService.on(
+            "session_ended",
+            (data) => {
+              logger.info("Session ended by host:", data?.reason);
+              get().clearSession();
+              if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== "/"
+              ) {
+                window.location.href = "/";
+              }
+            },
+          );
+
+          localStorage.setItem(
+            HOST_SESSION_STORAGE_KEY,
+            JSON.stringify({
+              sessionId: sessionData.session_id,
+              deviceId: sessionData.device_id,
+              timestamp: Date.now(),
+            }),
+          );
+
+          logger.info("Host session joined/created:", sessionData);
+        } catch (error) {
+          logger.error("Failed to join/create host session:", error);
+          set({
+            connectionError:
+              error instanceof Error
+                ? error.message
+                : "Failed to create session",
+            isConnecting: false,
+          });
+          throw error;
+        }
+      },
 
       createSession: async (deviceType = "stage", displayName) => {
         set({ isConnecting: true, connectionError: null });

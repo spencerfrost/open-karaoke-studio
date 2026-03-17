@@ -12,8 +12,12 @@ import SettingsPage from "./pages/Settings";
 import StagePage from "./pages/Stage";
 import PerformanceControlsPage from "./pages/PerformanceControlsPage";
 import JoinSessionPage from "./pages/JoinSessionPage";
+import HostDashboard from "./pages/HostDashboard";
+import AdminPanel from "./pages/AdminPanel";
 import { SessionProvider } from "./contexts/SessionContext";
 import SessionGuard from "./components/SessionGuard";
+import HostGuard from "./components/HostGuard";
+import AdminGuard from "./components/AdminGuard";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
 import { useJobsSync } from "./hooks/useJobsSync";
@@ -69,6 +73,26 @@ const App: React.FC = () => {
                 <SessionGuard deviceType="performer" redirectTo="/controls">
                   <PerformanceControlsPage />
                 </SessionGuard>
+              }
+            />
+
+            {/* Host dashboard */}
+            <Route
+              path="/host"
+              element={
+                <HostGuard>
+                  <HostDashboard />
+                </HostGuard>
+              }
+            />
+
+            {/* Admin panel */}
+            <Route
+              path="/admin"
+              element={
+                <AdminGuard>
+                  <AdminPanel />
+                </AdminGuard>
               }
             />
 

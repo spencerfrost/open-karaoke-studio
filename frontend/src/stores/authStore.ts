@@ -8,6 +8,7 @@ interface AuthUser {
   id: string;
   displayName: string | null;
   isAdmin: boolean;
+  isHost: boolean;
 }
 
 interface AuthState {
@@ -46,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
             id: data.id,
             displayName: data.display_name,
             isAdmin: data.is_admin,
+            isHost: data.is_host ?? false,
           },
           isAuthenticated: true,
         });

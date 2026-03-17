@@ -2,6 +2,7 @@
  * Queue-related API services
  */
 import { useApiQuery, useApiMutation } from "./useApi";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   UseQueryOptions,
   UseMutationOptions,
@@ -65,11 +66,13 @@ function normalizeQueueState(
   const current = data.current ?? null;
   const upcoming = data.upcoming ?? [];
   const items = data.items ?? [...(current ? [current] : []), ...upcoming];
+  const pending = data.pending;
 
   return {
     current,
     upcoming,
     items,
+    ...(pending !== undefined && { pending }),
   };
 }
 
@@ -152,8 +155,10 @@ export function useRemoveFromKaraokeQueue(
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (id: string) => {
       const url = `/api/karaoke-queue/${id}${sessionCode ? `?session_code=${sessionCode}` : ""}`;
+      const token = useAuthStore.getState().token;
       const response = await fetch(url, {
         method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -184,8 +189,10 @@ export function usePlayFromKaraokeQueue(
   return useMutation<QueuePlayResponse, Error, string, unknown>({
     mutationFn: async (id: string) => {
       const url = `/api/karaoke-queue/${id}/play${sessionCode ? `?session_code=${sessionCode}` : ""}`;
+      const token = useAuthStore.getState().token;
       const response = await fetch(url, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;

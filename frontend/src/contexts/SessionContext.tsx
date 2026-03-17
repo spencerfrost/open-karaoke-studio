@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useState, useCallback } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useAuthStore } from "@/stores/authStore";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("context:session");
@@ -25,7 +26,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   sessionRequired = true,
 }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { isRecovering, recoverSession } = useSessionStore();
+  const { isRecovering, recoverSession, joinAsHost } = useSessionStore();
 
   const initializeSession = useCallback(async () => {
     if (isInitialized) return;
@@ -33,17 +34,23 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
     logger.debug("🚀 SessionProvider: Initializing session recovery...");
 
     try {
-      // Attempt session recovery (do NOT clear localStorage keys before recovery -
-      // clearSession() would delete the keys needed for recovery to succeed)
       await recoverSession();
 
-      logger.debug("✅ SessionProvider: Session recovery completed");
+      // If recovery didn't find a session and the user is a host, auto-create one
+      const { sessionId } = useSessionStore.getState();
+      const { user } = useAuthStore.getState();
+      if (!sessionId && (user?.isHost || user?.isAdmin)) {
+        logger.debug("🎤 SessionProvider: Host logged in, auto-creating session...");
+        await joinAsHost();
+      }
+
+      logger.debug("✅ SessionProvider: Session initialization completed");
     } catch (error) {
-      logger.error("❌ SessionProvider: Session recovery failed:", error);
+      logger.error("❌ SessionProvider: Session initialization failed:", error);
     } finally {
       setIsInitialized(true);
     }
-  }, [isInitialized, recoverSession]);
+  }, [isInitialized, recoverSession, joinAsHost]);
 
   useEffect(() => {
     initializeSession();
