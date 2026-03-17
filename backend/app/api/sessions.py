@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_host
 from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionDevice, User
 
@@ -118,6 +118,187 @@ def get_db() -> Generator[Session, None, None]:
 # ============================================================================
 # Endpoints
 # ============================================================================
+
+@router.get("/my", response_model=Optional[SessionResponse])
+async def get_my_session(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    Get the host's current active session, or null if none exists.
+    """
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.host_user_id == current_user.id,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if not session or session.is_expired():
+        return None
+
+    active_devices = (
+        db.query(SessionDevice)
+        .filter(SessionDevice.session_id == session.session_id, SessionDevice.is_active.is_(True))
+        .all()
+    )
+
+    return SessionResponse(
+        session_id=session.session_id,
+        display_code=session.display_code,
+        is_host=True,
+        device_count=len(active_devices),
+        connected_devices=[
+            DeviceInfo(
+                device_id=d.device_id,
+                device_type=d.device_type,
+                joined_at=d.joined_at.isoformat(),
+                is_self=False,
+                display_name=d.display_name,
+            )
+            for d in active_devices
+        ],
+        created_at=session.created_at.isoformat(),
+        expires_at=session.expires_at.isoformat(),
+        is_active=session.is_active,
+    )
+
+
+@router.post("/my", response_model=SessionResponse, status_code=201)
+async def get_or_create_my_session(
+    request: Request,
+    session_data: SessionCreateRequest,
+    user_agent: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    Get the host's existing active session or create a new one.
+    All devices logged in as the same host auto-join this session.
+    """
+    from app.db.models import HostSettings
+
+    # Check for existing active session
+    existing = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.host_user_id == current_user.id,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if existing and not existing.is_expired():
+        # Register this device in the existing session
+        device_id = f"rest_{uuid.uuid4().hex[:12]}"
+        device_type = session_data.device_type
+        device = SessionDevice(
+            session_id=existing.session_id,
+            device_id=device_id,
+            device_type=device_type,
+            user_agent=user_agent,
+            display_name=session_data.display_name or current_user.display_name,
+        )
+        db.add(device)
+        db.commit()
+
+        active_devices = (
+            db.query(SessionDevice)
+            .filter(SessionDevice.session_id == existing.session_id, SessionDevice.is_active.is_(True))
+            .all()
+        )
+
+        return SessionResponse(
+            session_id=existing.session_id,
+            display_code=existing.display_code,
+            device_id=device_id,
+            is_host=True,
+            device_type=device_type,
+            device_count=len(active_devices),
+            connected_devices=[
+                DeviceInfo(
+                    device_id=d.device_id,
+                    device_type=d.device_type,
+                    joined_at=d.joined_at.isoformat(),
+                    is_self=d.device_id == device_id,
+                    display_name=d.display_name,
+                )
+                for d in active_devices
+            ],
+            created_at=existing.created_at.isoformat(),
+            expires_at=existing.expires_at.isoformat(),
+            is_active=existing.is_active,
+        )
+
+    # Get host settings for session duration
+    host_settings = (
+        db.query(HostSettings)
+        .filter(HostSettings.user_id == current_user.id)
+        .first()
+    )
+    duration_hours = host_settings.session_duration_hours if host_settings else 8
+
+    # Create a new session
+    device_id = f"rest_{uuid.uuid4().hex[:12]}"
+    device_type = session_data.device_type
+
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        try:
+            session = KaraokeSession.create_new_session(
+                db, host_device_id=device_id, duration_hours=duration_hours
+            )
+            session.host_user_id = current_user.id
+            db.add(session)
+            db.commit()
+
+            host_device = SessionDevice(
+                session_id=session.session_id,
+                device_id=device_id,
+                device_type=device_type,
+                user_agent=user_agent,
+                display_name=session_data.display_name or current_user.display_name,
+            )
+            db.add(host_device)
+            db.commit()
+
+            logger.info(
+                "Host user %s created session %s",
+                current_user.username,
+                session.session_id,
+            )
+
+            return SessionResponse(
+                session_id=session.session_id,
+                display_code=session.display_code,
+                device_id=device_id,
+                is_host=True,
+                device_type=device_type,
+                device_count=1,
+                connected_devices=[
+                    DeviceInfo(
+                        device_id=host_device.device_id,
+                        device_type=host_device.device_type,
+                        joined_at=host_device.joined_at.isoformat(),
+                        is_self=True,
+                        display_name=host_device.display_name,
+                    )
+                ],
+                created_at=session.created_at.isoformat(),
+                expires_at=session.expires_at.isoformat(),
+                is_active=session.is_active,
+            )
+
+        except IntegrityError:
+            db.rollback()
+            if attempt == max_attempts - 1:
+                raise HTTPException(status_code=500, detail="Failed to create unique session")
+            continue
+
+    raise HTTPException(status_code=500, detail="Failed to create session")
+
 
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
