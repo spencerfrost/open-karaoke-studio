@@ -4,6 +4,7 @@ Database models package exports
 
 # Import all models so they can be imported from the package
 from .base import UNKNOWN_ARTIST, Base
+from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus
 from .queue import KaraokeQueueItem
 from .session import KaraokeSession, SessionDevice, SessionPlaybackState
@@ -18,6 +19,7 @@ __all__ = [
     "DbJob",
     "Job",
     "JobStatus",
+    "HostSettings",
     "KaraokeSession",
     "KaraokeQueueItem",
     "SessionDevice",

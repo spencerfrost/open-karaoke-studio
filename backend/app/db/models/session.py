@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from .base import Base
 
@@ -26,6 +26,9 @@ class KaraokeSession(Base):
     session_id: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
     display_code: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
     host_device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    host_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
