@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -157,7 +158,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.content[idx] == "" {
 					m.content[idx] = lm.text
 				} else {
-					m.content[idx] += "\n" + lm.text
+					m.content[idx] = capLines(m.content[idx]+"\n"+lm.text, 5000)
 				}
 				m.viewports[idx].SetContent(m.content[idx])
 				if m.autoScroll[idx] {
@@ -186,6 +187,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case "ctrl+c":
+			// Force quit without stopping services — intentional emergency exit.
 			return m, tea.Quit
 
 		case "tab":
@@ -204,34 +206,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter", " ":
 			if m.activeTab == 0 {
-				// Toggle start/stop for selected row.
 				sel := m.table.Cursor()
 				procs := m.manager.All()
 				if sel >= 0 && sel < len(procs) {
 					p := procs[sel]
-					if p.Status() == process.StatusRunning {
+					switch p.Status() {
+					case process.StatusRunning:
 						go p.Stop() //nolint:errcheck
-					} else if p.Status() == process.StatusStopped || p.Status() == process.StatusFailed {
+					case process.StatusStopped, process.StatusFailed:
 						go p.Start() //nolint:errcheck
+					// StatusStarting and StatusStopping: do nothing (already in transition)
 					}
 				}
 			}
 
 		case "b":
 			if m.activeTab == 0 {
-				// Check if frontend was running before toggle.
 				var wasRunning bool
 				if old := m.manager.Get("frontend"); old != nil {
 					wasRunning = old.Status() == process.StatusRunning
 				}
 				m.buildMode = !m.buildMode
-				// Re-create the frontend process and re-register it.
-				newFrontend := service.NewFrontend(m.cfg.ProjectRoot, m.buildMode)
-				// Register stops the old process and replaces it.
-				m.manager.Register(newFrontend)
-				// Re-attach our log handler since Register replaces the manager's handler.
-				if idx, ok := m.sourceIdx[process.SourceFrontend]; ok {
-					logCh := m.logCh // capture for closure
+				buildMode := m.buildMode
+				root := m.cfg.ProjectRoot
+				logCh := m.logCh
+				idx := m.sourceIdx[process.SourceFrontend]
+				go func() {
+					newFrontend := service.NewFrontend(root, buildMode)
+					m.manager.Register(newFrontend)
+					// Re-attach TUI log handler (Register overwrites with ring-buffer handler).
 					newFrontend.SetLogHandler(func(line process.LogLine) {
 						text := fmt.Sprintf("[%s] %s", line.Time.Format("15:04:05"), line.Text)
 						select {
@@ -239,11 +242,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						default:
 						}
 					})
-					// Auto-start only if the old frontend was running.
 					if wasRunning {
-						go newFrontend.Start() //nolint:errcheck
+						_ = newFrontend.Start()
 					}
-				}
+				}()
 			}
 
 		case "s":
@@ -308,4 +310,25 @@ func (m Model) View() string {
 		return renderOverview(m)
 	}
 	return renderLogView(m, m.activeTab-1)
+}
+
+// capLines trims s to at most maxLines lines, keeping the most recent ones.
+func capLines(s string, maxLines int) string {
+	if s == "" {
+		return s
+	}
+	count := strings.Count(s, "\n") + 1
+	if count <= maxLines {
+		return s
+	}
+	skip := count - maxLines
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			skip--
+			if skip == 0 {
+				return s[i+1:]
+			}
+		}
+	}
+	return s
 }

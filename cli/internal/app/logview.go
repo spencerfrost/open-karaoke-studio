@@ -12,7 +12,11 @@ import (
 func renderLogView(m Model, idx int) string {
 	procs := m.manager.All()
 	if idx < 0 || idx >= len(procs) {
-		return renderTabBar(idx+1) + "\n(no process)"
+		activeForTabBar := idx + 1
+		if activeForTabBar > 4 {
+			activeForTabBar = 4
+		}
+		return renderTabBar(activeForTabBar) + "\n(no process)"
 	}
 	p := procs[idx]
 
