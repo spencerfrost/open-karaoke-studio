@@ -76,6 +76,10 @@ func Save(cfg *Config, path string) error {
 		return fmt.Errorf("failed to marshal config to YAML: %w", err)
 	}
 
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file %s: %w", path, err)
 	}
@@ -83,29 +87,24 @@ func Save(cfg *Config, path string) error {
 	return nil
 }
 
-// DetectProjectRoot walks up from the executable's directory looking for a directory
+// DetectProjectRoot walks up from the current working directory looking for a directory
 // containing pyproject.toml. Returns the first match, or empty string if not found.
 // Walks up a maximum of 10 levels.
 func DetectProjectRoot() string {
-	execPath, err := os.Executable()
+	dir, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
-
-	dir := filepath.Dir(execPath)
 	for i := 0; i < 10; i++ {
-		pyprojectPath := filepath.Join(dir, "pyproject.toml")
-		if _, err := os.Stat(pyprojectPath); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "pyproject.toml")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			// reached root directory
 			break
 		}
 		dir = parent
 	}
-
 	return ""
 }
 
