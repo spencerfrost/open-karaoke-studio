@@ -5,18 +5,14 @@ import (
 	"time"
 )
 
-type Source string
+type Source int
 
 const (
-	SourceHytale     Source = "hytale"
-	SourceGradle     Source = "gradle"
-	SourceVite       Source = "vite"
-	SourceLicense    Source = "license"
-	SourceMaster     Source = "master"
-	SourceMasterVite Source = "master-vite"
-	SourceDeploy     Source = "deploy"
-	SourceVPS        Source = "vps"
-	SourceSystem     Source = "system"
+	SourceSystem Source = iota
+	SourceBackend
+	SourceCelery
+	SourceFrontend
+	SourceDocs
 )
 
 type LogLine struct {

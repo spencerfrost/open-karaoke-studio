@@ -193,9 +193,9 @@ func (p *Process) Stop() error {
 
 	p.log(fmt.Sprintf("Stopping %s...", p.Name), false)
 
-	// For Hytale server, send "stop" command first
-	if p.Source == SourceHytale && stdin != nil {
-		_, _ = io.WriteString(stdin, "stop\n")
+	// For Backend and Celery, attempt graceful shutdown first
+	if (p.Source == SourceBackend || p.Source == SourceCelery) && stdin != nil {
+		_, _ = io.WriteString(stdin, "\n")
 		// Give it a moment to shut down gracefully
 		done := make(chan struct{})
 		go func() {
@@ -209,7 +209,7 @@ func (p *Process) Stop() error {
 			p.mu.Unlock()
 			p.log(fmt.Sprintf("%s stopped gracefully", p.Name), false)
 			return nil
-		case <-time.After(10 * time.Second):
+		case <-time.After(5 * time.Second):
 		}
 	}
 
