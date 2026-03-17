@@ -189,7 +189,6 @@ func (p *Process) Stop() error {
 	}
 	p.status = StatusStopping
 	cmd := p.cmd
-	stdin := p.stdin
 	p.mu.Unlock()
 
 	p.log(fmt.Sprintf("Stopping %s...", p.Name), false)
