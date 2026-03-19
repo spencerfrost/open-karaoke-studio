@@ -110,3 +110,73 @@ class TestYouTubeDownload:
         
         assert response.status_code == 202
         mock_youtube_service.download_and_process_async.assert_called_once()
+
+
+class TestYouTubeSearchErrorPaths:
+    """Cover lines 97, 99, 101, 103-104, 109-110 — exception handling in search."""
+
+    def test_search_handles_validation_error(self, client, mock_youtube_service):
+        from app.exceptions import ValidationError
+        mock_youtube_service.search_videos.side_effect = ValidationError("bad query")
+        response = client.get("/api/youtube/search?query=test")
+        assert response.status_code == 400
+        mock_youtube_service.search_videos.side_effect = None
+
+    def test_search_handles_network_error(self, client, mock_youtube_service):
+        from app.exceptions import NetworkError
+        mock_youtube_service.search_videos.side_effect = NetworkError("unreachable")
+        response = client.get("/api/youtube/search?query=test")
+        assert response.status_code == 503
+        mock_youtube_service.search_videos.side_effect = None
+
+    def test_search_handles_service_error(self, client, mock_youtube_service):
+        from app.exceptions import ServiceError
+        mock_youtube_service.search_videos.side_effect = ServiceError("yt down")
+        response = client.get("/api/youtube/search?query=test")
+        assert response.status_code == 500
+        mock_youtube_service.search_videos.side_effect = None
+
+    def test_search_handles_connection_error(self, client, mock_youtube_service):
+        mock_youtube_service.search_videos.side_effect = ConnectionError("conn refused")
+        response = client.get("/api/youtube/search?query=test")
+        assert response.status_code == 503
+        mock_youtube_service.search_videos.side_effect = None
+
+    def test_search_handles_timeout_error(self, client, mock_youtube_service):
+        mock_youtube_service.search_videos.side_effect = TimeoutError("timed out")
+        response = client.get("/api/youtube/search?query=test")
+        assert response.status_code == 504
+        mock_youtube_service.search_videos.side_effect = None
+
+
+class TestYouTubeDownloadErrorPaths:
+    """Cover lines 170-176 — exception handling in download."""
+
+    def test_download_handles_validation_error(self, client, mock_youtube_service):
+        from app.exceptions import ValidationError
+        mock_youtube_service.download_and_process_async.side_effect = ValidationError("bad id")
+        response = client.post("/api/youtube/download", json={"video_id": "abc", "song_id": "s1"})
+        assert response.status_code == 400
+        mock_youtube_service.download_and_process_async.side_effect = None
+
+    def test_download_handles_service_error(self, client, mock_youtube_service):
+        from app.exceptions import ServiceError
+        mock_youtube_service.download_and_process_async.side_effect = ServiceError("dl failed")
+        response = client.post("/api/youtube/download", json={"video_id": "abc", "song_id": "s1"})
+        assert response.status_code == 500
+        mock_youtube_service.download_and_process_async.side_effect = None
+
+    def test_download_handles_invalid_engine_type(self, client):
+        """Cover field_validator for engine_type."""
+        response = client.post("/api/youtube/download", json={
+            "video_id": "abc", "song_id": "s1", "engine_type": "invalid_engine"
+        })
+        assert response.status_code == 422
+
+    def test_download_whitespace_title_normalized_to_none(self, client, mock_youtube_service):
+        """Cover validate_optional_strings — whitespace → None."""
+        response = client.post("/api/youtube/download", json={
+            "video_id": "abc", "song_id": "s1", "title": "   ", "artist": ""
+        })
+        # Should succeed (whitespace title normalized to None)
+        assert response.status_code == 202

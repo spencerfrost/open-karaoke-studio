@@ -76,8 +76,11 @@ class TestUserLogin:
         # Mock user without password
         mock_user = Mock()
         mock_user.id = 1
+        mock_user.username = "testuser"
         mock_user.display_name = "Test User"
         mock_user.password_hash = None
+        mock_user.is_admin = False
+        mock_user.is_host = False
         mock_user_db.query.return_value.filter.return_value.first.return_value = mock_user
         
         response = client.post(
@@ -95,8 +98,11 @@ class TestUserLogin:
         # Mock user with password
         mock_user = Mock()
         mock_user.id = 1
+        mock_user.username = "testuser"
         mock_user.display_name = "Test User"
         mock_user.password_hash = "hashed_password"
+        mock_user.is_admin = False
+        mock_user.is_host = False
         mock_user.check_password.return_value = True
         mock_user_db.query.return_value.filter.return_value.first.return_value = mock_user
         

@@ -13,12 +13,12 @@ class TestYouTubeMusicSearch:
     def test_search_returns_results(self, client, mock_youtube_music_service, mock_db_session):
         """Test successful YouTube Music search."""
         response = client.get("/api/youtube-music/search?q=bohemian+rhapsody&limit=10")
-        
+
         assert response.status_code == 200
         data = response.json()
-        assert "results" in data
+        assert "songs" in data
         assert data["error"] is None
-        mock_youtube_music_service.search_songs.assert_called_once_with("bohemian rhapsody", limit=10)
+        mock_youtube_music_service.search_combined.assert_called_once_with("bohemian rhapsody", limit=10)
 
     def test_search_requires_query(self, client):
         """Test that search requires a query parameter."""
@@ -29,9 +29,9 @@ class TestYouTubeMusicSearch:
     def test_search_default_limit(self, client, mock_youtube_music_service, mock_db_session):
         """Test default limit is applied."""
         response = client.get("/api/youtube-music/search?q=test")
-        
+
         assert response.status_code == 200
-        mock_youtube_music_service.search_songs.assert_called_once_with("test", limit=10)
+        mock_youtube_music_service.search_combined.assert_called_once_with("test", limit=10)
 
     def test_search_validates_limit(self, client):
         """Test limit validation."""
@@ -46,21 +46,32 @@ class TestYouTubeMusicSearch:
     def test_search_adds_exists_in_library_flag(self, client, mock_youtube_music_service, mock_db_session):
         """Test that existsInLibrary flag is added to results."""
         response = client.get("/api/youtube-music/search?q=test")
-        
+
         assert response.status_code == 200
         data = response.json()
-        for result in data["results"]:
+        for result in data["songs"]:
             assert "existsInLibrary" in result
+
+    def test_search_marks_existing_library_song(self, client, mock_youtube_music_service, mock_db_session):
+        """existsInLibrary=True when a matching song is found in the DB (covers line 98)."""
+        from unittest.mock import Mock as _Mock
+        # Make DB lookup return a truthy existing song record
+        mock_db_session.query.return_value.filter.return_value.first.return_value = _Mock()
+        response = client.get("/api/youtube-music/search?q=bohemian+rhapsody")
+        assert response.status_code == 200
+        data = response.json()
+        songs = data["songs"]
+        assert any(s["existsInLibrary"] is True for s in songs)
 
     def test_search_handles_service_error(self, client, mock_youtube_music_service, mock_db_session):
         """Test handling of service errors."""
-        mock_youtube_music_service.search_songs.side_effect = Exception("API Error")
-        
+        mock_youtube_music_service.search_combined.side_effect = Exception("API Error")
+
         response = client.get("/api/youtube-music/search?q=test")
-        
+
         assert response.status_code == 200  # Returns empty results on error
         data = response.json()
-        assert data["results"] == []
+        assert data["songs"] == []
         assert "API Error" in data["error"]
 
 

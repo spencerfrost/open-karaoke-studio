@@ -194,6 +194,20 @@ class TestJob:
         assert result["status"] == "pending"
         assert result["created_at"] == mock_datetime.isoformat()
 
+    def test_job_to_dict_naive_datetime_gets_utc_tzinfo(self):
+        """to_dict adds UTC tzinfo to naive datetimes (line 64 of job.py)."""
+        from app.db.models.job import Job, JobStatus
+
+        naive_dt = datetime(2024, 1, 15, 10, 30, 0)  # no tzinfo
+        job = Job(
+            id="job-naive",
+            filename="test.mp3",
+            status=JobStatus.PENDING,
+            created_at=naive_dt,
+        )
+        result = job.to_dict()
+        assert "Z" in result["created_at"] or "+00:00" in result["created_at"]
+
 
 class TestSong:
     """Test the Song Pydantic model"""

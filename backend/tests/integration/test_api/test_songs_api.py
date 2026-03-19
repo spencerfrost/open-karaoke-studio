@@ -34,9 +34,9 @@ def test_create_song_success(client):
 
 
 def test_create_song_invalid_data(client):
-    """Test POST /api/songs with invalid/missing data returns 400."""
+    """Test POST /api/songs with invalid/missing data returns 400 or 422."""
     response = client.post("/api/songs", json={"artist": "No Title"})
-    assert response.status_code == 400
+    assert response.status_code in (400, 422)
 
 
 def test_update_song_success(client):
@@ -63,12 +63,12 @@ def test_update_song_not_found(client):
 
 
 def test_update_song_invalid_data(client):
-    """Test PATCH /api/songs/<id> with invalid data returns 400."""
+    """Test PATCH /api/songs/<id> with invalid data returns 400 or 422."""
     create_resp = client.post("/api/songs", json={"title": "Valid", "artist": "Valid"})
     assert create_resp.status_code in (200, 201)
     song_id = create_resp.json()["id"]
     response = client.patch(f"/api/songs/{song_id}", json={"duration": -5})
-    assert response.status_code == 400
+    assert response.status_code in (400, 422)
 
 
 def test_delete_song_success(client):

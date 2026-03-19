@@ -28,6 +28,7 @@ class TestItunesSearch:
         """Test successful iTunes search with valid results"""
         # Arrange
         mock_response = Mock()
+        mock_response.headers = {}
         mock_response.json.return_value = {
             "results": [
                 {
@@ -143,6 +144,7 @@ class TestItunesSearch:
         """Test iTunes search with invalid release date format"""
         # Arrange
         mock_response = Mock()
+        mock_response.headers = {}
         mock_response.json.return_value = {
             "results": [
                 {
@@ -172,6 +174,7 @@ class TestItunesSearch:
         """Test iTunes search with missing optional fields"""
         # Arrange
         mock_response = Mock()
+        mock_response.headers = {}
         mock_response.json.return_value = {
             "results": [
                 {

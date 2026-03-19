@@ -5,34 +5,60 @@ from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+import app.db.models as models
+import app.api.karaoke_queue as _queue_api
+import app.api.sessions as _sessions_api
+from app.api.dependencies import get_current_user, get_db
+from app.db.models import Base
+from tests.conftest import create_test_app
+
+from unittest.mock import MagicMock
+
+
+def _make_mock_user():
+    u = MagicMock()
+    u.id = 1
+    u.username = "testuser"
+    u.is_admin = True
+    u.is_host = True
+    return u
 
 
 @pytest.fixture(scope="function")
 def test_setup():
-    """Set up test database tables and factories."""
-    # Import database and models - they will use DATABASE_URL from conftest
-    import app.db.models as models
-    from app.db.database import SessionLocal, engine
-    from app.db.models import Base
-    from app.main import app
+    """Set up test database tables and factories using SQLite."""
+    import tempfile, os
 
-    # Ensure all models are registered
-    _ = (
-        models.KaraokeSession,
-        models.DbSong,
-        models.KaraokeQueueItem,
-        models.SessionDevice,
-        models.User,
-        models.DbJob,
-    )
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db_url = f"sqlite:///{db_path}"
 
-    # Create all tables
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
+    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    # Create a session for setup/teardown
-    setup_session = SessionLocal()
+    def _get_db():
+        db = TestingSession()
+        try:
+            yield db
+        finally:
+            db.close()
 
-    # Session factory
+    app = create_test_app()
+    app.dependency_overrides[get_db] = _get_db
+    app.dependency_overrides[_queue_api.get_db] = _get_db
+    app.dependency_overrides[_sessions_api.get_db] = _get_db
+    app.dependency_overrides[get_current_user] = _make_mock_user
+
+    setup_session = TestingSession()
+    # Patch SessionLocal globally so WebSocket handlers (which bypass DI) use SQLite
+    import app.db.database as _db_module
+    original_SessionLocal = _db_module.SessionLocal
+    _db_module.SessionLocal = TestingSession
+
     def session_factory(session_id: str, host_device_id: str):
         session = models.KaraokeSession(
             session_id=session_id,
@@ -46,7 +72,6 @@ def test_setup():
         setup_session.refresh(session)
         return session
 
-    # Song factory
     def song_factory():
         song = models.DbSong(
             id=f"song_{uuid.uuid4()}",
@@ -63,11 +88,13 @@ def test_setup():
         with TestClient(app) as client:
             yield client, session_factory, song_factory
     finally:
-        # Close session
         setup_session.close()
-
-        # Drop all tables for next test
-        Base.metadata.drop_all(engine)
+        _db_module.SessionLocal = original_SessionLocal
+        engine.dispose()
+        try:
+            os.unlink(db_path)
+        except Exception:
+            pass
 
 
 def test_websocket_queue_update_is_session_specific(test_setup):
@@ -222,7 +249,9 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
     )
     assert load_response.status_code == 200
 
-    with client.websocket_connect(f"/ws/session/{session_id}") as websocket:
+    # Connect as host so player state commands are accepted
+    ws_url = f"/ws/session/{session_id}?device_id={host_device_id}"
+    with client.websocket_connect(ws_url) as websocket:
         connected_message = websocket.receive_json()
         assert connected_message["type"] == "session_connected"
         assert connected_message["performance_state"]["current_song_id"] == song.id
@@ -236,8 +265,12 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
             }
         )
         websocket.send_json({"type": "playback_play"})
+        # Synchronize: request_queue_update returns a response, ensuring
+        # the preceding messages have been processed before we disconnect.
+        websocket.send_json({"type": "request_queue_update"})
+        _ = websocket.receive_json()  # queue_updated response
 
-    with client.websocket_connect(f"/ws/session/{session_id}") as websocket:
+    with client.websocket_connect(ws_url) as websocket:
         connected_message = websocket.receive_json()
         assert connected_message["type"] == "session_connected"
 
