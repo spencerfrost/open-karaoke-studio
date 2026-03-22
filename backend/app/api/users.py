@@ -53,6 +53,7 @@ class LoginResponse(BaseModel):
     display_name: Optional[str] = None
     token: str
     is_admin: bool = False
+    is_host: bool = False
 
 
 class UpdateResponse(BaseModel):
@@ -145,6 +146,7 @@ async def login_user(request: LoginUserRequest):
             display_name=user.display_name,
             token=token,
             is_admin=user.is_admin,
+            is_host=user.is_host,
         )
         
     except HTTPException:

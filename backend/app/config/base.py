@@ -51,6 +51,9 @@ class BaseConfig:
     DEFAULT_MODEL = DEMUCS_MODEL  # For backwards compatibility
     DEFAULT_MP3_BITRATE = MP3_BITRATE  # For backwards compatibility
 
+    # Third-party API Keys
+    THEAUDIODB_API_KEY = os.environ.get("THEAUDIODB_API_KEY", "123")
+
     # Upload Configuration
     MAX_CONTENT_LENGTH = int(
         os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024)

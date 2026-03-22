@@ -241,9 +241,12 @@ async def get_artists(
     """
     try:
         query = (
-            db.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
-            .group_by(DbSong.artist)
-            .order_by(DbSong.artist)
+            db.query(
+                func.min(DbSong.artist).label("artist"),
+                func.count(DbSong.id).label("song_count"),
+            )
+            .group_by(func.lower(DbSong.artist))
+            .order_by(func.lower(func.min(DbSong.artist)))
         )
 
         # Apply search filter if provided
@@ -312,7 +315,9 @@ async def get_songs_by_artist(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
-        base_query = db.query(DbSong).filter(DbSong.artist == artist_name)
+        base_query = db.query(DbSong).filter(
+            func.lower(DbSong.artist) == artist_name.lower().strip()
+        )
 
         # Apply sorting
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)

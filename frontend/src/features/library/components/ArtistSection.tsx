@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
 import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
 import SongResultsGrid from "@/features/library/components/SongResultsGrid";
@@ -16,6 +16,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   isExpanded,
   onToggle,
 }) => {
+  const [imageError, setImageError] = useState(false);
+  const imageUrl = `/api/artists/image?name=${encodeURIComponent(artistName)}`;
+
   const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteArtistSongs(artistName, 200, {
       enabled: isExpanded,
@@ -37,7 +40,19 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           ) : (
             <ChevronRight size={20} className="text-orange-peel" />
           )}
-          <Users size={18} className="text-orange-peel" />
+          <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-orange-peel/20 flex items-center justify-center">
+            {imageError ? (
+              <Users size={18} className="text-orange-peel" />
+            ) : (
+              <img
+                src={imageUrl}
+                alt={artistName}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={() => setImageError(true)}
+              />
+            )}
+          </div>
           <div>
             <h3 className="font-semibold text-lg">{artistName}</h3>
             <p className="text-sm opacity-75">

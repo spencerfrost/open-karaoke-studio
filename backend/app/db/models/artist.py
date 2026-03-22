@@ -1,0 +1,12 @@
+from sqlalchemy import Column, Integer, String
+
+from .base import Base
+
+
+class DbArtist(Base):
+    __tablename__ = "artists"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)  # lowercase normalized
+    image_path = Column(String, nullable=True)
+    image_status = Column(String, nullable=False, default="not_checked")
+    # image_status values: "not_checked" | "found" | "not_found"

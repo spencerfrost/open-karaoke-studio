@@ -110,6 +110,11 @@ class FileService(FileServiceInterface):
             logger.error("Error getting file size for %s: %s", file_path, e)
             return None
 
+    def get_artist_image_path(self, slug: str) -> Path:
+        """Get artist image file path"""
+        return self.base_library_dir / "artists" / f"{slug}.jpg"
+
+
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""
         try:

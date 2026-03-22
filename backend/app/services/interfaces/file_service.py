@@ -50,3 +50,7 @@ class FileServiceInterface(Protocol):
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""
         ...
+
+    def get_artist_image_path(self, slug: str) -> Path:
+        """Get artist image file path"""
+        ...
