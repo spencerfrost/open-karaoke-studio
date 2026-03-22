@@ -677,7 +677,11 @@ export function useSongs() {
       song: Song,
       size: "small" | "medium" | "large" = "medium",
     ): string | null => {
-      // Priority: Backend API thumbnail endpoint > iTunes artwork > YouTube thumbnail URLs
+      // Priority: Album cover > backend thumbnail > YouTube thumbnail URLs
+      if (song.albumCoverUrl) {
+        return song.albumCoverUrl;
+      }
+
       if (song.thumbnail) {
         // Use the backend API endpoint for thumbnails (auto-detects format)
         return `/api/songs/${song.id}/thumbnail`;

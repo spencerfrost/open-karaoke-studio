@@ -32,3 +32,12 @@ class ArtistRepository:
         self.db.commit()
         self.db.refresh(artist)
         return artist
+
+    def update_bio(
+        self, artist: DbArtist, *, bio: str | None, status: str
+    ) -> DbArtist:
+        artist.bio = bio
+        artist.bio_status = status
+        self.db.commit()
+        self.db.refresh(artist)
+        return artist

@@ -52,7 +52,9 @@ class BaseConfig:
     DEFAULT_MP3_BITRATE = MP3_BITRATE  # For backwards compatibility
 
     # Third-party API Keys
-    THEAUDIODB_API_KEY = os.environ.get("THEAUDIODB_API_KEY", "123")
+    DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
+    LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
+    ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
     # Upload Configuration
     MAX_CONTENT_LENGTH = int(

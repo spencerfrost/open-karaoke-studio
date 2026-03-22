@@ -8,6 +8,10 @@ from app.repositories.artist_repository import ArtistRepository
 from app.services.artist_image_service import ArtistImageService, _slugify
 from app.services.file_service import FileService
 
+# Mock config to provide a fake Discogs token
+_MOCK_CONFIG = MagicMock()
+_MOCK_CONFIG.DISCOGS_TOKEN = "test-token"
+
 
 # ---------------------------------------------------------------------------
 # _slugify helper
@@ -93,21 +97,25 @@ async def test_returns_none_if_notfound_marker_exists(svc, artist_repo, mock_art
 
 @pytest.mark.asyncio
 async def test_fetches_and_saves_image_when_found(svc, artist_repo, file_service, mock_artist):
+    """Discogs flow: search → artist detail → download image (3 GET calls)."""
     image_path = file_service.get_artist_image_path.return_value
 
     mock_search_resp = MagicMock()
-    mock_search_resp.json.return_value = {
-        "artists": [{"strArtistThumb": "https://example.com/queen.jpg"}]
+    mock_search_resp.json.return_value = {"results": [{"id": 555}]}
+    mock_detail_resp = MagicMock()
+    mock_detail_resp.json.return_value = {
+        "images": [{"type": "primary", "uri": "https://example.com/queen.jpg"}]
     }
     mock_img_resp = MagicMock()
     mock_img_resp.content = b"fake_image_bytes"
 
     mock_client = AsyncMock()
-    mock_client.get = AsyncMock(side_effect=[mock_search_resp, mock_img_resp])
+    mock_client.get = AsyncMock(side_effect=[mock_search_resp, mock_detail_resp, mock_img_resp])
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("Queen")
 
     assert result is image_path
@@ -118,16 +126,18 @@ async def test_fetches_and_saves_image_when_found(svc, artist_repo, file_service
 
 
 @pytest.mark.asyncio
-async def test_creates_notfound_when_no_artists(svc, artist_repo, mock_artist):
+async def test_creates_notfound_when_no_search_results(svc, artist_repo, mock_artist):
+    """Discogs returns empty results list → not_found."""
     mock_resp = MagicMock()
-    mock_resp.json.return_value = {"artists": None}
+    mock_resp.json.return_value = {"results": []}
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("NoArtist")
 
     assert result is None
@@ -137,16 +147,20 @@ async def test_creates_notfound_when_no_artists(svc, artist_repo, mock_artist):
 
 
 @pytest.mark.asyncio
-async def test_creates_notfound_when_no_thumb_url(svc, artist_repo, mock_artist):
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = {"artists": [{"strArtistThumb": None}]}
+async def test_creates_notfound_when_no_images(svc, artist_repo, mock_artist):
+    """Discogs artist detail has no images → not_found."""
+    mock_search_resp = MagicMock()
+    mock_search_resp.json.return_value = {"results": [{"id": 999}]}
+    mock_detail_resp = MagicMock()
+    mock_detail_resp.json.return_value = {"images": []}
 
     mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=mock_resp)
+    mock_client.get = AsyncMock(side_effect=[mock_search_resp, mock_detail_resp])
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("NoThumb")
 
     assert result is None
@@ -162,7 +176,8 @@ async def test_returns_none_on_network_error(svc, artist_repo, mock_artist):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("ErrorArtist")
 
     assert result is None

@@ -40,6 +40,11 @@ export interface Song {
   // YouTube thumbnail URLs (fallback for artwork)
   youtubeThumbnailUrls?: string; // JSON string from backend
 
+  // Relational IDs and computed cover URL
+  artistId?: number;
+  albumId?: number;
+  albumCoverUrl?: string; // Computed by backend — points to /api/albums/{id}/cover
+
   // Processing metadata
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
