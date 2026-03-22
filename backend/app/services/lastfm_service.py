@@ -9,7 +9,7 @@ from app.repositories.artist_repository import ArtistRepository
 logger = logging.getLogger(__name__)
 
 # Last.fm appends a "Read more on Last.fm" link as HTML — strip it
-_LASTFM_SUFFIX_RE = re.compile(r'\s*<a href="https://www\.last\.fm[^"]*"[^>]*>.*?</a>\s*$', re.IGNORECASE | re.DOTALL)
+_LASTFM_SUFFIX_RE = re.compile(r'\s*<a href="https://www\.last\.fm[^"]*"[^>]*>.*', re.IGNORECASE | re.DOTALL)
 
 
 def _clean_bio(content: str) -> str:
