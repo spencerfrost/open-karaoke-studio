@@ -62,6 +62,12 @@ class DbSong(Base):
     loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
     gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
 
+    # AcoustID fingerprinting
+    musicbrainz_recording_id = Column(String, nullable=True)
+    acoustid_score = Column(Float, nullable=True)
+    acoustid_fingerprint_status = Column(String, nullable=False, default="not_checked")
+    # acoustid_fingerprint_status: "not_checked" | "matched" | "no_match" | "failed"
+
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
     )
@@ -150,4 +156,8 @@ class DbSong(Base):
             "vocalRangeHigh": self.vocal_range_high,
             "loudnessDbfs": self.loudness_dbfs,
             "gainDb": self.gain_db,
+            # AcoustID fingerprinting
+            "musicbrainzRecordingId": self.musicbrainz_recording_id,
+            "acoustidScore": self.acoustid_score,
+            "acoustidFingerprintStatus": self.acoustid_fingerprint_status,
         }

@@ -102,6 +102,8 @@ def create_test_app():
     This is a factory function to allow fresh app instances for tests.
     """
     from app.api import (
+        albums_router,
+        artists_router,
         health_router,
         host_settings_router,
         jobs_router,
@@ -140,6 +142,8 @@ def create_test_app():
     )
 
     # Include all API routers
+    test_app.include_router(albums_router)
+    test_app.include_router(artists_router)
     test_app.include_router(health_router)
     test_app.include_router(songs_router)
     test_app.include_router(jobs_router)

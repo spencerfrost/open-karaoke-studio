@@ -1,18 +1,17 @@
-import httpx
 import logging
 import re
 from pathlib import Path
 
+import httpx
+
 from app.config import get_config
 from app.repositories.artist_repository import ArtistRepository
+
 from .file_service import FileService
 
 logger = logging.getLogger(__name__)
 
-
-def _theaudiodb_search_url() -> str:
-    key = get_config().THEAUDIODB_API_KEY
-    return f"https://www.theaudiodb.com/api/v1/json/{key}/search.php"
+_DISCOGS_USER_AGENT = "OpenKaraokeStudio/1.0 +https://github.com/open-karaoke-studio"
 
 
 def _slugify(name: str) -> str:
@@ -32,32 +31,56 @@ class ArtistImageService:
         if artist.image_status == "not_found":
             return None
 
-        # "not_checked" — fetch from TheAudioDB
+        # "not_checked" — fetch from Discogs
         slug = _slugify(name)
         image_path = self.file_service.get_artist_image_path(slug)
         image_path.parent.mkdir(parents=True, exist_ok=True)
 
+        token = get_config().DISCOGS_TOKEN
+        headers = {
+            "Authorization": f"Discogs token={token}",
+            "User-Agent": _DISCOGS_USER_AGENT,
+        }
+
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _theaudiodb_search_url(), params={"s": name}, timeout=10.0
+                # Step 1: search for artist to get Discogs artist ID
+                search_resp = await client.get(
+                    "https://api.discogs.com/database/search",
+                    params={"q": name, "type": "artist"},
+                    headers=headers,
+                    timeout=10.0,
                 )
-                resp.raise_for_status()
-                artists = resp.json().get("artists")
-                if not artists or not artists[0].get("strArtistThumb"):
-                    self.artist_repo.update_image(
-                        artist, image_path=None, status="not_found"
-                    )
+                search_resp.raise_for_status()
+                results = search_resp.json().get("results", [])
+                if not results:
+                    self.artist_repo.update_image(artist, image_path=None, status="not_found")
                     return None
-                img_resp = await client.get(
-                    artists[0]["strArtistThumb"], timeout=15.0
+
+                discogs_id = results[0]["id"]
+
+                # Step 2: fetch artist detail to get primary image
+                detail_resp = await client.get(
+                    f"https://api.discogs.com/artists/{discogs_id}",
+                    headers=headers,
+                    timeout=10.0,
                 )
+                detail_resp.raise_for_status()
+                images = detail_resp.json().get("images", [])
+                primary = next(
+                    (img for img in images if img.get("type") == "primary"),
+                    images[0] if images else None,
+                )
+                if not primary:
+                    self.artist_repo.update_image(artist, image_path=None, status="not_found")
+                    return None
+
+                img_resp = await client.get(primary["uri"], timeout=15.0)
                 img_resp.raise_for_status()
                 image_path.write_bytes(img_resp.content)
-                self.artist_repo.update_image(
-                    artist, image_path=str(image_path), status="found"
-                )
+                self.artist_repo.update_image(artist, image_path=str(image_path), status="found")
                 return image_path
+
         except Exception as e:
             logger.warning("Failed to fetch artist image for %s: %s", name, e)
             return None

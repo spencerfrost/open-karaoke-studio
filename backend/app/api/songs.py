@@ -840,3 +840,12 @@ async def reprocess_song(
         raise HTTPException(
             status_code=500, detail=f"Failed to start reprocessing: {str(e)}"
         )
+
+
+@router.post("/fingerprint", status_code=202)
+async def batch_fingerprint_songs_endpoint():
+    """Dispatch a Celery task to fingerprint all un-fingerprinted songs."""
+    from app.jobs.jobs import batch_fingerprint_songs
+
+    task = batch_fingerprint_songs.delay()
+    return {"taskId": task.id, "status": "dispatched"}

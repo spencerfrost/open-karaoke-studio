@@ -63,6 +63,11 @@ class SongResponse(BaseModel):
     loudnessDbfs: Optional[float] = None  # RMS loudness in dBFS
     gainDb: Optional[float] = None  # Gain correction to reach -14 dBFS target
 
+    # AcoustID fingerprinting
+    musicbrainzRecordingId: Optional[str] = None
+    acoustidScore: Optional[float] = None
+    acoustidFingerprintStatus: Optional[str] = None
+
     status: str = "processed"
 
     class Config:
