@@ -213,6 +213,7 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
 
       // iTunes metadata
       itunesTrackId: selectedResult.trackId,
+      itunesCollectionId: selectedResult.collectionId,
       itunesArtworkUrls: artworkUrls.length > 0 ? artworkUrls : undefined,
       itunesExplicit: selectedResult.trackExplicitness === "explicit",
       itunesPreviewUrl: selectedResult.previewUrl, // 30-sec preview for song identification
