@@ -47,6 +47,11 @@ class SongResponse(BaseModel):
     # YouTube thumbnail URLs (fallback for artwork)
     youtubeThumbnailUrls: Optional[str] = None  # JSON string
 
+    # Relational IDs and computed cover URL
+    artistId: Optional[int] = None
+    albumId: Optional[int] = None
+    albumCoverUrl: Optional[str] = None
+
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
     bpm: Optional[float] = None  # Beats per minute for count-in timing
@@ -106,6 +111,7 @@ class SongUpdateRequest(BaseModel):
 
     # iTunes metadata
     itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
+    itunesCollectionId: Optional[int] = Field(None, description="iTunes collection/album ID")
     itunesArtworkUrls: Optional[List[str]] = Field(
         None, description="iTunes artwork URLs"
     )

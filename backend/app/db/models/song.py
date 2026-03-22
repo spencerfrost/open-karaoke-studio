@@ -5,7 +5,7 @@ Song database model - Single source of truth.
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import relationship
 
@@ -47,6 +47,10 @@ class DbSong(Base):
     # YouTube thumbnail URLs (fallback for artwork)
     youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
 
+    # Relational links (nullable; backfilled by migration, enriched via iTunes metadata)
+    artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)
+    album_id = Column(Integer, ForeignKey("albums.id"), nullable=True)
+
     # Processing metadata
     engine_type = Column(
         String, nullable=True
@@ -64,6 +68,8 @@ class DbSong(Base):
     lyrics = relationship(
         "DbLyrics", back_populates="song", cascade="all, delete-orphan"
     )
+    artist_rel = relationship("DbArtist", back_populates="songs")
+    album_rel = relationship("DbAlbum", back_populates="songs")
 
     def _get_active_lyrics_content(self, lyrics_type: str) -> Optional[str]:
         """Get active lyrics content by type, falling back to legacy columns."""
@@ -128,6 +134,14 @@ class DbSong(Base):
             "itunesArtworkUrls": self.itunes_artwork_urls,
             # YouTube thumbnail URLs (for artwork fallback)
             "youtubeThumbnailUrls": self.youtube_thumbnail_urls,
+            # Relational IDs and computed cover URL
+            "artistId": self.artist_id,
+            "albumId": self.album_id,
+            "albumCoverUrl": (
+                f"/api/albums/{self.album_id}/cover"
+                if self.album_id and self.album_rel and self.album_rel.cover_path
+                else None
+            ),
             # Processing metadata
             "engineType": self.engine_type,
             "bpm": self.bpm,
