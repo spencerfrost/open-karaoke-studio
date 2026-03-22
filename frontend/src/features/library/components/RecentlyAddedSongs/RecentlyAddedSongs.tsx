@@ -5,22 +5,15 @@ import {
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
 import { useSessionStore } from "@/stores/sessionStore";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import { usePagination } from "./usePagination";
 
 interface RecentlyAddedSongsProps {
-  songsPerPage?: number;
   maxSongs?: number;
-  animated?: boolean; // Toggle between carousel animation and simple pagination
 }
 
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
-  songsPerPage = 12,
   maxSongs = 48,
-  animated = true,
 }) => {
   const { isHost } = useSessionStore();
   const CardComponent = isHost ? SongCard : PerformerSongCard;
@@ -32,13 +25,6 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   });
 
   const songs = allSongs || [];
-
-  const { pagination, actions, currentPageItems } = usePagination({
-    itemsPerPage: songsPerPage,
-    totalItems: songs.length,
-  });
-
-  const currentPageSongs = currentPageItems(songs);
 
   if (isLoading) {
     return (
@@ -54,94 +40,39 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
 
   return (
     <div className="mb-8 w-full">
-      {/* Section Header with Pagination Controls */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-semibold text-orange-peel">
-            Recently Added
-          </span>
-          <span className="text-sm text-lemon-chiffon/60">
-            {songs.length} songs
-          </span>
-        </div>
-
-        {/* Pagination Controls */}
-        {pagination.totalPages > 1 && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={actions.previousPage}
-              disabled={!pagination.hasPreviousPage}
-              className="text-orange-peel hover:bg-orange-peel/20 disabled:opacity-30"
-            >
-              <ChevronLeft size={16} />
-              Previous
-            </Button>
-
-            <span className="text-sm text-lemon-chiffon/80 px-2">
-              {pagination.currentPage + 1} of {pagination.totalPages}
-            </span>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={actions.nextPage}
-              disabled={!pagination.hasNextPage}
-              className="text-orange-peel hover:bg-orange-peel/20 disabled:opacity-30"
-            >
-              Next
-              <ChevronRight size={16} />
-            </Button>
-          </div>
-        )}
+      {/* Section Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-xl font-semibold text-orange-peel">
+          Recently Added
+        </span>
+        <span className="text-sm text-lemon-chiffon/60">{songs.length} songs</span>
       </div>
 
-      {/* Conditional Rendering: Animated Carousel vs Simple Grid */}
-      {animated ? (
-        /* Horizontal Sliding Carousel Container */
-        <div className="relative overflow-hidden min-h-[400px]">
+      {/* Horizontally scrollable row — scrollbar hidden on mobile, visible on md+ */}
+      <div
+        className={[
+          "flex gap-3 overflow-x-auto",
+          // Hide scrollbar on mobile
+          "[&::-webkit-scrollbar]:hidden md:[&::-webkit-scrollbar]:block",
+          // Scrollbar height and track
+          "md:[&::-webkit-scrollbar]:h-1.5",
+          "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-white/10",
+          // Scrollbar thumb
+          "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-orange-peel/40",
+          "md:hover:[&::-webkit-scrollbar-thumb]:bg-orange-peel/70",
+          // Padding below for scrollbar space on desktop
+          "pb-1 md:pb-3",
+        ].join(" ")}
+      >
+        {songs.map((song: Song) => (
           <div
-            className="flex transition-transform duration-300 ease-in-out"
-            style={{
-              transform: `translateX(-${pagination.currentPage * (100 / pagination.totalPages)}%)`,
-              width: `${pagination.totalPages * 100}%`,
-            }}
+            key={song.id}
+            className="flex-none w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(16.667%-10px)]"
           >
-            {Array.from({ length: pagination.totalPages }, (_, pageIndex) => {
-              const pageStartIndex = pageIndex * songsPerPage;
-              const pageSongs = songs.slice(
-                pageStartIndex,
-                pageStartIndex + songsPerPage,
-              );
-
-              return (
-                <div
-                  key={pageIndex}
-                  className="w-full flex-shrink-0"
-                  style={{ width: `${100 / pagination.totalPages}%` }}
-                >
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {pageSongs.map((song: Song) => (
-                      <CardComponent
-                        key={`${song.id}-${pageIndex}`}
-                        song={song}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            <CardComponent song={song} />
           </div>
-        </div>
-      ) : (
-        /* Simple Paginated Grid */
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {currentPageSongs.map((song: Song) => (
-            <CardComponent key={song.id} song={song} />
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };

@@ -25,18 +25,18 @@ const LibraryPage: React.FC = () => {
 
   const songsParams = effectiveSearchTerm.trim()
     ? {
-        q: effectiveSearchTerm,
-        limit: 24,
-        offset: 0,
-        sort: "relevance",
-        direction: "desc",
-      }
+      q: effectiveSearchTerm,
+      limit: 24,
+      offset: 0,
+      sort: "relevance",
+      direction: "desc",
+    }
     : {
-        limit: 24,
-        offset: 0,
-        sort_by: "date_added",
-        direction: "desc",
-      };
+      limit: 24,
+      offset: 0,
+      sort_by: "date_added",
+      direction: "desc",
+    };
 
   const songsQuery = useSongs(songsParams);
 
@@ -50,7 +50,7 @@ const LibraryPage: React.FC = () => {
         colorScheme="page"
         trigger="hover"
         visibility="host-only"
-        className="fixed top-2 right-3 z-30"
+        className="absolute top-2 right-3 z-30"
       />
       <div className="mb-6">
         {/* Search Input */}
@@ -64,7 +64,7 @@ const LibraryPage: React.FC = () => {
           />
         </div>
 
-        <div className="space-y-8">
+        <div>
           {!hasSearch ? (
             <Tabs defaultValue="recently-added">
               <TabsList className="mb-4">
@@ -72,11 +72,7 @@ const LibraryPage: React.FC = () => {
                 <TabsTrigger value="recently-sang">Recently Sang</TabsTrigger>
               </TabsList>
               <TabsContent value="recently-added">
-                <RecentlyAddedSongs
-                  songsPerPage={12}
-                  maxSongs={48}
-                  animated={true}
-                />
+                <RecentlyAddedSongs maxSongs={48} />
               </TabsContent>
               <TabsContent value="recently-sang">
                 <RecentlySang />
@@ -87,7 +83,7 @@ const LibraryPage: React.FC = () => {
               songs={songsQuery.data || []}
               hasNextPage={false}
               isFetchingNextPage={false}
-              fetchNextPage={() => {}}
+              fetchNextPage={() => { }}
               searchTerm={searchTerm}
             />
           )}
