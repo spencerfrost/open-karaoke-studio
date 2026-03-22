@@ -1,0 +1,127 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Frontend checks and tests
+  # ─────────────────────────────────────────────
+  frontend:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm run type-check
+
+      - name: Lint
+        run: pnpm run lint:check
+
+      - name: Format check
+        run: pnpm run format:check
+
+      - name: Run tests
+        run: pnpm run test:run
+
+  # ─────────────────────────────────────────────
+  # Backend checks and tests
+  # ─────────────────────────────────────────────
+  backend:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-cpu-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-cpu-
+
+      - name: Install system dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg libsndfile1
+
+      # Install CPU torch FIRST so requirements.txt doesn't pull CUDA builds
+      - name: Install CPU-only PyTorch
+        run: pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install Python dependencies
+        run: |
+          pip install --no-cache-dir "audio-separator>=0.17.0"
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Format check (black + isort)
+        run: |
+          black --check app/
+          isort --check-only app/
+
+      # .flake8 lives at repo root with backend/-prefixed excludes — must run from workspace root
+      - name: Lint (flake8)
+        run: flake8 backend/app/
+        working-directory: ${{ github.workspace }}
+
+      - name: Run tests
+        run: pytest -m "not slow and not external and not performance"
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          CELERY_BROKER_URL: memory://
+          CELERY_RESULT_BACKEND: cache+memory://
+          LIBRARY_DIR: /tmp/karaoke_library
+          SECRET_KEY: ci-test-secret
+          JWT_SECRET_KEY: ci-test-jwt-secret
+
+  # ─────────────────────────────────────────────
+  # Deploy to local machine via self-hosted runner
+  # Only runs on master push after CI passes
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    needs: [frontend, backend]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    timeout-minutes: 10
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /mnt/ssd-data/spencer/code/open-karaoke-studio
+          git pull origin master
+
+      - name: Build and restart services
+        run: |
+          cd /mnt/ssd-data/spencer/code/open-karaoke-studio
+          docker compose up --build -d
+
+      - name: Verify deployment
+        run: |
+          cd /mnt/ssd-data/spencer/code/open-karaoke-studio
+          timeout 60 bash -c 'until docker compose ps api | grep -q "healthy"; do sleep 3; done'
+          echo "Deployment successful"
