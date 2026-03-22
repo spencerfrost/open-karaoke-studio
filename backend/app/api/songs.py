@@ -265,7 +265,7 @@ async def get_artists(
                 {
                     "name": artist,
                     "songCount": count,
-                    "firstLetter": artist[0].upper() if artist else "?",
+                    "firstLetter": "#" if artist and artist[0].isdigit() else (artist[0].upper() if artist else "?"),
                 }
                 for artist, count in results
             ],
