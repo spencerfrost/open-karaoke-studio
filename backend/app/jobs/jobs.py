@@ -5,7 +5,6 @@ Celery task definitions for audio processing
 import shutil
 import threading
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -226,7 +225,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio using the selected engine
-        success, detected_bpm = select_and_run_separation_engine(
+        success, _ = select_and_run_separation_engine(
             engine_type=engine_type,
             input_path=filepath,
             song_dir=song_dir,
@@ -236,56 +235,13 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Detect chords from instrumental track
-        try:
-            instrumental_path = song_dir / "instrumental.mp3"
-            chord_data = (
-                detect_chords(str(instrumental_path))
-                if instrumental_path.exists()
-                else None
-            )
-        except Exception as e:
-            logger.warning("Chord detection failed for job %s: %s", job_id, e)
-            chord_data = None
-
-        # Detect vocal range from vocals track
-        vocal_range_result = None
-        try:
-            vocals_path = song_dir / "vocals.mp3"
-            if vocals_path.exists():
-                vocal_range_result = detect_vocal_range(
-                    vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
-                )
-        except Exception as e:
-            logger.warning("Vocal range detection failed for job %s: %s", job_id, e)
-
-        # Detect loudness from instrumental track
-        loudness_result = None
-        try:
-            if instrumental_path.exists():
-                loudness_result = detect_loudness(
-                    instrumental_path, lambda msg: logger.debug("Loudness: %s", msg)
-                )
-        except Exception as e:
-            logger.warning("Loudness detection failed for job %s: %s", job_id, e)
-
-        # Update song with engine_type, BPM, chords, vocal range, and duration
+        # Update engine_type and duration — everything else goes to post_process_song
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
 
         with get_db_session() as session:
             repo = SongRepository(session)
             update_kwargs = {"engine_type": engine_type}
-            if detected_bpm is not None:
-                update_kwargs["bpm"] = detected_bpm
-            if chord_data is not None:
-                update_kwargs["chords_data"] = chord_data
-            if vocal_range_result is not None:
-                update_kwargs["vocal_range_low"] = vocal_range_result[0]
-                update_kwargs["vocal_range_high"] = vocal_range_result[1]
-            if loudness_result is not None:
-                update_kwargs["loudness_dbfs"] = loudness_result[0]
-                update_kwargs["gain_db"] = loudness_result[1]
             try:
                 update_kwargs["duration"] = librosa.get_duration(path=str(filepath))
             except Exception as e:
@@ -298,6 +254,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job_repository.update(job)
 
         _broadcast_job_event(job)
+
+        # Dispatch secondary enrichment task (fire-and-forget)
+        celery.send_task("post_process_song", args=[song_id])
+        logger.info("Dispatched post_process_song for song %s", song_id)
 
         return {
             "status": "success",
@@ -352,6 +312,93 @@ def _fetch_thumbnail_safe(
     except Exception as e:
         logger.warning("Background thumbnail download failed for %s: %s", video_id, e)
         return None
+
+
+def _run_post_processing(song_id: str, song_dir: Path) -> None:
+    """Run all enrichment steps after audio separation. Each step is independent — failures are logged only."""
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    vocals_path = song_dir / "vocals.mp3"
+    instrumental_path = song_dir / "instrumental.mp3"
+    update_kwargs = {}
+
+    try:
+        if vocals_path.exists():
+            vocal_range = detect_vocal_range(
+                vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
+            )
+            if vocal_range:
+                update_kwargs["vocal_range_low"] = vocal_range[0]
+                update_kwargs["vocal_range_high"] = vocal_range[1]
+    except Exception as e:
+        logger.warning("Vocal range detection failed for song %s: %s", song_id, e)
+
+    try:
+        if instrumental_path.exists():
+            chord_data = detect_chords(str(instrumental_path))
+            if chord_data:
+                update_kwargs["chords_data"] = chord_data
+    except Exception as e:
+        logger.warning("Chord detection failed for song %s: %s", song_id, e)
+
+    try:
+        if instrumental_path.exists():
+            loudness_result = detect_loudness(
+                instrumental_path, lambda msg: logger.debug("Loudness: %s", msg)
+            )
+            if loudness_result:
+                update_kwargs["loudness_dbfs"] = loudness_result[0]
+                update_kwargs["gain_db"] = loudness_result[1]
+    except Exception as e:
+        logger.warning("Loudness detection failed for song %s: %s", song_id, e)
+
+    try:
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            song = repo.fetch(song_id)
+            youtube_id = song.youtube_id if song else None
+        if youtube_id:
+            from app.services.youtube_service import YouTubeService
+
+            youtube_service = YouTubeService()
+            youtube_service.fetch_and_save_thumbnail(youtube_id, song_id)
+            logger.info("Thumbnail downloaded for song %s", song_id)
+    except Exception as e:
+        logger.warning("Thumbnail download failed for song %s: %s", song_id, e)
+
+    if update_kwargs:
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            repo.update(song_id, **update_kwargs)
+        logger.info("Post-processing complete for song %s (%s fields updated)", song_id, len(update_kwargs))
+
+
+@celery.task(bind=True, name="post_process_song")
+def post_process_song(self, song_id: str) -> None:
+    """
+    Fire-and-forget enrichment task dispatched after audio separation completes.
+
+    Runs vocal range detection, chord detection, loudness normalization, and
+    thumbnail download. No Job record — failures are logged only.
+    """
+    logger.info("Starting post-processing for song %s", song_id)
+
+    from pathlib import Path
+
+    from app.config import get_config
+
+    config = get_config()
+    song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
+
+    if not song_dir.exists():
+        logger.error("post_process_song: song directory not found for song %s", song_id)
+        return
+
+    try:
+        _run_post_processing(song_id, song_dir)
+    except Exception as e:
+        logger.error("post_process_song failed for song %s: %s", song_id, e, exc_info=True)
 
 
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
@@ -469,9 +516,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if progress % 25 == 0 or progress >= 95:
             logger.info("Job %s: %s%% - %s", job_id, progress, message)
 
-    thumbnail_executor = None
-    thumbnail_future = None
-
     try:
         # Phase 1: Download (5-30% progress)
         from pathlib import Path
@@ -504,13 +548,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             JobStatus.PROCESSING,
         )
 
-        # Start thumbnail download in background — overlaps with audio separation (pure I/O)
-        thumbnail_executor = ThreadPoolExecutor(max_workers=1)
-        thumbnail_future = thumbnail_executor.submit(
-            _fetch_thumbnail_safe, youtube_service, video_id, song_id
-        )
-        logger.info("Background thumbnail download started for video %s", video_id)
-
         # Phase 2: Audio Processing (30-90% progress)
         original_file = song_dir / "original.mp3"
 
@@ -519,26 +556,22 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 f"Original audio file not found: {original_file}"
             )
 
-        # Create a stop event (for compatibility with audio.separate_audio)
         import threading
 
         stop_event = threading.Event()
 
-        # Mark the start of audio processing
         update_progress(35, f"Initializing {engine_type} audio processing")
 
-        # Create an engine-aware progress callback that maps engine progress to job progress
         audio_progress_callback = create_audio_progress_mapper(
             engine_type=engine_type,
             base_start=35,
-            base_end=85,
+            base_end=90,
             update_fn=lambda prog, msg: update_progress(
                 prog, f"Audio processing: {msg}"
             ),
         )
 
-        # Separate audio using the selected engine
-        success, detected_bpm = select_and_run_separation_engine(
+        success, _ = select_and_run_separation_engine(
             engine_type=engine_type,
             input_path=original_file,
             song_dir=song_dir,
@@ -548,122 +581,20 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        update_progress(
-            85,
-            f"{engine_type.title()} processing complete, finalizing",
-            JobStatus.FINALIZING,
-        )
-
-        # Phase 2B: Chord detection from instrumental track
-        chord_data = None
+        # Update engine_type and duration — everything else goes to post_process_song
         try:
-            instrumental_file = song_dir / "instrumental.mp3"
-            if instrumental_file.exists():
-                update_progress(88, "Detecting chords")
-                chord_data = detect_chords(str(instrumental_file))
-                if chord_data:
-                    logger.info(
-                        "Detected %d chord changes for song %s",
-                        len(chord_data),
-                        song_id,
+            with get_db_session() as session:
+                repo = SongRepository(session)
+                update_fields = {"engine_type": engine_type}
+                try:
+                    update_fields["duration"] = librosa.get_duration(
+                        path=str(original_file)
                     )
+                except Exception as e:
+                    logger.warning("Duration detection failed for song %s: %s", song_id, e)
+                repo.update(song_id, **update_fields)
         except Exception as e:
-            logger.warning("Chord detection failed for song %s: %s", song_id, e)
-
-        # Phase 2C: Vocal range detection from vocals track
-        vocal_range_result = None
-        try:
-            vocals_file = song_dir / "vocals.mp3"
-            if vocals_file.exists():
-                update_progress(91, "Detecting vocal range")
-                vocal_range_result = detect_vocal_range(
-                    vocals_file, lambda msg: logger.debug("VocalRange: %s", msg)
-                )
-        except Exception as e:
-            logger.warning("Vocal range detection failed for song %s: %s", song_id, e)
-
-        # Phase 2D: Loudness detection from instrumental track
-        loudness_result = None
-        try:
-            if instrumental_file.exists():
-                update_progress(92, "Detecting loudness")
-                loudness_result = detect_loudness(
-                    instrumental_file, lambda msg: logger.debug("Loudness: %s", msg)
-                )
-        except Exception as e:
-            logger.warning("Loudness detection failed for song %s: %s", song_id, e)
-
-        # Phase 3: Finalization (90-100% progress)
-        # Phase 3A: Collect thumbnail result (started during audio separation)
-        update_progress(93, "Collecting thumbnail")
-        try:
-            thumbnail_url = (
-                thumbnail_future.result(timeout=10) if thumbnail_future else None
-            )
-            thumbnail_executor.shutdown(wait=False)
-            if thumbnail_url:
-                update_progress(95, "Thumbnail download complete")
-            else:
-                update_progress(95, "Thumbnail download failed, continuing")
-        except Exception as e:
-            logger.warning("Thumbnail collection failed for %s: %s", video_id, e)
-            if thumbnail_executor:
-                thumbnail_executor.shutdown(wait=False)
-            update_progress(95, "Thumbnail download failed, continuing")
-
-        update_progress(99, "Finalizing processing")
-
-        # Phase 1A Task 3: Update database with audio file paths after processing
-        try:
-            vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(
-                ".mp3"
-            )
-            instrumental_path = file_management.get_instrumental_path_stem(
-                song_dir
-            ).with_suffix(".mp3")
-
-            # Verify the files actually exist before updating database
-            if vocals_path.exists() and instrumental_path.exists():
-                with get_db_session() as session:
-                    repo = SongRepository(session)
-                    update_fields = {
-                        "engine_type": engine_type,
-                    }
-                    if detected_bpm is not None:
-                        update_fields["bpm"] = detected_bpm
-                    if chord_data is not None:
-                        update_fields["chords_data"] = chord_data
-                    if vocal_range_result is not None:
-                        update_fields["vocal_range_low"] = vocal_range_result[0]
-                        update_fields["vocal_range_high"] = vocal_range_result[1]
-                    if loudness_result is not None:
-                        update_fields["loudness_dbfs"] = loudness_result[0]
-                        update_fields["gain_db"] = loudness_result[1]
-                    try:
-                        update_fields["duration"] = librosa.get_duration(
-                            path=str(original_file)
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "Duration detection failed for song %s: %s", song_id, e
-                        )
-                    updated_song = repo.update(song_id, **update_fields)
-                    success = updated_song is not None
-
-                if not success:
-                    logger.warning(
-                        "Failed to update song metadata for song %s", song_id
-                    )
-            else:
-                logger.warning(
-                    "Audio files not found after processing for song %s", song_id
-                )
-
-        except Exception as e:
-            # Don't fail the job for path update issues, just log the error
-            logger.error("Error updating audio paths for song %s: %s", song_id, e)
-
-        # Any cleanup or final processing steps can go here
+            logger.error("Error updating song metadata for song %s: %s", song_id, e)
 
         job.status = JobStatus.COMPLETED
         job.progress = 100
@@ -673,6 +604,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         _broadcast_job_event(job)
 
+        # Dispatch secondary enrichment task (fire-and-forget)
+        celery.send_task("post_process_song", args=[song_id])
+        logger.info("Dispatched post_process_song for song %s", song_id)
+
         return {
             "status": "success",
             "job_id": job_id,
@@ -680,21 +615,16 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         }
 
     except audio.StopProcessingError:
-        if thumbnail_executor is not None:
-            thumbnail_executor.shutdown(wait=False)
         job.status = JobStatus.CANCELLED
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
         job_repository.update(job)
-        # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
         logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
-        if thumbnail_executor is not None:
-            thumbnail_executor.shutdown(wait=False)
         error_message = str(e)
         logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()
