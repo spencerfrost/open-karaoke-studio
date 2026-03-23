@@ -5,15 +5,21 @@ export interface ChordEvent {
   chord: string;
 }
 
+export interface SongArtist {
+  id: number;
+  name: string;
+  role: 'primary' | 'featured';
+}
+
 export interface Song {
   id: string;
   title: string;
   artist: string;
+  artists?: SongArtist[];
   duration?: number; // Duration in seconds
   dateAdded?: string;
 
   backingVocalPath?: string;
-  coverArt?: string;
   thumbnail?: string;
 
   // Source
@@ -25,7 +31,8 @@ export interface Song {
   album?: string;
   releaseDate?: string;
   year?: number;
-  genre?: string;
+  primaryGenre?: string;
+  genres?: string[];
 
   // Lyrics
   plainLyrics?: string;
@@ -35,10 +42,6 @@ export interface Song {
   itunesTrackId?: number;
   itunesExplicit?: boolean;
   itunesPreviewUrl?: string; // 30-sec preview for "what's this song again?"
-  itunesArtworkUrls?: string; // JSON string from backend
-
-  // YouTube thumbnail URLs (fallback for artwork)
-  youtubeThumbnailUrls?: string; // JSON string from backend
 
   // Relational IDs and computed cover URL
   artistId?: number;
