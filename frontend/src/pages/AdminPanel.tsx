@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ShieldCheck, Mic2, UserPlus } from "lucide-react";
+import { ShieldCheck, Mic2, UserPlus, HardDriveSearch } from "lucide-react";
+import { MetadataReviewTab } from "@/features/songs/components/admin/MetadataReviewTab";
+import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditTab";
 
 interface UserListItem {
   id: number;
@@ -151,12 +154,32 @@ const AdminPanel: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <div className="flex items-center gap-2">
+      <div className="max-w-5xl mx-auto pb-8">
+        <div className="flex items-center gap-2 mb-6">
           <ShieldCheck size={22} className="text-primary" />
           <h1 className="text-2xl font-bold">Admin Panel</h1>
         </div>
 
+        <Tabs defaultValue="users">
+          <TabsList className="mb-6">
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="metadata">Metadata Review</TabsTrigger>
+            <TabsTrigger value="audit">
+              <HardDriveSearch className="mr-1.5 h-3.5 w-3.5" />
+              Library Audit
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="metadata">
+            <MetadataReviewTab />
+          </TabsContent>
+
+          <TabsContent value="audit">
+            <LibraryAuditTab />
+          </TabsContent>
+
+          <TabsContent value="users">
+        <div className="max-w-2xl space-y-6">
         {/* Create User Form */}
         <div className="p-4 rounded-lg bg-card border border-border/50 space-y-4">
           <h2 className="font-semibold flex items-center gap-2">
@@ -298,6 +321,9 @@ const AdminPanel: React.FC = () => {
             </div>
           )}
         </div>
+        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

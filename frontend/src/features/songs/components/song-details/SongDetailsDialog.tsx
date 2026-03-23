@@ -4,8 +4,9 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab, DetailsTab, LyricsTab, AudioTab } from "./tabs";
 import { MetadataEditContent } from "./MetadataEditContent";
+import { SongActionPanel } from "@/features/songs/components/admin/SongActionPanel";
 import { cn } from "@/lib/utils";
-import { Info, FileText, Music2, Settings } from "lucide-react";
+import { Info, FileText, Music2, Settings, Wrench } from "lucide-react";
 
 interface SongDetailsDialogProps {
   song: Song;
@@ -15,7 +16,7 @@ interface SongDetailsDialogProps {
 }
 
 type DialogView = "tabs" | "itunes-search";
-type TabValue = "overview" | "details" | "lyrics" | "audio";
+type TabValue = "overview" | "details" | "lyrics" | "audio" | "actions";
 
 export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   song,
@@ -86,7 +87,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
             className="flex flex-col h-full"
           >
             <div className="border-b">
-              <TabsList className="w-full grid grid-cols-4 p-0 h-auto bg-transparent rounded-none">
+              <TabsList className="w-full grid grid-cols-5 p-0 h-auto bg-transparent rounded-none">
                 <TabsTrigger
                   value="overview"
                   className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
@@ -121,6 +122,15 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   <Music2 size={18} className="text-muted-foreground" />
                   <span className="hidden sm:inline text-sm font-medium">
                     Audio
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="actions"
+                  className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
+                >
+                  <Wrench size={18} className="text-muted-foreground" />
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Actions
                   </span>
                 </TabsTrigger>
               </TabsList>
@@ -161,6 +171,13 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   className="mt-0 data-[state=inactive]:hidden"
                 >
                   <AudioTab song={song} />
+                </TabsContent>
+
+                <TabsContent
+                  value="actions"
+                  className="mt-0 data-[state=inactive]:hidden"
+                >
+                  <SongActionPanel song={song} onDone={onClose} />
                 </TabsContent>
               </div>
             </div>
