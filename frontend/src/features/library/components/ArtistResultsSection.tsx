@@ -1,8 +1,7 @@
 import React from "react";
 import { Users } from "lucide-react";
 import ArtistAccordion from "./ArtistAccordion";
-import { useInfiniteArtists } from "@/hooks/api/useInfiniteLibraryBrowsing";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { useArtists } from "@/hooks/api/useArtists";
 
 interface ArtistResultsSectionProps {
   searchTerm: string;
@@ -15,28 +14,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
 }) => {
   const effectiveSearchTerm = expandArtist ? "" : searchTerm;
 
-  const { artists, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } =
-    useInfiniteArtists(effectiveSearchTerm, 200);
-
-  const sentinelRef = useInfiniteScroll({
-    loading: isFetchingNextPage,
-    hasMore: hasNextPage,
-    onLoadMore: fetchNextPage,
-    threshold: 0.1,
-    rootMargin: "100px",
-  });
-
-  // When expandArtist is set, keep fetching pages until the artist is found
-  React.useEffect(() => {
-    if (
-      expandArtist &&
-      !artists.find((a) => a.name === expandArtist) &&
-      hasNextPage &&
-      !isFetchingNextPage
-    ) {
-      fetchNextPage();
-    }
-  }, [expandArtist, artists, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const { artists, isLoading } = useArtists({ search: effectiveSearchTerm });
 
   const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
 
@@ -52,10 +30,6 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
       <ArtistAccordion
         artists={artists}
         isLoading={isLoading}
-        hasNextPage={hasNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
-        sentinelRef={sentinelRef}
         expandArtist={expandArtist}
       />
     </div>
