@@ -3,6 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Search, FileText } from "lucide-react";
+import { useSongs } from "@/hooks/api/useSongs";
+import LyricsFetchDialog, {
+  type LyricsResult,
+} from "@/features/lyrics/components/LyricsFetchDialog";
+import { PasteLyricsDialog } from "@/features/lyrics/components/PasteLyricsDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +39,23 @@ type ActiveAction =
   | "replace-upload"
   | null;
 
+// Maps data-quality issue types to the button keys that can resolve them.
+const ISSUE_ACTION_MAP: Record<string, string[]> = {
+  empty_title:         ["edit"],
+  empty_artist:        ["edit"],
+  suspicious_title:    ["edit", "musicbrainz", "replace-yt"],
+  long_title:          ["edit"],
+  swapped_fields:      ["edit"],
+  encoding_artifact:   ["edit"],
+  unknown_artist:      ["edit", "musicbrainz"],
+  missing_source:      ["replace-yt", "replace-upload"],
+  missing_duration:    ["replace-yt", "replace-upload"],
+  missing_genre:       ["fetch-genre"],
+  missing_album:       ["edit", "musicbrainz"],
+  missing_lyrics:      ["search-lyrics", "paste-lyrics"],
+  missing_vocal_range: ["analyze-vocal-range"],
+};
+
 interface FingerprintCandidate {
   score: number;
   recordingId: string;
@@ -43,15 +66,31 @@ interface FingerprintCandidate {
 interface SongActionPanelProps {
   song: Song;
   onDone: () => void;
+  /** When provided, only actions relevant to these issue types are shown. */
+  issues?: string[];
 }
 
 export const SongActionPanel: React.FC<SongActionPanelProps> = ({
   song,
   onDone,
+  issues,
 }) => {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+
+  // When issues are provided, only show actions that can resolve them.
+  const allowedActions = issues
+    ? new Set(issues.flatMap((t) => ISSUE_ACTION_MAP[t] ?? []))
+    : null;
+  const show = (action: string) =>
+    !allowedActions || allowedActions.has(action);
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isPasteOpen, setIsPasteOpen] = useState(false);
+
+  const { useUpdateSong } = useSongs();
+  const updateSongMutation = useUpdateSong();
 
   const invalidateAndDone = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-acoustid-songs"] });
@@ -60,6 +99,64 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
 
   const toggle = (action: ActiveAction) => {
     setActiveAction((prev) => (prev === action ? null : action));
+  };
+
+  const analyzeVocalRangeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/songs/${song.id}/analyze-vocal-range`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail ?? "Vocal range analysis failed");
+      }
+      return res.json() as Promise<{ vocal_range_low: string; vocal_range_high: string }>;
+    },
+    onSuccess: (data) => {
+      toast.success(`Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`);
+      invalidateAndDone();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const fetchGenreMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/songs/${song.id}/fetch-genre`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail ?? "No genre found for this song");
+      }
+      return res.json() as Promise<{ genre: string }>;
+    },
+    onSuccess: (data) => {
+      toast.success(`Genre set to "${data.genre}"`);
+      invalidateAndDone();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleLyricsSelected = (result: LyricsResult) => {
+    updateSongMutation.mutate(
+      { id: song.id, plainLyrics: result.plainLyrics, syncedLyrics: result.syncedLyrics },
+      {
+        onSuccess: () => { setIsSearchOpen(false); invalidateAndDone(); },
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  };
+
+  const handlePasteConfirmed = (pastedLyrics: string) => {
+    updateSongMutation.mutate(
+      { id: song.id, plainLyrics: pastedLyrics, syncedLyrics: undefined },
+      {
+        onSuccess: () => { setIsPasteOpen(false); invalidateAndDone(); },
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
   };
 
   const deleteMutation = useMutation({
@@ -105,41 +202,83 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
     <div className="space-y-4">
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={activeAction === "fingerprint" ? "default" : "outline"}
-          onClick={() => toggle("fingerprint")}
-        >
-          Lookup Fingerprint
-        </Button>
-        <Button
-          size="sm"
-          variant={activeAction === "musicbrainz" ? "default" : "outline"}
-          onClick={() => toggle("musicbrainz")}
-        >
-          Search MusicBrainz
-        </Button>
-        <Button
-          size="sm"
-          variant={activeAction === "edit" ? "default" : "outline"}
-          onClick={() => toggle("edit")}
-        >
-          Edit Metadata
-        </Button>
-        <Button
-          size="sm"
-          variant={activeAction === "replace-yt" ? "default" : "outline"}
-          onClick={() => toggle("replace-yt")}
-        >
-          Replace from YouTube Music
-        </Button>
-        <Button
-          size="sm"
-          variant={activeAction === "replace-upload" ? "default" : "outline"}
-          onClick={() => toggle("replace-upload")}
-        >
-          Upload MP3
-        </Button>
+        {show("fingerprint") && (
+          <Button
+            size="sm"
+            variant={activeAction === "fingerprint" ? "default" : "outline"}
+            onClick={() => toggle("fingerprint")}
+          >
+            Lookup Fingerprint
+          </Button>
+        )}
+        {show("musicbrainz") && (
+          <Button
+            size="sm"
+            variant={activeAction === "musicbrainz" ? "default" : "outline"}
+            onClick={() => toggle("musicbrainz")}
+          >
+            Search MusicBrainz
+          </Button>
+        )}
+        {show("edit") && (
+          <Button
+            size="sm"
+            variant={activeAction === "edit" ? "default" : "outline"}
+            onClick={() => toggle("edit")}
+          >
+            Edit Metadata
+          </Button>
+        )}
+        {show("fetch-genre") && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fetchGenreMutation.mutate()}
+            disabled={fetchGenreMutation.isPending}
+          >
+            {fetchGenreMutation.isPending ? "Fetching..." : "Fetch Genre"}
+          </Button>
+        )}
+        {show("analyze-vocal-range") && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => analyzeVocalRangeMutation.mutate()}
+            disabled={analyzeVocalRangeMutation.isPending}
+          >
+            {analyzeVocalRangeMutation.isPending ? "Analyzing..." : "Analyze Vocal Range"}
+          </Button>
+        )}
+        {show("search-lyrics") && (
+          <Button size="sm" variant="outline" onClick={() => setIsSearchOpen(true)}>
+            <Search className="w-3.5 h-3.5 mr-1.5" />
+            Search Lyrics
+          </Button>
+        )}
+        {show("paste-lyrics") && (
+          <Button size="sm" variant="outline" onClick={() => setIsPasteOpen(true)}>
+            <FileText className="w-3.5 h-3.5 mr-1.5" />
+            Paste Lyrics
+          </Button>
+        )}
+        {show("replace-yt") && (
+          <Button
+            size="sm"
+            variant={activeAction === "replace-yt" ? "default" : "outline"}
+            onClick={() => toggle("replace-yt")}
+          >
+            Replace from YouTube Music
+          </Button>
+        )}
+        {show("replace-upload") && (
+          <Button
+            size="sm"
+            variant={activeAction === "replace-upload" ? "default" : "outline"}
+            onClick={() => toggle("replace-upload")}
+          >
+            Upload MP3
+          </Button>
+        )}
         <Button
           size="sm"
           variant="secondary"
@@ -186,7 +325,7 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
         <FingerprintLookupPanel song={song} onDone={invalidateAndDone} />
       )}
 
-      {/* MusicBrainz search panel */}1
+      {/* MusicBrainz search panel */}
       {activeAction === "musicbrainz" && (
         <MusicBrainzSearchPanel song={song} onDone={invalidateAndDone} />
       )}
@@ -200,6 +339,18 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
       {activeAction === "replace-upload" && (
         <UploadReplacePanel song={song} onDone={invalidateAndDone} />
       )}
+
+      <LyricsFetchDialog
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        song={song}
+        onLyricsSelected={handleLyricsSelected}
+      />
+      <PasteLyricsDialog
+        isOpen={isPasteOpen}
+        onClose={() => setIsPasteOpen(false)}
+        onLyricsConfirmed={handlePasteConfirmed}
+      />
 
       {/* Audio preview — always visible */}
       <div className="pt-1 border-t">
@@ -837,3 +988,4 @@ const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }) => {
     </div>
   );
 };
+
