@@ -29,6 +29,7 @@ from app.api import (
     jobs_router,
     lyrics_router,
     metadata_router,
+    musicbrainz_router,
     performance_history_router,
     queue_router,
     sessions_router,
@@ -100,6 +101,7 @@ app.include_router(metadata_router)
 app.include_router(lyrics_router)
 app.include_router(users_router)
 app.include_router(host_settings_router)
+app.include_router(musicbrainz_router)
 app.include_router(performance_history_router)
 
 

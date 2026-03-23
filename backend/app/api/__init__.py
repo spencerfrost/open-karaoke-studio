@@ -17,6 +17,7 @@ from .sessions import router as sessions_router
 from .songs import router as songs_router
 from .users import router as users_router
 from .youtube import router as youtube_router
+from .musicbrainz import router as musicbrainz_router
 from .youtube_music import router as youtube_music_router
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     "metadata_router",
     "lyrics_router",
     "users_router",
+    "musicbrainz_router",
     "performance_history_router",
 ]
