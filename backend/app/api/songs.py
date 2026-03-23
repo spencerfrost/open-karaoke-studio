@@ -1387,6 +1387,43 @@ async def fetch_genre(
     return {"genre": genre, "genres": lastfm_genres}
 
 
+@router.post("/{song_id}/analyze-vocal-range", status_code=200)
+async def analyze_vocal_range(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detect vocal range from the isolated vocals stem and persist the result."""
+    import asyncio
+    from pathlib import Path
+
+    from app.config import get_config
+    from app.services.audio import detect_vocal_range
+
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    config = get_config()
+    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
+    if not vocals_path.exists():
+        raise HTTPException(status_code=404, detail="Vocals stem not found — song may not be processed yet")
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: detect_vocal_range(vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)),
+    )
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Could not detect vocal range (insufficient voiced frames)")
+
+    low, high = result
+    repo.update(song_id, vocal_range_low=low, vocal_range_high=high)
+    logger.info("Vocal range detected for song %s: %s – %s", song_id, low, high)
+    return {"vocal_range_low": low, "vocal_range_high": high}
+
+
 @router.post("/{song_id}/fingerprint", status_code=202)
 async def fingerprint_single_song_endpoint(
     song_id: str,

@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ShieldCheck, Mic2, UserPlus, HardDriveSearch } from "lucide-react";
+import { ShieldCheck, Mic2, UserPlus, HardDrive, ShieldAlert, Copy } from "lucide-react";
 import { MetadataReviewTab } from "@/features/songs/components/admin/MetadataReviewTab";
 import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditTab";
+import { DataQualityTab } from "@/features/songs/components/admin/DataQualityTab";
+import { DuplicatesTab } from "@/features/songs/components/admin/DuplicatesTab";
 
 interface UserListItem {
   id: number;
@@ -165,8 +167,16 @@ const AdminPanel: React.FC = () => {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="metadata">Metadata Review</TabsTrigger>
             <TabsTrigger value="audit">
-              <HardDriveSearch className="mr-1.5 h-3.5 w-3.5" />
+              <HardDrive className="mr-1.5 h-3.5 w-3.5" />
               Library Audit
+            </TabsTrigger>
+            <TabsTrigger value="data-quality">
+              <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
+              Data Quality
+            </TabsTrigger>
+            <TabsTrigger value="duplicates">
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              Duplicates
             </TabsTrigger>
           </TabsList>
 
@@ -176,6 +186,14 @@ const AdminPanel: React.FC = () => {
 
           <TabsContent value="audit">
             <LibraryAuditTab />
+          </TabsContent>
+
+          <TabsContent value="data-quality">
+            <DataQualityTab />
+          </TabsContent>
+
+          <TabsContent value="duplicates">
+            <DuplicatesTab />
           </TabsContent>
 
           <TabsContent value="users">

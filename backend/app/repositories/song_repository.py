@@ -167,6 +167,44 @@ class SongRepository:
         logger.debug(f"Successfully updated song {song_id}")
         return song
 
+    def find_duplicates(self) -> list[list[DbSong]]:
+        """
+        Return groups of songs that share the same case-insensitive title+artist.
+        Each inner list is a cluster of 2+ duplicates.
+        """
+        from itertools import groupby
+
+        from sqlalchemy import func
+
+        subq = (
+            self.db.query(
+                func.lower(DbSong.title).label("lower_title"),
+                func.lower(DbSong.artist).label("lower_artist"),
+            )
+            .group_by(func.lower(DbSong.title), func.lower(DbSong.artist))
+            .having(func.count(DbSong.id) > 1)
+            .subquery()
+        )
+
+        songs = (
+            self.db.query(DbSong)
+            .filter(
+                func.lower(DbSong.title) == subq.c.lower_title,
+                func.lower(DbSong.artist) == subq.c.lower_artist,
+            )
+            .order_by(
+                func.lower(DbSong.title),
+                func.lower(DbSong.artist),
+                DbSong.date_added,
+            )
+            .all()
+        )
+
+        clusters = []
+        for _, group in groupby(songs, key=lambda s: (s.title.lower(), s.artist.lower())):
+            clusters.append(list(group))
+        return clusters
+
     def delete(self, song_id: str) -> bool:
         """
         Delete a song record by its unique identifier.
