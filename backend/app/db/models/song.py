@@ -2,6 +2,7 @@
 Song database model - Single source of truth.
 """
 
+import json
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
@@ -30,7 +31,8 @@ class DbSong(Base):
     album = Column(String, nullable=True)
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
-    genre = Column(String, nullable=True)
+    primary_genre = Column(String, nullable=True)
+    genres = Column(JSON, nullable=True, default=list)
 
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
@@ -42,10 +44,6 @@ class DbSong(Base):
     itunes_preview_url = Column(
         String, nullable=True
     )  # 30-sec preview for "what's this song?"
-    itunes_artwork_urls = Column(Text, nullable=True)  # JSON array as string
-
-    # YouTube thumbnail URLs (fallback for artwork)
-    youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
 
     # Relational links (nullable; backfilled by migration, enriched via iTunes metadata)
     artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)
@@ -76,6 +74,9 @@ class DbSong(Base):
     )
     artist_rel = relationship("DbArtist", back_populates="songs")
     album_rel = relationship("DbAlbum", back_populates="songs")
+    song_artists = relationship(
+        "DbSongArtist", back_populates="song_rel", cascade="all, delete-orphan", lazy="joined"
+    )
 
     def _get_active_lyrics_content(self, lyrics_type: str) -> Optional[str]:
         """Get active lyrics content by type, falling back to legacy columns."""
@@ -129,7 +130,8 @@ class DbSong(Base):
             "album": self.album,
             "releaseDate": self.release_date,
             "year": year_value,
-            "genre": self.genre,
+            "primaryGenre": self.primary_genre,
+            "genres": self.genres or [],
             # Lyrics
             "plainLyrics": self._get_active_lyrics_content("plain"),
             "syncedLyrics": self._get_active_lyrics_content("synced"),
@@ -137,9 +139,6 @@ class DbSong(Base):
             "itunesTrackId": self.itunes_track_id,
             "itunesExplicit": self.itunes_explicit,
             "itunesPreviewUrl": self.itunes_preview_url,
-            "itunesArtworkUrls": self.itunes_artwork_urls,
-            # YouTube thumbnail URLs (for artwork fallback)
-            "youtubeThumbnailUrls": self.youtube_thumbnail_urls,
             # Relational IDs and computed cover URL
             "artistId": self.artist_id,
             "albumId": self.album_id,
@@ -160,4 +159,13 @@ class DbSong(Base):
             "musicbrainzRecordingId": self.musicbrainz_recording_id,
             "acoustidScore": self.acoustid_score,
             "acoustidFingerprintStatus": self.acoustid_fingerprint_status,
+            # Structured artist credits
+            "artists": [
+                {
+                    "id": sa.artist_rel.id,
+                    "name": sa.artist_rel.display_name or sa.artist_rel.name,
+                    "role": sa.role,
+                }
+                for sa in sorted(self.song_artists, key=lambda x: x.display_order)
+            ] if self.song_artists else [],
         }

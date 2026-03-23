@@ -3,13 +3,21 @@ Pydantic Schemas for Song objects.
 """
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 # ============================================================================
 # Pydantic Models for Songs
 # ============================================================================
+
+
+class SongArtistRef(BaseModel):
+    """Structured artist credit on a song."""
+
+    id: int
+    name: str
+    role: str  # 'primary' | 'featured'
 
 
 class SongResponse(BaseModel):
@@ -32,7 +40,8 @@ class SongResponse(BaseModel):
     album: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
-    genre: Optional[str] = None
+    primaryGenre: Optional[str] = None
+    genres: List[str] = []
 
     # Lyrics
     plainLyrics: Optional[str] = None
@@ -42,10 +51,6 @@ class SongResponse(BaseModel):
     itunesTrackId: Optional[int] = None
     itunesExplicit: Optional[bool] = None
     itunesPreviewUrl: Optional[str] = None  # 30-sec preview for song identification
-    itunesArtworkUrls: Optional[str] = None  # JSON string
-
-    # YouTube thumbnail URLs (fallback for artwork)
-    youtubeThumbnailUrls: Optional[str] = None  # JSON string
 
     # Relational IDs and computed cover URL
     artistId: Optional[int] = None
@@ -67,6 +72,9 @@ class SongResponse(BaseModel):
     musicbrainzRecordingId: Optional[str] = None
     acoustidScore: Optional[float] = None
     acoustidFingerprintStatus: Optional[str] = None
+
+    # Structured artist credits
+    artists: List[SongArtistRef] = []
 
     status: str = "processed"
 
@@ -106,7 +114,8 @@ class SongUpdateRequest(BaseModel):
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
     duration: Optional[float] = Field(None, ge=0)
-    genre: Optional[str] = Field(None, max_length=100)
+    primaryGenre: Optional[str] = Field(None, max_length=100)
+    genres: Optional[List[str]] = None
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
 
@@ -177,6 +186,18 @@ class SongReplaceYouTubeRequest(BaseModel):
         return v
 
 
+class BulkDeleteOrphansRequest(BaseModel):
+    """Request model for bulk-deleting orphaned library directories."""
+
+    dir_names: List[str] = Field(..., min_length=1)
+
+
+class BulkDeleteGhostsRequest(BaseModel):
+    """Request model for bulk-deleting ghost DB records."""
+
+    song_ids: List[str] = Field(..., min_length=1)
+
+
 class FingerprintApplyRequest(BaseModel):
     """Request model for applying a selected AcoustID candidate to a song."""
 
@@ -217,6 +238,35 @@ class ArtistSearchResponse(BaseModel):
     totalSongs: int
     totalArtists: int
     pagination: PaginationInfo
+
+
+class MetadataIssue(BaseModel):
+    """A single metadata quality issue detected on a song."""
+
+    type: str
+    label: str
+    severity: Literal["error", "warning", "info"]
+
+
+class FlaggedSong(BaseModel):
+    """A song with one or more metadata quality issues."""
+
+    id: str
+    title: str
+    artist: str
+    date_added: Optional[str] = None
+    source: Optional[str] = None
+    status: str = "processed"
+    issues: List[MetadataIssue]
+
+
+class MetadataAuditResponse(BaseModel):
+    """Response for the metadata quality audit endpoint."""
+
+    flagged_songs: List[FlaggedSong]
+    summary: dict
+    total_songs_scanned: int
+    total_flagged: int
 
 
 class ReplacementValidationResponse(BaseModel):

@@ -13,6 +13,7 @@ from .queue import KaraokeQueueItem
 from .session import KaraokeSession, SessionDevice, SessionPlaybackState
 from .lyrics import DbLyrics
 from .song import DbSong
+from .song_artist import DbSongArtist
 from .user import User
 
 # Make all models available when importing from this package
@@ -32,5 +33,6 @@ __all__ = [
     "SessionPlaybackState",
     "DbLyrics",
     "DbSong",
+    "DbSongArtist",
     "User",
 ]
