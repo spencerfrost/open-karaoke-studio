@@ -50,13 +50,13 @@ const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
   }, [availableLetters]);
 
   return (
-    <div className={`flex flex-col gap-1 ${className}`}>
+    <div className={`flex flex-col h-full gap-1 ${className}`}>
       {allLetters.map((letter) => {
         return (
           <button
             key={letter}
             onClick={() => onLetterClick(letter)}
-            className={`w-6 h-6 text-xs rounded bg-orange-peel/20 text-orange-peel hover:bg-orange-peel/40 hover:scale-105 ${activeSection === letter ? "bg-orange-peel/40" : ""}`}
+            className={`flex-1 w-6 text-xs rounded bg-orange-peel/20 text-orange-peel hover:bg-orange-peel/40 hover:scale-105 ${activeSection === letter ? "bg-orange-peel/40" : ""}`}
             title={`Jump to ${letter}`}
           >
             {letter}

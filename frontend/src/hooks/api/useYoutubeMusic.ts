@@ -4,6 +4,7 @@ import {
   YoutubeMusicSearchResponse,
   YoutubeMusicArtistResponse,
   YoutubeMusicAlbumTracksResponse,
+  YoutubeMusicAlbum,
 } from "../../types/Youtube";
 
 export function useYoutubeMusicSearch(query: string, enabled: boolean = true) {
@@ -35,6 +36,26 @@ export function useYoutubeMusicArtist(
     {
       enabled: enabled && !!artistId,
       staleTime: 1000 * 60 * 15, // 15 minutes - artist data doesn't change often
+      retry: 1,
+    },
+  );
+}
+
+export function useYoutubeMusicArtistReleases(
+  artistId: string | null,
+  channelId: string | null,
+  params: string | null,
+  enabled: boolean = false,
+) {
+  return useApiQuery<
+    { data: YoutubeMusicAlbum[]; error: string | null },
+    ["youtube-music-releases", string, string, string]
+  >(
+    ["youtube-music-releases", artistId!, channelId!, params!],
+    `youtube-music/artist/${artistId}/releases?channel_id=${encodeURIComponent(channelId ?? "")}&params=${encodeURIComponent(params ?? "")}`,
+    {
+      enabled: enabled && !!artistId && !!channelId && !!params,
+      staleTime: 1000 * 60 * 15,
       retry: 1,
     },
   );

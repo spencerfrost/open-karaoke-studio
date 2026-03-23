@@ -3,7 +3,10 @@ import { ArrowLeft, Loader2, Music, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { useYoutubeMusicArtist } from "@/hooks/api/useYoutubeMusic";
+import {
+  useYoutubeMusicArtist,
+  useYoutubeMusicArtistReleases,
+} from "@/hooks/api/useYoutubeMusic";
 import { YoutubeMusicSearchResult } from "@/types/Youtube";
 import { AlbumTracksExpander } from "./AlbumTracksExpander";
 
@@ -27,12 +30,36 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
 }) => {
   const [visibleSongsCount, setVisibleSongsCount] =
     useState(INITIAL_SONGS_COUNT);
+  const [loadMoreAlbums, setLoadMoreAlbums] = useState(false);
+  const [loadMoreSingles, setLoadMoreSingles] = useState(false);
+
   const { data, isLoading, error } = useYoutubeMusicArtist(artistId);
 
   const artistData = data?.data;
   const artist = artistData?.artist;
   const topSongs = artistData?.topSongs || [];
   const albums = artistData?.albums || [];
+  const singles = artistData?.singles || [];
+  const albumsMore = artistData?.albumsMore;
+  const singlesMore = artistData?.singlesMore;
+
+  const { data: moreAlbumsData, isLoading: isLoadingMoreAlbums } =
+    useYoutubeMusicArtistReleases(
+      artistId,
+      albumsMore?.channelId ?? null,
+      albumsMore?.params ?? null,
+      loadMoreAlbums,
+    );
+  const { data: moreSinglesData, isLoading: isLoadingMoreSingles } =
+    useYoutubeMusicArtistReleases(
+      artistId,
+      singlesMore?.channelId ?? null,
+      singlesMore?.params ?? null,
+      loadMoreSingles,
+    );
+
+  const displayAlbums = moreAlbumsData?.data ?? albums;
+  const displaySingles = moreSinglesData?.data ?? singles;
 
   // Get artist thumbnail
   const artistThumbnail =
@@ -76,7 +103,8 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
     );
   }
 
-  const hasNoContent = topSongs.length === 0 && albums.length === 0;
+  const hasNoContent =
+    topSongs.length === 0 && albums.length === 0 && singles.length === 0;
 
   return (
     <div className="space-y-6">
@@ -126,12 +154,12 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
             </section>
           )}
 
-          {/* Discography Section */}
-          {albums.length > 0 && (
+          {/* Albums Section */}
+          {displayAlbums.length > 0 && (
             <section>
-              <h3 className="text-lg font-semibold mb-3">Discography</h3>
+              <h3 className="text-lg font-semibold mb-3">Albums</h3>
               <div className="space-y-2">
-                {albums.map((album) => (
+                {displayAlbums.map((album) => (
                   <AlbumTracksExpander
                     key={album.browseId}
                     album={album}
@@ -140,6 +168,59 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   />
                 ))}
               </div>
+              {albumsMore && (!loadMoreAlbums || isLoadingMoreAlbums) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLoadMoreAlbums(true)}
+                  disabled={isLoadingMoreAlbums}
+                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                >
+                  {isLoadingMoreAlbums ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Load more albums"
+                  )}
+                </Button>
+              )}
+            </section>
+          )}
+
+          {/* Singles Section */}
+          {displaySingles.length > 0 && (
+            <section>
+              <h3 className="text-lg font-semibold mb-3">Singles</h3>
+              <div className="space-y-2">
+                {displaySingles.map((album) => (
+                  <AlbumTracksExpander
+                    key={album.browseId}
+                    album={album}
+                    onSelectTrack={onSelectSong}
+                    loadingStates={loadingStates}
+                  />
+                ))}
+              </div>
+              {singlesMore && (!loadMoreSingles || isLoadingMoreSingles) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLoadMoreSingles(true)}
+                  disabled={isLoadingMoreSingles}
+                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                >
+                  {isLoadingMoreSingles ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Load more singles"
+                  )}
+                </Button>
+              )}
             </section>
           )}
         </>

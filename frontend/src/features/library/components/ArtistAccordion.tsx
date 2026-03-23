@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ArtistSection from "./ArtistSection";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import AlphabeticalIndexBar from "./AlphabeticalIndexBar";
 import AlphabeticalNavigation from "./AlphabeticalNavigation";
 
 interface Artist {
@@ -13,10 +14,6 @@ interface ArtistAccordionProps {
   artists: Artist[];
   className?: string;
   isLoading?: boolean;
-  hasNextPage?: boolean;
-  isFetchingNextPage?: boolean;
-  fetchNextPage?: () => void;
-  sentinelRef?: React.RefObject<HTMLDivElement | null>;
   expandArtist?: string | null;
 }
 
@@ -24,9 +21,6 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   artists = [],
   className = "",
   isLoading = false,
-  hasNextPage,
-  isFetchingNextPage,
-  sentinelRef,
   expandArtist,
 }) => {
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
@@ -150,25 +144,18 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             );
           })}
 
-          {/* Infinite scroll sentinel and loading indicator */}
-          {sentinelRef && (
-            <div ref={sentinelRef} className="h-4">
-              {isFetchingNextPage && (
-                <div className="flex justify-center py-4">
-                  <LoadingSpinner size={16} />
-                </div>
-              )}
-              {!hasNextPage && artists.length > 0 && (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                  All artists loaded ({artists.length} total)
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Desktop vertical navigation sidebar */}
-        <div className="sticky top-0 self-start">
+        {/* Mobile: full-height touch index bar */}
+        <div className="sticky top-0 h-screen md:hidden">
+          <AlphabeticalIndexBar
+            availableLetters={availableLetters}
+            onLetterClick={handleLetterClick}
+          />
+        </div>
+
+        {/* Desktop: compact button sidebar */}
+        <div className="sticky top-0 h-[calc(100vh-6rem)] hidden md:block">
           <AlphabeticalNavigation
             availableLetters={availableLetters}
             onLetterClick={handleLetterClick}

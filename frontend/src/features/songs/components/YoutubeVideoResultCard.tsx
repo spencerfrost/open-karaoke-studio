@@ -1,6 +1,7 @@
 import React from "react";
 import { BaseResultCard } from "./shared/BaseResultCard";
 import { YouTubeResultCardProps } from "./shared/types";
+import { YouTubeAudioPreview } from "./shared/YouTubeAudioPreview";
 
 // Helper function to format duration from seconds
 const formatDuration = (seconds: number) => {
@@ -28,7 +29,7 @@ export const YouTubeResultCard: React.FC<YouTubeResultCardProps> = ({
       isLoading={isLoading}
       onSelect={handleSelect}
     >
-      {/* Additional YouTube specific metadata could go here */}
+      <YouTubeAudioPreview videoId={result.id} />
     </BaseResultCard>
   );
 };

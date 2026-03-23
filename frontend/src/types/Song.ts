@@ -45,6 +45,11 @@ export interface Song {
   albumId?: number;
   albumCoverUrl?: string; // Computed by backend — points to /api/albums/{id}/cover
 
+  // AcoustID fingerprinting
+  acoustidFingerprintStatus?: "not_checked" | "matched" | "no_match" | "failed";
+  acoustidScore?: number;
+  musicbrainzRecordingId?: string;
+
   // Processing metadata
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 

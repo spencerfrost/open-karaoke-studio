@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
-import { useInfiniteArtistSongs } from "@/hooks/api/useInfiniteLibraryBrowsing";
+import { useInfiniteArtistSongs } from "@/hooks/api/useArtistSongs";
 import SongResultsGrid from "@/features/library/components/SongResultsGrid";
 
 interface ArtistSectionProps {

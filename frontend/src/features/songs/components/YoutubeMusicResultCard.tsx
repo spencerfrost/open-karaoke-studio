@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { YoutubeMusicSearchResult } from "@/types/Youtube";
+import { YouTubeAudioPreview } from "./shared/YouTubeAudioPreview";
 
 interface YoutubeMusicResultCardProps {
   result: YoutubeMusicSearchResult;
@@ -83,6 +84,9 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                 <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1">
                   {duration}
                 </p>
+              )}
+              {result.videoId && (
+                <YouTubeAudioPreview videoId={result.videoId} className="mt-2" />
               )}
             </div>
           </div>

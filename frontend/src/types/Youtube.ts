@@ -60,6 +60,9 @@ export interface YoutubeMusicArtistResponse {
   artist: YoutubeMusicArtist;
   topSongs: YoutubeMusicSearchResult[];
   albums: YoutubeMusicAlbum[];
+  singles: YoutubeMusicAlbum[];
+  albumsMore?: { channelId: string; params: string };
+  singlesMore?: { channelId: string; params: string };
 }
 
 export interface YoutubeMusicAlbumInfo {
