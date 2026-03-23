@@ -353,19 +353,31 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
     except Exception as e:
         logger.warning("Loudness detection failed for song %s: %s", song_id, e)
 
+    # Fetch album art (iTunes first, YouTube thumbnail as fallback)
     try:
         with get_db_session() as session:
             repo = SongRepository(session)
             song = repo.fetch(song_id)
-            youtube_id = song.youtube_id if song else None
-        if youtube_id:
+            song_title = song.title if song else None
+            song_artist = song.artist if song else None
+            video_id = song.video_id if song else None
+
+        album_art_assigned = False
+        if song_title and song_artist:
+            from app.services.itunes_service import fetch_and_assign_album_art
+
+            album_art_assigned = fetch_and_assign_album_art(song_id, song_title, song_artist)
+            if album_art_assigned:
+                logger.info("Album art downloaded for song %s", song_id)
+
+        if not album_art_assigned and video_id:
             from app.services.youtube_service import YouTubeService
 
             youtube_service = YouTubeService()
-            youtube_service.fetch_and_save_thumbnail(youtube_id, song_id)
-            logger.info("Thumbnail downloaded for song %s", song_id)
+            youtube_service.fetch_and_save_thumbnail(video_id, song_id)
+            logger.info("Thumbnail downloaded for song %s (iTunes had no match)", song_id)
     except Exception as e:
-        logger.warning("Thumbnail download failed for song %s: %s", song_id, e)
+        logger.warning("Artwork fetch failed for song %s: %s", song_id, e)
 
     if update_kwargs:
         with get_db_session() as session:
@@ -392,6 +404,18 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
             logger.warning("AcoustID: no audio file found for song %s", song_id)
     except Exception:
         logger.warning("AcoustID fingerprinting failed for song %s", song_id, exc_info=True)
+
+    # Populate song_artists join table (regex-based; AcoustID may overwrite if it auto-corrects)
+    try:
+        from app.services.song_artist_service import populate_song_artists
+
+        with get_db_session() as session:
+            repo = SongRepository(session)
+            song = repo.fetch(song_id)
+            if song and song.artist:
+                populate_song_artists(session, song, song.artist)
+    except Exception:
+        logger.warning("song_artists population failed for song %s", song_id, exc_info=True)
 
 
 @celery.task(bind=True, name="post_process_song")
@@ -470,6 +494,50 @@ def batch_fingerprint_songs(reprocess_all: bool = False) -> None:
     logger.info("batch_fingerprint_songs: done")
 
 
+@celery.task(name="batch_backfill_artwork")
+def batch_backfill_artwork(force: bool = False) -> dict:
+    """
+    Batch Celery task: backfill album art for songs missing it.
+    By default only processes songs with album_id IS NULL.
+    Pass force=True to reprocess every song.
+    """
+    from app.db.database import get_db_session
+    from app.db.models.song import DbSong
+    from app.services.itunes_service import fetch_and_assign_album_art
+
+    with get_db_session() as session:
+        query = session.query(DbSong.id, DbSong.title, DbSong.artist)
+        if not force:
+            query = query.filter(DbSong.album_id.is_(None))
+        rows = query.all()
+
+    song_ids = [(row[0], row[1], row[2]) for row in rows]
+    logger.info("batch_backfill_artwork: processing %d songs", len(song_ids))
+
+    success = 0
+    skipped = 0
+    for i, (song_id, title, artist) in enumerate(song_ids):
+        if not title or not artist:
+            skipped += 1
+            continue
+        # Baseline delay to stay well under the iTunes rate limit
+        if i > 0:
+            import time
+            time.sleep(1.5)
+        try:
+            got = fetch_and_assign_album_art(song_id, title, artist)
+            if got:
+                success += 1
+            else:
+                skipped += 1
+        except Exception:
+            logger.warning("batch_backfill_artwork: error for song %s", song_id, exc_info=True)
+            skipped += 1
+
+    logger.info("batch_backfill_artwork: done — %d succeeded, %d skipped", success, skipped)
+    return {"processed": len(song_ids), "success": success, "skipped": skipped}
+
+
 @celery.task(name="fingerprint_single_song")
 def fingerprint_single_song(song_id: str) -> dict:
     """Fingerprint a single song via AcoustID."""
@@ -501,6 +569,61 @@ def fingerprint_single_song(song_id: str) -> dict:
             AcoustIdService(SongRepository(session)).fingerprint_and_identify(song_id, audio_path)
         except Exception:
             logger.exception("fingerprint_single_song: failed for song %s", song_id)
+
+    return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="enrich_song_artist_credits")
+def enrich_song_artist_credits(song_id: str) -> dict:
+    """Re-resolve artist credits for a single song using MB recording → MB search → regex."""
+    from app.db.database import get_db_session
+    from app.db.models.song_artist import DbSongArtist
+    from app.repositories.artist_repository import ArtistRepository
+    from app.repositories.song_repository import SongRepository
+    from app.services.credits_resolver import resolve_artist_credits
+    from app.services.song_artist_service import try_ampersand_split
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            logger.warning("enrich_song_artist_credits: song %s not found", song_id)
+            return {"status": "not_found", "song_id": song_id}
+
+        credits = resolve_artist_credits(
+            title=song.title,
+            artist_str=song.artist,
+            recording_id=song.musicbrainz_recording_id,
+        )
+
+        # If MB/regex left a single primary with "&", try heuristic DB-based split
+        credits = try_ampersand_split(credits, session)
+
+        artist_repo = ArtistRepository(session)
+
+        # Clear existing links
+        session.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
+
+        first_primary_set = False
+        for i, (name, role) in enumerate(credits):
+            artist = artist_repo.get_or_create(name, display_name=name)
+            if not first_primary_set and role == "primary":
+                song.artist_id = artist.id
+                first_primary_set = True
+            session.add(
+                DbSongArtist(
+                    song_id=song.id,
+                    artist_id=artist.id,
+                    role=role,
+                    display_order=i,
+                )
+            )
+
+        session.commit()
+        logger.info(
+            "Enriched song_artists for song %s: %s",
+            song_id,
+            [(n, r) for n, r in credits],
+        )
 
     return {"status": "ok", "song_id": song_id}
 

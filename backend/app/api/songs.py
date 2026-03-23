@@ -16,6 +16,7 @@ This module provides REST API endpoints for song management:
 import logging
 import os
 import uuid
+from collections import defaultdict
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
@@ -31,7 +32,9 @@ from app.api.validators import (
 )
 from app.config import get_config
 from app.db.database import SessionLocal
+from app.db.models.artist import DbArtist
 from app.db.models.song import DbSong
+from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
 from app.repositories.album_repository import AlbumRepository
 from app.repositories.artist_repository import ArtistRepository
@@ -40,7 +43,12 @@ from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
     ArtistSearchResponse,
+    BulkDeleteGhostsRequest,
+    BulkDeleteOrphansRequest,
     FingerprintApplyRequest,
+    FlaggedSong,
+    MetadataAuditResponse,
+    MetadataIssue,
     PaginationInfo,
     SongCreateRequest,
     SongReprocessRequest,
@@ -50,7 +58,7 @@ from app.schemas.song import (
     SongUpdateRequest,
 )
 from app.services.file_service import FileService
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -290,16 +298,25 @@ async def get_artists(
     try:
         query = (
             db.query(
-                func.min(DbSong.artist).label("artist"),
-                func.count(DbSong.id).label("song_count"),
+                DbArtist.id,
+                DbArtist.display_name,
+                DbArtist.name,
+                func.count(DbSongArtist.song_id).label("song_count"),
             )
-            .group_by(func.lower(DbSong.artist))
-            .order_by(func.lower(func.min(DbSong.artist)))
+            .join(DbSongArtist, DbSongArtist.artist_id == DbArtist.id)
+            .group_by(DbArtist.id)
+            .order_by(DbArtist.name)
         )
 
         # Apply search filter if provided
         if search and search.strip():
-            query = query.filter(DbSong.artist.ilike(f"%{search.strip()}%"))
+            search_term = search.strip()
+            query = query.filter(
+                or_(
+                    DbArtist.name.ilike(f"%{search_term}%"),
+                    DbArtist.display_name.ilike(f"%{search_term}%"),
+                )
+            )
 
         total = query.count()
 
@@ -311,11 +328,12 @@ async def get_artists(
         return {
             "artists": [
                 {
-                    "name": artist,
+                    "id": artist_id,
+                    "name": display_name or name,
                     "songCount": count,
-                    "firstLetter": "#" if artist and artist[0].isdigit() else (artist[0].upper() if artist else "?"),
+                    "firstLetter": "#" if name and name[0].isdigit() else (name[0].upper() if name else "?"),
                 }
-                for artist, count in results
+                for artist_id, display_name, name, count in results
             ],
             "pagination": {
                 "total": total,
@@ -363,9 +381,14 @@ async def get_songs_by_artist(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
-        base_query = db.query(DbSong).filter(
-            func.lower(DbSong.artist) == artist_name.lower().strip()
+        # Subquery to get song IDs for this artist (avoids DISTINCT on JSON columns)
+        song_ids_subq = (
+            db.query(DbSongArtist.song_id)
+            .join(DbArtist, DbArtist.id == DbSongArtist.artist_id)
+            .filter(DbArtist.name == artist_name.lower().strip())
+            .subquery()
         )
+        base_query = db.query(DbSong).filter(DbSong.id.in_(song_ids_subq))
 
         # Apply sorting
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
@@ -509,6 +532,108 @@ async def get_library_audit(
     }
 
 
+# ============================================================================
+# Metadata quality audit
+# ============================================================================
+
+_SUSPICIOUS_TITLE_PATTERNS = [
+    "official music video",
+    "official video",
+    "official audio",
+    "(hd)",
+    "(4k)",
+    "(lyrics)",
+    "(lyric video)",
+    "(audio)",
+    "ft.",
+    "- topic",
+    "vevo",
+]
+
+
+def _check_song_metadata(song: DbSong) -> list:
+    """Return a list of metadata quality issues for a single song."""
+    issues = []
+    title = song.title or ""
+    artist = song.artist or ""
+
+    if not title.strip():
+        issues.append({"type": "empty_title", "label": "Missing Title", "severity": "error"})
+    if not artist.strip():
+        issues.append({"type": "empty_artist", "label": "Missing Artist", "severity": "error"})
+    if artist.strip() == "Unknown Artist":
+        issues.append({"type": "unknown_artist", "label": "Unknown Artist", "severity": "warning"})
+
+    title_lower = title.lower()
+    if any(p in title_lower for p in _SUSPICIOUS_TITLE_PATTERNS):
+        issues.append({"type": "suspicious_title", "label": "Raw YouTube Title", "severity": "warning"})
+
+    if len(title) > 80:
+        issues.append({"type": "long_title", "label": "Long Title", "severity": "info"})
+
+    if len(title) < 5 and len(artist) > 40:
+        issues.append({"type": "swapped_fields", "label": "Possibly Swapped", "severity": "warning"})
+
+    combined = f"{title} {artist}"
+    if "\ufffd" in combined or any(ord(c) > 0xFFFF for c in combined):
+        issues.append({"type": "encoding_artifact", "label": "Encoding Issue", "severity": "warning"})
+
+    if not song.source:
+        issues.append({"type": "missing_source", "label": "No Source", "severity": "info"})
+    if song.duration is None:
+        issues.append({"type": "missing_duration", "label": "No Duration", "severity": "warning"})
+    if not song.primary_genre:
+        issues.append({"type": "missing_genre", "label": "No Genre", "severity": "info"})
+    if not song.album:
+        issues.append({"type": "missing_album", "label": "No Album", "severity": "info"})
+    if not song.plain_lyrics and not song.synced_lyrics:
+        issues.append({"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"})
+    if not song.vocal_range_low and not song.vocal_range_high:
+        issues.append({"type": "missing_vocal_range", "label": "No Vocal Range", "severity": "info"})
+
+    return issues
+
+
+@router.get("/metadata-audit", response_model=MetadataAuditResponse)
+async def get_metadata_audit(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Scan all songs for metadata quality issues.
+
+    Checks for missing fields, suspicious title patterns, encoding artifacts,
+    and other data quality problems. Returns only songs with at least one issue.
+    """
+    repo = SongRepository(db)
+    all_songs = repo.fetch_all()
+    flagged = []
+    summary: dict = defaultdict(int)
+
+    for song in all_songs:
+        issues = _check_song_metadata(song)
+        if issues:
+            for issue in issues:
+                summary[issue["type"]] += 1
+            flagged.append(
+                FlaggedSong(
+                    id=song.id,
+                    title=song.title,
+                    artist=song.artist,
+                    date_added=song.date_added.isoformat() if song.date_added else None,
+                    source=song.source,
+                    issues=[MetadataIssue(**i) for i in issues],
+                )
+            )
+
+    return MetadataAuditResponse(
+        flagged_songs=flagged,
+        summary=dict(summary),
+        total_songs_scanned=len(all_songs),
+        total_flagged=len(flagged),
+    )
+
+
 @router.delete("/orphan/{dir_name}", status_code=200)
 async def delete_orphaned_directory(
     dir_name: str,
@@ -545,6 +670,73 @@ async def delete_orphaned_directory(
     return {"message": f"Orphaned directory '{dir_name}' deleted successfully"}
 
 
+@router.delete("/orphan-bulk", status_code=200)
+async def bulk_delete_orphaned_directories(
+    request: BulkDeleteOrphansRequest = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Bulk-delete multiple orphaned library directories with no corresponding DB records.
+    """
+    config = get_config()
+    repo = SongRepository(db)
+    file_service = FileService()
+
+    deleted = 0
+    skipped = 0
+
+    for dir_name in request.dir_names:
+        # Safety: reject any path traversal attempts
+        if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+            logger.warning(f"Bulk delete skipping invalid dir name: {dir_name!r}")
+            skipped += 1
+            continue
+
+        song_dir = config.LIBRARY_DIR / dir_name
+        if not song_dir.exists() or not song_dir.is_dir():
+            skipped += 1
+            continue
+
+        # Skip if a DB record exists (safety check)
+        if repo.fetch(dir_name):
+            logger.warning(f"Bulk delete skipping {dir_name!r}: DB record exists")
+            skipped += 1
+            continue
+
+        file_service.delete_song_files(dir_name)
+        deleted += 1
+
+    logger.info(f"Bulk orphan delete: {deleted} deleted, {skipped} skipped")
+    return {"deleted": deleted, "skipped": skipped}
+
+
+@router.delete("/ghost-bulk", status_code=200)
+async def bulk_delete_ghost_records(
+    request: BulkDeleteGhostsRequest = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Bulk-delete multiple ghost DB records that have no corresponding files on disk.
+    """
+    repo = SongRepository(db)
+
+    deleted = 0
+    skipped = 0
+
+    for song_id in request.song_ids:
+        song = repo.fetch(song_id)
+        if not song:
+            skipped += 1
+            continue
+        repo.delete(song_id)
+        deleted += 1
+
+    logger.info(f"Bulk ghost delete: {deleted} deleted, {skipped} skipped")
+    return {"deleted": deleted, "skipped": skipped}
+
+
 @router.get("/{song_id}/chords")
 async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
     """
@@ -573,6 +765,36 @@ async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500, detail=f"Failed to get chord data: {str(e)}"
         )
+
+
+@router.get("/duplicates")
+async def get_duplicate_songs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return clusters of songs that share the same case-insensitive title+artist.
+    """
+    repo = SongRepository(db)
+    clusters = repo.find_duplicates()
+    result = [
+        [
+            {
+                "id": s.id,
+                "title": s.title,
+                "artist": s.artist,
+                "date_added": s.date_added.isoformat() if s.date_added else None,
+                "source": s.source,
+            }
+            for s in cluster
+        ]
+        for cluster in clusters
+    ]
+    return {
+        "clusters": result,
+        "total_clusters": len(result),
+        "total_duplicates": sum(len(c) for c in result),
+    }
 
 
 @router.get("/{song_id}", response_model=SongResponse)
@@ -628,6 +850,11 @@ async def create_song(song_data: SongCreateRequest, db: Session = Depends(get_db
                 status_code=500, detail=f"Failed to create song {song_id} in database"
             )
 
+        # Populate song_artists join table
+        from app.services.song_artist_service import populate_song_artists
+
+        populate_song_artists(db, song, song_data.artist)
+
         # Create the song directory
         try:
             file_service = FileService()
@@ -672,11 +899,24 @@ async def update_song(
         # Extract itunesCollectionId before mapping — handled separately (album linkage)
         itunes_collection_id = update_dict.pop("itunesCollectionId", None)
 
+        # Extract itunesArtworkUrls — used below to download album cover, not stored in DB
+        update_dict.pop("itunesArtworkUrls", None)
+
         # Extract lyrics fields for separate handling via LyricsRepository
         lyrics_data = extract_lyrics_fields(update_dict)
 
         # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
+
+        # Enrich with Last.fm genres when primary_genre is being set
+        if "primary_genre" in update_fields:
+            from app.services.lastfm_service import fetch_track_genres
+
+            artist_name = update_fields.get("artist") or db_song.artist
+            song_title = update_fields.get("title") or db_song.title
+            fetched_genres = await fetch_track_genres(artist_name, song_title)
+            if fetched_genres:
+                update_fields["genres"] = fetched_genres
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
@@ -684,6 +924,13 @@ async def update_song(
                 raise HTTPException(
                     status_code=500, detail="Failed to update song metadata"
                 )
+
+        # Re-populate song_artists join table when artist changes
+        if "artist" in update_dict:
+            from app.services.song_artist_service import populate_song_artists
+
+            db_song = repo.fetch(song_id)
+            populate_song_artists(db, db_song, db_song.artist)
 
         # Save lyrics via LyricsRepository
         if lyrics_data:
@@ -1001,6 +1248,18 @@ async def batch_fingerprint_songs_endpoint(
     return {"taskId": task.id, "status": "dispatched", "reprocess_all": force}
 
 
+@router.post("/backfill-artwork", status_code=202)
+async def backfill_artwork_endpoint(
+    force: bool = Query(False, description="Reprocess all songs, including those already with album art"),
+    current_user: User = Depends(get_current_user),
+):
+    """Dispatch a Celery task to backfill album art for songs missing it."""
+    from app.jobs.jobs import batch_backfill_artwork
+
+    task = batch_backfill_artwork.delay(force=force)
+    return {"taskId": task.id, "status": "dispatched", "force": force}
+
+
 @router.post("/{song_id}/fingerprint/lookup")
 async def lookup_song_fingerprint(
     song_id: str,
@@ -1050,7 +1309,8 @@ async def apply_song_fingerprint(
 ):
     """Apply a selected AcoustID candidate to the song record."""
     song_repo = SongRepository(db)
-    if not song_repo.fetch(song_id):
+    song = song_repo.fetch(song_id)
+    if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
     song_repo.update(
@@ -1061,6 +1321,13 @@ async def apply_song_fingerprint(
         musicbrainz_recording_id=request.recording_id,
         acoustid_fingerprint_status="matched",
     )
+
+    # Re-populate song_artists join table so artist browse stays in sync
+    from app.services.song_artist_service import populate_song_artists
+
+    song = song_repo.fetch(song_id)
+    populate_song_artists(db, song, request.artist)
+
     logger.info(
         "fingerprint/apply: song %s → '%s' by '%s' (score=%.2f, recording=%s)",
         song_id,
@@ -1087,6 +1354,37 @@ async def skip_fingerprint(
     db.commit()
     logger.info("Marked song %s as fingerprint-skipped", song_id)
     return {"status": "skipped"}
+
+
+@router.post("/{song_id}/fetch-genre", status_code=200)
+async def fetch_genre(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Fetch genre from iTunes for a song and persist it, enriching with Last.fm tags."""
+    from app.services.itunes_service import search_itunes
+    from app.services.lastfm_service import fetch_track_genres
+
+    repo = SongRepository(db)
+    song = repo.fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    results = search_itunes(song.artist, song.title, limit=1)
+    if not results or not results[0].get("genre"):
+        raise HTTPException(status_code=404, detail="No genre found for this song")
+
+    genre = results[0]["genre"]
+    update_fields: dict = {"primary_genre": genre}
+
+    lastfm_genres = await fetch_track_genres(song.artist, song.title)
+    if lastfm_genres:
+        update_fields["genres"] = lastfm_genres
+
+    repo.update(song_id, **update_fields)
+    logger.info("Fetched genre '%s' for song %s", genre, song_id)
+    return {"genre": genre, "genres": lastfm_genres}
 
 
 @router.post("/{song_id}/fingerprint", status_code=202)
