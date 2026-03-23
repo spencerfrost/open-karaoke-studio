@@ -3,9 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { ShieldAlert } from "lucide-react";
+import { Music, ShieldAlert } from "lucide-react";
 import { SongActionPanel } from "./SongActionPanel";
 import { Song } from "@/types/Song";
 
@@ -71,6 +72,21 @@ export const DataQualityTab: React.FC = () => {
       }
     },
     onError: () => toast.error("Failed to run data quality scan"),
+  });
+
+  const backfillGenresMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const res = await fetch(`/api/songs/backfill-genres?mode=${mode}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to queue genre backfill");
+      return res.json() as Promise<{ taskId: string; queued: number }>;
+    },
+    onSuccess: (data) => {
+      toast.success(`Queued genre backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`);
+    },
+    onError: () => toast.error("Failed to queue genre backfill"),
   });
 
   const handleDone = () => {
@@ -213,6 +229,40 @@ export const DataQualityTab: React.FC = () => {
           </p>
         </div>
       )}
+
+      <Separator />
+
+      {/* Genre Enrichment */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Genre Enrichment</h2>
+          <p className="text-sm text-muted-foreground">
+            Fetch genre tags from Last.fm for your library.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => backfillGenresMutation.mutate("missing")}
+            disabled={backfillGenresMutation.isPending}
+          >
+            <Music className="mr-2 h-4 w-4" />
+            {backfillGenresMutation.variables === "missing" && backfillGenresMutation.isPending
+              ? "Queueing..."
+              : "Backfill Missing"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => backfillGenresMutation.mutate("all")}
+            disabled={backfillGenresMutation.isPending}
+          >
+            <Music className="mr-2 h-4 w-4" />
+            {backfillGenresMutation.variables === "all" && backfillGenresMutation.isPending
+              ? "Queueing..."
+              : "Refresh All"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

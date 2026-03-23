@@ -538,6 +538,58 @@ def batch_backfill_artwork(force: bool = False) -> dict:
     return {"processed": len(song_ids), "success": success, "skipped": skipped}
 
 
+@celery.task(name="batch_backfill_genres")
+def batch_backfill_genres(mode: str = "missing") -> dict:
+    """
+    Batch Celery task: populate genres from Last.fm for library songs.
+
+    mode="missing" — only processes songs where genres is NULL or empty.
+    mode="all"     — processes every song in the library.
+
+    Skips songs where Last.fm returns no matches (leaves existing value unchanged).
+    """
+    import asyncio
+
+    from app.db.database import get_db_session
+    from app.db.models.song import DbSong
+    from app.repositories.song_repository import SongRepository
+    from app.services.lastfm_service import fetch_track_genres
+
+    with get_db_session() as session:
+        query = session.query(DbSong.id, DbSong.title, DbSong.artist)
+        if mode == "missing":
+            query = query.filter(
+                (DbSong.genres.is_(None)) | (DbSong.genres == [])
+            )
+        rows = query.all()
+
+    songs = [(row[0], row[1], row[2]) for row in rows]
+    logger.info("batch_backfill_genres: processing %d songs (mode=%s)", len(songs), mode)
+
+    success = 0
+    skipped = 0
+    for song_id, title, artist in songs:
+        if not title or not artist:
+            skipped += 1
+            continue
+        try:
+            genres = asyncio.run(fetch_track_genres(artist, title))
+            if genres:
+                with get_db_session() as session:
+                    SongRepository(session).update(song_id, genres=genres)
+                success += 1
+            else:
+                skipped += 1
+        except Exception:
+            logger.warning("batch_backfill_genres: error for song %s", song_id, exc_info=True)
+            skipped += 1
+
+    logger.info(
+        "batch_backfill_genres: done — %d updated, %d skipped", success, skipped
+    )
+    return {"processed": len(songs), "success": success, "skipped": skipped}
+
+
 @celery.task(name="fingerprint_single_song")
 def fingerprint_single_song(song_id: str) -> dict:
     """Fingerprint a single song via AcoustID."""
