@@ -40,15 +40,17 @@ from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
     ArtistSearchResponse,
+    FingerprintApplyRequest,
     PaginationInfo,
     SongCreateRequest,
     SongReprocessRequest,
+    SongReplaceYouTubeRequest,
     SongResponse,
     SongSearchResponse,
     SongUpdateRequest,
 )
 from app.services.file_service import FileService
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -396,6 +398,151 @@ async def get_songs_by_artist(
             status_code=500,
             detail=f"Failed to get songs for artist: {str(e)}",
         )
+
+
+@router.get("/by-fingerprint-status", response_model=List[SongResponse])
+async def get_songs_by_fingerprint_status(
+    status: str = Query(..., description="acoustid_fingerprint_status value"),
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return songs filtered by acoustid_fingerprint_status."""
+    valid = {"no_match", "failed", "not_checked", "matched", "skipped"}
+    if status not in valid:
+        raise HTTPException(status_code=400, detail=f"status must be one of: {valid}")
+    songs = SongRepository(db).fetch_all(
+        filters={"acoustid_fingerprint_status": status},
+        sort_by="date_added",
+        direction="asc",
+        limit=limit,
+        offset=offset,
+    )
+    return [song.to_dict() for song in songs]
+
+
+@router.get("/library-audit")
+async def get_library_audit(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Audit the karaoke library by cross-referencing filesystem directories with DB records.
+
+    Returns three categories of discrepancies:
+    - orphaned_directories: dirs on disk with no DB record
+    - ghost_records: DB records with no directory on disk
+    - incomplete_songs: DB records with a directory but missing key audio files
+    """
+    config = get_config()
+    file_service = FileService()
+    repo = SongRepository(db)
+
+    disk_ids = set(file_service.get_processed_song_ids())
+    all_songs = repo.fetch_all()
+    db_ids = {song.id for song in all_songs}
+    db_songs_by_id = {song.id: song for song in all_songs}
+
+    # Orphaned directories: on disk, not in DB
+    orphaned_directories = []
+    for dir_name in sorted(disk_ids - db_ids):
+        song_dir = config.LIBRARY_DIR / dir_name
+        files = file_service.list_song_files(dir_name)
+        total_size = sum(f.stat().st_size for f in files if f.exists())
+        orphaned_directories.append(
+            {
+                "dir_name": dir_name,
+                "files": [f.name for f in files],
+                "total_size_bytes": total_size,
+            }
+        )
+
+    # Ghost records: in DB, not on disk
+    ghost_records = []
+    for song_id in sorted(db_ids - disk_ids):
+        song = db_songs_by_id[song_id]
+        ghost_records.append(
+            {
+                "id": song.id,
+                "title": song.title,
+                "artist": song.artist,
+                "date_added": song.date_added.isoformat() if song.date_added else None,
+            }
+        )
+
+    # Incomplete songs: in DB and on disk, but missing key audio files
+    key_files = ["original.mp3", "vocals.mp3", "instrumental.mp3"]
+    incomplete_songs = []
+    for song_id in sorted(disk_ids & db_ids):
+        song_dir = config.LIBRARY_DIR / song_id
+        present = {f.name for f in song_dir.iterdir() if f.is_file()}
+        missing = [f for f in key_files if f not in present]
+        if missing:
+            song = db_songs_by_id[song_id]
+            has_original = "original.mp3" in present
+            # Also accept .wav variants as present
+            if not has_original:
+                has_original = "original.wav" in present
+            incomplete_songs.append(
+                {
+                    "id": song.id,
+                    "title": song.title,
+                    "artist": song.artist,
+                    "missing_files": missing,
+                    "has_original": has_original,
+                    "video_id": song.video_id,
+                }
+            )
+
+    return {
+        "orphaned_directories": orphaned_directories,
+        "ghost_records": ghost_records,
+        "incomplete_songs": incomplete_songs,
+        "summary": {
+            "total_directories": len(disk_ids),
+            "total_db_songs": len(db_ids),
+            "orphaned_count": len(orphaned_directories),
+            "ghost_count": len(ghost_records),
+            "incomplete_count": len(incomplete_songs),
+        },
+    }
+
+
+@router.delete("/orphan/{dir_name}", status_code=200)
+async def delete_orphaned_directory(
+    dir_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete an orphaned library directory that has no corresponding DB record.
+    """
+    config = get_config()
+
+    # Safety: reject any path traversal attempts
+    if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+        raise HTTPException(status_code=400, detail="Invalid directory name")
+
+    # Confirm it's actually on disk
+    song_dir = config.LIBRARY_DIR / dir_name
+    if not song_dir.exists() or not song_dir.is_dir():
+        raise HTTPException(
+            status_code=404, detail=f"Directory not found: {dir_name}"
+        )
+
+    # Confirm there is no DB record (safety check)
+    repo = SongRepository(db)
+    if repo.fetch(dir_name):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A DB record exists for {dir_name}. Use DELETE /api/songs/{dir_name} instead.",
+        )
+
+    file_service = FileService()
+    file_service.delete_song_files(dir_name)
+    logger.info(f"Deleted orphaned directory: {dir_name}")
+    return {"message": f"Orphaned directory '{dir_name}' deleted successfully"}
 
 
 @router.get("/{song_id}/chords")
@@ -843,9 +990,428 @@ async def reprocess_song(
 
 
 @router.post("/fingerprint", status_code=202)
-async def batch_fingerprint_songs_endpoint():
-    """Dispatch a Celery task to fingerprint all un-fingerprinted songs."""
+async def batch_fingerprint_songs_endpoint(
+    force: bool = Query(False, description="Re-fingerprint all songs, including already-processed ones"),
+    current_user: User = Depends(get_current_user),
+):
+    """Dispatch a Celery task to fingerprint songs. Pass ?force=true to reprocess everything."""
     from app.jobs.jobs import batch_fingerprint_songs
 
-    task = batch_fingerprint_songs.delay()
+    task = batch_fingerprint_songs.delay(reprocess_all=force)
+    return {"taskId": task.id, "status": "dispatched", "reprocess_all": force}
+
+
+@router.post("/{song_id}/fingerprint/lookup")
+async def lookup_song_fingerprint(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run AcoustID fingerprint synchronously and return all candidates. Does not save results."""
+    from pathlib import Path
+
+    from app.services.acoustid_service import AcoustIdService
+
+    if not SongRepository(db).fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    config = get_config()
+    song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
+    original = song_dir / "original.mp3"
+    instrumental = song_dir / "instrumental.mp3"
+    vocals = song_dir / "vocals.mp3"
+    audio_path = (
+        original if original.exists()
+        else instrumental if instrumental.exists()
+        else vocals if vocals.exists()
+        else None
+    )
+
+    if not audio_path:
+        raise HTTPException(status_code=422, detail="No audio file found for this song")
+
+    try:
+        candidates = AcoustIdService(SongRepository(db)).lookup_candidates(audio_path)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception:
+        logger.exception("fingerprint/lookup failed for song %s", song_id)
+        raise HTTPException(status_code=500, detail="Fingerprint lookup failed")
+
+    return {"candidates": candidates}
+
+
+@router.post("/{song_id}/fingerprint/apply")
+async def apply_song_fingerprint(
+    song_id: str,
+    request: FingerprintApplyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Apply a selected AcoustID candidate to the song record."""
+    song_repo = SongRepository(db)
+    if not song_repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    song_repo.update(
+        song_id,
+        title=request.title,
+        artist=request.artist,
+        acoustid_score=request.score,
+        musicbrainz_recording_id=request.recording_id,
+        acoustid_fingerprint_status="matched",
+    )
+    logger.info(
+        "fingerprint/apply: song %s → '%s' by '%s' (score=%.2f, recording=%s)",
+        song_id,
+        request.title,
+        request.artist,
+        request.score,
+        request.recording_id,
+    )
+    return {"status": "applied"}
+
+
+@router.post("/{song_id}/skip-fingerprint", status_code=200)
+async def skip_fingerprint(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark a song's AcoustID status as skipped so it no longer appears in the review panel."""
+    repo = SongRepository(db)
+    song = repo.fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    song.acoustid_fingerprint_status = "skipped"
+    db.commit()
+    logger.info("Marked song %s as fingerprint-skipped", song_id)
+    return {"status": "skipped"}
+
+
+@router.post("/{song_id}/fingerprint", status_code=202)
+async def fingerprint_single_song_endpoint(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dispatch an AcoustID fingerprint job for a single song."""
+    if not SongRepository(db).fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+    from app.jobs.celery_app import celery
+
+    task = celery.send_task("fingerprint_single_song", args=[song_id])
     return {"taskId": task.id, "status": "dispatched"}
+
+
+@router.post("/{song_id}/validate-youtube-replacement", status_code=200)
+async def validate_youtube_replacement(
+    song_id: str,
+    request: SongReplaceYouTubeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate a YouTube replacement track with AcoustID before processing."""
+    from pathlib import Path
+    import shutil
+    import uuid
+
+    from app.services.youtube_service import YouTubeService
+    from app.services.acoustid_service import AcoustIdService
+    from app.schemas.song import ReplacementValidationResponse
+
+    song_repo = SongRepository(db)
+    if not song_repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    try:
+        # Use a temporary unique ID for download
+        temp_song_id = f"validation_{uuid.uuid4().hex[:8]}"
+        youtube_service = YouTubeService()
+
+        try:
+            # Download video to temp location in library (will be cleaned up after)
+            youtube_service.download_video(
+                video_id_or_url=request.video_id,
+                song_id=temp_song_id,
+                artist=request.artist,
+                title=request.title,
+            )
+
+            # Find the downloaded audio file
+            from app.config import get_config
+
+            config = get_config()
+            temp_song_dir = Path(config.BASE_LIBRARY_DIR) / temp_song_id
+            audio_path = temp_song_dir / "original.mp3"
+
+            if not audio_path.exists():
+                raise FileNotFoundError(f"Downloaded audio not found at {audio_path}")
+
+            # Run AcoustID fingerprinting using lookup_candidates (doesn't modify DB)
+            acoustid_service = AcoustIdService(SongRepository(db))
+            candidates = acoustid_service.lookup_candidates(audio_path)
+
+            # Extract best match
+            if candidates:
+                best = candidates[0]
+                acoustid_status = "matched"
+                acoustid_score = best["score"]
+                mbid = best["recordingId"]
+                title_match = best["title"]
+                artist_match = best["artist"]
+            else:
+                acoustid_status = "no_match"
+                acoustid_score = None
+                mbid = None
+                title_match = None
+                artist_match = None
+
+            # Determine validation success
+            validated = acoustid_status == "matched" and (acoustid_score or 0) >= 0.9
+            message = _format_validation_message(acoustid_status, acoustid_score)
+
+            return ReplacementValidationResponse(
+                validated=validated,
+                audioPath=str(audio_path) if validated else None,
+                acoustidStatus=acoustid_status,
+                acoustidScore=acoustid_score,
+                musicbrainzId=mbid,
+                title=title_match,
+                artist=artist_match,
+                message=message,
+            )
+
+        except Exception as e:
+            logger.error("AcoustID validation failed: %s", e, exc_info=True)
+            raise
+
+        finally:
+            # Clean up temp directory
+            if temp_song_dir.exists():
+                shutil.rmtree(temp_song_dir, ignore_errors=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("YouTube validation failed for song %s: %s", song_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+@router.post("/{song_id}/validate-upload-replacement", status_code=200)
+async def validate_upload_replacement(
+    song_id: str,
+    audio_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate an uploaded replacement track with AcoustID before processing."""
+    from pathlib import Path
+    import tempfile
+    import shutil
+
+    from app.services.acoustid_service import AcoustIdService
+    from app.schemas.song import ReplacementValidationResponse
+
+    song_repo = SongRepository(db)
+    if not song_repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    if not (audio_file.content_type or "").startswith("audio/"):
+        raise HTTPException(status_code=400, detail="File must be an audio file")
+
+    try:
+        # Save to temp location
+        temp_dir = Path(tempfile.mkdtemp())
+        temp_audio = temp_dir / "validation.mp3"
+        temp_audio.write_bytes(await audio_file.read())
+
+        try:
+            # Run AcoustID fingerprinting using lookup_candidates (doesn't modify DB)
+            acoustid_service = AcoustIdService(SongRepository(db))
+            candidates = acoustid_service.lookup_candidates(temp_audio)
+
+            # Extract best match
+            if candidates:
+                best = candidates[0]
+                acoustid_status = "matched"
+                acoustid_score = best["score"]
+                mbid = best["recordingId"]
+                title_match = best["title"]
+                artist_match = best["artist"]
+            else:
+                acoustid_status = "no_match"
+                acoustid_score = None
+                mbid = None
+                title_match = None
+                artist_match = None
+
+            # Determine validation success
+            validated = acoustid_status == "matched" and (acoustid_score or 0) >= 0.9
+            message = _format_validation_message(acoustid_status, acoustid_score)
+
+            return ReplacementValidationResponse(
+                validated=validated,
+                audioPath=str(temp_audio) if validated else None,
+                acoustidStatus=acoustid_status,
+                acoustidScore=acoustid_score,
+                musicbrainzId=mbid,
+                title=title_match,
+                artist=artist_match,
+                message=message,
+            )
+
+        finally:
+            # Clean up temp directory
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Upload validation failed for song %s: %s", song_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+def _format_validation_message(status: str, score: Optional[float]) -> str:
+    """Format a human-readable validation message."""
+    if status == "matched":
+        if score and score >= 0.9:
+            return f"✓ Match found with high confidence ({score:.1%})"
+        elif score:
+            return f"⚠ Match found but confidence too low ({score:.1%} < 90%)"
+        else:
+            return "⚠ Match found but confidence unknown"
+    elif status == "no_match":
+        return "✗ No AcoustID match found — this track may not be the right song"
+    elif status == "failed":
+        return "✗ AcoustID fingerprinting failed — unable to validate this track"
+    else:
+        return f"? Unknown validation status: {status}"
+
+
+@router.post("/{song_id}/replace-youtube", status_code=202)
+async def replace_song_youtube(
+    song_id: str,
+    request: SongReplaceYouTubeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace a song's audio source with a YouTube Music track and reprocess."""
+    from datetime import datetime, timezone
+
+    from app.db.models import JobStatus
+    from app.repositories import JobRepository
+    from app.services.youtube_service import YouTubeService
+
+    song_repo = SongRepository(db)
+    db_song = song_repo.fetch(song_id)
+    if not db_song:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    job_repository = JobRepository()
+    active_jobs = job_repository.get_jobs_by_status(
+        [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
+    )
+    if any(j.song_id == song_id for j in active_jobs):
+        raise HTTPException(status_code=409, detail="Song is already being processed")
+
+    song_repo.update(
+        song_id,
+        acoustid_fingerprint_status="not_checked",
+        acoustid_score=None,
+        musicbrainz_recording_id=None,
+        bpm=None,
+        chords_data=None,
+        vocal_range_low=None,
+        vocal_range_high=None,
+        loudness_dbfs=None,
+        gain_db=None,
+        engine_type=None,
+    )
+
+    FileService().delete_song_files(song_id)
+
+    job_id = YouTubeService().download_and_process_async(
+        video_id_or_url=request.video_id,
+        song_id=song_id,
+        artist=request.artist or db_song.artist,
+        title=request.title or db_song.title,
+        engine_type=request.engine_type,
+    )
+    logger.info("replace-youtube: queued job %s for song %s", job_id, song_id)
+    return {"jobId": job_id, "status": "pending"}
+
+
+@router.post("/{song_id}/replace-upload", status_code=202)
+async def replace_song_upload(
+    song_id: str,
+    audio_file: UploadFile = File(...),
+    engine_type: str = Form(default="three_track"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Replace a song's audio source with an uploaded MP3 and reprocess."""
+    from datetime import datetime, timezone
+
+    from app.db.models import Job, JobStatus
+    from app.repositories import JobRepository
+
+    song_repo = SongRepository(db)
+    db_song = song_repo.fetch(song_id)
+    if not db_song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if not (audio_file.content_type or "").startswith("audio/"):
+        raise HTTPException(status_code=400, detail="File must be an audio file")
+
+    valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+    if engine_type not in valid_engines:
+        raise HTTPException(status_code=400, detail=f"engine_type must be one of: {valid_engines}")
+
+    job_repository = JobRepository()
+    active_jobs = job_repository.get_jobs_by_status(
+        [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
+    )
+    if any(j.song_id == song_id for j in active_jobs):
+        raise HTTPException(status_code=409, detail="Song is already being processed")
+
+    song_repo.update(
+        song_id,
+        acoustid_fingerprint_status="not_checked",
+        acoustid_score=None,
+        musicbrainz_recording_id=None,
+        bpm=None,
+        chords_data=None,
+        vocal_range_low=None,
+        vocal_range_high=None,
+        loudness_dbfs=None,
+        gain_db=None,
+        engine_type=None,
+    )
+
+    song_dir = FileService().get_song_directory(song_id)
+    dest = song_dir / "original.mp3"
+    dest.write_bytes(await audio_file.read())
+
+    job_id = str(uuid.uuid4())
+    job = Job(
+        id=job_id,
+        filename="original.mp3",
+        status=JobStatus.PENDING,
+        status_message="Queued for reprocessing with uploaded audio",
+        progress=0,
+        song_id=song_id,
+        title=db_song.title,
+        artist=db_song.artist,
+        engine_type=engine_type,
+        created_at=datetime.now(timezone.utc),
+    )
+    job_repository.create(job)
+
+    from app.jobs.celery_app import celery
+
+    task = celery.send_task("process_audio_job", args=[job_id, engine_type])
+    job.task_id = task.id
+    job_repository.update(job)
+
+    logger.info("replace-upload: queued job %s for song %s", job_id, song_id)
+    return {"jobId": job_id, "status": "pending"}

@@ -374,8 +374,14 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
         logger.info("Post-processing complete for song %s (%s fields updated)", song_id, len(update_kwargs))
 
     # AcoustID fingerprinting — identify the track by audio content
+    # Prefer original.mp3 (full mix) — stems are acoustically degraded and produce unreliable matches
     try:
-        audio_path = instrumental_path if instrumental_path.exists() else vocals_path
+        original_path = song_dir / "original.mp3"
+        audio_path = (
+            original_path if original_path.exists()
+            else instrumental_path if instrumental_path.exists()
+            else vocals_path
+        )
         if audio_path.exists():
             from app.services.acoustid_service import AcoustIdService
 
@@ -416,10 +422,11 @@ def post_process_song(self, song_id: str) -> None:
 
 
 @celery.task(name="batch_fingerprint_songs")
-def batch_fingerprint_songs() -> None:
+def batch_fingerprint_songs(reprocess_all: bool = False) -> None:
     """
-    Batch Celery task: fingerprint all songs with acoustid_fingerprint_status='not_checked'.
-    Dispatched via POST /api/songs/fingerprint. Safe to re-run — already-processed songs are skipped.
+    Batch Celery task: fingerprint songs via AcoustID.
+    By default only processes songs with status='not_checked'.
+    Pass reprocess_all=True to re-fingerprint every song (clears prior results).
     """
     from app.config import get_config
     from app.db.database import get_db_session
@@ -430,20 +437,23 @@ def batch_fingerprint_songs() -> None:
     config = get_config()
 
     with get_db_session() as session:
-        song_ids = [
-            row[0]
-            for row in session.query(DbSong.id)
-            .filter(DbSong.acoustid_fingerprint_status == "not_checked")
-            .all()
-        ]
+        query = session.query(DbSong.id)
+        if not reprocess_all:
+            query = query.filter(DbSong.acoustid_fingerprint_status == "not_checked")
+        song_ids = [row[0] for row in query.all()]
 
     logger.info("batch_fingerprint_songs: processing %d songs", len(song_ids))
 
     for song_id in song_ids:
         song_dir = config.BASE_LIBRARY_DIR / song_id
+        original_path = song_dir / "original.mp3"
         instrumental_path = song_dir / "instrumental.mp3"
         vocals_path = song_dir / "vocals.mp3"
-        audio_path = instrumental_path if instrumental_path.exists() else vocals_path
+        audio_path = (
+            original_path if original_path.exists()
+            else instrumental_path if instrumental_path.exists()
+            else vocals_path
+        )
 
         if not audio_path.exists():
             logger.warning("batch_fingerprint_songs: no audio for song %s, skipping", song_id)
@@ -458,6 +468,41 @@ def batch_fingerprint_songs() -> None:
             logger.warning("batch_fingerprint_songs: error processing song %s", song_id, exc_info=True)
 
     logger.info("batch_fingerprint_songs: done")
+
+
+@celery.task(name="fingerprint_single_song")
+def fingerprint_single_song(song_id: str) -> dict:
+    """Fingerprint a single song via AcoustID."""
+    from pathlib import Path
+
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.acoustid_service import AcoustIdService
+
+    config = get_config()
+    song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
+    original = song_dir / "original.mp3"
+    instrumental = song_dir / "instrumental.mp3"
+    vocals = song_dir / "vocals.mp3"
+    audio_path = (
+        original if original.exists()
+        else instrumental if instrumental.exists()
+        else vocals if vocals.exists()
+        else None
+    )
+
+    with get_db_session() as session:
+        if audio_path is None:
+            logger.warning("fingerprint_single_song: no audio file found for song %s", song_id)
+            SongRepository(session).update(song_id, acoustid_fingerprint_status="failed")
+            return {"status": "no_audio", "song_id": song_id}
+        try:
+            AcoustIdService(SongRepository(session)).fingerprint_and_identify(song_id, audio_path)
+        except Exception:
+            logger.exception("fingerprint_single_song: failed for song %s", song_id)
+
+    return {"status": "ok", "song_id": song_id}
 
 
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)

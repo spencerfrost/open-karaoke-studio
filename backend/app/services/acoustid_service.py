@@ -8,7 +8,7 @@ from app.repositories.song_repository import SongRepository
 
 logger = logging.getLogger(__name__)
 
-_MIN_AUTO_CORRECT_SCORE = 0.85
+_MIN_AUTO_CORRECT_SCORE = 0.9
 
 
 class AcoustIdService:
@@ -17,10 +17,10 @@ class AcoustIdService:
 
     def fingerprint_and_identify(self, song_id: str, audio_path: str | Path) -> None:
         """
-        Fingerprint audio via AcoustID and auto-correct metadata if confidence >= 0.85.
+        Fingerprint audio via AcoustID and auto-correct metadata if confidence >= 0.9.
 
         Updates acoustid_fingerprint_status, acoustid_score, musicbrainz_recording_id on the song.
-        If score >= 0.85 and a title/artist are found, also overwrites song.title and song.artist.
+        If score >= 0.9 and a title/artist are found, also overwrites song.title and song.artist.
         """
         api_key = get_config().ACOUSTID_API_KEY
         if not api_key:
@@ -86,3 +86,32 @@ class AcoustIdService:
             )
 
         self.song_repo.update(song_id, **update)
+
+    def lookup_candidates(self, audio_path: str | Path) -> list[dict]:
+        """
+        Run AcoustID fingerprint and return all candidates sorted by score descending.
+        Does NOT modify the database — for admin review use only.
+        """
+        api_key = get_config().ACOUSTID_API_KEY
+        if not api_key:
+            raise ValueError("ACOUSTID_API_KEY not configured")
+
+        results = list(
+            acoustid.match(
+                api_key,
+                str(audio_path),
+                meta="recordings",
+                parse=True,
+            )
+        )
+
+        candidates = [
+            {
+                "score": score,
+                "recordingId": recording_id,
+                "title": title,
+                "artist": artist,
+            }
+            for score, recording_id, title, artist in results
+        ]
+        return sorted(candidates, key=lambda c: c["score"], reverse=True)

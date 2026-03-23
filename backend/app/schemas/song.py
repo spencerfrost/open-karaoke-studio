@@ -158,6 +158,34 @@ class SongReprocessRequest(BaseModel):
         return v
 
 
+class SongReplaceYouTubeRequest(BaseModel):
+    """Request model for replacing a song's source with a YouTube Music track"""
+
+    video_id: str = Field(..., min_length=1, max_length=100)
+    title: Optional[str] = Field(None, max_length=200)
+    artist: Optional[str] = Field(None, max_length=200)
+    engine_type: str = Field(default="three_track")
+
+    @field_validator("engine_type")
+    @classmethod
+    def validate_engine_type(cls, v: str) -> str:
+        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        if v not in valid_engines:
+            raise ValueError(
+                f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"
+            )
+        return v
+
+
+class FingerprintApplyRequest(BaseModel):
+    """Request model for applying a selected AcoustID candidate to a song."""
+
+    recording_id: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field(..., min_length=1, max_length=200)
+    score: float = Field(..., ge=0.0, le=1.0)
+
+
 class PaginationInfo(BaseModel):
     """Pagination metadata"""
 
@@ -189,3 +217,16 @@ class ArtistSearchResponse(BaseModel):
     totalSongs: int
     totalArtists: int
     pagination: PaginationInfo
+
+
+class ReplacementValidationResponse(BaseModel):
+    """Response for replacement audio validation with AcoustID"""
+
+    validated: bool
+    audioPath: Optional[str] = None  # Temp path if validation was successful
+    acoustidStatus: str  # "matched" | "no_match" | "failed"
+    acoustidScore: Optional[float] = None
+    musicbrainzId: Optional[str] = None
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    message: str  # Human-readable status message
