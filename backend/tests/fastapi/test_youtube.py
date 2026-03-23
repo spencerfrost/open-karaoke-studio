@@ -2,7 +2,7 @@
 Tests for FastAPI YouTube endpoints.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -180,3 +180,37 @@ class TestYouTubeDownloadErrorPaths:
         })
         # Should succeed (whitespace title normalized to None)
         assert response.status_code == 202
+
+
+class TestYouTubePreview:
+    """Tests for YouTube audio preview redirect endpoint."""
+
+    def test_redirects_to_stream_url(self, client):
+        stream_url = "https://cdn.example.com/audio.webm"
+        with patch("app.api.youtube.YouTubeService") as mock_cls:
+            mock_cls.return_value.get_audio_preview_url.return_value = stream_url
+            response = client.get(
+                "/api/youtube/preview/dQw4w9WgXcQ", follow_redirects=False
+            )
+        assert response.status_code == 302
+        assert response.headers["location"] == stream_url
+
+    def test_validation_error_returns_400(self, client):
+        from app.exceptions import ValidationError
+        with patch("app.api.youtube.YouTubeService") as mock_cls:
+            mock_cls.return_value.get_audio_preview_url.side_effect = ValidationError("bad id")
+            response = client.get("/api/youtube/preview/bad-id")
+        assert response.status_code == 400
+
+    def test_service_error_returns_500(self, client):
+        from app.exceptions import ServiceError
+        with patch("app.api.youtube.YouTubeService") as mock_cls:
+            mock_cls.return_value.get_audio_preview_url.side_effect = ServiceError("yt-dlp fail")
+            response = client.get("/api/youtube/preview/abc")
+        assert response.status_code == 500
+
+    def test_unexpected_error_returns_500(self, client):
+        with patch("app.api.youtube.YouTubeService") as mock_cls:
+            mock_cls.return_value.get_audio_preview_url.side_effect = RuntimeError("boom")
+            response = client.get("/api/youtube/preview/abc")
+        assert response.status_code == 500

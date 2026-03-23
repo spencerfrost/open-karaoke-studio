@@ -581,3 +581,37 @@ class TestExtractAudioDuration:
         with patch.dict("sys.modules", {"librosa": mock_librosa}):
             result = service._extract_audio_duration("/tmp/bad.mp3")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# get_audio_preview_url
+# ---------------------------------------------------------------------------
+
+
+class TestGetAudioPreviewUrl:
+    def test_returns_stream_url(self, service):
+        from unittest.mock import patch, MagicMock
+        stream_url = "https://cdn.example.com/audio.webm"
+        with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+            mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
+            mock_ydl.extract_info.return_value = {"url": stream_url}
+            result = service.get_audio_preview_url("dQw4w9WgXcQ")
+        assert result == stream_url
+
+    def test_raises_service_error_when_no_url(self, service):
+        from unittest.mock import patch
+        from app.exceptions import ServiceError
+        with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+            mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
+            mock_ydl.extract_info.return_value = {"url": None}
+            with pytest.raises(ServiceError):
+                service.get_audio_preview_url("abc")
+
+    def test_raises_service_error_on_ydl_exception(self, service):
+        from unittest.mock import patch
+        from app.exceptions import ServiceError
+        with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+            mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
+            mock_ydl.extract_info.side_effect = Exception("yt-dlp failed")
+            with pytest.raises(ServiceError):
+                service.get_audio_preview_url("abc")
