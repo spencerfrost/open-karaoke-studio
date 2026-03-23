@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 interface LyricsPreviewProps {
   plainLyrics?: string;
   syncedLyrics?: string;
-  maxLines?: number;
   className?: string;
 }
 
@@ -22,7 +21,6 @@ function stripLrcTimestamps(syncedLyrics: string): string {
 export const LyricsPreview: React.FC<LyricsPreviewProps> = ({
   plainLyrics,
   syncedLyrics,
-  maxLines = 8,
   className,
 }) => {
   const displayText = useMemo(() => {
@@ -31,13 +29,7 @@ export const LyricsPreview: React.FC<LyricsPreviewProps> = ({
     return null;
   }, [plainLyrics, syncedLyrics]);
 
-  const truncatedText = useMemo(() => {
-    if (!displayText) return null;
-    const lines = displayText.split("\n").slice(0, maxLines);
-    return lines.join("\n");
-  }, [displayText, maxLines]);
-
-  if (!truncatedText) {
+  if (!displayText) {
     return (
       <div
         className={cn(
@@ -52,11 +44,10 @@ export const LyricsPreview: React.FC<LyricsPreviewProps> = ({
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("max-h-48 overflow-y-auto rounded-md", className)}>
       <pre className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap font-sans">
-        {truncatedText}
+        {displayText}
       </pre>
-      <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background to-transparent pointer-events-none" />
     </div>
   );
 };
