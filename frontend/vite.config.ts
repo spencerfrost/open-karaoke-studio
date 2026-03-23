@@ -102,7 +102,7 @@ export default defineConfig(({ mode }) => {
           ws: true, // Enable WebSocket proxying
         },
       },
-      allowedHosts: ["localhost", "karaoke.mrspinn.ca"],
+      allowedHosts: true,
       watch: {
         usePolling: true,
         interval: 1500,

@@ -94,3 +94,5 @@ frontend/src/stores/useKaraokePlayerStore.ts.backup
 .claude/
 .worktrees/
 .superpowers/brainstorm
+frontend/192.168.50.112+2-key.pem
+frontend/192.168.50.112+2.pem
