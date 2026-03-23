@@ -43,6 +43,7 @@ def test_slugify_lowercases():
 @pytest.fixture
 def mock_artist():
     artist = MagicMock()
+    artist.id = 42
     artist.image_status = "not_checked"
     artist.image_path = None
     return artist
@@ -52,6 +53,7 @@ def mock_artist():
 def artist_repo(mock_artist):
     repo = Mock(spec=ArtistRepository)
     repo.get_or_create.return_value = mock_artist
+    repo.get_by_id.return_value = mock_artist
     return repo
 
 
@@ -66,7 +68,17 @@ def file_service():
 
 @pytest.fixture
 def svc(file_service, artist_repo):
-    return ArtistImageService(file_service=file_service, artist_repo=artist_repo)
+    """Build an ArtistImageService with a mock session factory.
+
+    The _repo() helper is patched to return a mock DB + the shared repo so
+    tests can assert on repo method calls without touching real DB sessions.
+    """
+    mock_db = MagicMock()
+    session_factory = Mock(return_value=mock_db)
+    service = ArtistImageService(file_service=file_service, session_factory=session_factory)
+    # Patch _repo to return a fresh mock DB each call but the SAME repo
+    service._repo = Mock(side_effect=lambda: (MagicMock(), artist_repo))
+    return service
 
 
 # ---------------------------------------------------------------------------

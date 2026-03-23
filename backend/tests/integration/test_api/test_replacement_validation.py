@@ -137,7 +137,7 @@ def test_validate_upload_replacement_song_not_found(client):
     audio_data = BytesIO(b"fake mp3 data")
     response = client.post(
         f"/api/songs/{uuid.uuid4()}/validate-upload-replacement",
-        data={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
+        files={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
     )
     assert response.status_code == 404
 
@@ -149,7 +149,7 @@ def test_validate_upload_replacement_invalid_file_type(client):
     text_data = BytesIO(b"This is not audio")
     response = client.post(
         f"/api/songs/{song['id']}/validate-upload-replacement",
-        data={"audio_file": ("test.txt", text_data, "text/plain")},
+        files={"audio_file": ("test.txt", text_data, "text/plain")},
     )
     
     assert response.status_code == 400
@@ -174,7 +174,7 @@ def test_validate_upload_replacement_high_confidence_match(client):
     with patch("app.services.acoustid_service.AcoustIdService.lookup_candidates", return_value=mock_candidates):
         response = client.post(
             f"/api/songs/{song['id']}/validate-upload-replacement",
-            data={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
+            files={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
         )
     
     assert response.status_code == 200
@@ -196,7 +196,7 @@ def test_validate_upload_replacement_no_match(client):
     with patch("app.services.acoustid_service.AcoustIdService.lookup_candidates", return_value=[]):
         response = client.post(
             f"/api/songs/{song['id']}/validate-upload-replacement",
-            data={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
+            files={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
         )
     
     assert response.status_code == 200
@@ -214,7 +214,7 @@ def test_validate_upload_replacement_error_handling(client):
     with patch("app.services.acoustid_service.AcoustIdService.lookup_candidates", side_effect=ValueError("Bad data")):
         response = client.post(
             f"/api/songs/{song['id']}/validate-upload-replacement",
-            data={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
+            files={"audio_file": ("test.mp3", audio_data, "audio/mp3")},
         )
     
     assert response.status_code == 500
@@ -231,7 +231,7 @@ def test_format_validation_message_matched_high_confidence():
     
     msg = _format_validation_message("matched", 0.95)
     assert "✓" in msg
-    assert "95%" in msg or "0.95" in msg
+    assert "95.0%" in msg
     assert "high" in msg.lower()
 
 

@@ -48,12 +48,12 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
         </div>
 
         {/* Genre */}
-        {song.genre && (
+        {song.primaryGenre && (
           <div className="flex items-center gap-2">
             <Tag size={16} className="text-muted-foreground flex-shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">Genre</p>
-              <p className="font-medium">{song.genre}</p>
+              <p className="font-medium">{song.primaryGenre}</p>
             </div>
           </div>
         )}

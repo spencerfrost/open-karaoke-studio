@@ -280,7 +280,7 @@ class TestMetadataDictionary:
             "artist": "Test Artist",
             "album": "Test Album",
             "duration": 180,
-            "genre": "Rock",
+            "primary_genre": "Rock",
         }
 
         # This simulates how we now pass metadata to SongRepository.create or SongRepository.update

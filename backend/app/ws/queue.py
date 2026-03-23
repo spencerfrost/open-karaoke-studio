@@ -29,7 +29,12 @@ async def get_current_queue_state(session_id: str):
             queue_items = (
                 session.query(KaraokeQueueItem)
                 .filter(KaraokeQueueItem.session_id == session_id)
-                .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
+                .options(
+                    joinedload(KaraokeQueueItem.song).options(
+                        subqueryload(DbSong.lyrics),
+                        joinedload(DbSong.album_rel),
+                    )
+                )
                 .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
                 .all()
             )
@@ -68,7 +73,13 @@ async def get_current_queue_state(session_id: str):
                             "artist": item.song.artist,
                             "album": item.song.album,
                             "duration": item.song.duration,
-                            "coverArt": getattr(item.song, "cover_art_url", None),
+                            "coverArt": (
+                                f"/api/albums/{item.song.album_id}/cover"
+                                if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
+                                else f"/api/songs/{item.song.id}/thumbnail"
+                                if item.song.thumbnail_path
+                                else None
+                            ),
                         },
                     })
 
@@ -103,7 +114,13 @@ async def get_current_queue_state(session_id: str):
                                 "artist": item.song.artist,
                                 "album": item.song.album,
                                 "duration": item.song.duration,
-                                "coverArt": getattr(item.song, "cover_art_url", None),
+                                "coverArt": (
+                                    f"/api/albums/{item.song.album_id}/cover"
+                                    if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
+                                    else f"/api/songs/{item.song.id}/thumbnail"
+                                    if item.song.thumbnail_path
+                                    else None
+                                ),
                                 "syncedLyrics": item.song._get_active_lyrics_content(
                                     "synced"
                                 ),
@@ -132,7 +149,13 @@ async def get_current_queue_state(session_id: str):
                         "artist": current_item.song.artist,
                         "album": current_item.song.album,
                         "duration": current_item.song.duration,
-                        "coverArt": getattr(current_item.song, "cover_art_url", None),
+                        "coverArt": (
+                            f"/api/albums/{current_item.song.album_id}/cover"
+                            if current_item.song.album_id and current_item.song.album_rel and current_item.song.album_rel.cover_path
+                            else f"/api/songs/{current_item.song.id}/thumbnail"
+                            if current_item.song.thumbnail_path
+                            else None
+                        ),
                         "syncedLyrics": current_item.song._get_active_lyrics_content(
                             "synced"
                         ),

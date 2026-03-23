@@ -1,5 +1,6 @@
 # backend/app/services/itunes_service.py
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -59,14 +60,25 @@ def search_itunes(
         logging.debug("  Params: %s", params)
         logging.debug("  Headers: %s", headers)
 
-        # Make API request
-        response = requests.get(url, params=params, timeout=10, headers=headers)
+        # Make API request with one retry on 429 (rate limit)
+        for _attempt in range(2):
+            response = requests.get(url, params=params, timeout=10, headers=headers)
 
-        # Log response details before checking status
-        logging.debug("iTunes API Response Details:")
-        logging.debug("  Status Code: %s", response.status_code)
-        logging.debug("  Headers: %s", dict(response.headers))
-        logging.debug("  URL Used: %s", response.url)
+            # Log response details before checking status
+            logging.debug("iTunes API Response Details:")
+            logging.debug("  Status Code: %s", response.status_code)
+            logging.debug("  Headers: %s", dict(response.headers))
+            logging.debug("  URL Used: %s", response.url)
+
+            if response.status_code == 429 and _attempt == 0:
+                retry_after = int(response.headers.get("Retry-After", 30))
+                logger.warning(
+                    "iTunes rate limited (429). Sleeping %d s before retry…",
+                    retry_after + 2,
+                )
+                time.sleep(retry_after + 2)
+                continue
+            break
 
         response.raise_for_status()
 
@@ -429,3 +441,87 @@ def _filter_canonical_releases(
         )
 
     return [item["track"] for item in scored_tracks]
+
+
+def fetch_and_assign_album_art(song_id: str, title: str, artist: str) -> bool:
+    """
+    Search iTunes for a song, then download and assign the album cover if found.
+
+    Creates the Album record, sets song.album_id, and downloads the cover image.
+    Returns True if album art was successfully assigned, False otherwise.
+    """
+    from app.db.database import get_db_session
+    from app.repositories.album_repository import AlbumRepository
+    from app.repositories.artist_repository import ArtistRepository
+    from app.repositories.song_repository import SongRepository
+
+    results = search_itunes(artist=artist, title=title, limit=1)
+    if not results:
+        logger.info("iTunes: no results for '%s' by '%s'", title, artist)
+        return False
+
+    track = results[0]
+    collection_id = track.get("albumId")
+    album_title = track.get("album") or "Unknown Album"
+    artwork_url = track.get("artworkUrl100")
+
+    if not collection_id or not artwork_url:
+        logger.info("iTunes: missing collection_id or artwork for '%s' by '%s'", title, artist)
+        return False
+
+    # Download the cover image
+    cover_path = _download_itunes_cover(collection_id, artwork_url)
+    if not cover_path:
+        return False
+
+    # Persist album record and link to song
+    try:
+        with get_db_session() as session:
+            artist_repo = ArtistRepository(session)
+            album_repo = AlbumRepository(session)
+            song_repo = SongRepository(session)
+
+            artist_rec = artist_repo.get_or_create(artist)
+            album = album_repo.get_or_create(
+                title=album_title,
+                itunes_collection_id=collection_id,
+                artist_id=artist_rec.id,
+                release_date=track.get("releaseDateFormatted"),
+            )
+            if not album.cover_path:
+                album_repo.update_cover(album, cover_path)
+
+            song_repo.update(song_id, album_id=album.id, artist_id=artist_rec.id)
+
+        logger.info(
+            "Album art assigned for song %s: '%s' (collection %s)", song_id, album_title, collection_id
+        )
+        return True
+    except Exception as e:
+        logger.warning("Failed to persist album art for song %s: %s", song_id, e)
+        return False
+
+
+def _download_itunes_cover(collection_id: int, artwork_url_100: str) -> str | None:
+    """Download iTunes artwork at 600px and cache locally. Returns relative path or None."""
+    from app.config import get_config
+
+    config = get_config()
+    covers_dir = config.library_path / "covers"
+    covers_dir.mkdir(exist_ok=True)
+    dest = covers_dir / f"{collection_id}.jpg"
+
+    if dest.exists():
+        return f"covers/{collection_id}.jpg"
+
+    url_600 = artwork_url_100.replace("100x100bb", "600x600bb").replace("100x100", "600x600")
+
+    try:
+        response = requests.get(url_600, timeout=10, headers={"User-Agent": "curl/8.0.0"})
+        response.raise_for_status()
+        dest.write_bytes(response.content)
+        logger.info("Downloaded iTunes cover for collection %s", collection_id)
+        return f"covers/{collection_id}.jpg"
+    except Exception as e:
+        logger.warning("Failed to download iTunes cover for collection %s: %s", collection_id, e)
+        return None

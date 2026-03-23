@@ -32,10 +32,10 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
     },
     {
       field: "Genre",
-      current: currentSong.genre || "Not set",
+      current: currentSong.primaryGenre || "Not set",
       new: selectedResult.primaryGenreName || "Not set",
       changed:
-        (currentSong.genre || "") !== (selectedResult.primaryGenreName || ""),
+        (currentSong.primaryGenre || "") !== (selectedResult.primaryGenreName || ""),
     },
     {
       field: "Year",

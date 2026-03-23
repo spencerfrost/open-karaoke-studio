@@ -14,9 +14,9 @@ class MetadataUpdateRequest(BaseModel):
     artist: Optional[str] = Field(None, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
     year: Optional[int] = Field(None, ge=1800, le=2100)
-    genre: Optional[str] = Field(None, max_length=100)
+    primary_genre: Optional[str] = Field(None, max_length=100)
 
-    @field_validator("title", "artist", "album", "genre")
+    @field_validator("title", "artist", "album", "primary_genre")
     def validate_non_empty_strings(cls, v):
         if v is not None and (not v or v.strip() == ""):
             raise ValueError("Field cannot be empty")

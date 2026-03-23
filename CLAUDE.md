@@ -10,6 +10,8 @@ Open Karaoke Studio is a self-hosted AI-powered karaoke application for small ga
 - Session-based queue management
 - Background processing (Celery)
 
+Note: While this is a personal app, we don't want to take shortcuts for the sake of simplicity. Don't aim for enterprise level solutions, but don't cut corners due to the app's small size either.
+
 **Stack**: FastAPI + React 19 + TypeScript | SQLite/PostgreSQL + Redis | Vite + Tailwind CSS v4
 
 ## Architecture

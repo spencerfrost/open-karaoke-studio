@@ -5,7 +5,7 @@ from app.schemas.metadata import MetadataUpdateRequest
 
 
 def test_all_fields_valid():
-    req = MetadataUpdateRequest(title="Song Title", artist="Artist", album="Album", year=2020, genre="Pop")
+    req = MetadataUpdateRequest(title="Song Title", artist="Artist", album="Album", year=2020, primary_genre="Pop")
     assert req.title == "Song Title"
     assert req.year == 2020
 
@@ -15,7 +15,7 @@ def test_all_fields_none():
     assert req.title is None
     assert req.artist is None
     assert req.year is None
-    assert req.genre is None
+    assert req.primary_genre is None
 
 
 def test_strings_stripped():
@@ -41,7 +41,7 @@ def test_album_too_long_raises():
 
 def test_genre_too_long_raises():
     with pytest.raises(ValidationError):
-        MetadataUpdateRequest(genre="x" * 101)
+        MetadataUpdateRequest(primary_genre="x" * 101)
 
 
 def test_year_below_minimum_raises():

@@ -24,7 +24,7 @@ interface QueuePlayResponse {
   artist: string;
   album?: string | null;
   duration?: number | null;
-  coverArt?: string | null;
+  coverArt?: string;
   syncedLyrics?: string | null;
   plainLyrics?: string | null;
   singer: string;

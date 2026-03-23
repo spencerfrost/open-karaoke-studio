@@ -212,7 +212,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         title: editedMetadata.title,
         artist: editedMetadata.artist,
         album: editedMetadata.album,
-        genre: editedMetadata.genre,
+        primaryGenre: editedMetadata.primaryGenre,
         plainlyrics: selectedLyrics.plainLyrics,
         syncedLyrics: selectedLyrics.syncedLyrics,
       });
@@ -244,7 +244,7 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
                 initialTitle={editedMetadata.title}
                 initialArtist={editedMetadata.artist}
                 initialAlbum={editedMetadata.album}
-                initialGenre={editedMetadata.genre}
+                initialGenre={editedMetadata.primaryGenre}
                 onChange={setEditedMetadata}
               />
               <Separator className="my-6" />

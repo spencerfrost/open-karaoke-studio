@@ -10,6 +10,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Add the backend path for imports
 backend_path = str(Path(__file__).parent.parent.parent)
@@ -20,16 +23,46 @@ if backend_path not in sys.path:
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import get_current_user, get_db
+from app.db.models import Base  # noqa: F401 — triggers all model imports
 from tests.conftest import create_test_app
 
 
+_engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+# Import all models to ensure they're registered with Base.metadata
+import app.db.models  # noqa: F401
+Base.metadata.create_all(bind=_engine)
+_TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
+
+def _get_test_db():
+    db = _TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _get_mock_user():
+    mock_user = MagicMock()
+    mock_user.id = 1
+    mock_user.username = "testuser"
+    mock_user.is_admin = True
+    mock_user.is_host = True
+    return mock_user
 
 
 @pytest.fixture(scope="module")
 def fastapi_app():
-    """Create FastAPI application for testing."""
-    return create_test_app()
+    """Create FastAPI application for testing with isolated DB."""
+    app = create_test_app()
+    app.dependency_overrides[get_db] = _get_test_db
+    app.dependency_overrides[get_current_user] = _get_mock_user
+    return app
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +75,16 @@ def client(fastapi_app):
     """
     with TestClient(fastapi_app) as client:
         yield client
+
+
+@pytest.fixture(autouse=True)
+def _clean_tables():
+    """Truncate all tables between tests."""
+    yield
+    with _engine.connect() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
+        conn.commit()
 
 
 @pytest.fixture
@@ -120,7 +163,7 @@ def mock_metadata_service():
                 "artist": "Queen",
                 "album": "A Night at the Opera",
                 "releaseDate": "1975-11-21T08:00:00Z",
-                "genre": "Rock"
+                "primaryGenre": "Rock"
             }
         ]
         

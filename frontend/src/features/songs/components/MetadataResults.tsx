@@ -110,16 +110,16 @@ export const MetadataResults: React.FC<MetadataResultsProps> = ({
                           {option.artist}
                           {option.album && ` • ${option.album}`}
                         </p>
-                        {(option.releaseYear || option.genre) && (
+                        {(option.releaseYear || option.primaryGenre) && (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {option.releaseYear && (
                               <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
                                 {option.releaseYear}
                               </span>
                             )}
-                            {option.genre && (
+                            {option.primaryGenre && (
                               <span className="px-2 py-0.5 text-xs bg-secondary rounded-full">
-                                {option.genre}
+                                {option.primaryGenre}
                               </span>
                             )}
                           </div>

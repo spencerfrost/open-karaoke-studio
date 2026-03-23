@@ -7,7 +7,7 @@ Provides read access to the persistent log of all songs performed.
 import logging
 from typing import List, Optional
 
-from app.db.database import SessionLocal
+from app.api.dependencies import get_db
 from app.db.models import DbSong, KaraokeSession, PerformanceHistory
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -15,14 +15,6 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/performance-history", tags=["performance-history"])
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 class PerformanceHistoryItem(BaseModel):

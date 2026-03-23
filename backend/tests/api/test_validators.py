@@ -47,14 +47,11 @@ def test_map_fields_to_db():
         "syncedLyrics": "lyrics content",
         "plainLyrics": "plain lyrics",
         "title": "Song Title",
-        "itunesArtworkUrls": ["url1", "url2"],
     }
     result = map_fields_to_db(data)
     assert result["synced_lyrics"] == "lyrics content"
     assert result["plain_lyrics"] == "plain lyrics"
     assert result["title"] == "Song Title"
-    assert '"url1"' in result["itunes_artwork_urls"]  # JSON serialized
-    assert '"url2"' in result["itunes_artwork_urls"]
 
 
 def test_map_fields_to_db_ignores_none_values():

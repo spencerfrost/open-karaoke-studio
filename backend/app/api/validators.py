@@ -8,10 +8,10 @@ CAMEL_TO_SNAKE_CASE = {
     "plainLyrics": "plain_lyrics",
     "releaseDate": "release_date",
     "itunesTrackId": "itunes_track_id",
-    "itunesArtworkUrls": "itunes_artwork_urls",
     "itunesExplicit": "itunes_explicit",
     "itunesPreviewUrl": "itunes_preview_url",
     "dateAdded": "date_added",
+    "primaryGenre": "primary_genre",
 }
 
 VALID_SONG_SORT_FIELDS = {"date_added", "title", "artist", "album", "year"}
@@ -59,11 +59,5 @@ def map_fields_to_db(data: dict) -> dict:
     for key, value in data.items():
         if value is not None:
             db_field = CAMEL_TO_SNAKE_CASE.get(key, key)
-            # Serialize lists for TEXT columns
-            if db_field == "itunes_artwork_urls" and isinstance(value, list):
-                import json
-
-                result[db_field] = json.dumps(value)
-            else:
-                result[db_field] = value
+            result[db_field] = value
     return result

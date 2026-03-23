@@ -141,13 +141,19 @@ def get_session_code(
 
 def song_to_info(song: DbSong) -> SongInfo:
     """Convert database song to SongInfo"""
+    if song.album_id and song.album_rel and song.album_rel.cover_path:
+        cover_art = f"/api/albums/{song.album_id}/cover"
+    elif song.thumbnail_path:
+        cover_art = f"/api/songs/{song.id}/thumbnail"
+    else:
+        cover_art = None
     return SongInfo(
         id=song.id,
         title=song.title,
         artist=song.artist,
         album=song.album,
         duration=song.duration,
-        coverArt=getattr(song, "cover_art_url", None),
+        coverArt=cover_art,
         syncedLyrics=song._get_active_lyrics_content("synced"),
         plainLyrics=song._get_active_lyrics_content("plain"),
     )
@@ -221,6 +227,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
     all_queue_items = (
         db.query(KaraokeQueueItem)
         .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
+        .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
         .filter(KaraokeQueueItem.session_id == session_code)
         .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
         .all()
@@ -347,7 +354,12 @@ async def add_to_queue(
                     )
 
     # Check if song exists
-    song = db.query(DbSong).filter(DbSong.id == queue_data.songId).first()
+    song = (
+        db.query(DbSong)
+        .options(joinedload(DbSong.album_rel))
+        .filter(DbSong.id == queue_data.songId)
+        .first()
+    )
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
@@ -503,6 +515,7 @@ async def play_queue_item(
     item = (
         db.query(KaraokeQueueItem)
         .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
+        .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
         .filter(
             KaraokeQueueItem.id == item_id,
             KaraokeQueueItem.session_id == session_code,
@@ -561,7 +574,13 @@ async def play_queue_item(
         artist=item.song.artist,
         album=item.song.album,
         duration=item.song.duration,
-        coverArt=getattr(item.song, "cover_art_url", None),
+        coverArt=(
+            f"/api/albums/{item.song.album_id}/cover"
+            if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
+            else f"/api/songs/{item.song.id}/thumbnail"
+            if item.song.thumbnail_path
+            else None
+        ),
         syncedLyrics=item.song._get_active_lyrics_content("synced"),
         plainLyrics=item.song._get_active_lyrics_content("plain"),
         singer=item.singer_name,

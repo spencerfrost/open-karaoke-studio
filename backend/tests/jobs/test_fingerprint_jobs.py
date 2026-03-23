@@ -30,7 +30,7 @@ class TestFingerprintSingleSong:
         mock_session = MagicMock()
         mock_get_db.return_value = _make_db_context(mock_session)
 
-        with patch.object(Path, "exists", side_effect=[True, False]):
+        with patch.object(Path, "exists", side_effect=[False, True, False]):
             result = fingerprint_single_song(SONG_ID)
 
         assert result == {"status": "ok", "song_id": SONG_ID}
@@ -45,7 +45,7 @@ class TestFingerprintSingleSong:
         mock_session = MagicMock()
         mock_get_db.return_value = _make_db_context(mock_session)
 
-        with patch.object(Path, "exists", side_effect=[False, True]):
+        with patch.object(Path, "exists", side_effect=[False, False, True]):
             result = fingerprint_single_song(SONG_ID)
 
         assert result == {"status": "ok", "song_id": SONG_ID}

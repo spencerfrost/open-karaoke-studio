@@ -86,7 +86,7 @@ def populate_test_songs(test_db_session):
             release_id=None,
             release_date=None,
             year=2020 + (i % 5),
-            genre=random.choice(["Pop", "Rock", "Jazz", "Classical"]),
+            primary_genre=random.choice(["Pop", "Rock", "Jazz", "Classical"]),
             language=random.choice(["English", "Spanish", "Chinese"]),
             lyrics="La la la...",
             synced_lyrics=None,

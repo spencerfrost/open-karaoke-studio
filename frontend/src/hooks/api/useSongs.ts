@@ -437,13 +437,6 @@ export function useSongs() {
       {
         id: string;
         youtubeDuration?: number;
-        youtubeThumbnailUrls?: {
-          default?: string;
-          medium?: string;
-          high?: string;
-          standard?: string;
-          maxres?: string;
-        };
         youtubeTags?: string[];
         youtubeCategories?: string[];
         youtubeChannelId?: string;
@@ -677,7 +670,7 @@ export function useSongs() {
       song: Song,
       size: "small" | "medium" | "large" = "medium",
     ): string | null => {
-      // Priority: Album cover > backend thumbnail > YouTube thumbnail URLs
+      // Priority: Album cover > backend thumbnail > YouTube CDN fallback
       if (song.albumCoverUrl) {
         return song.albumCoverUrl;
       }
@@ -687,41 +680,16 @@ export function useSongs() {
         return `/api/songs/${song.id}/thumbnail`;
       }
 
-      // YouTube thumbnail URLs (external)
-      if (song.youtubeThumbnailUrls) {
-        switch (size) {
-          case "large":
-            if (song.youtubeThumbnailUrls.maxres)
-              return song.youtubeThumbnailUrls.maxres;
-            if (song.youtubeThumbnailUrls.standard)
-              return song.youtubeThumbnailUrls.standard;
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            break;
-          case "medium":
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.standard)
-              return song.youtubeThumbnailUrls.standard;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            break;
-          case "small":
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            break;
-        }
+      // Last resort: construct YouTube CDN URL from video ID
+      if (song.videoId) {
+        const qualityMap = {
+          large: "maxresdefault",
+          medium: "hqdefault",
+          small: "mqdefault",
+        };
+        return `https://img.youtube.com/vi/${song.videoId}/${qualityMap[size]}.jpg`;
       }
+
       return null;
     },
     [],

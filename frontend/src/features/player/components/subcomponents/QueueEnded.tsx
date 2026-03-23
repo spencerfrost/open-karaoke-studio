@@ -14,6 +14,9 @@ import {
   getSuggestionReasonText,
 } from "../../hooks/useSongSuggestions";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useSessionStore } from "@/stores/sessionStore";
+import { toast } from "sonner";
 import type { Song } from "@/types/Song";
 
 interface QueueEndedProps {
@@ -81,6 +84,8 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
 }) => {
   const navigate = useNavigate();
   const { getArtworkUrl } = useSongs();
+  const { displayCode } = useSessionStore();
+  const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
 
   const { suggestions, isLoading } = useSongSuggestions({
     currentSong,
@@ -90,10 +95,15 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
   const handleSongSelect = (song: Song) => {
     if (onSelectSong) {
       onSelectSong(song);
-    } else {
-      // Default behavior: add to queue
-      navigate("/library");
+      return;
     }
+    addToQueue.mutate(
+      { songId: song.id, singer: "Host" },
+      {
+        onSuccess: () => toast.success(`Added "${song.title}" to the queue`),
+        onError: () => toast.error(`Failed to add "${song.title}" to the queue`),
+      },
+    );
   };
 
   const hasSuggestions = suggestions.length > 0;

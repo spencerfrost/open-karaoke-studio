@@ -3,12 +3,8 @@ import ArtistSection from "./ArtistSection";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import AlphabeticalIndexBar from "./AlphabeticalIndexBar";
 import AlphabeticalNavigation from "./AlphabeticalNavigation";
-
-interface Artist {
-  name: string;
-  songCount: number;
-  firstLetter: string;
-}
+import { useAuthStore } from "@/stores/authStore";
+import { Artist } from "@/hooks/api/useArtists";
 
 interface ArtistAccordionProps {
   artists: Artist[];
@@ -26,6 +22,8 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   const [expandedArtists, setExpandedArtists] = useState<Set<string>>(
     new Set(),
   );
+  const { user } = useAuthStore();
+  const isAdmin = !!user?.isAdmin;
 
   const toggleArtist = (artistName: string) => {
     setExpandedArtists((prev) => {
@@ -133,10 +131,10 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                   {letterArtists.map((artist) => (
                     <ArtistSection
                       key={artist.name}
-                      artistName={artist.name}
-                      songCount={artist.songCount}
+                      artist={artist}
                       isExpanded={expandedArtists.has(artist.name)}
                       onToggle={() => toggleArtist(artist.name)}
+                      isAdmin={isAdmin}
                     />
                   ))}
                 </div>

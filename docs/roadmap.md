@@ -527,6 +527,14 @@ Review `backend/app/services/youtube_service.py` (692 lines) for further optimiz
 
 ### Admin Features
 
+See **[docs/admin-features-backlog.md](admin-features-backlog.md)** for a detailed backlog of planned admin features. Summary:
+
+- **Data Quality Audit** — scan for songs with missing/malformed metadata, YouTube-style raw titles, encoding artifacts
+- **Duplicate Detection** — find songs with identical title+artist, side-by-side delete UI
+- **Storage Analytics** — disk usage breakdown, identify and delete unneeded original files
+- **Processing Health** — surface stuck jobs and unfingerprinted songs, with retry actions
+- **Bulk Operations** — multi-select + bulk re-fingerprint, delete, or reprocess across admin tabs
+
 **Usage Analytics**
 - Track song popularity
 - Session statistics

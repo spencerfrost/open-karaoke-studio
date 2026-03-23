@@ -77,7 +77,7 @@ class MetadataService(MetadataServiceInterface):
                 "album": result.get("album", ""),
                 "releaseDate": result.get("releaseDateFormatted", ""),
                 "releaseYear": result.get("releaseYear"),
-                "genre": result.get("genre", ""),
+                "primaryGenre": result.get("genre", ""),
                 "trackNumber": result.get("trackNumber"),
                 "previewUrl": result.get("previewUrl", ""),
                 "explicit": result.get("trackExplicitness") != "notExplicit",

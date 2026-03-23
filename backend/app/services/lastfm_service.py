@@ -11,6 +11,41 @@ logger = logging.getLogger(__name__)
 # Last.fm appends a "Read more on Last.fm" link as HTML — strip it
 _LASTFM_SUFFIX_RE = re.compile(r'\s*<a href="https://www\.last\.fm[^"]*"[^>]*>.*', re.IGNORECASE | re.DOTALL)
 
+GENRE_ALLOWLIST = {
+    "rock", "pop", "hip hop", "hip-hop", "r&b", "rnb", "country",
+    "electronic", "jazz", "classical", "folk", "metal", "punk",
+    "soul", "blues", "reggae", "latin", "indie", "alternative",
+    "dance", "house", "techno", "funk", "disco", "gospel",
+    "new wave", "grunge", "trap", "edm", "k-pop",
+}
+
+
+async def fetch_track_genres(artist: str, title: str) -> list[str]:
+    """Fetch up to 5 genre tags from Last.fm track.getTopTags, filtered by allowlist."""
+    api_key = get_config().LASTFM_API_KEY
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "http://ws.audioscrobbler.com/2.0/",
+                params={
+                    "method": "track.getTopTags",
+                    "artist": artist,
+                    "track": title,
+                    "api_key": api_key,
+                    "format": "json",
+                },
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            tags = resp.json().get("toptags", {}).get("tag", [])
+            matched = [t["name"] for t in tags if t["name"].lower() in GENRE_ALLOWLIST]
+            return matched[:5]
+    except Exception:
+        logger.warning("Failed to fetch Last.fm genres for %s - %s", artist, title)
+        return []
+
 
 def _clean_bio(content: str) -> str:
     """Strip the trailing 'Read more on Last.fm' anchor that Last.fm appends to bios."""

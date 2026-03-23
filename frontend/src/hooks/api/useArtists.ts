@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 export interface Artist {
+  id: number;
   name: string;
   songCount: number;
   firstLetter: string;

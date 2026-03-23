@@ -54,9 +54,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
           <img
             src={artworkUrl}
             alt={song.title}
-            className={`object-cover h-full w-full ${
-              song.itunesArtworkUrls ? "aspect-square" : "aspect-video"
-            }`}
+            className="object-cover h-full w-full"
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full aspect-video">

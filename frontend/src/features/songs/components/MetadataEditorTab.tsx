@@ -2,13 +2,6 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Music, Save, Upload } from "lucide-react";
 import { Song } from "@/types/Song";
 
@@ -26,10 +19,10 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
     artist: song.artist,
     album: song.album ?? "",
     year: song.year ?? "",
-    genre: song.genre ?? "",
-    language: song.language ?? "",
-    coverArt: song.coverArt,
+    primaryGenre: song.primaryGenre ?? "",
   });
+
+  const artworkUrl = song.albumCoverUrl ?? (song.thumbnail ? `/api/songs/${song.id}/thumbnail` : null);
 
   const handleChange = (field: keyof Song, value: string) => {
     setMetadata((prev) => ({ ...prev, [field]: value }));
@@ -45,9 +38,9 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
         {/* Cover Art Column */}
         <div className="flex flex-col items-center gap-4">
           <div className="w-full aspect-square rounded-md flex items-center justify-center relative overflow-hidden bg-accent/20">
-            {metadata.coverArt ? (
+            {artworkUrl ? (
               <img
-                src={metadata.coverArt}
+                src={artworkUrl}
                 alt={metadata.title}
                 className="h-full w-full object-cover"
               />
@@ -112,51 +105,26 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="genre">Genre</Label>
-              <Select
-                value={metadata.genre ?? ""}
-                onValueChange={(value) => handleChange("genre", value)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select genre" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Rock">Rock</SelectItem>
-                  <SelectItem value="Pop">Pop</SelectItem>
-                  <SelectItem value="R&B">R&B</SelectItem>
-                  <SelectItem value="Hip Hop">Hip Hop</SelectItem>
-                  <SelectItem value="Country">Country</SelectItem>
-                  <SelectItem value="Electronic">Electronic</SelectItem>
-                  <SelectItem value="Jazz">Jazz</SelectItem>
-                  <SelectItem value="Classical">Classical</SelectItem>
-                  <SelectItem value="Folk">Folk</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="language">Language</Label>
-              <Select
-                value={metadata.language ?? ""}
-                onValueChange={(value) => handleChange("language", value)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="English">English</SelectItem>
-                  <SelectItem value="Spanish">Spanish</SelectItem>
-                  <SelectItem value="French">French</SelectItem>
-                  <SelectItem value="German">German</SelectItem>
-                  <SelectItem value="Japanese">Japanese</SelectItem>
-                  <SelectItem value="Korean">Korean</SelectItem>
-                  <SelectItem value="Chinese">Chinese</SelectItem>
-                  <SelectItem value="Italian">Italian</SelectItem>
-                  <SelectItem value="Portuguese">Portuguese</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="primaryGenre">Genre</Label>
+              <Input
+                id="primaryGenre"
+                placeholder="e.g. Pop, Rock, Hip Hop"
+                value={metadata.primaryGenre ?? ""}
+                onChange={(e) => handleChange("primaryGenre", e.target.value)}
+                className="w-full"
+              />
+              {song.genres && song.genres.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {song.genres.map((g) => (
+                    <span
+                      key={g}
+                      className="px-2 py-0.5 rounded-full text-xs bg-accent/20 text-accent"
+                    >
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

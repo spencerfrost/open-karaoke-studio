@@ -49,6 +49,21 @@ export const MetadataReviewTab: React.FC = () => {
     onError: () => toast.error("Failed to dispatch re-fingerprint job"),
   });
 
+  const backfillArtworkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/songs/backfill-artwork", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to dispatch");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Album art backfill job dispatched");
+    },
+    onError: () => toast.error("Failed to dispatch backfill job"),
+  });
+
   const noMatchQuery = useSongsByFingerprintStatus("no_match");
   const failedQuery = useSongsByFingerprintStatus("failed");
 
@@ -75,13 +90,22 @@ export const MetadataReviewTab: React.FC = () => {
         <p className="text-sm text-muted-foreground">
           Songs that couldn&apos;t be matched by AcoustID fingerprinting.
         </p>
-        <button
-          onClick={() => reprocessAllMutation.mutate()}
-          disabled={reprocessAllMutation.isPending}
-          className="px-3 py-1 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 disabled:opacity-50 transition-colors shrink-0"
-        >
-          {reprocessAllMutation.isPending ? "Dispatching…" : "Re-fingerprint All"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => backfillArtworkMutation.mutate()}
+            disabled={backfillArtworkMutation.isPending}
+            className="px-3 py-1 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 disabled:opacity-50 transition-colors"
+          >
+            {backfillArtworkMutation.isPending ? "Dispatching…" : "Backfill Album Art"}
+          </button>
+          <button
+            onClick={() => reprocessAllMutation.mutate()}
+            disabled={reprocessAllMutation.isPending}
+            className="px-3 py-1 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 disabled:opacity-50 transition-colors"
+          >
+            {reprocessAllMutation.isPending ? "Dispatching…" : "Re-fingerprint All"}
+          </button>
+        </div>
       </div>
 
       {/* Filter pills */}

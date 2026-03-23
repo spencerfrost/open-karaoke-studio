@@ -144,9 +144,9 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
               className="flex items-start gap-3 p-3 rounded-md cursor-pointer hover:bg-gray-100 bg-lemon-chiffon/80 border-l-[3px] border-orange-peel"
             >
               <div className="h-16 w-16 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden bg-orange-peel/20">
-                {result.coverArt ? (
+                {(result as Record<string, unknown>)["artworkUrl100"] || (result as Record<string, unknown>)["artworkUrl60"] ? (
                   <img
-                    src={result.coverArt}
+                    src={((result as Record<string, unknown>)["artworkUrl100"] || (result as Record<string, unknown>)["artworkUrl60"]) as string}
                     alt={result.title}
                     className="h-full w-full object-cover"
                   />
@@ -161,10 +161,10 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
                   {result.artist} {result.album && `• ${result.album}`}{" "}
                   {result.year && `(${result.year})`}
                 </p>
-                {result.genre && (
+                {result.primaryGenre && (
                   <p className="text-xs mt-1">
                     <span className="px-2 py-0.5 rounded-full text-xs bg-dark-cyan/30 text-dark-cyan">
-                      {result.genre}
+                      {result.primaryGenre}
                     </span>
                   </p>
                 )}

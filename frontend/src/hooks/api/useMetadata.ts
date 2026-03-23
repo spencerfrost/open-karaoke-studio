@@ -25,7 +25,7 @@ export interface MetadataOption {
   duration?: number;
   discNumber?: number;
   trackNumber?: number;
-  genre?: string;
+  primaryGenre?: string;
   country?: string;
   artworkUrl?: string;
   previewUrl?: string;

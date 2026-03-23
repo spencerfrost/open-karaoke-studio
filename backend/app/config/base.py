@@ -104,6 +104,11 @@ class BaseConfig:
         return self.LIBRARY_DIR
 
     @property
+    def library_path(self):
+        """Backwards compatibility alias for LIBRARY_DIR"""
+        return self.LIBRARY_DIR
+
+    @property
     def PROJECT_ROOT(self):
         """Backwards compatibility for PROJECT_ROOT -> BASE_DIR"""
         return self.BASE_DIR

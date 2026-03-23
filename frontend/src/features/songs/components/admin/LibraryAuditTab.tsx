@@ -1,11 +1,23 @@
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { AlertCircle, HardDriveSearch, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, HardDrive, RefreshCw, Trash2 } from "lucide-react";
 
 const logger = createLogger("component:LibraryAuditTab");
 
@@ -56,6 +68,9 @@ export const LibraryAuditTab: React.FC = () => {
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
+  const [selectedOrphans, setSelectedOrphans] = useState<Set<string>>(new Set());
+  const [selectedGhosts, setSelectedGhosts] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const auditMutation = useMutation({
     mutationFn: async () => {
@@ -67,6 +82,8 @@ export const LibraryAuditTab: React.FC = () => {
     },
     onSuccess: (data) => {
       setAuditResult(data);
+      setSelectedOrphans(new Set());
+      setSelectedGhosts(new Set());
       logger.info("Library audit complete", data.summary);
       const total =
         data.summary.orphaned_count +
@@ -93,15 +110,15 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-              ...prev,
-              orphaned_directories: prev.orphaned_directories.filter(
-                (d) => d.dir_name !== dirName,
-              ),
-              summary: {
-                ...prev.summary,
-                orphaned_count: prev.summary.orphaned_count - 1,
-              },
-            }
+            ...prev,
+            orphaned_directories: prev.orphaned_directories.filter(
+              (d) => d.dir_name !== dirName,
+            ),
+            summary: {
+              ...prev.summary,
+              orphaned_count: prev.summary.orphaned_count - 1,
+            },
+          }
           : null,
       );
     } catch {
@@ -127,13 +144,13 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-              ...prev,
-              ghost_records: prev.ghost_records.filter((r) => r.id !== songId),
-              summary: {
-                ...prev.summary,
-                ghost_count: prev.summary.ghost_count - 1,
-              },
-            }
+            ...prev,
+            ghost_records: prev.ghost_records.filter((r) => r.id !== songId),
+            summary: {
+              ...prev.summary,
+              ghost_count: prev.summary.ghost_count - 1,
+            },
+          }
           : null,
       );
     } catch {
@@ -184,13 +201,13 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-              ...prev,
-              incomplete_songs: prev.incomplete_songs.filter((s) => s.id !== song.id),
-              summary: {
-                ...prev.summary,
-                incomplete_count: prev.summary.incomplete_count - 1,
-              },
-            }
+            ...prev,
+            incomplete_songs: prev.incomplete_songs.filter((s) => s.id !== song.id),
+            summary: {
+              ...prev.summary,
+              incomplete_count: prev.summary.incomplete_count - 1,
+            },
+          }
           : null,
       );
     } catch {
@@ -201,6 +218,90 @@ export const LibraryAuditTab: React.FC = () => {
         next.delete(song.id);
         return next;
       });
+    }
+  };
+
+  const bulkDeleteOrphans = async () => {
+    const dirs = [...selectedOrphans];
+    setIsBulkDeleting(true);
+    try {
+      const res = await fetch("/api/songs/orphan-bulk", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dir_names: dirs }),
+      });
+      if (!res.ok) throw new Error("Bulk delete failed");
+      const { deleted, skipped } = (await res.json()) as {
+        deleted: number;
+        skipped: number;
+      };
+      toast.success(
+        `Deleted ${deleted} orphaned director${deleted !== 1 ? "ies" : "y"}${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+      );
+      setAuditResult((prev) =>
+        prev
+          ? {
+            ...prev,
+            orphaned_directories: prev.orphaned_directories.filter(
+              (d) => !selectedOrphans.has(d.dir_name),
+            ),
+            summary: {
+              ...prev.summary,
+              orphaned_count: prev.summary.orphaned_count - deleted,
+            },
+          }
+          : null,
+      );
+      setSelectedOrphans(new Set());
+    } catch {
+      toast.error("Failed to bulk delete orphaned directories");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const bulkDeleteGhosts = async () => {
+    const ids = [...selectedGhosts];
+    setIsBulkDeleting(true);
+    try {
+      const res = await fetch("/api/songs/ghost-bulk", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ song_ids: ids }),
+      });
+      if (!res.ok) throw new Error("Bulk delete failed");
+      const { deleted, skipped } = (await res.json()) as {
+        deleted: number;
+        skipped: number;
+      };
+      toast.success(
+        `Deleted ${deleted} ghost record${deleted !== 1 ? "s" : ""}${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+      );
+      setAuditResult((prev) =>
+        prev
+          ? {
+            ...prev,
+            ghost_records: prev.ghost_records.filter(
+              (r) => !selectedGhosts.has(r.id),
+            ),
+            summary: {
+              ...prev.summary,
+              ghost_count: prev.summary.ghost_count - deleted,
+            },
+          }
+          : null,
+      );
+      setSelectedGhosts(new Set());
+    } catch {
+      toast.error("Failed to bulk delete ghost records");
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -234,7 +335,7 @@ export const LibraryAuditTab: React.FC = () => {
           onClick={() => auditMutation.mutate()}
           disabled={auditMutation.isPending}
         >
-          <HardDriveSearch className="mr-2 h-4 w-4" />
+          <HardDrive className="mr-2 h-4 w-4" />
           {auditMutation.isPending ? "Scanning..." : "Run Audit"}
         </Button>
       </div>
@@ -273,36 +374,104 @@ export const LibraryAuditTab: React.FC = () => {
       {/* Orphaned directories */}
       {orphaned_directories.length > 0 && (
         <section className="space-y-2">
-          <h3 className="flex items-center gap-2 font-medium">
-            <Badge variant="outline" className="border-orange-500 text-orange-500">
-              {orphaned_directories.length}
-            </Badge>
-            Orphaned Directories
-            <span className="text-xs font-normal text-muted-foreground">
-              — files on disk with no database record
-            </span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-medium">
+              <Checkbox
+                checked={
+                  selectedOrphans.size === orphaned_directories.length
+                    ? true
+                    : selectedOrphans.size > 0
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setSelectedOrphans(
+                      new Set(orphaned_directories.map((d) => d.dir_name)),
+                    );
+                  } else {
+                    setSelectedOrphans(new Set());
+                  }
+                }}
+                aria-label="Select all orphaned directories"
+              />
+              <Badge variant="outline" className="border-orange-500 text-orange-500">
+                {orphaned_directories.length}
+              </Badge>
+              Orphaned Directories
+              <span className="text-xs font-normal text-muted-foreground">
+                — files on disk with no database record
+              </span>
+            </h3>
+            {selectedOrphans.size > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isBulkDeleting}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    {isBulkDeleting
+                      ? "Deleting..."
+                      : `Delete Selected (${selectedOrphans.size})`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {selectedOrphans.size} orphaned director{selectedOrphans.size !== 1 ? "ies" : "y"}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete {selectedOrphans.size} director{selectedOrphans.size !== 1 ? "ies" : "y"} and all their files from disk. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={bulkDeleteOrphans}
+                    >
+                      Delete All Selected
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
           <div className="divide-y rounded-lg border">
             {orphaned_directories.map((dir) => (
               <div
                 key={dir.dir_name}
                 className="flex items-center justify-between px-4 py-3"
               >
-                <div>
-                  <p className="font-mono text-sm">{dir.dir_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {dir.files.length} file{dir.files.length !== 1 ? "s" : ""} ·{" "}
-                    {formatBytes(dir.total_size_bytes)}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selectedOrphans.has(dir.dir_name)}
+                    onCheckedChange={(checked) => {
+                      setSelectedOrphans((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(dir.dir_name);
+                        else next.delete(dir.dir_name);
+                        return next;
+                      });
+                    }}
+                    aria-label={`Select ${dir.dir_name}`}
+                  />
+                  <div>
+                    <p className="font-mono text-sm">{dir.dir_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {dir.files.length} file{dir.files.length !== 1 ? "s" : ""} ·{" "}
+                      {formatBytes(dir.total_size_bytes)}
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={deletingIds.has(dir.dir_name)}
+                  disabled={deletingIds.has(dir.dir_name) || isBulkDeleting}
                   onClick={() => deleteOrphan(dir.dir_name)}
                 >
                   <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  {deletingIds.has(dir.dir_name) ? "Deleting..." : "Delete Directory"}
+                  {deletingIds.has(dir.dir_name) ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             ))}
@@ -313,33 +482,99 @@ export const LibraryAuditTab: React.FC = () => {
       {/* Ghost records */}
       {ghost_records.length > 0 && (
         <section className="space-y-2">
-          <h3 className="flex items-center gap-2 font-medium">
-            <Badge variant="outline" className="border-red-500 text-red-500">
-              {ghost_records.length}
-            </Badge>
-            Ghost Records
-            <span className="text-xs font-normal text-muted-foreground">
-              — database records with no files on disk
-            </span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-medium">
+              <Checkbox
+                checked={
+                  selectedGhosts.size === ghost_records.length
+                    ? true
+                    : selectedGhosts.size > 0
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setSelectedGhosts(new Set(ghost_records.map((r) => r.id)));
+                  } else {
+                    setSelectedGhosts(new Set());
+                  }
+                }}
+                aria-label="Select all ghost records"
+              />
+              <Badge variant="outline" className="border-red-500 text-red-500">
+                {ghost_records.length}
+              </Badge>
+              Ghost Records
+              <span className="text-xs font-normal text-muted-foreground">
+                — database records with no files on disk
+              </span>
+            </h3>
+            {selectedGhosts.size > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isBulkDeleting}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    {isBulkDeleting
+                      ? "Deleting..."
+                      : `Delete Selected (${selectedGhosts.size})`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {selectedGhosts.size} ghost record{selectedGhosts.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove {selectedGhosts.size} database record{selectedGhosts.size !== 1 ? "s" : ""} with no files on disk. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={bulkDeleteGhosts}
+                    >
+                      Delete All Selected
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
           <div className="divide-y rounded-lg border">
             {ghost_records.map((record) => (
               <div
                 key={record.id}
                 className="flex items-center justify-between px-4 py-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{record.title}</p>
-                  <p className="text-xs text-muted-foreground">{record.artist}</p>
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selectedGhosts.has(record.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedGhosts((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(record.id);
+                        else next.delete(record.id);
+                        return next;
+                      });
+                    }}
+                    aria-label={`Select ${record.title}`}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{record.title}</p>
+                    <p className="text-xs text-muted-foreground">{record.artist}</p>
+                  </div>
                 </div>
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={deletingIds.has(record.id)}
+                  disabled={deletingIds.has(record.id) || isBulkDeleting}
                   onClick={() => deleteGhost(record.id)}
                 >
                   <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  {deletingIds.has(record.id) ? "Deleting..." : "Delete Record"}
+                  {deletingIds.has(record.id) ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             ))}
@@ -380,26 +615,38 @@ export const LibraryAuditTab: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                {song.has_original || song.video_id ? (
+                <div className="flex items-center gap-2">
+                  {song.has_original || song.video_id ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={reprocessingIds.has(song.id)}
+                      onClick={() => recoverSong(song)}
+                    >
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                      {reprocessingIds.has(song.id)
+                        ? "Dispatching..."
+                        : song.video_id && !song.has_original
+                          ? "Re-download & Reprocess"
+                          : "Reprocess"}
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Unrecoverable
+                    </div>
+                  )}
+                  {/* Delete Button */}
                   <Button
-                    variant="outline"
+                    variant="destructive"
                     size="sm"
-                    disabled={reprocessingIds.has(song.id)}
-                    onClick={() => recoverSong(song)}
+                    disabled={deletingIds.has(song.id)}
+                    onClick={() => deleteGhost(song.id)}
                   >
-                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    {reprocessingIds.has(song.id)
-                      ? "Dispatching..."
-                      : song.video_id && !song.has_original
-                        ? "Re-download & Reprocess"
-                        : "Reprocess"}
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    {deletingIds.has(song.id) ? "Deleting..." : "Delete"}
                   </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Unrecoverable
-                  </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
@@ -409,7 +656,7 @@ export const LibraryAuditTab: React.FC = () => {
       {/* Clean state */}
       {isClean && (
         <div className="py-12 text-center text-muted-foreground">
-          <HardDriveSearch className="mx-auto mb-3 h-10 w-10 opacity-40" />
+          <HardDrive className="mx-auto mb-3 h-10 w-10 opacity-40" />
           <p className="font-medium">Library is clean</p>
           <p className="text-sm">All files and database records are in sync.</p>
         </div>
@@ -418,7 +665,7 @@ export const LibraryAuditTab: React.FC = () => {
       {/* Empty state (before first run) */}
       {!auditResult && !auditMutation.isPending && (
         <div className="py-12 text-center text-muted-foreground">
-          <HardDriveSearch className="mx-auto mb-3 h-10 w-10 opacity-40" />
+          <HardDrive className="mx-auto mb-3 h-10 w-10 opacity-40" />
           <p className="text-sm">
             Run an audit to check for library inconsistencies.
           </p>

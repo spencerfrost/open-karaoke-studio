@@ -162,24 +162,6 @@ class TestFileService:
         expected_path = self.temp_dir / song_id / "original.wav"
         assert result == expected_path
 
-    def test_get_thumbnail_path(self):
-        """Test get_thumbnail_path"""
-        song_id = "test-song-123"
-
-        result = self.file_service.get_thumbnail_path(song_id)
-
-        expected_path = self.temp_dir / song_id / "thumbnail.jpg"
-        assert result == expected_path
-
-    def test_get_cover_art_path(self):
-        """Test get_cover_art_path"""
-        song_id = "test-song-123"
-
-        result = self.file_service.get_cover_art_path(song_id)
-
-        expected_path = self.temp_dir / song_id / "cover.jpg"
-        assert result == expected_path
-
     def test_delete_song_files_success(self):
         """Test successful deletion of song files"""
         song_id = "test-song-123"
@@ -406,7 +388,7 @@ class TestFileServiceIntegration:
         # 3. Get various file paths
         vocals_path = self.file_service.get_vocals_path(song_id)
         instrumental_path = self.file_service.get_instrumental_path(song_id)
-        thumbnail_path = self.file_service.get_thumbnail_path(song_id)
+        thumbnail_path = song_dir / "thumbnail.jpg"
 
         # 4. Create some test files
         vocals_path.write_text("vocals content")

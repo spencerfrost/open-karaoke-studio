@@ -22,7 +22,6 @@ interface QueueItem {
     artist: string;
     album?: string;
     duration?: number;
-    coverArt?: string;
     syncedLyrics?: string;
     plainLyrics?: string;
   };
