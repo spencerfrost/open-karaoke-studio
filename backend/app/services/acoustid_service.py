@@ -87,6 +87,26 @@ class AcoustIdService:
 
         self.song_repo.update(song_id, **update)
 
+        # Re-populate song_artists after auto-correct or any new match
+        try:
+            from app.db.database import get_db_session
+            from app.services.song_artist_service import populate_song_artists
+
+            artist_str = update.get("artist") or best_artist
+            if artist_str:
+                with get_db_session() as session:
+                    from app.repositories.song_repository import SongRepository
+
+                    song = SongRepository(session).fetch(song_id)
+                    if song:
+                        populate_song_artists(session, song, artist_str)
+        except Exception:
+            logger.warning(
+                "Failed to populate song_artists after AcoustID for song %s",
+                song_id,
+                exc_info=True,
+            )
+
     def lookup_candidates(self, audio_path: str | Path) -> list[dict]:
         """
         Run AcoustID fingerprint and return all candidates sorted by score descending.
