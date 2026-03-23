@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -12,6 +13,13 @@ from .file_service import FileService
 logger = logging.getLogger(__name__)
 
 _DISCOGS_USER_AGENT = "OpenKaraokeStudio/1.0 +https://github.com/open-karaoke-studio"
+
+# Discogs allows 60 req/min for authenticated requests (moving average window).
+# We use a semaphore to limit concurrent outbound requests, plus we inspect the
+# X-Discogs-Ratelimit-Remaining header and sleep when the budget runs low.
+_DISCOGS_SEMAPHORE = asyncio.Semaphore(3)
+_DISCOGS_RATE_LIMIT_LOW = 5  # sleep when remaining budget falls to this value
+_DISCOGS_RATE_LIMIT_SLEEP = 2.0  # seconds to sleep when budget is low
 
 
 def _slugify(name: str) -> str:
@@ -43,44 +51,66 @@ class ArtistImageService:
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                # Step 1: search for artist to get Discogs artist ID
-                search_resp = await client.get(
-                    "https://api.discogs.com/database/search",
-                    params={"q": name, "type": "artist"},
-                    headers=headers,
-                    timeout=10.0,
-                )
-                search_resp.raise_for_status()
-                results = search_resp.json().get("results", [])
-                if not results:
-                    self.artist_repo.update_image(artist, image_path=None, status="not_found")
-                    return None
+            async with _DISCOGS_SEMAPHORE:
+                async with httpx.AsyncClient() as client:
+                    # Step 1: search for artist to get Discogs artist ID
+                    search_resp = await client.get(
+                        "https://api.discogs.com/database/search",
+                        params={"q": name, "type": "artist"},
+                        headers=headers,
+                        timeout=10.0,
+                    )
+                    search_resp.raise_for_status()
+                    await _check_discogs_rate_limit(search_resp)
+                    results = search_resp.json().get("results", [])
+                    if not results:
+                        self.artist_repo.update_image(artist, image_path=None, status="not_found")
+                        return None
 
-                discogs_id = results[0]["id"]
+                    discogs_id = results[0]["id"]
 
-                # Step 2: fetch artist detail to get primary image
-                detail_resp = await client.get(
-                    f"https://api.discogs.com/artists/{discogs_id}",
-                    headers=headers,
-                    timeout=10.0,
-                )
-                detail_resp.raise_for_status()
-                images = detail_resp.json().get("images", [])
-                primary = next(
-                    (img for img in images if img.get("type") == "primary"),
-                    images[0] if images else None,
-                )
-                if not primary:
-                    self.artist_repo.update_image(artist, image_path=None, status="not_found")
-                    return None
+                    # Step 2: fetch artist detail to get primary image
+                    detail_resp = await client.get(
+                        f"https://api.discogs.com/artists/{discogs_id}",
+                        headers=headers,
+                        timeout=10.0,
+                    )
+                    detail_resp.raise_for_status()
+                    await _check_discogs_rate_limit(detail_resp)
+                    images = detail_resp.json().get("images", [])
+                    primary = next(
+                        (img for img in images if img.get("type") == "primary"),
+                        images[0] if images else None,
+                    )
+                    if not primary:
+                        self.artist_repo.update_image(artist, image_path=None, status="not_found")
+                        return None
 
-                img_resp = await client.get(primary["uri"], timeout=15.0)
-                img_resp.raise_for_status()
-                image_path.write_bytes(img_resp.content)
-                self.artist_repo.update_image(artist, image_path=str(image_path), status="found")
-                return image_path
+                    img_resp = await client.get(primary["uri"], timeout=15.0)
+                    img_resp.raise_for_status()
+                    image_path.write_bytes(img_resp.content)
+                    self.artist_repo.update_image(artist, image_path=str(image_path), status="found")
+                    return image_path
 
         except Exception as e:
             logger.warning("Failed to fetch artist image for %s: %s", name, e)
             return None
+
+
+async def _check_discogs_rate_limit(response: httpx.Response) -> None:
+    """Sleep if the Discogs rate-limit budget is nearly exhausted."""
+    remaining_raw = response.headers.get("X-Discogs-Ratelimit-Remaining")
+    if remaining_raw is None:
+        return
+    try:
+        remaining = int(remaining_raw)
+    except ValueError:
+        return
+    logger.debug("Discogs rate limit remaining: %s", remaining)
+    if remaining <= _DISCOGS_RATE_LIMIT_LOW:
+        logger.warning(
+            "Discogs rate limit nearly exhausted (%s remaining), sleeping %.1fs",
+            remaining,
+            _DISCOGS_RATE_LIMIT_SLEEP,
+        )
+        await asyncio.sleep(_DISCOGS_RATE_LIMIT_SLEEP)

@@ -24,6 +24,13 @@ class ArtistRepository:
             self.db.refresh(artist)
         return artist
 
+    def get_all_with_image_status(self, status: str) -> list[DbArtist]:
+        return (
+            self.db.query(DbArtist)
+            .filter(DbArtist.image_status == status)
+            .all()
+        )
+
     def update_image(
         self, artist: DbArtist, *, image_path: str | None, status: str
     ) -> DbArtist:
