@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -117,6 +118,27 @@ async def search_youtube(
             status_code=500,
             detail=f"Unexpected error during YouTube search: {str(e)}"
         )
+
+
+@router.get("/preview/{video_id}")
+async def preview_youtube(video_id: str):
+    """
+    Get a redirect to a direct audio stream URL for previewing a YouTube video.
+
+    Extracts the best audio-only stream URL via yt-dlp and issues a 302 redirect,
+    allowing the browser to stream audio directly from YouTube's CDN without downloading.
+    """
+    try:
+        youtube_service = YouTubeService()
+        stream_url = youtube_service.get_audio_preview_url(video_id)
+        return RedirectResponse(url=stream_url, status_code=302)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error getting preview URL for %s: %s", video_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get preview: {str(e)}")
 
 
 @router.post("/download", response_model=YouTubeDownloadResponse, status_code=202)

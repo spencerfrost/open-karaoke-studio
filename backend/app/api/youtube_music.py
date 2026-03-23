@@ -168,6 +168,27 @@ async def get_artist(
         return YoutubeMusicArtistResponse(data=None, error=str(e))
 
 
+@router.get("/artist/{artist_id}/releases")
+async def get_artist_releases(
+    artist_id: str,
+    channel_id: str = Query(..., description="Artist channel ID from albumsMore/singlesMore"),
+    params: str = Query(..., description="Pagination params from albumsMore/singlesMore"),
+):
+    """
+    Fetch all albums or singles for an artist (load more).
+
+    Called when the initial artist response has albumsMore/singlesMore pagination metadata,
+    indicating YouTube Music has more results than the initial 10.
+    """
+    try:
+        service = YoutubeMusicService()
+        releases = service.get_all_artist_releases(channel_id, params)
+        return {"data": releases, "error": None}
+    except Exception as e:
+        logger.error("Failed to get releases for artist %s: %s", artist_id, e, exc_info=True)
+        return {"data": None, "error": str(e)}
+
+
 @router.get("/album/{album_id}/tracks", response_model=YoutubeMusicAlbumResponse)
 async def get_album_tracks(album_id: str):
     """

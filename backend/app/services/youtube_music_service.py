@@ -160,10 +160,37 @@ class YoutubeMusicService:
             logger.warning("Failed to get duration for video %s: %s", video_id, e)
             return None
 
+    def get_all_artist_releases(self, channel_id: str, params: str) -> List[Dict[str, Any]]:
+        """Fetch all albums or singles for an artist using ytmusicapi pagination params."""
+        cache_key = f"releases:{channel_id}:{params}"
+        if cache_key in _artist_cache:
+            logger.info("Cache hit for releases: %s", channel_id)
+            return _artist_cache[cache_key]
+
+        try:
+            logger.info("Fetching all releases for channel: %s", channel_id)
+            raw = self.ytmusic.get_artist_albums(channel_id, params)
+            result = [
+                {
+                    "browseId": item.get("browseId"),
+                    "title": item.get("title"),
+                    "year": item.get("year"),
+                    "type": item.get("type", "album").lower(),
+                    "thumbnails": item.get("thumbnails", []),
+                }
+                for item in raw
+            ]
+            _artist_cache[cache_key] = result
+            logger.info("Fetched %d releases for channel: %s", len(result), channel_id)
+            return result
+        except Exception as e:
+            logger.error("Failed to get releases for channel %s: %s", channel_id, e, exc_info=True)
+            raise
+
     def get_artist(self, artist_id: str, top_songs_limit: int = 12) -> Dict[str, Any]:
         """Get artist info, top songs, and album list."""
         # Check cache first
-        cache_key = f"{artist_id}:{top_songs_limit}"
+        cache_key = f"v2:{artist_id}:{top_songs_limit}"
         if cache_key in _artist_cache:
             logger.info("Cache hit for artist: %s", artist_id)
             return _artist_cache[cache_key]
@@ -175,13 +202,28 @@ class YoutubeMusicService:
             # Normalize top songs
             top_songs = []
             songs_data = raw.get("songs", {})
-            for song in songs_data.get("results", [])[:top_songs_limit]:
+            songs_browse_id = songs_data.get("browseId")
+            raw_songs = []
+            
+            # Try to fetch full playlist if browseId is available
+            if songs_browse_id:
+                try:
+                    playlist = self.ytmusic.get_playlist(songs_browse_id, limit=top_songs_limit)
+                    raw_songs = playlist.get("tracks", [])[:top_songs_limit]
+                    logger.info("Fetched %d top songs via playlist for artist %s", len(raw_songs), artist_id)
+                except Exception as e:
+                    logger.warning("Playlist fetch failed for %s, falling back to results: %s", artist_id, e)
+                    raw_songs = songs_data.get("results", [])[:top_songs_limit]
+            else:
+                raw_songs = songs_data.get("results", [])[:top_songs_limit]
+            
+            for song in raw_songs:
                 video_id = song.get("videoId")
                 duration = song.get("duration")
                 
-                # ytmusicapi's get_artist doesn't return duration for top songs,
-                # so we need to fetch it separately using get_song
-                if not duration and video_id:
+                # Only call _get_song_duration for get_artist() results
+                # (playlist tracks from get_playlist() already have duration)
+                if not duration and video_id and not songs_browse_id:
                     duration = self._get_song_duration(video_id)
                 
                 top_songs.append(
@@ -198,20 +240,34 @@ class YoutubeMusicService:
                     }
                 )
 
-            # Normalize albums (just metadata, not tracks)
-            albums = []
-            for section in ["albums", "singles"]:
-                section_data = raw.get(section, {})
-                for album in section_data.get("results", []):
-                    albums.append(
+            # Normalize albums and singles as separate lists
+            albums: List[Dict] = []
+            singles: List[Dict] = []
+            albums_more: Optional[Dict] = None
+            singles_more: Optional[Dict] = None
+
+            for section_key, dest_list in [("albums", albums), ("singles", singles)]:
+                section_data = raw.get(section_key, {})
+                for item in section_data.get("results", []):
+                    dest_list.append(
                         {
-                            "browseId": album.get("browseId"),
-                            "title": album.get("title"),
-                            "year": album.get("year"),
-                            "type": "single" if section == "singles" else "album",
-                            "thumbnails": album.get("thumbnails", []),
+                            "browseId": item.get("browseId"),
+                            "title": item.get("title"),
+                            "year": item.get("year"),
+                            "type": "single" if section_key == "singles" else "album",
+                            "thumbnails": item.get("thumbnails", []),
                         }
                     )
+                # Capture pagination params when YouTube Music has more results
+                if section_data.get("params"):
+                    pagination = {
+                        "channelId": section_data.get("browseId"),
+                        "params": section_data.get("params"),
+                    }
+                    if section_key == "albums":
+                        albums_more = pagination
+                    else:
+                        singles_more = pagination
 
             result = {
                 "artist": {
@@ -223,15 +279,19 @@ class YoutubeMusicService:
                 },
                 "topSongs": top_songs,
                 "albums": albums,
+                "singles": singles,
+                "albumsMore": albums_more,
+                "singlesMore": singles_more,
             }
 
             # Cache the result
             _artist_cache[cache_key] = result
             logger.info(
-                "Fetched artist %s with %d top songs and %d albums",
+                "Fetched artist %s with %d top songs, %d albums, %d singles",
                 raw.get("name"),
                 len(top_songs),
                 len(albums),
+                len(singles),
             )
             return result
 

@@ -226,6 +226,33 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error("Failed to extract video info for %s: %s", video_id_or_url, e)
             raise ServiceError(f"Failed to extract video information: {e}")
 
+    def get_audio_preview_url(self, video_id: str) -> str:
+        """Extract a direct audio stream URL for preview (no download)."""
+        try:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            ydl_opts = {
+                "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
+                "quiet": True,
+                "no_warnings": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                stream_url = info.get("url")
+                if not stream_url:
+                    raise ServiceError(f"No audio stream URL found for video {video_id}")
+                return stream_url
+        except ServiceError:
+            raise
+        except Exception as e:
+            logger.error("Failed to get audio preview URL for %s: %s", video_id, e)
+            raise ServiceError(f"Failed to get audio preview URL: {e}")
+
     def validate_video_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube video URL"""
         if not url or not isinstance(url, str):
