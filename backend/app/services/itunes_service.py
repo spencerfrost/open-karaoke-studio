@@ -99,7 +99,6 @@ def search_itunes(
                     "album": track.get("collectionName"),
                     "albumId": track.get("collectionId"),
                     "releaseDate": track.get("releaseDate"),
-                    "genre": track.get("primaryGenreName"),
                     "trackNumber": track.get("trackNumber"),
                     "discNumber": track.get("discNumber"),
                     "country": track.get("country"),

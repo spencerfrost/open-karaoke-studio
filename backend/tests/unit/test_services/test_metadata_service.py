@@ -72,7 +72,6 @@ class TestFormatMetadataResponse:
         assert item["artist"] == "Rick Astley"
         assert item["album"] == "Whenever You Need Somebody"
         assert item["releaseYear"] == 1987
-        assert item["primaryGenre"] == "Pop"
         assert item["explicit"] is False  # trackExplicitness == "notExplicit"
         assert item["isStreamable"] is True
         assert item["rawData"] == SAMPLE_ITUNES_RESULT

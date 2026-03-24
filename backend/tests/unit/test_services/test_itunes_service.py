@@ -70,7 +70,6 @@ class TestItunesSearch:
         assert track["title"] == "Test Song"
         assert track["artist"] == "Test Artist"
         assert track["album"] == "Test Album"
-        assert track["genre"] == "Pop"
         assert track["releaseYear"] == 2023
         assert track["releaseDateFormatted"] == "2023-01-15"
 
@@ -199,7 +198,6 @@ class TestItunesSearch:
         assert track["title"] == "Test Song"
         assert track["artist"] == "Test Artist"
         assert track["album"] == "Test Album"
-        assert track["genre"] is None
 
 
 class TestItunesFilterCanonicalReleases:

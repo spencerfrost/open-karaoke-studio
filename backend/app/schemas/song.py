@@ -40,9 +40,6 @@ class SongResponse(BaseModel):
     album: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
-    primaryGenre: Optional[str] = None
-    genres: List[str] = []
-
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
@@ -114,8 +111,6 @@ class SongUpdateRequest(BaseModel):
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     album: Optional[str] = Field(None, max_length=200)
     duration: Optional[float] = Field(None, ge=0)
-    primaryGenre: Optional[str] = Field(None, max_length=100)
-    genres: Optional[List[str]] = None
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
 

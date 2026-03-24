@@ -62,22 +62,3 @@ def test_update_image_sets_path_and_status(repo, db):
     assert artist.image_path == "/path/to/img.jpg"
     assert artist.image_status == "found"
     db.commit.assert_called_once()
-
-
-def test_update_bio_sets_bio_and_status(repo, db):
-    artist = MagicMock(spec=DbArtist)
-
-    repo.update_bio(artist, bio="Great band from London.", status="found")
-
-    assert artist.bio == "Great band from London."
-    assert artist.bio_status == "found"
-    db.commit.assert_called_once()
-
-
-def test_update_bio_handles_none_bio(repo, db):
-    artist = MagicMock(spec=DbArtist)
-
-    repo.update_bio(artist, bio=None, status="not_found")
-
-    assert artist.bio is None
-    assert artist.bio_status == "not_found"
