@@ -141,6 +141,84 @@ class ArtistImageService:
         return fetched_path
 
 
+    async def search_artist_images(self, query: str) -> list[dict]:
+        """Search Discogs for artist images and return multiple candidates.
+
+        Uses a single search API call; no per-artist detail fetches.
+        Filters out placeholder (spacer.gif) images.
+        """
+        token = get_config().DISCOGS_TOKEN
+        headers = {
+            "Authorization": f"Discogs token={token}",
+            "User-Agent": _DISCOGS_USER_AGENT,
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                search_resp = await _discogs_get(
+                    client,
+                    "https://api.discogs.com/database/search",
+                    params={"q": query, "type": "artist"},
+                    headers=headers,
+                    timeout=10.0,
+                )
+                search_resp.raise_for_status()
+                results = search_resp.json().get("results", [])
+        except Exception as e:
+            logger.warning("Failed to search Discogs images for %r: %s", query, e)
+            return []
+
+        candidates = []
+        for result in results[:10]:
+            cover = result.get("cover_image", "")
+            thumb = result.get("thumb", "")
+            title = result.get("title", "")
+            # Skip Discogs spacer placeholder images
+            if cover and "spacer" not in cover:
+                candidates.append({"thumb": thumb or cover, "uri": cover, "title": title})
+            elif thumb and "spacer" not in thumb:
+                candidates.append({"thumb": thumb, "uri": thumb, "title": title})
+        return candidates
+
+    async def set_image_from_url(self, artist_id: int, image_url: str) -> "Path | None":
+        """Download an image from ``image_url`` and save it as this artist's image.
+
+        CDN downloads do not count against the Discogs API rate limit, so no
+        lock is needed here.
+        """
+        # Phase 1: resolve artist slug (short-lived DB session)
+        db, repo = self._repo()
+        try:
+            artist = repo.get_by_id(artist_id)
+            if artist is None:
+                return None
+            slug = _slugify(artist.name)
+        finally:
+            db.close()
+
+        # Phase 2: download image directly from the CDN URL
+        image_path = self.file_service.get_artist_image_path(slug)
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(image_url, timeout=15.0)
+                resp.raise_for_status()
+                image_path.write_bytes(resp.content)
+        except Exception as e:
+            logger.warning("Failed to download artist image from %s: %s", image_url, e)
+            return None
+
+        # Phase 3: persist result
+        db, repo = self._repo()
+        try:
+            artist = repo.get_by_id(artist_id)
+            if artist is not None:
+                repo.update_image(artist, image_path=str(image_path), status="found")
+        finally:
+            db.close()
+
+        return image_path
+
+
 async def _discogs_get(
     client: httpx.AsyncClient, url: str, **kwargs: object
 ) -> httpx.Response:

@@ -102,19 +102,6 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
       .map((line: string) => line.trim());
   }, [displayLyrics, isUsingSyncedLyrics]);
 
-  if (!hasLyrics) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <AlertCircle size={48} className="text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No Lyrics Available</h3>
-        <p className="text-sm text-muted-foreground text-center max-w-md">
-          This song doesn't have lyrics in our database. You may be able to add
-          them through the metadata editor.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Header with badges */}
@@ -136,9 +123,11 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
               Plain Text
             </Badge>
           )}
-          <Badge variant="outline" className="text-xs">
-            {processedLyrics.length} lines
-          </Badge>
+          {hasLyrics && (
+            <Badge variant="outline" className="text-xs">
+              {processedLyrics.length} lines
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -166,8 +155,19 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
         </Button>
       </div>
 
+      {/* No lyrics state */}
+      {!hasLyrics && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertCircle size={48} className="text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No Lyrics Available</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-md">
+            Search for lyrics online or paste them manually above.
+          </p>
+        </div>
+      )}
+
       {/* Lyrics content */}
-      <Card>
+      {hasLyrics && <Card>
         <CardContent className="pt-6">
           {processedLyrics.length > 0 ? (
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
@@ -187,7 +187,7 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Info footer */}
       {hasSyncedLyrics && isUsingSyncedLyrics && (

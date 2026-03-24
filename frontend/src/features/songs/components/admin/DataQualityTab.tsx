@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { Music, ShieldAlert } from "lucide-react";
+import { Clock, Music, ShieldAlert } from "lucide-react";
 import { SongActionPanel } from "./SongActionPanel";
 import { Song } from "@/types/Song";
 
@@ -72,6 +72,21 @@ export const DataQualityTab: React.FC = () => {
       }
     },
     onError: () => toast.error("Failed to run data quality scan"),
+  });
+
+  const backfillDurationMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const res = await fetch(`/api/songs/backfill-duration?mode=${mode}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to queue duration backfill");
+      return res.json() as Promise<{ taskId: string; queued: number }>;
+    },
+    onSuccess: (data) => {
+      toast.success(`Queued duration backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`);
+    },
+    onError: () => toast.error("Failed to queue duration backfill"),
   });
 
   const backfillGenresMutation = useMutation({
@@ -258,6 +273,40 @@ export const DataQualityTab: React.FC = () => {
           >
             <Music className="mr-2 h-4 w-4" />
             {backfillGenresMutation.variables === "all" && backfillGenresMutation.isPending
+              ? "Queueing..."
+              : "Refresh All"}
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Duration Backfill */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Duration</h2>
+          <p className="text-sm text-muted-foreground">
+            Compute song duration from the original audio file.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => backfillDurationMutation.mutate("missing")}
+            disabled={backfillDurationMutation.isPending}
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            {backfillDurationMutation.variables === "missing" && backfillDurationMutation.isPending
+              ? "Queueing..."
+              : "Backfill Missing"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => backfillDurationMutation.mutate("all")}
+            disabled={backfillDurationMutation.isPending}
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            {backfillDurationMutation.variables === "all" && backfillDurationMutation.isPending
               ? "Queueing..."
               : "Refresh All"}
           </Button>
