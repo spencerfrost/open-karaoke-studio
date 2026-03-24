@@ -32,7 +32,6 @@ class MetadataResult(BaseModel):
     title: Optional[str] = None
     album: Optional[str] = None
     artwork_url: Optional[str] = None
-    primary_genre: Optional[str] = None
     release_date: Optional[str] = None
     track_number: Optional[int] = None
     

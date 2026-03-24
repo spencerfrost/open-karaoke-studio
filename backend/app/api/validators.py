@@ -11,7 +11,6 @@ CAMEL_TO_SNAKE_CASE = {
     "itunesExplicit": "itunes_explicit",
     "itunesPreviewUrl": "itunes_preview_url",
     "dateAdded": "date_added",
-    "primaryGenre": "primary_genre",
 }
 
 VALID_SONG_SORT_FIELDS = {"date_added", "title", "artist", "album", "year"}

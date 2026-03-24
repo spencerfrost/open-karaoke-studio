@@ -582,7 +582,7 @@ def _check_song_metadata(song: DbSong) -> list:
         issues.append({"type": "missing_source", "label": "No Source", "severity": "info"})
     if song.duration is None:
         issues.append({"type": "missing_duration", "label": "No Duration", "severity": "warning"})
-if not song.album:
+    if not song.album:
         issues.append({"type": "missing_album", "label": "No Album", "severity": "info"})
     if not song.plain_lyrics and not song.synced_lyrics:
         issues.append({"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"})
@@ -906,7 +906,7 @@ async def update_song(
         # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
 
-if update_fields:
+        if update_fields:
             updated_song = repo.update(song_id, **update_fields)
             if not updated_song:
                 raise HTTPException(

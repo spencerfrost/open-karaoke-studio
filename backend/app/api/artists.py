@@ -15,7 +15,6 @@ from app.repositories.artist_repository import ArtistRepository
 from app.schemas.song import SplitArtistCreditsRequest
 from app.services.artist_image_service import ArtistImageService
 from app.services.file_service import FileService
-from app.services.lastfm_service import LastFmService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/artists", tags=["artists"])
@@ -115,16 +114,6 @@ async def backfill_artist_images():
 
     logger.info("Artist image backfill complete: %s", results)
     return results
-
-
-@router.get("/bio")
-async def get_artist_bio(name: str = Query(...), db: Session = Depends(get_db)):
-    """Fetch and cache artist biography from Last.fm."""
-    service = LastFmService(ArtistRepository(db))
-    bio = await service.get_or_fetch_artist_bio(name)
-    if bio is None:
-        raise HTTPException(status_code=404, detail="Artist biography not found")
-    return {"name": name, "bio": bio}
 
 
 @router.get("/{artist_id}/images/search")
