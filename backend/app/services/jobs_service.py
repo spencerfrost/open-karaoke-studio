@@ -120,7 +120,7 @@ class JobsService(JobsServiceInterface):
 
         # Update job status
         job.status = JobStatus.CANCELLED
-        job.completed_at = datetime.now()
+        job.completed_at = datetime.now(timezone.utc)
         job.error = "Cancelled by user"
         self.job_repository.update(job)
 
