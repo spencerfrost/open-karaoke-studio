@@ -17,6 +17,7 @@ export const SongCard: React.FC<SongCardProps> = ({
   variant = "detailed",
   actions = ["queue", "details"],
   sessionId,
+  showArtist = true,
 }) => {
   const { getArtworkUrl } = useSongs();
   const { isHost } = useSessionStore();
@@ -68,7 +69,7 @@ export const SongCard: React.FC<SongCardProps> = ({
             onPlay={songActions.handlePlay}
             showPlayButton={isHost}
           />
-          <SongInfo song={song} />
+          <SongInfo song={song} showArtist={showArtist} />
         </div>
       </CardContent>
 

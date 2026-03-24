@@ -6,7 +6,7 @@ import { SongInfo } from "./SongInfo";
 import { PerformerSongDrawer } from "./PerformerSongDrawer";
 import { SongCardProps } from "./SongCard.types";
 
-export const PerformerSongCard: React.FC<SongCardProps> = ({ song }) => {
+export const PerformerSongCard: React.FC<SongCardProps> = ({ song, showArtist = true }) => {
   const { getArtworkUrl } = useSongs();
   const artworkUrl = getArtworkUrl(song, "medium");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -36,7 +36,7 @@ export const PerformerSongCard: React.FC<SongCardProps> = ({ song }) => {
               onPlay={handleArtworkClick}
               showPlayButton={false}
             />
-            <SongInfo song={song} />
+            <SongInfo song={song} showArtist={showArtist} />
           </div>
         </CardContent>
       </Card>

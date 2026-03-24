@@ -49,13 +49,21 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
         <ProcessingIndicator status={processingStatus} variant="overlay" />
       )}
 
-      <div className="aspect-video w-full">
+      <div className="aspect-video w-full relative">
         {artworkUrl ? (
-          <img
-            src={artworkUrl}
-            alt={song.title}
-            className="object-cover h-full w-full"
-          />
+          <>
+            <img
+              src={artworkUrl}
+              alt=""
+              aria-hidden
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-md"
+            />
+            <img
+              src={artworkUrl}
+              alt={song.title}
+              className="relative object-contain h-full w-full"
+            />
+          </>
         ) : (
           <div className="flex items-center justify-center w-full h-full aspect-video">
             <Music size={64} className="text-cyan-900" />

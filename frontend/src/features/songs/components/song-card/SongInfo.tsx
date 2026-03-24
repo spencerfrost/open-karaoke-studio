@@ -4,7 +4,7 @@ import { formatTime } from "@/utils/formatters";
 import { getSongDuration } from "@/utils/songUtils";
 import { SongInfoProps } from "./SongCard.types";
 
-export const SongInfo: React.FC<SongInfoProps> = ({ song }) => {
+export const SongInfo: React.FC<SongInfoProps> = ({ song, showArtist = true }) => {
   return (
     <CardContent className="p-3 flex-1">
       <div className="flex justify-between items-start">
@@ -20,14 +20,16 @@ export const SongInfo: React.FC<SongInfoProps> = ({ song }) => {
           {formatTime(getSongDuration(song))}
         </span>
       </div>
-      <p
-        className="text-sm opacity-75 truncate whitespace-nowrap"
-        title={song.artist}
-      >
-        {song.artist?.length > 50
-          ? song.artist.slice(0, 47) + "..."
-          : song.artist}
-      </p>
+      {showArtist && (
+        <p
+          className="text-sm opacity-75 truncate whitespace-nowrap"
+          title={song.artist}
+        >
+          {song.artist?.length > 50
+            ? song.artist.slice(0, 47) + "..."
+            : song.artist}
+        </p>
+      )}
       <div className="flex gap-2 justify-between items-center mt-1">
         <p
           className="text-xs text-secondary truncate whitespace-nowrap"

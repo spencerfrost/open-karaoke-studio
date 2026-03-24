@@ -6,6 +6,7 @@ export interface SongCardProps {
   variant?: "compact" | "detailed";
   actions?: SongCardAction[];
   sessionId?: string;
+  showArtist?: boolean;
 }
 
 export type SongCardAction = "delete" | "details" | "queue";
@@ -27,4 +28,5 @@ export interface SongActionsProps {
 
 export interface SongInfoProps {
   song: Song;
+  showArtist?: boolean;
 }
