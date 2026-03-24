@@ -582,9 +582,7 @@ def _check_song_metadata(song: DbSong) -> list:
         issues.append({"type": "missing_source", "label": "No Source", "severity": "info"})
     if song.duration is None:
         issues.append({"type": "missing_duration", "label": "No Duration", "severity": "warning"})
-    if not song.primary_genre:
-        issues.append({"type": "missing_genre", "label": "No Genre", "severity": "info"})
-    if not song.album:
+if not song.album:
         issues.append({"type": "missing_album", "label": "No Album", "severity": "info"})
     if not song.plain_lyrics and not song.synced_lyrics:
         issues.append({"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"})
@@ -908,17 +906,7 @@ async def update_song(
         # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
 
-        # Enrich with Last.fm genres when primary_genre is being set
-        if "primary_genre" in update_fields:
-            from app.services.lastfm_service import fetch_track_genres
-
-            artist_name = update_fields.get("artist") or db_song.artist
-            song_title = update_fields.get("title") or db_song.title
-            fetched_genres = await fetch_track_genres(artist_name, song_title)
-            if fetched_genres:
-                update_fields["genres"] = fetched_genres
-
-        if update_fields:
+if update_fields:
             updated_song = repo.update(song_id, **update_fields)
             if not updated_song:
                 raise HTTPException(
@@ -1260,29 +1248,6 @@ async def backfill_artwork_endpoint(
     return {"taskId": task.id, "status": "dispatched", "force": force}
 
 
-@router.post("/backfill-genres", status_code=202)
-async def backfill_genres_endpoint(
-    mode: str = Query("missing", description="'missing' to fill only empty genres, 'all' to refresh every song"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Dispatch a Celery task to populate genres from Last.fm."""
-    if mode not in ("missing", "all"):
-        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
-
-    from app.jobs.jobs import batch_backfill_genres
-
-    query = db.query(DbSong.id)
-    if mode == "missing":
-        query = query.filter(
-            (DbSong.genres.is_(None)) | (DbSong.genres == [])
-        )
-    queued = query.count()
-
-    task = batch_backfill_genres.delay(mode=mode)
-    return {"taskId": task.id, "queued": queued}
-
-
 @router.post("/backfill-duration", status_code=202)
 async def backfill_duration_endpoint(
     mode: str = Query("missing", description="'missing' to fill only null durations, 'all' to recompute every song"),
@@ -1398,37 +1363,6 @@ async def skip_fingerprint(
     db.commit()
     logger.info("Marked song %s as fingerprint-skipped", song_id)
     return {"status": "skipped"}
-
-
-@router.post("/{song_id}/fetch-genre", status_code=200)
-async def fetch_genre(
-    song_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Fetch genre from iTunes for a song and persist it, enriching with Last.fm tags."""
-    from app.services.itunes_service import search_itunes
-    from app.services.lastfm_service import fetch_track_genres
-
-    repo = SongRepository(db)
-    song = repo.fetch(song_id)
-    if not song:
-        raise HTTPException(status_code=404, detail="Song not found")
-
-    results = search_itunes(song.artist, song.title, limit=1)
-    if not results or not results[0].get("genre"):
-        raise HTTPException(status_code=404, detail="No genre found for this song")
-
-    genre = results[0]["genre"]
-    update_fields: dict = {"primary_genre": genre}
-
-    lastfm_genres = await fetch_track_genres(song.artist, song.title)
-    if lastfm_genres:
-        update_fields["genres"] = lastfm_genres
-
-    repo.update(song_id, **update_fields)
-    logger.info("Fetched genre '%s' for song %s", genre, song_id)
-    return {"genre": genre, "genres": lastfm_genres}
 
 
 @router.post("/{song_id}/analyze-vocal-range", status_code=200)
