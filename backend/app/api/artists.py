@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_db, require_admin
 from app.db.database import SessionLocal
 from app.db.models import User
+from app.db.models.song import DbSong
+from app.db.models.song_artist import DbSongArtist
 from app.repositories.artist_repository import ArtistRepository
+from app.schemas.song import SplitArtistCreditsRequest
 from app.services.artist_image_service import ArtistImageService
 from app.services.file_service import FileService
 from app.services.lastfm_service import LastFmService
@@ -158,3 +161,59 @@ async def set_artist_image(
     if path is None:
         raise HTTPException(status_code=422, detail="Failed to download image from the provided URL")
     return {"success": True}
+
+
+@router.post("/{artist_id}/split-credits")
+async def split_artist_credits(
+    artist_id: int,
+    body: SplitArtistCreditsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Manually split a combined artist (e.g. "A & B") into separate credits.
+    Applies the provided credits to all songs currently linked to this artist.
+    Requires admin.
+    """
+    repo = ArtistRepository(db)
+    artist = repo.get_by_id(artist_id)
+    if artist is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
+
+    primary_credits = [c for c in body.credits if c.role == "primary"]
+    if not primary_credits:
+        raise HTTPException(status_code=400, detail="At least one primary credit is required")
+
+    # Find all songs currently credited to this artist
+    songs = (
+        db.query(DbSong)
+        .join(DbSongArtist, DbSongArtist.song_id == DbSong.id)
+        .filter(DbSongArtist.artist_id == artist_id)
+        .all()
+    )
+
+    # Resolve/create all artist records upfront
+    resolved = [
+        (repo.get_or_create(credit.name, display_name=credit.name), credit.role)
+        for credit in body.credits
+    ]
+
+    for song in songs:
+        db.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
+        for i, (new_artist, role) in enumerate(resolved):
+            db.add(DbSongArtist(
+                song_id=song.id,
+                artist_id=new_artist.id,
+                role=role,
+                display_order=i,
+            ))
+        # Rebuild denormalized artist string from primary credits
+        song.artist = " & ".join(
+            new_artist.display_name or new_artist.name
+            for new_artist, role in resolved
+            if role == "primary"
+        )
+        song.artist_id = resolved[0][0].id  # first primary artist
+
+    db.commit()
+    return {"updated": len(songs)}

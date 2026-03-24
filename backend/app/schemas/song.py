@@ -280,3 +280,16 @@ class ReplacementValidationResponse(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     message: str  # Human-readable status message
+
+
+class SongArtistCredit(BaseModel):
+    """A single artist credit for manual collab splitting."""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    role: Literal["primary", "featured"]
+
+
+class SplitArtistCreditsRequest(BaseModel):
+    """Request body for POST /api/artists/{artist_id}/split-credits."""
+
+    credits: List[SongArtistCredit] = Field(..., min_length=1)
