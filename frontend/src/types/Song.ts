@@ -31,8 +31,6 @@ export interface Song {
   album?: string;
   releaseDate?: string;
   year?: number;
-  primaryGenre?: string;
-  genres?: string[];
 
   // Lyrics
   plainLyrics?: string;

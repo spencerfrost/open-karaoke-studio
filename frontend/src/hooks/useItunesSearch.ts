@@ -60,9 +60,6 @@ export interface ITunesSearchResult {
   copyright?: string;
   description?: string;
 
-  // Genre information
-  primaryGenreId?: number;
-  genreIds?: number[];
 }
 
 export function useItunesSearch() {

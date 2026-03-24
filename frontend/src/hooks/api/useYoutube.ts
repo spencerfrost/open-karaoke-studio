@@ -47,7 +47,6 @@ export interface SaveMetadataRequest {
   title: string;
   artist: string;
   album?: string;
-  genre?: string;
   plainlyrics?: string;
   syncedLyrics?: string;
   metadataId?: string;
