@@ -53,7 +53,6 @@ class BaseConfig:
 
     # Third-party API Keys
     DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
-    LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY", "")
     ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
     # Upload Configuration
