@@ -1,8 +1,16 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, MoreHorizontal, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, LayoutGrid, List, MoreHorizontal, Users } from "lucide-react";
 import { useInfiniteArtistSongs } from "@/hooks/api/useArtistSongs";
-import SongResultsGrid from "@/features/library/components/SongResultsGrid";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import ArtistSongGrid from "./ArtistSongGrid";
+import ArtistSongTable from "./ArtistSongTable";
 import EditArtistDialog from "./EditArtistDialog";
+import ManageCollabsDialog from "./ManageCollabsDialog";
 import { Artist } from "@/hooks/api/useArtists";
 
 interface ArtistSectionProps {
@@ -12,6 +20,8 @@ interface ArtistSectionProps {
   isAdmin?: boolean;
 }
 
+type ViewMode = "grid" | "table";
+
 const ArtistSection: React.FC<ArtistSectionProps> = ({
   artist,
   isExpanded,
@@ -20,6 +30,8 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [collabsOpen, setCollabsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
 
   const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
@@ -66,39 +78,94 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           </div>
         </button>
 
+        {isExpanded && (
+          <div className="flex items-center px-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewMode("grid");
+              }}
+              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-orange-peel" : "text-lemon-chiffon/30 hover:text-lemon-chiffon/60"}`}
+              aria-label="Grid view"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewMode("table");
+              }}
+              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-orange-peel" : "text-lemon-chiffon/30 hover:text-lemon-chiffon/60"}`}
+              aria-label="List view"
+            >
+              <List size={16} />
+            </button>
+          </div>
+        )}
+
         {isAdmin && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditOpen(true);
-            }}
-            className="px-3 py-3 hover:bg-lemon-chiffon/5 transition-colors text-orange-peel/60 hover:text-orange-peel"
-            aria-label={`Edit ${artist.name}`}
-          >
-            <MoreHorizontal size={18} />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              onClick={(e) => e.stopPropagation()}
+              className="px-3 py-3 hover:bg-lemon-chiffon/5 transition-colors text-orange-peel/60 hover:text-orange-peel"
+              aria-label={`Actions for ${artist.name}`}
+            >
+              <MoreHorizontal size={18} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-zinc-900 border-orange-peel/20">
+              <DropdownMenuItem
+                onClick={() => setEditOpen(true)}
+                className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"
+              >
+                Edit Artist
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setCollabsOpen(true)}
+                className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"
+              >
+                Manage Collabs
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
-      {/* Expanded Songs List */}
+      {/* Expanded Songs */}
       {isExpanded && (
         <div className="mb-8 px-4 mt-4">
-          <SongResultsGrid
-            songs={songs}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            artistName={artist.name}
-          />
+          {viewMode === "grid" ? (
+            <ArtistSongGrid
+              songs={songs}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              artistName={artist.name}
+              showArtist={false}
+            />
+          ) : (
+            <ArtistSongTable
+              songs={songs}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+            />
+          )}
         </div>
       )}
 
       {isAdmin && (
-        <EditArtistDialog
-          artist={artist}
-          open={editOpen}
-          onOpenChange={setEditOpen}
-        />
+        <>
+          <EditArtistDialog
+            artist={artist}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+          />
+          <ManageCollabsDialog
+            artist={artist}
+            open={collabsOpen}
+            onOpenChange={setCollabsOpen}
+          />
+        </>
       )}
     </div>
   );

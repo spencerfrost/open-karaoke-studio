@@ -17,6 +17,7 @@ interface SongResultsGridProps {
   fetchNextPage?: () => void;
   searchTerm?: string;
   artistName?: string;
+  showArtist?: boolean;
 }
 
 const SongResultsGrid: React.FC<SongResultsGridProps> = ({
@@ -26,6 +27,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   fetchNextPage,
   searchTerm,
   artistName,
+  showArtist = true,
 }) => {
   const navigate = useNavigate();
   const { isHost } = useSessionStore();
@@ -59,7 +61,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
       {/* Song Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {songs.filter(Boolean).map((song) => (
-          <CardComponent key={song.id} song={song} />
+          <CardComponent key={song.id} song={song} showArtist={showArtist} />
         ))}
         {artistName && <BrowseArtistCard artistName={artistName} />}
       </div>
