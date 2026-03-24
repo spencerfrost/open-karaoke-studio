@@ -5,7 +5,7 @@ import { BpmEditor } from "./BpmEditor";
 import { formatTime } from "@/utils/formatters";
 import { getSongDuration } from "@/utils/songUtils";
 import { Badge } from "@/components/ui/badge";
-import { Music, Calendar, Clock, Tag } from "lucide-react";
+import { Music, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PrimarySongDetailsProps {
@@ -46,17 +46,6 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
             <p className="font-medium">{formatTime(getSongDuration(song))}</p>
           </div>
         </div>
-
-        {/* Genre */}
-        {song.primaryGenre && (
-          <div className="flex items-center gap-2">
-            <Tag size={16} className="text-muted-foreground flex-shrink-0" />
-            <div>
-              <p className="text-xs text-muted-foreground">Genre</p>
-              <p className="font-medium">{song.primaryGenre}</p>
-            </div>
-          </div>
-        )}
 
         {/* Year */}
         {song.year && (

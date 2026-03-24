@@ -53,7 +53,6 @@ const MetadataEditor: React.FC<MetadataEditorProps> = ({
       artist: result.artist,
       album: result.album,
       year: result.year,
-      primaryGenre: result.primaryGenre,
       syncedLyrics: song.syncedLyrics,
     };
     handleSaveMetadata(metadataToSave);

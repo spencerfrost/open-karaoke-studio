@@ -31,13 +31,6 @@ export const MetadataComparisonView: React.FC<MetadataComparisonViewProps> = ({
       changed: currentSong.album !== selectedResult.collectionName,
     },
     {
-      field: "Genre",
-      current: currentSong.primaryGenre || "Not set",
-      new: selectedResult.primaryGenreName || "Not set",
-      changed:
-        (currentSong.primaryGenre || "") !== (selectedResult.primaryGenreName || ""),
-    },
-    {
       field: "Year",
       current: currentSong.year?.toString() || "Not set",
       new: selectedResult.releaseYear?.toString() || "Not set",

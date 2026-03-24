@@ -5,7 +5,7 @@ import { PrimaryActionsSection } from "../PrimaryActionsSection";
 import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/utils/formatters";
 import { getSongDuration } from "@/utils/songUtils";
-import { Music, Clock, Calendar, Tag } from "lucide-react";
+import { Music, Clock, Calendar } from "lucide-react";
 
 interface OverviewTabProps {
   song: Song;
@@ -60,17 +60,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 <div>
                   <p className="text-xs text-muted-foreground">Album</p>
                   <p className="font-medium truncate">{song.album}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Genre */}
-            {song.primaryGenre && (
-              <div className="flex items-center gap-2">
-                <Tag size={16} className="text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Genre</p>
-                  <p className="font-medium">{song.primaryGenre}</p>
                 </div>
               </div>
             )}

@@ -262,12 +262,7 @@ def lookup_itunes(track_id: int) -> dict[str, Any] | None:
             "album": track.get("collectionName"),
             "albumId": track.get("collectionId"),
             "releaseDate": track.get("releaseDate"),
-            
-            # Genre information (potentially includes subgenres)
-            "genre": track.get("primaryGenreName"),
-            "primaryGenreId": track.get("primaryGenreId"),
-            "genreIds": track.get("genreIds", []),  # Array of genre IDs
-            
+
             # Track details
             "trackNumber": track.get("trackNumber"),
             "trackCount": track.get("trackCount"),

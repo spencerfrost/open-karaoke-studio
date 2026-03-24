@@ -72,11 +72,6 @@ export const ITunesResultCard: React.FC<ITunesResultCardProps> = ({
 
             {/* Additional info */}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {result.primaryGenreName && (
-                <Badge variant="outline" className="text-xs">
-                  {result.primaryGenreName}
-                </Badge>
-              )}
               {result.trackExplicitness === "explicit" && (
                 <Badge variant="destructive" className="text-xs">
                   Explicit

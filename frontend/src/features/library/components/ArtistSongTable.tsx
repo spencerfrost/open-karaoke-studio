@@ -72,11 +72,6 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         {song.title}
       </span>
 
-      {/* Genre */}
-      <span className="hidden sm:block w-28 text-xs text-lemon-chiffon/40 truncate shrink-0">
-        {song.primaryGenre ?? ""}
-      </span>
-
       {/* Duration */}
       <span className="w-10 text-xs text-lemon-chiffon/50 text-right shrink-0 tabular-nums">
         {formatDuration(song.duration)}
@@ -174,9 +169,6 @@ const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(({
         <div className="w-9 shrink-0" />
         <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
           Title
-        </span>
-        <span className="hidden sm:block w-28 text-xs text-lemon-chiffon/40 uppercase tracking-wide shrink-0">
-          Genre
         </span>
         <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
           Time

@@ -14,7 +14,7 @@ interface DetailsTabProps {
   onLaunchItunesSearch?: () => void;
 }
 
-type EditingField = "title" | "artist" | "album" | "primaryGenre" | "year" | null;
+type EditingField = "title" | "artist" | "album" | "year" | null;
 
 export const DetailsTab: React.FC<DetailsTabProps> = ({
   song,
@@ -156,7 +156,6 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
           {renderEditableField("title", "Title", song.title)}
           {renderEditableField("artist", "Artist", song.artist)}
           {renderEditableField("album", "Album", song.album)}
-          {renderEditableField("primaryGenre", "Genre", song.primaryGenre)}
           {renderEditableField("year", "Year", song.year?.toString())}
         </CardContent>
       </Card>

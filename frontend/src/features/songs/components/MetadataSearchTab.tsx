@@ -161,13 +161,6 @@ const MetadataSearchTab: React.FC<MetadataSearchTabProps> = ({
                   {result.artist} {result.album && `• ${result.album}`}{" "}
                   {result.year && `(${result.year})`}
                 </p>
-                {result.primaryGenre && (
-                  <p className="text-xs mt-1">
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-dark-cyan/30 text-dark-cyan">
-                      {result.primaryGenre}
-                    </span>
-                  </p>
-                )}
               </div>
 
               <Button
