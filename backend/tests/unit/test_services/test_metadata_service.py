@@ -18,7 +18,6 @@ SAMPLE_ITUNES_RESULT = {
     "album": "Whenever You Need Somebody",
     "releaseDateFormatted": "1987-11-01",
     "releaseYear": 1987,
-    "genre": "Pop",
     "trackNumber": 1,
     "previewUrl": "https://example.com/preview.mp3",
     "trackExplicitness": "notExplicit",

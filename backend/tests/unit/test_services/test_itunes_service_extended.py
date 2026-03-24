@@ -15,9 +15,7 @@ SAMPLE_TRACK = {
     "collectionName": "Whenever You Need Somebody",
     "collectionId": 111222333,
     "releaseDate": "1987-11-01T00:00:00Z",
-    "primaryGenreName": "Pop",
-    "primaryGenreId": 14,
-    "genreIds": ["14"],
+
     "trackNumber": 1,
     "trackCount": 10,
     "discNumber": 1,
