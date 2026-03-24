@@ -2,7 +2,6 @@
 Song database model - Single source of truth.
 """
 
-import json
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
@@ -31,8 +30,6 @@ class DbSong(Base):
     album = Column(String, nullable=True)
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
-    primary_genre = Column(String, nullable=True)
-    genres = Column(JSON, nullable=True, default=list)
 
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
@@ -130,8 +127,6 @@ class DbSong(Base):
             "album": self.album,
             "releaseDate": self.release_date,
             "year": year_value,
-            "primaryGenre": self.primary_genre,
-            "genres": self.genres or [],
             # Lyrics
             "plainLyrics": self._get_active_lyrics_content("plain"),
             "syncedLyrics": self._get_active_lyrics_content("synced"),

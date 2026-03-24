@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -12,9 +12,6 @@ class DbArtist(Base):
     image_path = Column(String, nullable=True)
     image_status = Column(String, nullable=False, default="not_checked")
     # image_status values: "not_checked" | "found" | "not_found"
-    bio = Column(Text, nullable=True)
-    bio_status = Column(String, nullable=False, default="not_checked")
-    # bio_status values: "not_checked" | "found" | "not_found"
 
     songs = relationship("DbSong", back_populates="artist_rel")
     albums = relationship("DbAlbum", back_populates="artist")
