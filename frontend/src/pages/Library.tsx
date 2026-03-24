@@ -67,7 +67,7 @@ const LibraryPage: React.FC = () => {
         <div>
           {!hasSearch ? (
             <Tabs defaultValue="recently-added">
-              <TabsList className="mb-4">
+              <TabsList className="mb-4" variant="line">
                 <TabsTrigger value="recently-added">Recently Added</TabsTrigger>
                 <TabsTrigger value="recently-sang">Recently Sang</TabsTrigger>
               </TabsList>
