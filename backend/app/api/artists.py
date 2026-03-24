@@ -30,6 +30,10 @@ class UpdateArtistRequest(BaseModel):
     display_name: str
 
 
+class SetArtistImageRequest(BaseModel):
+    url: str
+
+
 @router.patch("/{artist_id}")
 async def update_artist(
     artist_id: int,
@@ -118,3 +122,39 @@ async def get_artist_bio(name: str = Query(...), db: Session = Depends(get_db)):
     if bio is None:
         raise HTTPException(status_code=404, detail="Artist biography not found")
     return {"name": name, "bio": bio}
+
+
+@router.get("/{artist_id}/images/search")
+async def search_artist_images(
+    artist_id: int,
+    q: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Return Discogs image candidates for an artist without downloading them."""
+    repo = ArtistRepository(db)
+    artist = repo.get_by_id(artist_id)
+    if artist is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
+    service = ArtistImageService(FileService(), SessionLocal)
+    candidates = await service.search_artist_images(q)
+    return {"results": candidates}
+
+
+@router.post("/{artist_id}/image")
+async def set_artist_image(
+    artist_id: int,
+    body: SetArtistImageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Download and save an artist image from the given URL."""
+    repo = ArtistRepository(db)
+    artist = repo.get_by_id(artist_id)
+    if artist is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
+    service = ArtistImageService(FileService(), SessionLocal)
+    path = await service.set_image_from_url(artist_id, body.url)
+    if path is None:
+        raise HTTPException(status_code=422, detail="Failed to download image from the provided URL")
+    return {"success": True}

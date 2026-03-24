@@ -590,6 +590,54 @@ def batch_backfill_genres(mode: str = "missing") -> dict:
     return {"processed": len(songs), "success": success, "skipped": skipped}
 
 
+@celery.task(name="batch_backfill_duration")
+def batch_backfill_duration(mode: str = "missing") -> dict:
+    """
+    Batch Celery task: populate duration from the original audio file.
+
+    mode="missing" — only processes songs where duration IS NULL.
+    mode="all"     — processes every song in the library.
+    """
+    from pathlib import Path
+
+    import librosa
+
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.db.models.song import DbSong
+    from app.repositories.song_repository import SongRepository
+
+    config = get_config()
+
+    with get_db_session() as session:
+        query = session.query(DbSong.id)
+        if mode == "missing":
+            query = query.filter(DbSong.duration.is_(None))
+        rows = query.all()
+
+    song_ids = [row[0] for row in rows]
+    logger.info("batch_backfill_duration: processing %d songs (mode=%s)", len(song_ids), mode)
+
+    success = 0
+    skipped = 0
+    for song_id in song_ids:
+        audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
+        if not audio_path.exists():
+            skipped += 1
+            continue
+        try:
+            duration = librosa.get_duration(path=str(audio_path))
+            with get_db_session() as session:
+                SongRepository(session).update(song_id, duration=duration)
+            success += 1
+        except Exception:
+            logger.warning("batch_backfill_duration: error for song %s", song_id, exc_info=True)
+            skipped += 1
+
+    logger.info("batch_backfill_duration: done — %d updated, %d skipped", success, skipped)
+    return {"processed": len(song_ids), "success": success, "skipped": skipped}
+
+
 @celery.task(name="fingerprint_single_song")
 def fingerprint_single_song(song_id: str) -> dict:
     """Fingerprint a single song via AcoustID."""
