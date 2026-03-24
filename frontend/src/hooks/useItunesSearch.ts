@@ -12,7 +12,6 @@ export interface ITunesSearchResult {
   trackName: string;
   artistName: string;
   collectionName?: string;
-  primaryGenreName?: string;
 
   // Artwork URLs
   artworkUrl30?: string;
