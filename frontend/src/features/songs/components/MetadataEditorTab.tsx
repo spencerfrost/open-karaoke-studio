@@ -19,7 +19,6 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
     artist: song.artist,
     album: song.album ?? "",
     year: song.year ?? "",
-    primaryGenre: song.primaryGenre ?? "",
   });
 
   const artworkUrl = song.albumCoverUrl ?? (song.thumbnail ? `/api/songs/${song.id}/thumbnail` : null);
@@ -103,30 +102,6 @@ const MetadataEditorTab: React.FC<MetadataEditorTabProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="primaryGenre">Genre</Label>
-              <Input
-                id="primaryGenre"
-                placeholder="e.g. Pop, Rock, Hip Hop"
-                value={metadata.primaryGenre ?? ""}
-                onChange={(e) => handleChange("primaryGenre", e.target.value)}
-                className="w-full"
-              />
-              {song.genres && song.genres.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {song.genres.map((g) => (
-                    <span
-                      key={g}
-                      className="px-2 py-0.5 rounded-full text-xs bg-accent/20 text-accent"
-                    >
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 

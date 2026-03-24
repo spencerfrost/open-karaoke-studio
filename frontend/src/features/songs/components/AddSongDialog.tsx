@@ -69,7 +69,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
     title: "",
     artist: "",
     album: "",
-    genre: "",
   });
 
   // Save mutation for YouTube video flow
@@ -106,7 +105,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
           title: videoTitle || currentSong.title || "",
           artist: currentSong.artist || "",
           album: currentSong.album || "",
-          genre: "",
         });
       }
     }
@@ -122,7 +120,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
       title: "",
       artist: "",
       album: "",
-      genre: "",
     });
   };
 
@@ -212,7 +209,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
         title: editedMetadata.title,
         artist: editedMetadata.artist,
         album: editedMetadata.album,
-        primaryGenre: editedMetadata.primaryGenre,
         plainlyrics: selectedLyrics.plainLyrics,
         syncedLyrics: selectedLyrics.syncedLyrics,
       });
@@ -244,7 +240,6 @@ export const AddSongDialog: React.FC<AddSongDialogContainerProps> = ({
                 initialTitle={editedMetadata.title}
                 initialArtist={editedMetadata.artist}
                 initialAlbum={editedMetadata.album}
-                initialGenre={editedMetadata.primaryGenre}
                 onChange={setEditedMetadata}
               />
               <Separator className="my-6" />

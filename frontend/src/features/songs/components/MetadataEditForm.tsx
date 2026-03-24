@@ -6,14 +6,12 @@ export interface MetadataFormData {
   title: string;
   artist: string;
   album?: string;
-  genre?: string;
 }
 
 interface MetadataEditFormProps {
   initialTitle: string;
   initialArtist: string;
   initialAlbum?: string;
-  initialGenre?: string;
   onChange: (metadata: MetadataFormData) => void;
   className?: string;
 }
@@ -22,14 +20,12 @@ export const MetadataEditForm: React.FC<MetadataEditFormProps> = ({
   initialTitle,
   initialArtist,
   initialAlbum = "",
-  initialGenre = "",
   onChange,
   className = "",
 }) => {
   const [title, setTitle] = useState(initialTitle);
   const [artist, setArtist] = useState(initialArtist);
   const [album, setAlbum] = useState(initialAlbum);
-  const [genre, setGenre] = useState(initialGenre);
 
   // Update parent on any change
   useEffect(() => {
@@ -37,9 +33,8 @@ export const MetadataEditForm: React.FC<MetadataEditFormProps> = ({
       title: title.trim(),
       artist: artist.trim(),
       album: album.trim() || undefined,
-      genre: genre.trim() || undefined,
     });
-  }, [title, artist, album, genre, onChange]);
+  }, [title, artist, album, onChange]);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -80,15 +75,6 @@ export const MetadataEditForm: React.FC<MetadataEditFormProps> = ({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="metadata-genre">Genre</Label>
-          <Input
-            id="metadata-genre"
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="Enter genre (optional)"
-          />
-        </div>
       </div>
     </div>
   );

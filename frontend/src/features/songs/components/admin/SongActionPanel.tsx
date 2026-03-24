@@ -50,7 +50,6 @@ const ISSUE_ACTION_MAP: Record<string, string[]> = {
   unknown_artist:      ["edit", "musicbrainz"],
   missing_source:      ["replace-yt", "replace-upload"],
   missing_duration:    ["replace-yt", "replace-upload"],
-  missing_genre:       ["fetch-genre"],
   missing_album:       ["edit", "musicbrainz"],
   missing_lyrics:      ["search-lyrics", "paste-lyrics"],
   missing_vocal_range: ["analyze-vocal-range"],
@@ -115,25 +114,6 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
     },
     onSuccess: (data) => {
       toast.success(`Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`);
-      invalidateAndDone();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const fetchGenreMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/songs/${song.id}/fetch-genre`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.detail ?? "No genre found for this song");
-      }
-      return res.json() as Promise<{ genre: string }>;
-    },
-    onSuccess: (data) => {
-      toast.success(`Genre set to "${data.genre}"`);
       invalidateAndDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -227,16 +207,6 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
             onClick={() => toggle("edit")}
           >
             Edit Metadata
-          </Button>
-        )}
-        {show("fetch-genre") && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fetchGenreMutation.mutate()}
-            disabled={fetchGenreMutation.isPending}
-          >
-            {fetchGenreMutation.isPending ? "Fetching..." : "Fetch Genre"}
           </Button>
         )}
         {show("analyze-vocal-range") && (

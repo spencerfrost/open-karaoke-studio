@@ -67,7 +67,6 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
             trackName: result.title,
             artistName: result.artist,
             collectionName: result.album,
-            primaryGenreName: result.genre,
             artworkUrl100: result.rawData?.artworkUrl100,
             artworkUrl60: result.rawData?.artworkUrl60,
             artworkUrl30: result.rawData?.artworkUrl30,
@@ -110,8 +109,6 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           trackName: lookupData.title || result.trackName,
           artistName: lookupData.artist || result.artistName,
           collectionName: lookupData.album || result.collectionName,
-          primaryGenreName: lookupData.genre || result.primaryGenreName,
-
           // Artwork URLs (all sizes from lookup)
           artworkUrl30: lookupData.artworkUrl30,
           artworkUrl60: lookupData.artworkUrl60,
@@ -158,10 +155,6 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
           // Additional metadata
           copyright: lookupData.copyright,
           description: lookupData.description,
-
-          // Genre information
-          primaryGenreId: lookupData.primaryGenreId,
-          genreIds: lookupData.genreIds || [],
         };
 
         setSelectedResult(comprehensiveResult);
@@ -191,7 +184,6 @@ export const MetadataEditContent: React.FC<MetadataEditContentProps> = ({
       title: selectedResult.trackName,
       artist: selectedResult.artistName,
       album: selectedResult.collectionName,
-      genre: selectedResult.primaryGenreName,
       year: selectedResult.releaseYear,
     };
 
