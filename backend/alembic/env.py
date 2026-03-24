@@ -2,6 +2,8 @@
 Alembic environment configuration for database migrations.
 """
 
+import logging
+import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -11,6 +13,17 @@ from alembic.config import Config
 from app.config import get_config
 from app.db.models import Base
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
+
+logger = logging.getLogger(__name__)
+
+
+def _redact_url(url_str: str) -> str:
+    """Return URL string with password replaced by '***'."""
+    try:
+        return make_url(url_str).render_as_string(hide_password=True)
+    except Exception:
+        return "<unparseable URL>"
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 config = Config(file_=str(Path(__file__).parent.parent / "alembic.ini"))
@@ -57,7 +70,7 @@ def run_migrations_offline() -> None:
         url = os.environ.get(env_var)
     if url is None:
         url = get_url()
-    print(f"[alembic] Using SQLAlchemy URL (offline): {url}")
+    logger.debug("Using SQLAlchemy URL (offline): %s", _redact_url(url))
 
     context.configure(
         url=url,
@@ -84,7 +97,7 @@ def run_migrations_online() -> None:
     if configuration.get("sqlalchemy.url", "").startswith("env:"):
         env_var = configuration["sqlalchemy.url"].split("env:")[1]
         configuration["sqlalchemy.url"] = os.environ.get(env_var)
-    print(f"[alembic] Using SQLAlchemy URL (online): {configuration.get('sqlalchemy.url')}")
+    logger.debug("Using SQLAlchemy URL (online): %s", _redact_url(configuration.get("sqlalchemy.url", "")))
 
     connectable = engine_from_config(
         configuration,
