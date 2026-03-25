@@ -29,7 +29,7 @@ async def get_current_jobs_list():
     try:
         # Use the existing JobsService which handles PostgreSQL properly
         jobs_service = JobsService()
-        jobs = jobs_service.get_all_jobs()
+        jobs = await asyncio.to_thread(jobs_service.get_all_jobs)
         return [job.to_dict() for job in jobs]
     except Exception as e:
         logger.error(f"Error getting jobs list from PostgreSQL: {e}")
