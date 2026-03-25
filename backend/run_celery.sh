@@ -10,10 +10,10 @@ if [ -f .env ]; then
     set +a # stop automatically exporting
 fi
 
-# Ensure DATABASE_URL is set; fall back to SQLite default if not provided
+# Ensure DATABASE_URL is set — must come from .env or the environment
 if [ -z "$DATABASE_URL" ]; then
-    echo "WARNING: DATABASE_URL is not set. Falling back to SQLite default."
-    export DATABASE_URL="sqlite:///karaoke.db"
+    echo "ERROR: DATABASE_URL is not set. Add it to your .env file."
+    exit 1
 fi
 
 # Set critical environment variables for PyTorch/CUDA compatibility

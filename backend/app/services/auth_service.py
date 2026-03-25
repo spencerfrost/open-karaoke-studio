@@ -54,7 +54,7 @@ def verify_token(token: str) -> Optional[dict]:
         payload = jwt.decode(token, _get_secret_key(), algorithms=[ALGORITHM])
         return payload
     except JWTError as e:
-        logger.warning("JWT verification failed: %s (token prefix: %s...)", e, token[:20] if token else "empty")
+        logger.warning("JWT verification failed: %s", e)
         return None
 
 
