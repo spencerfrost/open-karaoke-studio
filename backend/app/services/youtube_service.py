@@ -31,6 +31,12 @@ class YouTubeService(YouTubeServiceInterface):
                 "extract_flat": True,
                 "default_search": "ytsearch",
                 "noplaylist": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
             }
 
             search_term = f"ytsearch{max_results}:{query}"
@@ -101,7 +107,7 @@ class YouTubeService(YouTubeServiceInterface):
             outtmpl = str(song_dir / "original.%(ext)s")
 
             ydl_opts = {
-                "format": "bestaudio/best",
+                "format": "best",
                 "outtmpl": outtmpl,
                 "postprocessors": [
                     {
@@ -114,6 +120,12 @@ class YouTubeService(YouTubeServiceInterface):
                 "no_warnings": True,
                 "writeinfojson": True,
                 "noplaylist": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
             }
 
             # Download video
@@ -145,7 +157,7 @@ class YouTubeService(YouTubeServiceInterface):
                 try:
                     duration = self._extract_audio_duration(original_file)
                     if duration:
-                        metadata_dict["duration_ms"] = int(duration * 1000)
+                        metadata_dict["duration"] = duration  # Store in seconds
                         logger.info(
                             "Extracted duration %ss from audio file for song %s",
                             duration,
@@ -157,17 +169,7 @@ class YouTubeService(YouTubeServiceInterface):
                         song_id,
                         e,
                     )
-            else:
-                # If duration is present (in seconds), also convert to ms
-                try:
-                    duration = float(metadata_dict["duration"])
-                    metadata_dict["duration_ms"] = int(duration * 1000)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to convert duration to ms for song %s: %s",
-                        song_id,
-                        e,
-                    )
+            # Duration is already in seconds, no conversion needed
             # Ensure source_url is set correctly
             if not metadata_dict.get("source_url"):
                 metadata_dict["source_url"] = url
@@ -182,17 +184,17 @@ class YouTubeService(YouTubeServiceInterface):
                 "Successfully downloaded YouTube video %s as song %s", video_id, song_id
             )
             try:
-                # Update song with duration_ms if available
-                if metadata_dict.get("duration_ms"):
+                # Update song with duration if available
+                if metadata_dict.get("duration"):
                     from app.db.database import get_db_session
                     from app.repositories.song_repository import SongRepository
 
                     with get_db_session() as session:
                         repo = SongRepository(session)
-                        repo.update(song_id, duration_ms=metadata_dict["duration_ms"])
+                        repo.update(song_id, duration=metadata_dict["duration"])
             except Exception as e:
                 logger.warning(
-                    "Failed to update duration_ms for song %s: %s", song_id, e
+                    "Failed to update duration for song %s: %s", song_id, e
                 )
             return song_id, metadata_dict
 
@@ -224,6 +226,33 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error("Failed to extract video info for %s: %s", video_id_or_url, e)
             raise ServiceError(f"Failed to extract video information: {e}")
 
+    def get_audio_preview_url(self, video_id: str) -> str:
+        """Extract a direct audio stream URL for preview (no download)."""
+        try:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            ydl_opts = {
+                "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
+                "quiet": True,
+                "no_warnings": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"],
+                        "player_skip": ["js"],
+                    }
+                },
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                stream_url = info.get("url")
+                if not stream_url:
+                    raise ServiceError(f"No audio stream URL found for video {video_id}")
+                return stream_url
+        except ServiceError:
+            raise
+        except Exception as e:
+            logger.error("Failed to get audio preview URL for %s: %s", video_id, e)
+            raise ServiceError(f"Failed to get audio preview URL: {e}")
+
     def validate_video_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube video URL"""
         if not url or not isinstance(url, str):
@@ -253,6 +282,7 @@ class YouTubeService(YouTubeServiceInterface):
         artist: str = None,
         title: str = None,
         song_id: str = None,
+        engine_type: str = "three_track",
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
@@ -286,8 +316,8 @@ class YouTubeService(YouTubeServiceInterface):
                         "artist": artist or "Unknown Artist",
                         "source": "youtube",
                         "video_id": video_id,
-                        # Try to fetch duration_ms from YouTube metadata if available
-                        "duration_ms": None,  # Will be updated after download if possible
+                        # Duration will be updated after download if possible
+                        "duration": None,
                     }
                     created_song = repo.create(song_data)
                     if created_song:
@@ -351,7 +381,7 @@ class YouTubeService(YouTubeServiceInterface):
 
             task = celery.send_task(
                 "process_youtube_job",
-                args=[job_id, video_id, metadata_dict],
+                args=[job_id, video_id, metadata_dict, engine_type],
             )
 
             # Update job with task ID
@@ -674,33 +704,16 @@ class YouTubeService(YouTubeServiceInterface):
             logger.error(
                 "Failed to update database thumbnail for song %s: %s", song_id, e
             )
-        """Update database with thumbnail information"""
+
+    def _extract_audio_duration(self, audio_path) -> Optional[float]:
+        """Extract duration from audio file using librosa"""
         try:
-            from app.db.database import get_db_session
-            from app.repositories.song_repository import SongRepository
+            import librosa
 
-            thumbnail_path = f"{song_id}/{thumbnail_filename}"
-            with get_db_session() as session:
-                repo = SongRepository(session)
-                updated_song = repo.update(song_id, thumbnail_path=thumbnail_path)
-            if not updated_song:
-                logger.warning(
-                    "Failed to update thumbnail in database for song %s", song_id
-                )
+            duration = librosa.get_duration(path=str(audio_path))
+            return float(duration)
         except Exception as e:
-            logger.error(
-                "Failed to update database thumbnail for song %s: %s", song_id, e
+            logger.warning(
+                "Failed to extract duration from audio file %s: %s", audio_path, e
             )
-
-        def _extract_audio_duration(self, audio_path) -> Optional[float]:
-            """Extract duration from audio file using librosa"""
-            try:
-                import librosa
-
-                duration = librosa.get_duration(path=str(audio_path))
-                return float(duration)
-            except Exception as e:
-                logger.warning(
-                    "Failed to extract duration from audio file %s: %s", audio_path, e
-                )
-                return None
+            return None

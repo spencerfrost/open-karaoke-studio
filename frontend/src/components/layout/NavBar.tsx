@@ -22,7 +22,10 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
   };
 
   return (
-    <nav className="flex h-18 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20 gap-4 pb-4 pt-2 md:py-1">
+    <nav
+      className="flex h-18 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20 gap-4 pt-2 md:py-1"
+      style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
       {items.map((item) => {
         const active = isActive(item.path);
         const Icon = item.icon;

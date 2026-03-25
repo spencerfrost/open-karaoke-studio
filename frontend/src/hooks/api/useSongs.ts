@@ -1,7 +1,16 @@
 import { useCallback } from "react";
-import { useApiQuery, useApiMutation, uploadFile } from "./useApi";
-import { Song, SongProcessingStatus } from "../../types/Song";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  useApiQuery,
+  useApiMutation,
+  uploadFile,
+  handleUnauthorized,
+} from "./useApi";
+import { ChordEvent, Song, SongProcessingStatus } from "../../types/Song";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
+
+const logger = createLogger("hook:songs");
 
 // Query keys for React Query
 const QUERY_KEYS = {
@@ -9,6 +18,7 @@ const QUERY_KEYS = {
   song: (id: string) => ["songs", id] as const,
   songStatus: (id: string) => ["songs", id, "status"] as const,
   songLyrics: (id: string) => ["songs", id, "lyrics"] as const,
+  songChords: (id: string) => ["songs", id, "chords"] as const,
   metadata: ["metadata", "search"] as const,
 };
 
@@ -32,14 +42,57 @@ export function useSongs() {
   /**
    * Get songs in the library with flexible query params (limit, offset, sort_by, direction, etc)
    * Pass params as an object: { limit, offset, sort_by, direction, ... }
+   * If 'q' parameter is provided, automatically routes to the search endpoint
    */
   const useSongs = (params: Record<string, any> = {}, options = {}) => {
+    // If search query is provided, use the search endpoint
+    const isSearch = params.q && params.q.trim().length > 0;
+    const endpoint = isSearch ? "songs/search" : "songs";
+
     const queryString = Object.keys(params).length
-      ? `songs?${new URLSearchParams(params).toString()}`
-      : "songs";
-    // Use params as part of the query key for caching
-    const queryKey = ["songs", params];
-    return useApiQuery<Song[], typeof queryKey>(queryKey, queryString, options);
+      ? `${endpoint}?${new URLSearchParams(params).toString()}`
+      : endpoint;
+
+    // Use params as part of the query key for caching, include endpoint type
+    const queryKey = ["songs", isSearch ? "search" : "list", params];
+
+    // Use a custom query function that handles different response formats
+    const queryFn = async () => {
+      const response = await fetch(`/api/${queryString}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        try {
+          const contentType = response.headers.get("Content-Type") ?? "";
+          if (contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage =
+              errorData?.error || errorData?.message || errorMessage;
+          }
+        } catch (jsonError) {
+          logger.error("Error parsing error response:", jsonError);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+
+      // If it's a search response, extract the songs array
+      if (isSearch && data.songs) {
+        return data.songs;
+      }
+
+      // Otherwise return the data as-is (should be a songs array)
+      return data;
+    };
+
+    return useQuery<Song[], typeof queryKey>({
+      queryKey,
+      queryFn,
+      ...options,
+    });
   };
 
   /**
@@ -52,7 +105,7 @@ export function useSongs() {
       {
         enabled: !!id,
         ...options,
-      }
+      },
     );
   };
 
@@ -75,6 +128,46 @@ export function useSongs() {
     });
   };
 
+  /**
+   * Get precomputed chord events for a song.
+   * Returns empty array when chord data is unavailable (404).
+   */
+  const useSongChords = (id: string, options = {}) => {
+    return useQuery<ChordEvent[], ReturnType<typeof QUERY_KEYS.songChords>>({
+      queryKey: QUERY_KEYS.songChords(id),
+      enabled: !!id,
+      queryFn: async () => {
+        const response = await fetch(`/api/songs/${id}/chords`, {
+          credentials: "include",
+        });
+
+        if (response.status === 404) {
+          return [];
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch song chords: ${response.status}`);
+        }
+
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) {
+          return [];
+        }
+
+        return data
+          .filter(
+            (item): item is ChordEvent =>
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as ChordEvent).time === "number" &&
+              typeof (item as ChordEvent).chord === "string",
+          )
+          .sort((a, b) => a.time - b.time);
+      },
+      ...options,
+    });
+  };
+
   // ===== Mutations =====
   /**
    * Create a new song
@@ -82,25 +175,16 @@ export function useSongs() {
   const useCreateSong = () => {
     return useApiMutation<Song, Partial<Song>>("songs", "post", {
       onMutate: async () => {
-        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
-
-        // Save previous songs list
-        const previousSongs = queryClient.getQueryData<Song[]>(
-          QUERY_KEYS.songs
-        );
-
-        return { previousSongs };
+        await queryClient.cancelQueries({ queryKey: ["songs"] });
+        return {};
       },
-      onError: (_err, _variables, context: unknown) => {
-        // If the mutation fails, roll back to the previous songs list
-        const ctx = context as { previousSongs?: Song[] } | undefined;
-        if (ctx?.previousSongs) {
-          queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
-        }
+      onError: () => {
+        // Invalidate to refetch fresh data on error
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       onSettled: () => {
         // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const response = await fetch("/api/songs", {
@@ -114,7 +198,7 @@ export function useSongs() {
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
-            errorData.error || `Failed to create song: ${response.status}`
+            errorData.error || `Failed to create song: ${response.status}`,
           );
         }
         return response.json();
@@ -136,7 +220,7 @@ export function useSongs() {
 
           // Save previous song
           const previousSong = queryClient.getQueryData<Song>(
-            QUERY_KEYS.song(id)
+            QUERY_KEYS.song(id),
           );
 
           // Optimistically update the song
@@ -146,18 +230,8 @@ export function useSongs() {
               ...updates,
             });
 
-            // Also update the song in the list of all songs
-            const previousSongs = queryClient.getQueryData<Song[]>(
-              QUERY_KEYS.songs
-            );
-            if (previousSongs) {
-              queryClient.setQueryData<Song[]>(
-                QUERY_KEYS.songs,
-                previousSongs.map((song) =>
-                  song.id === id ? { ...song, ...updates } : song
-                )
-              );
-            }
+            // Note: We don't optimistically update song lists due to complex query key structure
+            // The cache will be properly updated via invalidation on success
           }
 
           return { previousSong };
@@ -167,7 +241,7 @@ export function useSongs() {
           if (ctx?.previousSong) {
             queryClient.setQueryData(
               QUERY_KEYS.song(variables.id),
-              ctx.previousSong
+              ctx.previousSong,
             );
           }
         },
@@ -176,7 +250,7 @@ export function useSongs() {
           queryClient.invalidateQueries({
             queryKey: QUERY_KEYS.song(variables.id),
           });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
         },
         mutationFn: async (data) => {
           const { id, ...updates } = data;
@@ -193,13 +267,13 @@ export function useSongs() {
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(
-              errorData.error || `Failed to update song: ${response.status}`
+              errorData.error || `Failed to update song: ${response.status}`,
             );
           }
 
           return response.json();
         },
-      }
+      },
     );
   };
 
@@ -217,7 +291,7 @@ export function useSongs() {
 
           // Save previous song
           const previousSong = queryClient.getQueryData<Song>(
-            QUERY_KEYS.song(id)
+            QUERY_KEYS.song(id),
           );
 
           // Optimistically update the song
@@ -227,18 +301,8 @@ export function useSongs() {
               ...metadata,
             });
 
-            // Also update the song in the list of all songs
-            const previousSongs = queryClient.getQueryData<Song[]>(
-              QUERY_KEYS.songs
-            );
-            if (previousSongs) {
-              queryClient.setQueryData<Song[]>(
-                QUERY_KEYS.songs,
-                previousSongs.map((song) =>
-                  song.id === id ? { ...song, ...metadata } : song
-                )
-              );
-            }
+            // Note: We don't optimistically update song lists due to complex query key structure
+            // The cache will be properly updated via invalidation on success
           }
 
           return { previousSong };
@@ -249,7 +313,7 @@ export function useSongs() {
           if (typedContext?.previousSong) {
             queryClient.setQueryData(
               QUERY_KEYS.song(variables.id),
-              typedContext.previousSong
+              typedContext.previousSong,
             );
           }
         },
@@ -258,7 +322,7 @@ export function useSongs() {
           queryClient.invalidateQueries({
             queryKey: QUERY_KEYS.song(variables.id),
           });
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
         },
         mutationFn: async (data) => {
           const { id, ...metadata } = data;
@@ -275,13 +339,14 @@ export function useSongs() {
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(
-              errorData.error || `Failed to update metadata: ${response.status}`
+              errorData.error ||
+                `Failed to update metadata: ${response.status}`,
             );
           }
 
           return response.json();
         },
-      }
+      },
     );
   };
 
@@ -311,7 +376,7 @@ export function useSongs() {
         await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
 
         const previousSong = queryClient.getQueryData<Song>(
-          QUERY_KEYS.song(id)
+          QUERY_KEYS.song(id),
         );
 
         if (previousSong) {
@@ -328,7 +393,7 @@ export function useSongs() {
         if (ctx?.previousSong) {
           queryClient.setQueryData(
             QUERY_KEYS.song(variables.id),
-            ctx.previousSong
+            ctx.previousSong,
           );
         }
       },
@@ -336,7 +401,7 @@ export function useSongs() {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.song(variables.id),
         });
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const { id, ...metadata } = data;
@@ -354,7 +419,7 @@ export function useSongs() {
           const errorData = await response.json();
           throw new Error(
             errorData.error ||
-              `Failed to update iTunes metadata: ${response.status}`
+              `Failed to update iTunes metadata: ${response.status}`,
           );
         }
 
@@ -372,13 +437,6 @@ export function useSongs() {
       {
         id: string;
         youtubeDuration?: number;
-        youtubeThumbnailUrls?: {
-          default?: string;
-          medium?: string;
-          high?: string;
-          standard?: string;
-          maxres?: string;
-        };
         youtubeTags?: string[];
         youtubeCategories?: string[];
         youtubeChannelId?: string;
@@ -390,7 +448,7 @@ export function useSongs() {
         await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
 
         const previousSong = queryClient.getQueryData<Song>(
-          QUERY_KEYS.song(id)
+          QUERY_KEYS.song(id),
         );
 
         if (previousSong) {
@@ -407,7 +465,7 @@ export function useSongs() {
         if (ctx?.previousSong) {
           queryClient.setQueryData(
             QUERY_KEYS.song(variables.id),
-            ctx.previousSong
+            ctx.previousSong,
           );
         }
       },
@@ -415,7 +473,7 @@ export function useSongs() {
         queryClient.invalidateQueries({
           queryKey: QUERY_KEYS.song(variables.id),
         });
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
       },
       mutationFn: async (data) => {
         const { id, ...metadata } = data;
@@ -433,7 +491,7 @@ export function useSongs() {
           const errorData = await response.json();
           throw new Error(
             errorData.error ||
-              `Failed to update YouTube metadata: ${response.status}`
+              `Failed to update YouTube metadata: ${response.status}`,
           );
         }
 
@@ -447,54 +505,136 @@ export function useSongs() {
    */
   const useDeleteSong = () => {
     return useApiMutation<void, { id: string }>("songs/:id", "delete", {
-      onMutate: async (variables) => {
-        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.songs });
-
-        // Save previous songs list
-        const previousSongs = queryClient.getQueryData<Song[]>(
-          QUERY_KEYS.songs
-        );
-
-        // Optimistically remove the song from the list
-        if (previousSongs) {
-          queryClient.setQueryData<Song[]>(
-            QUERY_KEYS.songs,
-            previousSongs.filter((song) => song.id !== variables.id)
-          );
-        }
-
-        return { previousSongs };
-      },
-      onError: (_err, _variables, context: unknown) => {
-        // If the mutation fails, restore the previous songs list
-        const ctx = context as { previousSongs?: Song[] } | undefined;
-        if (ctx?.previousSongs) {
-          queryClient.setQueryData(QUERY_KEYS.songs, ctx.previousSongs);
-        }
+      onMutate: async () => {
+        // Cancel all song-related queries to prevent race conditions
+        await queryClient.cancelQueries({ queryKey: ["songs"] });
+        await queryClient.cancelQueries({ queryKey: ["artists"] });
+        await queryClient.cancelQueries({ queryKey: ["artist-songs"] });
+        return {};
       },
       onSuccess: (_data, variables) => {
-        // Remove the specific song from cache
+        // Remove the specific song from all caches
         queryClient.removeQueries({ queryKey: QUERY_KEYS.song(variables.id) });
       },
       onSettled: () => {
-        // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.songs });
+        // Invalidate all queries after mutation completes (success or error)
+        // Using a small delay to allow UI to update first
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
+          queryClient.invalidateQueries({ queryKey: ["artists"] });
+          queryClient.invalidateQueries({ queryKey: ["artist-songs"] });
+        }, 100);
       },
       mutationFn: async (data) => {
         const url = formatUrl("songs/:id", { id: data.id });
+        const token = useAuthStore.getState().token;
+        logger.debug(
+          "DELETE %s — token present: %s, token prefix: %s",
+          url,
+          !!token,
+          token?.substring(0, 20),
+        );
         const response = await fetch(`/api/${url}`, {
           method: "DELETE",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           credentials: "include",
         });
 
         if (!response.ok) {
+          handleUnauthorized(response);
           const errorData = await response.json();
           throw new Error(
-            errorData.error || `Failed to delete song: ${response.status}`
+            errorData.detail ||
+              errorData.error ||
+              `Failed to delete song: ${response.status}`,
           );
         }
 
         return;
+      },
+    });
+  };
+
+  /**
+   * Reprocess a song with a different separation engine
+   */
+  const useReprocessSong = () => {
+    return useApiMutation<
+      { jobId: string; status: string; message: string },
+      { id: string; engine_type: string }
+    >("songs/:id/reprocess", "post", {
+      onMutate: async (variables) => {
+        await queryClient.cancelQueries({
+          queryKey: QUERY_KEYS.song(variables.id),
+        });
+        return {};
+      },
+      onSettled: (_data, _error, variables) => {
+        // Invalidate song queries to refresh status
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.song(variables.id),
+        });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+      },
+      mutationFn: async (data) => {
+        const { id, engine_type } = data;
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`/api/songs/${id}/reprocess`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ engine_type }),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          handleUnauthorized(response);
+          const errorData = await response.json();
+          throw new Error(
+            errorData.detail || `Failed to reprocess: ${response.status}`,
+          );
+        }
+
+        return response.json();
+      },
+    });
+  };
+
+  /**
+   * Reprocess all songs (admin) — POST /api/songs/reprocess-all
+   * This endpoint is auth-protected; include Authorization header when available.
+   */
+  const useReprocessAllSongs = () => {
+    return useApiMutation<
+      { jobsCreated: number; skipped: number; message: string },
+      void
+    >("songs/reprocess-all", "post", {
+      mutationFn: async () => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`/api/songs/reprocess-all`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          handleUnauthorized(response);
+          const errorData = await response.json();
+          throw new Error(
+            errorData?.detail ||
+              errorData?.error ||
+              `Failed to reprocess-all: ${response.status}`,
+          );
+        }
+
+        return response.json();
       },
     });
   };
@@ -528,52 +668,31 @@ export function useSongs() {
   const getArtworkUrl = useCallback(
     (
       song: Song,
-      size: "small" | "medium" | "large" = "medium"
+      size: "small" | "medium" | "large" = "medium",
     ): string | null => {
-      // Priority: Backend API thumbnail endpoint > iTunes artwork > YouTube thumbnail URLs
+      // Priority: Album cover > backend thumbnail > YouTube CDN fallback
+      if (song.albumCoverUrl) {
+        return song.albumCoverUrl;
+      }
+
       if (song.thumbnail) {
         // Use the backend API endpoint for thumbnails (auto-detects format)
         return `/api/songs/${song.id}/thumbnail`;
       }
 
-      // YouTube thumbnail URLs (external)
-      if (song.youtubeThumbnailUrls) {
-        switch (size) {
-          case "large":
-            if (song.youtubeThumbnailUrls.maxres)
-              return song.youtubeThumbnailUrls.maxres;
-            if (song.youtubeThumbnailUrls.standard)
-              return song.youtubeThumbnailUrls.standard;
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            break;
-          case "medium":
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.standard)
-              return song.youtubeThumbnailUrls.standard;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            break;
-          case "small":
-            if (song.youtubeThumbnailUrls.medium)
-              return song.youtubeThumbnailUrls.medium;
-            if (song.youtubeThumbnailUrls.default)
-              return song.youtubeThumbnailUrls.default;
-            if (song.youtubeThumbnailUrls.high)
-              return song.youtubeThumbnailUrls.high;
-            break;
-        }
+      // Last resort: construct YouTube CDN URL from video ID
+      if (song.videoId) {
+        const qualityMap = {
+          large: "maxresdefault",
+          medium: "hqdefault",
+          small: "mqdefault",
+        };
+        return `https://img.youtube.com/vi/${song.videoId}/${qualityMap[size]}.jpg`;
       }
+
       return null;
     },
-    []
+    [],
   );
 
   /**
@@ -582,12 +701,12 @@ export function useSongs() {
   const getAudioUrl = useCallback(
     (
       songId: string,
-      trackType: "vocals" | "instrumental" | "original"
+      trackType: "vocals" | "instrumental" | "original",
     ): string => {
       // Use the backend API endpoint for audio
       return `/api/songs/${songId}/download/${trackType}`;
     },
-    []
+    [],
   );
 
   /**
@@ -597,7 +716,7 @@ export function useSongs() {
     async (file: File, metadata?: Record<string, unknown>) => {
       return uploadFile<Song>("songs/upload", file, metadata);
     },
-    []
+    [],
   );
 
   /**
@@ -608,7 +727,7 @@ export function useSongs() {
       const url = `/api/songs/${songId}/download/vocals`;
       await downloadFile(url, filename ?? `vocals-${songId}.mp3`);
     },
-    []
+    [],
   );
 
   /**
@@ -619,7 +738,7 @@ export function useSongs() {
       const url = `/api/songs/${songId}/download/instrumental`;
       await downloadFile(url, filename ?? `instrumental-${songId}.mp3`);
     },
-    []
+    [],
   );
 
   /**
@@ -630,7 +749,7 @@ export function useSongs() {
       const url = `/api/songs/${songId}/download/original`;
       await downloadFile(url, filename ?? `original-${songId}.mp3`);
     },
-    []
+    [],
   );
 
   /**
@@ -642,7 +761,7 @@ export function useSongs() {
       if (!response.ok) throw new Error("Failed to fetch audio file");
       return await response.arrayBuffer();
     },
-    []
+    [],
   );
 
   return {
@@ -650,6 +769,7 @@ export function useSongs() {
     useSongs,
     useSong,
     useSongStatus,
+    useSongChords,
     useRichSongMetadata,
 
     // Mutations
@@ -659,6 +779,8 @@ export function useSongs() {
     useUpdateItunesMetadata,
     useUpdateYoutubeMetadata,
     useDeleteSong,
+    useReprocessSong,
+    useReprocessAllSongs,
 
     // Utility functions
     getAudioUrl,
@@ -694,7 +816,7 @@ async function downloadFile(endpoint: string, filename: string): Promise<void> {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Download error:", error);
+    logger.error("Download error:", error);
     throw error;
   }
 }

@@ -73,10 +73,9 @@ class KaraokeLibraryCleanup:
                     "song": song,
                     "title": song.title or "Unknown Title",
                     "artist": song.artist or "Unknown Artist",
-                    "album": getattr(song, "album", None) or "Unknown Album",
-                    "duration": getattr(song, "duration", None),
-                    "file_size": getattr(song, "file_size", None),
-                    "created_at": getattr(song, "created_at", None),
+                    "album": song.album or "Unknown Album",
+                    "duration": song.duration,
+                    "date_added": song.date_added,
                 }
                 for song in songs
             }
@@ -198,9 +197,8 @@ class KaraokeLibraryCleanup:
                     "title": song_info["title"],
                     "artist": song_info["artist"],
                     "album": song_info["album"],
-                    "created_at": song_info["created_at"],
+                    "date_added": song_info["date_added"],
                     "duration": song_info["duration"],
-                    "file_size": song_info["file_size"],
                 },
             )
             item.db_song = song_info["song"]
@@ -256,7 +254,7 @@ class KaraokeLibraryCleanup:
                         "missing_files": essential_missing,
                         "has_thumbnail": file_check["thumbnail"],
                         "extra_files": file_check["extra_files"],
-                        "created_at": song_info["created_at"],
+                        "date_added": song_info["date_added"],
                     },
                 )
                 item.db_song = song_info["song"]
@@ -283,12 +281,10 @@ class KaraokeLibraryCleanup:
             lines.append(f"🎤 Title: {item.details['title']}")
             lines.append(f"👤 Artist: {item.details['artist']}")
             lines.append(f"💿 Album: {item.details['album']}")
-            if item.details["created_at"]:
-                lines.append(f"📅 Created: {item.details['created_at']}")
+            if item.details["date_added"]:
+                lines.append(f"📅 Date Added: {item.details['date_added']}")
             if item.details["duration"]:
                 lines.append(f"⏱️  Duration: {item.details['duration']}s")
-            if item.details["file_size"]:
-                lines.append(f"💾 Size: {item.details['file_size']} bytes")
             lines.append("🗂️  Action: Will delete database entry")
 
         elif item.item_type == "orphaned_fs":
@@ -325,8 +321,8 @@ class KaraokeLibraryCleanup:
                 lines.append(
                     f"📄 Extra files: {', '.join(item.details['extra_files'])}"
                 )
-            if item.details["created_at"]:
-                lines.append(f"📅 Created: {item.details['created_at']}")
+            if item.details["date_added"]:
+                lines.append(f"📅 Date Added: {item.details['date_added']}")
             lines.append("🗂️  Action: Will delete both database entry and directory")
 
         return "\n".join(lines)

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from app.db.models import DbSong  # SongMetadata removed in Phase 5
 from app.db.models import DbJob, Job, JobStatus, User
-from app.schemas.song import Song
+from app.schemas.song import SongResponse as Song
 
 
 class TestDbSong:
@@ -20,7 +20,7 @@ class TestDbSong:
             "id": "test-123",
             "title": "Test Song",
             "artist": "Test Artist",
-            "duration_ms": 180,
+            "duration": 180.0,
             "source": "upload",
         }
 
@@ -29,7 +29,7 @@ class TestDbSong:
         assert song.id == "test-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.duration_ms == 180
+        assert song.duration == 180.0
         assert song.source == "upload"
 
     def test_db_song_to_dict_conversion(self):
@@ -39,7 +39,7 @@ class TestDbSong:
             id="test-song-123",
             title="Test Song",
             artist="Test Artist",
-            duration_ms=180500,
+            duration=180.5,
             source="youtube",
             video_id="abc123",
         )
@@ -53,7 +53,7 @@ class TestDbSong:
         assert song.id == "test-song-123"
         assert song.title == "Test Song"
         assert song.artist == "Test Artist"
-        assert song.durationMs == 180500
+        assert song.duration == 180.5
         assert song.videoId == "abc123"
 
 
@@ -194,6 +194,20 @@ class TestJob:
         assert result["status"] == "pending"
         assert result["created_at"] == mock_datetime.isoformat()
 
+    def test_job_to_dict_naive_datetime_gets_utc_tzinfo(self):
+        """to_dict adds UTC tzinfo to naive datetimes (line 64 of job.py)."""
+        from app.db.models.job import Job, JobStatus
+
+        naive_dt = datetime(2024, 1, 15, 10, 30, 0)  # no tzinfo
+        job = Job(
+            id="job-naive",
+            filename="test.mp3",
+            status=JobStatus.PENDING,
+            created_at=naive_dt,
+        )
+        result = job.to_dict()
+        assert "Z" in result["created_at"] or "+00:00" in result["created_at"]
+
 
 class TestSong:
     """Test the Song Pydantic model"""
@@ -266,7 +280,6 @@ class TestMetadataDictionary:
             "artist": "Test Artist",
             "album": "Test Album",
             "duration": 180,
-            "genre": "Rock",
         }
 
         # This simulates how we now pass metadata to SongRepository.create or SongRepository.update

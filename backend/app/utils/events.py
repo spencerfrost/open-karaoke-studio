@@ -154,10 +154,15 @@ def publish_job_event(
         was_created: Whether this is a new job creation
     """
     event = JobEvent(job_id=job_id, job_data=job_data, was_created=was_created)
-    print(
-        f"📢 Publishing job event: {job_id} - created={was_created} - "
-        f"status={job_data.get('status', 'unknown')}"
+
+    # Use logger instead of print for consistency with code style conventions
+    logger.debug(
+        "📢 Publishing job event: %s - created=%s - status=%s",
+        job_id,
+        was_created,
+        job_data.get("status", "unknown"),
     )
+
     event_bus.publish(event)
 
 

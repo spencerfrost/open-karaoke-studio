@@ -1,18 +1,28 @@
 import React from "react";
-import YouTubeSearch from "../components/add/youtube/YouTubeSearch";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
-import JobsQueue from "@/components/add/JobsQueue";
-import { YouTubeMusicSearch } from "../components/add/YouTubeMusicSearch";
+import { SongSearchContainer } from "@/features/songs/components/shared/SongSearchContainer";
+import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 
 const AddSongPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || "";
+  const autoBrowseArtist = searchParams.get("browseArtist") === "true";
+
   return (
     <AppLayout>
-      <div className="p-4 md:p-6 space-y-6 container mx-auto">
-        <JobsQueue />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <YouTubeSearch />
-          <YouTubeMusicSearch />
-        </div>
+      <SessionInfoDisplay
+        variant="code"
+        colorScheme="page"
+        trigger="hover"
+        visibility="host-only"
+        className="absolute top-2 right-3 z-30"
+      />
+      <div className="md:p-6 space-y-6 container mx-auto">
+        <SongSearchContainer
+          initialQuery={initialQuery}
+          autoBrowseArtist={autoBrowseArtist}
+        />
       </div>
     </AppLayout>
   );

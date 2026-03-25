@@ -1,75 +1,208 @@
 """
-Main entry point for the Open Karaoke Studio backend application.
+FastAPI Backend for Open Karaoke Studio
+
+This is the main FastAPI application that provides:
+- REST API endpoints for songs, jobs, sessions, and queue management
+- WebSocket endpoints for real-time communication
+- Integration with existing Celery infrastructure for audio processing
+
+CLEAN ARCHITECTURE: Only two WebSocket endpoints - jobs (global) and session (session-specific).
+All karaoke functionality (performance controls, queue, player state) handled through sessions.
 """
 
-import eventlet
-
-# Monkey patch as early as possible for eventlet compatibility
-# (must be before any other imports that use networking)
-eventlet.monkey_patch()
-
-
+import asyncio
 import logging
 import os
+import time
 
-from app import create_app
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+
+# Import routers
+from app.api import (
+    albums_router,
+    artists_router,
+    health_router,
+    host_settings_router,
+    jobs_router,
+    lyrics_router,
+    metadata_router,
+    musicbrainz_router,
+    performance_history_router,
+    queue_router,
+    sessions_router,
+    songs_router,
+    users_router,
+    youtube_music_router,
+    youtube_router,
+)
+
+# Import configuration and logging setup
 from app.config import get_config
 from app.config.logging import setup_logging
 
 # Import the cleanup utility
 from app.utils.cleanup_jobs import cleanup_stuck_jobs
 
-# Clean up stuck jobs on startup
+# Import WebSocket modules
+from app.ws import (
+    SessionConnectionManager,
+    websocket_jobs_endpoint,
+    websocket_unified_session_endpoint,
+)
+from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-
-# Get the current configuration and create the Flask app
+# Get configuration and setup logging
 config = get_config()
-
-# Setup comprehensive logging before app creation
 logging_config = setup_logging(config)
-
-app = create_app(config)
-
-# Get a logger for this module
 logger = logging.getLogger(__name__)
 
-
-# Only log essential startup information
+# Clean up stuck jobs on startup
 logger.info("Open Karaoke Studio backend starting")
-
 cleanup_stuck_jobs()
 
-# Set Flask app logger to use our configured logging
-app.logger.handlers = []  # Remove default handlers
-app.logger.propagate = True  # Let our loggers handle it
+# Create FastAPI app with metadata
+app = FastAPI(
+    title="Open Karaoke Studio API",
+    description="FastAPI-powered backend for karaoke processing with real-time WebSocket support",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
-# Check log directory and write a test log entry
-log_dir = os.path.join(config.BASE_DIR, "backend", "logs")
-os.makedirs(log_dir, exist_ok=True)
-test_log_path = os.path.join(log_dir, "test_logging_setup.log")
-try:
-    with open(test_log_path, "a") as f:
-        f.write("Logging setup test entry\n")
-    logger.debug(f"Successfully wrote to {test_log_path}")
-except Exception as e:
-    logger.error(f"Failed to write to log directory {log_dir}: {e}")
+# Configure CORS for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize the WebSocket connection manager
+manager = SessionConnectionManager()
+app.state.session_manager = manager
+
+# Include all API routers
+app.include_router(albums_router)
+app.include_router(artists_router)
+app.include_router(health_router)
+app.include_router(songs_router)
+app.include_router(jobs_router)
+app.include_router(sessions_router)
+app.include_router(queue_router)
+app.include_router(youtube_router)
+app.include_router(youtube_music_router)
+app.include_router(metadata_router)
+app.include_router(lyrics_router)
+app.include_router(users_router)
+app.include_router(host_settings_router)
+app.include_router(musicbrainz_router)
+app.include_router(performance_history_router)
+
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return {
+        "message": "Open Karaoke Studio FastAPI Backend",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "health": "/api/health",
+        "api_endpoints": {
+            "songs": "/api/songs",
+            "jobs": "/api/jobs",
+            "sessions": "/api/sessions",
+            "queue": "/api/karaoke-queue",
+            "youtube": "/api/youtube",
+            "youtube_music": "/api/youtube-music",
+            "metadata": "/api/metadata",
+            "lyrics": "/api/lyrics",
+            "users": "/api/users",
+        },
+        "websockets": {
+            "jobs": "ws://localhost:5123/ws/jobs",
+            "session": "ws://localhost:5123/ws/session/{session_id}",
+        },
+    }
+
+
+# WebSocket Routes - Clean session architecture with only two endpoints
+@app.websocket("/ws/jobs")
+async def jobs_ws(websocket: WebSocket):
+    """WebSocket endpoint for real-time job updates."""
+    await websocket_jobs_endpoint(websocket, manager)
+
+
+@app.websocket("/ws/session/{session_id}")
+async def unified_session_ws(websocket: WebSocket, session_id: str):
+    """
+    Unified session WebSocket endpoint.
+    Handles all session-related communication: performance controls, player state, and queue management.
+    """
+    await websocket_unified_session_endpoint(websocket, session_id, manager)
+
+
+# Performance testing endpoint
+@app.get("/api/performance-test")
+async def performance_test():
+    """
+    Endpoint for performance testing.
+    """
+    start_time = time.time()
+    await asyncio.sleep(0.01)  # 10ms of "work"
+    end_time = time.time()
+    
+    return {
+        "framework": "fastapi",
+        "response_time_ms": round((end_time - start_time) * 1000, 2),
+        "async_capable": True,
+        "concurrent_ready": True
+    }
+
+
+# Error handlers
+@app.exception_handler(404)
+async def not_found_handler(request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not found",
+            "message": f"The endpoint {request.url.path} was not found",
+        }
+    )
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error", 
+            "message": "An unexpected error occurred",
+        }
+    )
+
 
 if __name__ == "__main__":
-    # Optional: Setup any additional runtime configuration here
-
-    from app.websockets.handlers import register_websocket_handlers
-    from app.websockets.socketio import init_socketio, socketio
-
-    # Initialize SocketIO with the Flask app
-    init_socketio(app)
-    # Register all websocket event handlers in one place
-    register_websocket_handlers(socketio)
-
+    import uvicorn
+    
     port = int(os.environ.get("PORT", 5123))
-    debug = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
-    use_reloader = os.environ.get("FLASK_USE_RELOADER", "true").lower() == "true"
-
-    print(f"Starting Open Karaoke Studio API Server on http://0.0.0.0:{port}")
-    print(f"Debug mode: {debug}")
-
-    socketio.run(app, host="0.0.0.0", port=port, debug=debug, use_reloader=use_reloader)
+    
+    logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
+    print(f"🚀 Starting Open Karaoke Studio FastAPI Backend")
+    print(f"📖 API Documentation: http://localhost:{port}/docs")
+    print(f"🔍 Alternative Docs: http://localhost:{port}/redoc")
+    print(f"❤️  Health Check: http://localhost:{port}/api/health")
+    
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        log_level="info"
+    )

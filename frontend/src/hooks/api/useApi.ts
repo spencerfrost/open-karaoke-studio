@@ -4,20 +4,41 @@ import {
   UseQueryOptions,
   UseMutationOptions,
 } from "@tanstack/react-query";
+import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
+import { toast } from "sonner";
+
+const logger = createLogger("hook:api");
+
+/** Get Authorization header if a token is available. */
+function getAuthHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Handle 401 responses by clearing stale auth state and prompting re-login. */
+export function handleUnauthorized(response: Response): void {
+  if (response.status === 401 && useAuthStore.getState().isAuthenticated) {
+    useAuthStore.getState().logout();
+    toast.error("Session expired. Please log in again.");
+  }
+}
 
 // --- Helper function for GET requests ---
 const apiGet = async <T>(url: string): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
-    credentials: "include", // Added credentials
+    headers: { ...getAuthHeaders() },
+    credentials: "include",
   });
   if (!response.ok) {
+    handleUnauthorized(response);
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json(); // Type as 'any' temporarily, refine later
-      errorMessage = errorData?.message || errorMessage; // Adjust based on your backend's error format
+      const errorData: any = await response.json();
+      errorMessage =
+        errorData?.detail || errorData?.message || errorMessage;
     } catch (jsonError: any) {
-      // Type as 'any' temporarily, refine later
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
@@ -38,18 +59,20 @@ const apiGet = async <T>(url: string): Promise<T> => {
 const apiSend = async <T, V>(
   url: string,
   method: string,
-  data: V | null = null
+  data: V | null = null,
 ): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
-    method: method.toUpperCase(), // Ensure method is uppercase
+    method: method.toUpperCase(),
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: data ? JSON.stringify(data) : null,
-    credentials: "include", // Added credentials
+    credentials: "include",
   });
 
   if (!response.ok) {
+    handleUnauthorized(response);
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
       const contentType = response.headers.get("Content-Type");
@@ -57,7 +80,11 @@ const apiSend = async <T, V>(
         const text = await response.text();
         if (text) {
           const errorData = JSON.parse(text);
-          errorMessage = errorData?.error || errorData?.message || errorMessage;
+          errorMessage =
+            errorData?.detail ||
+            errorData?.error ||
+            errorData?.message ||
+            errorMessage;
         }
       } else {
         const text = await response.text();
@@ -66,7 +93,7 @@ const apiSend = async <T, V>(
         }
       }
     } catch (jsonError: unknown) {
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }
@@ -94,7 +121,7 @@ export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
   options?: Omit<
     UseQueryOptions<T, Error, T, TQueryKey>,
     "queryKey" | "queryFn"
-  >
+  >,
 ) {
   return useQuery<T, Error, T, TQueryKey>({
     queryKey,
@@ -122,7 +149,7 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
     "mutationFn"
   > & {
     mutationFn?: (variables: TVariables) => Promise<TData>;
-  }
+  },
 ) {
   return useMutation<TData, Error, TVariables, TContext>({
     mutationFn:
@@ -145,7 +172,7 @@ export function useApiMutation<TData, TVariables, TContext = unknown>(
 export const uploadFile = async <T>(
   url: string,
   file: File,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ): Promise<T> => {
   const formData = new FormData();
   formData.append("audio_file", file);
@@ -160,6 +187,7 @@ export const uploadFile = async <T>(
 
   const response = await fetch(`/api/${url}`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
 
@@ -169,7 +197,7 @@ export const uploadFile = async <T>(
       const errorData: { message?: string } = await response.json();
       errorMessage = errorData?.message || errorMessage;
     } catch (jsonError: unknown) {
-      console.error("Error parsing error response:", jsonError);
+      logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
   }

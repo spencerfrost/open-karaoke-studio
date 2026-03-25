@@ -31,38 +31,29 @@ class BaseConfig:
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "detailed")
 
     # Database Configuration
-    # Always use the backend directory database to avoid working directory issues
-    BACKEND_DB_PATH = BASE_DIR / "backend" / "karaoke.db"
-    _env_database_url = os.environ.get("DATABASE_URL")
-
-    if (
-        _env_database_url
-        and _env_database_url.startswith("sqlite:///")
-        and not _env_database_url.startswith("sqlite:////")
-    ):
-        # If relative sqlite path, convert to absolute backend directory path
-        relative_path = _env_database_url.replace("sqlite:///", "")
-        if relative_path == "karaoke.db":
-            # Use the backend directory database for consistency
-            DATABASE_URL = f"sqlite:///{BACKEND_DB_PATH}"
-        elif not Path(relative_path).is_absolute():
-            DATABASE_URL = f"sqlite:///{BASE_DIR / 'backend' / relative_path}"
-        else:
-            DATABASE_URL = _env_database_url
-    else:
-        DATABASE_URL = _env_database_url or f"sqlite:///{BACKEND_DB_PATH}"
+    # DATABASE_URL is required - no fallback to SQLite
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError(
+            "DATABASE_URL environment variable is required. "
+            "Please set it in your .env file, e.g.: "
+            "DATABASE_URL=postgresql://karaoke_user:karaoke_pass@localhost/karaoke"
+        )
     SQLALCHEMY_DATABASE_URI = DATABASE_URL  # For SQLAlchemy compatibility
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # File Management
     LIBRARY_DIR = Path(os.environ.get("LIBRARY_DIR", str(BASE_DIR / "karaoke_library")))
-    TEMP_DIR = Path(os.environ.get("TEMP_DIR", str(BASE_DIR / "temp_downloads")))
 
     # Audio Processing Settings
     DEMUCS_MODEL = os.environ.get("DEMUCS_MODEL", "htdemucs_ft")
     MP3_BITRATE = os.environ.get("MP3_BITRATE", "320")
     DEFAULT_MODEL = DEMUCS_MODEL  # For backwards compatibility
     DEFAULT_MP3_BITRATE = MP3_BITRATE  # For backwards compatibility
+
+    # Third-party API Keys
+    DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
+    ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
     # Upload Configuration
     MAX_CONTENT_LENGTH = int(
@@ -112,6 +103,11 @@ class BaseConfig:
         return self.LIBRARY_DIR
 
     @property
+    def library_path(self):
+        """Backwards compatibility alias for LIBRARY_DIR"""
+        return self.LIBRARY_DIR
+
+    @property
     def PROJECT_ROOT(self):
         """Backwards compatibility for PROJECT_ROOT -> BASE_DIR"""
         return self.BASE_DIR
@@ -139,5 +135,4 @@ class BaseConfig:
 
         # Ensure directories exist
         self.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-        self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
         self.LOG_DIR.mkdir(parents=True, exist_ok=True)  # Ensure log directory exists

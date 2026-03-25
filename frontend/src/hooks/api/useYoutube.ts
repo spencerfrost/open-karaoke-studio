@@ -10,6 +10,7 @@ export interface YouTubeDownloadRequest {
   album?: string;
   song_id?: string;
   searchThumbnailUrl?: string; // Add field for original search thumbnail
+  engine_type?: "demucs" | "roformer" | "hybrid" | "clean_backing" | "three_track"; // Separation engine to use
 }
 
 export interface YouTubeDownloadResponse {
@@ -67,12 +68,12 @@ export const useYoutubeDownloadMutation = (
     YouTubeDownloadResponse,
     Error,
     YouTubeDownloadRequest
-  >
+  >,
 ) => {
   return useApiMutation<YouTubeDownloadResponse, YouTubeDownloadRequest>(
     "youtube/download",
     "post",
-    options
+    options,
   );
 };
 
@@ -80,12 +81,12 @@ export const useYoutubeDownloadMutation = (
  * Hook to create a new song with basic metadata in the database
  */
 export const useCreateSongMutation = (
-  options?: UseMutationOptions<CreateSongResponse, Error, CreateSongRequest>
+  options?: UseMutationOptions<CreateSongResponse, Error, CreateSongRequest>,
 ) => {
   return useApiMutation<CreateSongResponse, CreateSongRequest>(
     "songs",
     "post",
-    options
+    options,
   );
 };
 
@@ -94,11 +95,15 @@ export const useCreateSongMutation = (
  */
 export const useSaveMetadataMutation = (
   songId: string,
-  options?: UseMutationOptions<SaveMetadataResponse, Error, SaveMetadataRequest>
+  options?: UseMutationOptions<
+    SaveMetadataResponse,
+    Error,
+    SaveMetadataRequest
+  >,
 ) => {
   return useApiMutation<SaveMetadataResponse, SaveMetadataRequest>(
     `songs/${songId}`,
     "patch",
-    options
+    options,
   );
 };

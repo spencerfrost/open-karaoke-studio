@@ -1,17 +1,25 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
+export interface ChordEvent {
+  time: number;
+  chord: string;
+}
+
+export interface SongArtist {
+  id: number;
+  name: string;
+  role: 'primary' | 'featured';
+}
+
 export interface Song {
   id: string;
   title: string;
   artist: string;
-  durationMs?: number;
+  artists?: SongArtist[];
+  duration?: number; // Duration in seconds
   dateAdded?: string;
 
-  // File paths (API URLs)
-  vocalPath?: string;
-  instrumentalPath?: string;
-  originalPath?: string;
-  coverArt?: string;
+  backingVocalPath?: string;
   thumbnail?: string;
 
   // Source
@@ -19,41 +27,42 @@ export interface Song {
   sourceUrl?: string;
   videoId?: string;
 
-  // YouTube data
-  uploader?: string;
-  uploaderId?: string;
-  channel?: string;
-  channelId?: string;
-  channelName?: string;
-  description?: string;
-  uploadDate?: string;
-  youtubeThumbnailUrls?: string[];
-  youtubeTags?: string[];
-  youtubeCategories?: string[];
-  youtubeChannelId?: string;
-  youtubeChannelName?: string;
-  youtubeRawMetadata?: Record<string, unknown>;
-
   // Metadata
-  mbid?: string;
   album?: string;
-  releaseId?: string;
   releaseDate?: string;
   year?: number;
-  genre?: string;
-  language?: string;
 
   // Lyrics
   plainLyrics?: string;
   syncedLyrics?: string;
 
-  // iTunes data
-  itunesArtistId?: number;
-  itunesCollectionId?: number;
-  trackTimeMillis?: number;
+  // iTunes metadata
+  itunesTrackId?: number;
   itunesExplicit?: boolean;
-  itunesPreviewUrl?: string;
-  itunesArtworkUrls?: string[];
+  itunesPreviewUrl?: string; // 30-sec preview for "what's this song again?"
+
+  // Relational IDs and computed cover URL
+  artistId?: number;
+  albumId?: number;
+  albumCoverUrl?: string; // Computed by backend — points to /api/albums/{id}/cover
+
+  // AcoustID fingerprinting
+  acoustidFingerprintStatus?: "not_checked" | "matched" | "no_match" | "failed";
+  acoustidScore?: number;
+  musicbrainzRecordingId?: string;
+
+  // Processing metadata
+  engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
+
+  // Audio analysis
+  bpm?: number; // Beats per minute for count-in timing
+  chordsData?: ChordEvent[];
+  vocalRangeLow?: string; // Lowest note detected, e.g. "G2"
+  vocalRangeHigh?: string; // Highest note detected, e.g. "E5"
+
+  // Loudness normalization
+  loudnessDbfs?: number; // RMS loudness in dBFS (e.g. -20.0)
+  gainDb?: number; // Gain correction to reach -14 dBFS target
 
   status: SongStatus;
 }
@@ -66,9 +75,18 @@ export interface SongProcessingRequest {
 
 export interface SongProcessingStatus {
   id: string;
+  song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
   message?: string;
   artist?: string;
   title?: string;
+}
+
+export interface LyricsResult {
+  id: string;
+  title: string;
+  artist: string;
+  lyrics: string;
+  source: string;
 }

@@ -5,7 +5,8 @@ Song database model - Single source of truth.
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import relationship
 
 from .base import UNKNOWN_ARTIST, Base
@@ -18,54 +19,74 @@ class DbSong(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False, default=UNKNOWN_ARTIST)
-    duration_ms = Column(Integer, nullable=True)
-    date_added = Column(DateTime, default=datetime.now(timezone.utc))
-    vocals_path = Column(String, nullable=True)
-    instrumental_path = Column(String, nullable=True)
-    original_path = Column(String, nullable=True)
+    duration = Column(Float, nullable=True)  # Duration in seconds
+    date_added = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     thumbnail_path = Column(String, nullable=True)
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
     video_id = Column(String, nullable=True)
-    uploader = Column(String, nullable=True)
-    uploader_id = Column(String, nullable=True)
-    channel = Column(String, nullable=True)
-    channel_id = Column(String, nullable=True)
-    description = Column(Text, nullable=True)  # Song/video description
 
-    # Phase 1A = Column(Text, nullable=True)
-    upload_date = Column(DateTime, nullable=True)
-    mbid = Column(String, nullable=True)
-    album = Column(String, nullable=True)  # Renamed from release_title for better UX
-    release_id = Column(String, nullable=True)
+    # Core metadata
+    album = Column(String, nullable=True)
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
-    genre = Column(String, nullable=True)
-    language = Column(String, nullable=True)
+
+    # Lyrics
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
-    channel_name = Column(String, nullable=True)  # Legacy field
 
-    # Phase 1B = Column(Integer, nullable=True)
-    itunes_artist_id = Column(Integer, nullable=True)
-    itunes_collection_id = Column(Integer, nullable=True)
-    track_time_millis = Column(Integer, nullable=True)
+    # iTunes metadata
+    itunes_track_id = Column(Integer, nullable=True)
     itunes_explicit = Column(Boolean, nullable=True)
-    itunes_preview_url = Column(String, nullable=True)
+    itunes_preview_url = Column(
+        String, nullable=True
+    )  # 30-sec preview for "what's this song?"
 
-    # Phase 1B = Column(Integer, nullable=True)
-    youtube_thumbnail_urls = Column(Text, nullable=True)  # JSON array as string
-    youtube_tags = Column(Text, nullable=True)  # JSON array as string
-    youtube_categories = Column(Text, nullable=True)  # JSON array as string
-    youtube_channel_id = Column(String, nullable=True)
-    youtube_channel_name = Column(String, nullable=True)
+    # Relational links (nullable; backfilled by migration, enriched via iTunes metadata)
+    artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)
+    album_id = Column(Integer, ForeignKey("albums.id"), nullable=True)
 
-    # Phase 1B = Column(Text, nullable=True)  # JSON string
-    youtube_raw_metadata = Column(Text, nullable=True)  # JSON string
+    # Processing metadata
+    engine_type = Column(
+        String, nullable=True
+    )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
+    bpm = Column(Float, nullable=True)  # Beats per minute for count-in timing
+    chords_data = Column(JSON, nullable=True)  # Chord detection data
+    vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
+    vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
+    loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
+    gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
+
+    # AcoustID fingerprinting
+    musicbrainz_recording_id = Column(String, nullable=True)
+    acoustid_score = Column(Float, nullable=True)
+    acoustid_fingerprint_status = Column(String, nullable=False, default="not_checked")
+    # acoustid_fingerprint_status: "not_checked" | "matched" | "no_match" | "failed"
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
     )
+    lyrics = relationship(
+        "DbLyrics", back_populates="song", cascade="all, delete-orphan"
+    )
+    artist_rel = relationship("DbArtist", back_populates="songs")
+    album_rel = relationship("DbAlbum", back_populates="songs")
+    song_artists = relationship(
+        "DbSongArtist", back_populates="song_rel", cascade="all, delete-orphan", lazy="joined"
+    )
+
+    def _get_active_lyrics_content(self, lyrics_type: str) -> Optional[str]:
+        """Get active lyrics content by type, falling back to legacy columns."""
+        if self.lyrics:
+            for lyric in self.lyrics:
+                if lyric.type == lyrics_type and lyric.is_active:
+                    return lyric.content
+        # Fallback to legacy columns during transition
+        if lyrics_type == "plain":
+            return self.plain_lyrics
+        elif lyrics_type == "synced":
+            return self.synced_lyrics
+        return None
 
     def to_dict(self) -> dict:
         """Convert to API response format - replaces to_pydantic()"""
@@ -87,51 +108,59 @@ class DbSong(Base):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
-            "durationMs": self.duration_ms,
+            "duration": self.duration,  # Duration in seconds
             "status": "processed",
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),
-            # File paths for API
-            "vocalPath": (
-                f"/api/songs/{self.id}/vocal" if self.vocals_path is not None else None
-            ),
-            "instrumentalPath": (
-                f"/api/songs/{self.id}/instrumental"
-                if self.instrumental_path is not None
-                else None
-            ),
-            "originalPath": (
-                f"/api/songs/{self.id}/original"
-                if self.original_path is not None
+            "backingVocalPath": (
+                f"/api/songs/{self.id}/download/backing-vocals"
+                if self.engine_type == "three_track"
                 else None
             ),
             "thumbnail": self.thumbnail_path,
-            # YouTube data (convert to camelCase)
+            # Source info
             "videoId": self.video_id,
             "sourceUrl": self.source_url,
-            "uploader": self.uploader,
-            "uploaderId": self.uploader_id,
-            "channel": self.channel,
-            "channelId": self.channel_id,
-            "channelName": self.youtube_channel_name or self.channel_name,
-            "description": self.description,
-            "uploadDate": (
-                self.upload_date.isoformat() if self.upload_date is not None else None
-            ),
+            "source": self.source,
             # Metadata
-            "mbid": self.mbid,
-            "metadataId": self.mbid,  # Alias for frontend compatibility
             "album": self.album,
-            "releaseTitle": self.album,  # Legacy alias
-            "releaseId": self.release_id,
             "releaseDate": self.release_date,
             "year": year_value,
-            "genre": self.genre,
-            "language": self.language,
             # Lyrics
-            "plainLyrics": self.plain_lyrics,
-            "syncedLyrics": self.synced_lyrics,
-            # System
-            "source": self.source,
+            "plainLyrics": self._get_active_lyrics_content("plain"),
+            "syncedLyrics": self._get_active_lyrics_content("synced"),
+            # iTunes metadata
+            "itunesTrackId": self.itunes_track_id,
+            "itunesExplicit": self.itunes_explicit,
+            "itunesPreviewUrl": self.itunes_preview_url,
+            # Relational IDs and computed cover URL
+            "artistId": self.artist_id,
+            "albumId": self.album_id,
+            "albumCoverUrl": (
+                f"/api/albums/{self.album_id}/cover"
+                if self.album_id and self.album_rel and self.album_rel.cover_path
+                else None
+            ),
+            # Processing metadata
+            "engineType": self.engine_type,
+            "bpm": self.bpm,
+            "chordsData": self.chords_data,
+            "vocalRangeLow": self.vocal_range_low,
+            "vocalRangeHigh": self.vocal_range_high,
+            "loudnessDbfs": self.loudness_dbfs,
+            "gainDb": self.gain_db,
+            # AcoustID fingerprinting
+            "musicbrainzRecordingId": self.musicbrainz_recording_id,
+            "acoustidScore": self.acoustid_score,
+            "acoustidFingerprintStatus": self.acoustid_fingerprint_status,
+            # Structured artist credits
+            "artists": [
+                {
+                    "id": sa.artist_rel.id,
+                    "name": sa.artist_rel.display_name or sa.artist_rel.name,
+                    "role": sa.role,
+                }
+                for sa in sorted(self.song_artists, key=lambda x: x.display_order)
+            ] if self.song_artists else [],
         }

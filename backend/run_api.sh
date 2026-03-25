@@ -1,7 +1,5 @@
 #!/bin/bash
 echo "Starting Open Karaoke Studio API Server..."
-export FLASK_APP=app.main
-export FLASK_ENV=development
 source venv/bin/activate
 export PYTHONPATH=.
-python app/main.py
+python -m uvicorn app.main:app --host 0.0.0.0 --port 5123 --reload

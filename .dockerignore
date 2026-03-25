@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+backend/logs/
+
+# Build outputs
+frontend/dist/
+frontend/build/
+frontend/dev-dist/
+
+# Database
+*.db
+*.db-journal
+backend/karaoke.db*
+
+# Karaoke library (large files)
+karaoke_library/
+
+# Documentation
+docs/
+
+# Test coverage
+.coverage
+htmlcov/
+
+# Scripts (not needed in container)
+scripts/

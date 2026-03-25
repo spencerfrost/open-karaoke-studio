@@ -80,11 +80,11 @@ class TestDownloadImage:
             with patch("pathlib.Path.exists", return_value=True):
                 with patch("pathlib.Path.stat") as mock_stat:
                     mock_stat.return_value.st_size = 1024
+                    with patch("pathlib.Path.mkdir"):
+                        result = download_image(url, save_path)
 
-                    result = download_image(url, save_path)
-
-                    assert result is True
-                    mock_file.assert_called_once_with(save_path, "wb")
+                        assert result is True
+                        mock_file.assert_called_once_with(save_path, "wb")
 
     @patch("app.services.file_management.requests.Session")
     def test_download_image_png_support(self, mock_session_class):
@@ -113,11 +113,11 @@ class TestDownloadImage:
             with patch("pathlib.Path.exists", return_value=True):
                 with patch("pathlib.Path.stat") as mock_stat:
                     mock_stat.return_value.st_size = 1024
+                    with patch("pathlib.Path.mkdir"):
+                        result = download_image(url, save_path)
 
-                    result = download_image(url, save_path)
-
-                    assert result is True
-                    mock_file.assert_called_once_with(save_path, "wb")
+                        assert result is True
+                        mock_file.assert_called_once_with(save_path, "wb")
 
     @patch("app.services.file_management.requests.Session")
     def test_download_image_rejects_invalid_format(self, mock_session_class):
@@ -191,7 +191,9 @@ class TestDownloadImage:
 
         # Valid WebP content
         webp_content = b"RIFF\x00\x00\x75\x5cWEBP" + b"\x00" * 100
-        mock_response.iter_content.return_value = [webp_content]
+        # Use side_effect so each call returns a fresh iterator (iter_content is
+        # called twice: once for signature detection and once for saving)
+        mock_response.iter_content.side_effect = lambda *a, **kw: iter([webp_content])
 
         mock_session.head.return_value = mock_response
         mock_session.get.return_value = mock_response
@@ -204,7 +206,7 @@ class TestDownloadImage:
             with patch("pathlib.Path.exists", return_value=True):
                 with patch("pathlib.Path.stat") as mock_stat:
                     mock_stat.return_value.st_size = 1024
+                    with patch("pathlib.Path.mkdir"):
+                        result = download_image(url, save_path)
 
-                    result = download_image(url, save_path)
-
-                    assert result is True
+                        assert result is True

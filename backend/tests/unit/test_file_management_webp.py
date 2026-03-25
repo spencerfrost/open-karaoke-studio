@@ -64,7 +64,7 @@ class TestWebPFormatSupport:
 
         # WebP file signature: RIFF....WEBP
         webp_content = b"RIFF\x1a\x00\x00\x00WEBP" + b"\x00" * 100
-        mock_response.iter_content.return_value = [webp_content]
+        mock_response.iter_content.side_effect = lambda *a, **kw: iter([webp_content])
         mock_session.head.return_value = mock_response
         mock_session.get.return_value = mock_response
 

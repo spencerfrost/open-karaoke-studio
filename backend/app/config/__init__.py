@@ -24,7 +24,7 @@ def get_config():
     Returns:
         Configuration class instance for the current environment
     """
-    env = os.getenv("FLASK_ENV", "development")
+    env = os.getenv("ENVIRONMENT", os.getenv("FLASK_ENV", "development"))
     config_class = config_map.get(env, DevelopmentConfig)
     return config_class()
 

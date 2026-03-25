@@ -1,50 +1,86 @@
-# backend/app/api/metadata.py
+"""
+FastAPI router for metadata search endpoints.
+"""
 
 import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
 
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.metadata_service import MetadataService
-from app.utils.error_handlers import handle_api_error
-from flask import Blueprint, current_app, jsonify, request
 
 logger = logging.getLogger(__name__)
-# Create a metadata blueprint with the new, clean URL structure
-metadata_bp = Blueprint("metadata", __name__, url_prefix="/api/metadata")
+
+router = APIRouter(prefix="/api/metadata", tags=["metadata"])
 
 
-@metadata_bp.route("/search", methods=["GET"])
-@handle_api_error
-def search_metadata_endpoint():
-    """Endpoint to search for song metadata using iTunes Search API."""
+class MetadataSearchParams(BaseModel):
+    """Search parameters used in the request."""
+    artist: str
+    title: str
+    album: str
+    limit: int
+    sort_by: str
+
+
+class MetadataResult(BaseModel):
+    """Individual metadata result."""
+    artist: Optional[str] = None
+    title: Optional[str] = None
+    album: Optional[str] = None
+    artwork_url: Optional[str] = None
+    release_date: Optional[str] = None
+    track_number: Optional[int] = None
+    
+    class Config:
+        extra = "allow"
+
+
+class MetadataSearchResponse(BaseModel):
+    """Response model for metadata search."""
+    results: List[dict]
+    search_params: MetadataSearchParams
+    count: int
+
+
+@router.get("/search", response_model=MetadataSearchResponse)
+async def search_metadata(
+    title: str = Query("", description="Song title to search for"),
+    artist: str = Query("", description="Artist name to search for"),
+    album: str = Query("", description="Album name to search for"),
+    limit: int = Query(5, ge=1, le=50, description="Maximum number of results"),
+    sort_by: str = Query("relevance", description="Sort order for results")
+):
+    """
+    Search for song metadata using iTunes Search API.
+    
+    At least one of 'title' or 'artist' must be provided.
+    Returns metadata including artwork URLs, genre, release date, etc.
+    """
     logger.info("Received metadata search request")
 
     try:
-        # Get search terms from query parameters
-        title = request.args.get("title", "").strip()
-        artist = request.args.get("artist", "").strip()
-        album = request.args.get("album", "").strip()
-        limit = int(request.args.get("limit", 5))
-        sort_by = request.args.get(
-            "sort_by", "relevance"
-        )  # For backwards compatibility
+        # Clean input
+        title = title.strip()
+        artist = artist.strip()
+        album = album.strip()
 
         # Validate that at least title or artist is provided
         if not title and not artist:
-            raise ValidationError(
-                "At least one of 'title' or 'artist' parameters is required",
-                "MISSING_SEARCH_PARAMETERS",
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "At least one of 'title' or 'artist' parameters is required",
+                    "code": "MISSING_SEARCH_PARAMETERS"
+                }
             )
-
-        # Validate limit
-        if limit <= 0 or limit > 50:
-            raise ValidationError("Limit must be between 1 and 50", "INVALID_LIMIT")
 
         logger.info(
             "Metadata search - Artist: '%s', Title: '%s', Album: '%s', Limit: %s",
-            artist,
-            title,
-            album,
-            limit,
+            artist, title, album, limit
         )
 
         # Initialize service
@@ -54,39 +90,93 @@ def search_metadata_endpoint():
         results = metadata_service.search_metadata(artist, title, album, limit)
 
         # Format response using service
-        search_params = {
-            "artist": artist,
-            "title": title,
-            "album": album,
-            "limit": limit,
-            "sort_by": sort_by,
-        }
-        response_data = metadata_service.format_metadata_response(
-            results, search_params
+        search_params = MetadataSearchParams(
+            artist=artist,
+            title=title,
+            album=album,
+            limit=limit,
+            sort_by=sort_by
         )
 
         logger.info("Metadata search returned %s results", len(results))
-        return jsonify(response_data), 200
+        
+        return MetadataSearchResponse(
+            results=results,
+            search_params=search_params,
+            count=len(results)
+        )
 
-    except ValueError as e:
-        raise ValidationError(f"Invalid parameter: {str(e)}", "INVALID_PARAMETERS")
-    except ValidationError:
-        raise  # Let error handlers deal with it
+    except HTTPException:
+        raise
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ConnectionError as e:
-        raise NetworkError(
-            "Failed to connect to metadata service",
-            "METADATA_CONNECTION_ERROR",
-            {"error": str(e)},
+        logger.error("Metadata connection error: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to connect to metadata service: {str(e)}"
         )
     except TimeoutError as e:
-        raise NetworkError(
-            "Metadata service request timed out",
-            "METADATA_TIMEOUT_ERROR",
-            {"error": str(e)},
+        logger.error("Metadata timeout error: %s", e)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Metadata service request timed out: {str(e)}"
         )
     except Exception as e:
-        raise ServiceError(
-            "Unexpected error during metadata search",
-            "METADATA_SEARCH_ERROR",
-            {"error": str(e)},
+        logger.error("Unexpected metadata search error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during metadata search: {str(e)}"
+        )
+
+
+
+@router.get("/lookup/{track_id}")
+async def lookup_metadata(track_id: int):
+    """
+    Lookup comprehensive metadata for a specific iTunes track.
+    
+    This provides much richer metadata than search, including:
+    - All artwork URLs
+    - Complete genre information (primary genre + IDs)
+    - Full collection/album details
+    - Track/disc counts
+    - Content advisory ratings
+    - Copyright information
+    
+    Args:
+        track_id: iTunes track ID from search results
+        
+    Returns:
+        Comprehensive track metadata
+    """
+    logger.info("Received metadata lookup request for track ID: %s", track_id)
+    
+    try:
+        from app.services.itunes_service import lookup_itunes
+        
+        # Lookup using iTunes service
+        result = lookup_itunes(track_id)
+        
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Track not found for iTunes ID: {track_id}"
+            )
+        
+        logger.info("Metadata lookup successful for track ID %s", track_id)
+        
+        return {
+            "track": result,
+            "trackId": track_id,
+            "success": True,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unexpected metadata lookup error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during metadata lookup: {str(e)}"
         )

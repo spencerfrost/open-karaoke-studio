@@ -1,5 +1,6 @@
 # backend/app/services/itunes_service.py
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -59,14 +60,25 @@ def search_itunes(
         logging.debug("  Params: %s", params)
         logging.debug("  Headers: %s", headers)
 
-        # Make API request
-        response = requests.get(url, params=params, timeout=10, headers=headers)
+        # Make API request with one retry on 429 (rate limit)
+        for _attempt in range(2):
+            response = requests.get(url, params=params, timeout=10, headers=headers)
 
-        # Log response details before checking status
-        logging.debug("iTunes API Response Details:")
-        logging.debug("  Status Code: %s", response.status_code)
-        logging.debug("  Headers: %s", dict(response.headers))
-        logging.debug("  URL Used: %s", response.url)
+            # Log response details before checking status
+            logging.debug("iTunes API Response Details:")
+            logging.debug("  Status Code: %s", response.status_code)
+            logging.debug("  Headers: %s", dict(response.headers))
+            logging.debug("  URL Used: %s", response.url)
+
+            if response.status_code == 429 and _attempt == 0:
+                retry_after = int(response.headers.get("Retry-After", 30))
+                logger.warning(
+                    "iTunes rate limited (429). Sleeping %d s before retry…",
+                    retry_after + 2,
+                )
+                time.sleep(retry_after + 2)
+                continue
+            break
 
         response.raise_for_status()
 
@@ -87,7 +99,6 @@ def search_itunes(
                     "album": track.get("collectionName"),
                     "albumId": track.get("collectionId"),
                     "releaseDate": track.get("releaseDate"),
-                    "genre": track.get("primaryGenreName"),
                     "trackNumber": track.get("trackNumber"),
                     "discNumber": track.get("discNumber"),
                     "country": track.get("country"),
@@ -97,6 +108,10 @@ def search_itunes(
                     "trackExplicitness": track.get("trackExplicitness"),
                     "collectionExplicitness": track.get("collectionExplicitness"),
                     "isStreamable": track.get("isStreamable", False),
+                    # Artwork URLs - Phase 1 fix
+                    "artworkUrl30": track.get("artworkUrl30"),
+                    "artworkUrl60": track.get("artworkUrl60"),
+                    "artworkUrl100": track.get("artworkUrl100"),
                 }
 
                 # Convert release date to a more readable format
@@ -182,6 +197,167 @@ def search_itunes(
     return []
 
 
+def lookup_itunes(track_id: int) -> dict[str, Any] | None:
+    """
+    Lookup comprehensive metadata for a specific iTunes track.
+    
+    This provides much richer metadata than search, including:
+    - All artwork URLs (30, 60, 100px)
+    - Complete genre information (primary genre name + ID)
+    - Full collection/album details
+    - Track/disc counts
+    - Content advisory ratings
+    - Copyright information
+    
+    Args:
+        track_id (int): iTunes track ID from search results
+        
+    Returns:
+        Dict[str, Any]: Comprehensive track metadata, or None if not found/error
+    """
+    try:
+        url = "https://itunes.apple.com/lookup"
+        params = {
+            "id": track_id,
+            "entity": "song",
+        }
+        
+        logger.info("Looking up iTunes track ID: %s", track_id)
+        
+        headers = {"User-Agent": "curl/8.0.0", "Accept": "*/*"}
+        
+        logging.debug("iTunes Lookup API Request Details:")
+        logging.debug("  URL: %s", url)
+        logging.debug("  Params: %s", params)
+        logging.debug("  Headers: %s", headers)
+        
+        response = requests.get(url, params=params, timeout=10, headers=headers)
+        
+        logging.debug("iTunes Lookup API Response Details:")
+        logging.debug("  Status Code: %s", response.status_code)
+        logging.debug("  Headers: %s", dict(response.headers))
+        logging.debug("  URL Used: %s", response.url)
+        
+        response.raise_for_status()
+        
+        data = response.json()
+        results = data.get("results", [])
+        
+        if not results:
+            logger.warning("No results found for iTunes track ID: %s", track_id)
+            return None
+            
+        # iTunes lookup returns the track as the first result
+        track = results[0]
+        
+        logger.info("iTunes lookup successful for track ID %s: '%s' by %s", 
+                   track_id, track.get("trackName"), track.get("artistName"))
+        
+        # Extract comprehensive metadata
+        track_data = {
+            "id": track.get("trackId"),
+            "title": track.get("trackName"),
+            "artist": track.get("artistName"),
+            "artistId": track.get("artistId"),
+            "album": track.get("collectionName"),
+            "albumId": track.get("collectionId"),
+            "releaseDate": track.get("releaseDate"),
+            
+            # Genre information (potentially includes subgenres)
+            "genre": track.get("primaryGenreName"),
+            "primaryGenreId": track.get("primaryGenreId"),
+            "genreIds": track.get("genreIds", []),  # Array of genre IDs
+            
+            # Track details
+            "trackNumber": track.get("trackNumber"),
+            "trackCount": track.get("trackCount"),
+            "discNumber": track.get("discNumber"),
+            "discCount": track.get("discCount"),
+            "trackTimeMillis": track.get("trackTimeMillis"),
+            
+            # Artwork URLs - all sizes
+            "artworkUrl30": track.get("artworkUrl30"),
+            "artworkUrl60": track.get("artworkUrl60"),
+            "artworkUrl100": track.get("artworkUrl100"),
+            # Note: 600px version typically needs URL manipulation
+            
+            # Content and pricing
+            "previewUrl": track.get("previewUrl"),
+            "trackExplicitness": track.get("trackExplicitness"),
+            "collectionExplicitness": track.get("collectionExplicitness"),
+            "contentAdvisoryRating": track.get("contentAdvisoryRating"),
+            "trackPrice": track.get("trackPrice"),
+            "collectionPrice": track.get("collectionPrice"),
+            "trackRentalPrice": track.get("trackRentalPrice"),
+            "collectionHdPrice": track.get("collectionHdPrice"),
+            "currency": track.get("currency"),
+            "country": track.get("country"),
+            
+            # Additional metadata
+            "isStreamable": track.get("isStreamable", False),
+            "copyright": track.get("copyright"),
+            "description": track.get("longDescription") or track.get("shortDescription"),
+            
+            # Collection/Album details
+            "collectionCensoredName": track.get("collectionCensoredName"),
+            "trackCensoredName": track.get("trackCensoredName"),
+            "artistViewUrl": track.get("artistViewUrl"),
+            "collectionViewUrl": track.get("collectionViewUrl"),
+            "trackViewUrl": track.get("trackViewUrl"),
+            
+            # Store the complete raw response for debugging/future use
+            "rawData": track,
+        }
+        
+        # Convert release date to a more readable format
+        if track_data["releaseDate"]:
+            try:
+                release_dt = datetime.fromisoformat(
+                    track_data["releaseDate"].replace("Z", "+00:00")
+                )
+                track_data["releaseYear"] = release_dt.year
+                track_data["releaseDateFormatted"] = release_dt.strftime("%Y-%m-%d")
+            except (ValueError, AttributeError):
+                track_data["releaseYear"] = None
+                track_data["releaseDateFormatted"] = None
+        
+        # Generate 600px artwork URL from 100px version (iTunes URL pattern)
+        if track_data["artworkUrl100"]:
+            track_data["artworkUrl600"] = track_data["artworkUrl100"].replace(
+                "100x100", "600x600"
+            )
+        
+        return track_data
+        
+    except requests.RequestException as e:
+        logger.error("iTunes lookup API request error for track ID %s: %s", track_id, e)
+        
+        if hasattr(e, "response") and e.response is not None:
+            response = e.response
+            logger.error("iTunes Lookup API Error Details:")
+            logger.error("  Status Code: %s", response.status_code)
+            logger.error("  Reason: %s", response.reason)
+            logger.error("  URL: %s", response.url)
+            
+            try:
+                content = response.text[:1000]
+                if content:
+                    logger.error("  Response Body (first 1000 chars): %s", content)
+            except Exception:
+                logger.error("  Could not read response body")
+        else:
+            logger.error("  Network error (no response): %s", type(e).__name__)
+            
+        return None
+        
+    except Exception as e:
+        logger.error("iTunes lookup error for track ID %s: %s", track_id, e)
+        logger.error("  Error type: %s", type(e).__name__)
+        import traceback
+        logger.error("  Stack trace: %s", traceback.format_exc())
+        return None
+
+
 def _filter_canonical_releases(
     tracks: list[dict[str, Any]], artist_query: str, title_query: str
 ) -> list[dict[str, Any]]:
@@ -264,3 +440,87 @@ def _filter_canonical_releases(
         )
 
     return [item["track"] for item in scored_tracks]
+
+
+def fetch_and_assign_album_art(song_id: str, title: str, artist: str) -> bool:
+    """
+    Search iTunes for a song, then download and assign the album cover if found.
+
+    Creates the Album record, sets song.album_id, and downloads the cover image.
+    Returns True if album art was successfully assigned, False otherwise.
+    """
+    from app.db.database import get_db_session
+    from app.repositories.album_repository import AlbumRepository
+    from app.repositories.artist_repository import ArtistRepository
+    from app.repositories.song_repository import SongRepository
+
+    results = search_itunes(artist=artist, title=title, limit=1)
+    if not results:
+        logger.info("iTunes: no results for '%s' by '%s'", title, artist)
+        return False
+
+    track = results[0]
+    collection_id = track.get("albumId")
+    album_title = track.get("album") or "Unknown Album"
+    artwork_url = track.get("artworkUrl100")
+
+    if not collection_id or not artwork_url:
+        logger.info("iTunes: missing collection_id or artwork for '%s' by '%s'", title, artist)
+        return False
+
+    # Download the cover image
+    cover_path = _download_itunes_cover(collection_id, artwork_url)
+    if not cover_path:
+        return False
+
+    # Persist album record and link to song
+    try:
+        with get_db_session() as session:
+            artist_repo = ArtistRepository(session)
+            album_repo = AlbumRepository(session)
+            song_repo = SongRepository(session)
+
+            artist_rec = artist_repo.get_or_create(artist)
+            album = album_repo.get_or_create(
+                title=album_title,
+                itunes_collection_id=collection_id,
+                artist_id=artist_rec.id,
+                release_date=track.get("releaseDateFormatted"),
+            )
+            if not album.cover_path:
+                album_repo.update_cover(album, cover_path)
+
+            song_repo.update(song_id, album_id=album.id, artist_id=artist_rec.id)
+
+        logger.info(
+            "Album art assigned for song %s: '%s' (collection %s)", song_id, album_title, collection_id
+        )
+        return True
+    except Exception as e:
+        logger.warning("Failed to persist album art for song %s: %s", song_id, e)
+        return False
+
+
+def _download_itunes_cover(collection_id: int, artwork_url_100: str) -> str | None:
+    """Download iTunes artwork at 600px and cache locally. Returns relative path or None."""
+    from app.config import get_config
+
+    config = get_config()
+    covers_dir = config.library_path / "covers"
+    covers_dir.mkdir(exist_ok=True)
+    dest = covers_dir / f"{collection_id}.jpg"
+
+    if dest.exists():
+        return f"covers/{collection_id}.jpg"
+
+    url_600 = artwork_url_100.replace("100x100bb", "600x600bb").replace("100x100", "600x600")
+
+    try:
+        response = requests.get(url_600, timeout=10, headers={"User-Agent": "curl/8.0.0"})
+        response.raise_for_status()
+        dest.write_bytes(response.content)
+        logger.info("Downloaded iTunes cover for collection %s", collection_id)
+        return f"covers/{collection_id}.jpg"
+    except Exception as e:
+        logger.warning("Failed to download iTunes cover for collection %s: %s", collection_id, e)
+        return None

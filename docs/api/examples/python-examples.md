@@ -407,33 +407,57 @@ except TimeoutError as e:
 
 ```python
 class KaraokeQueueService:
-    def __init__(self, base_url: str = "http://localhost:5123"):
+    def __init__(self, base_url: str = "http://localhost:5123/api", session_code: str = "ABCD"):
         self.base_url = base_url
+        self.session_code = session_code
         self.session = requests.Session()
 
-    def get_queue(self) -> List[Dict[str, Any]]:
-        """Get the current karaoke queue."""
-        response = self.session.get(f"{self.base_url}/karaoke-queue/")
+    def get_queue(self) -> Dict[str, Any]:
+        """Get explicit queue state: current, upcoming, items."""
+        response = self.session.get(
+            f"{self.base_url}/karaoke-queue",
+            params={"session_code": self.session_code},
+        )
         response.raise_for_status()
         return response.json()
 
     def add_to_queue(self, singer_name: str, song_id: str) -> Dict[str, Any]:
         """Add a song to the karaoke queue."""
-        data = {"singer_name": singer_name, "song_id": song_id}
-        response = self.session.post(f"{self.base_url}/karaoke-queue/", json=data)
+        data = {"singer": singer_name, "songId": song_id}
+        response = self.session.post(
+            f"{self.base_url}/karaoke-queue",
+            params={"session_code": self.session_code},
+            json=data,
+        )
         response.raise_for_status()
         return response.json()
 
     def remove_from_queue(self, item_id: int) -> Dict[str, Any]:
         """Remove an item from the queue."""
-        response = self.session.delete(f"{self.base_url}/karaoke-queue/{item_id}")
+        response = self.session.delete(
+            f"{self.base_url}/karaoke-queue/{item_id}",
+            params={"session_code": self.session_code},
+        )
         response.raise_for_status()
         return response.json()
 
     def reorder_queue(self, queue_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Reorder the entire queue."""
         data = {"queue": queue_items}
-        response = self.session.put(f"{self.base_url}/karaoke-queue/reorder", json=data)
+        response = self.session.put(
+            f"{self.base_url}/karaoke-queue/reorder",
+            params={"session_code": self.session_code},
+            json=data,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def load_as_current(self, item_id: int) -> Dict[str, Any]:
+        """Load a queued item as current (does not auto-play)."""
+        response = self.session.post(
+            f"{self.base_url}/karaoke-queue/{item_id}/play",
+            params={"session_code": self.session_code},
+        )
         response.raise_for_status()
         return response.json()
 
@@ -442,7 +466,8 @@ queue_service = KaraokeQueueService()
 
 # Get current queue
 queue = queue_service.get_queue()
-print(f"Current queue has {len(queue)} items")
+print(f"Current loaded item: {queue['current']}")
+print(f"Upcoming count: {len(queue['upcoming'])}")
 
 # Add to queue
 queue_service.add_to_queue("John Doe", "song-id-123")
@@ -454,6 +479,10 @@ reordered_queue = [
     {"id": 3, "position": 3}
 ]
 queue_service.reorder_queue(reordered_queue)
+
+# Load next as current (host action)
+if queue["upcoming"]:
+    queue_service.load_as_current(queue["upcoming"][0]["id"])
 ```
 
 ## 🚀 Async/Await Examples

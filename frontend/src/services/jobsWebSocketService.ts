@@ -1,8 +1,11 @@
 /**
- * WebSocket service for real-time job updates using Socket.IO
+ * WebSocket service for real-time job updates using native WebSockets (FastAPI)
+ * Migrated from Socket.IO to native WebSocket for FastAPI compatibility
  */
 
-import { io, Socket } from 'socket.io-client';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("websocket:jobs");
 
 interface JobData {
   id: string;
@@ -29,10 +32,12 @@ interface JobsWebSocketEvents {
 }
 
 class JobsWebSocketService {
-  private socket: Socket | null = null;
+  private websocket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
   private isConnected = false;
   private maxReconnectAttempts = 5;
+  private reconnectAttempts = 0;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     this.initializeConnection();
@@ -40,102 +45,163 @@ class JobsWebSocketService {
 
   private initializeConnection() {
     try {
-      // In development, use the Vite dev server URL to leverage the proxy
-      // In production, use the backend URL directly
+      // Use the WebSocket URL that goes through Vite proxy in development
+      // or directly to FastAPI in production
       let socketUrl: string;
-      
+
       if (import.meta.env.DEV) {
-        // Development mode - use the current host to leverage Vite proxy
-        socketUrl = `${window.location.protocol}//${window.location.host}`;
-        console.log('Development mode - using Vite proxy for WebSocket:', socketUrl);
+        // Development mode - use the current host to leverage Vite proxy (/ws -> localhost:5124)
+        socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/jobs`;
+        logger.debug(
+          "Development mode - using Vite proxy for WebSocket:",
+          socketUrl,
+        );
       } else {
-        // Production mode - use the backend URL directly
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || `${window.location.protocol}//${window.location.host}`;
-        socketUrl = backendUrl;
-        console.log('Production mode - using direct backend URL for WebSocket:', socketUrl);
+        // Production mode - use FastAPI WebSocket directly
+        const backendUrl =
+          import.meta.env.VITE_BACKEND_URL ||
+          `${window.location.protocol}//${window.location.host}`;
+        socketUrl = `${backendUrl.replace("http", "ws")}/ws/jobs`;
+        logger.debug(
+          "Production mode - using direct FastAPI WebSocket:",
+          socketUrl,
+        );
       }
 
-      console.log('Attempting to connect to WebSocket at:', `${socketUrl}/jobs`);
-      this.socket = io(`${socketUrl}/jobs`, {
-        transports: ['websocket', 'polling'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-      });
+      logger.debug("Attempting to connect to FastAPI WebSocket at:", socketUrl);
 
+      this.websocket = new WebSocket(socketUrl);
       this.setupEventHandlers();
     } catch (error) {
-      console.error('Failed to initialize WebSocket connection:', error);
+      logger.error("Failed to initialize WebSocket connection:", error);
+      this.scheduleReconnect();
     }
   }
 
   private setupEventHandlers() {
-    if (!this.socket) return;
+    if (!this.websocket) return;
 
-    this.socket.on('connect', () => {
-      console.log('Connected to jobs WebSocket');
+    this.websocket.onopen = () => {
+      logger.info("Connected to FastAPI jobs WebSocket");
       this.isConnected = true;
-      
+      this.reconnectAttempts = 0;
+
       // Subscribe to job updates
-      this.socket?.emit('subscribe_to_jobs');
-    });
+      this.send({ type: "subscribe_to_jobs" });
+    };
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from jobs WebSocket');
+    this.websocket.onclose = (event) => {
+      logger.info(
+        "Disconnected from FastAPI jobs WebSocket:",
+        event.code,
+        event.reason,
+      );
       this.isConnected = false;
-    });
+      this.websocket = null;
 
-    this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+      // Attempt to reconnect if it wasn't a manual disconnect
+      if (event.code !== 1000) {
+        // 1000 = normal closure
+        this.scheduleReconnect();
+      }
+    };
+
+    this.websocket.onerror = (error) => {
+      logger.error("FastAPI WebSocket connection error:", error);
       this.isConnected = false;
-    });
+    };
 
-    this.socket.on('subscribed', (data) => {
-      console.log('Subscribed to job updates:', data);
-    });
+    this.websocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        logger.debug("FastAPI WebSocket received:", data);
 
-    // Set up job event listeners
-    this.socket.on('job_created', (data: JobData) => {
-      console.log('Received job_created event:', data);
-      this.emit('job_created', data);
-    });
+        switch (data.type) {
+          case "connected":
+            logger.debug("FastAPI WebSocket connection confirmed");
+            break;
 
-    this.socket.on('job_updated', (data: JobData) => {
-      console.log('Received job_updated event:', data);
-      this.emit('job_updated', data);
-    });
+          case "subscribed":
+            logger.debug("Subscribed to job updates:", data);
+            break;
 
-    this.socket.on('job_completed', (data: JobData) => {
-      console.log('Received job_completed event:', data);
-      this.emit('job_completed', data);
-    });
+          case "jobs_list":
+            logger.debug("Received jobs list:", data);
+            this.emit("jobs_list", { jobs: data.jobs });
+            break;
 
-    this.socket.on('job_failed', (data: JobData) => {
-      console.log('Received job_failed event:', data);
-      this.emit('job_failed', data);
-    });
+          case "job_created":
+            logger.debug("Received job_created event:", data.job);
+            this.emit("job_created", data.job);
+            break;
 
-    this.socket.on('job_cancelled', (data: JobData) => {
-      console.log('Received job_cancelled event:', data);
-      this.emit('job_cancelled', data);
-    });
+          case "job_updated":
+            logger.debug("Received job_updated event:", data.job);
+            this.emit("job_updated", data.job);
+            break;
 
-    this.socket.on('jobs_list', (data: { jobs: JobData[] }) => {
-      console.log('Received jobs_list event:', data);
-      this.emit('jobs_list', data);
-    });
+          case "job_completed":
+            logger.debug("Received job_completed event:", data.job);
+            this.emit("job_completed", data.job);
+            break;
+
+          case "job_failed":
+            logger.debug("Received job_failed event:", data.job);
+            this.emit("job_failed", data.job);
+            break;
+
+          case "job_cancelled":
+            logger.debug("Received job_cancelled event:", data.job);
+            this.emit("job_cancelled", data.job);
+            break;
+
+          case "error":
+            logger.error("WebSocket error:", data.message);
+            break;
+
+          default:
+            logger.debug("Unknown message type:", data.type);
+        }
+      } catch (error) {
+        logger.error("Error parsing FastAPI WebSocket message:", error);
+      }
+    };
+  }
+
+  private scheduleReconnect() {
+    // Never give up reconnecting for personal use - just slow down the attempts
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    // Cap at 30 seconds, but never stop trying
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
+    logger.debug(
+      `Scheduling reconnect in ${delay / 1000}s (attempt ${this.reconnectAttempts + 1})`,
+    );
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectAttempts++;
+      this.initializeConnection();
+    }, delay);
+  }
+
+  private send(message: Record<string, unknown>) {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify(message));
+    } else {
+      logger.warn("Cannot send message: WebSocket not connected");
+    }
   }
 
   private emit(eventName: string, data: unknown) {
     const eventListeners = this.listeners.get(eventName);
     if (eventListeners) {
-      eventListeners.forEach(listener => {
+      eventListeners.forEach((listener) => {
         try {
           listener(data);
         } catch (error) {
-          console.error(`Error in ${eventName} listener:`, error);
+          logger.error(`Error in ${eventName} listener:`, error);
         }
       });
     }
@@ -146,7 +212,7 @@ class JobsWebSocketService {
    */
   on<T extends keyof JobsWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T]
+    listener: JobsWebSocketEvents[T],
   ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
@@ -165,7 +231,7 @@ class JobsWebSocketService {
    */
   off<T extends keyof JobsWebSocketEvents>(
     event: T,
-    listener: JobsWebSocketEvents[T]
+    listener: JobsWebSocketEvents[T],
   ) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
@@ -180,41 +246,45 @@ class JobsWebSocketService {
    * Check if WebSocket is connected
    */
   isConnectionActive(): boolean {
-    return this.isConnected && this.socket?.connected === true;
+    return this.isConnected && this.websocket?.readyState === WebSocket.OPEN;
   }
 
   /**
    * Manually disconnect the WebSocket
    */
   disconnect() {
-    if (this.socket) {
-      this.socket.emit('unsubscribe_from_jobs');
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    if (this.websocket) {
+      this.send({ type: "unsubscribe_from_jobs" });
+      this.websocket.close(1000, "Manual disconnect"); // Normal closure
+      this.websocket = null;
     }
     this.isConnected = false;
     this.listeners.clear();
+    this.reconnectAttempts = 0;
   }
 
   /**
    * Manually reconnect the WebSocket
    */
   reconnect() {
-    if (this.socket) {
-      this.socket.connect();
-    } else {
-      this.initializeConnection();
-    }
+    this.disconnect();
+    this.reconnectAttempts = 0;
+    this.initializeConnection();
   }
 
   /**
    * Request an updated list of all jobs from the server
    */
   requestJobsList() {
-    if (this.socket && this.isConnected) {
-      this.socket.emit('request_jobs_list');
+    if (this.isConnectionActive()) {
+      this.send({ type: "request_jobs_list" });
     } else {
-      console.warn('Cannot request jobs list: WebSocket not connected');
+      logger.warn("Cannot request jobs list: WebSocket not connected");
     }
   }
 }

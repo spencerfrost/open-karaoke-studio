@@ -53,10 +53,6 @@ class FileService(FileServiceInterface):
         """Get original file path (always 'original.mp3' in the song directory)"""
         return self.get_song_directory(song_id) / f"original{extension}"
 
-    def get_thumbnail_path(self, song_id: str) -> Path:
-        """Get thumbnail file path"""
-        return self.get_song_directory(song_id) / "thumbnail.jpg"
-
     def delete_song_files(self, song_id: str) -> bool:
         """Delete all files for a song"""
         try:
@@ -68,6 +64,9 @@ class FileService(FileServiceInterface):
             else:
                 logger.warning("Song directory does not exist: %s", song_dir)
                 return False
+        except PermissionError as e:
+            logger.warning("Permission denied when deleting files for song %s: %s", song_id, e)
+            raise ServiceError(f"Permission denied when deleting files for song {song_id}: {e}")
         except Exception as e:
             logger.error("Error deleting files for song %s: %s", song_id, e)
             raise ServiceError(f"Failed to delete files for song {song_id}: {e}")
@@ -105,6 +104,15 @@ class FileService(FileServiceInterface):
         except Exception as e:
             logger.error("Error getting file size for %s: %s", file_path, e)
             return None
+
+    def get_artist_image_path(self, slug: str) -> Path:
+        """Get artist image file path"""
+        return self.base_library_dir / "artists" / f"{slug}.jpg"
+
+    def get_artist_notfound_path(self, slug: str) -> Path:
+        """Get artist not-found marker file path"""
+        return self.base_library_dir / "artists" / f"{slug}.notfound"
+
 
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""

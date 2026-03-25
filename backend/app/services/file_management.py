@@ -32,6 +32,11 @@ def get_instrumental_path_stem(song_dir: Path) -> Path:
     return song_dir / "instrumental"
 
 
+def get_backing_vocals_path_stem(song_dir: Path) -> Path:
+    """Returns the standard path stem (without extension) for the backing vocals file."""
+    return song_dir / "backing_vocals"
+
+
 # =============================================================================
 # FILE OPERATIONS WITH BUSINESS LOGIC
 # =============================================================================
@@ -81,10 +86,7 @@ def get_processed_songs(library_path: Optional[Path] = None) -> list[str]:
 def download_image(url: str, save_path: Path) -> bool:
     """Downloads an image from a URL and saves it to the specified path."""
     try:
-        # Create a session to handle redirects properly
-        session = requests.Session()
-
-        # Configure session with user agent to avoid being blocked
+        # Configure user agent to avoid being blocked
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -92,59 +94,60 @@ def download_image(url: str, save_path: Path) -> bool:
             )
         }
 
-        # First make a HEAD request to check content type and handle redirects
-        head_response = session.head(
-            url, headers=headers, timeout=10, allow_redirects=True
-        )
-
-        # If HEAD request fails, try a GET request anyway as some 
-        # servers don't support HEAD
-        if head_response.status_code != 200:
-            logger.warning(
-                "HEAD request failed with status %s, trying GET instead",
-                head_response.status_code,
+        with requests.Session() as session:
+            # First make a HEAD request to check content type and handle redirects
+            head_response = session.head(
+                url, headers=headers, timeout=10, allow_redirects=True
             )
 
-        # Make the actual GET request to download the image
-        response = session.get(
-            url, headers=headers, stream=True, timeout=10, allow_redirects=True
-        )
-        response.raise_for_status()  # Raise exception for HTTP errors
-
-        # Check if response contains image data
-        content_type = response.headers.get("content-type", "")
-        if not content_type.startswith("image/"):
-            logger.warning("Downloaded content is not an image: %s", content_type)
-            # Some YouTube thumbnails might not correctly report content-type
-            # Check if it at least looks like an image based on first few bytes
-            first_bytes = next(response.iter_content(128), b"")
-            # Check for common image file signatures (JPEG, PNG, WebP)
-            if not (
-                first_bytes.startswith(b"\xff\xd8\xff")  # JPEG
-                or first_bytes.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
-                or (first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes[:12])
-            ):  # WebP
+            # If HEAD request fails, try a GET request anyway as some
+            # servers don't support HEAD
+            if head_response.status_code != 200:
                 logger.warning(
-                    "Content doesn't appear to be an image based on file signature"
+                    "HEAD request failed with status %s, trying GET instead",
+                    head_response.status_code,
+                )
+
+            # Make the actual GET request to download the image
+            response = session.get(
+                url, headers=headers, stream=True, timeout=10, allow_redirects=True
+            )
+            response.raise_for_status()  # Raise exception for HTTP errors
+
+            # Check if response contains image data
+            content_type = response.headers.get("content-type", "")
+            if not content_type.startswith("image/"):
+                logger.warning("Downloaded content is not an image: %s", content_type)
+                # Some YouTube thumbnails might not correctly report content-type
+                # Check if it at least looks like an image based on first few bytes
+                first_bytes = next(response.iter_content(128), b"")
+                # Check for common image file signatures (JPEG, PNG, WebP)
+                if not (
+                    first_bytes.startswith(b"\xff\xd8\xff")  # JPEG
+                    or first_bytes.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
+                    or (first_bytes.startswith(b"RIFF") and b"WEBP" in first_bytes[:12])
+                ):  # WebP
+                    logger.warning(
+                        "Content doesn't appear to be an image based on file signature"
+                    )
+                    return False
+
+            # Ensure the directory exists
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Save the image
+            with open(save_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            # Verify the file was saved and has content
+            if save_path.exists() and save_path.stat().st_size > 0:
+                return True
+            else:
+                logger.warning(
+                    "Image file was saved but appears to be empty: %s", save_path
                 )
                 return False
-
-        # Ensure the directory exists
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Save the image
-        with open(save_path, "wb") as f:  # Binary mode doesn't take encoding
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        # Verify the file was saved and has content
-        if save_path.exists() and save_path.stat().st_size > 0:
-            return True
-        else:
-            logger.warning(
-                "Image file was saved but appears to be empty: %s", save_path
-            )
-            return False
 
     except requests.exceptions.RequestException as e:
         logger.error("Network error downloading image from %s: %s", url, e)

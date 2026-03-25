@@ -27,10 +27,6 @@ class FileServiceInterface(Protocol):
         """Get original file path"""
         ...
 
-    def get_thumbnail_path(self, song_id: str) -> Path:
-        """Get thumbnail file path"""
-        ...
-
     def delete_song_files(self, song_id: str) -> bool:
         """Delete all files for a song"""
         ...
@@ -49,4 +45,8 @@ class FileServiceInterface(Protocol):
 
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""
+        ...
+
+    def get_artist_image_path(self, slug: str) -> Path:
+        """Get artist image file path"""
         ...

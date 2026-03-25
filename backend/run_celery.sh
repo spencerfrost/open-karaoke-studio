@@ -10,8 +10,11 @@ if [ -f .env ]; then
     set +a # stop automatically exporting
 fi
 
-# Ensure DATABASE_URL is set to the same value as the main app (backend directory)
-export DATABASE_URL="sqlite:///karaoke.db"
+# Ensure DATABASE_URL is set; fall back to SQLite default if not provided
+if [ -z "$DATABASE_URL" ]; then
+    echo "WARNING: DATABASE_URL is not set. Falling back to SQLite default."
+    export DATABASE_URL="sqlite:///karaoke.db"
+fi
 
 # Set critical environment variables for PyTorch/CUDA compatibility
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"

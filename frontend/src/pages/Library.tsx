@@ -1,125 +1,96 @@
 import React, { useState } from "react";
-import { useArtists } from "@/hooks/api/useArtists";
-import { Filter, Music } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
-import LibrarySearchInput from "../components/library/LibrarySearchInput";
-import SongResultsSection from "../components/library/SongResultsSection";
-import ArtistResultsSection from "../components/library/ArtistResultsSection";
-import RecentlyAddedSongs from "../components/library/RecentlyAddedSongs";
-import { Song } from "@/types/Song";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import {
+  LibrarySearchInput,
+  SongResultsSection,
+  ArtistResultsSection,
+  RecentlyAddedSongs,
+  RecentlySang,
+} from "@/features/library";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
+import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const LibraryPage: React.FC = () => {
-  const navigate = useNavigate();
-
-  // State
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams] = useSearchParams();
+  const expandArtist = searchParams.get("expandArtist");
+
+  // Clear search term if we're expanding an artist (don't filter by search)
+  const effectiveSearchTerm = expandArtist ? "" : searchTerm;
 
   // Song search (paginated, not infinite)
   const { useSongs } = useSongsHook();
-  const songsQuery = useSongs(
-    searchTerm.trim()
-      ? {
-          q: searchTerm,
-          limit: 24,
-          offset: 0,
-          sort_by: "relevance",
-          direction: "desc",
-        }
-      : { limit: 24, offset: 0, sort_by: "date_added", direction: "desc" }
-  );
 
-  // Artist search (fetch all matching artists, up to 200)
-  const {
-    artists,
-    isLoading: artistsLoading,
-  } = useArtists({ search: searchTerm, limit: 200 });
+  const songsParams = effectiveSearchTerm.trim()
+    ? {
+      q: effectiveSearchTerm,
+      limit: 24,
+      offset: 0,
+      sort: "relevance",
+      direction: "desc",
+    }
+    : {
+      limit: 24,
+      offset: 0,
+      sort_by: "date_added",
+      direction: "desc",
+    };
 
-  // Handlers
-  const handleSongSelect = (song: Song) => {
-    navigate(`/player/${song.id}`);
-  };
+  const songsQuery = useSongs(songsParams);
 
-  const handleAddToQueue = (song: Song) => {
-    navigate("/queue", { state: { songId: song.id } });
-  };
-
-  // hasSearch logic
-  const hasSearch = searchTerm && searchTerm.trim().length > 0;
+  const hasSearch =
+    effectiveSearchTerm && effectiveSearchTerm.trim().length > 0;
 
   return (
     <AppLayout>
+      <SessionInfoDisplay
+        variant="qr"
+        colorScheme="page"
+        trigger="hover"
+        visibility="host-only"
+        className="absolute top-2 right-3 z-30"
+      />
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
-          Song Library
-        </h1>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Music size={20} className="text-orange-peel" />
-              <span className="text-lemon-chiffon">
-                {searchTerm ? "Search Results" : "Browse Library"}
-              </span>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="border-orange-peel text-orange-peel"
-          >
-            <Filter size={16} className="mr-2" />
-            Advanced Filters
-          </Button>
-        </div>
-
         {/* Search Input */}
-        <div className="mb-6">
+        <div className="my-4 sm:my-12">
           <LibrarySearchInput
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
-            isLoading={songsQuery.isLoading || artistsLoading}
+            isLoading={songsQuery.isLoading}
             placeholder="Search songs and artists..."
+            className="w-full max-w-xl mx-auto"
           />
         </div>
 
-        {/* Advanced Filters Panel */}
-        {showAdvancedFilters && (
-          <div className="mb-6 p-4 border border-orange-peel rounded-lg">
-            <div className="text-sm opacity-60 mb-2">
-              Advanced filtering options coming soon...
-            </div>
-            {/* TODO: Add genre, year, source filters here */}
-          </div>
-        )}
-
-        <div className="space-y-8">
+        <div>
           {!hasSearch ? (
-            <RecentlyAddedSongs
-              onSongSelect={handleSongSelect}
-              onAddToQueue={handleAddToQueue}
-            />
+            <Tabs defaultValue="recently-added">
+              <TabsList className="mb-4" variant="line">
+                <TabsTrigger value="recently-added">Recently Added</TabsTrigger>
+                <TabsTrigger value="recently-sang">Recently Sang</TabsTrigger>
+              </TabsList>
+              <TabsContent value="recently-added">
+                <RecentlyAddedSongs maxSongs={48} />
+              </TabsContent>
+              <TabsContent value="recently-sang">
+                <RecentlySang />
+              </TabsContent>
+            </Tabs>
           ) : (
             <SongResultsSection
               songs={songsQuery.data || []}
-              hasNextPage={false} // Pagination can be added later
+              hasNextPage={false}
               isFetchingNextPage={false}
-              fetchNextPage={() => {}}
-              onSongSelect={handleSongSelect}
-              onAddToQueue={handleAddToQueue}
+              fetchNextPage={() => { }}
               searchTerm={searchTerm}
             />
           )}
-          {/* Artist Results Section - Always visible for browsing */}
+          {/* Artist Results Section - owns its own data fetching */}
           <ArtistResultsSection
-            artists={artists}
-            onSongSelect={handleSongSelect}
-            onAddToQueue={handleAddToQueue}
             searchTerm={searchTerm}
+            expandArtist={expandArtist}
           />
         </div>
       </div>

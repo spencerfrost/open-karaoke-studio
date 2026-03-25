@@ -1,229 +1,161 @@
+/**
+ * Karaoke Player Store - Facade Integration Layer
+ *
+ * This is a facade that integrates three focused stores:
+ * - useAudioControlsStore: Volume and speed controls
+ * - usePlaybackStateStore: Playback timing and Web Audio API
+ * - useUIPreferencesStore: Display preferences and mini-player
+ *
+ * It provides a unified API for components (backward-compatible)
+ * and handles WebSocket synchronization across all sub-stores.
+ */
+
 import { create } from "zustand";
-import { io, Socket } from "socket.io-client";
+import { sessionWebSocketService } from "../services/sessionWebSocketService";
+import { createLogger } from "@/lib/logger";
+import { useAudioControlsStore } from "./useAudioControlsStore";
+import { usePlaybackStateStore } from "./usePlaybackStateStore";
+import { useUIPreferencesStore } from "./useUIPreferencesStore";
+import {
+  PerformanceState,
+  MiniPlayerPosition,
+  LocalUpdateTracker,
+  ControlValue,
+} from "./shared/types";
+import {
+  shouldIgnoreWebSocketUpdate as shouldIgnore,
+  trackLocalUpdate,
+  clearLocalUpdates,
+  toSnakeCase,
+} from "./shared/websocketSync";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5123";
-// For WebSocket connections, use local proxy in development, direct URL in production
-const WEBSOCKET_URL = import.meta.env.DEV ? window.location.origin : BASE_URL;
-const INITIAL_STATE = {
-  isReady: false,
-  isLoading: false,
-  error: null,
-  currentTime: 0,
-  isPlaying: false,
-};
+const logger = createLogger("store:player");
 
-// Helper function to get audio URLs
-const getAudioUrl = (
-  songId: string,
-  trackType: "vocals" | "instrumental" | "original"
-): string => {
-  return `/api/songs/${songId}/download/${trackType}`;
-};
+// Extend window interface for cleanup storage
+declare global {
+  interface Window {
+    __playerWebSocketCleanup?: (() => void)[];
+  }
+}
 
 interface KaraokePlayerState {
-  // Audio/track info
+  // Audio/track info (from playbackState)
   songId: string | null;
   instrumentalUrl: string;
   vocalUrl: string;
+  backingVocalUrl: string;
   isReady: boolean;
   isLoading: boolean;
-  duration: number; // seconds (float)
-  durationMs?: number; // milliseconds (integer, from backend)
+  duration: number;
   error: string | null;
 
-  // Playback state
+  // Song metadata for display (from uiPreferences)
+  songTitle: string | null;
+  songArtist: string | null;
+
+  // Playback state (from playbackState)
   isPlaying: boolean;
   currentTime: number;
+  songEnded: boolean;
 
-  // Controls
+  // Controls (from audioControls)
   vocalVolume: number;
+  backingVocalVolume: number;
   instrumentalVolume: number;
+  playbackSpeed: number;
+
+  // UI preferences (from uiPreferences)
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
+  autoScrollEnabled: boolean;
+  showChords: boolean;
 
-  // WebSocket
+  // Connection state
   connected: boolean;
-  socket: Socket | null;
+
+  // Mini-player state (from uiPreferences)
+  miniPlayerEnabled: boolean;
+  miniPlayerPosition: MiniPlayerPosition;
+  miniPlayerDismissed: boolean;
 
   // Actions
   connect: () => void;
   disconnect: () => void;
-  setSongId: (id: string, durationMs?: number) => void;
-  setSongAndLoad: (id: string, durationMs?: number) => Promise<void>;
+  setSongId: (id: string, duration?: number, gainDb?: number) => void;
+  setSongAndLoad: (
+    id: string,
+    duration?: number,
+    title?: string,
+    artist?: string,
+    gainDb?: number,
+  ) => Promise<void>;
   load: () => Promise<void>;
   play: () => void;
   pause: () => void;
   userPlay: () => void;
   userPause: () => void;
   seek: (time: number) => void;
+  resetSongEnded: () => void;
   setVocalVolume: (volume: number) => void;
+  setBackingVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
+  setAutoScrollEnabled: (enabled: boolean) => void;
+  setShowChords: (enabled: boolean) => void;
+  setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
-  getWaveformData: () => Uint8Array | null;
+  getWaveformData: () => number[] | null;
+  setMiniPlayerEnabled: (enabled: boolean) => void;
+  setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
+  dismissMiniPlayer: () => void;
+  updateFromWebSocket: (data: Partial<PerformanceState>) => void;
 }
 
 export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
-  // --- Web Audio API internals (not exposed to UI) ---
-  let audioContext: AudioContext | null = null;
-  let instrumentalBuffer: AudioBuffer | null = null;
-  let vocalBuffer: AudioBuffer | null = null;
-  let instrumentalSource: AudioBufferSourceNode | null = null;
-  let vocalSource: AudioBufferSourceNode | null = null;
-  let instrumentalGain: GainNode | null = null;
-  let vocalGain: GainNode | null = null;
-  let analyser: AnalyserNode | null = null;
-  let waveformArray: Uint8Array | null = null;
-  let interval: NodeJS.Timeout | null = null;
+  // Track local updates to prevent WebSocket echoes
+  const lastLocalUpdate: LocalUpdateTracker = {};
 
-  let playbackStartTime: number | null = null; // audioContext.currentTime when playback started
-  let playbackOffset: number = 0; // seconds into the track when playback started
+  // Flag to prevent WebSocket interference during song loading
+  let isLoadingNewSong: boolean = false;
 
-  // Add a variable to store durationMs (milliseconds)
-  let durationMs: number | undefined = undefined;
-
-  // --- WebSocket helpers ---
-  function createSocket(): Socket {
-    return io(WEBSOCKET_URL, {
-      autoConnect: false,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-  }
-
-  // --- Audio graph helpers ---
-  function setupAnalyser() {
-    if (!analyser && audioContext) {
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      waveformArray = new Uint8Array(analyser.frequencyBinCount);
+  function socketEmit(messageType: string, data?: Record<string, unknown>) {
+    if (messageType === "update_performance_control") {
+      sessionWebSocketService.updatePerformanceControl(
+        (data?.control as string) || "",
+        data?.value as ControlValue,
+      );
+    } else if (messageType === "update_player_state") {
+      sessionWebSocketService.updatePlayerState({
+        isPlaying: data?.isPlaying as boolean,
+        currentTime: data?.currentTime as number,
+        duration: data?.duration as number,
+      });
+    } else if (messageType === "playback_play") {
+      sessionWebSocketService.playback();
+    } else if (messageType === "playback_pause") {
+      sessionWebSocketService.pause();
+    } else if (messageType === "song_loaded") {
+      sessionWebSocketService.songLoaded(
+        (data?.songId as string) || "",
+        (data?.duration as number) || 0,
+      );
+    } else if (messageType === "song_ready") {
+      sessionWebSocketService.songReady(
+        (data?.songId as string) || "",
+        (data?.duration as number) || 0,
+      );
     }
   }
 
-  function syncGainValues() {
-    if (vocalGain) vocalGain.gain.value = get().vocalVolume;
-    if (instrumentalGain)
-      instrumentalGain.gain.value = get().instrumentalVolume;
-  }
-
-  function clearIntervals() {
-    if (interval) clearInterval(interval);
-  }
-
-  function socketEmit(event: string, data: unknown) {
-    const { socket } = get();
-    if (socket?.connected) {
-      socket.emit(event, data);
-    }
-  }
-
-  function setupAudioGraph(startTime: number, offset?: number) {
-    // Clean up any previous sources
-    if (instrumentalSource) instrumentalSource.stop();
-    if (vocalSource) vocalSource.stop();
-    if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
-    // Create new sources and connect them to the audio graph
-    instrumentalSource = audioContext.createBufferSource();
-    instrumentalSource.buffer = instrumentalBuffer;
-    vocalSource = audioContext.createBufferSource();
-    vocalSource.buffer = vocalBuffer;
-    // Create gain nodes for volume control
-    instrumentalGain = audioContext.createGain();
-    instrumentalGain.gain.value = get().instrumentalVolume;
-    vocalGain = audioContext.createGain();
-    vocalGain.gain.value = get().vocalVolume;
-    // Create or reuse the analyser node
-    setupAnalyser();
-    // Connect the graph
-    instrumentalSource.connect(instrumentalGain).connect(analyser!);
-    vocalSource.connect(vocalGain).connect(analyser!);
-    analyser!.connect(audioContext.destination);
-    // Stat the sources in sync
-    if (typeof offset === "number") {
-      instrumentalSource.start(startTime, offset);
-      vocalSource.start(startTime, offset);
-    } else {
-      instrumentalSource.start(startTime);
-      vocalSource.start(startTime);
-    }
-    // Set the playback start time
-    syncGainValues();
-  }
-
-  function resetAudioNodes() {
-    if (instrumentalSource) instrumentalSource.stop();
-    if (vocalSource) vocalSource.stop();
-    if (audioContext) audioContext.close();
-    audioContext = null;
-    instrumentalBuffer = null;
-    vocalBuffer = null;
-    instrumentalSource = null;
-    vocalSource = null;
-    instrumentalGain = null;
-    vocalGain = null;
-    analyser = null;
-    waveformArray = null;
-    clearIntervals();
-    playbackStartTime = null;
-    playbackOffset = 0;
-  }
-
-  function startTimeInterval() {
-    if (interval) clearInterval(interval);
-    if (!audioContext) return;
-    interval = setInterval(() => {
-      const { isReady, socket, isPlaying, duration } = get();
-      if (!isReady) return;
-      let currentTime = playbackOffset;
-      if (isPlaying && playbackStartTime !== null && audioContext) {
-        currentTime =
-          playbackOffset + (audioContext.currentTime - playbackStartTime);
-      }
-      set({ currentTime });
-      if (socket?.connected && audioContext && isPlaying) {
-        socket.emit("update_player_state", {
-          isPlaying: true,
-          currentTime,
-          duration,
-        });
-      }
-    }, 300);
-  }
-
-  // --- Synced state update helpers ---
-  function updatePlayerState(
-    updates: Partial<
-      Pick<
-        KaraokePlayerState,
-        | "isPlaying"
-        | "currentTime"
-        | "duration"
-        | "songId"
-        | "isReady"
-        | "isLoading"
-        | "error"
-      >
-    >
-  ) {
-    set(updates);
-    socketEmit("update_player_state", updates);
-  }
-
-  function updatePerformanceControl(
-    control:
-      | "vocalVolume"
-      | "instrumentalVolume"
-      | "lyricsSize"
-      | "lyricsOffset",
-    value: unknown
-  ) {
-    set({ [control]: value });
-    // Map camelCase to snake_case for backend
-    const backendControl = control.replace(
-      /[A-Z]/g,
-      (letter) => "_" + letter.toLowerCase()
+  function updatePerformanceControl(control: string, value: unknown) {
+    const backendControl = toSnakeCase(control);
+    trackLocalUpdate(lastLocalUpdate, backendControl, value);
+    logger.debug(
+      "Sending performance control update:",
+      backendControl,
+      "=",
+      value,
     );
     socketEmit("update_performance_control", {
       control: backendControl,
@@ -231,211 +163,432 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     });
   }
 
+  function updatePlayerState(
+    updates: Partial<
+      Pick<KaraokePlayerState, "isPlaying" | "currentTime" | "duration">
+    >,
+  ) {
+    if (updates.currentTime !== undefined) {
+      trackLocalUpdate(lastLocalUpdate, "current_time", updates.currentTime);
+    }
+    socketEmit("update_player_state", updates);
+  }
+
+  // Subscribe to child store changes
+  useAudioControlsStore.subscribe((state) => {
+    set({
+      vocalVolume: state.vocalVolume,
+      backingVocalVolume: state.backingVocalVolume,
+      instrumentalVolume: state.instrumentalVolume,
+      playbackSpeed: state.playbackSpeed,
+    });
+  });
+
+  usePlaybackStateStore.subscribe((state) => {
+    set({
+      songId: state.songId,
+      instrumentalUrl: state.instrumentalUrl,
+      vocalUrl: state.vocalUrl,
+      backingVocalUrl: state.backingVocalUrl,
+      isReady: state.isReady,
+      isLoading: state.isLoading,
+      duration: state.duration,
+      error: state.error,
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      songEnded: state.songEnded,
+    });
+  });
+
+  useUIPreferencesStore.subscribe((state) => {
+    set({
+      lyricsSize: state.lyricsSize,
+      lyricsOffset: state.lyricsOffset,
+      autoScrollEnabled: state.autoScrollEnabled,
+      showChords: state.showChords,
+      songTitle: state.songTitle,
+      songArtist: state.songArtist,
+      miniPlayerEnabled: state.miniPlayerEnabled,
+      miniPlayerPosition: state.miniPlayerPosition,
+      miniPlayerDismissed: state.miniPlayerDismissed,
+    });
+  });
+
   return {
+    // Initial state - aggregated from child stores
     songId: null,
     instrumentalUrl: "",
     vocalUrl: "",
+    backingVocalUrl: "",
     isReady: false,
     isLoading: false,
     duration: 0,
-    durationMs: undefined,
     error: null,
+    songTitle: null,
+    songArtist: null,
     isPlaying: false,
     currentTime: 0,
+    songEnded: false,
     vocalVolume: 0,
+    backingVocalVolume: 1.0,
     instrumentalVolume: 1.0,
+    playbackSpeed: 1.0,
     lyricsSize: "medium",
     lyricsOffset: 0,
+    autoScrollEnabled: true,
+    showChords: false,
     connected: false,
-    socket: null,
+    miniPlayerEnabled: true,
+    miniPlayerPosition: { x: 24, y: 24 },
+    miniPlayerDismissed: false,
 
-    // Actions
     connect: () => {
-      let socket = get().socket;
-      if (!socket) {
-        socket = createSocket();
-        socket.on("connect", () => {
-          set({ connected: true });
-          socket?.emit("join_performance");
-        });
-        socket.on("disconnect", () => set({ connected: false }));
-        socket.on("performance_state", (data) => {
-          set((state) => ({
-            isPlaying: data.is_playing,
-            currentTime: data.current_time,
-            duration: data.duration > 0 ? data.duration : state.duration,
-            vocalVolume: data.vocal_volume,
-            instrumentalVolume: data.instrumental_volume,
-            lyricsSize: data.lyrics_size,
-            lyricsOffset: data.lyrics_offset,
-          }));
-        });
-        socket.on("control_updated", (update) => {
-          if (update.control === "vocal_volume") {
-            set({ vocalVolume: update.value });
-            if (vocalGain) vocalGain.gain.value = update.value;
-          } else if (update.control === "instrumental_volume") {
-            set({ instrumentalVolume: update.value });
-            if (instrumentalGain) instrumentalGain.gain.value = update.value;
-          } else if (update.control === "lyrics_size") {
-            set({ lyricsSize: update.value });
-          } else if (update.control === "lyrics_offset") {
-            set({ lyricsOffset: update.value });
+      logger.debug("[KaraokePlayerStore] Setting up WebSocket listeners");
+
+      const cleanupPerformanceState = sessionWebSocketService.on(
+        "performance_state",
+        (data) => {
+          if (data && typeof data === "object" && "state" in data) {
+            const state = (data as { state: PerformanceState }).state;
+            get().updateFromWebSocket(state);
           }
-        });
-        socket.on("playback_play", () => get().play());
-        socket.on("playback_pause", () => get().pause());
-        set({ socket });
-      }
-      if (!socket.connected) {
-        socket.connect();
+        },
+      );
+
+      const cleanupControlUpdated = sessionWebSocketService.on(
+        "control_updated",
+        (data) => {
+          if (
+            data &&
+            typeof data === "object" &&
+            "control" in data &&
+            "value" in data
+          ) {
+            const { control, value } = data as {
+              control: string;
+              value: unknown;
+            };
+            get().updateFromWebSocket({
+              [control]: value,
+            } as Partial<PerformanceState>);
+          }
+        },
+      );
+
+      const cleanupPlaybackPlay = sessionWebSocketService.on(
+        "playback_play",
+        () => {
+          get().play();
+        },
+      );
+
+      const cleanupPlaybackPause = sessionWebSocketService.on(
+        "playback_pause",
+        () => {
+          get().pause();
+        },
+      );
+
+      const cleanupSessionConnected = sessionWebSocketService.on(
+        "session_connected",
+        (data) => {
+          logger.debug(
+            "[KaraokePlayerStore] Received session_connected event",
+            data,
+          );
+          set({ connected: true });
+        },
+      );
+
+      const cleanupSessionError = sessionWebSocketService.on(
+        "session_error",
+        (data) => {
+          logger.error("[KaraokePlayerStore] Session error:", data);
+          set({ connected: false });
+        },
+      );
+
+      const cleanupSessionEnded = sessionWebSocketService.on(
+        "session_ended",
+        (data) => {
+          logger.debug("[KaraokePlayerStore] Session ended:", data);
+          set({ connected: false });
+        },
+      );
+
+      window.__playerWebSocketCleanup = [
+        cleanupPerformanceState,
+        cleanupControlUpdated,
+        cleanupPlaybackPlay,
+        cleanupPlaybackPause,
+        cleanupSessionConnected,
+        cleanupSessionError,
+        cleanupSessionEnded,
+      ];
+
+      if (sessionWebSocketService.isConnectionActive()) {
+        logger.debug("[KaraokePlayerStore] WebSocket already connected");
+        set({ connected: true });
       }
     },
+
     disconnect: () => {
-      const { socket } = get();
-      if (socket?.connected) {
-        socket.disconnect();
+      if (window.__playerWebSocketCleanup) {
+        window.__playerWebSocketCleanup.forEach((cleanup: () => void) =>
+          cleanup(),
+        );
+        delete window.__playerWebSocketCleanup;
       }
       set({ connected: false });
     },
-    setSongId: (id: string, songDurationMs?: number) => {
-      // Accept durationMs from the backend if available
-      durationMs = songDurationMs;
-      set({
+
+    setSongId: (id: string, duration?: number, gainDb?: number) => {
+      usePlaybackStateStore.getState().setSongId(id, duration, gainDb);
+      useUIPreferencesStore.getState().resetMiniPlayerDismissed();
+    },
+
+    setSongAndLoad: async (
+      id: string,
+      duration?: number,
+      title?: string,
+      artist?: string,
+      gainDb?: number,
+    ) => {
+      isLoadingNewSong = true;
+
+      get().cleanup();
+      get().setSongId(id, duration, gainDb);
+      useUIPreferencesStore
+        .getState()
+        .setSongMetadata(title || null, artist || null);
+      usePlaybackStateStore.getState().resetSongEnded();
+      useAudioControlsStore.getState().resetAudioControls();
+      useUIPreferencesStore.getState().resetLyricsOffset();
+
+      socketEmit("song_loaded", {
         songId: id,
-        instrumentalUrl: getAudioUrl(id, "instrumental"),
-        vocalUrl: getAudioUrl(id, "vocals"),
-        isReady: false,
-        error: null,
-        duration: songDurationMs ? songDurationMs / 1000 : 0,
-        durationMs: songDurationMs,
+        duration: duration || 0,
+        currentTime: 0,
+        isPlaying: false,
+      });
+
+      await get().load();
+
+      setTimeout(() => {
+        isLoadingNewSong = false;
+        clearLocalUpdates(lastLocalUpdate);
+        logger.debug("Re-enabled WebSocket performance state updates");
+      }, 500);
+    },
+
+    load: async () => {
+      await usePlaybackStateStore.getState().load();
+      const duration = usePlaybackStateStore.getState().duration;
+      socketEmit("song_ready", {
+        songId: get().songId,
+        duration,
+        currentTime: 0,
+        isPlaying: false,
+        isReady: true,
       });
     },
-    setSongAndLoad: async (id: string, songDurationMs?: number) => {
-      get().setSongId(id, songDurationMs);
-      get().cleanup();
-      await get().load();
-    },
-    load: async () => {
-      set({ isLoading: true });
-      try {
-        const { instrumentalUrl, vocalUrl } = get();
-        if (!instrumentalUrl || !vocalUrl) {
-          set({
-            error: "Missing instrumental or vocal URL.",
-            isLoading: false,
-          });
-          return;
-        }
-        const tempContext = new window.AudioContext();
-        const [instArr, vocArr] = await Promise.all([
-          fetch(instrumentalUrl, { cache: "reload" }).then((r) => {
-            if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
-            return r.arrayBuffer();
-          }),
-          fetch(vocalUrl, { cache: "reload" }).then((r) => {
-            if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
-            return r.arrayBuffer();
-          }),
-        ]);
-        const [instBuf, vocBuf] = await Promise.all([
-          tempContext.decodeAudioData(instArr.slice(0)),
-          tempContext.decodeAudioData(vocArr.slice(0)),
-        ]);
-        instrumentalBuffer = instBuf;
-        vocalBuffer = vocBuf;
-        // Prefer durationMs from backend, otherwise use decoded buffer duration
-        const ms =
-          durationMs !== undefined
-            ? durationMs
-            : Math.round(instBuf.duration * 1000);
-        set({
-          duration: ms / 1000,
-          durationMs: ms,
-          isReady: true,
-          error: null,
-        });
-        tempContext.close();
-      } catch {
-        set({ error: "Failed to load or decode audio." });
-      } finally {
-        set({ isLoading: false });
-      }
-    },
+
     play: () => {
-      if (!audioContext) {
-        audioContext = new window.AudioContext();
-      }
-      if (!instrumentalBuffer || !vocalBuffer) return;
-      clearIntervals();
+      const audioControls = useAudioControlsStore.getState();
+      const playbackState = usePlaybackStateStore.getState();
 
-      setupAudioGraph(audioContext.currentTime, playbackOffset);
-      playbackStartTime = audioContext.currentTime;
-      set({ isPlaying: true });
+      playbackState.play(audioControls.playbackSpeed, {
+        vocal: audioControls.vocalVolume,
+        backing: audioControls.backingVocalVolume,
+        instrumental: audioControls.instrumentalVolume,
+      });
 
-      startTimeInterval();
+      playbackState.startTimeUpdate(audioControls.playbackSpeed, (state) => {
+        updatePlayerState(state);
+      });
+
+      updatePlayerState({ isPlaying: true });
     },
+
     pause: () => {
-      if (instrumentalSource) instrumentalSource.stop();
-      if (vocalSource) vocalSource.stop();
-      clearIntervals();
-      if (audioContext && playbackStartTime !== null) {
-        // Calculate how much time has elapsed since playback started
-        const elapsed = audioContext.currentTime - playbackStartTime;
-        playbackOffset = playbackOffset + elapsed;
-        playbackStartTime = null;
-        set({ currentTime: playbackOffset });
-      }
-      set({ isPlaying: false });
+      const audioControls = useAudioControlsStore.getState();
+      const playbackState = usePlaybackStateStore.getState();
+
+      playbackState.pause(audioControls.playbackSpeed);
+      playbackState.stopTimeUpdate();
+      updatePlayerState({
+        currentTime: playbackState.currentTime,
+        isPlaying: false,
+      });
     },
+
     userPlay: () => {
       socketEmit("playback_play", {});
       get().play();
     },
+
     userPause: () => {
       socketEmit("playback_pause", {});
       get().pause();
     },
-    // Accepts milliseconds as canonical unit
-    seek: (timeMs: number) => {
-      if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
-      clearIntervals();
-      const timeSec = timeMs / 1000;
-      playbackOffset = timeSec;
-      if (get().isPlaying) {
-        setupAudioGraph(audioContext.currentTime, timeSec);
-        playbackStartTime = audioContext.currentTime;
-        startTimeInterval();
-        updatePlayerState({ currentTime: timeSec });
-      } else {
-        playbackStartTime = null;
-        updatePlayerState({ currentTime: timeSec, isPlaying: false });
+
+    seek: (timeSeconds: number) => {
+      const audioControls = useAudioControlsStore.getState();
+      const playbackState = usePlaybackStateStore.getState();
+
+      playbackState.seek(timeSeconds, audioControls.playbackSpeed, {
+        vocal: audioControls.vocalVolume,
+        backing: audioControls.backingVocalVolume,
+        instrumental: audioControls.instrumentalVolume,
+      });
+
+      if (playbackState.isPlaying) {
+        playbackState.startTimeUpdate(audioControls.playbackSpeed, (state) => {
+          updatePlayerState(state);
+        });
       }
+
+      updatePlayerState({ currentTime: timeSeconds });
     },
+
+    resetSongEnded: () => {
+      usePlaybackStateStore.getState().resetSongEnded();
+    },
+
     setVocalVolume: (volume: number) => {
-      const normalized = Math.max(0, Math.min(1, volume));
-      updatePerformanceControl("vocalVolume", normalized);
-      if (vocalGain) vocalGain.gain.value = normalized;
+      useAudioControlsStore.getState().setVocalVolume(volume);
+      updatePerformanceControl("vocalVolume", volume);
     },
+
+    setBackingVocalVolume: (volume: number) => {
+      useAudioControlsStore.getState().setBackingVocalVolume(volume);
+      updatePerformanceControl("backingVocalVolume", volume);
+    },
+
     setInstrumentalVolume: (volume: number) => {
-      const normalized = Math.max(0, Math.min(1, volume));
-      updatePerformanceControl("instrumentalVolume", normalized);
-      if (instrumentalGain) instrumentalGain.gain.value = normalized;
+      useAudioControlsStore.getState().setInstrumentalVolume(volume);
+      updatePerformanceControl("instrumentalVolume", volume);
     },
+
     setLyricsSize: (size: "small" | "medium" | "large") => {
+      useUIPreferencesStore.getState().setLyricsSize(size);
       updatePerformanceControl("lyricsSize", size);
     },
+
     setLyricsOffset: (offset: number) => {
+      useUIPreferencesStore.getState().setLyricsOffset(offset);
       updatePerformanceControl("lyricsOffset", offset);
     },
-    cleanup: () => {
-      resetAudioNodes();
-      updatePlayerState({ ...INITIAL_STATE });
+
+    setAutoScrollEnabled: (enabled: boolean) => {
+      useUIPreferencesStore.getState().setAutoScrollEnabled(enabled);
     },
+
+    setShowChords: (enabled: boolean) => {
+      useUIPreferencesStore.getState().setShowChords(enabled);
+    },
+
+    setPlaybackSpeed: (speed: number) => {
+      useAudioControlsStore.getState().setPlaybackSpeed(speed);
+      trackLocalUpdate(lastLocalUpdate, "playback_speed", speed);
+      socketEmit("update_performance_control", {
+        control: "playback_speed",
+        value: speed,
+      });
+    },
+
+    cleanup: () => {
+      usePlaybackStateStore.getState().cleanup();
+      usePlaybackStateStore.getState().stopTimeUpdate();
+      clearLocalUpdates(lastLocalUpdate);
+    },
+
     getWaveformData: () => {
-      if (!analyser || !waveformArray) return null;
-      analyser.getByteTimeDomainData(waveformArray);
-      return waveformArray;
+      return usePlaybackStateStore.getState().getWaveformData();
+    },
+
+    setMiniPlayerEnabled: (enabled: boolean) => {
+      useUIPreferencesStore.getState().setMiniPlayerEnabled(enabled);
+    },
+
+    setMiniPlayerPosition: (position: MiniPlayerPosition) => {
+      useUIPreferencesStore.getState().setMiniPlayerPosition(position);
+    },
+
+    dismissMiniPlayer: () => {
+      useUIPreferencesStore.getState().dismissMiniPlayer();
+    },
+
+    updateFromWebSocket: (data: Partial<PerformanceState>) => {
+      if (isLoadingNewSong) {
+        logger.debug("Ignoring WebSocket update during song loading");
+        return;
+      }
+
+      const audioControls = useAudioControlsStore.getState();
+      const uiPreferences = useUIPreferencesStore.getState();
+
+      // Handle audio controls
+      if (
+        data.vocal_volume !== undefined &&
+        !shouldIgnore(lastLocalUpdate, "vocal_volume", data.vocal_volume)
+      ) {
+        audioControls.setVocalVolume(data.vocal_volume);
+      }
+      if (
+        data.backing_vocal_volume !== undefined &&
+        !shouldIgnore(
+          lastLocalUpdate,
+          "backing_vocal_volume",
+          data.backing_vocal_volume,
+        )
+      ) {
+        audioControls.setBackingVocalVolume(data.backing_vocal_volume);
+      }
+      if (
+        data.instrumental_volume !== undefined &&
+        !shouldIgnore(
+          lastLocalUpdate,
+          "instrumental_volume",
+          data.instrumental_volume,
+        )
+      ) {
+        audioControls.setInstrumentalVolume(data.instrumental_volume);
+      }
+      if (
+        data.playback_speed !== undefined &&
+        !shouldIgnore(lastLocalUpdate, "playback_speed", data.playback_speed)
+      ) {
+        audioControls.setPlaybackSpeed(data.playback_speed);
+      }
+
+      // Handle UI preferences
+      if (
+        data.lyrics_size !== undefined &&
+        !shouldIgnore(lastLocalUpdate, "lyrics_size", data.lyrics_size)
+      ) {
+        uiPreferences.setLyricsSize(data.lyrics_size);
+      }
+      if (
+        data.lyrics_offset !== undefined &&
+        !shouldIgnore(lastLocalUpdate, "lyrics_offset", data.lyrics_offset)
+      ) {
+        uiPreferences.setLyricsOffset(data.lyrics_offset);
+      }
+
+      // Handle playback state
+      if (data.is_playing !== undefined) {
+        set({ isPlaying: data.is_playing });
+      }
+      if (
+        data.current_time !== undefined &&
+        !shouldIgnore(lastLocalUpdate, "current_time", data.current_time)
+      ) {
+        set({ currentTime: data.current_time });
+      }
+      if (data.duration !== undefined) {
+        set({ duration: data.duration });
+      }
     },
   };
 });

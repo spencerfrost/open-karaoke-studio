@@ -10,7 +10,6 @@
     "backend/logs",
     "backend/htmlcov",
     "backend/.pytest_cache",
-    "temp_downloads",
     "temp_job_cache",
     "karaoke_library"
   ],
@@ -18,11 +17,14 @@
   "reportMissingTypeStubs": false,
   "pythonVersion": "3.10",
   "pythonPlatform": "Linux",
+  "venvPath": "backend",
+  "venv": "venv",
   "executionEnvironments": [
     {
       "root": "backend",
       "pythonVersion": "3.10",
       "pythonPlatform": "Linux",
+      "venv": "venv",
       "extraPaths": [
         "backend",
         "backend/app"

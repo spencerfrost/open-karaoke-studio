@@ -3,6 +3,9 @@
  */
 import { useMutation } from "@tanstack/react-query";
 import { uploadFile } from "@/hooks/api/useApi";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("service:upload");
 
 /**
  * Hook: Upload and process an audio file
@@ -21,7 +24,7 @@ export function useUploadAndProcessAudio(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<UploadAudioResponse, Error, UploadAudioVariables, unknown>(
     {
@@ -29,7 +32,7 @@ export function useUploadAndProcessAudio(
         return uploadFile<UploadAudioResponse>("process", file, metadata);
       },
       ...options,
-    }
+    },
   );
 }
 
@@ -50,7 +53,7 @@ export function useProcessYouTubeVideo(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<
     ProcessYouTubeResponse,
@@ -70,7 +73,7 @@ export function useProcessYouTubeVideo(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -92,7 +95,7 @@ export function useCancelProcessing(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
@@ -105,7 +108,7 @@ export function useCancelProcessing(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }
@@ -127,7 +130,7 @@ export function useDismissJob(
       unknown
     >,
     "mutationFn"
-  >
+  >,
 ) {
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (taskId: string) => {
@@ -140,7 +143,7 @@ export function useDismissJob(
           const errorData: { message?: string } = await response.json();
           errorMessage = errorData?.message || errorMessage;
         } catch (jsonError) {
-          console.error("Error parsing error response:", jsonError);
+          logger.error("Error parsing error response:", jsonError);
         }
         throw new Error(errorMessage);
       }

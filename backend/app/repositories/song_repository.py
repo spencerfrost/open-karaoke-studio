@@ -27,7 +27,7 @@ Song repository for managing song records in the database.
 from typing import Any, Dict, List, Optional
 
 from app.db.models import DbSong
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 
 class SongRepository:
@@ -95,7 +95,12 @@ class SongRepository:
         """
         Fetch a single song by its ID.
         """
-        return self.db.query(DbSong).filter(DbSong.id == song_id).first()
+        return (
+            self.db.query(DbSong)
+            .options(joinedload(DbSong.lyrics), joinedload(DbSong.album_rel))
+            .filter(DbSong.id == song_id)
+            .first()
+        )
 
     def fetch_all(
         self, *, filters=None, sort_by=None, direction="desc", limit=None, offset=None
@@ -108,17 +113,34 @@ class SongRepository:
         :param limit: max number of results (default None)
         :param offset: number of results to skip (default None)
         """
-        query = self.db.query(DbSong)
+        query = self.db.query(DbSong).options(
+            subqueryload(DbSong.lyrics), subqueryload(DbSong.album_rel)
+        )
         if filters:
             for attr, value in filters.items():
                 query = query.filter(getattr(DbSong, attr) == value)
         if sort_by:
             sort_col = getattr(DbSong, sort_by, None)
             if sort_col is not None:
-                if direction == "desc":
-                    query = query.order_by(sort_col.desc())
+                # Add secondary sort for consistent ordering when primary sort values are equal
+                if sort_by == "date_added":
+                    # For date_added, use title as secondary sort to ensure consistent ordering
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc(), DbSong.title.asc())
+                    else:
+                        query = query.order_by(sort_col.asc(), DbSong.title.asc())
+                elif sort_by in ["title", "artist"]:
+                    # For title/artist sorts, use date_added as secondary
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc(), DbSong.date_added.desc())
+                    else:
+                        query = query.order_by(sort_col.asc(), DbSong.date_added.desc())
                 else:
-                    query = query.order_by(sort_col.asc())
+                    # Default single column sort for other fields
+                    if direction == "desc":
+                        query = query.order_by(sort_col.desc())
+                    else:
+                        query = query.order_by(sort_col.asc())
         if offset:
             query = query.offset(offset)
         if limit:
@@ -129,14 +151,59 @@ class SongRepository:
         """
         Update an existing song record.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         song = self.fetch(song_id)
         if not song:
+            logger.warning(f"Song {song_id} not found for update")
             return None
+            
         for key, value in fields.items():
             setattr(song, key, value)
         self.db.commit()
         self.db.refresh(song)
+        
+        logger.debug(f"Successfully updated song {song_id}")
         return song
+
+    def find_duplicates(self) -> list[list[DbSong]]:
+        """
+        Return groups of songs that share the same case-insensitive title+artist.
+        Each inner list is a cluster of 2+ duplicates.
+        """
+        from itertools import groupby
+
+        from sqlalchemy import func
+
+        subq = (
+            self.db.query(
+                func.lower(DbSong.title).label("lower_title"),
+                func.lower(DbSong.artist).label("lower_artist"),
+            )
+            .group_by(func.lower(DbSong.title), func.lower(DbSong.artist))
+            .having(func.count(DbSong.id) > 1)
+            .subquery()
+        )
+
+        songs = (
+            self.db.query(DbSong)
+            .filter(
+                func.lower(DbSong.title) == subq.c.lower_title,
+                func.lower(DbSong.artist) == subq.c.lower_artist,
+            )
+            .order_by(
+                func.lower(DbSong.title),
+                func.lower(DbSong.artist),
+                DbSong.date_added,
+            )
+            .all()
+        )
+
+        clusters = []
+        for _, group in groupby(songs, key=lambda s: (s.title.lower(), s.artist.lower())):
+            clusters.append(list(group))
+        return clusters
 
     def delete(self, song_id: str) -> bool:
         """

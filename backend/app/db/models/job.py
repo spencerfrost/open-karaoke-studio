@@ -46,6 +46,7 @@ class Job:
     error: Optional[str] = None
     notes: Optional[str] = None
     dismissed: bool = False  # Track if job is dismissed from UI
+    engine_type: Optional[str] = None  # Separation engine used (e.g., 'demucs', 'roformer', 'hybrid')
 
     def __post_init__(self):
         if self.created_at is None:
@@ -86,6 +87,7 @@ class DbJob(Base):
     error = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     dismissed = Column(Boolean, default=False)  # Track if job is dismissed from UI
+    engine_type = Column(String, nullable=True)  # Separation engine used
 
     # Legacy fields that exist in database
     phase_message = Column(Text, nullable=True)
@@ -110,4 +112,5 @@ class DbJob(Base):
             error=self.error,  # type: ignore[assignment]
             notes=self.notes,  # type: ignore[assignment]
             dismissed=self.dismissed or False,  # type: ignore[assignment]
+            engine_type=self.engine_type,  # type: ignore[assignment]
         )

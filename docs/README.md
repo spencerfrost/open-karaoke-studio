@@ -1,112 +1,110 @@
-# Open Karaoke Studio Documentation
+# Documentation Deep-Dives
 
-Welcome to the Open Karaoke Studio documentation hub! This guide will help you find the information you need, whether you're a new user, developer, or contributor.
+This directory contains detailed guides for complex topics that are too extensive for the main documentation files.
 
-## 🚀 Quick Start Paths
+## Planned Topics
 
-### New to Open Karaoke Studio?
-**→ [Getting Started](getting-started/README.md)** - Installation, setup, and your first song
+These documents can be created as needed when topics require deeper exploration:
 
-### Want to Use the Application?
-**→ [User Guide](user-guide/README.md)** - Complete guide to using all features
+### Technical Guides
 
-### Developing or Contributing?
-**→ [Development Guide](development/README.md)** - Setup, code standards, and contribution guidelines
+**websocket-protocol.md**
+- Complete WebSocket message protocol specification
+- Message types, payloads, and flow diagrams
+- Session lifecycle in detail
+- Connection handling and error cases
 
-### Understanding the Architecture?
-**→ [Architecture Overview](architecture/README.md)** - System design and technical details
+**audio-processing.md**
+- Deep-dive into audio separation engines
+- Demucs vs Roformer comparison
+- Processing pipeline internals
+- GPU vs CPU performance analysis
+- Adding new separation engines
 
-### Need API Documentation?
-**→ [API Reference](api/README.md)** - Complete REST API documentation
+**session-management.md**
+- Session lifecycle diagrams
+- Device type roles and permissions
+- Session state synchronization
+- Host disconnect behavior
+- Multi-session isolation guarantees
 
-### Looking for Deployment Info?
-**→ [Project Overview](architecture/project-overview.md#deployment-status)** - Current deployment status and future plans
+### Developer Guides
 
-## 📚 Documentation Sections
+**deployment.md**
+- Production deployment guide
+- Docker configuration
+- Environment variables
+- Database setup (PostgreSQL)
+- SSL/HTTPS setup
+- Reverse proxy configuration (nginx)
 
-### For Users
-- **[Getting Started](getting-started/README.md)** - Quick setup and first song tutorial
-- **[User Guide](user-guide/README.md)** - How to use all features effectively
-- **[Troubleshooting](getting-started/troubleshooting.md)** - Common issues and solutions
+**contributing.md**
+- Code contribution guidelines
+- Development workflow
+- Testing requirements
+- PR process
+- Code review checklist
 
-### For Developers
-- **[Development Setup](development/setup/README.md)** - Environment setup and tools
-- **[Contributing Guidelines](development/contributing/README.md)** - How to contribute code
-- **[Development Guides](development/guides/README.md)** - Feature development patterns
-- **[Code Reference](development/reference/README.md)** - Coding standards and patterns
+**api-reference.md**
+- Complete REST API documentation
+- Request/response schemas
+- Authentication (future)
+- Rate limiting (future)
+- Error codes
 
-### For System Understanding
-- **[Project Overview](architecture/project-overview.md)** - High-level system design
-- **[Frontend Architecture](architecture/frontend/README.md)** - React/TypeScript frontend design
-- **[Backend Architecture](architecture/backend/README.md)** - Python/Flask backend design
-- **[System Integration](architecture/integration/README.md)** - How components work together
+### Feature Deep-Dives
 
-### For API Usage
-- **[API Overview](api/README.md)** - REST API documentation
-- **[API Examples](api/examples/README.md)** - Practical usage examples with sample responses
-- **[Authentication](api/authentication.md)** - Auth system documentation
+**lyrics-system.md**
+- LRC format specification
+- Lyrics fetching providers
+- Timestamp synchronization
+- Count-in detection algorithm
+- Timing offset implementation
 
-### For Operations
-- **[Configuration](development/configuration.md)** - Environment variables and settings
-- **[Deployment Status](architecture/project-overview.md#deployment-status)** - Current deployment options
+**queue-system.md**
+- Queue data model
+- Position management
+- Reordering algorithm (when implemented)
+- Session-specific queue isolation
+- Queue state synchronization
 
-## 🔍 Find Specific Information
+**player-architecture.md**
+- Web Audio API usage
+- Dual-track playback implementation
+- Volume/pitch/tempo control
+- State management patterns
+- Mini-player design
 
-### Features & Capabilities
-- **[Audio Processing](features/audio-processing.md)** - Vocal separation with Demucs
-- **[Metadata System](features/metadata-system.md)** - iTunes/YouTube integration
-- **[Real-time Queue](features/real-time-queue.md)** - Karaoke session management
-- **[Background Jobs](features/background-jobs.md)** - Async processing system
+## Current Status
 
-### Research & Analysis
-- **[Technical Investigations](research/README.md)** - Deep technical analysis (62+ investigations organized by domain)
-- **[Prototypes](research/prototypes/README.md)** - Experimental features
-- **[Architectural Decisions](research/architectural-decisions/README.md)** - Design decision records
+Currently, all documentation resides in the top-level markdown files:
 
-### Project Planning
-- **[Roadmap](roadmap.md)** - Project vision and upcoming features
+- [FEATURES.md](../FEATURES.md) - Feature inventory
+- [ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
+- [TECH-DEBT.md](../TECH-DEBT.md) - Known issues
+- [ROADMAP.md](../ROADMAP.md) - Future plans
+- [CLAUDE.md](../CLAUDE.md) - AI assistant context
 
-## 🎯 Common Use Cases
+Create documents in this directory when:
+- A topic becomes too detailed for the main docs
+- You need diagrams and visual explanations
+- Implementation details need extensive documentation
+- You want to preserve architectural decision records (ADRs)
 
-| I want to... | Go to... |
-|--------------|----------|
-| **Try the application** | [Getting Started → Installation](getting-started/installation.md) |
-| **Process my first song** | [Getting Started → First Song](getting-started/first-song.md) |
-| **Understand the system** | [Architecture → Project Overview](architecture/project-overview.md) |
-| **Contribute code** | [Development → Contributing](development/contributing/README.md) |
-| **Use the API** | [API → Overview](api/README.md) |
-| **Deploy in production** | [Deployment → Overview](deployment/README.md) |
-| **Add a new feature** | [Development → Guides](development/guides/README.md) |
-| **Report a bug** | [Development → Issue Reporting](development/contributing/issue-reporting.md) |
+## Document Template
 
-## 📖 Documentation Standards
+When creating a new document:
 
-This documentation follows these principles:
-- **User-focused** - Organized by what you want to accomplish
-- **Example-driven** - Practical code samples and tutorials
-- **Layered depth** - Quick start → detailed guides → reference materials
-- **Cross-referenced** - Easy navigation between related topics
+1. Start with an overview
+2. Include diagrams where helpful (use ASCII art or links to images)
+3. Add code examples
+4. Link back to relevant main documentation
+5. Keep the audience in mind (solo dev, not team onboarding)
 
-## 🤝 Contributing to Documentation
+## Maintenance
 
-Found outdated information or want to improve the docs?
-- **Quick fixes** - Edit files directly and submit a pull request
-- **Major changes** - See [Contributing Guidelines](development/contributing/README.md)
-- **Suggestions** - Open an issue with the "documentation" label
-
-## 📋 Documentation Status
-
-| Section | Status | Last Updated |
-|---------|--------|--------------|
-| Getting Started | 🟡 In Progress | Phase 1 Migration |
-| User Guide | 🟡 In Progress | Phase 1 Migration |
-| Architecture | ✅ Complete | June 2025 |
-| Development | 🟡 In Progress | Phase 1 Migration |
-| API Documentation | ✅ Complete | June 2025 |
-| Deployment | 🟡 In Progress | Phase 1 Migration |
-
----
-
-**Need help?** If you can't find what you're looking for, check the [Issues](https://github.com/spencerfrost/open-karaoke-studio/issues) or start with the [Getting Started Guide](getting-started/README.md).
-
-**Version**: Documentation reorganized June 2025 | **Project Version**: 2025.1
+These documents should be:
+- **Pragmatic** - Focus on what's needed, not exhaustive
+- **Up-to-date** - Update when architecture changes
+- **Linked** - Cross-reference with main docs
+- **Searchable** - Use clear headers and keywords

@@ -15,8 +15,7 @@ pnpm run lint:check        # Check linting
 pnpm run type-check        # Check TypeScript
 
 # Fixes
-pnpm run fix               # Fix formatting + linting
-pnpm run format            # Auto-format code
+pnpm run format            # Auto-format all files (prettier --write) — no "fix" script exists
 pnpm run lint:fix          # Auto-fix linting issues
 
 # Build

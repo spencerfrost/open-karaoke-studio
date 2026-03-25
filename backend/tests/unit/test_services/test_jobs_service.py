@@ -6,8 +6,7 @@ that was extracted from the API controllers.
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from app.db.models import Job, JobStatus
 from app.repositories import JobRepository
@@ -21,7 +20,6 @@ class TestJobsService:
         """Test that JobsService can be initialized correctly."""
         service = JobsService()
         assert service.job_repository is not None
-        assert service.file_service is not None
 
     def test_jobs_service_initialization_with_custom_job_store(self):
         """Test that JobsService can be initialized with a custom JobRepository."""
@@ -67,40 +65,26 @@ class TestJobsService:
         assert result[2].id == "job3"  # Oldest (2022-12-31)  # Oldest (2022-12-31)
 
     def test_get_job_with_details_completed_job(self):
-        """Test that get_job_with_details adds file paths for completed jobs."""
+        """Test that get_job_with_details returns job dict for completed jobs."""
         mock_job_store = Mock(spec=JobRepository)
-        mock_file_service = Mock()
 
         completed_job = Job(
             id="completed_job", filename="test.mp3", status=JobStatus.COMPLETED
         )
 
         mock_job_store.get_job.return_value = completed_job
-        mock_file_service.get_song_directory.return_value = Path("/test/library/test")
 
-        with patch("app.services.jobs_service.file_management") as mock_file_mgmt:
-            mock_file_mgmt.get_vocals_path_stem.return_value = Path(
-                "/test/library/test/vocals"
-            )
-            mock_file_mgmt.get_instrumental_path_stem.return_value = Path(
-                "/test/library/test/instrumental"
-            )
+        service = JobsService(job_repository=mock_job_store)
 
-            service = JobsService(job_repository=mock_job_store)
-            service.file_service = mock_file_service
+        result = service.get_job_with_details("completed_job")
 
-            result = service.get_job_with_details("completed_job")
-
-            assert result is not None
-            assert "vocals_path" in result
-            assert "instrumental_path" in result
-            assert result["vocals_path"] == "/test/library/test/vocals.mp3"
-            assert result["instrumental_path"] == "/test/library/test/instrumental.mp3"
+        assert result is not None
+        assert result["id"] == "completed_job"
 
     def test_cancel_job_success(self):
         """Test that cancel_job successfully cancels a pending job."""
         mock_job_store = Mock(spec=JobRepository)
-        mock_job_store.save_job = Mock()
+        mock_job_store.update = Mock()
 
         pending_job = Job(
             id="pending_job", filename="test.mp3", status=JobStatus.PENDING
@@ -115,7 +99,7 @@ class TestJobsService:
         assert pending_job.status == JobStatus.CANCELLED
         assert pending_job.error == "Cancelled by user"
         assert pending_job.completed_at is not None
-        mock_job_store.save_job.assert_called_once_with(pending_job)
+        mock_job_store.update.assert_called_once_with(pending_job)
 
     def test_cancel_job_already_completed(self):
         """Test that cancel_job returns False for already completed jobs."""

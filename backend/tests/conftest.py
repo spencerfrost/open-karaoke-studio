@@ -1,19 +1,58 @@
 """
 Pytest configuration and shared fixtures for Open Karaoke Studio backend tests.
+
+This conftest provides FastAPI test fixtures after the Flask to FastAPI migration.
 """
 
 import random
+import sys
 import tempfile
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
-from app import create_app
-from app.config.testing import TestingConfig
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+# Add the backend path for imports
+backend_path = str(Path(__file__).parent.parent)
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+
 from app.db.models import Base, DbSong
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from tests.fixtures.test_data import create_test_db_song, create_test_song
+
+
+@pytest.fixture(scope="function")
+def test_db_session():
+    """
+    Provide a transactional scope for database tests.
+
+    This fixture creates an in-memory SQLite database, begins a transaction,
+    and rolls it back after each test. This ensures that every test starts
+    with a clean database and any changes are discarded, preventing test pollution.
+    """
+    # Create an in-memory SQLite database for testing
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
+    
+    # Begin a transaction
+    connection = engine.connect()
+    transaction = connection.begin()
+    session.begin_nested()
+
+    yield session
+
+    # Rollback the transaction and close the connection
+    transaction.rollback()
+    connection.close()
+    session.close()
 
 
 @pytest.fixture(scope="function")
@@ -30,11 +69,8 @@ def populate_test_songs(test_db_session):
             title=f"Test Song {i+1} {'★' if i % 5 == 0 else ''}",
             artist=random.choice(artists),
             album=random.choice(albums),
-            duration_ms=180000 + i * 1000,
+            duration=180.0 + i,  # Duration in seconds
             date_added=None,
-            vocals_path=f"/tmp/test_songs/vocals_{i+1}.wav",
-            instrumental_path=f"/tmp/test_songs/instrumental_{i+1}.wav",
-            original_path=f"/tmp/test_songs/original_{i+1}.wav",
             thumbnail_path=f"/tmp/test_songs/thumb_{i+1}.jpg",
             cover_art_path=f"/tmp/test_songs/cover_{i+1}.jpg",
             source="test",
@@ -50,47 +86,158 @@ def populate_test_songs(test_db_session):
             release_id=None,
             release_date=None,
             year=2020 + (i % 5),
-            genre=random.choice(["Pop", "Rock", "Jazz", "Classical"]),
             language=random.choice(["English", "Spanish", "Chinese"]),
             lyrics="La la la...",
             synced_lyrics=None,
         )
         test_db_session.add(song)
     test_db_session.commit()
-    yield
-    test_db_session.query(DbSong).delete()
-    test_db_session.commit()
+    # No yield or cleanup needed here, as the transaction will be rolled back.
+
+
+def create_test_app():
+    """
+    Create a minimal FastAPI app for testing that includes all routers.
+    This is a factory function to allow fresh app instances for tests.
+    """
+    from app.api import (
+        albums_router,
+        artists_router,
+        health_router,
+        host_settings_router,
+        jobs_router,
+        lyrics_router,
+        metadata_router,
+        performance_history_router,
+        queue_router,
+        sessions_router,
+        songs_router,
+        users_router,
+        youtube_music_router,
+        youtube_router,
+    )
+    from fastapi import WebSocket
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from app.ws import (
+        SessionConnectionManager,
+        websocket_jobs_endpoint,
+        websocket_unified_session_endpoint,
+    )
+
+    test_app = FastAPI(
+        title="Open Karaoke Studio API (Test)",
+        version="2.0.0-test",
+    )
+    manager = SessionConnectionManager()
+    test_app.state.session_manager = manager
+
+    test_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include all API routers
+    test_app.include_router(albums_router)
+    test_app.include_router(artists_router)
+    test_app.include_router(health_router)
+    test_app.include_router(songs_router)
+    test_app.include_router(jobs_router)
+    test_app.include_router(sessions_router)
+    test_app.include_router(queue_router)
+    test_app.include_router(youtube_router)
+    test_app.include_router(youtube_music_router)
+    test_app.include_router(metadata_router)
+    test_app.include_router(lyrics_router)
+    test_app.include_router(users_router)
+    test_app.include_router(performance_history_router)
+    test_app.include_router(host_settings_router)
+
+    # WebSocket routes
+    @test_app.websocket("/ws/jobs")
+    async def jobs_ws(websocket: WebSocket):
+        await websocket_jobs_endpoint(websocket, manager)
+
+    @test_app.websocket("/ws/session/{session_id}")
+    async def unified_session_ws(
+        websocket: WebSocket,
+        session_id: str,
+        device_id: Optional[str] = None,
+    ):
+        await websocket_unified_session_endpoint(websocket, session_id, manager, device_id)
+
+    # Root endpoint for testing
+    @test_app.get("/")
+    async def root():
+        return {
+            "message": "Open Karaoke Studio FastAPI Backend",
+            "version": "2.0.0",
+            "api_endpoints": {
+                "songs": "/api/songs",
+                "jobs": "/api/jobs",
+                "sessions": "/api/sessions",
+                "queue": "/api/karaoke-queue",
+                "youtube": "/api/youtube",
+                "youtube_music": "/api/youtube-music",
+                "metadata": "/api/metadata",
+                "lyrics": "/api/lyrics",
+                "users": "/api/users",
+            },
+            "websockets": {
+                "jobs": "/ws/jobs",
+                "session": "/ws/session/{session_id}",
+            },
+        }
+
+    return test_app
 
 
 @pytest.fixture(scope="session")
 def app():
-    """Create application for testing"""
-    flask_app = create_app(TestingConfig())  # Create instance instead of passing class
-
-    with flask_app.app_context():
-        yield flask_app
+    """Create FastAPI application for testing"""
+    return create_test_app()
 
 
 @pytest.fixture(scope="session")
 def client(app):
-    """Create test client"""
-    return app.test_client()
+    """
+    Create FastAPI test client.
+
+    FastAPI's TestClient wraps httpx and allows testing async endpoints synchronously.
+    """
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture(scope="function")
 def db_session():
-    """Create isolated database session for each test"""
-    # Create in-memory SQLite database
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    """
+    Provide a transactional scope for database tests.
+
+    This fixture creates an in-memory SQLite database, begins a transaction,
+    and rolls it back after each test. This ensures that every test starts
+    with a clean database and any changes are discarded, preventing test pollution.
+    """
+    # Create an in-memory SQLite database for testing
+    engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
+    
+    # Begin a transaction
+    connection = engine.connect()
+    transaction = connection.begin()
+    session.begin_nested()
 
-    session_local = sessionmaker(bind=engine)
-    session = session_local()
+    yield session
 
-    try:
-        yield session
-    finally:
-        session.close()
+    # Rollback the transaction and close the connection
+    transaction.rollback()
+    connection.close()
+    session.close()
 
 
 @pytest.fixture(scope="function")
@@ -157,7 +304,6 @@ def mock_config():
     config = Mock()
     config.LIBRARY_DIR = Path("/tmp/test_library")
     config.UPLOADS_DIR = Path("/tmp/test_uploads")
-    config.TEMP_DIR = Path("/tmp/test_temp")
     config.DATABASE_URL = "sqlite:///:memory:"
     return config
 
@@ -180,24 +326,16 @@ def mock_file_service():
 def mock_audio_service():
     """Mock audio processing service"""
     service = Mock()
-    service.separate_audio.return_value = {
-        "vocals_path": "/tmp/vocals.wav",
-        "instrumental_path": "/tmp/instrumental.wav",
-    }
+    service.separate_audio.return_value = {}
     return service
 
 
-@pytest.fixture(autouse=True)
-def patch_config():
-    """Automatically patch configuration for all tests"""
-    with patch("app.config.get_config") as mock:
-        config = Mock()
-        config.LIBRARY_DIR = Path("/tmp/test_library")
-        config.UPLOADS_DIR = Path("/tmp/test_uploads")
-        config.TEMP_DIR = Path("/tmp/test_temp")
-        config.DATABASE_URL = "sqlite:///:memory:"
-        mock.return_value = config
-        yield config
+@pytest.fixture(scope="function", autouse=True)
+def apply_test_config(monkeypatch):
+    """
+    Apply test configuration before any application modules are imported.
+    """
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
 
 
 @pytest.fixture

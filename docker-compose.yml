@@ -1,0 +1,154 @@
+# Open Karaoke Studio - Docker Compose
+# For deployment with optimized builds
+# Development is done locally via: ./scripts/dev-tmux.sh
+
+services:
+  # Redis for Celery message broker
+  redis:
+    image: redis:7-alpine
+    container_name: karaoke-redis-prod
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 3
+      start_period: 1s
+    networks:
+      - karaoke-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: karaoke-postgres-prod
+    restart: unless-stopped
+    ports:
+      - "15432:5432"  # Optional: external access for debugging/migration
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-karaoke}
+      POSTGRES_USER: ${POSTGRES_USER:-karaoke_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-karaoke_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-karaoke_user} -d ${POSTGRES_DB:-karaoke}"]
+      interval: 2s
+      timeout: 2s
+      retries: 3
+      start_period: 1s
+    networks:
+      - karaoke-network
+
+  # FastAPI Backend API (unified API + WebSockets)
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: karaoke-api-prod
+    restart: unless-stopped
+    stop_grace_period: 5s
+    ports:
+      - "15123:5123"
+    volumes:
+      - ./karaoke_library:/app/karaoke_library
+      - backend_logs:/app/backend/logs
+    environment:
+      - ENVIRONMENT=production
+      - HOST=0.0.0.0
+      - PORT=5123
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - LIBRARY_DIR=/app/karaoke_library
+      - LOG_LEVEL=WARNING
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - DISCOGS_TOKEN=${DISCOGS_TOKEN}
+      - LASTFM_API_KEY=${LASTFM_API_KEY}
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5123/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - karaoke-network
+
+  # Celery Worker for audio processing
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: karaoke-celery-prod
+    restart: unless-stopped
+    stop_grace_period: 10s
+    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads
+    volumes:
+      - ./karaoke_library:/app/karaoke_library
+      - backend_logs:/app/backend/logs
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - LIBRARY_DIR=/app/karaoke_library
+      - LOG_LEVEL=WARNING
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+      - OMP_NUM_THREADS=1
+      - DISCOGS_TOKEN=${DISCOGS_TOKEN}
+      - LASTFM_API_KEY=${LASTFM_API_KEY}
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - karaoke-network
+
+  # Frontend Production Server (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: karaoke-frontend-prod
+    restart: unless-stopped
+    stop_grace_period: 5s
+    ports:
+      - "5192:5192"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - karaoke-network
+
+volumes:
+  redis_data:
+  postgres_data:
+  backend_logs:
+
+networks:
+  karaoke-network:
+    driver: bridge

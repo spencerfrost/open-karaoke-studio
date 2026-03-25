@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
 
-
 export interface MetadataSearchResponse {
   count: number;
   results: MetadataOption[];
@@ -26,7 +25,7 @@ export interface MetadataOption {
   duration?: number;
   discNumber?: number;
   trackNumber?: number;
-  genre?: string;
+  primaryGenre?: string;
   country?: string;
   artworkUrl?: string;
   previewUrl?: string;
@@ -58,7 +57,7 @@ export const useMetadata = () => {
         if (params.sortBy) queryParams.append("sort_by", params.sortBy);
 
         const response = await fetch(
-          `/api/metadata/search?${queryParams.toString()}`
+          `/api/metadata/search?${queryParams.toString()}`,
         );
         if (!response.ok) {
           let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -77,10 +76,7 @@ export const useMetadata = () => {
 
   const useSaveMetadata = () => {
     return useMutation({
-      mutationFn: async (data: {
-        songId: string;
-        itunesId?: string;
-      }) => {
+      mutationFn: async (data: { songId: string; itunesId?: string }) => {
         const response = await fetch("/api/metadata/save", {
           method: "POST",
           headers: {
@@ -103,8 +99,34 @@ export const useMetadata = () => {
     });
   };
 
+  /**
+   * Lookup comprehensive metadata for a specific iTunes track
+   * This provides much richer metadata than search
+   */
+  const useLookupMetadata = () => {
+    return useMutation({
+      mutationFn: async (trackId: number) => {
+        const response = await fetch(`/api/metadata/lookup/${trackId}`);
+        if (!response.ok) {
+          let errorMessage = `HTTP error! Status: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage =
+              errorData?.message || errorData?.detail || errorMessage;
+          } catch {
+            throw new Error(errorMessage);
+          }
+          throw new Error(errorMessage);
+        }
+        const data = await response.json();
+        return data.track; // Extract the track object from response
+      },
+    });
+  };
+
   return {
     useSearchMetadata,
+    useLookupMetadata,
     useSaveMetadata,
   };
 };

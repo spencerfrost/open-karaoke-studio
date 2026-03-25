@@ -16,4 +16,7 @@ class KaraokeQueueItem(Base):
     singer_name = Column(String, nullable=False)
     song_id = Column(String, ForeignKey("songs.id"), nullable=False)
     position = Column(Integer, nullable=False)
+    session_id = Column(String(4), ForeignKey("karaoke_sessions.session_id"), nullable=False)
+    status = Column(String, nullable=False, default="active")  # "active" | "pending"
     song = relationship("DbSong", back_populates="queue_items")
+    session = relationship("KaraokeSession", back_populates="queue_items")

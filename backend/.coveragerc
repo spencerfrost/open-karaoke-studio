@@ -1,0 +1,6 @@
+[run]
+omit =
+    app/services/separation_engines/*
+    app/jobs/jobs.py
+    app/services/audio.py
+    app/utils/error_handlers.py

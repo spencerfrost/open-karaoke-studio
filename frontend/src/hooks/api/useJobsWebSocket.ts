@@ -2,15 +2,17 @@
  * React hook for real-time job updates via WebSocket
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { jobsWebSocketService } from '../../services/jobsWebSocketService';
-import { SongProcessingStatus, SongStatus } from '../../types/Song';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { jobsWebSocketService } from "../../services/jobsWebSocketService";
+import { SongProcessingStatus, SongStatus } from "../../types/Song";
 
 interface JobData {
   id: string;
+  song_id?: string;
   progress?: number;
   status: string;
+  status_message?: string;
   error?: string;
   notes?: string;
   created_at?: string;
@@ -29,7 +31,9 @@ function mapBackendStatus(backendStatus: string): SongStatus {
   switch (backendStatus) {
     case "pending":
       return "queued";
+    case "downloading":
     case "processing":
+    case "finalizing":
       return "processing";
     case "completed":
       return "processed";
@@ -47,9 +51,11 @@ function mapBackendStatus(backendStatus: string): SongStatus {
 function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
   return {
     id: job.id,
+    song_id: job.song_id,
     progress: job.progress || 0,
     status: mapBackendStatus(job.status),
-    message: job.error || job.notes || undefined,
+    rawStatus: job.status,
+    message: job.status_message || job.error || job.notes || undefined,
     artist: job.artist,
     title: job.title,
   };
@@ -66,59 +72,121 @@ export function useJobsWebSocket() {
   const cleanupFunctionsRef = useRef<(() => void)[]>([]);
 
   // Update job in the list
-  const updateJob = useCallback((jobData: JobData) => {
-    console.log('updateJob called with:', jobData);
-    const processedJob = mapJobToProcessingStatus(jobData);
-    
-    setJobs(prevJobs => {
-      const existingIndex = prevJobs.findIndex(j => j.id === jobData.id);
-      
-      if (existingIndex >= 0) {
-        // Update existing job
-        const updatedJobs = [...prevJobs];
-        updatedJobs[existingIndex] = processedJob;
-        console.log('Updated existing job in list');
-        
-        // Remove completed/failed jobs from the processing list after a short delay
-        if (processedJob.status === 'processed' || processedJob.status === 'error') {
-          setTimeout(() => {
-            setJobs(current => current.filter(j => j.id !== jobData.id));
-          }, 3000); // Keep for 3 seconds to show completion status
-        }
-        
-        return updatedJobs;
-      } else {
-        // Add new job if it's in processing state
-        if (['queued', 'processing'].includes(processedJob.status)) {
-          console.log('Added new job to list:', processedJob);
-          return [...prevJobs, processedJob];
-        }
-        console.log('Job not added - status not processing/queued:', processedJob.status);
-        return prevJobs;
-      }
-    });
+  const updateJob = useCallback(
+    (jobData: JobData) => {
+      const processedJob = mapJobToProcessingStatus(jobData);
 
-    // Invalidate related React Query caches
-    queryClient.invalidateQueries({ queryKey: ['processing-queue'] });
-    queryClient.invalidateQueries({ queryKey: ['processing-status', jobData.id] });
-  }, [queryClient]);
+      setJobs((prevJobs) => {
+        const existingIndex = prevJobs.findIndex((j) => j.id === jobData.id);
+
+        if (existingIndex >= 0) {
+          // Update existing job
+          const updatedJobs = [...prevJobs];
+          updatedJobs[existingIndex] = processedJob;
+
+          // Remove completed/failed jobs from the processing list after a short delay
+          if (
+            processedJob.status === "processed" ||
+            processedJob.status === "error"
+          ) {
+            setTimeout(() => {
+              setJobs((current) => current.filter((j) => j.id !== jobData.id));
+            }, 3000); // Keep for 3 seconds to show completion status
+          }
+
+          return updatedJobs;
+        } else {
+          // Add new job if it's in processing state
+          if (["queued", "processing"].includes(processedJob.status)) {
+            return [...prevJobs, processedJob];
+          }
+          return prevJobs;
+        }
+      });
+
+      // Invalidate related React Query caches
+      queryClient.invalidateQueries({ queryKey: ["processing-queue"] });
+      queryClient.invalidateQueries({
+        queryKey: ["processing-status", jobData.id],
+      });
+
+      // If job is completed/failed, invalidate songs to refresh thumbnail and metadata
+      if (
+        processedJob.status === "processed" ||
+        processedJob.status === "error"
+      ) {
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        if (jobData.song_id) {
+          queryClient.invalidateQueries({
+            queryKey: ["song", jobData.song_id],
+          });
+        }
+      }
+    },
+    [queryClient],
+  );
 
   // Remove job from the list
-  const removeJob = useCallback((jobId: string) => {
-    setJobs(prevJobs => prevJobs.filter(j => j.id !== jobId));
-    queryClient.invalidateQueries({ queryKey: ['processing-queue'] });
-    queryClient.invalidateQueries({ queryKey: ['processing-status', jobId] });
-  }, [queryClient]);
+  const removeJob = useCallback(
+    (jobId: string) => {
+      setJobs((prevJobs) => prevJobs.filter((j) => j.id !== jobId));
+      queryClient.invalidateQueries({ queryKey: ["processing-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["processing-status", jobId] });
+    },
+    [queryClient],
+  );
 
-  // Handle jobs list update (initial load)
-  const handleJobsList = useCallback((data: { jobs: JobData[] }) => {
-    const processingJobs = data.jobs
-      .filter(job => ['pending', 'processing', 'failed'].includes(job.status))
-      .map(mapJobToProcessingStatus);
-    
-    setJobs(processingJobs);
-    setError(null);
-  }, []);
+  // Handle jobs list update (initial load and polling)
+  const handleJobsList = useCallback(
+    (data: { jobs: JobData[] }) => {
+      const processingJobs = data.jobs
+        .filter((job) =>
+          ["pending", "downloading", "processing", "finalizing"].includes(job.status),
+        )
+        .map(mapJobToProcessingStatus);
+
+      setJobs((prevJobs) => {
+        // Detect jobs that were active but are now gone (completed)
+        const newJobIds = new Set(processingJobs.map((j) => j.id));
+        const completedJobs = prevJobs.filter((j) => !newJobIds.has(j.id));
+        if (completedJobs.length > 0) {
+          queryClient.invalidateQueries({ queryKey: ["songs"] });
+          completedJobs.forEach((j) => {
+            if (j.song_id) {
+              queryClient.invalidateQueries({ queryKey: ["song", j.song_id] });
+            }
+          });
+        }
+        return processingJobs;
+      });
+      setError(null);
+    },
+    [queryClient],
+  );
+
+  const handleJobCreated = useCallback(
+    (jobData: JobData) => {
+      updateJob(jobData);
+      queryClient.invalidateQueries({ queryKey: ["songs"] });
+    },
+    [updateJob, queryClient],
+  );
+
+  // Poll for progress updates while jobs are actively processing
+  useEffect(() => {
+    const hasActiveJobs = jobs.some(
+      (j) => j.status === "queued" || j.status === "processing",
+    );
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      if (jobsWebSocketService.isConnectionActive()) {
+        jobsWebSocketService.requestJobsList();
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [jobs]);
 
   // Set up WebSocket event listeners
   useEffect(() => {
@@ -127,15 +195,15 @@ export function useJobsWebSocket() {
     try {
       // Job lifecycle events
       cleanupFunctions.push(
-        jobsWebSocketService.on('job_created', updateJob),
-        jobsWebSocketService.on('job_updated', updateJob),
-        jobsWebSocketService.on('job_completed', updateJob),
-        jobsWebSocketService.on('job_failed', updateJob),
-        jobsWebSocketService.on('job_cancelled', (jobData) => {
+        jobsWebSocketService.on("job_created", handleJobCreated),
+        jobsWebSocketService.on("job_updated", updateJob),
+        jobsWebSocketService.on("job_completed", updateJob),
+        jobsWebSocketService.on("job_failed", updateJob),
+        jobsWebSocketService.on("job_cancelled", (jobData) => {
           // For cancelled jobs, we might want to remove them immediately
           setTimeout(() => removeJob(jobData.id), 1000);
         }),
-        jobsWebSocketService.on('jobs_list', handleJobsList)
+        jobsWebSocketService.on("jobs_list", handleJobsList),
       );
 
       // Track connection status
@@ -149,21 +217,23 @@ export function useJobsWebSocket() {
 
       cleanupFunctionsRef.current = [
         ...cleanupFunctions,
-        () => clearInterval(connectionCheck)
+        () => clearInterval(connectionCheck),
       ];
 
       return () => {
-        cleanupFunctionsRef.current.forEach(cleanup => cleanup());
+        cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
         cleanupFunctionsRef.current = [];
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'WebSocket connection failed');
+      setError(
+        err instanceof Error ? err.message : "WebSocket connection failed",
+      );
       return () => {
-        cleanupFunctionsRef.current.forEach(cleanup => cleanup());
+        cleanupFunctionsRef.current.forEach((cleanup) => cleanup());
         cleanupFunctionsRef.current = [];
       };
     }
-  }, [updateJob, removeJob, handleJobsList]);
+  }, [handleJobCreated, updateJob, removeJob, handleJobsList]);
 
   return {
     jobs,
@@ -178,7 +248,7 @@ export function useJobsWebSocket() {
       } else {
         // Try to reconnect if not connected
         jobsWebSocketService.reconnect();
-        setError('WebSocket disconnected. Attempting to reconnect...');
+        setError("WebSocket disconnected. Attempting to reconnect...");
       }
     }, []),
   };
@@ -202,17 +272,19 @@ export function useJobStatusWebSocket(jobId: string) {
     const updateThisJob = (jobData: JobData) => {
       if (jobData.id === jobId) {
         setJob(mapJobToProcessingStatus(jobData));
-        queryClient.invalidateQueries({ queryKey: ['processing-status', jobId] });
+        queryClient.invalidateQueries({
+          queryKey: ["processing-status", jobId],
+        });
       }
     };
 
     try {
       cleanupFunctions.push(
-        jobsWebSocketService.on('job_created', updateThisJob),
-        jobsWebSocketService.on('job_updated', updateThisJob),
-        jobsWebSocketService.on('job_completed', updateThisJob),
-        jobsWebSocketService.on('job_failed', updateThisJob),
-        jobsWebSocketService.on('job_cancelled', updateThisJob)
+        jobsWebSocketService.on("job_created", updateThisJob),
+        jobsWebSocketService.on("job_updated", updateThisJob),
+        jobsWebSocketService.on("job_completed", updateThisJob),
+        jobsWebSocketService.on("job_failed", updateThisJob),
+        jobsWebSocketService.on("job_cancelled", updateThisJob),
       );
 
       // Track connection status
@@ -226,12 +298,14 @@ export function useJobStatusWebSocket(jobId: string) {
       cleanupFunctions.push(() => clearInterval(connectionCheck));
 
       return () => {
-        cleanupFunctions.forEach(cleanup => cleanup());
+        cleanupFunctions.forEach((cleanup) => cleanup());
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'WebSocket connection failed');
+      setError(
+        err instanceof Error ? err.message : "WebSocket connection failed",
+      );
       return () => {
-        cleanupFunctions.forEach(cleanup => cleanup());
+        cleanupFunctions.forEach((cleanup) => cleanup());
       };
     }
   }, [jobId, queryClient]);
@@ -240,7 +314,7 @@ export function useJobStatusWebSocket(jobId: string) {
   useEffect(() => {
     const fetchInitialJob = async () => {
       if (!jobId) return;
-      
+
       try {
         const response = await fetch(`/api/jobs/${jobId}`);
         if (!response.ok) {
@@ -250,7 +324,9 @@ export function useJobStatusWebSocket(jobId: string) {
         setJob(mapJobToProcessingStatus(data));
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch job status');
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch job status",
+        );
       }
     };
 
