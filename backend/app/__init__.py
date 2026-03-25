@@ -7,8 +7,6 @@ import logging.config
 import os
 from pathlib import Path
 
-from app.main import app
-
 # Configure logging
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
