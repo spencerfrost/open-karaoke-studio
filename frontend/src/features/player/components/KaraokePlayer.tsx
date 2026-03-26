@@ -105,29 +105,24 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     };
   }, []);
 
-  // Global spacebar handler for tap tempo
+  // Global keyboard shortcuts for the player
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle spacebar if not focused on an input element
-      if (
-        e.code === "Space" &&
-        e.target instanceof HTMLElement &&
-        !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)
-      ) {
-        // Don't prevent default if the player isn't loaded or ready
-        if (!player.song || !player.isReady) {
-          return;
-        }
+      if (!(e.target instanceof HTMLElement)) return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+      if (!player.song || !player.isReady) return;
 
-        // Prevent default space behavior (scrolling) when tapping tempo
-        e.preventDefault();
+      if (e.code === "Space") {
+        e.preventDefault(); // prevent page scroll
+        player.togglePlay();
+      } else if (e.code === "KeyT") {
         tapTempo.handleTap();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [player.song, player.isReady, tapTempo]);
+  }, [player.song, player.isReady, player.togglePlay, tapTempo]);
 
   // Show control overlays when hovering and mouse recently moved
   const showControlOverlays = isHovering && mouseRecentlyMoved;
