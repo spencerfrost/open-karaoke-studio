@@ -11,10 +11,10 @@ export default defineConfig({
     
     nav: [
       { text: 'Guide', link: '/guide' },
-      { text: 'Features', link: '/FEATURES' },
-      { text: 'Architecture', link: '/ARCHITECTURE' },
+      { text: 'Features', link: '/features' },
+      { text: 'Architecture', link: '/architecture' },
       { text: 'API Reference', link: '/api-reference' },
-      { text: 'Roadmap', link: '/ROADMAP' },
+      { text: 'Roadmap', link: '/roadmap' },
     ],
 
     sidebar: {
@@ -24,7 +24,7 @@ export default defineConfig({
           items: [
             { text: 'Introduction', link: '/' },
             { text: 'User Guide', link: '/guide' },
-            { text: 'Architecture Overview', link: '/ARCHITECTURE' },
+            { text: 'Architecture Overview', link: '/architecture' },
           ]
         },
         {
@@ -43,9 +43,9 @@ export default defineConfig({
         {
           text: 'Documentation',
           items: [
-            { text: 'Features', link: '/FEATURES' },
-            { text: 'Roadmap', link: '/ROADMAP' },
-            { text: 'Tech Debt', link: '/TECH-DEBT' },
+            { text: 'Features', link: '/features' },
+            { text: 'Roadmap', link: '/roadmap' },
+            { text: 'Tech Debt', link: '/tech-debt' },
           ]
         },
         {

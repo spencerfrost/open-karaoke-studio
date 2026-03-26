@@ -8,21 +8,29 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 
 ### What's Working Well ✅
 
-- **Complete Feature Set:** All 24 major features are fully functional
+- **Complete Feature Set:** All major features fully functional
 - **Session Isolation:** Proper session-based state management keeps multi-user sessions separate
 - **Real-Time Sync:** WebSocket architecture keeps all devices synchronized
 - **Background Processing:** Celery handles long-running audio jobs without blocking UI
 - **Multiple Separation Engines:** Demucs, Roformer, and Hybrid options for audio quality
-- **Comprehensive Backend Tests:** 2,277 test files ensure backend reliability
+- **Comprehensive Backend Tests:** 80% test coverage ensuring backend reliability
 - **Job Cancellation:** Celery tasks can now be properly revoked/cancelled
 - **Structured Logging:** Both backend (Python logging) and frontend (createLogger utility) use proper logging
 - **Type Safety:** Removed `as any` type bypasses in frontend code
 - **Frontend Test Foundation:** Vitest configured with mock data and API handlers
+- **CI/CD Pipeline:** Automated frontend and backend checks on every push
+- **Artist System:** Full artist management — dedicated artists table, images, MusicBrainz credit resolution, split artist credits, per-artist song views
+- **AcoustID Fingerprinting:** Audio fingerprinting for source identification and library deduplication
+- **MusicBrainz Integration:** Artist and recording lookup for enriched metadata
+- **Performance History:** Song performances are tracked and displayed
+- **YouTube Music:** Artist releases endpoint and audio preview redirect
+- **CLI Tool:** BubbleTea TUI for managing backend, Celery, and frontend services
+- **Admin Panel:** Fingerprint review UI, data quality audit, duplicate detection, storage analytics
 
 ### Known Pain Points 😓
 
-- **Session State Bugs:** Global performance state violates session isolation
 - **Limited Frontend Test Coverage:** Test infrastructure exists but coverage is minimal
+- **Theme In Progress:** UI redesign underway on `theme-redesign` branch — design tokens and component styles being overhauled
 
 ---
 
@@ -32,8 +40,8 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 **Status:** 🚧 Foundation complete, coverage needed
 
 **Progress:**
-- ✅ Vitest configured (commit `cba2713`)
-- ✅ Mock data and API handlers added (commit `38a37a5`)
+- ✅ Vitest configured
+- ✅ Mock data and API handlers added
 - 🚧 Test coverage still minimal
 
 **Remaining Work:**
@@ -66,7 +74,7 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 ### ESLint Warning Cleanup
 **Status:** 🚧 Technical debt
 
-**Problem:** 9 locations with `eslint-disable` comments, mostly `react-hooks/exhaustive-deps`
+**Problem:** Several locations with `eslint-disable` comments, mostly `react-hooks/exhaustive-deps`
 
 **Plan:**
 - Review each case
@@ -82,12 +90,6 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 **Status:** 📋 Planned (Tech Debt)
 
 **Problem:** Several critical files have exceeded healthy size limits and violate Single Responsibility Principle, making them harder to maintain and test.
-
-**Analysis Results:**
-- **1,092 lines** - `frontend/src/stores/useKaraokePlayerStore.ts` (36KB)
-- **795 lines** - `backend/app/api/songs.py` (28KB)
-- **692 lines** - `backend/app/services/youtube_service.py` (28KB)
-- Plus 5 additional large files (400-750 lines each)
 
 **Refactoring Tasks (Priority Order):**
 
@@ -105,7 +107,7 @@ Split `useKaraokePlayerStore.ts` into focused stores:
 - **Impact:** Easier to test, maintain, and extend individual concerns. Reduced main store by 48%.
 
 #### Phase 2: Backend API Router Split
-Break `backend/app/api/songs.py` (795 lines) into focused modules:
+Break `backend/app/api/songs.py` into focused modules:
 - `songs_crud.py` - Basic CRUD operations (GET list, POST create, etc.)
 - `songs_search.py` - Search, filtering, and query logic
 - `songs_files.py` - Audio downloads, thumbnails, file operations
@@ -114,7 +116,7 @@ Break `backend/app/api/songs.py` (795 lines) into focused modules:
 - **Impact:** Clearer API organization, easier to locate functionality
 
 #### Phase 3: React Component Extraction
-Break `frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx` (587 lines) into subcomponents:
+Break `frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx` into subcomponents:
 - Extract lyrics display area into separate component
 - Extract volume/playback control sections
 - Extract song info section
@@ -122,16 +124,16 @@ Break `frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx` 
 - **Impact:** Easier component reuse, simplified component logic
 
 #### Phase 4: WebSocket Handler Organization
-Reorganize `backend/app/ws/session_specific.py` (568 lines) by event domain:
+Reorganize `backend/app/ws/session_specific.py` by event domain:
 - `session_player_events.py` - Player playback events
-- `session_queue_events.py` - Queue management events  
+- `session_queue_events.py` - Queue management events
 - `session_performance_events.py` - Audio control events
 - `session_connection_events.py` - Connection lifecycle events
 - **Effort:** Medium (4-5 hours)
 - **Impact:** Logical grouping, easier to find and modify event handlers
 
 #### Phase 5: Service Layer Review
-Review `backend/app/services/youtube_service.py` (692 lines) for further optimization:
+Review `backend/app/services/youtube_service.py` for further optimization:
 - Consider extracting metadata parsing logic
 - Evaluate moving complex download handling to job layer
 - Add rate limiting helpers if needed
@@ -144,14 +146,7 @@ Review `backend/app/services/youtube_service.py` (692 lines) for further optimiz
 - Run existing test suite after each phase
 - Add integration tests for new module boundaries
 
-**Estimated Total Effort:** 18-25 hours (spread across 2-3 sprints)
-
-**Benefits:**
-- Easier to understand and navigate code
-- Better testability - smaller modules are easier to unit test
-- Reduced merge conflicts in team environments
-- Clearer function responsibilities
-- Faster onboarding for new contributors
+**Estimated Total Effort:** 15-20 hours (phases 2–5)
 
 ---
 
@@ -364,14 +359,6 @@ Review `backend/app/services/youtube_service.py` (692 lines) for further optimiz
 
 ### Audio Processing
 
-**Speed Control for Karaoke Playback**
-- Adjustable playback speed (0.5x - 2.0x range)
-- Real-time speed adjustment during playback
-- Per-song speed preferences saved to library
-- Synchronized speed changes across session devices
-- Lyrics display timing adjusted to match playback speed
-- Consider preserving pitch when slowing down (time-stretching)
-
 **Pitch Shifting & Key Transposition**
 - Real-time pitch shifting for singers
 - Transpose up/down by semitones
@@ -459,7 +446,6 @@ Review `backend/app/services/youtube_service.py` (692 lines) for further optimiz
 
 **Advanced Search**
 - Filter by BPM range
-- Filter by genre
 - Filter by year/decade
 - Saved searches
 
@@ -527,13 +513,16 @@ Review `backend/app/services/youtube_service.py` (692 lines) for further optimiz
 
 ### Admin Features
 
-See **[docs/admin-features-backlog.md](admin-features-backlog.md)** for a detailed backlog of planned admin features. Summary:
+See **[docs/admin-features-backlog.md](admin-features-backlog.md)** for a detailed backlog of planned admin features. Summary of what's done and what remains:
 
-- **Data Quality Audit** — scan for songs with missing/malformed metadata, YouTube-style raw titles, encoding artifacts
-- **Duplicate Detection** — find songs with identical title+artist, side-by-side delete UI
-- **Storage Analytics** — disk usage breakdown, identify and delete unneeded original files
-- **Processing Health** — surface stuck jobs and unfingerprinted songs, with retry actions
-- **Bulk Operations** — multi-select + bulk re-fingerprint, delete, or reprocess across admin tabs
+**Completed:**
+- ✅ Data Quality Audit — scan for songs with missing/malformed metadata
+- ✅ Duplicate Detection — find songs with identical title+artist, side-by-side delete UI
+- ✅ Processing Health / Fingerprint Review — surface stuck jobs and unfingerprinted songs, with retry actions
+
+**Remaining:**
+- Storage Analytics — disk usage breakdown, identify and delete unneeded original files
+- Bulk Operations — multi-select + bulk re-fingerprint, delete, or reprocess across admin tabs
 
 **Usage Analytics**
 - Track song popularity
@@ -628,4 +617,4 @@ See **[docs/admin-features-backlog.md](admin-features-backlog.md)** for a detail
 
 ---
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-03-25
