@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
@@ -8,15 +8,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Users, Crown, Monitor, Smartphone, Clock, LogOut } from "lucide-react";
+import {
+  Users,
+  Crown,
+  Monitor,
+  Smartphone,
+  Clock,
+  LogOut,
+  Minimize2,
+} from "lucide-react";
 import { QRCodeDisplay } from "@/features/queue";
 
 type DisplayVariant = "code" | "qr" | "status" | "minimal";
@@ -86,6 +90,27 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeVariant, setActiveVariant] = useState<DisplayVariant>(variant);
+  const [activeQrSize, setActiveQrSize] = useState(qrSize);
+  const [fsContainer, setFsContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setFsContainer((document.fullscreenElement as HTMLElement) ?? null);
+    const handleFullscreenChange = () => {
+      setFsContainer((document.fullscreenElement as HTMLElement) ?? null);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange
+      );
+    };
+  }, []);
 
   const {
     sessionId,
@@ -111,6 +136,32 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     navigate("/");
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) setIsPinned(false);
+  };
+
+  const handleTriggerClick = () => {
+    if (trigger === "click") return; // Radix Popover handles open/close natively
+    const next = !isPinned;
+    setIsPinned(next);
+    setIsOpen(true);
+  };
+
+  const handleMouseEnter = () => {
+    if (trigger !== "click") setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (trigger !== "click" && !isPinned) setIsOpen(false);
+  };
+
+  const handleCollapse = () => {
+    setIsCollapsed(true);
+    setIsOpen(false);
+    setIsPinned(false);
+  };
+
   const participantCount = connectedDevices.length;
   const deviceTypeIcons = {
     stage: Monitor,
@@ -129,12 +180,26 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     page: "bg-card text-foreground hover:bg-card/90 border border-border",
   };
 
-  // Render the trigger based on variant
+  // Collapsed trigger — a small pill to restore the widget
+  if (isCollapsed) {
+    return (
+      <div className={className}>
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="flex items-center gap-1 rounded-full bg-card/80 border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+          title="Show session info"
+        >
+          <Users className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  // Render the trigger based on active variant
   const renderTrigger = () => {
-    // Base trigger styling - can be overridden by triggerClassName
     const baseTriggerClass = triggerClassName || "";
 
-    switch (variant) {
+    switch (activeVariant) {
       case "code":
         return (
           <div
@@ -150,10 +215,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         return (
           <div className={`cursor-pointer ${baseTriggerClass}`}>
             <QRCodeDisplay
-              value={`${window.location.origin}/?code=${displayCode}`}
-              size={qrSize}
-              title=""
-              description=""
+              value={`${window.location.origin}/join/${displayCode}`}
+              size={activeQrSize}
             />
           </div>
         );
@@ -198,25 +261,68 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   // Render the content
   const renderContent = () => (
     <div className={`space-y-3 ${contentClassName}`}>
+      {/* Header with connection status and collapse button */}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Session Info</h4>
-        {details.connectionStatus && (
-          <Badge
-            variant={connected ? "default" : "destructive"}
-            className="text-xs"
+        <div className="flex items-center gap-1">
+          {details.connectionStatus && (
+            <Badge
+              variant={connected ? "default" : "destructive"}
+              className="text-xs"
+            >
+              {connected ? "Connected" : "Disconnected"}
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={handleCollapse}
+            title="Minimize"
           >
-            {connected ? "Connected" : "Disconnected"}
-          </Badge>
-        )}
+            <Minimize2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
+      {/* Variant switcher */}
+      <div className="flex gap-1 border-b pb-2">
+        {(["code", "qr", "status", "minimal"] as DisplayVariant[]).map((v) => (
+          <Button
+            key={v}
+            variant={activeVariant === v ? "default" : "ghost"}
+            size="sm"
+            className="h-6 text-xs px-2"
+            disabled={v === "qr" && !isHost}
+            onClick={() => setActiveVariant(v)}
+          >
+            {v}
+          </Button>
+        ))}
+      </div>
+
+      {activeVariant === "qr" && isHost && (
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground shrink-0">Size</span>
+          <Slider
+            min={60}
+            max={300}
+            step={10}
+            value={[activeQrSize]}
+            onValueChange={([v]) => setActiveQrSize(v)}
+            className="flex-1"
+          />
+          <span className="text-xs text-muted-foreground w-8 text-right">
+            {activeQrSize}
+          </span>
+        </div>
+      )}
+
       {details.code && displayCode && (
-        <>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Session Code</span>
-            <span className="font-mono text-lg font-bold">{displayCode}</span>
-          </div>
-        </>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Session Code</span>
+          <span className="font-mono text-lg font-bold">{displayCode}</span>
+        </div>
       )}
 
       {details.deviceType && (
@@ -307,49 +413,14 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     </div>
   );
 
-  // Render based on trigger type
-  if (trigger === "hover") {
-    return (
-      <div className={className}>
-        <HoverCard openDelay={200}>
-          <HoverCardTrigger asChild>{renderTrigger()}</HoverCardTrigger>
-          <HoverCardContent
-            className={popoverWidth}
-            side={popoverSide}
-            align={popoverAlign}
-          >
-            {renderContent()}
-          </HoverCardContent>
-        </HoverCard>
-      </div>
-    );
-  }
-
-  if (trigger === "click") {
-    return (
-      <div className={className}>
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>{renderTrigger()}</PopoverTrigger>
-          <PopoverContent
-            className={popoverWidth}
-            side={popoverSide}
-            align={popoverAlign}
-          >
-            {renderContent()}
-          </PopoverContent>
-        </Popover>
-      </div>
-    );
-  }
-
-  // trigger === "both" - use Popover but make it work nicely
   return (
     <div className={className}>
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <div
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
+            onClick={handleTriggerClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
             {renderTrigger()}
           </div>
@@ -358,8 +429,13 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
           className={popoverWidth}
           side={popoverSide}
           align={popoverAlign}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
+          container={fsContainer}
+          onMouseEnter={() => {
+            if (trigger !== "click") setIsOpen(true);
+          }}
+          onMouseLeave={() => {
+            if (trigger !== "click" && !isPinned) setIsOpen(false);
+          }}
         >
           {renderContent()}
         </PopoverContent>
