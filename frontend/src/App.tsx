@@ -12,6 +12,7 @@ import SettingsPage from "./pages/Settings";
 import StagePage from "./pages/Stage";
 import PerformanceControlsPage from "./pages/PerformanceControlsPage";
 import JoinSessionPage from "./pages/JoinSessionPage";
+import QRJoinPage from "./pages/QRJoinPage";
 import HostDashboard from "./pages/HostDashboard";
 import AdminPanel from "./pages/AdminPanel";
 import { SessionProvider } from "./contexts/SessionContext";
@@ -31,8 +32,9 @@ const App: React.FC = () => {
       <Router>
         <SessionProvider>
           <Routes>
-            {/* Session entry point - public route */}
+            {/* Session entry point - public routes */}
             <Route path="/join" element={<JoinSessionPage />} />
+            <Route path="/join/:code" element={<QRJoinPage />} />
 
             {/* Session-required routes */}
             <Route
