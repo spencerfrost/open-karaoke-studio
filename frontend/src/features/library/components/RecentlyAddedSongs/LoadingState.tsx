@@ -7,11 +7,6 @@ interface LoadingStateProps {
 export const LoadingState: React.FC<LoadingStateProps> = ({ songsPerPage }) => {
   return (
     <div className="mb-8 w-full">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-xl font-semibold text-orange-peel">
-          Recently Added
-        </span>
-      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {Array.from({ length: songsPerPage }).map((_, index) => (
           <div

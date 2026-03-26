@@ -40,14 +40,6 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
 
   return (
     <div className="mb-8 w-full">
-      {/* Section Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-xl font-semibold text-orange-peel">
-          Recently Added
-        </span>
-        <span className="text-sm text-lemon-chiffon/60">{songs.length} songs</span>
-      </div>
-
       {/* Horizontally scrollable row — scrollbar hidden on mobile, visible on md+ */}
       <div
         className={[

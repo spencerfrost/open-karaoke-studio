@@ -41,13 +41,6 @@ const RecentlySang: React.FC = () => {
     <div className="mb-8 w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-semibold text-orange-peel">
-            Recently Sang
-          </span>
-          <span className="text-sm text-lemon-chiffon/60">{total} performances</span>
-        </div>
-
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button
