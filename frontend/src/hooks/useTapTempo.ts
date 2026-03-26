@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 interface UseTapTempoOptions {
   minTaps?: number; // Minimum taps before calculating BPM (default: 3)
@@ -16,9 +16,15 @@ interface UseTapTempoReturn {
 }
 
 /**
- * Hook for implementing tap tempo functionality
- * Calculates BPM based on user taps with configurable minimum taps required
- * BPM persists until explicitly reset - no auto-timeout
+ * Hook for implementing tap tempo functionality.
+ *
+ * Uses linear regression over raw tap timestamps (rather than averaging
+ * consecutive intervals) for a more stable BPM estimate — a single mistimed
+ * tap skews only one point in the regression instead of two adjacent intervals.
+ *
+ * Automatically resets the tap history when a gap between taps exceeds
+ * max(2000ms, 2 × current beat period), so stale taps from a previous attempt
+ * never contaminate a new tapping session.
  */
 export const useTapTempo = (
   options: UseTapTempoOptions = {},
@@ -29,37 +35,49 @@ export const useTapTempo = (
   const [bpm, setBpm] = useState<number | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Ref so the setTapTimes updater can read the latest BPM without a stale closure
+  const bpmRef = useRef<number | null>(null);
+
   const handleTap = useCallback(() => {
     const now = Date.now();
 
     setTapTimes((prev) => {
+      // Timeout reset: if the gap since the last tap is too long, start fresh.
+      // Threshold = max(2000ms, 2 × current beat period) so slow songs don't
+      // reset prematurely while fast songs clear stale data quickly.
+      if (prev.length > 0) {
+        const gap = now - prev[prev.length - 1];
+        const currentPeriodMs = bpmRef.current ? 60000 / bpmRef.current : 0;
+        const resetThreshold = Math.max(2000, 2 * currentPeriodMs);
+        if (gap > resetThreshold) {
+          return [now];
+        }
+      }
+
       const newTaps = [...prev, now].slice(-maxTaps);
 
-      // Calculate BPM only if we have enough taps
       if (newTaps.length >= minTaps) {
-        // Calculate intervals between consecutive taps
-        const intervals: number[] = [];
-        for (let i = 1; i < newTaps.length; i++) {
-          intervals.push(newTaps[i] - newTaps[i - 1]);
+        const n = newTaps.length;
+
+        // Linear regression: fit t_i = t_0 + i * slope, solve for slope (ms/beat).
+        // x = beat index [0..n-1], y = raw timestamp
+        let sumX = 0,
+          sumY = 0,
+          sumXY = 0,
+          sumX2 = 0;
+        for (let i = 0; i < n; i++) {
+          sumX += i;
+          sumY += newTaps[i];
+          sumXY += i * newTaps[i];
+          sumX2 += i * i;
         }
+        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        const roundedBpm = Math.round((60000 / slope) * 10) / 10;
 
-        // Average interval in milliseconds
-        const avgInterval =
-          intervals.reduce((a, b) => a + b) / intervals.length;
-
-        // Convert to BPM (60000 ms per minute / interval in ms)
-        const calculatedBpm = 60000 / avgInterval;
-
-        // Round to 1 decimal place
-        const roundedBpm = Math.round(calculatedBpm * 10) / 10;
-
+        bpmRef.current = roundedBpm;
         setBpm(roundedBpm);
         setHasUnsavedChanges(true);
-
-        // Notify callback if provided
-        if (onBpmChange) {
-          onBpmChange(roundedBpm);
-        }
+        onBpmChange?.(roundedBpm);
       }
 
       return newTaps;
@@ -69,6 +87,7 @@ export const useTapTempo = (
   const reset = useCallback(() => {
     setTapTimes([]);
     setBpm(null);
+    bpmRef.current = null;
     setHasUnsavedChanges(false);
   }, []);
 

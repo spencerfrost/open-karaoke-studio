@@ -131,17 +131,20 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-150",
-          "bg-black/40 hover:bg-black/60 border border-orange-peel/30 hover:border-orange-peel/60",
-          "text-background/80 hover:text-background",
-          isPulsing && `${pulseScale} ${pulseBg} border-orange-peel`,
-          isActive && "bg-orange-peel/10 border-orange-peel/50",
+          "flex items-center gap-2 rounded-lg transition-all duration-200",
+          "text-foreground/80 hover:text-foreground",
+          isHovering
+            ? "px-3 py-2 bg-black/60 border border-orange-peel/60"
+            : "px-1 py-1 border border-transparent",
+          isPulsing && !isHovering && "scale-105",
+          isPulsing && isHovering && "scale-110 bg-orange-peel/20 border-orange-peel",
+          isActive && isHovering && "bg-orange-peel/10 border-orange-peel/50",
         )}
         title={
           showTapCount
             ? `Tap ${minTaps - tapCount} more time${minTaps - tapCount === 1 ? "" : "s"}`
             : showBpm
-              ? `${bpm.toFixed(1)} BPM - Click or press spacebar to adjust`
+              ? `${bpm!.toFixed(1)} BPM - Click or press T to adjust`
               : "Tap to set tempo"
         }
         aria-label="Tap tempo"
@@ -153,23 +156,28 @@ export const TapTempoButton: React.FC<TapTempoButtonProps> = ({
             isActive && "text-orange-peel",
           )}
         />
-        <div className="flex flex-col items-start text-xs leading-tight min-w-[3rem]">
+        <div
+          className={cn(
+            "flex flex-col items-start text-xs leading-tight overflow-hidden transition-all duration-200",
+            isHovering ? "max-w-[4rem] opacity-100" : "max-w-0 opacity-0",
+          )}
+        >
           {showTapCount ? (
             <>
-              <span className="font-semibold text-orange-peel">
+              <span className="font-semibold text-orange-peel whitespace-nowrap">
                 {tapCount}/{minTaps}
               </span>
-              <span className="text-[10px] text-background/60">taps</span>
+              <span className="text-[10px] text-foreground/60 whitespace-nowrap">taps</span>
             </>
           ) : showBpm ? (
             <>
-              <span className="font-semibold">{bpm.toFixed(1)}</span>
-              <span className="text-[10px] text-background/60">BPM</span>
+              <span className="font-semibold whitespace-nowrap">{bpm!.toFixed(1)}</span>
+              <span className="text-[10px] text-foreground/60 whitespace-nowrap">BPM</span>
             </>
           ) : (
             <>
-              <span className="font-semibold">Tap</span>
-              <span className="text-[10px] text-background/60">tempo</span>
+              <span className="font-semibold whitespace-nowrap">Tap</span>
+              <span className="text-[10px] text-foreground/60 whitespace-nowrap">tempo</span>
             </>
           )}
         </div>
