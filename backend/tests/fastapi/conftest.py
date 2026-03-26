@@ -210,13 +210,10 @@ def mock_db_session():
 
 
 @pytest.fixture
-def mock_user_db():
-    """Mock user database operations for testing."""
-    with patch("app.api.users.SessionLocal") as mock:
-        session = Mock()
-        mock.return_value = session
-        
-        # Default: no existing user
-        session.query.return_value.filter.return_value.first.return_value = None
-        
-        yield session
+def user_db():
+    """Provide a test DB session for direct user creation in tests."""
+    db = _TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

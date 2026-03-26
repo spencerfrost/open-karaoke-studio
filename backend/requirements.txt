@@ -3,6 +3,7 @@
 fastapi>=0.104.0
 werkzeug>=3.0.0
 uvicorn[standard]>=0.24.0
+slowapi>=0.1.9
 httpx>=0.25.0
 python-multipart>=0.0.6
 numpy<2.0.0

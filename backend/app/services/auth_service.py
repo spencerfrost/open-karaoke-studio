@@ -28,7 +28,7 @@ def _get_secret_key() -> str:
     if not key:
         key = secrets.token_urlsafe(64)
         os.environ["JWT_SECRET_KEY"] = key
-        logger.warning(
+        logger.error(
             "JWT_SECRET_KEY not set — generated a random key. "
             "Set JWT_SECRET_KEY in your .env for stable tokens across restarts."
         )

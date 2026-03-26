@@ -7,12 +7,12 @@ from typing import Optional
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.api.dependencies import get_db, require_admin
-from app.db import SessionLocal
+from app.api.dependencies import get_current_user, get_db, require_admin
 from app.db.models import User
+from app.limiter import limiter
 from app.services.auth_service import create_access_token
 from sqlalchemy.orm import Session
 
@@ -25,19 +25,19 @@ class RegisterUserRequest(BaseModel):
     """Request model for user registration."""
     username: str = Field(..., min_length=1, max_length=100, description="Username")
     display_name: Optional[str] = Field(None, max_length=200, description="Display name")
-    password: Optional[str] = Field(None, min_length=4, description="Optional password")
+    password: str = Field(..., min_length=8, description="Password")
 
 
 class LoginUserRequest(BaseModel):
     """Request model for user login."""
     username: str = Field(..., min_length=1, max_length=100, description="Username")
-    password: Optional[str] = Field(None, description="Password if user has one set")
+    password: str = Field(..., description="Password")
 
 
 class UpdateUserRequest(BaseModel):
     """Request model for updating user."""
     display_name: Optional[str] = Field(None, max_length=200, description="New display name")
-    password: Optional[str] = Field(None, min_length=4, description="New password")
+    password: Optional[str] = Field(None, min_length=8, description="New password")
 
 
 class RegisterResponse(BaseModel):
@@ -71,72 +71,50 @@ class UserListItem(BaseModel):
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
-async def register_user(request: RegisterUserRequest):
-    """
-    Register a new user with an optional password.
-    
-    If no password is provided, the user can be logged in without one.
-    """
-    session = SessionLocal()
+@limiter.limit("3/minute")
+async def register_user(request: Request, body: RegisterUserRequest, db: Session = Depends(get_db)):
+    """Register a new user."""
     try:
-        # Check if username already exists
-        if session.query(User).filter(User.username == request.username).first():
+        if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(
                 status_code=400,
                 detail="Username already exists"
             )
 
         user = User(
-            username=request.username,
-            display_name=request.display_name
+            username=body.username,
+            display_name=body.display_name
         )
-        
-        if request.password:
-            user.set_password(request.password)
+        user.set_password(body.password)
 
-        session.add(user)
-        session.commit()
-        
+        db.add(user)
+        db.commit()
+
         return RegisterResponse(success=True, id=str(user.id))
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        db.rollback()
         logger.error("Failed to register user: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to register user: {str(e)}"
         )
-    finally:
-        session.close()
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login_user(request: LoginUserRequest):
-    """
-    Log in a user.
-    
-    If the user has a password set, the password must be provided.
-    If no password is set, the user can log in with just their username.
-    """
-    session = SessionLocal()
+@limiter.limit("5/minute")
+async def login_user(request: Request, body: LoginUserRequest, db: Session = Depends(get_db)):
+    """Log in a user."""
     try:
-        user = session.query(User).filter(User.username == request.username).first()
-        
-        if not user:
+        user = db.query(User).filter(User.username == body.username).first()
+
+        if not user or not user.check_password(body.password):
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password"
             )
-        
-        # If user has a password, verify it; otherwise allow passwordless login
-        if user.password_hash:
-            if not request.password or not user.check_password(request.password):
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid username or password"
-                )
 
         token = create_access_token(user)
 
@@ -148,7 +126,7 @@ async def login_user(request: LoginUserRequest):
             is_admin=user.is_admin,
             is_host=user.is_host,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -157,53 +135,59 @@ async def login_user(request: LoginUserRequest):
             status_code=500,
             detail=f"Failed to login: {str(e)}"
         )
-    finally:
-        session.close()
 
 
 @router.patch("/{user_id}", response_model=UpdateResponse)
-async def update_user(user_id: int, request: UpdateUserRequest):
+async def update_user(
+    user_id: int,
+    body: UpdateUserRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Update user preferences like display name or password.
+    Requires authentication. Users can only update their own account unless they are an admin.
     """
-    # Validate that at least one field is being updated
-    if request.display_name is None and request.password is None:
+    if body.display_name is None and body.password is None:
         raise HTTPException(
             status_code=400,
             detail="At least one field must be provided for update"
         )
-    
-    session = SessionLocal()
+
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update your own account"
+        )
+
     try:
-        user = session.query(User).filter(User.id == user_id).first()
-        
+        user = db.query(User).filter(User.id == user_id).first()
+
         if not user:
             raise HTTPException(
                 status_code=404,
                 detail="User not found"
             )
 
-        if request.display_name is not None:
-            user.display_name = request.display_name
-            
-        if request.password is not None:
-            user.set_password(request.password)
+        if body.display_name is not None:
+            user.display_name = body.display_name
 
-        session.commit()
-        
+        if body.password is not None:
+            user.set_password(body.password)
+
+        db.commit()
+
         return UpdateResponse(success=True)
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        session.rollback()
+        db.rollback()
         logger.error("Failed to update user: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to update user: {str(e)}"
         )
-    finally:
-        session.close()
 
 
 @router.get("", response_model=List[UserListItem])

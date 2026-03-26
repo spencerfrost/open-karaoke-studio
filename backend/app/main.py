@@ -52,9 +52,12 @@ from app.ws import (
     websocket_jobs_endpoint,
     websocket_unified_session_endpoint,
 )
+from app.limiter import limiter
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Get configuration and setup logging
 config = get_config()
@@ -82,6 +85,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Initialize the WebSocket connection manager
 manager = SessionConnectionManager()
@@ -186,6 +193,15 @@ async def internal_error_handler(request, exc):
             "message": "An unexpected error occurred",
         }
     )
+
+
+@app.on_event("startup")
+async def check_jwt_secret():
+    if not os.environ.get("JWT_SECRET_KEY"):
+        logger.error(
+            "JWT_SECRET_KEY is not set — a random key was generated. "
+            "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
+        )
 
 
 if __name__ == "__main__":
