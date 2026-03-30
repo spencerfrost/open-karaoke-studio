@@ -3,10 +3,19 @@
  * Parses LRC lyrics to detect blank lines, instrumental gaps, and calculate count-in triggers
  */
 
+export interface WordTimestamp {
+  word: string;
+  start: number; // seconds
+  end: number; // seconds
+  score?: number;
+  line_index: number; // originating LRC line index
+}
+
 export interface LrcLine {
   timestamp: number; // milliseconds
   content: string;
   isBlank: boolean;
+  words?: WordTimestamp[]; // word-level timestamps from forced alignment
 }
 
 export interface InstrumentalGap {
@@ -202,4 +211,46 @@ export function parseLrcWithCountIn(
     gaps,
     countInTriggers,
   };
+}
+
+/**
+ * Attach word-level timestamps from a forced alignment result to parsed LRC lines.
+ *
+ * Each word is assigned to the LRC line with the highest timestamp ≤ word.start.
+ * This is more reliable than matching by line_index because the backend and
+ * frontend use different raw-file index schemes.
+ *
+ * Returns a new lines array — original array is not mutated.
+ */
+export function attachWordTimestamps(
+  lines: LrcLine[],
+  words: WordTimestamp[],
+): LrcLine[] {
+  if (!words || words.length === 0) return lines;
+
+  // lines are sorted by timestamp (guaranteed by parseLrc)
+  const lineTimestampsSec = lines.map((l) => l.timestamp / 1000);
+
+  // Group words by their owning line index (rightmost line with timestamp <= word.start)
+  const byLineIdx = new Map<number, WordTimestamp[]>();
+  for (const w of words) {
+    let lineIdx = -1;
+    for (let i = 0; i < lineTimestampsSec.length; i++) {
+      if (lineTimestampsSec[i] <= w.start) {
+        lineIdx = i;
+      } else {
+        break;
+      }
+    }
+    if (lineIdx === -1) continue;
+    const bucket = byLineIdx.get(lineIdx) ?? [];
+    bucket.push(w);
+    byLineIdx.set(lineIdx, bucket);
+  }
+
+  return lines.map((line, idx) => {
+    const lineWords = byLineIdx.get(idx);
+    if (!lineWords || lineWords.length === 0) return line;
+    return { ...line, words: lineWords };
+  });
 }

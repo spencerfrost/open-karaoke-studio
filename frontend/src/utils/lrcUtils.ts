@@ -67,8 +67,10 @@ export function hasLrcTimestamps(content: string): boolean {
 // Export LRC parser for count-in system
 export {
   parseLrcWithCountIn,
+  attachWordTimestamps,
   type ParsedLrcData,
   type CountInTrigger,
   type LrcLine,
   type InstrumentalGap,
+  type WordTimestamp,
 } from "./lrcParser";

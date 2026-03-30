@@ -125,6 +125,24 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return idx;
   }, [parsedData.lines, currentTimeMs]);
 
+  // Find current word index within the active line (null when no alignment data)
+  const currentWordIndex = useMemo(() => {
+    if (currentLineIndex === -1) return null;
+    const activeLine = parsedData.lines[currentLineIndex];
+    if (!activeLine?.words || activeLine.words.length === 0) return null;
+
+    const currentTimeSec = currentTimeMs / 1000;
+    let idx = -1;
+    for (let i = 0; i < activeLine.words.length; i++) {
+      if (currentTimeSec >= activeLine.words[i].start) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    return idx;
+  }, [parsedData.lines, currentLineIndex, currentTimeMs]);
+
   // Find active count-in trigger
   const activeCountInTrigger = useMemo(() => {
     return parsedData.countInTriggers.find(
@@ -353,28 +371,66 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
 
             {/* Center column: Centered text */}
             <div className="text-center">
-              <span
-                className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
-                onClick={
-                  isClickable
-                    ? () => onSeek?.(line.timestamp / 1000)
-                    : undefined
-                }
-                role={isClickable ? "button" : undefined}
-                tabIndex={isClickable ? 0 : undefined}
-                onKeyDown={
-                  isClickable
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onSeek?.(line.timestamp / 1000);
+              {isActive && line.words && line.words.length > 0 ? (
+                // Word-level bouncing ball rendering
+                <span
+                  className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
+                  onClick={
+                    isClickable
+                      ? () => onSeek?.(line.timestamp / 1000)
+                      : undefined
+                  }
+                  role={isClickable ? "button" : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onKeyDown={
+                    isClickable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSeek?.(line.timestamp / 1000);
+                          }
                         }
-                      }
-                    : undefined
-                }
-              >
-                {line.content}
-              </span>
+                      : undefined
+                  }
+                >
+                  {line.words.map((w, wIdx) => (
+                    <span
+                      key={wIdx}
+                      className={`transition-all duration-100 ${
+                        currentWordIndex !== null && wIdx <= currentWordIndex
+                          ? "opacity-100 text-orange-peel"
+                          : "opacity-60"
+                      }`}
+                    >
+                      {w.word}
+                      {wIdx < line.words!.length - 1 ? " " : ""}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span
+                  className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
+                  onClick={
+                    isClickable
+                      ? () => onSeek?.(line.timestamp / 1000)
+                      : undefined
+                  }
+                  role={isClickable ? "button" : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onKeyDown={
+                    isClickable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSeek?.(line.timestamp / 1000);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  {line.content}
+                </span>
+              )}
             </div>
 
             {/* Right column: Empty for balance */}

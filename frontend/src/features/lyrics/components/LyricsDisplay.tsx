@@ -14,7 +14,8 @@ import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
 import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
-import { parseLrcWithCountIn } from "@/utils/lrcParser";
+import { parseLrcWithCountIn, attachWordTimestamps } from "@/utils/lrcParser";
+import { useLyricsAlignment } from "@/hooks/api/useLyricsAlignment";
 
 interface CountInStyleConfig {
   showCountdownNumbers?: boolean;
@@ -160,8 +161,21 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       return parseLrcWithCountIn(lyrics, bpm);
     }, [isSync, lyrics, bpm]);
 
+    const { words: alignmentWords } = useLyricsAlignment(
+      isSync ? songId : undefined,
+    );
+
+    const parsedLrcDataWithWords = useMemo(() => {
+      if (!parsedLrcData) return null;
+      if (!alignmentWords || alignmentWords.length === 0) return parsedLrcData;
+      return {
+        ...parsedLrcData,
+        lines: attachWordTimestamps(parsedLrcData.lines, alignmentWords),
+      };
+    }, [parsedLrcData, alignmentWords]);
+
     if (isSync) {
-      if (!lyrics || !parsedLrcData) {
+      if (!lyrics || !parsedLrcDataWithWords) {
         return (
           <div
             className={`flex items-center justify-center h-full w-full ${className}`}
@@ -178,7 +192,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       return (
         <div className={`relative h-full w-full ${className}`}>
           <KaraokeLyricsRenderer
-            parsedData={parsedLrcData}
+            parsedData={parsedLrcDataWithWords}
             currentTime={currentTime}
             lyricsSize={lyricsSize}
             lyricsOffset={lyricsOffset}
