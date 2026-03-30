@@ -68,8 +68,8 @@ const LibraryPage: React.FC = () => {
           {!hasSearch ? (
             <Tabs defaultValue="recently-added">
               <TabsList className="mb-4" variant="line">
-                <TabsTrigger value="recently-added">Recently Added</TabsTrigger>
-                <TabsTrigger value="recently-sang">Recently Sang</TabsTrigger>
+                <TabsTrigger className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel" value="recently-added">Recently Added</TabsTrigger>
+                <TabsTrigger className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel" value="recently-sang">Recently Sang</TabsTrigger>
               </TabsList>
               <TabsContent value="recently-added">
                 <RecentlyAddedSongs maxSongs={48} />
