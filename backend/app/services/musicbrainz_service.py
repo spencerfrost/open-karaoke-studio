@@ -103,6 +103,49 @@ def search_recordings(query: str, limit: int = 10) -> list[dict]:
     return results
 
 
+def get_recording_release_info(recording_id: str) -> dict:
+    """Fetch album/year for a specific MusicBrainz recording.
+
+    Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
+    Returns {"album": str|None, "year": int|None}.
+    """
+    time.sleep(1)
+
+    headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
+    params = {"inc": "releases release-groups", "fmt": "json"}
+
+    try:
+        with httpx.Client(timeout=_TIMEOUT) as client:
+            resp = client.get(
+                f"{_MB_BASE}/recording/{recording_id}",
+                params=params,
+                headers=headers,
+            )
+            resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning("MusicBrainz release lookup failed for %s: %s", recording_id, e)
+        return {"album": None, "year": None}
+
+    data = resp.json()
+    releases = data.get("releases", [])
+    if not releases:
+        return {"album": None, "year": None}
+
+    def release_sort_key(r: dict) -> tuple:
+        rg = r.get("release-group") or {}
+        is_album = 0 if rg.get("primary-type") == "Album" else 1
+        date = r.get("date", "") or ""
+        year = int(date[:4]) if date and len(date) >= 4 and date[:4].isdigit() else 9999
+        return (is_album, year)
+
+    best = sorted(releases, key=release_sort_key)[0]
+    album = best.get("title") or None
+    date = best.get("date", "") or ""
+    year = int(date[:4]) if date and len(date) >= 4 and date[:4].isdigit() else None
+
+    return {"album": album, "year": year}
+
+
 def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:
     """Fetch artist credits for a specific MusicBrainz recording.
 

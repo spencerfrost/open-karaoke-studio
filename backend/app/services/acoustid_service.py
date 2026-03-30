@@ -5,6 +5,7 @@ import acoustid
 
 from app.config import get_config
 from app.repositories.song_repository import SongRepository
+from app.services import musicbrainz_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class AcoustIdService:
                 acoustid.match(
                     api_key,
                     str(audio_path),
-                    meta="recordings",
+                    meta="recordings releasegroups",
                     parse=True,
                 )
             )
@@ -129,27 +130,76 @@ class AcoustIdService:
         """
         Run AcoustID fingerprint and return all candidates sorted by score descending.
         Does NOT modify the database — for admin review use only.
+
+        Returns candidates with enriched metadata: title, artist, album, year, duration.
         """
         api_key = get_config().ACOUSTID_API_KEY
         if not api_key:
             raise ValueError("ACOUSTID_API_KEY not configured")
 
-        results = list(
-            acoustid.match(
-                api_key,
-                str(audio_path),
-                meta="recordings",
-                parse=True,
-            )
+        response = acoustid.match(
+            api_key,
+            str(audio_path),
+            meta="recordings releasegroups",
+            parse=False,
         )
+        results = response.get("results", [])
 
-        candidates = [
-            {
-                "score": score,
-                "recordingId": recording_id,
-                "title": title,
-                "artist": artist,
-            }
-            for score, recording_id, title, artist in results
-        ]
-        return sorted(candidates, key=lambda c: c["score"], reverse=True)
+        candidates: list[dict] = []
+        seen_recording_ids: set[str] = set()
+
+        for result in results:
+            score = result.get("score", 0.0)
+            for recording in result.get("recordings") or []:
+                recording_id = recording.get("id", "")
+                if recording_id in seen_recording_ids:
+                    continue
+                seen_recording_ids.add(recording_id)
+
+                title = recording.get("title", "")
+                artists = recording.get("artists") or []
+                artist = " & ".join(a.get("name", "") for a in artists if a.get("name"))
+                duration = recording.get("duration")  # seconds, may be None
+
+                # Pick the best releasegroup: prefer Album type over singles/EPs
+                releasegroups = recording.get("releasegroups") or []
+                album: str | None = None
+                year: int | None = None
+                if releasegroups:
+                    def rg_sort_key(rg: dict) -> int:
+                        return 0 if rg.get("type") == "Album" else 1
+
+                    best_rg = sorted(releasegroups, key=rg_sort_key)[0]
+                    album = best_rg.get("title") or None
+                    # releasegroups don't include date — year filled by MusicBrainz fallback below
+
+                candidates.append(
+                    {
+                        "score": score,
+                        "recordingId": recording_id,
+                        "title": title,
+                        "artist": artist,
+                        "album": album,
+                        "year": year,
+                        "duration": duration,
+                    }
+                )
+
+        candidates = sorted(candidates, key=lambda c: c["score"], reverse=True)
+
+        # AcoustID often lacks release data — enrich via MusicBrainz where missing
+        for candidate in candidates:
+            if candidate["album"] is None and candidate["recordingId"]:
+                try:
+                    release_info = musicbrainz_service.get_recording_release_info(
+                        candidate["recordingId"]
+                    )
+                    candidate["album"] = release_info["album"]
+                    candidate["year"] = release_info["year"]
+                except Exception:
+                    logger.debug(
+                        "MB release lookup failed for recording %s",
+                        candidate["recordingId"],
+                    )
+
+        return candidates
