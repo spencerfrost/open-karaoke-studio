@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ShieldCheck, Mic2, UserPlus, HardDrive, ShieldAlert, Copy } from "lucide-react";
-import { MetadataReviewTab } from "@/features/songs/components/admin/MetadataReviewTab";
+import { ShieldCheck, Mic2, UserPlus, HardDrive, ShieldAlert, Copy, Fingerprint } from "lucide-react";
+import { AcoustIdTab } from "@/features/songs/components/admin/AcoustIdTab";
 import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditTab";
 import { DataQualityTab } from "@/features/songs/components/admin/DataQualityTab";
 import { DuplicatesTab } from "@/features/songs/components/admin/DuplicatesTab";
@@ -165,7 +165,10 @@ const AdminPanel: React.FC = () => {
         <Tabs defaultValue="users">
           <TabsList className="mb-6">
             <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="metadata">Metadata Review</TabsTrigger>
+            <TabsTrigger value="acoustid">
+              <Fingerprint className="mr-1.5 h-3.5 w-3.5" />
+              AcoustID
+            </TabsTrigger>
             <TabsTrigger value="audit">
               <HardDrive className="mr-1.5 h-3.5 w-3.5" />
               Library Audit
@@ -180,8 +183,8 @@ const AdminPanel: React.FC = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="metadata">
-            <MetadataReviewTab />
+          <TabsContent value="acoustid">
+            <AcoustIdTab />
           </TabsContent>
 
           <TabsContent value="audit">

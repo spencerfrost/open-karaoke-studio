@@ -7,9 +7,11 @@ import { Song } from "@/types/Song";
 import { SongActionPanel } from "./SongActionPanel";
 import { toast } from "sonner";
 
-const logger = createLogger("component:MetadataReviewTab");
+const logger = createLogger("component:AcoustIdTab");
 
-function useSongsByFingerprintStatus(status: "no_match" | "failed") {
+type StatusFilter = "ambiguous" | "no_match" | "failed";
+
+function useSongsByFingerprintStatus(status: StatusFilter) {
   const { token } = useAuthStore();
   return useQuery<Song[]>({
     queryKey: ["admin-acoustid-songs", status],
@@ -25,10 +27,20 @@ function useSongsByFingerprintStatus(status: "no_match" | "failed") {
   });
 }
 
-export const MetadataReviewTab: React.FC = () => {
-  const [statusFilter, setStatusFilter] = useState<"no_match" | "failed">(
-    "no_match",
-  );
+const STATUS_STYLES: Record<StatusFilter, string> = {
+  ambiguous: "text-orange-400 border-orange-500/40",
+  no_match: "text-amber-400 border-amber-500/40",
+  failed: "text-red-400 border-red-500/40",
+};
+
+const ACTIVE_PILL_STYLES: Record<StatusFilter, string> = {
+  ambiguous: "bg-orange-500/20 text-orange-400 border border-orange-500/40",
+  no_match: "bg-amber-500/20 text-amber-400 border border-amber-500/40",
+  failed: "bg-red-500/20 text-red-400 border border-red-500/40",
+};
+
+export const AcoustIdTab: React.FC = () => {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ambiguous");
   const [expandedSongId, setExpandedSongId] = useState<string | null>(null);
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
@@ -58,20 +70,27 @@ export const MetadataReviewTab: React.FC = () => {
       if (!res.ok) throw new Error("Failed to dispatch");
       return res.json();
     },
-    onSuccess: () => {
-      toast.success("Album art backfill job dispatched");
-    },
+    onSuccess: () => toast.success("Album art backfill job dispatched"),
     onError: () => toast.error("Failed to dispatch backfill job"),
   });
 
+  const ambiguousQuery = useSongsByFingerprintStatus("ambiguous");
   const noMatchQuery = useSongsByFingerprintStatus("no_match");
   const failedQuery = useSongsByFingerprintStatus("failed");
 
-  const noMatchCount = noMatchQuery.data?.length ?? 0;
-  const failedCount = failedQuery.data?.length ?? 0;
+  const counts: Record<StatusFilter, number> = {
+    ambiguous: ambiguousQuery.data?.length ?? 0,
+    no_match: noMatchQuery.data?.length ?? 0,
+    failed: failedQuery.data?.length ?? 0,
+  };
 
   const activeQuery =
-    statusFilter === "no_match" ? noMatchQuery : failedQuery;
+    statusFilter === "ambiguous"
+      ? ambiguousQuery
+      : statusFilter === "no_match"
+        ? noMatchQuery
+        : failedQuery;
+
   const songs = activeQuery.data ?? [];
 
   const handleRowClick = (songId: string) => {
@@ -79,16 +98,20 @@ export const MetadataReviewTab: React.FC = () => {
     logger.debug("Toggled row", { songId });
   };
 
-  const handleDone = () => {
-    setExpandedSongId(null);
-  };
+  const handleDone = () => setExpandedSongId(null);
+
+  const filterPills: { status: StatusFilter; label: string }[] = [
+    { status: "ambiguous", label: "Ambiguous" },
+    { status: "no_match", label: "No Match" },
+    { status: "failed", label: "Failed" },
+  ];
 
   return (
     <div className="space-y-4">
-      {/* Header row */}
+      {/* Batch actions */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Songs that couldn&apos;t be matched by AcoustID fingerprinting.
+          AcoustID fingerprint management and review queue.
         </p>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -110,32 +133,22 @@ export const MetadataReviewTab: React.FC = () => {
 
       {/* Filter pills */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => {
-            setStatusFilter("no_match");
-            setExpandedSongId(null);
-          }}
-          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-            statusFilter === "no_match"
-              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-              : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-          }`}
-        >
-          No Match ({noMatchCount})
-        </button>
-        <button
-          onClick={() => {
-            setStatusFilter("failed");
-            setExpandedSongId(null);
-          }}
-          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-            statusFilter === "failed"
-              ? "bg-red-500/20 text-red-400 border border-red-500/40"
-              : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-          }`}
-        >
-          Failed ({failedCount})
-        </button>
+        {filterPills.map(({ status, label }) => (
+          <button
+            key={status}
+            onClick={() => {
+              setStatusFilter(status);
+              setExpandedSongId(null);
+            }}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              statusFilter === status
+                ? ACTIVE_PILL_STYLES[status]
+                : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+            }`}
+          >
+            {label} ({counts[status]})
+          </button>
+        ))}
       </div>
 
       {/* Song list */}
@@ -155,8 +168,10 @@ export const MetadataReviewTab: React.FC = () => {
 
       <div className="space-y-1">
         {songs.map((song) => (
-          <div key={song.id} className="rounded-lg border border-border/50 overflow-hidden">
-            {/* Row header */}
+          <div
+            key={song.id}
+            className="rounded-lg border border-border/50 overflow-hidden"
+          >
             <div
               className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
               onClick={() => handleRowClick(song.id)}
@@ -175,11 +190,7 @@ export const MetadataReviewTab: React.FC = () => {
                 )}
                 <Badge
                   variant="outline"
-                  className={
-                    song.acoustidFingerprintStatus === "failed"
-                      ? "text-red-400 border-red-500/40 text-xs"
-                      : "text-amber-400 border-amber-500/40 text-xs"
-                  }
+                  className={`text-xs ${STATUS_STYLES[statusFilter]}`}
                 >
                   {song.acoustidFingerprintStatus}
                 </Badge>
@@ -189,7 +200,6 @@ export const MetadataReviewTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Expanded action panel */}
             {expandedSongId === song.id && (
               <div className="border-t border-border/50 bg-muted/20 p-4">
                 <SongActionPanel song={song} onDone={handleDone} />
