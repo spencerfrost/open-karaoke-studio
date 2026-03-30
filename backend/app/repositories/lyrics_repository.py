@@ -29,8 +29,16 @@ class LyricsRepository:
             .first()
         )
 
+    def get_best_lyrics(self, song_id: str) -> Optional[DbLyrics]:
+        """Get the best active lyrics for a song: word_synced > synced > plain."""
+        for lyrics_type in ("word_synced", "synced", "plain"):
+            result = self.get_active_lyrics(song_id, lyrics_type)
+            if result:
+                return result
+        return None
+
     def get_all_active_lyrics(self, song_id: str) -> List[DbLyrics]:
-        """Get all active lyrics for a song (both plain and synced)."""
+        """Get all active lyrics for a song (plain, synced, word_synced)."""
         return (
             self.db.query(DbLyrics)
             .filter(DbLyrics.song_id == song_id, DbLyrics.is_active == True)
@@ -102,6 +110,18 @@ class LyricsRepository:
         self.db.delete(lyrics)
         self.db.commit()
         return True
+
+    def update_metadata(self, lyrics_id: int, metadata_update: Dict[str, Any]) -> Optional[DbLyrics]:
+        """Merge metadata_update into the existing metadata_ of a lyrics record."""
+        lyrics = self.db.query(DbLyrics).filter(DbLyrics.id == lyrics_id).first()
+        if not lyrics:
+            return None
+        existing = lyrics.metadata_ or {}
+        lyrics.metadata_ = {**existing, **metadata_update}
+        lyrics.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(lyrics)
+        return lyrics
 
     def _deactivate_type(self, song_id: str, lyrics_type: str) -> None:
         """Deactivate all lyrics of a given type for a song."""

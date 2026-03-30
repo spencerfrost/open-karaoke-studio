@@ -36,7 +36,7 @@ class SaveLyricsRequest(BaseModel):
 class LyricsCreateRequest(BaseModel):
     """Schema for creating a new lyrics version"""
 
-    type: str = Field(..., pattern="^(plain|synced)$", description="Lyrics type")
+    type: str = Field(..., pattern="^(plain|synced|word_synced)$", description="Lyrics type")
     content: str = Field(..., min_length=1, max_length=100000, description="Lyrics content")
     source: Optional[str] = Field(None, max_length=50, description="Source of lyrics")
     metadata: Optional[dict] = Field(None, description="Additional metadata")

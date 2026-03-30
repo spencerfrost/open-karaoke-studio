@@ -27,7 +27,7 @@ class DbLyrics(Base):
     song_id = Column(
         String, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False
     )
-    type = Column(String(10), nullable=False)  # 'plain' or 'synced'
+    type = Column(String(20), nullable=False)  # 'plain', 'synced', or 'word_synced'
     content = Column(Text, nullable=False)
     source = Column(String(50), nullable=True)  # 'lrclib', 'syncedlyrics', 'manual', 'legacy_migration'
     metadata_ = Column("metadata", JSON, nullable=True)  # Extensible metadata
