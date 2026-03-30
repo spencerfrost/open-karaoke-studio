@@ -164,6 +164,41 @@ The codebase has several building blocks that apply directly:
 
 ---
 
+## LRC Timestamp Correction — Global Offset Detection
+
+LRC files from external sources (LRCLIB, Musixmatch, etc.) are frequently misaligned — every timestamp is off by the same constant amount. The source got the sync wrong globally, not per-line. A song where every lyric appears 1.2 seconds too early is a global offset problem, not a per-line alignment problem. This is likely the most common cause of misaligned lyrics in the library, and it has a surprisingly simple fix.
+
+### The Insight
+
+Because the offset is global, you don't need to align every line — you just need to measure the offset at a handful of high-confidence anchor points and take the median.
+
+**Anchor points** are lines where the vocal onset is unambiguous in the audio: lines that begin after a clear silence (section boundaries, song start, post-chorus re-entries). At those moments, the RMS energy of the isolated `vocals.mp3` goes from near-zero to clearly audible at a precise, detectable time. The gap between that detected onset and the LRC timestamp is the offset.
+
+### The Method
+
+1. Load `vocals.mp3` with librosa and compute a frame-by-frame RMS energy curve
+2. Use the section break analysis (already running) to identify high-confidence anchor candidates — lines that follow a significant silence, where the vocal onset is clean
+3. For each anchor, detect the actual vocal onset time from the RMS curve (first frame exceeding an energy threshold after a silence)
+4. Compute `offset = lrc_timestamp − rms_onset` for each anchor
+5. Take the **median** across all anchors — robust to a few bad measurements
+6. If anchors agree within a tight tolerance (e.g. all within ±0.3s of the median), apply the shift to every timestamp in the file
+
+### Why This Works
+
+LRC timestamps from a single source are almost always *consistently* wrong by the same amount. The source either used a different audio master, had a fixed encoding delay, or just synced to the wrong reference. A single global shift fixes the whole file.
+
+The median estimator is robust: even if 2 of 6 anchors are bad (ambiguous onset, held note from previous section), the remaining 4 will dominate. If anchors disagree widely, confidence is low and the file is flagged for manual review rather than auto-corrected.
+
+### Composability with Section Break Detection
+
+This feature gets the best anchor points for free from the section break analysis — the same candidates already detected as high-confidence section boundaries (timing gap + text repetition agreement) are exactly the lines after clear silences that make the best offset anchors. The two features run as one analysis pass.
+
+### Coverage
+
+Global offset correction handles the *easy majority* of misaligned lyrics. The remaining cases — songs where timestamps drift over time, or where individual lines are wrong but others are correct — require per-line alignment (Whisper forced alignment or dense RMS matching), which is a much harder problem to solve and much less common in practice.
+
+---
+
 ## Open Questions
 
 1. **Should analysis run automatically on song import, or on-demand?** The cheap text/timing analysis could run automatically. Audio analysis is heavier — maybe triggered from the admin panel or as a batch job.
