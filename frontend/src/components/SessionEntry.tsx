@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -58,14 +58,19 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     }
   }, [connectionError, clearSession]);
 
-  // Auto-join when code is in the URL and user has a saved display name
+  const hasAutoJoined = useRef(false);
+
+  // Auto-join when code is in the URL and user has a saved display name.
+  // The ref guard ensures this fires at most once even if dependencies change.
   useEffect(() => {
+    if (hasAutoJoined.current) return;
     if (
       codeFromUrl?.length === 4 &&
       displayName.trim() &&
       !sessionId &&
       !isConnecting
     ) {
+      hasAutoJoined.current = true;
       logger.info("Auto-joining session from QR code", { code: codeFromUrl });
       joinSession(codeFromUrl, "performer", displayName.trim())
         .then(() =>
@@ -76,9 +81,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
           toast.error("Failed to join session. Please try manually.");
         });
     }
-    // Only run on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [codeFromUrl, displayName, sessionId, isConnecting, joinSession]);
 
   // Redirect if already in a session
   if (sessionId) {
