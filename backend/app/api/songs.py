@@ -432,7 +432,7 @@ async def get_songs_by_fingerprint_status(
     current_user: User = Depends(get_current_user),
 ):
     """Return songs filtered by acoustid_fingerprint_status."""
-    valid = {"no_match", "failed", "not_checked", "matched", "skipped"}
+    valid = {"no_match", "failed", "not_checked", "matched", "skipped", "ambiguous"}
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"status must be one of: {valid}")
     songs = SongRepository(db).fetch_all(

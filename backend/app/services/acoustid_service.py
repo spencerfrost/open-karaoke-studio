@@ -61,6 +61,24 @@ class AcoustIdService:
             if best_score is None or score > best_score:
                 best_score, best_recording_id, best_title, best_artist = score, recording_id, title, artist
 
+        # If multiple candidates share the top score at the auto-correct threshold,
+        # the match is ambiguous (covers/samples commonly produce 10+ tied results).
+        # Flag for human review rather than auto-applying a random candidate.
+        top_count = sum(1 for score, _, _, _ in results if score == best_score)
+        if top_count >= 2 and best_score >= _MIN_AUTO_CORRECT_SCORE:
+            self.song_repo.update(
+                song_id,
+                acoustid_score=best_score,
+                acoustid_fingerprint_status="ambiguous",
+            )
+            logger.info(
+                "AcoustID ambiguous for song %s: %d candidates tied at score=%.2f — flagged for review",
+                song_id,
+                top_count,
+                best_score,
+            )
+            return
+
         update: dict = {
             "acoustid_score": best_score,
             "musicbrainz_recording_id": best_recording_id,
