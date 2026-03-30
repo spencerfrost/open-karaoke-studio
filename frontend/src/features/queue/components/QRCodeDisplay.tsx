@@ -12,24 +12,10 @@ interface QRCodeDisplayProps {
 const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   value,
   size = 256,
-  title = "Scan to Add Songs",
-  description = "Use your phone to add songs to the queue",
   className = "",
 }) => {
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      {title && (
-        <h2 className="text-2xl font-semibold text-center mb-2 text-orange-peel">
-          {title}
-        </h2>
-      )}
-
-      {description && (
-        <p className="text-center mb-6 opacity-80 text-lemon-chiffon">
-          {description}
-        </p>
-      )}
-
       <div
         className="p-4 rounded-lg flex items-center justify-center bg-lemon-chiffon"
         style={{
