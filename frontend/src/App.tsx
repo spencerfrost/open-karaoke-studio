@@ -22,6 +22,7 @@ import AdminGuard from "./components/AdminGuard";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
 import { useJobsSync } from "./hooks/useJobsSync";
+import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 
 const App: React.FC = () => {
   useJobsSync(); // Sync jobs to processing indicators store
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   return (
     <>
       <Toaster />
+      <PWAUpdatePrompt />
       <Router>
         <SessionProvider>
           <Routes>
