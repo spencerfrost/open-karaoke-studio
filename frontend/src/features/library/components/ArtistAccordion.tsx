@@ -123,7 +123,12 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             const letterArtists = groupedArtists[letter];
             return (
               <div key={letter} id={`artist-section-${letter}`}>
-                <div className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10">
+                <div className={`sticky top-0 px-3 py-2 mb-3 z-10
+                  flex items-center justify-center
+                  rounded-full w-12 h-12
+                  font-bold text-lg bg-dark-cyan/50 text-orange-peel
+                  `
+                }>
                   {letter}
                 </div>
 
