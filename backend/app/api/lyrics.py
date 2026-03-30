@@ -2,6 +2,7 @@
 FastAPI router for lyrics search endpoints.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -10,7 +11,10 @@ from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.repositories.lyrics_repository import LyricsRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.lyrics import LyricsCreateRequest, LyricsResponse
+from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
+from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
+from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -286,3 +290,228 @@ async def apply_analysis(
         "lyrics": _lyrics_to_response(new_lyrics),
         "message": f"Saved as inactive version (id={new_lyrics.id}). Use PATCH /api/lyrics/{new_lyrics.id}/activate to make it active.",
     }
+
+
+# ============================================================================
+# Lyrics offset analysis endpoints
+# ============================================================================
+
+
+@router.get("/songs/{song_id}/analyze/offset", response_model=dict)
+async def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
+    """Analyze global LRC timestamp offset against the vocals audio. Read-only."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+    if not lyrics or not lyrics.content:
+        raise HTTPException(
+            status_code=404, detail=f"No active synced lyrics for song: {song_id}"
+        )
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    result = analyze_global_offset(lyrics.content, vocals_path)
+    return result
+
+
+@router.post("/songs/{song_id}/analyze/offset/apply", response_model=dict, status_code=201)
+async def apply_offset_correction(song_id: str, db: Session = Depends(get_db)):
+    """Compute global offset and save a corrected lyrics version (inactive)."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+    if not lyrics or not lyrics.content:
+        raise HTTPException(
+            status_code=404, detail=f"No active synced lyrics for song: {song_id}"
+        )
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    result = analyze_global_offset(lyrics.content, vocals_path)
+
+    if result["estimated_offset"] is None:
+        return {
+            "analysis": result,
+            "lyrics": None,
+            "message": "Could not estimate offset — insufficient anchor measurements.",
+        }
+
+    corrected_content = shift_lrc_timestamps(
+        lyrics.content, -result["estimated_offset"]
+    )
+
+    new_lyrics = lyrics_repo.save_lyrics(
+        song_id=song_id,
+        lyrics_type="synced",
+        content=corrected_content,
+        source="offset_correction",
+        metadata={
+            "estimated_offset": result["estimated_offset"],
+            "confidence": result["confidence"],
+            "anchor_count": result["anchor_count"],
+            "successful_anchors": result["successful_anchors"],
+            "max_deviation": result["max_deviation"],
+        },
+        is_active=False,
+    )
+
+    return {
+        "analysis": result,
+        "lyrics": _lyrics_to_response(new_lyrics),
+        "message": (
+            f"Offset {result['estimated_offset']:+.3f}s applied (confidence={result['confidence']}). "
+            f"Saved as inactive version (id={new_lyrics.id}). "
+            f"Use PATCH /api/lyrics/{new_lyrics.id}/activate to make it active."
+        ),
+    }
+
+
+# ============================================================================
+# Word-level alignment endpoints
+# ============================================================================
+
+MIN_ALIGNMENT_SCORE = 0.5  # below this, word_synced row saved but not activated
+
+
+@router.get("/songs/{song_id}/alignment", response_model=dict)
+async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
+    """
+    Return stored word-level alignment data for this song.
+
+    Returns the active word_synced lyrics row if present, otherwise
+    checks for any (including low-confidence) word_synced rows.
+    Returns alignment=None if alignment has not been run.
+    """
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+
+    # Prefer active word_synced, fall back to any word_synced
+    lyrics = lyrics_repo.get_active_lyrics(song_id, "word_synced")
+    if not lyrics:
+        all_lyrics = lyrics_repo.get_all_lyrics(song_id)
+        lyrics = next((l for l in all_lyrics if l.type == "word_synced"), None)
+
+    if not lyrics:
+        return {"alignment": None}
+
+    try:
+        words = json.loads(lyrics.content)
+    except Exception:
+        words = []
+
+    return {
+        "lyricsId": lyrics.id,
+        "isActive": lyrics.is_active,
+        "metadata": lyrics.metadata_,
+        "alignment": {"words": words, **(lyrics.metadata_ or {})},
+    }
+
+
+@router.post("/songs/{song_id}/align", response_model=dict, status_code=200)
+async def align_song_lyrics(
+    song_id: str,
+    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    db: Session = Depends(get_db),
+):
+    """
+    Run forced alignment and store result as a word_synced lyrics row.
+
+    Tries active synced lyrics first; falls back to active plain lyrics.
+    If mean_score >= 0.5, the word_synced row is activated and the source
+    row is deactivated. Otherwise it is saved as inactive with low_confidence=True.
+
+    Returns 422 if vocals.mp3 is not present.
+    """
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    lyrics_repo = LyricsRepository(db)
+
+    # Determine source: prefer synced, fall back to plain
+    source_lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+    use_plain = source_lyrics is None
+    if use_plain:
+        source_lyrics = lyrics_repo.get_active_lyrics(song_id, "plain")
+    if not source_lyrics or not source_lyrics.content:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No active synced or plain lyrics for song: {song_id}",
+        )
+
+    if use_plain:
+        result = align_plain_lyrics_to_vocals(
+            source_lyrics.content, vocals_path, language=language
+        )
+    else:
+        result = align_lyrics_to_vocals(
+            source_lyrics.content, vocals_path, language=language
+        )
+
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Alignment failed — check server logs for details.",
+        )
+
+    confident = result["mean_score"] >= MIN_ALIGNMENT_SCORE
+    word_synced_row = lyrics_repo.save_lyrics(
+        song_id=song_id,
+        lyrics_type="word_synced",
+        content=json.dumps(result["words"]),
+        source="whisperx",
+        metadata={
+            "language": result["language"],
+            "mean_score": result["mean_score"],
+            "word_count": result["word_count"],
+            "line_count": result["line_count"],
+            "aligned_at": result["aligned_at"],
+            "source_lyrics_id": source_lyrics.id,
+            "source_type": "plain" if use_plain else "synced",
+            "low_confidence": not confident,
+        },
+        is_active=confident,
+    )
+
+    return {
+        "lyricsId": word_synced_row.id,
+        "isActive": word_synced_row.is_active,
+        "meanScore": result["mean_score"],
+        "wordCount": result["word_count"],
+        "lineCount": result["line_count"],
+        "lowConfidence": not confident,
+        "message": (
+            f"Aligned {result['word_count']} words (mean_score={result['mean_score']:.3f}). "
+            + ("Activated as word_synced." if confident else "Saved as inactive (low confidence).")
+        ),
+    }
+

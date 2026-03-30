@@ -458,6 +458,49 @@ def save_stem(
         raise
 
 
+# =============================================================================
+# SHARED AUDIO ANALYSIS HELPERS
+# =============================================================================
+
+_DEFAULT_SR = 22050
+_DEFAULT_HOP_LENGTH = 512
+
+
+def load_vocals(path: Path) -> Tuple[np.ndarray, int]:
+    """Load a vocals audio file with standard project parameters.
+
+    Args:
+        path: Path to the vocals audio file (mp3 or wav).
+
+    Returns:
+        Tuple of (audio_array, sample_rate) with sr=22050, mono=True.
+    """
+    y, sr = librosa.load(str(path), sr=_DEFAULT_SR, mono=True)
+    return y, sr
+
+
+def compute_rms_curve(
+    y: np.ndarray,
+    sr: int,
+    hop_length: int = _DEFAULT_HOP_LENGTH,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute a per-frame RMS energy curve for an audio signal.
+
+    Args:
+        y: Audio time-series array.
+        sr: Sample rate.
+        hop_length: Hop size in samples between successive frames.
+
+    Returns:
+        Tuple of (rms_values, rms_times) — both 1-D arrays with the same length.
+        rms_values: RMS energy per frame (float32).
+        rms_times: Centre time in seconds for each frame (float64).
+    """
+    rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+    times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop_length)
+    return rms, times
+
+
 # --- Main Function ---
 def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event=None):
     """

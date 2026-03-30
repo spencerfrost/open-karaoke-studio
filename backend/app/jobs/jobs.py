@@ -417,6 +417,77 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
     except Exception:
         logger.warning("song_artists population failed for song %s", song_id, exc_info=True)
 
+    # Word-level alignment — saves a word_synced lyrics row; activates if confident
+    try:
+        if vocals_path.exists():
+            import json as _json
+
+            from app.db.database import get_db_session as _get_db
+            from app.repositories.lyrics_repository import LyricsRepository as LyricsRepo
+            from app.services.lyrics_alignment import (
+                align_lyrics_to_vocals,
+                align_plain_lyrics_to_vocals,
+            )
+
+            MIN_SCORE = 0.5
+
+            with _get_db() as session:
+                lyrics_repo = LyricsRepo(session)
+
+                # Try synced first, fall back to plain
+                source_lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+                use_plain = source_lyrics is None
+                if use_plain:
+                    source_lyrics = lyrics_repo.get_active_lyrics(song_id, "plain")
+
+                if source_lyrics and source_lyrics.content:
+                    logger.info(
+                        "Running word-level alignment for song %s (source=%s)",
+                        song_id,
+                        "plain" if use_plain else "synced",
+                    )
+                    if use_plain:
+                        result = align_plain_lyrics_to_vocals(
+                            source_lyrics.content, vocals_path
+                        )
+                    else:
+                        result = align_lyrics_to_vocals(
+                            source_lyrics.content, vocals_path
+                        )
+
+                    if result:
+                        confident = result["mean_score"] >= MIN_SCORE
+                        lyrics_repo.save_lyrics(
+                            song_id=song_id,
+                            lyrics_type="word_synced",
+                            content=_json.dumps(result["words"]),
+                            source="whisperx",
+                            metadata={
+                                "language": result["language"],
+                                "mean_score": result["mean_score"],
+                                "word_count": result["word_count"],
+                                "line_count": result["line_count"],
+                                "aligned_at": result["aligned_at"],
+                                "source_lyrics_id": source_lyrics.id,
+                                "source_type": "plain" if use_plain else "synced",
+                                "low_confidence": not confident,
+                            },
+                            is_active=confident,
+                        )
+                        logger.info(
+                            "Alignment stored: %d words, mean_score=%.3f, active=%s for song %s",
+                            result["word_count"],
+                            result["mean_score"],
+                            confident,
+                            song_id,
+                        )
+                    else:
+                        logger.warning("Alignment produced no result for song %s", song_id)
+                else:
+                    logger.debug("No active lyrics to align for song %s", song_id)
+    except Exception:
+        logger.warning("Word-level alignment failed for song %s", song_id, exc_info=True)
+
 
 @celery.task(bind=True, name="post_process_song")
 def post_process_song(self, song_id: str) -> None:

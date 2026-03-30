@@ -9,51 +9,74 @@ logger = logging.getLogger(__name__)
 class SyncedLyricsService:
     """Alternative lyrics provider using syncedlyrics library"""
 
+    # Plain text providers — tried first. Genius gives the best quality text.
+    PLAIN_PROVIDERS = ["Genius", "Lrclib"]
+    # Synced (LRC) providers — used as fallback when no plain text found.
+    SYNCED_PROVIDERS = ["Musixmatch", "Lrclib", "NetEase", "Megalobiz"]
+
     def __init__(self):
-        # Default providers (excludes broken ones like Deezer/Lyricsify)
-        self.providers = ["Musixmatch", "Lrclib", "NetEase", "Megalobiz"]
+        pass
 
     def search_lyrics(self, query: str) -> List[Dict[str, Any]]:
         """
         Search using syncedlyrics library with single query string.
-        Returns list of normalized results matching LyricsResult format.
-        
-        Searches for synced lyrics first, falls back to plain lyrics if none available.
-        Note: syncedlyrics returns a single string (not a list), so we wrap it.
+
+        Priority:
+          1. Plain lyrics via Genius (highest quality text for alignment)
+          2. Plain lyrics via other plain providers (Lrclib)
+          3. Synced lyrics (LRC) as fallback
+
+        Returns a list with one normalized result dict, or empty list if nothing found.
+        Both plainLyrics and syncedLyrics are populated when available.
         """
         try:
             logger.debug(f"syncedlyrics search query: {query}")
 
-            # First try to get synced lyrics (with all providers)
-            synced_result = None
             plain_result = None
-            
-            try:
-                synced_result = syncedlyrics.search(
-                    query,
-                    synced_only=True,
-                    providers=self.providers
-                )
-            except Exception as e:
-                logger.debug(f"Synced lyrics search failed: {e}")
+            synced_result = None
 
-            # If no synced lyrics, try to get plain lyrics as fallback
-            if not synced_result:
+            # 1. Try Genius first for high-quality plain text
+            try:
+                plain_result = syncedlyrics.search(
+                    query,
+                    plain_only=True,
+                    providers=["Genius"],
+                )
+                if plain_result:
+                    logger.debug("Found plain lyrics via Genius")
+            except Exception as e:
+                logger.debug(f"Genius plain search failed: {e}")
+
+            # 2. Try other plain providers
+            if not plain_result:
                 try:
                     plain_result = syncedlyrics.search(
                         query,
                         plain_only=True,
-                        providers=self.providers
+                        providers=[p for p in self.PLAIN_PROVIDERS if p != "Genius"],
                     )
+                    if plain_result:
+                        logger.debug("Found plain lyrics via fallback plain providers")
                 except Exception as e:
-                    logger.debug(f"Plain lyrics search failed: {e}")
+                    logger.debug(f"Fallback plain search failed: {e}")
 
-            # Normalize to LyricsResult format
-            if synced_result or plain_result:
+            # 3. Try synced LRC providers
+            try:
+                synced_result = syncedlyrics.search(
+                    query,
+                    synced_only=True,
+                    providers=self.SYNCED_PROVIDERS,
+                )
+                if synced_result:
+                    logger.debug("Found synced lyrics")
+            except Exception as e:
+                logger.debug(f"Synced lyrics search failed: {e}")
+
+            if plain_result or synced_result:
                 result = {
-                    "id": None,  # syncedlyrics doesn't provide IDs
+                    "id": None,
                     "name": query,
-                    "trackName": None,  # Parsed from query if needed
+                    "trackName": None,
                     "artistName": None,
                     "albumName": None,
                     "duration": None,
@@ -61,7 +84,11 @@ class SyncedLyricsService:
                     "plainLyrics": plain_result,
                     "syncedLyrics": synced_result,
                 }
-                logger.info(f"syncedlyrics found lyrics for: {query}")
+                logger.info(
+                    f"syncedlyrics found lyrics for: {query} "
+                    f"(plain={'yes' if plain_result else 'no'}, "
+                    f"synced={'yes' if synced_result else 'no'})"
+                )
                 return [result]
 
             logger.info(f"No lyrics found via syncedlyrics for: {query}")

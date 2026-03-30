@@ -6,7 +6,7 @@ uvicorn[standard]>=0.24.0
 slowapi>=0.1.9
 httpx>=0.25.0
 python-multipart>=0.0.6
-numpy<2.0.0
+numpy>=1.23.0,<2.4
 torch>=2.0.0
 torchaudio>=2.2.0
 pydantic>=2.11.3
@@ -38,6 +38,7 @@ black>=22.0.0
 isort>=5.10.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
+whisperx
 # Audio separation experiments - UVR/Roformer models for lead/backing vocal isolation
 audio-separator[gpu]>=0.17.0
 colorlog>=6.0.0
