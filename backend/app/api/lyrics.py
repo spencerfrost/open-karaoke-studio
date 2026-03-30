@@ -5,17 +5,17 @@ FastAPI router for lyrics search endpoints.
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
 from app.db.database import SessionLocal
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.repositories.lyrics_repository import LyricsRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.lyrics import LyricsCreateRequest, LyricsResponse
+from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
 
 class LyricsResult(BaseModel):
     """Individual lyrics result from LRCLIB."""
+
     id: Optional[int] = None
     name: Optional[str] = None
     trackName: Optional[str] = None
@@ -33,7 +34,7 @@ class LyricsResult(BaseModel):
     instrumental: Optional[bool] = None
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -42,11 +43,13 @@ class LyricsResult(BaseModel):
 async def search_lyrics(
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
-    album_name: Optional[str] = Query(None, description="Album name (optional, can improve results)")
+    album_name: Optional[str] = Query(
+        None, description="Album name (optional, can improve results)"
+    ),
 ):
     """
     Search for lyrics via LRCLIB.
-    
+
     Parameters:
     - track_name: Song title (required)
     - artist_name: Artist name (required)
@@ -74,20 +77,17 @@ async def search_lyrics(
     except ConnectionError as e:
         logger.error("Lyrics connection error: %s", e)
         raise HTTPException(
-            status_code=503,
-            detail=f"Failed to connect to lyrics service: {str(e)}"
+            status_code=503, detail=f"Failed to connect to lyrics service: {str(e)}"
         )
     except TimeoutError as e:
         logger.error("Lyrics timeout error: %s", e)
         raise HTTPException(
-            status_code=504,
-            detail=f"Lyrics service request timed out: {str(e)}"
+            status_code=504, detail=f"Lyrics service request timed out: {str(e)}"
         )
     except Exception as e:
         logger.error("Unexpected lyrics search error: %s", e, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during lyrics search: {str(e)}"
+            status_code=500, detail=f"Unexpected error during lyrics search: {str(e)}"
         )
 
 
@@ -95,7 +95,7 @@ async def search_lyrics(
 async def search_lyrics_synced(
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
-    album_name: Optional[str] = Query(None, description="Album name (optional)")
+    album_name: Optional[str] = Query(None, description="Album name (optional)"),
 ):
     """
     Search for lyrics via syncedlyrics library (testing).
@@ -121,8 +121,12 @@ async def search_lyrics_synced(
 
         results = service.search_lyrics_structured(params)
 
-        logger.info("Found %s syncedlyrics results for: %s - %s",
-                   len(results), artist_name, track_name)
+        logger.info(
+            "Found %s syncedlyrics results for: %s - %s",
+            len(results),
+            artist_name,
+            track_name,
+        )
         return results
 
     except ServiceError as e:
@@ -131,7 +135,7 @@ async def search_lyrics_synced(
         logger.error("Unexpected syncedlyrics search error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected error during syncedlyrics search: {str(e)}"
+            detail=f"Unexpected error during syncedlyrics search: {str(e)}",
         )
 
 
@@ -213,3 +217,72 @@ async def delete_lyrics(lyrics_id: int, db: Session = Depends(get_db)):
     if not lyrics_repo.delete_lyrics(lyrics_id):
         raise HTTPException(status_code=404, detail=f"Lyrics not found: {lyrics_id}")
 
+
+# ============================================================================
+# Lyrics analysis endpoints
+# ============================================================================
+
+
+@router.get("/songs/{song_id}/analyze", response_model=dict)
+async def analyze_song_lyrics(
+    song_id: str,
+    min_confidence: float = Query(0.3, ge=0.0, le=1.0),
+    db: Session = Depends(get_db),
+):
+    """Analyze synced lyrics for section breaks. Read-only — no side effects."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+    if not lyrics or not lyrics.content:
+        raise HTTPException(
+            status_code=404, detail=f"No active synced lyrics for song: {song_id}"
+        )
+
+    result = analyze_lyrics(lyrics.content, min_confidence=min_confidence)
+    return result
+
+
+@router.post("/songs/{song_id}/analyze/apply", response_model=dict, status_code=201)
+async def apply_analysis(
+    song_id: str,
+    min_confidence: float = Query(0.3, ge=0.0, le=1.0),
+    db: Session = Depends(get_db),
+):
+    """Run analysis and save result as an inactive lyrics version."""
+    repo = SongRepository(db)
+    if not repo.fetch(song_id):
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    lyrics_repo = LyricsRepository(db)
+    lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
+    if not lyrics or not lyrics.content:
+        raise HTTPException(
+            status_code=404, detail=f"No active synced lyrics for song: {song_id}"
+        )
+
+    result = analyze_lyrics(lyrics.content, min_confidence=min_confidence)
+
+    if not result["candidates"]:
+        return {"analysis": result, "lyrics": None, "message": "No candidates found"}
+
+    new_lyrics = lyrics_repo.save_lyrics(
+        song_id=song_id,
+        lyrics_type="synced",
+        content=result["modified_lrc"],
+        source="analysis",
+        metadata={
+            "candidates": result["candidates"],
+            "stats": result["stats"],
+            "min_confidence": min_confidence,
+        },
+        is_active=False,
+    )
+
+    return {
+        "analysis": result,
+        "lyrics": _lyrics_to_response(new_lyrics),
+        "message": f"Saved as inactive version (id={new_lyrics.id}). Use PATCH /api/lyrics/{new_lyrics.id}/activate to make it active.",
+    }
