@@ -11,7 +11,6 @@ from .job import DbJob, Job, JobStatus
 from .performance import PerformanceHistory
 from .queue import KaraokeQueueItem
 from .session import KaraokeSession, SessionDevice, SessionPlaybackState
-from .lyrics import DbLyrics
 from .song import DbSong
 from .song_artist import DbSongArtist
 from .user import User
@@ -31,7 +30,6 @@ __all__ = [
     "PerformanceHistory",
     "SessionDevice",
     "SessionPlaybackState",
-    "DbLyrics",
     "DbSong",
     "DbSongArtist",
     "User",

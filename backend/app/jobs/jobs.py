@@ -417,13 +417,13 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
     except Exception:
         logger.warning("song_artists population failed for song %s", song_id, exc_info=True)
 
-    # Word-level alignment — saves a word_synced lyrics row; activates if confident
+    # Word-level alignment — runs after processing if lyrics are available
     try:
         if vocals_path.exists():
             import json as _json
 
             from app.db.database import get_db_session as _get_db
-            from app.repositories.lyrics_repository import LyricsRepository as LyricsRepo
+            from app.repositories.song_repository import SongRepository as _SongRepo
             from app.services.lyrics_alignment import (
                 align_lyrics_to_vocals,
                 align_plain_lyrics_to_vocals,
@@ -432,59 +432,52 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
             MIN_SCORE = 0.5
 
             with _get_db() as session:
-                lyrics_repo = LyricsRepo(session)
-
-                # Try synced first, fall back to plain
-                source_lyrics = lyrics_repo.get_active_lyrics(song_id, "synced")
-                use_plain = source_lyrics is None
-                if use_plain:
-                    source_lyrics = lyrics_repo.get_active_lyrics(song_id, "plain")
-
-                if source_lyrics and source_lyrics.content:
-                    logger.info(
-                        "Running word-level alignment for song %s (source=%s)",
-                        song_id,
-                        "plain" if use_plain else "synced",
-                    )
+                song = _SongRepo(session).fetch(song_id)
+                if not song:
+                    logger.debug("Song %s not found for alignment", song_id)
+                else:
+                    source_content = song.synced_lyrics
+                    use_plain = source_content is None
                     if use_plain:
-                        result = align_plain_lyrics_to_vocals(
-                            source_lyrics.content, vocals_path
-                        )
-                    else:
-                        result = align_lyrics_to_vocals(
-                            source_lyrics.content, vocals_path
-                        )
+                        source_content = song.plain_lyrics
 
-                    if result:
-                        confident = result["mean_score"] >= MIN_SCORE
-                        lyrics_repo.save_lyrics(
-                            song_id=song_id,
-                            lyrics_type="word_synced",
-                            content=_json.dumps(result["words"]),
-                            source="whisperx",
-                            metadata={
+                    if source_content:
+                        logger.info(
+                            "Running word-level alignment for song %s (source=%s)",
+                            song_id,
+                            "plain" if use_plain else "synced",
+                        )
+                        if use_plain:
+                            result = align_plain_lyrics_to_vocals(source_content, vocals_path)
+                        else:
+                            result = align_lyrics_to_vocals(source_content, vocals_path)
+
+                        if result and result["mean_score"] >= MIN_SCORE:
+                            song.word_synced_lyrics = _json.dumps({
+                                "words": result["words"],
                                 "language": result["language"],
                                 "mean_score": result["mean_score"],
                                 "word_count": result["word_count"],
                                 "line_count": result["line_count"],
                                 "aligned_at": result["aligned_at"],
-                                "source_lyrics_id": source_lyrics.id,
-                                "source_type": "plain" if use_plain else "synced",
-                                "low_confidence": not confident,
-                            },
-                            is_active=confident,
-                        )
-                        logger.info(
-                            "Alignment stored: %d words, mean_score=%.3f, active=%s for song %s",
-                            result["word_count"],
-                            result["mean_score"],
-                            confident,
-                            song_id,
-                        )
+                            })
+                            session.commit()
+                            logger.info(
+                                "Alignment stored: %d words, mean_score=%.3f for song %s",
+                                result["word_count"],
+                                result["mean_score"],
+                                song_id,
+                            )
+                        elif result:
+                            logger.info(
+                                "Alignment skipped (low confidence mean_score=%.3f) for song %s",
+                                result["mean_score"],
+                                song_id,
+                            )
+                        else:
+                            logger.warning("Alignment produced no result for song %s", song_id)
                     else:
-                        logger.warning("Alignment produced no result for song %s", song_id)
-                else:
-                    logger.debug("No active lyrics to align for song %s", song_id)
+                        logger.debug("No lyrics to align for song %s", song_id)
     except Exception:
         logger.warning("Word-level alignment failed for song %s", song_id, exc_info=True)
 
@@ -745,6 +738,147 @@ def enrich_song_artist_credits(song_id: str) -> dict:
         )
 
     return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="batch_align_lyrics")
+def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
+    """
+    Batch Celery task: run WhisperX forced alignment across the library.
+
+    mode="missing" — only processes songs without an active word_synced row.
+    mode="all"     — re-runs alignment on every song with vocals + lyrics.
+
+    Loads the wav2vec2 model once and reuses it across all songs.
+    """
+    import json as _json
+
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.file_service import FileService
+    from app.services.lyrics_alignment import (
+        align_lyrics_to_vocals_with_model,
+        align_plain_lyrics_to_vocals_with_model,
+        load_alignment_model,
+    )
+
+    MIN_SCORE = 0.5
+    file_service = FileService()
+
+    with get_db_session() as session:
+        all_songs = SongRepository(session).fetch_all()
+        song_ids = [s.id for s in all_songs]
+
+    logger.info("batch_align_lyrics: found %d songs (mode=%s)", len(song_ids), mode)
+
+    eligible = []
+    for song_id in song_ids:
+        vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+        if not vocals_path.exists():
+            continue
+        with get_db_session() as session:
+            song = SongRepository(session).fetch(song_id)
+            if not song:
+                continue
+            if mode == "missing" and song.word_synced_lyrics:
+                continue
+            if not song.synced_lyrics and not song.plain_lyrics:
+                continue
+        eligible.append(song_id)
+
+    total_songs = len(song_ids)
+    if not eligible:
+        logger.info("batch_align_lyrics: no eligible songs — done")
+        return {
+            "processed": 0, "activated": 0, "failed": 0,
+            "skipped": total_songs, "results": [],
+        }
+
+    logger.info("batch_align_lyrics: loading wav2vec2 model for %d songs", len(eligible))
+    model_a, metadata = load_alignment_model(language=language)
+
+    results = []
+    activated = 0
+    failed = 0
+
+    for song_id in eligible:
+        vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+        with get_db_session() as session:
+            song = SongRepository(session).fetch(song_id)
+            if not song:
+                failed += 1
+                results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
+                continue
+            source_content = song.synced_lyrics
+            use_plain = source_content is None
+            if use_plain:
+                source_content = song.plain_lyrics
+            song_label = f"{song.artist or '?'} — {song.title or song_id}"
+
+        if not source_content:
+            failed += 1
+            results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
+            continue
+
+        try:
+            result = (
+                align_plain_lyrics_to_vocals_with_model(
+                    source_content, vocals_path, model_a, metadata, language=language
+                )
+                if use_plain
+                else align_lyrics_to_vocals_with_model(
+                    source_content, vocals_path, model_a, metadata, language=language
+                )
+            )
+
+            if not result:
+                failed += 1
+                results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no words returned"})
+                continue
+
+            confident = result["mean_score"] >= MIN_SCORE
+            if confident:
+                with get_db_session() as session:
+                    song = SongRepository(session).fetch(song_id)
+                    song.word_synced_lyrics = _json.dumps({
+                        "words": result["words"],
+                        "language": result["language"],
+                        "mean_score": result["mean_score"],
+                        "word_count": result["word_count"],
+                        "line_count": result["line_count"],
+                        "aligned_at": result["aligned_at"],
+                    })
+                    session.commit()
+                activated += 1
+                status = "activated"
+            else:
+                status = "low_confidence"
+
+            results.append({
+                "songId": song_id,
+                "title": song_label,
+                "status": status,
+                "meanScore": result["mean_score"],
+                "wordCount": result["word_count"],
+                "sourceType": "plain" if use_plain else "synced",
+            })
+            logger.info("batch_align_lyrics %s: %s (score=%.3f)", song_label, status, result["mean_score"])
+
+        except Exception as e:
+            failed += 1
+            logger.error("batch_align_lyrics failed for %s: %s", song_label, e, exc_info=True)
+            results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": str(e)})
+
+    logger.info(
+        "batch_align_lyrics: done — activated=%d, failed=%d",
+        activated, failed,
+    )
+    return {
+        "processed": len(eligible),
+        "activated": activated,
+        "failed": failed,
+        "skipped": total_songs - len(eligible),
+        "results": results,
+    }
 
 
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)

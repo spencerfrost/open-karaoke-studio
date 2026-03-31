@@ -333,3 +333,162 @@ def align_plain_lyrics_to_vocals(
         line_count=len(segments),
         mean_score=mean_score,
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch-friendly: shared model loading
+# ---------------------------------------------------------------------------
+
+
+def load_alignment_model(language: str = "en", device: str = "cpu"):
+    """
+    Load the WhisperX wav2vec2 alignment model once for reuse across many songs.
+
+    Returns (model_a, metadata) — pass these to align_*_with_model() to avoid
+    reloading the ~360 MB model for every song in a batch operation.
+    """
+    import whisperx
+
+    logger.info("Loading WhisperX alignment model (language=%s, device=%s)", language, device)
+    return whisperx.load_align_model(language_code=language, device=device)
+
+
+def align_lyrics_to_vocals_with_model(
+    lrc_content: str,
+    vocals_path: Path,
+    model_a,
+    metadata,
+    language: str = "en",
+    device: str = "cpu",
+) -> AlignmentResult | None:
+    """
+    Align LRC lyrics using a pre-loaded WhisperX model.
+
+    Identical to align_lyrics_to_vocals() but accepts an already-loaded
+    (model_a, metadata) pair so the model is not reloaded per song.
+    """
+    import whisperx
+    from datetime import datetime, timezone
+
+    lrc_lines = parse_lrc_lines(lrc_content)
+    if not lrc_lines:
+        return None
+
+    content_lines = [l for l in lrc_lines if l["text"].strip()]
+    if not content_lines:
+        return None
+
+    y, sr = load_vocals(vocals_path)
+    import librosa
+
+    y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+
+    segments = _lrc_lines_to_segments(lrc_lines)
+    line_index_map = _build_line_index_map(lrc_lines)
+
+    if not segments:
+        return None
+
+    try:
+        result = whisperx.align(
+            segments, model_a, metadata, y_16k, device, return_char_alignments=False
+        )
+    except Exception as e:
+        logger.error("WhisperX alignment failed for %s: %s", vocals_path, e, exc_info=True)
+        return None
+
+    aligned_words: list[AlignedWord] = []
+    for seg_idx, seg in enumerate(result.get("segments", [])):
+        orig_line_idx = line_index_map.get(seg_idx, seg_idx)
+        for w in seg.get("words", []):
+            word_start = w.get("start")
+            word_end = w.get("end")
+            if word_start is None or word_end is None:
+                continue
+            aligned_words.append(
+                AlignedWord(
+                    word=w.get("word", "").strip(),
+                    start=round(float(word_start), 3),
+                    end=round(float(word_end), 3),
+                    score=round(float(w.get("score", 0.0)), 3),
+                    line_index=orig_line_idx,
+                )
+            )
+
+    if not aligned_words:
+        return None
+
+    mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
+    return AlignmentResult(
+        words=aligned_words,
+        language=language,
+        aligned_at=datetime.now(timezone.utc).isoformat(),
+        word_count=len(aligned_words),
+        line_count=len(content_lines),
+        mean_score=mean_score,
+    )
+
+
+def align_plain_lyrics_to_vocals_with_model(
+    plain_content: str,
+    vocals_path: Path,
+    model_a,
+    metadata,
+    language: str = "en",
+    device: str = "cpu",
+) -> AlignmentResult | None:
+    """
+    Align plain text lyrics using a pre-loaded WhisperX model.
+
+    Identical to align_plain_lyrics_to_vocals() but accepts an already-loaded
+    (model_a, metadata) pair so the model is not reloaded per song.
+    """
+    import whisperx
+    from datetime import datetime, timezone
+
+    segments = _plain_lines_to_segments(plain_content)
+    if not segments:
+        return None
+
+    y, sr = load_vocals(vocals_path)
+    import librosa
+
+    y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+
+    try:
+        result = whisperx.align(
+            segments, model_a, metadata, y_16k, device, return_char_alignments=False
+        )
+    except Exception as e:
+        logger.error("WhisperX plain alignment failed for %s: %s", vocals_path, e, exc_info=True)
+        return None
+
+    aligned_words: list[AlignedWord] = []
+    for seg_idx, seg in enumerate(result.get("segments", [])):
+        for w in seg.get("words", []):
+            word_start = w.get("start")
+            word_end = w.get("end")
+            if word_start is None or word_end is None:
+                continue
+            aligned_words.append(
+                AlignedWord(
+                    word=w.get("word", "").strip(),
+                    start=round(float(word_start), 3),
+                    end=round(float(word_end), 3),
+                    score=round(float(w.get("score", 0.0)), 3),
+                    line_index=seg_idx,
+                )
+            )
+
+    if not aligned_words:
+        return None
+
+    mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
+    return AlignmentResult(
+        words=aligned_words,
+        language=language,
+        aligned_at=datetime.now(timezone.utc).isoformat(),
+        word_count=len(aligned_words),
+        line_count=len(segments),
+        mean_score=mean_score,
+    )

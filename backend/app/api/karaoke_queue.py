@@ -154,8 +154,8 @@ def song_to_info(song: DbSong) -> SongInfo:
         album=song.album,
         duration=song.duration,
         coverArt=cover_art,
-        syncedLyrics=song._get_active_lyrics_content("synced"),
-        plainLyrics=song._get_active_lyrics_content("plain"),
+        syncedLyrics=song.synced_lyrics,
+        plainLyrics=song.plain_lyrics,
     )
 
 
@@ -226,7 +226,6 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
 
     all_queue_items = (
         db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
         .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
         .filter(KaraokeQueueItem.session_id == session_code)
         .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
@@ -514,7 +513,6 @@ async def play_queue_item(
     """
     item = (
         db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
         .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
         .filter(
             KaraokeQueueItem.id == item_id,
@@ -581,8 +579,8 @@ async def play_queue_item(
             if item.song.thumbnail_path
             else None
         ),
-        syncedLyrics=item.song._get_active_lyrics_content("synced"),
-        plainLyrics=item.song._get_active_lyrics_content("plain"),
+        syncedLyrics=item.song.synced_lyrics,
+        plainLyrics=item.song.plain_lyrics,
         singer=item.singer_name,
     )
 

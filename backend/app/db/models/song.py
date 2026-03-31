@@ -3,7 +3,7 @@ Song database model - Single source of truth.
 """
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON
@@ -34,6 +34,7 @@ class DbSong(Base):
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
+    word_synced_lyrics = Column(Text, nullable=True)  # JSON: {words, language, mean_score, ...}
 
     # iTunes metadata
     itunes_track_id = Column(Integer, nullable=True)
@@ -66,27 +67,11 @@ class DbSong(Base):
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
     )
-    lyrics = relationship(
-        "DbLyrics", back_populates="song", cascade="all, delete-orphan"
-    )
     artist_rel = relationship("DbArtist", back_populates="songs")
     album_rel = relationship("DbAlbum", back_populates="songs")
     song_artists = relationship(
         "DbSongArtist", back_populates="song_rel", cascade="all, delete-orphan", lazy="joined"
     )
-
-    def _get_active_lyrics_content(self, lyrics_type: str) -> Optional[str]:
-        """Get active lyrics content by type, falling back to legacy columns."""
-        if self.lyrics:
-            for lyric in self.lyrics:
-                if lyric.type == lyrics_type and lyric.is_active:
-                    return lyric.content
-        # Fallback to legacy columns during transition
-        if lyrics_type == "plain":
-            return self.plain_lyrics
-        elif lyrics_type == "synced":
-            return self.synced_lyrics
-        return None
 
     def to_dict(self) -> dict:
         """Convert to API response format - replaces to_pydantic()"""
@@ -128,8 +113,8 @@ class DbSong(Base):
             "releaseDate": self.release_date,
             "year": year_value,
             # Lyrics
-            "plainLyrics": self._get_active_lyrics_content("plain"),
-            "syncedLyrics": self._get_active_lyrics_content("synced"),
+            "plainLyrics": self.plain_lyrics,
+            "syncedLyrics": self.synced_lyrics,
             # iTunes metadata
             "itunesTrackId": self.itunes_track_id,
             "itunesExplicit": self.itunes_explicit,

@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ShieldCheck, Mic2, UserPlus, HardDrive, ShieldAlert, Copy, Fingerprint } from "lucide-react";
+import { ShieldCheck, Mic2, UserPlus, HardDrive, ShieldAlert, Copy, Fingerprint, AlignLeft } from "lucide-react";
 import { AcoustIdTab } from "@/features/songs/components/admin/AcoustIdTab";
 import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditTab";
 import { DataQualityTab } from "@/features/songs/components/admin/DataQualityTab";
 import { DuplicatesTab } from "@/features/songs/components/admin/DuplicatesTab";
+import { LyricsAlignmentTab } from "@/features/songs/components/admin/LyricsAlignmentTab";
 
 interface UserListItem {
   id: number;
@@ -181,6 +182,10 @@ const AdminPanel: React.FC = () => {
               <Copy className="mr-1.5 h-3.5 w-3.5" />
               Duplicates
             </TabsTrigger>
+            <TabsTrigger value="alignment">
+              <AlignLeft className="mr-1.5 h-3.5 w-3.5" />
+              Alignment
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="acoustid">
@@ -197,6 +202,10 @@ const AdminPanel: React.FC = () => {
 
           <TabsContent value="duplicates">
             <DuplicatesTab />
+          </TabsContent>
+
+          <TabsContent value="alignment">
+            <LyricsAlignmentTab />
           </TabsContent>
 
           <TabsContent value="users">

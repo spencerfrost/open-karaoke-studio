@@ -97,7 +97,7 @@ class SongRepository:
         """
         return (
             self.db.query(DbSong)
-            .options(joinedload(DbSong.lyrics), joinedload(DbSong.album_rel))
+            .options(joinedload(DbSong.album_rel))
             .filter(DbSong.id == song_id)
             .first()
         )
@@ -114,7 +114,7 @@ class SongRepository:
         :param offset: number of results to skip (default None)
         """
         query = self.db.query(DbSong).options(
-            subqueryload(DbSong.lyrics), subqueryload(DbSong.album_rel)
+            subqueryload(DbSong.album_rel)
         )
         if filters:
             for attr, value in filters.items():

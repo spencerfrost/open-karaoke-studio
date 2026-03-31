@@ -38,7 +38,6 @@ from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
 from app.repositories.album_repository import AlbumRepository
 from app.repositories.artist_repository import ArtistRepository
-from app.repositories.lyrics_repository import LyricsRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
@@ -900,7 +899,7 @@ async def update_song(
         # Extract itunesArtworkUrls — used below to download album cover, not stored in DB
         update_dict.pop("itunesArtworkUrls", None)
 
-        # Extract lyrics fields for separate handling via LyricsRepository
+        # Extract lyrics fields for separate handling
         lyrics_data = extract_lyrics_fields(update_dict)
 
         # Map remaining fields to DB columns
@@ -920,23 +919,14 @@ async def update_song(
             db_song = repo.fetch(song_id)
             populate_song_artists(db, db_song, db_song.artist)
 
-        # Save lyrics via LyricsRepository
+        # Update lyrics columns directly
         if lyrics_data:
-            lyrics_repo = LyricsRepository(db)
+            db_song = repo.fetch(song_id)
             if "plainLyrics" in lyrics_data:
-                if lyrics_data["plainLyrics"]:
-                    lyrics_repo.save_lyrics(
-                        song_id, "plain", lyrics_data["plainLyrics"], source="manual"
-                    )
-                else:
-                    lyrics_repo.deactivate_type(song_id, "plain")
+                db_song.plain_lyrics = lyrics_data["plainLyrics"] or None
             if "syncedLyrics" in lyrics_data:
-                if lyrics_data["syncedLyrics"]:
-                    lyrics_repo.save_lyrics(
-                        song_id, "synced", lyrics_data["syncedLyrics"], source="manual"
-                    )
-                else:
-                    lyrics_repo.deactivate_type(song_id, "synced")
+                db_song.synced_lyrics = lyrics_data["syncedLyrics"] or None
+            db.commit()
 
         # Handle album + artist linkage when iTunes collection ID is provided
         if itunes_collection_id is not None:

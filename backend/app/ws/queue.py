@@ -31,7 +31,6 @@ async def get_current_queue_state(session_id: str):
                 .filter(KaraokeQueueItem.session_id == session_id)
                 .options(
                     joinedload(KaraokeQueueItem.song).options(
-                        subqueryload(DbSong.lyrics),
                         joinedload(DbSong.album_rel),
                     )
                 )
@@ -121,12 +120,8 @@ async def get_current_queue_state(session_id: str):
                                     if item.song.thumbnail_path
                                     else None
                                 ),
-                                "syncedLyrics": item.song._get_active_lyrics_content(
-                                    "synced"
-                                ),
-                                "plainLyrics": item.song._get_active_lyrics_content(
-                                    "plain"
-                                ),
+                                "syncedLyrics": item.song.synced_lyrics,
+                                "plainLyrics": item.song.plain_lyrics,
                             },
                         }
                     )
@@ -156,12 +151,8 @@ async def get_current_queue_state(session_id: str):
                             if current_item.song.thumbnail_path
                             else None
                         ),
-                        "syncedLyrics": current_item.song._get_active_lyrics_content(
-                            "synced"
-                        ),
-                        "plainLyrics": current_item.song._get_active_lyrics_content(
-                            "plain"
-                        ),
+                        "syncedLyrics": current_item.song.synced_lyrics,
+                        "plainLyrics": current_item.song.plain_lyrics,
                     },
                 }
 

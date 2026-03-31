@@ -8,20 +8,15 @@ interface AlignmentData {
   word_count: number;
   line_count: number;
   mean_score?: number;
-  low_confidence?: boolean;
 }
 
 interface AlignmentResponse {
-  lyricsId?: number;
-  isActive?: boolean;
-  metadata?: Record<string, unknown>;
   alignment: AlignmentData | null;
 }
 
 /**
- * Fetch stored word-level alignment data for a song's active word_synced lyrics.
+ * Fetch stored word-level alignment data for a song.
  * Returns null if no alignment has been run yet.
- * The query is disabled when songId is not provided.
  */
 export function useLyricsAlignment(songId: string | undefined) {
   const query = useApiQuery<AlignmentResponse, readonly unknown[]>(
@@ -37,7 +32,6 @@ export function useLyricsAlignment(songId: string | undefined) {
   return {
     words: query.data?.alignment?.words ?? null,
     meanScore: query.data?.alignment?.mean_score ?? null,
-    isActive: query.data?.isActive ?? false,
     isLoading: query.isLoading,
     error: query.error,
   };
