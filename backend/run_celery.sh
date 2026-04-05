@@ -29,7 +29,20 @@ if [ ! -z "$CELERY_BROKER_URL" ]; then
     echo "Using broker URL: $CELERY_BROKER_URL"
 fi
 
+# Worker 1: heavy audio processing — concurrency=1 ensures only one separation job runs at a time
 celery -A app.jobs.celery_app.celery worker \
     --loglevel=info \
     --concurrency=1 \
-    --pool=threads
+    --pool=threads \
+    --queues=audio \
+    --hostname=audio@%h &
+
+# Worker 2: enrichment tasks — concurrency=4 allows parallel post-processing
+celery -A app.jobs.celery_app.celery worker \
+    --loglevel=info \
+    --concurrency=4 \
+    --pool=threads \
+    --queues=enrichment \
+    --hostname=enrichment@%h &
+
+wait

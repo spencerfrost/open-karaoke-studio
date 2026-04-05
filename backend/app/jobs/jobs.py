@@ -2,8 +2,10 @@
 Celery task definitions for audio processing
 """
 
+import json
 import shutil
 import threading
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +44,8 @@ def select_and_run_separation_engine(
     song_dir: Path,
     status_callback: Callable[[str], None],
     stop_event: threading.Event,
+    on_vocals_ready: Optional[Callable[[Path], None]] = None,
+    timing_sink: Optional[dict] = None,
 ) -> Tuple[bool, Optional[float]]:
     """
     Select and run the appropriate audio separation engine.
@@ -52,6 +56,13 @@ def select_and_run_separation_engine(
         song_dir: Directory to write separated tracks
         status_callback: Callback for progress updates
         stop_event: Threading event to signal cancellation
+        on_vocals_ready: Optional callback invoked with the vocals.mp3 path as soon
+            as lead vocals are available (three_track engine only). Use to dispatch
+            vocal analysis tasks before full separation completes.
+        timing_sink: Optional dict populated in-place with per-stage timestamps
+            (three_track engine only). Keys: demucs_start/end, roformer_start/end,
+            vocals_mp3_start/end, denoise_start/end, mp3_conversion_start/end,
+            bpm_wait_start/end.
 
     Returns:
         Tuple of (success: bool, detected_bpm: Optional[float])
@@ -69,12 +80,19 @@ def select_and_run_separation_engine(
     # Get separator function, defaulting to demucs
     separator_fn = engine_map.get(engine_type, separate_with_demucs)
 
-    return separator_fn(
+    kwargs: dict = dict(
         input_path=input_path,
         song_dir=song_dir,
         status_callback=status_callback,
         stop_event=stop_event,
     )
+    # on_vocals_ready and timing_sink are only supported by the three_track engine
+    if engine_type == "three_track" and on_vocals_ready is not None:
+        kwargs["on_vocals_ready"] = on_vocals_ready
+    if engine_type == "three_track" and timing_sink is not None:
+        kwargs["timing_sink"] = timing_sink
+
+    return separator_fn(**kwargs)
 
 
 def _broadcast_job_event(job, was_created=False):
@@ -485,10 +503,17 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
 @celery.task(bind=True, name="post_process_song")
 def post_process_song(self, song_id: str) -> None:
     """
-    Fire-and-forget enrichment task dispatched after audio separation completes.
+    DEPRECATED: Serial enrichment task — replaced by per-step tasks dispatched
+    from process_youtube_job as soon as each required input is available:
+      fetch_song_artwork     — dispatched at job start (~5%)
+      fingerprint_single_song — dispatched after download (~30%)
+      detect_song_loudness   — dispatched after download (~30%)
+      detect_song_vocal_range — dispatched when vocals.mp3 ready (~62%)
+      align_song_lyrics       — dispatched when vocals.mp3 ready (~62%)
+      detect_song_chords      — dispatched after full separation (~90%)
 
-    Runs vocal range detection, chord detection, loudness normalization, and
-    thumbnail download. No Job record — failures are logged only.
+    Still called by process_audio_job (upload flow) — do not delete until that
+    path is refactored to use per-step dispatch as well.
     """
     logger.info("Starting post-processing for song %s", song_id)
 
@@ -507,6 +532,210 @@ def post_process_song(self, song_id: str) -> None:
         _run_post_processing(song_id, song_dir)
     except Exception as e:
         logger.error("post_process_song failed for song %s: %s", song_id, e, exc_info=True)
+
+
+# ---------------------------------------------------------------------------
+# Per-step enrichment tasks — dispatched as soon as their required input exists
+# ---------------------------------------------------------------------------
+
+
+@celery.task(name="fetch_song_artwork")
+def fetch_song_artwork(song_id: str) -> dict:
+    """Fetch album art via iTunes (falling back to YouTube thumbnail). No audio required."""
+    logger.info("[PIPELINE] fetch_song_artwork starting for song %s", song_id)
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.itunes_service import fetch_and_assign_album_art
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            logger.warning("fetch_song_artwork: song %s not found", song_id)
+            return {"status": "not_found", "song_id": song_id}
+        song_title = song.title
+        song_artist = song.artist
+        video_id = song.video_id
+
+    assigned = False
+    if song_title and song_artist:
+        try:
+            assigned = fetch_and_assign_album_art(song_id, song_title, song_artist)
+            if assigned:
+                logger.info("fetch_song_artwork: iTunes art assigned for song %s", song_id)
+        except Exception:
+            logger.warning("fetch_song_artwork: iTunes lookup failed for song %s", song_id, exc_info=True)
+
+    if not assigned and video_id:
+        try:
+            from app.services.youtube_service import YouTubeService
+
+            YouTubeService().fetch_and_save_thumbnail(video_id, song_id)
+            logger.info("fetch_song_artwork: YouTube thumbnail saved for song %s", song_id)
+        except Exception:
+            logger.warning("fetch_song_artwork: thumbnail download failed for song %s", song_id, exc_info=True)
+
+    return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="detect_song_loudness")
+def detect_song_loudness(song_id: str) -> dict:
+    """Measure loudness from original.mp3 and store gain correction value."""
+    logger.info("[PIPELINE] detect_song_loudness starting for song %s", song_id)
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    config = get_config()
+    audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
+
+    if not audio_path.exists():
+        logger.warning("detect_song_loudness: original.mp3 not found for song %s", song_id)
+        return {"status": "no_audio", "song_id": song_id}
+
+    try:
+        result = detect_loudness(audio_path, lambda msg: logger.debug("Loudness: %s", msg))
+    except Exception:
+        logger.warning("detect_song_loudness: failed for song %s", song_id, exc_info=True)
+        return {"status": "error", "song_id": song_id}
+
+    if result:
+        with get_db_session() as session:
+            from app.repositories.song_repository import SongRepository as _Repo
+            _Repo(session).update(song_id, loudness_dbfs=result[0], gain_db=result[1])
+        logger.info("detect_song_loudness: %.2f dBFS (gain %.2f dB) for song %s", result[0], result[1], song_id)
+
+    return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="detect_song_vocal_range")
+def detect_song_vocal_range(song_id: str) -> dict:
+    """Detect vocal pitch range from vocals.mp3 and store note names."""
+    logger.info("[PIPELINE] detect_song_vocal_range starting for song %s", song_id)
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    config = get_config()
+    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
+
+    if not vocals_path.exists():
+        logger.warning("detect_song_vocal_range: vocals.mp3 not found for song %s", song_id)
+        return {"status": "no_audio", "song_id": song_id}
+
+    try:
+        result = detect_vocal_range(vocals_path, lambda msg: logger.debug("VocalRange: %s", msg))
+    except Exception:
+        logger.warning("detect_song_vocal_range: failed for song %s", song_id, exc_info=True)
+        return {"status": "error", "song_id": song_id}
+
+    if result:
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, vocal_range_low=result[0], vocal_range_high=result[1])
+        logger.info("detect_song_vocal_range: %s–%s for song %s", result[0], result[1], song_id)
+
+    return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="align_song_lyrics")
+def align_song_lyrics(song_id: str) -> dict:
+    """Run WhisperX forced alignment against vocals.mp3 and store word-level timings."""
+    logger.info("[PIPELINE] align_song_lyrics starting for song %s", song_id)
+    import json as _json
+
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
+
+    MIN_SCORE = 0.5
+
+    config = get_config()
+    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
+
+    if not vocals_path.exists():
+        logger.warning("align_song_lyrics: vocals.mp3 not found for song %s", song_id)
+        return {"status": "no_audio", "song_id": song_id}
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            logger.warning("align_song_lyrics: song %s not found", song_id)
+            return {"status": "not_found", "song_id": song_id}
+        source_content = song.synced_lyrics
+        use_plain = source_content is None
+        if use_plain:
+            source_content = song.plain_lyrics
+
+    if not source_content:
+        logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
+        return {"status": "no_lyrics", "song_id": song_id}
+
+    try:
+        if use_plain:
+            result = align_plain_lyrics_to_vocals(source_content, vocals_path)
+        else:
+            result = align_lyrics_to_vocals(source_content, vocals_path)
+    except Exception:
+        logger.warning("align_song_lyrics: alignment failed for song %s", song_id, exc_info=True)
+        return {"status": "error", "song_id": song_id}
+
+    if not result:
+        logger.warning("align_song_lyrics: no result produced for song %s", song_id)
+        return {"status": "no_result", "song_id": song_id}
+
+    if result["mean_score"] < MIN_SCORE:
+        logger.info(
+            "align_song_lyrics: low confidence (%.3f < %.1f), skipping for song %s",
+            result["mean_score"], MIN_SCORE, song_id,
+        )
+        return {"status": "low_confidence", "song_id": song_id}
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if song:
+            song.word_synced_lyrics = _json.dumps({
+                "words": result["words"],
+                "language": result["language"],
+                "mean_score": result["mean_score"],
+                "word_count": result["word_count"],
+                "line_count": result["line_count"],
+                "aligned_at": result["aligned_at"],
+            })
+            session.commit()
+    logger.info(
+        "align_song_lyrics: %d words stored (mean_score=%.3f) for song %s",
+        result["word_count"], result["mean_score"], song_id,
+    )
+    return {"status": "ok", "song_id": song_id}
+
+
+@celery.task(name="detect_song_chords")
+def detect_song_chords(song_id: str) -> dict:
+    """Detect chord progression from instrumental.mp3 and store beat-synced chord list."""
+    logger.info("[PIPELINE] detect_song_chords starting for song %s", song_id)
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    config = get_config()
+    instrumental_path = Path(config.BASE_LIBRARY_DIR) / song_id / "instrumental.mp3"
+
+    if not instrumental_path.exists():
+        logger.warning("detect_song_chords: instrumental.mp3 not found for song %s", song_id)
+        return {"status": "no_audio", "song_id": song_id}
+
+    try:
+        chord_data = detect_chords(str(instrumental_path))
+    except Exception:
+        logger.warning("detect_song_chords: failed for song %s", song_id, exc_info=True)
+        return {"status": "error", "song_id": song_id}
+
+    if chord_data:
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, chords_data=chord_data)
+        logger.info("detect_song_chords: %d chords stored for song %s", len(chord_data), song_id)
+
+    return {"status": "ok", "song_id": song_id}
 
 
 @celery.task(name="batch_fingerprint_songs")
@@ -681,6 +910,10 @@ def fingerprint_single_song(song_id: str) -> dict:
             AcoustIdService(SongRepository(session)).fingerprint_and_identify(song_id, audio_path)
         except Exception:
             logger.exception("fingerprint_single_song: failed for song %s", song_id)
+
+    # AcoustID may have corrected title/artist — resolve credits against latest data
+    logger.info("[PIPELINE] fingerprint complete — dispatching enrich_song_artist_credits for song %s", song_id)
+    celery.send_task("enrich_song_artist_credits", args=[song_id])
 
     return {"status": "ok", "song_id": song_id}
 
@@ -881,6 +1114,94 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     }
 
 
+def _write_pipeline_timing(
+    job_id: str,
+    song_id: str,
+    engine_type: str,
+    metadata: dict,
+    timestamps: dict,
+    status: str,
+    error: Optional[str] = None,
+) -> None:
+    """
+    Append one JSON line to logs/pipeline_timing.jsonl recording wall-clock
+    durations for each pipeline stage.  All durations are in seconds.
+
+    Top-level keys:
+      recorded_at      — ISO-8601 UTC timestamp of when the record was written
+      job_id / song_id / engine_type / status
+      title / artist   — from job metadata
+      durations        — dict of stage_name → seconds (derived from timestamps)
+      engine_stages    — per-stage timings inside the separation engine (three_track only)
+      raw_timestamps   — the raw perf_counter values (relative, useful for sequencing)
+    """
+    from app.config import get_config
+
+    config = get_config()
+    log_path = Path(config.LOG_DIR) / "pipeline_timing.jsonl"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _dur(start_key: str, end_key: str, ts: dict) -> Optional[float]:
+        s, e = ts.get(start_key), ts.get(end_key)
+        if s is not None and e is not None:
+            return round(e - s, 3)
+        return None
+
+    ts = timestamps
+    engine_ts = ts.get("engine", {})
+
+    durations: dict = {}
+    d = _dur("download_start", "download_end", ts)
+    if d is not None:
+        durations["download"] = d
+    d = _dur("separation_start", "separation_end", ts)
+    if d is not None:
+        durations["separation_total"] = d
+    d = _dur("job_start", "job_end", ts)
+    if d is not None:
+        durations["job_total"] = d
+
+    engine_durations: dict = {}
+    for stage, start_key, end_key in [
+        ("demucs", "demucs_start", "demucs_end"),
+        ("roformer", "roformer_start", "roformer_end"),
+        ("vocals_mp3", "vocals_mp3_start", "vocals_mp3_end"),
+        ("denoise", "denoise_start", "denoise_end"),
+        ("mp3_conversion", "mp3_conversion_start", "mp3_conversion_end"),
+        ("bpm_wait", "bpm_wait_start", "bpm_wait_end"),
+    ]:
+        d = _dur(start_key, end_key, engine_ts)
+        if d is not None:
+            engine_durations[stage] = d
+
+    record = {
+        "recorded_at": datetime.utcnow().isoformat() + "Z",
+        "job_id": job_id,
+        "song_id": song_id,
+        "engine_type": engine_type,
+        "status": status,
+        "title": metadata.get("title"),
+        "artist": metadata.get("artist"),
+        "durations": durations,
+        "engine_stages": engine_durations,
+        "raw_timestamps": {k: round(v, 6) for k, v in ts.items() if isinstance(v, float)},
+    }
+    if error:
+        record["error"] = error
+
+    try:
+        with open(log_path, "a") as f:
+            f.write(json.dumps(record) + "\n")
+        logger.info(
+            "Pipeline timing logged for job %s → %s (total: %ss)",
+            job_id,
+            log_path,
+            durations.get("job_total", "?"),
+        )
+    except Exception:
+        logger.warning("Failed to write pipeline timing log for job %s", job_id, exc_info=True)
+
+
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
 def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_track"):
     """
@@ -899,6 +1220,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         metadata.get("title"),
         video_id,
     )
+
+    # Timing: record wall-clock timestamps at each pipeline milestone.
+    # Written to logs/pipeline_timing.jsonl at job end for offline analysis.
+    _t: dict[str, float] = {"job_start": time.perf_counter()}
 
     # Get the job from storage using repository
     job_repository = JobRepository()
@@ -937,6 +1262,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
     job.engine_type = engine_type
     job_repository.update(job)
 
+    # Dispatch artwork early — no audio dependency, only needs title/artist from DB
+    celery.send_task("fetch_song_artwork", args=[song_id])
+    logger.info("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
+
     def update_progress(progress, message, status=None):
         """Update job progress and status.
 
@@ -956,23 +1285,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         # Save if: status changed, progress changed by 5% or more, or is a milestone
         progress_diff = abs(progress - last_saved_progress)
         status_changed = status and status != last_saved_status
-        # Updated milestones to include more checkpoints during audio processing (30-90% range)
         is_milestone = progress in [
-            0,
-            5,
-            25,
-            30,
-            35,
-            40,
-            50,
-            60,
-            70,
-            75,
-            80,
-            85,
-            90,
-            95,
-            100,
+            0, 5, 10, 12, 50, 60, 70, 73, 80, 90, 93, 95, 99, 100,
         ]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
@@ -1014,6 +1328,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
 
         update_progress(10, "Starting YouTube download")
+        _t["download_start"] = time.perf_counter()
 
         youtube_service.download_video(
             video_id_or_url=video_id,
@@ -1022,11 +1337,17 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             title=metadata.get("title"),
         )
 
+        _t["download_end"] = time.perf_counter()
         update_progress(
-            30,
+            12,
             f"Download complete, preparing {engine_type} engine",
             JobStatus.PROCESSING,
         )
+
+        # Dispatch tasks that only need original.mp3
+        celery.send_task("fingerprint_single_song", args=[song_id])
+        celery.send_task("detect_song_loudness", args=[song_id])
+        logger.info("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
 
         # Phase 2: Audio Processing (30-90% progress)
         original_file = song_dir / "original.mp3"
@@ -1040,16 +1361,29 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         stop_event = threading.Event()
 
-        update_progress(35, f"Initializing {engine_type} audio processing")
+        _t["separation_start"] = time.perf_counter()
+        update_progress(12, f"Initializing {engine_type} audio processing")
 
         audio_progress_callback = create_audio_progress_mapper(
             engine_type=engine_type,
-            base_start=35,
-            base_end=90,
+            base_start=12,
+            base_end=50,
             update_fn=lambda prog, msg: update_progress(
                 prog, f"Audio processing: {msg}"
             ),
         )
+
+        def on_vocals_ready(vocals_path: Path) -> None:
+            """Dispatch vocal analysis tasks as soon as vocals.mp3 is available (~70%)."""
+            _t["vocals_ready"] = time.perf_counter()
+            logger.info(
+                "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching detect_song_vocal_range + align_song_lyrics for song %s",
+                vocals_path.stat().st_size if vocals_path.exists() else "missing",
+                song_id,
+            )
+            celery.send_task("detect_song_vocal_range", args=[song_id])
+            celery.send_task("align_song_lyrics", args=[song_id])
+            logger.info("[PIPELINE] ~70%% — detect_song_vocal_range + align_song_lyrics queued for song %s", song_id)
 
         success, _ = select_and_run_separation_engine(
             engine_type=engine_type,
@@ -1057,7 +1391,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             song_dir=song_dir,
             status_callback=audio_progress_callback,
             stop_event=stop_event,
+            on_vocals_ready=on_vocals_ready,
+            timing_sink=_t.setdefault("engine", {}),
         )
+        _t["separation_end"] = time.perf_counter()
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
@@ -1076,6 +1413,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
 
+        _t["job_end"] = time.perf_counter()
         job.status = JobStatus.COMPLETED
         job.progress = 100
         job.status_message = "Processing complete"
@@ -1084,9 +1422,11 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         _broadcast_job_event(job)
 
-        # Dispatch secondary enrichment task (fire-and-forget)
-        celery.send_task("post_process_song", args=[song_id])
-        logger.info("Dispatched post_process_song for song %s", song_id)
+        # Dispatch chord detection — requires instrumental.mp3 which is now available
+        celery.send_task("detect_song_chords", args=[song_id])
+        logger.info("[PIPELINE] ~100%% — dispatched detect_song_chords for song %s", song_id)
+
+        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="completed")
 
         return {
             "status": "success",
@@ -1102,6 +1442,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if song_dir.exists():
             shutil.rmtree(song_dir)
         logger.info("Job %s was cancelled", job_id)
+        _t.setdefault("job_end", time.perf_counter())
+        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="cancelled")
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
@@ -1112,6 +1454,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.error = error_message
         job.completed_at = datetime.now()
         job_repository.update(job)
+        _t.setdefault("job_end", time.perf_counter())
+        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="failed", error=error_message)
         return {"status": "error", "job_id": job_id, "error": error_message}
 
 

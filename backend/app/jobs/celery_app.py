@@ -35,6 +35,26 @@ celery.conf.update(
     enable_utc=True,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
+    # Route heavy GPU/CPU audio jobs to their own queue so enrichment tasks
+    # never compete with or block a separation job.
+    task_routes={
+        "process_youtube_job": {"queue": "audio"},
+        "process_audio_job": {"queue": "audio"},
+        # Everything else defaults to the 'enrichment' queue
+        "fetch_song_artwork": {"queue": "enrichment"},
+        "detect_song_loudness": {"queue": "enrichment"},
+        "detect_song_vocal_range": {"queue": "enrichment"},
+        "align_song_lyrics": {"queue": "enrichment"},
+        "detect_song_chords": {"queue": "enrichment"},
+        "fingerprint_single_song": {"queue": "enrichment"},
+        "enrich_song_artist_credits": {"queue": "enrichment"},
+        "batch_fingerprint_songs": {"queue": "enrichment"},
+        "batch_backfill_artwork": {"queue": "enrichment"},
+        "batch_backfill_duration": {"queue": "enrichment"},
+        "batch_align_lyrics": {"queue": "enrichment"},
+        "post_process_song": {"queue": "enrichment"},
+    },
+    task_default_queue="enrichment",
     **celery_logging_config,
 )
 

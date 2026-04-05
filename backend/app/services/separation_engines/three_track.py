@@ -24,9 +24,10 @@ that occurs when using subtraction methods.
 import logging
 import shutil
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import soundfile as sf
 import torch
@@ -56,6 +57,8 @@ def separate_with_three_track(
     song_dir: Path,
     status_callback: Callable[[str], None],
     stop_event: Optional[threading.Event] = None,
+    on_vocals_ready: Optional[Callable[[Path], None]] = None,
+    timing_sink: Optional[Dict[str, float]] = None,
 ) -> Tuple[bool, Optional[float]]:
     """
     Multi-pass separation producing three independent audio tracks.
@@ -70,12 +73,21 @@ def separate_with_three_track(
         song_dir: Path to the directory where processed files will be saved
         status_callback: Function to call with status updates
         stop_event: A threading.Event to check for stop requests
+        on_vocals_ready: Optional callback invoked with the vocals.mp3 path as
+            soon as lead vocals are converted (~62%), before de-noising and
+            instrumental conversion complete. Use to dispatch downstream tasks
+            (vocal range, lyrics alignment) as early as possible.
 
     Returns:
         Tuple of (success: bool, bpm: Optional[float])
     """
     logger.info("Starting Three-Track separation for: %s", input_path.name)
     status_callback("Engine: Three-Track (Demucs + Roformer + De-Noise)")
+
+    def _ts(key: str) -> None:
+        """Record a timestamp into timing_sink if one was provided."""
+        if timing_sink is not None:
+            timing_sink[key] = time.perf_counter()
 
     # Create temp directory for intermediate files
     temp_dir = song_dir / ".temp_three_track"
@@ -84,8 +96,9 @@ def separate_with_three_track(
     config = get_config()
 
     try:
-        # ===== STEP 1: Demucs Separation (35-50% progress) =====
-        status_callback("Progress: 35% - Step 1/4: Running Demucs separation...")
+        # ===== STEP 1: Demucs Separation (12-50% progress) =====
+        _ts("demucs_start")
+        status_callback("Progress: 12% - Step 1/4: Running Demucs separation...")
         logger.info("Step 1: Demucs separation for vocals and instrumental")
 
         device = select_device_and_log(status_callback)
@@ -146,11 +159,13 @@ def separate_with_three_track(
             subtype="PCM_16",
         )
         logger.info("Demucs instrumental saved to: %s", demucs_instr_path)
+        _ts("demucs_end")
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
         # ===== STEP 2: Roformer Karaoke on Demucs Vocals (50-60% progress) =====
+        _ts("roformer_start")
         status_callback(
             "Progress: 50% - Step 2/4: Running Roformer to separate lead from backing vocals..."
         )
@@ -195,13 +210,40 @@ def separate_with_three_track(
 
         logger.info("Lead vocals: %s", lead_vocals_path)
         logger.info("Backing vocals (raw): %s", backing_vocals_path)
+        _ts("roformer_end")
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 3: De-Noise Backing Vocals (60-75% progress) =====
+        # Write vocals.mp3 early so downstream tasks can start immediately
+        _ts("vocals_mp3_start")
+        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
+        logger.info("[PIPELINE] ~62%% — converting lead vocals to MP3 early (before de-noise)")
+        status_callback("Progress: 62% - Converting lead vocals to MP3 (early)...")
+        lead_audio_early = AudioSegment.from_wav(str(lead_vocals_path))
+        lead_audio_early.export(
+            str(vocals_final),
+            format="mp3",
+            bitrate=config.DEFAULT_MP3_BITRATE,
+        )
+        logger.info("[PIPELINE] vocals.mp3 ready at %s", vocals_final)
+
+        _ts("vocals_mp3_end")
+
+        if on_vocals_ready is not None:
+            logger.info("[PIPELINE] firing on_vocals_ready callback")
+            try:
+                on_vocals_ready(vocals_final)
+                logger.info("[PIPELINE] on_vocals_ready callback completed")
+            except Exception as e:
+                logger.warning("[PIPELINE] on_vocals_ready callback raised: %s", e)
+        else:
+            logger.info("[PIPELINE] no on_vocals_ready callback registered")
+
+        # ===== STEP 3: De-Noise Backing Vocals (73-93% progress) =====
+        _ts("denoise_start")
         status_callback(
-            "Progress: 60% - Step 3/4: Cleaning backing vocals with de-noise model..."
+            "Progress: 73% - Step 3/4: Cleaning backing vocals with de-noise model..."
         )
         logger.info("Step 3: De-noising backing vocals")
 
@@ -212,13 +254,13 @@ def separate_with_three_track(
                 output_dir=str(temp_dir),
                 output_format="wav",
             )
-            status_callback(f"Progress: 65% - Loading model: {DENOISE_MODEL}")
+            status_callback(f"Progress: 76% - Loading model: {DENOISE_MODEL}")
             denoise_separator.load_model(model_filename=DENOISE_MODEL)
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
 
-            status_callback("Progress: 70% - Running de-noise on backing vocals...")
+            status_callback("Progress: 83% - Running de-noise on backing vocals...")
             denoise_output_files = denoise_separator.separate(str(backing_vocals_path))
             logger.info("De-noise produced: %s", denoise_output_files)
 
@@ -247,11 +289,14 @@ def separate_with_three_track(
             status_callback("De-noise model unavailable, using original backing...")
             cleaned_backing_path = backing_vocals_path
 
+        _ts("denoise_end")
+
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        # ===== STEP 4: Save Three Independent Tracks (75-85% progress) =====
-        status_callback("Progress: 75% - Step 4/4: Saving three tracks...")
+        # ===== STEP 4: Save Three Independent Tracks (93-99% progress) =====
+        _ts("mp3_conversion_start")
+        status_callback("Progress: 93% - Step 4/4: Saving three tracks...")
         logger.info("Step 4: Saving three independent tracks (BPM detection running in background)")
 
         # Start BPM detection in background — runs while MP3 conversions execute
@@ -260,9 +305,6 @@ def separate_with_three_track(
         bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
         logger.info("BPM detection started in background thread")
 
-        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(
-            ".mp3"
-        )
         backing_vocals_final = file_management.get_backing_vocals_path_stem(
             song_dir
         ).with_suffix(".mp3")
@@ -270,18 +312,22 @@ def separate_with_three_track(
             song_dir
         ).with_suffix(".mp3")
 
-        # 1. Convert lead vocals (from Roformer) to MP3
-        status_callback("Progress: 77% - Converting lead vocals to MP3...")
-        lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
-        lead_audio.export(
-            str(vocals_final),
-            format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
-        )
-        logger.info("Lead vocals saved to: %s", vocals_final)
+        # 1. Lead vocals — already written early after Roformer pass; skip if present
+        if vocals_final.exists():
+            status_callback("Progress: 95% - Lead vocals already converted (written early)")
+            logger.info("Lead vocals already written early, skipping re-conversion: %s", vocals_final)
+        else:
+            status_callback("Progress: 95% - Converting lead vocals to MP3...")
+            lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
+            lead_audio.export(
+                str(vocals_final),
+                format="mp3",
+                bitrate=config.DEFAULT_MP3_BITRATE,
+            )
+            logger.info("Lead vocals saved to: %s", vocals_final)
 
         # 2. Convert cleaned backing vocals to MP3
-        status_callback("Progress: 80% - Converting backing vocals to MP3...")
+        status_callback("Progress: 96% - Converting backing vocals to MP3...")
         backing_audio = AudioSegment.from_wav(str(cleaned_backing_path))
         backing_audio.export(
             str(backing_vocals_final),
@@ -291,7 +337,7 @@ def separate_with_three_track(
         logger.info("Backing vocals saved to: %s", backing_vocals_final)
 
         # 3. Convert pure Demucs instrumental to MP3
-        status_callback("Progress: 83% - Converting instrumental to MP3...")
+        status_callback("Progress: 97% - Converting instrumental to MP3...")
         instr_audio = AudioSegment.from_wav(str(demucs_instr_path))
         instr_audio.export(
             str(instrumental_final),
@@ -299,9 +345,12 @@ def separate_with_three_track(
             bitrate=config.DEFAULT_MP3_BITRATE,
         )
         logger.info("Instrumental saved to: %s", instrumental_final)
-        status_callback("Progress: 85% - Step 4/4 complete")
+        status_callback("Progress: 99% - Step 4/4 complete")
+
+        _ts("mp3_conversion_end")
 
         # Collect BPM result (started before MP3 conversion, should already be done)
+        _ts("bpm_wait_start")
         try:
             detected_bpm = bpm_future.result(timeout=30)
             logger.info("BPM detection complete: %s BPM", detected_bpm)
@@ -312,6 +361,7 @@ def separate_with_three_track(
             detected_bpm = None
         finally:
             bpm_executor.shutdown(wait=False)
+        _ts("bpm_wait_end")
 
         # Clean up temp directory
         status_callback("Cleaning up temporary files...")

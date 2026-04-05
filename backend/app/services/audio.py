@@ -52,16 +52,18 @@ def create_audio_progress_mapper(engine_type: str, base_start: int, base_end: in
 
     def callback(msg):
         # Try to extract percentage from Demucs-style messages
-        # Format: "Separating: Model 1/2 (Overall 45.3%)"
+        # Demucs-style: "Separating: Model 1/2 (Overall 45.3%)" — map to base_start..base_end range
         match = re.search(r'\(Overall (\d+(?:\.\d+)?)\%\)', msg)
         if match:
             engine_progress = float(match.group(1))
             job_progress = int(base_start + (engine_progress / 100.0) * progress_range)
             update_fn(job_progress, msg)
-        else:
-            # No percentage found, just pass through the message without updating progress
-            # This preserves the current progress while showing status updates
-            pass
+            return
+
+        # three_track stage markers: "Progress: 50% - Step 2/4 ..." — use value directly
+        match2 = re.search(r'\bProgress:\s*(\d+(?:\.\d+)?)\s*%', msg, re.IGNORECASE)
+        if match2:
+            update_fn(int(float(match2.group(1))), msg)
 
     return callback
 
