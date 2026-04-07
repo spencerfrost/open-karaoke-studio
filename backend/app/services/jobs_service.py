@@ -29,40 +29,15 @@ class JobsService(JobsServiceInterface):
         """
         self.job_repository = job_repository or JobRepository()
 
-    def get_all_jobs(self, include_dismissed: bool = False) -> list[Job]:
+    def get_all_jobs(self) -> list[Job]:
         """Get all jobs sorted by creation time (newest first)."""
-        if include_dismissed:
-            jobs = self.job_repository.get_all_jobs()
-        else:
-            jobs = self.job_repository.get_active_jobs()
+        jobs = self.job_repository.get_all_jobs()
+        return sorted(jobs, key=self._get_created_time, reverse=True)
 
-        def get_created_time(job):
-            if job.created_at is None:
-                # Return minimum datetime so None values sort last when reverse=True
-                return datetime.min.replace(tzinfo=timezone.utc)
-
-            if job.created_at.tzinfo is None:
-                return job.created_at.replace(tzinfo=timezone.utc)
-            return job.created_at
-
-        return sorted(jobs, key=get_created_time, reverse=True)
-
-    def get_active_jobs(self) -> list[Job]:
-        """Get all non-dismissed jobs (for main queue display)."""
-        return self.get_all_jobs(include_dismissed=False)
-
-    def get_dismissed_jobs(self) -> list[Job]:
-        """Get all dismissed jobs."""
-        jobs = self.job_repository.get_dismissed_jobs()
-
-        def get_created_time(job):
-            if job.created_at is None:
-                return datetime.min.replace(tzinfo=timezone.utc)
-            if job.created_at.tzinfo is None:
-                return job.created_at.replace(tzinfo=timezone.utc)
-            return job.created_at
-
-        return sorted(jobs, key=get_created_time, reverse=True)
+    def get_in_flight_jobs(self) -> list[Job]:
+        """Get jobs that are actively being processed (pending, downloading, processing)."""
+        jobs = self.job_repository.get_in_flight_jobs()
+        return sorted(jobs, key=self._get_created_time, reverse=True)
 
     def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
         """Get all jobs with a specific status."""
@@ -82,7 +57,6 @@ class JobsService(JobsServiceInterface):
             return None
 
         response = job.to_dict()
-
 
         # Estimate completion time if processing
         if job.status == JobStatus.PROCESSING and job.started_at:
@@ -126,33 +100,17 @@ class JobsService(JobsServiceInterface):
 
         return True
 
-    def dismiss_job(self, job_id: str) -> bool:
+    def delete_job(self, job_id: str) -> bool:
         """
-        Dismiss a completed, failed, or cancelled job from the UI.
-        Job is hidden but kept in database for potential retry.
+        Delete a job record from the database.
 
         Returns:
-            True if job was successfully dismissed,
-            False if job not found or cannot be dismissed
+            True if job was successfully deleted, False otherwise
         """
-        job = self.job_repository.get_job(job_id)
-        if not job:
-            return False
-
-        # Check if job can be dismissed (only final states)
-        if job.status not in [
-            JobStatus.COMPLETED,
-            JobStatus.FAILED,
-            JobStatus.CANCELLED,
-        ]:
-            return False
-
-        # Use the job repository's dismiss method
-        return self.job_repository.dismiss_job(job_id)
+        return self.job_repository.delete_job(job_id)
 
     def get_statistics(self) -> "dict[str, int]":
         """Get statistics about jobs."""
-        # If JobRepository has get_stats, use it; otherwise, compute manually
         if hasattr(self.job_repository, "get_stats"):
             return self.job_repository.get_stats()
         jobs = self.job_repository.get_all_jobs()
@@ -169,15 +127,17 @@ class JobsService(JobsServiceInterface):
         }
         return stats
 
+    @staticmethod
+    def _get_created_time(job: Job) -> datetime:
+        if job.created_at is None:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        if job.created_at.tzinfo is None:
+            return job.created_at.replace(tzinfo=timezone.utc)
+        return job.created_at
+
     def _estimate_completion_time(self, job: Job) -> Optional[datetime]:
         """
         Estimate completion time for a processing job based on current progress.
-
-        Args:
-            job: The job to estimate completion time for
-
-        Returns:
-            Estimated completion datetime, or None if cannot be estimated
         """
         if not job.started_at or job.progress <= 0:
             return None
@@ -186,7 +146,6 @@ class JobsService(JobsServiceInterface):
         if elapsed_time <= 0:
             return None
 
-        # Estimate based on current progress
         time_per_percent = elapsed_time / job.progress
         remaining_percent = 100 - job.progress
         estimated_remaining = remaining_percent * time_per_percent

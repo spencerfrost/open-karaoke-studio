@@ -329,13 +329,8 @@ class YouTubeService(YouTubeServiceInterface):
             job_id = str(uuid.uuid4())
 
             # Create and save job to database FIRST, before queuing Celery task
-            import json
-
             from app.db.models import Job, JobStatus
             from app.repositories import JobRepository
-
-            # Store video_id in notes for reference
-            job_notes = json.dumps({"video_id": video_id})
 
             job = Job(
                 id=job_id,
@@ -346,7 +341,6 @@ class YouTubeService(YouTubeServiceInterface):
                 song_id=song_id,
                 title=title or "Unknown Title",
                 artist=artist or "Unknown Artist",
-                notes=job_notes,
                 created_at=datetime.now(timezone.utc),
             )
 

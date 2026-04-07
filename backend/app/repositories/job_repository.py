@@ -51,8 +51,7 @@ class JobRepository:
                         started_at=job.started_at,
                         completed_at=job.completed_at,
                         error=job.error,
-                        notes=job.notes,
-                        dismissed=job.dismissed,
+                        engine_type=job.engine_type,
                     )
                     session.add(db_job)
                 else:
@@ -67,8 +66,7 @@ class JobRepository:
                     db_job.started_at = job.started_at  # type: ignore
                     db_job.completed_at = job.completed_at  # type: ignore
                     db_job.error = job.error  # type: ignore
-                    db_job.notes = job.notes  # type: ignore
-                    db_job.dismissed = job.dismissed  # type: ignore
+                    db_job.engine_type = job.engine_type  # type: ignore
 
                 session.flush()
                 session.commit()
@@ -104,7 +102,7 @@ class JobRepository:
         except Exception as e:
             logger.error("Error saving job %s: %s", job.id, e)
             traceback.print_exc()
-            raise  # Re-raise to ensure calling code knows about the failure  # Re-raise to ensure calling code knows about the failure  # Re-raise to ensure calling code knows about the failure
+            raise
 
     def get_job(self, job_id: str) -> Optional[Job]:
         """Retrieve a job from the database by its ID."""
@@ -130,7 +128,7 @@ class JobRepository:
         return self.get_job(job_id)
 
     def update(self, job: Job, skip_events: bool = False) -> None:
-        """Update an existing job in the database (standard naming convention).
+        """Update an existing job in the database.
 
         Args:
             job: The job to update
@@ -163,6 +161,25 @@ class JobRepository:
             )
             return []
 
+    def get_in_flight_jobs(self) -> List[Job]:
+        """Get jobs that are actively being processed (pending, downloading, processing)."""
+        try:
+            in_flight_statuses = [
+                JobStatus.PENDING.value,
+                JobStatus.DOWNLOADING.value,
+                JobStatus.PROCESSING.value,
+            ]
+            with self.get_db_session() as session:
+                db_jobs = (
+                    session.query(DbJob)
+                    .filter(DbJob.status.in_(in_flight_statuses))
+                    .all()
+                )
+                return [db_job.to_job() for db_job in db_jobs]
+        except Exception as e:
+            logger.error("Error getting in-flight jobs: %s", e, exc_info=True)
+            return []
+
     def delete_job(self, job_id: str) -> bool:
         """Delete a job from the database."""
         try:
@@ -175,25 +192,6 @@ class JobRepository:
                 return False
         except Exception as e:
             logger.error("Error deleting job %s: %s", job_id, e, exc_info=True)
-            return False
-
-    def dismiss_job(self, job_id: str) -> bool:
-        """Mark a job as dismissed (hidden from UI but kept in database)."""
-        try:
-            with self.get_db_session() as session:
-                db_job = session.query(DbJob).filter(DbJob.id == job_id).first()
-                if db_job:
-                    db_job.dismissed = True  # type: ignore
-                    session.commit()
-                    # Emit event instead of directly calling broadcast function
-                    job = db_job.to_job()
-                    from app.utils.events import publish_job_event
-
-                    publish_job_event(job.id, job.to_dict(), False)
-                    return True
-                return False
-        except Exception as e:
-            logger.error("Error dismissing job %s: %s", job_id, e, exc_info=True)
             return False
 
     def get_stats(self) -> dict[str, int]:
@@ -246,23 +244,3 @@ class JobRepository:
                 "raw_failed": 0,
                 "raw_cancelled": 0,
             }
-
-    def get_active_jobs(self) -> List[Job]:
-        """Get all non-dismissed jobs for the main UI."""
-        try:
-            with self.get_db_session() as session:
-                db_jobs = session.query(DbJob).filter(DbJob.dismissed.is_(False)).all()
-                return [db_job.to_job() for db_job in db_jobs]
-        except Exception as e:
-            logger.error("Error getting active jobs: %s", e, exc_info=True)
-            return []
-
-    def get_dismissed_jobs(self) -> List[Job]:
-        """Get all dismissed jobs for management/history view."""
-        try:
-            with self.get_db_session() as session:
-                db_jobs = session.query(DbJob).filter(DbJob.dismissed.is_(True)).all()
-                return [db_job.to_job() for db_job in db_jobs]
-        except Exception as e:
-            logger.error("Error getting dismissed jobs: %s", e, exc_info=True)
-            return []

@@ -23,7 +23,7 @@ def cleanup_stuck_jobs():
             job.error = "Job was stuck in non-terminal state on startup."
             job.completed_at = now
             repo.update(job)
-            repo.dismiss_job(job.id)
+            repo.delete_job(job.id)
             cleaned += 1
     if cleaned:
         logger.info("Marked %d stuck jobs as failed on startup.", cleaned)

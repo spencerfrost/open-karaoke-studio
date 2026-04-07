@@ -256,6 +256,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.progress = 100
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
 
         _broadcast_job_event(job)
 
@@ -274,6 +275,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
@@ -288,6 +290,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.error = error_message
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
         return {
             "status": "error",
             "job_id": job_id,
@@ -1404,6 +1407,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.status_message = "Processing complete"
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
 
         _broadcast_job_event(job)
 
@@ -1424,6 +1428,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.error = "Processing was manually stopped"
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
         if song_dir.exists():
             shutil.rmtree(song_dir)
         logger.info("Job %s was cancelled", job_id)
@@ -1439,6 +1444,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.error = error_message
         job.completed_at = datetime.now()
         job_repository.update(job)
+        job_repository.delete_job(job.id)
         _t.setdefault("job_end", time.perf_counter())
         _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="failed", error=error_message)
         return {"status": "error", "job_id": job_id, "error": error_message}
@@ -1471,11 +1477,9 @@ def _handle_job_event(event):
                 error=job_data.get("error"),
                 task_id=job_data.get("task_id"),
                 song_id=job_data.get("song_id"),
-                notes=job_data.get("notes"),
                 created_at=job_data.get("created_at"),
                 started_at=job_data.get("started_at"),
                 completed_at=job_data.get("completed_at"),
-                dismissed=job_data.get("dismissed", False),
             )
 
             # Use the existing broadcast function

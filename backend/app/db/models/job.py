@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text
 
 from .base import Base
 
@@ -21,7 +21,6 @@ class JobStatus(str, Enum):
     PENDING = "pending"
     DOWNLOADING = "downloading"
     PROCESSING = "processing"
-    FINALIZING = "finalizing"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -44,8 +43,6 @@ class Job:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
-    notes: Optional[str] = None
-    dismissed: bool = False  # Track if job is dismissed from UI
     engine_type: Optional[str] = None  # Separation engine used (e.g., 'demucs', 'roformer', 'hybrid')
 
     def __post_init__(self):
@@ -85,14 +82,7 @@ class DbJob(Base):
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
-    dismissed = Column(Boolean, default=False)  # Track if job is dismissed from UI
     engine_type = Column(String, nullable=True)  # Separation engine used
-
-    # Legacy fields that exist in database
-    phase_message = Column(Text, nullable=True)
-    phase = Column(String, nullable=False, default="created")
-    retry_count = Column(Integer, default=0)
 
     def to_job(self) -> Job:
         """Convert database job to domain job object."""
@@ -110,7 +100,5 @@ class DbJob(Base):
             started_at=self.started_at,  # type: ignore[assignment]
             completed_at=self.completed_at,  # type: ignore[assignment]
             error=self.error,  # type: ignore[assignment]
-            notes=self.notes,  # type: ignore[assignment]
-            dismissed=self.dismissed or False,  # type: ignore[assignment]
             engine_type=self.engine_type,  # type: ignore[assignment]
         )

@@ -20,8 +20,6 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
         return "Downloading";
       case "processing":
         return `Separating Audio ${status.progress}%`;
-      case "finalizing":
-        return `Finalizing ${status.progress}%`;
       case "failed":
       case "cancelled":
         return "Failed";

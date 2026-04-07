@@ -33,7 +33,6 @@ function mapBackendStatus(backendStatus: string): SongStatus {
       return "queued";
     case "downloading":
     case "processing":
-    case "finalizing":
       return "processing";
     case "completed":
       return "processed";
@@ -141,7 +140,7 @@ export function useJobsWebSocket() {
     (data: { jobs: JobData[] }) => {
       const processingJobs = data.jobs
         .filter((job) =>
-          ["pending", "downloading", "processing", "finalizing"].includes(job.status),
+          ["pending", "downloading", "processing"].includes(job.status),
         )
         .map(mapJobToProcessingStatus);
 

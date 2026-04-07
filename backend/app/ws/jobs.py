@@ -8,8 +8,6 @@ Replaces Flask-SocketIO with native FastAPI WebSocket support.
 import asyncio
 import json
 import logging
-from datetime import datetime
-from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -22,28 +20,14 @@ logger = logging.getLogger(__name__)
 
 
 async def get_current_jobs_list():
-    """
-    Get current jobs list using the real JobsService.
-    Updated for PostgreSQL compatibility.
-    """
+    """Get currently in-flight jobs (pending, downloading, processing)."""
     try:
-        # Use the existing JobsService which handles PostgreSQL properly
         jobs_service = JobsService()
-        jobs = await asyncio.to_thread(jobs_service.get_all_jobs)
+        jobs = await asyncio.to_thread(jobs_service.get_in_flight_jobs)
         return [job.to_dict() for job in jobs]
     except Exception as e:
-        logger.error("Error getting jobs list from PostgreSQL: %s", e)
-        # Fallback to mock data if service fails
-        return [
-            {
-                "id": "demo-job-1",
-                "status": "processing",
-                "progress": 45,
-                "filename": "demo-song.mp3",
-                "task_id": "demo-task-123",
-                "created_at": datetime.now().isoformat(),
-            }
-        ]
+        logger.error("Error getting in-flight jobs list: %s", e)
+        return []
 
 
 async def websocket_jobs_endpoint(
