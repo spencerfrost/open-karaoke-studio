@@ -277,7 +277,11 @@ def detect_bpm(
 
         # Prefer instrumental track for cleaner beat detection
         analysis_path = instrumental_path if instrumental_path and instrumental_path.exists() else audio_path
-        logger.info(f"BPM detection using: {analysis_path} ({'instrumental' if analysis_path == instrumental_path else 'original'})")
+        logger.debug(
+            "BPM detection using: %s (%s)",
+            analysis_path,
+            "instrumental" if analysis_path == instrumental_path else "original",
+        )
 
         # Load audio with reduced sample rate for faster processing (limit to 90 seconds)
         y, sr = librosa.load(str(analysis_path), sr=22050, duration=90)
@@ -298,11 +302,11 @@ def detect_bpm(
             # Add top 3 tempo estimates from onset detection
             tempo_estimates.extend([float(t) for t in tempo_onset[:3]])
 
-        logger.info(f"Raw tempo estimates: {tempo_estimates}")
+        logger.debug("Raw tempo estimates: %s", tempo_estimates)
 
         # Filter out harmonic multiples/divisors
         filtered_tempos = _filter_harmonic_duplicates(tempo_estimates)
-        logger.info(f"Filtered tempo estimates (harmonics removed): {filtered_tempos}")
+        logger.debug("Filtered tempo estimates (harmonics removed): %s", filtered_tempos)
 
         # Choose best tempo from filtered estimates
         bpm = _select_best_tempo(filtered_tempos)
@@ -310,8 +314,10 @@ def detect_bpm(
 
         status_callback(f"BPM detected: {bpm_rounded}")
         logger.info(
-            f"BPM detection complete: {bpm_rounded} BPM "
-            f"(from {len(tempo_estimates)} estimates, {len(filtered_tempos)} after filtering)"
+            "BPM detection complete: %.1f BPM (from %d estimates, %d after filtering)",
+            bpm_rounded,
+            len(tempo_estimates),
+            len(filtered_tempos),
         )
 
         return bpm_rounded
@@ -434,7 +440,7 @@ def save_stem(
     save_msg = f"Saving {stem_type} ({output_extension.upper().lstrip('.')})..."
     logger.info(save_msg)
     status_callback(save_msg)
-    logger.info(f"[AUDIO DEBUG] Attempting to save {stem_type} to: {path}")
+    logger.debug("Attempting to save %s to: %s", stem_type, path)
     try:
         if output_extension == ".mp3":
             save_audio(
@@ -453,9 +459,9 @@ def save_stem(
             )
         else:
             save_audio(tensor, str(path), separator_samplerate)
-        logger.info(f"[AUDIO DEBUG] Saved {stem_type} to: {path}")
+        logger.debug("Saved %s to: %s", stem_type, path)
     except Exception as e:
-        logger.error(f"[AUDIO DEBUG] Exception occurred while saving {stem_type}: {e}")
+        logger.error("Exception occurred while saving %s: %s", stem_type, e)
         status_callback(f"** Error saving {stem_type}: {e} **")
         raise
 

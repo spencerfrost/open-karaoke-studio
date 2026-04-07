@@ -120,12 +120,12 @@ def cleanup_session_performance_state(session_id: str):
     """Clean up performance state for a specific session when it ends."""
     if session_id in session_performance_states:
         del session_performance_states[session_id]
-        logger.info(f"🧹 Cleaned up performance state for session {session_id}")
+        logger.debug("🧹 Cleaned up performance state for session %s", session_id)
 
     # Also clean up the lock
     if session_id in session_cleanup_locks:
         del session_cleanup_locks[session_id]
-        logger.info(f"🔓 Cleaned up lock for session {session_id}")
+        logger.debug("🔓 Cleaned up lock for session %s", session_id)
 
 
 async def websocket_unified_session_endpoint(
@@ -413,10 +413,10 @@ async def websocket_unified_session_endpoint(
                                     db.delete(session)
                                     db.commit()
                                     logger.info(
-                                        f"🗑️  Session {session_id} deleted from database (code recycled)"
+                                        "🗑️  Session %s deleted from database (code recycled)", session_id
                                     )
                         except Exception as e:
-                            logger.error(f"❌ Failed to delete session from database: {e}")
+                            logger.error("❌ Failed to delete session from database: %s", e)
 
                         # Force close all other connections in this session
                         if session_room in manager.rooms:

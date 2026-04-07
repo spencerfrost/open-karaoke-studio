@@ -166,7 +166,7 @@ async def get_current_queue_state(session_id: str):
                 "pending": pending_data,
             }
     except Exception as e:
-        logger.error(f"Error getting queue state from PostgreSQL: {e}")
+        logger.error("Error getting queue state from PostgreSQL: %s", e)
         return {"current": None, "upcoming": [], "items": []}
 
 

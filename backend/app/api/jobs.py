@@ -88,7 +88,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error("Database session error: %s", e)
         db.rollback()
         raise
     finally:
@@ -157,7 +157,7 @@ async def get_jobs(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching jobs: {e}", exc_info=True)
+        logger.error("Error fetching jobs: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch jobs: {str(e)}")
 
 
@@ -171,7 +171,7 @@ async def get_dismissed_jobs(jobs_service: JobsService = Depends(get_jobs_servic
         return JobListResponse(jobs=[job.to_dict() for job in jobs])
 
     except Exception as e:
-        logger.error(f"Error fetching dismissed jobs: {e}", exc_info=True)
+        logger.error("Error fetching dismissed jobs: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch dismissed jobs: {str(e)}")
 
 

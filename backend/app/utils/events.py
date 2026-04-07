@@ -80,7 +80,7 @@ class EventBus:
             if event_name not in self._subscribers:
                 self._subscribers[event_name] = []
             self._subscribers[event_name].append(handler)
-            logger.debug(f"Subscribed handler to '{event_name}' event")
+            logger.debug("Subscribed handler to '%s' event", event_name)
 
     def unsubscribe(self, event_name: str, handler: Callable[[Event], None]) -> None:
         """
@@ -94,9 +94,9 @@ class EventBus:
             if event_name in self._subscribers:
                 try:
                     self._subscribers[event_name].remove(handler)
-                    logger.debug(f"Unsubscribed handler from '{event_name}' event")
+                    logger.debug("Unsubscribed handler from '%s' event", event_name)
                 except ValueError:
-                    logger.warning(f"Handler not found for '{event_name}' event")
+                    logger.warning("Handler not found for '%s' event", event_name)
 
     def publish(self, event: Event) -> None:
         """
@@ -110,17 +110,17 @@ class EventBus:
 
         if subscribers:
             logger.debug(
-                f"Publishing '{event.name}' event to {len(subscribers)} subscribers"
+                "Publishing '%s' event to %d subscribers", event.name, len(subscribers)
             )
             for handler in subscribers:
                 try:
                     handler(event)
                 except Exception as e:
                     logger.error(
-                        f"Error in event handler for '{event.name}': {e}", exc_info=True
+                        "Error in event handler for '%s': %s", event.name, e, exc_info=True
                     )
         else:
-            logger.debug(f"No subscribers for '{event.name}' event")
+            logger.debug("No subscribers for '%s' event", event.name)
 
     def clear_subscribers(self, event_name: str = None) -> None:
         """
@@ -132,7 +132,7 @@ class EventBus:
         with self._subscribers_lock:
             if event_name:
                 self._subscribers.pop(event_name, None)
-                logger.debug(f"Cleared all subscribers for '{event_name}' event")
+                logger.debug("Cleared all subscribers for '%s' event", event_name)
             else:
                 self._subscribers.clear()
                 logger.debug("Cleared all event subscribers")

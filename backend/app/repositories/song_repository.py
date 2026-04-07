@@ -156,7 +156,7 @@ class SongRepository:
         
         song = self.fetch(song_id)
         if not song:
-            logger.warning(f"Song {song_id} not found for update")
+            logger.warning("Song %s not found for update", song_id)
             return None
             
         for key, value in fields.items():
@@ -164,7 +164,7 @@ class SongRepository:
         self.db.commit()
         self.db.refresh(song)
         
-        logger.debug(f"Successfully updated song {song_id}")
+        logger.debug("Successfully updated song %s", song_id)
         return song
 
     def find_duplicates(self) -> list[list[DbSong]]:

@@ -112,10 +112,10 @@ class JobsService(JobsServiceInterface):
         if job.task_id:
             try:
                 celery.control.revoke(job.task_id, terminate=True, signal="SIGTERM")
-                logger.info(f"Revoked Celery task {job.task_id} for job {job_id}")
+                logger.info("Revoked Celery task %s for job %s", job.task_id, job_id)
             except Exception as e:
                 logger.warning(
-                    f"Failed to revoke Celery task {job.task_id}: {e}", exc_info=True
+                    "Failed to revoke Celery task %s: %s", job.task_id, e, exc_info=True
                 )
 
         # Update job status

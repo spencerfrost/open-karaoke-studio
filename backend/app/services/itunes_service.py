@@ -45,30 +45,26 @@ def search_itunes(
             "country": "US",  # Can be made configurable
         }
 
-        logger.info(
+        logger.debug(
             "Searching iTunes with query: '%s' (limit: %s)",
             search_query,
             params["limit"],
         )
 
-        # Log the full request details
         url = "https://itunes.apple.com/search"
         headers = {"User-Agent": "curl/8.0.0", "Accept": "*/*"}
 
-        logging.debug("iTunes API Request Details:")
-        logging.debug("  URL: %s", url)
-        logging.debug("  Params: %s", params)
-        logging.debug("  Headers: %s", headers)
+        logger.debug("iTunes request: url=%s params=%s", url, params)
 
         # Make API request with one retry on 429 (rate limit)
         for _attempt in range(2):
             response = requests.get(url, params=params, timeout=10, headers=headers)
 
-            # Log response details before checking status
-            logging.debug("iTunes API Response Details:")
-            logging.debug("  Status Code: %s", response.status_code)
-            logging.debug("  Headers: %s", dict(response.headers))
-            logging.debug("  URL Used: %s", response.url)
+            logger.debug(
+                "iTunes response: status=%s url=%s",
+                response.status_code,
+                response.url,
+            )
 
             if response.status_code == 429 and _attempt == 0:
                 retry_after = int(response.headers.get("Retry-After", 30))
@@ -85,7 +81,7 @@ def search_itunes(
         data = response.json()
         results = data.get("results", [])
 
-        logger.info("iTunes returned %s raw results", len(results))
+        logger.debug("iTunes returned %s raw results", len(results))
 
         matches = []
         for i, track in enumerate(results):
@@ -128,7 +124,7 @@ def search_itunes(
                         track_data["releaseYear"] = None
                         track_data["releaseDateFormatted"] = None
 
-                logging.debug(
+                logger.debug(
                     "iTunes result %s: '%s' by %s (%s)",
                     i + 1,
                     track_data["title"],
@@ -149,50 +145,40 @@ def search_itunes(
         return filtered_matches[:limit]
 
     except requests.RequestException as e:
-        logger.error("iTunes API request error for query '%s': %s", search_query, e)
-
-        # Log detailed error information
         if hasattr(e, "response") and e.response is not None:
-            response = e.response
-            logger.error("iTunes API Error Details:")
-            logger.error("  Status Code: %s", response.status_code)
-            logger.error("  Reason: %s", response.reason)
-            logger.error("  URL: %s", response.url)
-            logger.error("  Response Headers: %s", dict(response.headers))
-
-            # Try to get response content for more details
+            r = e.response
             try:
-                content = response.text[:1000]  # First 1000 chars to avoid huge logs
-                if content:
-                    logger.error("  Response Body (first 1000 chars): %s", content)
+                body_preview = r.text[:500]
             except Exception:
-                logger.error("  Could not read response body")
-
-            # Log specific error analysis for common HTTP status codes
-            if response.status_code == 403:
-                logger.error("  403 Forbidden Error Analysis:")
-                logger.error("  - This may indicate rate limiting by Apple")
-                logger.error("  - Your IP might be temporarily blocked")
-                logger.error("  - Apple may have changed their API access policies")
-                logger.error(
-                    "  - Consider adding delays between requests or changing User-Agent"
+                body_preview = "(unreadable)"
+            logger.error(
+                "iTunes API error for query %r: HTTP %s %s | url=%s | body=%s",
+                search_query,
+                r.status_code,
+                r.reason,
+                r.url,
+                body_preview,
+                exc_info=True,
+            )
+            if r.status_code == 403:
+                logger.warning(
+                    "iTunes 403: possible IP block or policy change — consider adding request delays"
                 )
-            elif response.status_code == 429:
-                logger.error("  429 Too Many Requests - Rate limit exceeded")
-                retry_after = response.headers.get("Retry-After")
-                if retry_after:
-                    logger.error("  Retry after: %s seconds", retry_after)
-            elif response.status_code >= 500:
-                logger.error("  Server error on Apple's side - may be temporary")
+            elif r.status_code == 429:
+                logger.warning(
+                    "iTunes 429: retry after %s seconds",
+                    r.headers.get("Retry-After", "unknown"),
+                )
         else:
-            logger.error("  Network error (no response): %s", type(e).__name__)
+            logger.error(
+                "iTunes network error for query %r: %s",
+                search_query,
+                type(e).__name__,
+                exc_info=True,
+            )
 
     except Exception as e:
-        logger.error("iTunes search error for query '%s': %s", search_query, e)
-        logger.error("  Error type: %s", type(e).__name__)
-        import traceback
-
-        logger.error("  Stack trace: %s", traceback.format_exc())
+        logger.error("iTunes search error for query %r: %s", search_query, e, exc_info=True)
 
     return []
 
@@ -222,21 +208,19 @@ def lookup_itunes(track_id: int) -> dict[str, Any] | None:
             "entity": "song",
         }
         
-        logger.info("Looking up iTunes track ID: %s", track_id)
-        
+        logger.debug("Looking up iTunes track ID: %s", track_id)
+
         headers = {"User-Agent": "curl/8.0.0", "Accept": "*/*"}
-        
-        logging.debug("iTunes Lookup API Request Details:")
-        logging.debug("  URL: %s", url)
-        logging.debug("  Params: %s", params)
-        logging.debug("  Headers: %s", headers)
-        
+
+        logger.debug("iTunes lookup request: url=%s params=%s", url, params)
+
         response = requests.get(url, params=params, timeout=10, headers=headers)
-        
-        logging.debug("iTunes Lookup API Response Details:")
-        logging.debug("  Status Code: %s", response.status_code)
-        logging.debug("  Headers: %s", dict(response.headers))
-        logging.debug("  URL Used: %s", response.url)
+
+        logger.debug(
+            "iTunes lookup response: status=%s url=%s",
+            response.status_code,
+            response.url,
+        )
         
         response.raise_for_status()
         
@@ -250,8 +234,12 @@ def lookup_itunes(track_id: int) -> dict[str, Any] | None:
         # iTunes lookup returns the track as the first result
         track = results[0]
         
-        logger.info("iTunes lookup successful for track ID %s: '%s' by %s", 
-                   track_id, track.get("trackName"), track.get("artistName"))
+        logger.debug(
+            "iTunes lookup successful for track ID %s: '%s' by %s",
+            track_id,
+            track.get("trackName"),
+            track.get("artistName"),
+        )
         
         # Extract comprehensive metadata
         track_data = {
@@ -325,31 +313,32 @@ def lookup_itunes(track_id: int) -> dict[str, Any] | None:
         return track_data
         
     except requests.RequestException as e:
-        logger.error("iTunes lookup API request error for track ID %s: %s", track_id, e)
-        
         if hasattr(e, "response") and e.response is not None:
-            response = e.response
-            logger.error("iTunes Lookup API Error Details:")
-            logger.error("  Status Code: %s", response.status_code)
-            logger.error("  Reason: %s", response.reason)
-            logger.error("  URL: %s", response.url)
-            
+            r = e.response
             try:
-                content = response.text[:1000]
-                if content:
-                    logger.error("  Response Body (first 1000 chars): %s", content)
+                body_preview = r.text[:500]
             except Exception:
-                logger.error("  Could not read response body")
+                body_preview = "(unreadable)"
+            logger.error(
+                "iTunes lookup API error for track ID %s: HTTP %s %s | url=%s | body=%s",
+                track_id,
+                r.status_code,
+                r.reason,
+                r.url,
+                body_preview,
+                exc_info=True,
+            )
         else:
-            logger.error("  Network error (no response): %s", type(e).__name__)
-            
+            logger.error(
+                "iTunes lookup network error for track ID %s: %s",
+                track_id,
+                type(e).__name__,
+                exc_info=True,
+            )
         return None
-        
+
     except Exception as e:
-        logger.error("iTunes lookup error for track ID %s: %s", track_id, e)
-        logger.error("  Error type: %s", type(e).__name__)
-        import traceback
-        logger.error("  Stack trace: %s", traceback.format_exc())
+        logger.error("iTunes lookup error for track ID %s: %s", track_id, e, exc_info=True)
         return None
 
 
@@ -421,11 +410,11 @@ def _filter_canonical_releases(
     # Sort by score (highest first), keeping iTunes' date sorting as secondary
     scored_tracks.sort(key=lambda x: x["score"], reverse=True)
 
-    # Log the ranking
-    logger.info("iTunes canonical ranking:")
+    # Log the ranking at debug level — useful when investigating match quality
+    logger.debug("iTunes canonical ranking:")
     for i, item in enumerate(scored_tracks[:5]):  # Show top 5
         track = item["track"]
-        logger.info(
+        logger.debug(
             "%s. '%s' by %s [%s] - Score: %.1f",
             i + 1,
             track.get("title", "Unknown"),
@@ -460,7 +449,7 @@ def fetch_and_assign_album_art(song_id: str, title: str, artist: str) -> bool:
     artwork_url = track.get("artworkUrl100")
 
     if not collection_id or not artwork_url:
-        logger.info("iTunes: missing collection_id or artwork for '%s' by '%s'", title, artist)
+        logger.warning("iTunes: missing collection_id or artwork for '%s' by '%s'", title, artist)
         return False
 
     # Download the cover image
@@ -514,7 +503,7 @@ def _download_itunes_cover(collection_id: int, artwork_url_100: str) -> str | No
         response = requests.get(url_600, timeout=10, headers={"User-Agent": "curl/8.0.0"})
         response.raise_for_status()
         dest.write_bytes(response.content)
-        logger.info("Downloaded iTunes cover for collection %s", collection_id)
+        logger.debug("Downloaded iTunes cover for collection %s", collection_id)
         return f"covers/{collection_id}.jpg"
     except Exception as e:
         logger.warning("Failed to download iTunes cover for collection %s: %s", collection_id, e)

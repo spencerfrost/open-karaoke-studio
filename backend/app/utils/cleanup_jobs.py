@@ -26,4 +26,4 @@ def cleanup_stuck_jobs():
             repo.dismiss_job(job.id)
             cleaned += 1
     if cleaned:
-        logger.info(f"Marked {cleaned} stuck jobs as failed on startup.")
+        logger.info("Marked %d stuck jobs as failed on startup.", cleaned)

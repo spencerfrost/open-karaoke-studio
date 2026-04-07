@@ -214,20 +214,6 @@ def process_audio_job(self, job_id, engine_type="three_track"):
                     "message": message,
                 },
             )
-        # Enhanced logging with structured data - only for milestones
-        if should_save:
-            structured_logger.info(
-                "Job progress: %s%% - %s",
-                progress,
-                message,
-                extra={
-                    "job_id": job_id,
-                    "progress": progress,
-                    "status": "processing",
-                    "filename": filename,
-                    "message": message,
-                },
-            )
         # Only log major progress milestones to reduce noise
         if progress % 25 == 0 or progress >= 95:
             logger.info("Job %s progress: %s%% - %s", job_id, progress, message)
@@ -275,7 +261,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
 
         # Dispatch secondary enrichment task (fire-and-forget)
         celery.send_task("post_process_song", args=[song_id])
-        logger.info("Dispatched post_process_song for song %s", song_id)
+        logger.debug("Dispatched post_process_song for song %s", song_id)
 
         return {
             "status": "success",
@@ -315,7 +301,7 @@ def cleanup_old_jobs(self):
     """
     Periodically clean up old job records and temporary files
     """
-    logger.info("Running job cleanup task")
+    logger.debug("Running job cleanup task")
     # Implement cleanup logic here
 
 
@@ -912,7 +898,7 @@ def fingerprint_single_song(song_id: str) -> dict:
             logger.exception("fingerprint_single_song: failed for song %s", song_id)
 
     # AcoustID may have corrected title/artist — resolve credits against latest data
-    logger.info("[PIPELINE] fingerprint complete — dispatching enrich_song_artist_credits for song %s", song_id)
+    logger.debug("[PIPELINE] fingerprint complete — dispatching enrich_song_artist_credits for song %s", song_id)
     celery.send_task("enrich_song_artist_credits", args=[song_id])
 
     return {"status": "ok", "song_id": song_id}
@@ -1264,7 +1250,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
     # Dispatch artwork early — no audio dependency, only needs title/artist from DB
     celery.send_task("fetch_song_artwork", args=[song_id])
-    logger.info("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
+    logger.debug("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
 
     def update_progress(progress, message, status=None):
         """Update job progress and status.
@@ -1347,7 +1333,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         # Dispatch tasks that only need original.mp3
         celery.send_task("fingerprint_single_song", args=[song_id])
         celery.send_task("detect_song_loudness", args=[song_id])
-        logger.info("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
+        logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
 
         # Phase 2: Audio Processing (30-90% progress)
         original_file = song_dir / "original.mp3"
@@ -1376,14 +1362,13 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         def on_vocals_ready(vocals_path: Path) -> None:
             """Dispatch vocal analysis tasks as soon as vocals.mp3 is available (~70%)."""
             _t["vocals_ready"] = time.perf_counter()
-            logger.info(
-                "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching detect_song_vocal_range + align_song_lyrics for song %s",
+            logger.debug(
+                "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
                 vocals_path.stat().st_size if vocals_path.exists() else "missing",
                 song_id,
             )
             celery.send_task("detect_song_vocal_range", args=[song_id])
             celery.send_task("align_song_lyrics", args=[song_id])
-            logger.info("[PIPELINE] ~70%% — detect_song_vocal_range + align_song_lyrics queued for song %s", song_id)
 
         success, _ = select_and_run_separation_engine(
             engine_type=engine_type,
@@ -1424,7 +1409,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         # Dispatch chord detection — requires instrumental.mp3 which is now available
         celery.send_task("detect_song_chords", args=[song_id])
-        logger.info("[PIPELINE] ~100%% — dispatched detect_song_chords for song %s", song_id)
+        logger.debug("[PIPELINE] ~100%% — dispatched detect_song_chords for song %s", song_id)
 
         _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="completed")
 

@@ -79,7 +79,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error("Database session error: %s", e)
         db.rollback()
         raise
     finally:
@@ -153,8 +153,6 @@ async def get_songs(
     - **sort_by**: Field to sort by (date_added, title, artist, album, year)
     - **direction**: Sort direction (asc or desc)
     """
-    logger.info("Received request for /api/songs")
-
     # Validate sort_by and direction
     sort_by = validate_sort_field(sort_by, VALID_SONG_SORT_FIELDS)
     direction = validate_direction(direction)
@@ -166,11 +164,11 @@ async def get_songs(
         )
 
         response_data = [song.to_dict() for song in songs]
-        logger.info(f"Returning {len(response_data)} songs.")
+        logger.debug("Returning %d songs.", len(response_data))
         return response_data
 
     except Exception as e:
-        logger.error(f"Error retrieving songs: {e}", exc_info=True)
+        logger.error("Error retrieving songs: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve songs: {str(e)}"
         )
@@ -276,7 +274,7 @@ async def search_songs(
             )
 
     except Exception as e:
-        logger.error(f"Error searching songs: {e}", exc_info=True)
+        logger.error("Error searching songs: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to search songs: {str(e)}")
 
 
@@ -343,7 +341,7 @@ async def get_artists(
         }
 
     except Exception as e:
-        logger.error(f"Error getting artists: {e}", exc_info=True)
+        logger.error("Error getting artists: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get artists: {str(e)}")
 
 
@@ -663,7 +661,7 @@ async def delete_orphaned_directory(
 
     file_service = FileService()
     file_service.delete_song_files(dir_name)
-    logger.info(f"Deleted orphaned directory: {dir_name}")
+    logger.info("Deleted orphaned directory: %s", dir_name)
     return {"message": f"Orphaned directory '{dir_name}' deleted successfully"}
 
 
@@ -686,7 +684,7 @@ async def bulk_delete_orphaned_directories(
     for dir_name in request.dir_names:
         # Safety: reject any path traversal attempts
         if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
-            logger.warning(f"Bulk delete skipping invalid dir name: {dir_name!r}")
+            logger.warning("Bulk delete skipping invalid dir name: %r", dir_name)
             skipped += 1
             continue
 
@@ -697,14 +695,14 @@ async def bulk_delete_orphaned_directories(
 
         # Skip if a DB record exists (safety check)
         if repo.fetch(dir_name):
-            logger.warning(f"Bulk delete skipping {dir_name!r}: DB record exists")
+            logger.warning("Bulk delete skipping %r: DB record exists", dir_name)
             skipped += 1
             continue
 
         file_service.delete_song_files(dir_name)
         deleted += 1
 
-    logger.info(f"Bulk orphan delete: {deleted} deleted, {skipped} skipped")
+    logger.info("Bulk orphan delete: %d deleted, %d skipped", deleted, skipped)
     return {"deleted": deleted, "skipped": skipped}
 
 
@@ -730,7 +728,7 @@ async def bulk_delete_ghost_records(
         repo.delete(song_id)
         deleted += 1
 
-    logger.info(f"Bulk ghost delete: {deleted} deleted, {skipped} skipped")
+    logger.info("Bulk ghost delete: %d deleted, %d skipped", deleted, skipped)
     return {"deleted": deleted, "skipped": skipped}
 
 
@@ -758,7 +756,7 @@ async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching chords for song {song_id}: {e}", exc_info=True)
+        logger.error("Error fetching chords for song %s: %s", song_id, e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to get chord data: {str(e)}"
         )
@@ -799,8 +797,6 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
     """
     Get detailed information about a specific song.
     """
-    logger.info(f"Received request for song details: {song_id}")
-
     try:
         repo = SongRepository(db)
         db_song = repo.fetch(song_id)
@@ -813,7 +809,7 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching song details: {e}", exc_info=True)
+        logger.error("Error fetching song details: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to get song details: {str(e)}"
         )
@@ -825,7 +821,7 @@ async def create_song(song_data: SongCreateRequest, db: Session = Depends(get_db
     Create a new song with basic information.
     """
     song_id = song_data.id or str(uuid.uuid4())
-    logger.info(f"Creating new song with ID: {song_id}")
+    logger.info("Creating new song with ID: %s", song_id)
 
     try:
         repo = SongRepository(db)
@@ -857,20 +853,20 @@ async def create_song(song_data: SongCreateRequest, db: Session = Depends(get_db
             file_service = FileService()
             song_dir = file_service.get_song_directory(song_id)
             song_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Created directory for song: {song_dir}")
+            logger.debug("Created directory for song: %s", song_dir)
         except Exception as e:
-            logger.warning(f"Error creating directory for song {song_id}: {e}")
+            logger.warning("Error creating directory for song %s: %s", song_id, e)
 
         response = song.to_dict()
         response["status"] = "pending"
 
-        logger.info(f"Successfully created song: {song_id}")
+        logger.info("Successfully created song: %s", song_id)
         return response
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating song: {e}", exc_info=True)
+        logger.error("Error creating song: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create song: {str(e)}")
 
 
@@ -881,8 +877,6 @@ async def update_song(
     """
     Update a song with any provided fields.
     """
-    logger.info(f"Received request to update song {song_id}")
-
     try:
         repo = SongRepository(db)
         db_song = repo.fetch(song_id)
@@ -959,7 +953,7 @@ async def update_song(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating song: {e}", exc_info=True)
+        logger.error("Error updating song: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to update song: {str(e)}")
 
 
@@ -972,8 +966,6 @@ async def delete_song(
     """
     Delete a song by its ID.
     """
-    logger.info(f"Received request to delete song: {song_id}")
-
     try:
         repo = SongRepository(db)
         db_song = repo.fetch(song_id)
@@ -993,15 +985,15 @@ async def delete_song(
             file_service = FileService()
             file_service.delete_song_files(song_id)
         except Exception as e:
-            logger.warning(f"Error deleting files for song {song_id}: {e}")
+            logger.warning("Error deleting files for song %s: %s", song_id, e)
 
-        logger.info(f"Successfully deleted song: {song_id}")
+        logger.info("Successfully deleted song: %s", song_id)
         return {"message": "Song deleted successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting song: {e}", exc_info=True)
+        logger.error("Error deleting song: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete song: {str(e)}")
 
 
@@ -1043,7 +1035,7 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error serving thumbnail: {e}", exc_info=True)
+        logger.error("Error serving thumbnail: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to get thumbnail: {str(e)}"
         )
@@ -1058,7 +1050,7 @@ async def download_song_track(
 
     - **track_type**: Type of track to download (vocals, instrumental, original)
     """
-    logger.info(f"Download request for song '{song_id}', track type '{track_type}'")
+    logger.debug("Download request for song %r, track type %r", song_id, track_type)
 
     track_type = track_type.lower()
     valid_track_types = ["vocals", "instrumental", "backing-vocals", "original"]
@@ -1092,7 +1084,7 @@ async def download_song_track(
         file_path_resolved = track_file.resolve()
 
         if library_base_path not in file_path_resolved.parents:
-            logger.error(f"Attempted download outside library bounds: {track_file}")
+            logger.error("Attempted download outside library bounds: %s", track_file)
             raise HTTPException(status_code=403, detail="Access denied")
 
         return FileResponse(
@@ -1104,7 +1096,7 @@ async def download_song_track(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error downloading track: {e}", exc_info=True)
+        logger.error("Error downloading track: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to download track: {str(e)}"
         )
@@ -1208,7 +1200,7 @@ async def reprocess_song(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error starting reprocess: {e}", exc_info=True)
+        logger.error("Error starting reprocess: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to start reprocessing: {str(e)}"
         )

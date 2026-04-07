@@ -30,7 +30,7 @@ class SyncedLyricsService:
         Both plainLyrics and syncedLyrics are populated when available.
         """
         try:
-            logger.debug(f"syncedlyrics search query: {query}")
+            logger.debug("syncedlyrics search query: %s", query)
 
             plain_result = None
             synced_result = None
@@ -45,7 +45,7 @@ class SyncedLyricsService:
                 if plain_result:
                     logger.debug("Found plain lyrics via Genius")
             except Exception as e:
-                logger.debug(f"Genius plain search failed: {e}")
+                logger.debug("Genius plain search failed: %s", e)
 
             # 2. Try other plain providers
             if not plain_result:
@@ -58,7 +58,7 @@ class SyncedLyricsService:
                     if plain_result:
                         logger.debug("Found plain lyrics via fallback plain providers")
                 except Exception as e:
-                    logger.debug(f"Fallback plain search failed: {e}")
+                    logger.debug("Fallback plain search failed: %s", e)
 
             # 3. Try synced LRC providers
             try:
@@ -70,7 +70,7 @@ class SyncedLyricsService:
                 if synced_result:
                     logger.debug("Found synced lyrics")
             except Exception as e:
-                logger.debug(f"Synced lyrics search failed: {e}")
+                logger.debug("Synced lyrics search failed: %s", e)
 
             if plain_result or synced_result:
                 result = {
@@ -85,17 +85,18 @@ class SyncedLyricsService:
                     "syncedLyrics": synced_result,
                 }
                 logger.info(
-                    f"syncedlyrics found lyrics for: {query} "
-                    f"(plain={'yes' if plain_result else 'no'}, "
-                    f"synced={'yes' if synced_result else 'no'})"
+                    "syncedlyrics found lyrics for: %s (plain=%s, synced=%s)",
+                    query,
+                    "yes" if plain_result else "no",
+                    "yes" if synced_result else "no",
                 )
                 return [result]
 
-            logger.info(f"No lyrics found via syncedlyrics for: {query}")
+            logger.info("No lyrics found via syncedlyrics for: %s", query)
             return []
 
         except Exception as e:
-            logger.error(f"syncedlyrics search error: {e}", exc_info=True)
+            logger.error("syncedlyrics search error: %s", e, exc_info=True)
             raise ServiceError(f"Failed to search syncedlyrics: {e}")
 
     def search_lyrics_structured(

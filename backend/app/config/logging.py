@@ -37,6 +37,31 @@ class TimezoneFormatter(logging.Formatter):
             return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
+if COLORLOG_AVAILABLE:
+    class PrefixedColorFormatter(colorlog.ColoredFormatter):
+        """Console formatter with [API]/[JOB] prefix and shortened logger name."""
+
+        def __init__(self, *args, timezone="UTC", **kwargs):
+            super().__init__(*args, **kwargs)
+            self.timezone = ZoneInfo(timezone)
+
+        def formatTime(self, record, datefmt=None):
+            dt = datetime.fromtimestamp(record.created, tz=self.timezone)
+            return dt.strftime(datefmt or "%H:%M:%S")
+
+        def format(self, record):
+            name = record.name or ""
+            if name.startswith("celery") or name.startswith("app.jobs"):
+                record.source_tag = "[JOB]"
+            else:
+                record.source_tag = "[API]"
+            short = name.removeprefix("app.")
+            record.short_name = short[:25]
+            return super().format(record)
+else:
+    PrefixedColorFormatter = None
+
+
 class LoggingConfig:
     """Centralized logging configuration"""
 
@@ -65,12 +90,13 @@ class LoggingConfig:
                 },
                 "simple": (
                     {
-                        "()": colorlog.ColoredFormatter,
+                        "()": PrefixedColorFormatter,
                         "fmt": (
-                            "%(asctime)s %(log_color)s%(levelname)-8s%(reset)s "
-                            "%(white)s%(message)s"
+                            "%(asctime)s %(source_tag)s %(log_color)s%(levelname)-8s%(reset)s "
+                            "%(white)s%(short_name)-25s%(reset)s %(message)s"
                         ),
                         "datefmt": "%H:%M:%S",
+                        "timezone": self.timezone,
                         "log_colors": {
                             "DEBUG": "cyan",
                             "INFO": "green",
@@ -82,8 +108,8 @@ class LoggingConfig:
                         "style": "%",
                     } if COLORLOG_AVAILABLE else {
                         "()": TimezoneFormatter,
-                        "format": "%(asctime)s - %(levelname)s - %(message)s",
-                        "datefmt": "%Y-%m-%d %H:%M:%S %Z",
+                        "format": "%(asctime)s [%(name)s] %(levelname)-8s %(message)s",
+                        "datefmt": "%H:%M:%S",
                         "timezone": self.timezone,
                     }
                 ),
@@ -223,10 +249,10 @@ class LoggingConfig:
         return {
             "task_always_eager": False,
             "worker_log_format": (
-                "[%(asctime)s: %(levelname)s/%(processName)s] %(name)s: %(message)s"
+                "%(asctime)s [JOB] %(levelname)-8s %(name)s - %(message)s"
             ),
             "worker_task_log_format": (
-                "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+                "%(asctime)s [JOB] %(levelname)-8s %(task_name)s[%(task_id)s] - %(message)s"
             ),
             "worker_log_color": False,  # Disable color in files
             "worker_redirect_stdouts": True,

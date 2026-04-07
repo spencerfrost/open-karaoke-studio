@@ -46,10 +46,10 @@ class LyricsService:
                     raise ServiceError(f"LRCLIB server error: {status}")
                 return status, data
             except requests.RequestException as e:
-                logger.warning(f"Failed to make request to LRCLIB at {base_url}: {e}")
+                logger.warning("Failed to make request to LRCLIB at %s: %s", base_url, e)
                 last_exception = e
             except ServiceError as e:
-                logger.warning(f"LRCLIB server error at {base_url}: {e}")
+                logger.warning("LRCLIB server error at %s: %s", base_url, e)
                 last_exception = e
         logger.error("All LRCLIB endpoints failed: %s", last_exception)
         raise ServiceError(f"Failed to connect to any lyrics service: {last_exception}")

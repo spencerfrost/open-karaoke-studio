@@ -130,8 +130,8 @@ class YouTubeService(YouTubeServiceInterface):
 
             # Download video
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                logger.info(f"[YTDLP DEBUG] yt_dlp.YoutubeDL options: {ydl_opts}")
-                logger.info(f"[YTDLP DEBUG] Downloading URL: {url}")
+                logger.debug("yt_dlp options: %s", ydl_opts)
+                logger.debug("Downloading URL: %s", url)
                 info = ydl.extract_info(url, download=True)
                 if info is None:
                     raise ServiceError(f"Could not download video info from {url}")
