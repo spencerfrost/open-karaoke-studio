@@ -58,6 +58,9 @@ class DbSong(Base):
     loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
     gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
 
+    # Processing state: "processing" | "processed" | "error"
+    status = Column(String, nullable=False, default="processing")
+
     # AcoustID fingerprinting
     musicbrainz_recording_id = Column(String, nullable=True)
     acoustid_score = Column(Float, nullable=True)
@@ -94,7 +97,7 @@ class DbSong(Base):
             "title": self.title,
             "artist": self.artist,
             "duration": self.duration,  # Duration in seconds
-            "status": "processed",
+            "status": self.status,
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),

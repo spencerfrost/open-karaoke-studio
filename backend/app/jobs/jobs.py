@@ -245,7 +245,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
 
         with get_db_session() as session:
             repo = SongRepository(session)
-            update_kwargs = {"engine_type": engine_type}
+            update_kwargs: dict = {"engine_type": engine_type, "status": "processed"}
             try:
                 update_kwargs["duration"] = librosa.get_duration(path=str(filepath))
             except Exception as e:
@@ -279,6 +279,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         # Use song_dir here which is based on song_id, not job_id
         if song_dir.exists():
             shutil.rmtree(song_dir)
+        from app.db.database import get_db_session
+        from app.repositories.song_repository import SongRepository
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, status="error")
         logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
@@ -291,6 +295,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.completed_at = datetime.now()
         job_repository.update(job)
         job_repository.delete_job(job.id)
+        from app.db.database import get_db_session
+        from app.repositories.song_repository import SongRepository
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, status="error")
         return {
             "status": "error",
             "job_id": job_id,
@@ -1386,11 +1394,11 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Update engine_type and duration — everything else goes to post_process_song
+        # Update engine_type, duration, and status — everything else goes to post_process_song
         try:
             with get_db_session() as session:
                 repo = SongRepository(session)
-                update_fields = {"engine_type": engine_type}
+                update_fields: dict = {"engine_type": engine_type, "status": "processed"}
                 try:
                     update_fields["duration"] = librosa.get_duration(
                         path=str(original_file)
@@ -1431,6 +1439,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job_repository.delete_job(job.id)
         if song_dir.exists():
             shutil.rmtree(song_dir)
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, status="error")
         logger.info("Job %s was cancelled", job_id)
         _t.setdefault("job_end", time.perf_counter())
         _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="cancelled")
@@ -1445,6 +1455,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.completed_at = datetime.now()
         job_repository.update(job)
         job_repository.delete_job(job.id)
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, status="error")
         _t.setdefault("job_end", time.perf_counter())
         _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="failed", error=error_message)
         return {"status": "error", "job_id": job_id, "error": error_message}

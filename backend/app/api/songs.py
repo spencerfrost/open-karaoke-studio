@@ -1159,7 +1159,9 @@ async def reprocess_song(
                     detail="Song is already being processed",
                 )
 
-        # 4. Create job record
+        # 4. Reset song status and create job record
+        repo.update(song_id, status="processing")
+
         job_id = str(uuid.uuid4())
         job = Job(
             id=job_id,
