@@ -92,7 +92,7 @@ services:
     container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
-    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads
+    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment
     volumes:
       - ./karaoke_library:/app/karaoke_library
       - backend_logs:/app/backend/logs
