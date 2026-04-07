@@ -44,6 +44,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     connectionError,
     createSession,
     joinSession,
+    joinAsHost,
     clearSession,
   } = useSessionStore();
 
@@ -57,6 +58,21 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       clearSession();
     }
   }, [connectionError, clearSession]);
+
+  // Auto-join as host/admin — no button click needed
+  const hasAutoHostJoined = useRef(false);
+  useEffect(() => {
+    if (hasAutoHostJoined.current) return;
+    if (isAuthenticated && (user?.isHost || user?.isAdmin) && !sessionId && !isConnecting) {
+      hasAutoHostJoined.current = true;
+      joinAsHost().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
+          logout();
+        }
+      });
+    }
+  }, [isAuthenticated, user, sessionId, isConnecting, joinAsHost, logout]);
 
   const hasAutoJoined = useRef(false);
 
