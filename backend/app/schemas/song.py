@@ -56,7 +56,6 @@ class SongResponse(BaseModel):
 
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
-    bpm: Optional[float] = None  # Beats per minute for count-in timing
     chordsData: Optional[list] = None  # Chord detection data
     vocalRangeLow: Optional[str] = None  # Lowest sung note, e.g. "G2"
     vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
@@ -132,7 +131,6 @@ class SongUpdateRequest(BaseModel):
     )
 
     # Audio analysis
-    bpm: Optional[float] = Field(None, ge=30, le=300, description="Beats per minute")
     loudnessDbfs: Optional[float] = Field(None, description="RMS loudness in dBFS")
     gainDb: Optional[float] = Field(None, ge=-20, le=20, description="Gain correction in dB")
 

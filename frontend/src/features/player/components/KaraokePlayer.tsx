@@ -14,15 +14,11 @@ import {
   BottomControlsArea,
   ChordCarousel,
 } from "./subcomponents";
-import { createLogger } from "@/lib/logger";
-
-const logger = createLogger("component:karaoke-player");
 import { LyricsDisplayWithCountIn } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 import { Maximize, Play, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTapTempo } from "@/hooks/useTapTempo";
 import { useSongs } from "@/hooks/api/useSongs";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
@@ -43,8 +39,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const navigate = useNavigate();
 
   // Song API hooks
-  const { useUpdateSong, useSongChords } = useSongs();
-  const updateSongMutation = useUpdateSong();
+  const { useSongChords } = useSongs();
   const { data: songChords = [] } = useSongChords(songId, {
     enabled: !!songId,
   });
@@ -57,33 +52,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const mouseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-
-  // Tap tempo hook with minimum 3 taps before setting BPM
-  const MIN_TAPS = 3;
-  const tapTempo = useTapTempo({
-    minTaps: MIN_TAPS,
-  });
-
-  // Get effective BPM (from tap tempo if active, otherwise from song)
-  const effectiveBpm = tapTempo.bpm ?? player.song?.bpm ?? null;
-
-  // Save BPM to database
-  const handleSaveBpm = React.useCallback(() => {
-    if (songId && tapTempo.bpm && tapTempo.bpm >= 30 && tapTempo.bpm <= 300) {
-      updateSongMutation.mutate(
-        { id: songId, bpm: tapTempo.bpm },
-        {
-          onSuccess: () => {
-            // Reset the tap tempo after successful save
-            tapTempo.reset();
-          },
-          onError: (error) => {
-            logger.error("Failed to update BPM:", error);
-          },
-        },
-      );
-    }
-  }, [songId, tapTempo, updateSongMutation]);
 
   // Reset mouse movement timer on mouse move while hovering
   const handleMouseMove = React.useCallback(() => {
@@ -115,14 +83,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       if (e.code === "Space") {
         e.preventDefault(); // prevent page scroll
         player.togglePlay();
-      } else if (e.code === "KeyT") {
-        tapTempo.handleTap();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [player.song, player.isReady, player.togglePlay, tapTempo]);
+  }, [player.song, player.isReady, player.togglePlay]);
 
   // Show control overlays when hovering and mouse recently moved
   const showControlOverlays = isHovering && mouseRecentlyMoved;
@@ -361,7 +327,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               songArtist={player.song?.artist}
               songAlbum={player.song?.album}
               songDuration={player.song?.duration}
-              bpm={player.song?.bpm}
               // Count-in props (hardcoded for initial testing)
               showCountdownNumbers={false}
               showCountdownIcons={false}
@@ -398,13 +363,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         duration={player.duration}
         vocalVolume={player.vocalVolume}
         isFullscreen={ui.isFullscreen}
-        tapTempoBpm={effectiveBpm}
-        tapTempoSongBpm={player.song?.bpm ?? null}
-        tapTempoIsActive={tapTempo.isActive}
-        tapTempoTapCount={tapTempo.tapCount}
-        tapTempoMinTaps={MIN_TAPS}
-        tapTempoHasUnsavedChanges={tapTempo.hasUnsavedChanges}
-        tapTempoIsSaving={updateSongMutation.isPending}
         mouseRecentlyMoved={mouseRecentlyMoved}
         hasNextSong={
           !!(
@@ -432,9 +390,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         onVolumeChange={player.song ? player.setVocalVolume : noopVolume}
         onVolumeToggle={player.song ? handleVolumeToggle : noop}
         onFullscreenToggle={ui.toggleFullscreen}
-        onTapTempoTap={tapTempo.handleTap}
-        onTapTempoSave={handleSaveBpm}
-        onTapTempoReset={tapTempo.reset}
       />
     </FullscreenContainer>
   );

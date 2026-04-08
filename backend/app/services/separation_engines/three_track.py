@@ -25,7 +25,6 @@ import logging
 import shutil
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 
@@ -40,7 +39,6 @@ from app.services import file_management
 from app.services.audio import (
     StopProcessingError,
     create_audio_progress_mapper,
-    detect_bpm,
     make_progress_callback,
     select_device_and_log,
 )
@@ -59,7 +57,7 @@ def separate_with_three_track(
     stop_event: Optional[threading.Event] = None,
     on_vocals_ready: Optional[Callable[[Path], None]] = None,
     timing_sink: Optional[Dict[str, float]] = None,
-) -> Tuple[bool, Optional[float]]:
+) -> bool:
     """
     Multi-pass separation producing three independent audio tracks.
 
@@ -79,7 +77,7 @@ def separate_with_three_track(
             (vocal range, lyrics alignment) as early as possible.
 
     Returns:
-        Tuple of (success: bool, bpm: Optional[float])
+        True if separation succeeded, False otherwise.
     """
     logger.info("Starting Three-Track separation for: %s", input_path.name)
     status_callback("Engine: Three-Track (Demucs + Roformer + De-Noise)")
@@ -297,13 +295,7 @@ def separate_with_three_track(
         # ===== STEP 4: Save Three Independent Tracks (93-99% progress) =====
         _ts("mp3_conversion_start")
         status_callback("Progress: 93% - Step 4/4: Saving three tracks...")
-        logger.info("Step 4: Saving three independent tracks (BPM detection running in background)")
-
-        # Start BPM detection in background — runs while MP3 conversions execute
-        _bpm_log = lambda msg: logger.debug("BPM: %s", msg)
-        bpm_executor = ThreadPoolExecutor(max_workers=1)
-        bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
-        logger.info("BPM detection started in background thread")
+        logger.info("Step 4: Saving three independent tracks")
 
         backing_vocals_final = file_management.get_backing_vocals_path_stem(
             song_dir
@@ -349,20 +341,6 @@ def separate_with_three_track(
 
         _ts("mp3_conversion_end")
 
-        # Collect BPM result (started before MP3 conversion, should already be done)
-        _ts("bpm_wait_start")
-        try:
-            detected_bpm = bpm_future.result(timeout=30)
-            logger.info("BPM detection complete: %s BPM", detected_bpm)
-            if detected_bpm:
-                status_callback(f"BPM detected: {detected_bpm}")
-        except Exception as e:
-            logger.warning("BPM detection failed or timed out: %s", e)
-            detected_bpm = None
-        finally:
-            bpm_executor.shutdown(wait=False)
-        _ts("bpm_wait_end")
-
         # Clean up temp directory
         status_callback("Cleaning up temporary files...")
         shutil.rmtree(temp_dir)
@@ -371,7 +349,7 @@ def separate_with_three_track(
         status_callback(f"Three-track separation complete for {input_path.name}!")
         logger.info("Three-Track separation completed successfully")
 
-        return True, detected_bpm
+        return True
 
     except StopProcessingError:
         # User cancelled - clean up and re-raise
@@ -387,4 +365,4 @@ def separate_with_three_track(
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
 
-        return False, None
+        return False

@@ -3,7 +3,6 @@ import os
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -182,151 +181,6 @@ def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]
         song_dir
     ).with_suffix(output_extension)
     return vocals_path, instrumental_path
-
-
-def _filter_harmonic_duplicates(tempos: list[float]) -> list[float]:
-    """
-    Filter out harmonic multiples/divisors (2x, 1/2, 3/2, 2/3, 4/3, 3/4).
-    Groups tempos that are harmonically related and keeps representative values.
-
-    Args:
-        tempos: List of tempo estimates
-
-    Returns:
-        List of filtered tempos with harmonics removed
-    """
-    if not tempos:
-        return []
-
-    # Common harmonic ratios to check
-    harmonic_ratios = [0.5, 2.0, 0.667, 1.5, 0.75, 1.333]
-    tolerance = 0.05  # 5% tolerance for matching
-
-    clusters = []
-    for tempo in tempos:
-        # Find if this tempo belongs to existing cluster
-        matched = False
-        for cluster in clusters:
-            for existing_tempo in cluster:
-                # Check if harmonically related
-                ratio = tempo / existing_tempo
-                if any(abs(ratio - hr) < tolerance for hr in harmonic_ratios) or abs(ratio - 1.0) < tolerance:
-                    cluster.append(tempo)
-                    matched = True
-                    break
-            if matched:
-                break
-
-        if not matched:
-            clusters.append([tempo])
-
-    # Return the tempo from each cluster (prefer values in 80-180 range)
-    filtered = []
-    for cluster in clusters:
-        # Prefer tempos in typical range
-        in_range = [t for t in cluster if 80 <= t <= 180]
-        if in_range:
-            filtered.append(sum(in_range) / len(in_range))
-        else:
-            filtered.append(sum(cluster) / len(cluster))
-
-    return filtered
-
-
-def _select_best_tempo(tempos: list[float]) -> float:
-    """
-    Select the most likely tempo from filtered estimates using median.
-
-    Args:
-        tempos: List of tempo estimates
-
-    Returns:
-        The selected BPM value
-    """
-    if not tempos:
-        return 120.0  # Fallback
-
-    # Use median for robustness against outliers
-    tempos_sorted = sorted(tempos)
-    n = len(tempos_sorted)
-    if n % 2 == 0:
-        return (tempos_sorted[n // 2 - 1] + tempos_sorted[n // 2]) / 2
-    else:
-        return tempos_sorted[n // 2]
-
-
-def detect_bpm(
-    audio_path: Path,
-    status_callback: Callable[[str], None],
-    instrumental_path: Optional[Path] = None
-) -> Optional[float]:
-    """
-    Detect the BPM (beats per minute) of an audio file using improved multi-pass
-    detection with harmonic filtering.
-
-    Args:
-        audio_path: Path to the audio file
-        status_callback: Function to call with status updates
-        instrumental_path: Optional path to instrumental track (preferred for cleaner detection)
-
-    Returns:
-        Detected BPM as float, or None if detection fails
-    """
-    try:
-        status_callback("Detecting BPM (improved algorithm)...")
-
-        # Prefer instrumental track for cleaner beat detection
-        analysis_path = instrumental_path if instrumental_path and instrumental_path.exists() else audio_path
-        logger.debug(
-            "BPM detection using: %s (%s)",
-            analysis_path,
-            "instrumental" if analysis_path == instrumental_path else "original",
-        )
-
-        # Load audio with reduced sample rate for faster processing (limit to 90 seconds)
-        y, sr = librosa.load(str(analysis_path), sr=22050, duration=90)
-
-        # Strategy 1: Multi-pass tempo detection with different prior estimates
-        tempo_estimates = []
-
-        # Pass with common tempo priors to reduce bias
-        for prior in [80, 120, 140, 170]:
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=prior)
-            tempo_estimates.append(float(tempo))
-
-        # Strategy 2: Use onset-based tempo detection for additional robustness
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-        tempo_onset = librosa.beat.tempo(onset_envelope=onset_env, sr=sr, aggregate=None)
-
-        if tempo_onset is not None and len(tempo_onset) > 0:
-            # Add top 3 tempo estimates from onset detection
-            tempo_estimates.extend([float(t) for t in tempo_onset[:3]])
-
-        logger.debug("Raw tempo estimates: %s", tempo_estimates)
-
-        # Filter out harmonic multiples/divisors
-        filtered_tempos = _filter_harmonic_duplicates(tempo_estimates)
-        logger.debug("Filtered tempo estimates (harmonics removed): %s", filtered_tempos)
-
-        # Choose best tempo from filtered estimates
-        bpm = _select_best_tempo(filtered_tempos)
-        bpm_rounded = round(bpm, 1)
-
-        status_callback(f"BPM detected: {bpm_rounded}")
-        logger.info(
-            "BPM detection complete: %.1f BPM (from %d estimates, %d after filtering)",
-            bpm_rounded,
-            len(tempo_estimates),
-            len(filtered_tempos),
-        )
-
-        return bpm_rounded
-
-    except Exception as e:
-        error_msg = f"BPM detection failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        status_callback(f"Warning: {error_msg}")
-        return None
 
 
 def detect_vocal_range(
@@ -522,7 +376,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         stop_event: A threading.Event to check for stop requests. Can be None.
 
     Returns:
-        Tuple of (success: bool, bpm: Optional[float])
+        bool: True if separation succeeded, False otherwise.
 
     Raises:
         StopProcessingError: If processing is stopped by the user.
@@ -560,12 +414,6 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         vocals_path, instrumental_path = get_output_paths(song_dir, output_extension)
         vocals_tensor = separated.get("vocals")
 
-        # Start BPM detection in background — runs while stems are saved
-        _bpm_log = lambda msg: logger.debug("BPM: %s", msg)
-        bpm_executor = ThreadPoolExecutor(max_workers=1)
-        bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
-        logger.info("BPM detection started in background thread")
-
         if vocals_tensor is not None:
             save_stem(
                 vocals_tensor,
@@ -592,19 +440,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             logger,
         )
 
-        # Collect BPM result (started before stem saves, should already be done)
-        try:
-            detected_bpm = bpm_future.result(timeout=30)
-            logger.info("BPM detection complete: %s BPM", detected_bpm)
-        except Exception as e:
-            logger.warning("BPM detection failed or timed out: %s", e)
-            detected_bpm = None
-        finally:
-            bpm_executor.shutdown(wait=False)
         complete_msg = f"Processing complete for {input_path.name}!"
         logger.info(complete_msg)
         status_callback(complete_msg)
-        return True, detected_bpm
+        return True
     except StopProcessingError:
         raise
     except Exception as e:
@@ -612,4 +451,4 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
             f"Error during separation for {input_path.name}: {e}", exc_info=True
         )
         status_callback(f"** Error during separation: {e} **")
-        return False, None
+        return False

@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { TapTempoButton } from "./TapTempoButton";
 import { SettingsMenu } from "./SettingsMenu";
 import type { PlayerControl } from "../../types/KaraokePlayer.types";
 
@@ -31,15 +30,6 @@ interface PlayerControlsProps {
   // UI state
   isFullscreen: boolean;
 
-  // Tap tempo props
-  tapTempoBpm: number | null;
-  tapTempoSongBpm: number | null;
-  tapTempoIsActive: boolean;
-  tapTempoTapCount: number;
-  tapTempoMinTaps: number;
-  tapTempoHasUnsavedChanges: boolean;
-  tapTempoIsSaving?: boolean;
-
   // Controls configuration
   controls?: PlayerControl[];
 
@@ -48,9 +38,6 @@ interface PlayerControlsProps {
   onVolumeChange: (volume: number) => void;
   onVolumeToggle: () => void;
   onFullscreenToggle: () => void;
-  onTapTempoTap?: () => void;
-  onTapTempoSave?: () => void;
-  onTapTempoReset?: () => void;
 
   className?: string;
 }
@@ -63,20 +50,10 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
     songEnded = false,
     hasNextSong = false,
     isFullscreen,
-    tapTempoBpm,
-    tapTempoSongBpm,
-    tapTempoIsActive,
-    tapTempoTapCount,
-    tapTempoMinTaps,
-    tapTempoHasUnsavedChanges,
-    tapTempoIsSaving = false,
     onPlayPause,
     onVolumeChange,
     onVolumeToggle,
     onFullscreenToggle,
-    onTapTempoTap = () => {},
-    onTapTempoSave = () => {},
-    onTapTempoReset = () => {},
     className = "",
   }) => {
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
@@ -191,21 +168,6 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
         <div className="flex items-center gap-2 justify-self-end">
           {/* Settings Menu */}
           <SettingsMenu />
-
-          {/* Tap Tempo Button */}
-          <TapTempoButton
-            bpm={tapTempoBpm}
-            songBpm={tapTempoSongBpm}
-            isPlaying={isPlaying}
-            isActive={tapTempoIsActive}
-            tapCount={tapTempoTapCount}
-            minTaps={tapTempoMinTaps}
-            hasUnsavedChanges={tapTempoHasUnsavedChanges}
-            onTap={onTapTempoTap}
-            onSave={onTapTempoSave}
-            onReset={onTapTempoReset}
-            isSaving={tapTempoIsSaving}
-          />
 
           {/* Fullscreen Button */}
           <Button

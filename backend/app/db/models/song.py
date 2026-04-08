@@ -51,7 +51,6 @@ class DbSong(Base):
     engine_type = Column(
         String, nullable=True
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
-    bpm = Column(Float, nullable=True)  # Beats per minute for count-in timing
     chords_data = Column(JSON, nullable=True)  # Chord detection data
     vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
     vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
@@ -132,7 +131,6 @@ class DbSong(Base):
             ),
             # Processing metadata
             "engineType": self.engine_type,
-            "bpm": self.bpm,
             "chordsData": self.chords_data,
             "vocalRangeLow": self.vocal_range_low,
             "vocalRangeHigh": self.vocal_range_high,

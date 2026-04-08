@@ -23,15 +23,6 @@ interface BottomControlsAreaProps {
   vocalVolume: number;
   isFullscreen: boolean;
 
-  // Tap tempo state
-  tapTempoBpm: number | null;
-  tapTempoSongBpm: number | null;
-  tapTempoIsActive: boolean;
-  tapTempoTapCount: number;
-  tapTempoMinTaps: number;
-  tapTempoHasUnsavedChanges: boolean;
-  tapTempoIsSaving?: boolean;
-
   // Configuration
   hasNextSong?: boolean;
   mouseRecentlyMoved: boolean;
@@ -42,9 +33,6 @@ interface BottomControlsAreaProps {
   onVolumeChange: (volume: number) => void;
   onVolumeToggle: () => void;
   onFullscreenToggle: () => void;
-  onTapTempoTap?: () => void;
-  onTapTempoSave?: () => void;
-  onTapTempoReset?: () => void;
 }
 const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   song,
@@ -56,13 +44,6 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   duration,
   vocalVolume,
   isFullscreen,
-  tapTempoBpm,
-  tapTempoSongBpm,
-  tapTempoIsActive,
-  tapTempoTapCount,
-  tapTempoMinTaps,
-  tapTempoHasUnsavedChanges,
-  tapTempoIsSaving = false,
   hasNextSong = false,
   mouseRecentlyMoved,
   onPlayPause,
@@ -70,9 +51,6 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
   onVolumeChange,
   onVolumeToggle,
   onFullscreenToggle,
-  onTapTempoTap = () => {},
-  onTapTempoSave = () => {},
-  onTapTempoReset = () => {},
 }) => {
   // Container classes
   const containerClass = cn(
@@ -118,20 +96,10 @@ const BottomControlsArea: React.FC<BottomControlsAreaProps> = ({
               songEnded={songEnded}
               hasNextSong={hasNextSong}
               isFullscreen={isFullscreen}
-              tapTempoBpm={tapTempoBpm}
-              tapTempoSongBpm={tapTempoSongBpm}
-              tapTempoIsActive={tapTempoIsActive}
-              tapTempoTapCount={tapTempoTapCount}
-              tapTempoMinTaps={tapTempoMinTaps}
-              tapTempoHasUnsavedChanges={tapTempoHasUnsavedChanges}
-              tapTempoIsSaving={tapTempoIsSaving}
               onPlayPause={onPlayPause}
               onVolumeChange={onVolumeChange}
               onVolumeToggle={onVolumeToggle}
               onFullscreenToggle={onFullscreenToggle}
-              onTapTempoTap={onTapTempoTap}
-              onTapTempoSave={onTapTempoSave}
-              onTapTempoReset={onTapTempoReset}
             />
           </div>
         )}

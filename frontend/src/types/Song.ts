@@ -55,7 +55,6 @@ export interface Song {
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
   // Audio analysis
-  bpm?: number; // Beats per minute for count-in timing
   chordsData?: ChordEvent[];
   vocalRangeLow?: string; // Lowest note detected, e.g. "G2"
   vocalRangeHigh?: string; // Highest note detected, e.g. "E5"

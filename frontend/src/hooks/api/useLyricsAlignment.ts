@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { useApiQuery } from "@/hooks/api/useApi";
 import type { WordTimestamp } from "@/utils/lrcParser";
 
@@ -19,12 +21,26 @@ interface AlignmentResponse {
  * Returns null if no alignment has been run yet.
  */
 export function useLyricsAlignment(songId: string | undefined) {
+  const pollingStartedAt = useRef<number | null>(null);
+
   const query = useApiQuery<AlignmentResponse, readonly unknown[]>(
     ["lyrics", songId, "alignment"] as const,
     `lyrics/songs/${songId}/alignment`,
     {
       enabled: !!songId,
-      staleTime: 5 * 60 * 1000, // 5 min — alignment data rarely changes
+      staleTime: 30 * 1000,
+      // Newly imported songs may return alignment=null until async job finishes.
+      // Poll for up to 60 seconds, then stop automatically to avoid indefinite traffic.
+      refetchInterval: (state) => {
+        const data = state.state.data as AlignmentResponse | undefined;
+        if (data?.alignment) return false;
+        if (pollingStartedAt.current === null) {
+          pollingStartedAt.current = Date.now();
+        }
+        if (Date.now() - pollingStartedAt.current > 60_000) return false;
+        return 5000;
+      },
+      refetchOnWindowFocus: true,
       retry: false,
     },
   );

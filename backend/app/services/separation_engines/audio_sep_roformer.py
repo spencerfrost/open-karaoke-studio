@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 from audio_separator.separator import Separator
-from app.services.audio import detect_bpm
 from app.services import file_management
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ def separate_with_roformer(
     song_dir: Path,
     status_callback: Callable[[str], None],
     stop_event: Optional[threading.Event] = None,
-) -> Tuple[bool, Optional[float]]:
+) -> bool:
     """
     Single-pass separation using Roformer karaoke model.
 
@@ -41,7 +40,7 @@ def separate_with_roformer(
         stop_event: A threading.Event to check for stop requests
 
     Returns:
-        Tuple of (success: bool, bpm: Optional[float])
+        True if separation succeeded, False otherwise.
     """
     logger.info("Starting Roformer Karaoke-First separation for: %s", input_path.name)
     status_callback("Engine: Roformer ViperX (Karaoke-First)")
@@ -123,15 +122,12 @@ def separate_with_roformer(
         logger.info("Renamed outputs to: %s, %s", vocals_path, instrumental_path)
         status_callback("Progress: 85% - Output files organized")
 
-        # Detect BPM from the original audio
-        detected_bpm = detect_bpm(input_path, status_callback)
-
         status_callback(f"Roformer separation complete for {input_path.name}!")
         logger.info("Roformer Karaoke-First separation completed successfully")
 
-        return True, detected_bpm
+        return True
 
     except Exception as e:
         logger.error("Roformer separation failed: %s", e, exc_info=True)
         status_callback(f"** Error during Roformer separation: {e} **")
-        return False, None
+        return False

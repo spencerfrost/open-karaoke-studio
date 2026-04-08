@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSongs } from "@/hooks/api/useSongs";
-import { BpmEditor } from "../BpmEditor";
 import { Pencil, Check, X, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -157,19 +156,6 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
           {renderEditableField("artist", "Artist", song.artist)}
           {renderEditableField("album", "Album", song.album)}
           {renderEditableField("year", "Year", song.year?.toString())}
-        </CardContent>
-      </Card>
-
-      {/* BPM */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tempo</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BpmEditor song={song} />
-          <p className="text-xs text-muted-foreground mt-2">
-            Used for count-in timing before lyrics start
-          </p>
         </CardContent>
       </Card>
 

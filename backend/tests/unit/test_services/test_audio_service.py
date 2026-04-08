@@ -48,7 +48,7 @@ class TestAudioService:
             song_dir = Path("/test/output")
             status_callback = Mock()
             with patch("app.services.audio.save_audio") as mock_save_audio:
-                result, bpm = separate_audio(input_path, song_dir, status_callback)
+                result = separate_audio(input_path, song_dir, status_callback)
                 assert result is True
                 status_callback.assert_called()
 
@@ -74,7 +74,7 @@ class TestAudioService:
             status_callback = Mock()
             with patch("app.services.audio.save_audio") as mock_save_audio:
                 with patch("app.services.audio.os.environ") as mock_environ:
-                    result, bpm = separate_audio(input_path, song_dir, status_callback)
+                    result = separate_audio(input_path, song_dir, status_callback)
                     mock_environ.__setitem__.assert_called_with(
                         "CUDA_VISIBLE_DEVICES", ""
                     )
@@ -96,7 +96,7 @@ class TestAudioService:
             song_dir = Path("/test/output")
             status_callback = Mock()
             with patch("app.services.audio.save_audio") as mock_save_audio:
-                result, bpm = separate_audio(input_path, song_dir, status_callback)
+                result = separate_audio(input_path, song_dir, status_callback)
                 status_callback.assert_called()
                 calls = status_callback.call_args_list
                 cpu_message_found = any("CPU" in str(call) for call in calls)
@@ -151,7 +151,7 @@ class TestAudioService:
                 mock_separator_instance.separate_audio_file.return_value = (origin_wave, separated)
 
                 with patch("app.services.audio.save_audio"):
-                    result, bpm = separate_audio(input_path, song_dir, status_callback)
+                    result = separate_audio(input_path, song_dir, status_callback)
 
                     # Check that status callback was called with progress updates
                     status_callback.assert_called()
@@ -167,9 +167,8 @@ class TestAudioService:
             mock_separator.return_value = mock_separator_instance
             mock_separator_instance.separate_audio_file.side_effect = RuntimeError("Separator failed")
 
-            result, bpm = separate_audio(input_path, song_dir, status_callback)
+            result = separate_audio(input_path, song_dir, status_callback)
             assert result is False
-            assert bpm is None
 
     def test_separate_audio_no_status_callback(self):
         """Test audio separation with no status callback"""
@@ -186,7 +185,7 @@ class TestAudioService:
                 with patch("app.services.audio.save_audio"):
                     with patch("builtins.print") as mock_print:
                         # Should not raise an error when no callback provided
-                        result, bpm = separate_audio(input_path, song_dir, None)
+                        result = separate_audio(input_path, song_dir, None)
 
                         # Should use print as fallback
                         mock_print.assert_called()

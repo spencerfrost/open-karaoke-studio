@@ -2,14 +2,12 @@
 Celery task definitions for audio processing
 """
 
-import json
 import shutil
 import threading
-import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 import librosa
 
@@ -45,8 +43,7 @@ def select_and_run_separation_engine(
     status_callback: Callable[[str], None],
     stop_event: threading.Event,
     on_vocals_ready: Optional[Callable[[Path], None]] = None,
-    timing_sink: Optional[dict] = None,
-) -> Tuple[bool, Optional[float]]:
+) -> bool:
     """
     Select and run the appropriate audio separation engine.
 
@@ -59,13 +56,9 @@ def select_and_run_separation_engine(
         on_vocals_ready: Optional callback invoked with the vocals.mp3 path as soon
             as lead vocals are available (three_track engine only). Use to dispatch
             vocal analysis tasks before full separation completes.
-        timing_sink: Optional dict populated in-place with per-stage timestamps
-            (three_track engine only). Keys: demucs_start/end, roformer_start/end,
-            vocals_mp3_start/end, denoise_start/end, mp3_conversion_start/end,
-            bpm_wait_start/end.
 
     Returns:
-        Tuple of (success: bool, detected_bpm: Optional[float])
+        True if separation succeeded, False otherwise.
     """
     logger.info("Using separation engine: %s", engine_type)
 
@@ -86,11 +79,9 @@ def select_and_run_separation_engine(
         status_callback=status_callback,
         stop_event=stop_event,
     )
-    # on_vocals_ready and timing_sink are only supported by the three_track engine
+    # on_vocals_ready is only supported by the three_track engine
     if engine_type == "three_track" and on_vocals_ready is not None:
         kwargs["on_vocals_ready"] = on_vocals_ready
-    if engine_type == "three_track" and timing_sink is not None:
-        kwargs["timing_sink"] = timing_sink
 
     return separator_fn(**kwargs)
 
@@ -229,7 +220,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         update_progress(5, f"Created directory for {job_id}")
 
         # Separate audio using the selected engine
-        success, _ = select_and_run_separation_engine(
+        success = select_and_run_separation_engine(
             engine_type=engine_type,
             input_path=filepath,
             song_dir=song_dir,
@@ -327,6 +318,76 @@ def _fetch_thumbnail_safe(
     except Exception as e:
         logger.warning("Background thumbnail download failed for %s: %s", video_id, e)
         return None
+
+
+def _build_alignment_attempts(song, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
+    """
+    Build ordered lyric-alignment attempts for a song.
+
+    Order:
+      1) Existing DB plain lyrics
+      2) Existing DB synced lyrics
+      3) Remote plain/synced candidates (LRCLIB then syncedlyrics)
+    """
+    attempts: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add_attempt(content: Optional[str], source_type: str, source: str, persist: bool = False) -> None:
+        if not content:
+            return
+        text = content.strip()
+        if not text:
+            return
+        key = (source_type, text)
+        if key in seen:
+            return
+        seen.add(key)
+        attempts.append({
+            "content": text,
+            "source_type": source_type,
+            "source": source,
+            "persist": persist,
+        })
+
+    # Prefer plain text first for WhisperX forced alignment.
+    add_attempt(song.plain_lyrics, "plain", "db:plain")
+    add_attempt(song.synced_lyrics, "synced", "db:synced")
+
+    if not include_remote:
+        return attempts
+
+    track_name = (song.title or "").strip()
+    artist_name = (song.artist or "").strip()
+    if not track_name or not artist_name:
+        return attempts
+
+    from app.services.lyrics_service import LyricsService
+    from app.services.syncedlyrics_service import SyncedLyricsService
+
+    params = {
+        "track_name": track_name,
+        "artist_name": artist_name,
+    }
+    if song.album:
+        params["album_name"] = song.album
+
+    try:
+        lrclib_results = LyricsService().search_lyrics_structured(params)
+        for idx, candidate in enumerate(lrclib_results[:max_remote_results]):
+            add_attempt(candidate.get("plainLyrics"), "plain", f"lrclib:{idx + 1}", persist=True)
+            add_attempt(candidate.get("syncedLyrics"), "synced", f"lrclib:{idx + 1}", persist=True)
+    except Exception:
+        logger.debug("LRCLIB candidate fetch failed for %s - %s", artist_name, track_name, exc_info=True)
+
+    try:
+        synced_results = SyncedLyricsService().search_lyrics_structured(params)
+        for idx, candidate in enumerate(synced_results[:max_remote_results]):
+            add_attempt(candidate.get("plainLyrics"), "plain", f"syncedlyrics:{idx + 1}", persist=True)
+            add_attempt(candidate.get("syncedLyrics"), "synced", f"syncedlyrics:{idx + 1}", persist=True)
+    except Exception:
+        logger.debug("syncedlyrics candidate fetch failed for %s - %s", artist_name, track_name, exc_info=True)
+
+    return attempts
 
 
 def _run_post_processing(song_id: str, song_dir: Path) -> None:
@@ -432,69 +493,6 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
     except Exception:
         logger.warning("song_artists population failed for song %s", song_id, exc_info=True)
 
-    # Word-level alignment — runs after processing if lyrics are available
-    try:
-        if vocals_path.exists():
-            import json as _json
-
-            from app.db.database import get_db_session as _get_db
-            from app.repositories.song_repository import SongRepository as _SongRepo
-            from app.services.lyrics_alignment import (
-                align_lyrics_to_vocals,
-                align_plain_lyrics_to_vocals,
-            )
-
-            MIN_SCORE = 0.5
-
-            with _get_db() as session:
-                song = _SongRepo(session).fetch(song_id)
-                if not song:
-                    logger.debug("Song %s not found for alignment", song_id)
-                else:
-                    source_content = song.synced_lyrics
-                    use_plain = source_content is None
-                    if use_plain:
-                        source_content = song.plain_lyrics
-
-                    if source_content:
-                        logger.info(
-                            "Running word-level alignment for song %s (source=%s)",
-                            song_id,
-                            "plain" if use_plain else "synced",
-                        )
-                        if use_plain:
-                            result = align_plain_lyrics_to_vocals(source_content, vocals_path)
-                        else:
-                            result = align_lyrics_to_vocals(source_content, vocals_path)
-
-                        if result and result["mean_score"] >= MIN_SCORE:
-                            song.word_synced_lyrics = _json.dumps({
-                                "words": result["words"],
-                                "language": result["language"],
-                                "mean_score": result["mean_score"],
-                                "word_count": result["word_count"],
-                                "line_count": result["line_count"],
-                                "aligned_at": result["aligned_at"],
-                            })
-                            session.commit()
-                            logger.info(
-                                "Alignment stored: %d words, mean_score=%.3f for song %s",
-                                result["word_count"],
-                                result["mean_score"],
-                                song_id,
-                            )
-                        elif result:
-                            logger.info(
-                                "Alignment skipped (low confidence mean_score=%.3f) for song %s",
-                                result["mean_score"],
-                                song_id,
-                            )
-                        else:
-                            logger.warning("Alignment produced no result for song %s", song_id)
-                    else:
-                        logger.debug("No lyrics to align for song %s", song_id)
-    except Exception:
-        logger.warning("Word-level alignment failed for song %s", song_id, exc_info=True)
 
 
 @celery.task(bind=True, name="post_process_song")
@@ -658,52 +656,115 @@ def align_song_lyrics(song_id: str) -> dict:
         if not song:
             logger.warning("align_song_lyrics: song %s not found", song_id)
             return {"status": "not_found", "song_id": song_id}
-        source_content = song.synced_lyrics
-        use_plain = source_content is None
-        if use_plain:
-            source_content = song.plain_lyrics
 
-    if not source_content:
+    attempts = _build_alignment_attempts(song, include_remote=True)
+
+    if not attempts:
         logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
         return {"status": "no_lyrics", "song_id": song_id}
 
-    try:
-        if use_plain:
-            result = align_plain_lyrics_to_vocals(source_content, vocals_path)
-        else:
-            result = align_lyrics_to_vocals(source_content, vocals_path)
-    except Exception:
-        logger.warning("align_song_lyrics: alignment failed for song %s", song_id, exc_info=True)
-        return {"status": "error", "song_id": song_id}
+    best_result = None
+    best_attempt = None
+    align_error_count = 0
 
-    if not result:
-        logger.warning("align_song_lyrics: no result produced for song %s", song_id)
-        return {"status": "no_result", "song_id": song_id}
-
-    if result["mean_score"] < MIN_SCORE:
+    for idx, attempt in enumerate(attempts):
+        source_type = attempt["source_type"]
+        source_label = attempt["source"]
         logger.info(
-            "align_song_lyrics: low confidence (%.3f < %.1f), skipping for song %s",
-            result["mean_score"], MIN_SCORE, song_id,
+            "align_song_lyrics: attempt %d/%d for song %s (%s, source=%s)",
+            idx + 1,
+            len(attempts),
+            song_id,
+            source_type,
+            source_label,
         )
-        return {"status": "low_confidence", "song_id": song_id}
 
-    with get_db_session() as session:
-        song = SongRepository(session).fetch(song_id)
-        if song:
-            song.word_synced_lyrics = _json.dumps({
-                "words": result["words"],
-                "language": result["language"],
-                "mean_score": result["mean_score"],
-                "word_count": result["word_count"],
-                "line_count": result["line_count"],
-                "aligned_at": result["aligned_at"],
-            })
-            session.commit()
-    logger.info(
-        "align_song_lyrics: %d words stored (mean_score=%.3f) for song %s",
-        result["word_count"], result["mean_score"], song_id,
-    )
-    return {"status": "ok", "song_id": song_id}
+        try:
+            if source_type == "plain":
+                result = align_plain_lyrics_to_vocals(attempt["content"], vocals_path)
+            else:
+                result = align_lyrics_to_vocals(attempt["content"], vocals_path)
+        except Exception:
+            align_error_count += 1
+            logger.warning(
+                "align_song_lyrics: attempt failed for song %s (source=%s)",
+                song_id,
+                source_label,
+                exc_info=True,
+            )
+            continue
+
+        if not result:
+            logger.info(
+                "align_song_lyrics: no words returned for song %s (source=%s)",
+                song_id,
+                source_label,
+            )
+            continue
+
+        if not best_result or result["mean_score"] > best_result["mean_score"]:
+            best_result = result
+            best_attempt = attempt
+
+        if result["mean_score"] >= MIN_SCORE:
+            with get_db_session() as session:
+                song = SongRepository(session).fetch(song_id)
+                if not song:
+                    return {"status": "not_found", "song_id": song_id}
+
+                song.word_synced_lyrics = _json.dumps({
+                    "words": result["words"],
+                    "language": result["language"],
+                    "mean_score": result["mean_score"],
+                    "word_count": result["word_count"],
+                    "line_count": result["line_count"],
+                    "aligned_at": result["aligned_at"],
+                    "lyrics_source_type": source_type,
+                    "lyrics_source": source_label,
+                    "lyrics_attempt": idx + 1,
+                })
+
+                # Persist high-confidence remotely-fetched lyrics for reuse.
+                if attempt["persist"]:
+                    if source_type == "plain" and not song.plain_lyrics:
+                        song.plain_lyrics = attempt["content"]
+                    if source_type == "synced" and not song.synced_lyrics:
+                        song.synced_lyrics = attempt["content"]
+
+                session.commit()
+
+            logger.info(
+                "align_song_lyrics: stored %d words (mean_score=%.3f, source=%s) for song %s",
+                result["word_count"],
+                result["mean_score"],
+                source_label,
+                song_id,
+            )
+            return {"status": "ok", "song_id": song_id, "source": source_label}
+
+    if best_result and best_attempt:
+        logger.info(
+            "align_song_lyrics: low confidence best=%.3f (source=%s) for song %s",
+            best_result["mean_score"],
+            best_attempt["source"],
+            song_id,
+        )
+        return {
+            "status": "low_confidence",
+            "song_id": song_id,
+            "best_score": best_result["mean_score"],
+            "source": best_attempt["source"],
+            "attempted": len(attempts),
+            "errors": align_error_count,
+        }
+
+    logger.warning("align_song_lyrics: no result produced for song %s", song_id)
+    return {
+        "status": "no_result",
+        "song_id": song_id,
+        "attempted": len(attempts),
+        "errors": align_error_count,
+    }
 
 
 @celery.task(name="detect_song_chords")
@@ -1038,16 +1099,16 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                 failed += 1
                 results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
                 continue
-            source_content = song.synced_lyrics
-            use_plain = source_content is None
-            if use_plain:
-                source_content = song.plain_lyrics
             song_label = f"{song.artist or '?'} — {song.title or song_id}"
 
-        if not source_content:
+        attempts = _build_alignment_attempts(song, include_remote=False)
+        if not attempts:
             failed += 1
             results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
             continue
+        attempt = attempts[0]
+        source_content = attempt["content"]
+        use_plain = attempt["source_type"] == "plain"
 
         try:
             result = (
@@ -1076,6 +1137,9 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                         "word_count": result["word_count"],
                         "line_count": result["line_count"],
                         "aligned_at": result["aligned_at"],
+                        "lyrics_source_type": attempt["source_type"],
+                        "lyrics_source": attempt["source"],
+                        "lyrics_attempt": 1,
                     })
                     session.commit()
                 activated += 1
@@ -1089,7 +1153,7 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                 "status": status,
                 "meanScore": result["mean_score"],
                 "wordCount": result["word_count"],
-                "sourceType": "plain" if use_plain else "synced",
+                "sourceType": attempt["source_type"],
             })
             logger.info("batch_align_lyrics %s: %s (score=%.3f)", song_label, status, result["mean_score"])
 
@@ -1111,94 +1175,6 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     }
 
 
-def _write_pipeline_timing(
-    job_id: str,
-    song_id: str,
-    engine_type: str,
-    metadata: dict,
-    timestamps: dict,
-    status: str,
-    error: Optional[str] = None,
-) -> None:
-    """
-    Append one JSON line to logs/pipeline_timing.jsonl recording wall-clock
-    durations for each pipeline stage.  All durations are in seconds.
-
-    Top-level keys:
-      recorded_at      — ISO-8601 UTC timestamp of when the record was written
-      job_id / song_id / engine_type / status
-      title / artist   — from job metadata
-      durations        — dict of stage_name → seconds (derived from timestamps)
-      engine_stages    — per-stage timings inside the separation engine (three_track only)
-      raw_timestamps   — the raw perf_counter values (relative, useful for sequencing)
-    """
-    from app.config import get_config
-
-    config = get_config()
-    log_path = Path(config.LOG_DIR) / "pipeline_timing.jsonl"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    def _dur(start_key: str, end_key: str, ts: dict) -> Optional[float]:
-        s, e = ts.get(start_key), ts.get(end_key)
-        if s is not None and e is not None:
-            return round(e - s, 3)
-        return None
-
-    ts = timestamps
-    engine_ts = ts.get("engine", {})
-
-    durations: dict = {}
-    d = _dur("download_start", "download_end", ts)
-    if d is not None:
-        durations["download"] = d
-    d = _dur("separation_start", "separation_end", ts)
-    if d is not None:
-        durations["separation_total"] = d
-    d = _dur("job_start", "job_end", ts)
-    if d is not None:
-        durations["job_total"] = d
-
-    engine_durations: dict = {}
-    for stage, start_key, end_key in [
-        ("demucs", "demucs_start", "demucs_end"),
-        ("roformer", "roformer_start", "roformer_end"),
-        ("vocals_mp3", "vocals_mp3_start", "vocals_mp3_end"),
-        ("denoise", "denoise_start", "denoise_end"),
-        ("mp3_conversion", "mp3_conversion_start", "mp3_conversion_end"),
-        ("bpm_wait", "bpm_wait_start", "bpm_wait_end"),
-    ]:
-        d = _dur(start_key, end_key, engine_ts)
-        if d is not None:
-            engine_durations[stage] = d
-
-    record = {
-        "recorded_at": datetime.utcnow().isoformat() + "Z",
-        "job_id": job_id,
-        "song_id": song_id,
-        "engine_type": engine_type,
-        "status": status,
-        "title": metadata.get("title"),
-        "artist": metadata.get("artist"),
-        "durations": durations,
-        "engine_stages": engine_durations,
-        "raw_timestamps": {k: round(v, 6) for k, v in ts.items() if isinstance(v, float)},
-    }
-    if error:
-        record["error"] = error
-
-    try:
-        with open(log_path, "a") as f:
-            f.write(json.dumps(record) + "\n")
-        logger.info(
-            "Pipeline timing logged for job %s → %s (total: %ss)",
-            job_id,
-            log_path,
-            durations.get("job_total", "?"),
-        )
-    except Exception:
-        logger.warning("Failed to write pipeline timing log for job %s", job_id, exc_info=True)
-
-
 @celery.task(bind=True, name="process_youtube_job", max_retries=3)
 def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_track"):
     """
@@ -1217,10 +1193,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         metadata.get("title"),
         video_id,
     )
-
-    # Timing: record wall-clock timestamps at each pipeline milestone.
-    # Written to logs/pipeline_timing.jsonl at job end for offline analysis.
-    _t: dict[str, float] = {"job_start": time.perf_counter()}
 
     # Get the job from storage using repository
     job_repository = JobRepository()
@@ -1325,7 +1297,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
 
         update_progress(10, "Starting YouTube download")
-        _t["download_start"] = time.perf_counter()
 
         youtube_service.download_video(
             video_id_or_url=video_id,
@@ -1334,7 +1305,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             title=metadata.get("title"),
         )
 
-        _t["download_end"] = time.perf_counter()
         update_progress(
             12,
             f"Download complete, preparing {engine_type} engine",
@@ -1358,7 +1328,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         stop_event = threading.Event()
 
-        _t["separation_start"] = time.perf_counter()
         update_progress(12, f"Initializing {engine_type} audio processing")
 
         audio_progress_callback = create_audio_progress_mapper(
@@ -1372,7 +1341,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         def on_vocals_ready(vocals_path: Path) -> None:
             """Dispatch vocal analysis tasks as soon as vocals.mp3 is available (~70%)."""
-            _t["vocals_ready"] = time.perf_counter()
             logger.debug(
                 "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
                 vocals_path.stat().st_size if vocals_path.exists() else "missing",
@@ -1381,16 +1349,14 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             celery.send_task("detect_song_vocal_range", args=[song_id])
             celery.send_task("align_song_lyrics", args=[song_id])
 
-        success, _ = select_and_run_separation_engine(
+        success = select_and_run_separation_engine(
             engine_type=engine_type,
             input_path=original_file,
             song_dir=song_dir,
             status_callback=audio_progress_callback,
             stop_event=stop_event,
             on_vocals_ready=on_vocals_ready,
-            timing_sink=_t.setdefault("engine", {}),
         )
-        _t["separation_end"] = time.perf_counter()
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
@@ -1409,7 +1375,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
 
-        _t["job_end"] = time.perf_counter()
         job.status = JobStatus.COMPLETED
         job.progress = 100
         job.status_message = "Processing complete"
@@ -1422,8 +1387,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         # Dispatch chord detection — requires instrumental.mp3 which is now available
         celery.send_task("detect_song_chords", args=[song_id])
         logger.debug("[PIPELINE] ~100%% — dispatched detect_song_chords for song %s", song_id)
-
-        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="completed")
 
         return {
             "status": "success",
@@ -1442,8 +1405,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         with get_db_session() as session:
             SongRepository(session).update(song_id, status="error")
         logger.info("Job %s was cancelled", job_id)
-        _t.setdefault("job_end", time.perf_counter())
-        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="cancelled")
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
@@ -1457,8 +1418,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job_repository.delete_job(job.id)
         with get_db_session() as session:
             SongRepository(session).update(song_id, status="error")
-        _t.setdefault("job_end", time.perf_counter())
-        _write_pipeline_timing(job_id, song_id, engine_type, metadata, _t, status="failed", error=error_message)
         return {"status": "error", "job_id": job_id, "error": error_message}
 
 

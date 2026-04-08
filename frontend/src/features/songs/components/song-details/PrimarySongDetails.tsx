@@ -1,7 +1,6 @@
 import React from "react";
 import { Song } from "@/types/Song";
 import { SongPreviewPlayer } from "./SongPreviewPlayer";
-import { BpmEditor } from "./BpmEditor";
 import { formatTime } from "@/utils/formatters";
 import { getSongDuration } from "@/utils/songUtils";
 import { Badge } from "@/components/ui/badge";
@@ -60,14 +59,6 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* BPM Editor */}
-      <div className="border-t pt-4">
-        <BpmEditor song={song} />
-        <p className="text-xs text-muted-foreground mt-1">
-          Used for count-in timing before lyrics
-        </p>
       </div>
 
       {/* Special features badges */}
