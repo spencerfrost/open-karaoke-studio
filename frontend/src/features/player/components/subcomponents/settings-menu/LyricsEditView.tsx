@@ -3,7 +3,7 @@
  * Includes auto-scroll toggle, text size, timing offset with drag, and lyrics search/paste
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { ChevronLeft, Search, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,20 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
   const { useSong, useUpdateSong } = useSongs();
   const { data: song } = useSong(songId ?? "");
   const updateSongMutation = useUpdateSong();
+
+  const songForDialog = useMemo<Song | null>(
+    () =>
+      song
+        ? ({
+            id: songId,
+            title: song.title,
+            artist: song.artist,
+            album: song.album || "",
+            duration: song.duration,
+          } as Song)
+        : null,
+    [songId, song?.title, song?.artist, song?.album, song?.duration],
+  );
 
   // Lyrics dialog state
   const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
@@ -135,20 +149,12 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
       </div>
 
       {/* Lyrics Dialogs */}
-      {song && (
+      {songForDialog && (
         <>
           <LyricsFetchDialog
             isOpen={isLyricsDialogOpen}
             onClose={() => setIsLyricsDialogOpen(false)}
-            song={
-              {
-                id: songId,
-                title: song.title,
-                artist: song.artist,
-                album: song.album || "",
-                duration: song.duration,
-              } as Song
-            }
+            song={songForDialog}
             onLyricsSelected={handleLyricsSelected}
           />
           <PasteLyricsDialog
