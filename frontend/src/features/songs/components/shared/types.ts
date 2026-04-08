@@ -76,10 +76,3 @@ export interface SongCreationData {
   source: SearchSource;
   originalQuery?: string;
 }
-
-export interface AddSongDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  selectedSong: YoutubeMusicSearchResult | null;
-  onConfirm: () => void;
-}

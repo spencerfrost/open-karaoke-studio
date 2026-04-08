@@ -18,13 +18,11 @@ import { createLogger } from "@/lib/logger";
 const logger = createLogger("component:song-search");
 import { YouTubeResultCard } from "../YoutubeVideoResultCard";
 import { ArtistResultCard } from "../ArtistResultCard";
-import { AddSongDialog } from "../AddSongDialog";
 import { ArtistBrowsePanel } from "../artist-browse";
 
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";
 import { useYoutubeVideoSearch } from "@/hooks/useYoutubeVideoSearch";
 import { useSongCreation, SongInput } from "../../hooks/useSongCreation";
-import { useAddSongDialog } from "../../hooks/useAddSongDialog";
 
 import { SongSearchContainerProps, SearchSource } from "./types";
 import {
@@ -124,9 +122,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   // Single song creation hook for both flows
   const songCreation = useSongCreation();
 
-  // Dialog management
-  const dialog = useAddSongDialog();
-
   // Loading states for both result types
   const youtubeMusicLoadingStates: Record<string, boolean> = Object.fromEntries(
     (youtubeMusicSearch.data?.songs || []).map(
@@ -163,7 +158,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
     try {
       const songInput = mapYoutubeMusicToSongInput(result);
       await songCreation.createSong(songInput);
-      dialog.openDialog();
     } catch (error) {
       logger.error("Failed to create YouTube Music song:", error);
       toast.error("Failed to add song");
@@ -174,7 +168,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
     try {
       const songInput = mapYouTubeToSongInput(result);
       await songCreation.createSong(songInput);
-      dialog.openDialog();
     } catch (error) {
       logger.error("Failed to create YouTube song:", error);
       toast.error("Failed to add song");
@@ -213,7 +206,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
           </CardContent>
         </Card>
 
-        <AddSongDialog songCreation={songCreation} dialog={dialog} />
       </div>
     );
   }
@@ -311,8 +303,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
           )}
         </CardContent>
       </Card>
-
-      <AddSongDialog songCreation={songCreation} dialog={dialog} />
     </div>
   );
 };

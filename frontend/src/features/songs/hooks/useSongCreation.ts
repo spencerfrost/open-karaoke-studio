@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useLyricsSearch } from "@/hooks/api/useLyrics";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
-import { Song } from "@/types/Song";
-import type { LyricsOption } from "@/hooks/api/useLyrics";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:song-creation");
@@ -27,13 +24,9 @@ export interface SongInput {
 export const useSongCreation = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [currentSong, setCurrentSong] = useState<SongInput | null>(null);
-  const [createdSong, setCreatedSong] = useState<Song | null>(null);
 
-  const { useCreateSong, useUpdateSong } = useSongs();
+  const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
-  const updateSongMutation = useUpdateSong();
-
-  const lyricsSearch = useLyricsSearch();
 
   const youtubeDownloadMutation = useYoutubeDownloadMutation({
     onSuccess: () => {
@@ -52,22 +45,6 @@ export const useSongCreation = () => {
       artist: song.artist,
       album: song.album,
       engine_type: "three_track",
-    });
-  };
-
-  const getMetadata = (songId: string, song: SongInput) => {
-    const metadataPromise = Promise.all([
-      downloadFromYouTube(songId, song),
-      lyricsSearch.search({
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        provider: "syncedlyrics",
-      }),
-    ]);
-
-    metadataPromise.then(() => {
-      logger.debug("All download and lyrics search operations started");
     });
   };
 
@@ -98,11 +75,9 @@ export const useSongCreation = () => {
     return createSongMutation
       .mutateAsync(songData)
       .then((createdSong) => {
-        setCreatedSong(createdSong);
         logger.debug("Song created successfully:", createdSong);
 
-        // Start parallel processes for lyrics and download
-        getMetadata(createdSong.id, song);
+        downloadFromYouTube(createdSong.id, song);
 
         return createdSong;
       })
@@ -115,63 +90,15 @@ export const useSongCreation = () => {
       });
   };
 
-  const saveLyrics = (lyrics: LyricsOption) => {
-    if (!createdSong) return Promise.reject("No created song");
-
-    return updateSongMutation.mutateAsync({
-      id: createdSong.id,
-      plainLyrics: lyrics.plainLyrics,
-      syncedLyrics: lyrics.syncedLyrics,
-    });
-  };
-
-  const searchLyrics = (
-    customTitle?: string,
-    customArtist?: string,
-    customAlbum?: string,
-  ) => {
-    if (!currentSong) return Promise.reject("No current song");
-
-    return lyricsSearch.search({
-      title: customTitle || currentSong.title,
-      artist: customArtist || currentSong.artist,
-      album: customAlbum || currentSong.album || "",
-      provider: "syncedlyrics",
-    });
-  };
-
-  const resetState = () => {
-    setCurrentSong(null);
-    setCreatedSong(null);
-    setIsAdding(false);
-  };
-
-  const setCurrentSongState = (song: SongInput | null) => {
-    setCurrentSong(song);
-  };
-
-  const setCreatedSongState = (song: Song | null) => {
-    setCreatedSong(song);
-  };
-
   return {
     // State
     isAdding,
     currentSong,
-    createdSong,
-    lyricsOptions: lyricsSearch.data || [],
-    isLoadingLyrics: lyricsSearch.loading,
 
     // Actions
     createSong,
-    saveLyrics,
-    searchLyrics,
-    resetState,
-    setCurrentSong: setCurrentSongState,
-    setCreatedSong: setCreatedSongState,
 
     // Mutations
     createSongMutation,
-    updateSongMutation,
   };
 };

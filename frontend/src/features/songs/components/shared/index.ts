@@ -2,7 +2,6 @@ export { SongSearchContainer } from "./SongSearchContainer";
 export { SearchInput } from "./SearchInput";
 export { SearchTabs } from "./SearchTabs";
 export { SearchResults } from "./SearchResults";
-export { AddSongDialog } from "../AddSongDialog";
 export { BaseResultCard } from "./BaseResultCard";
 export {
   ResultCardSkeleton,
