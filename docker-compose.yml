@@ -104,6 +104,7 @@ services:
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+      - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}

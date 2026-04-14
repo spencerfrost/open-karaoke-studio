@@ -16,10 +16,15 @@ from typing import TypedDict
 
 import numpy as np
 
+from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.audio import load_vocals
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines
 
 logger = logging.getLogger(__name__)
+
+
+def _is_cuda_device(device: str) -> bool:
+    return str(device).lower().startswith("cuda")
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +155,11 @@ def align_lyrics_to_vocals(
         device,
     )
 
+    activity_started = False
     try:
+        if _is_cuda_device(device):
+            begin_gpu_activity(f"lyrics-alignment:{language}")
+            activity_started = True
         model_a, metadata = whisperx.load_align_model(
             language_code=language, device=device
         )
@@ -165,6 +174,9 @@ def align_lyrics_to_vocals(
     except Exception as e:
         logger.error("WhisperX alignment failed: %s", e, exc_info=True)
         return None
+    finally:
+        if activity_started:
+            end_gpu_activity(f"lyrics-alignment:{language}")
 
     # Flatten words from all segments, tagging each with its line index
     aligned_words: list[AlignedWord] = []
@@ -278,7 +290,11 @@ def align_plain_lyrics_to_vocals(
         device,
     )
 
+    activity_started = False
     try:
+        if _is_cuda_device(device):
+            begin_gpu_activity(f"plain-lyrics-alignment:{language}")
+            activity_started = True
         model_a, metadata = whisperx.load_align_model(
             language_code=language, device=device
         )
@@ -293,6 +309,9 @@ def align_plain_lyrics_to_vocals(
     except Exception as e:
         logger.error("WhisperX plain alignment failed: %s", e, exc_info=True)
         return None
+    finally:
+        if activity_started:
+            end_gpu_activity(f"plain-lyrics-alignment:{language}")
 
     aligned_words: list[AlignedWord] = []
     for seg_idx, seg in enumerate(result.get("segments", [])):

@@ -19,6 +19,7 @@ fi
 # Set critical environment variables for PyTorch/CUDA compatibility
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 export CUDA_VISIBLE_DEVICES="0"
+export GPU_IDLE_CLEANUP_SECONDS="${GPU_IDLE_CLEANUP_SECONDS:-1800}"
 export OMP_NUM_THREADS="1" # Prevent OpenMP conflicts
 
 # Display database URL
