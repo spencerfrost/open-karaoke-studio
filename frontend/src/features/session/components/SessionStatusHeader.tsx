@@ -2,6 +2,7 @@ import React from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import WebSocketStatus from "./WebsocketStatus";
+import EndSessionButton from "./EndSessionButton";
 
 const SessionStatusHeader: React.FC = () => {
   const { sessionId, displayCode, isHost } = useSessionStore();
@@ -24,7 +25,10 @@ const SessionStatusHeader: React.FC = () => {
           </pre>
         </div>
       </div>
-      <WebSocketStatus connected={connected} />
+      <div className="flex items-center gap-2">
+        <EndSessionButton />
+        <WebSocketStatus connected={connected} />
+      </div>
     </div>
   );
 };

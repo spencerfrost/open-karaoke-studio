@@ -108,6 +108,37 @@ export async function uploadFile<T>(
   }
 }
 
+// --- Session Playlist ---
+
+export type PlaylistStatus = "pending" | "processing" | "ready" | "failed";
+
+export interface SessionPlaylistStatus {
+  status: PlaylistStatus;
+  youtube_music_url?: string;
+  youtube_music_playlist_id?: string;
+  song_count: number;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+export async function generateSessionPlaylist(
+  sessionId: string,
+): Promise<ApiResponse<SessionPlaylistStatus>> {
+  return apiRequest<SessionPlaylistStatus>(
+    `/api/sessions/${sessionId}/playlist`,
+    { method: "POST" },
+  );
+}
+
+export async function getSessionPlaylist(
+  sessionId: string,
+): Promise<ApiResponse<SessionPlaylistStatus>> {
+  return apiRequest<SessionPlaylistStatus>(
+    `/api/sessions/${sessionId}/playlist`,
+  );
+}
+
 /**
  * Download file function
  */

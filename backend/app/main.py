@@ -32,6 +32,7 @@ from app.api import (
     musicbrainz_router,
     performance_history_router,
     queue_router,
+    session_playlist_router,
     sessions_router,
     songs_router,
     users_router,
@@ -110,6 +111,7 @@ app.include_router(users_router)
 app.include_router(host_settings_router)
 app.include_router(musicbrainz_router)
 app.include_router(performance_history_router)
+app.include_router(session_playlist_router)
 
 
 # Root endpoint
