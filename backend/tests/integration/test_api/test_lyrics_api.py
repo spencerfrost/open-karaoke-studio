@@ -1,6 +1,9 @@
 """Integration tests for DB-backed /api/lyrics endpoints."""
 import uuid
 
+from app.db.models import DbSong
+from tests.integration.conftest import _TestingSessionLocal
+
 
 def _create_song(client, title="Lyric Song", artist="Lyrical Artist"):
     resp = client.post("/api/songs", json={"title": title, "artist": artist})
@@ -71,6 +74,23 @@ def test_update_plain_lyrics_success(client):
     assert resp.json()["plainLyrics"] == "Plain lyrics here"
 
 
+def test_update_plain_lyrics_clears_alignment(client):
+    song_id = _create_song(client)
+    with _TestingSessionLocal() as session:
+        song = session.get(DbSong, song_id)
+        song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.post(
+        f"/api/lyrics/songs/{song_id}?type=plain",
+        json={"content": "Updated plain lyrics"},
+    )
+
+    assert resp.status_code == 200
+    data = client.get(f"/api/lyrics/songs/{song_id}").json()
+    assert data["hasAlignment"] is False
+
+
 def test_update_synced_lyrics_success(client):
     song_id = _create_song(client)
     resp = client.post(
@@ -104,6 +124,21 @@ def test_clear_plain_lyrics_success(client):
     assert resp.status_code == 204
     data = client.get(f"/api/lyrics/songs/{song_id}").json()
     assert data["plainLyrics"] is None
+
+
+def test_clear_plain_lyrics_clears_alignment(client):
+    song_id = _create_song(client)
+    client.post(f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"})
+    with _TestingSessionLocal() as session:
+        song = session.get(DbSong, song_id)
+        song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.delete(f"/api/lyrics/songs/{song_id}/plain")
+
+    assert resp.status_code == 204
+    data = client.get(f"/api/lyrics/songs/{song_id}").json()
+    assert data["hasAlignment"] is False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

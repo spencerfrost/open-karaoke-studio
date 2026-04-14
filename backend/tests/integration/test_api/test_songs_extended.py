@@ -1,6 +1,9 @@
 """Extended integration tests for songs API — covers routes not in test_songs_api.py."""
 import uuid
 
+from app.db.models import DbSong
+from tests.integration.conftest import _TestingSessionLocal
+
 
 def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):
     resp = client.post("/api/songs", json={"title": title, "artist": artist, **kwargs})
@@ -151,6 +154,23 @@ def test_update_song_with_plain_lyrics(client):
     assert resp.status_code == 200
 
 
+def test_update_song_with_plain_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Lyrics Song", artist="Lyrical")
+    with _TestingSessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"plainLyrics": "Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
+
+
 def test_update_song_with_synced_lyrics(client):
     song = _create_song(client, title="Synced Song", artist="SyncedArtist")
     resp = client.patch(
@@ -158,6 +178,23 @@ def test_update_song_with_synced_lyrics(client):
         json={"syncedLyrics": "[00:00.06] Is this the real life?"},
     )
     assert resp.status_code == 200
+
+
+def test_update_song_with_synced_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Synced Song", artist="SyncedArtist")
+    with _TestingSessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"syncedLyrics": "[00:00.06] Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
 
 
 def test_update_song_clear_lyrics(client):

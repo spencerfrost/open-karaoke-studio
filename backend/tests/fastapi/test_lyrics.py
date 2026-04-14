@@ -1,8 +1,6 @@
-"""
-Tests for FastAPI lyrics endpoint.
-"""
+"""Tests for FastAPI lyrics endpoint."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -135,9 +133,111 @@ class TestSearchLyricsSynced:
         assert response.status_code == 500
 
     def test_search_synced_unexpected_error(self, client):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock
         mock_svc = MagicMock()
         mock_svc.search_lyrics_structured.side_effect = RuntimeError("boom")
         with patch("app.api.lyrics.SyncedLyricsService", return_value=mock_svc):
             response = client.get("/api/lyrics/search-synced?track_name=Test&artist_name=Me")
         assert response.status_code == 500
+
+
+class TestManualAlignmentSelection:
+    def test_align_defaults_to_plain_first(self, client, temp_library_dir):
+        song = client.post(
+            "/api/songs",
+            json={"title": "Test Song", "artist": "Test Artist"},
+        ).json()
+        song_id = song["id"]
+
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=plain",
+            json={"content": "plain words"},
+        )
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=synced",
+            json={"content": "[00:00.00]synced words"},
+        )
+
+        vocals_path = temp_library_dir / song_id / "vocals.mp3"
+        vocals_path.parent.mkdir(parents=True, exist_ok=True)
+        vocals_path.write_bytes(b"fake")
+
+        with patch(
+            "app.api.lyrics.FileService.get_vocals_path",
+            return_value=vocals_path,
+        ), patch(
+            "app.api.lyrics.align_plain_lyrics_to_vocals",
+            return_value={
+                "words": [],
+                "language": "en",
+                "mean_score": 0.75,
+                "word_count": 0,
+                "line_count": 0,
+                "aligned_at": "2026-04-08T00:00:00Z",
+            },
+        ) as mock_plain, patch(
+            "app.api.lyrics.align_lyrics_to_vocals",
+            return_value={
+                "words": [],
+                "language": "en",
+                "mean_score": 0.9,
+                "word_count": 0,
+                "line_count": 0,
+                "aligned_at": "2026-04-08T00:00:00Z",
+            },
+        ) as mock_synced:
+            response = client.post(f"/api/lyrics/songs/{song_id}/align")
+
+        assert response.status_code == 200
+        mock_plain.assert_called_once()
+        mock_synced.assert_not_called()
+
+    def test_align_respects_explicit_synced_source(self, client, temp_library_dir):
+        song = client.post(
+            "/api/songs",
+            json={"title": "Test Song", "artist": "Test Artist"},
+        ).json()
+        song_id = song["id"]
+
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=plain",
+            json={"content": "plain words"},
+        )
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=synced",
+            json={"content": "[00:00.00]synced words"},
+        )
+
+        vocals_path = temp_library_dir / song_id / "vocals.mp3"
+        vocals_path.parent.mkdir(parents=True, exist_ok=True)
+        vocals_path.write_bytes(b"fake")
+
+        with patch(
+            "app.api.lyrics.FileService.get_vocals_path",
+            return_value=vocals_path,
+        ), patch(
+            "app.api.lyrics.align_plain_lyrics_to_vocals",
+            return_value={
+                "words": [],
+                "language": "en",
+                "mean_score": 0.75,
+                "word_count": 0,
+                "line_count": 0,
+                "aligned_at": "2026-04-08T00:00:00Z",
+            },
+        ) as mock_plain, patch(
+            "app.api.lyrics.align_lyrics_to_vocals",
+            return_value={
+                "words": [],
+                "language": "en",
+                "mean_score": 0.9,
+                "word_count": 0,
+                "line_count": 0,
+                "aligned_at": "2026-04-08T00:00:00Z",
+            },
+        ) as mock_synced:
+            response = client.post(f"/api/lyrics/songs/{song_id}/align?source=synced")
+
+        assert response.status_code == 200
+        mock_plain.assert_not_called()
+        mock_synced.assert_called_once()

@@ -13,6 +13,7 @@ from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
 from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
+from app.services.lyrics_selection import build_alignment_attempts
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -145,6 +146,7 @@ async def update_song_lyrics(
         song.plain_lyrics = content or None
     else:
         song.synced_lyrics = content or None
+    song.word_synced_lyrics = None
     db.commit()
     return {"plainLyrics": song.plain_lyrics, "syncedLyrics": song.synced_lyrics}
 
@@ -159,8 +161,10 @@ async def clear_song_lyrics(song_id: str, type: str, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
     if type == "plain":
         song.plain_lyrics = None
+        song.word_synced_lyrics = None
     elif type == "synced":
         song.synced_lyrics = None
+        song.word_synced_lyrics = None
     else:
         song.word_synced_lyrics = None
     db.commit()
@@ -204,6 +208,7 @@ async def apply_analysis(
         return {"analysis": result, "message": "No candidates found — lyrics unchanged"}
 
     song.synced_lyrics = result["modified_lrc"]
+    song.word_synced_lyrics = None
     db.commit()
     return {"analysis": result, "message": f"Applied {len(result['candidates'])} section breaks to synced lyrics"}
 
@@ -254,6 +259,7 @@ async def apply_offset_correction(song_id: str, db: Session = Depends(get_db)):
         return {"analysis": result, "message": "Could not estimate offset — insufficient anchor measurements. Lyrics unchanged."}
 
     song.synced_lyrics = shift_lrc_timestamps(song.synced_lyrics, -result["estimated_offset"])
+    song.word_synced_lyrics = None
     db.commit()
     return {
         "analysis": result,
@@ -288,13 +294,13 @@ async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
 async def align_song_lyrics(
     song_id: str,
     language: str = Query("en", description="BCP-47 language code for the alignment model"),
-    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to synced-first."),
+    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
     db: Session = Depends(get_db),
 ):
     """
     Run forced alignment and store result in word_synced_lyrics.
 
-    Tries synced lyrics first; falls back to plain. Use ?source=plain to force plain text.
+    Tries plain lyrics first; falls back to synced. Use ?source=plain or ?source=synced to force a source.
     Only saves the result if mean_score >= 0.5. Returns 422 if vocals.mp3 is not present.
     """
     song = SongRepository(db).fetch(song_id)
@@ -309,20 +315,16 @@ async def align_song_lyrics(
             detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
         )
 
-    if source == "plain":
-        source_content = song.plain_lyrics
-        use_plain = True
-    elif source == "synced":
-        source_content = song.synced_lyrics
-        use_plain = False
-    else:
-        source_content = song.synced_lyrics
-        use_plain = source_content is None
-        if use_plain:
-            source_content = song.plain_lyrics
+    attempts = build_alignment_attempts(song, include_remote=False)
+    if source in ("plain", "synced"):
+        attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
 
-    if not source_content:
+    if not attempts:
         raise HTTPException(status_code=404, detail=f"No synced or plain lyrics for song: {song_id}")
+
+    selected_attempt = attempts[0]
+    source_content = selected_attempt["content"]
+    use_plain = selected_attempt["source_type"] == "plain"
 
     if use_plain:
         result = align_plain_lyrics_to_vocals(source_content, vocals_path, language=language)
@@ -341,6 +343,9 @@ async def align_song_lyrics(
             "word_count": result["word_count"],
             "line_count": result["line_count"],
             "aligned_at": result["aligned_at"],
+            "lyrics_source_type": selected_attempt["source_type"],
+            "lyrics_source": selected_attempt["source"],
+            "lyrics_attempt": 1,
         })
         db.commit()
 
