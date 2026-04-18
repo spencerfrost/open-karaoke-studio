@@ -11,7 +11,9 @@ by HuggingFace in ~/.cache/huggingface/.
 """
 
 import logging
+import os
 from pathlib import Path
+from time import perf_counter
 from typing import TypedDict
 
 import numpy as np
@@ -19,12 +21,34 @@ import numpy as np
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.audio import load_vocals
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines
+from app.services.lyrics_timing import log_lyrics_event
 
 logger = logging.getLogger(__name__)
 
 
+def _song_id_from_vocals_path(vocals_path: Path) -> str:
+    return vocals_path.parent.name
+
+
 def _is_cuda_device(device: str) -> bool:
     return str(device).lower().startswith("cuda")
+
+
+def _resolve_alignment_device(device: str | None = None) -> str:
+    requested_device = (device or os.getenv("LYRICS_ALIGNMENT_DEVICE", "auto")).strip()
+    if not requested_device:
+        requested_device = "auto"
+
+    if requested_device.lower() != "auto":
+        return requested_device
+
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        logger.warning("Falling back to CPU for lyrics alignment device resolution", exc_info=True)
+        return "cpu"
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +132,7 @@ def align_lyrics_to_vocals(
     lrc_content: str,
     vocals_path: Path,
     language: str = "en",
-    device: str = "cpu",
+    device: str = "auto",
 ) -> AlignmentResult | None:
     """
     Align LRC lyrics to vocals audio using WhisperX forced alignment.
@@ -122,23 +146,43 @@ def align_lyrics_to_vocals(
     import whisperx
     from datetime import datetime, timezone
 
+    device = _resolve_alignment_device(device)
     lrc_lines = parse_lrc_lines(lrc_content)
+    song_id = _song_id_from_vocals_path(vocals_path)
     if not lrc_lines:
         logger.warning("align_lyrics_to_vocals: no LRC lines found")
+        log_lyrics_event(song_id, "lyrics_lrc_parse_empty")
         return None
 
     content_lines = [l for l in lrc_lines if l["text"].strip()]
     if not content_lines:
         logger.warning("align_lyrics_to_vocals: no non-blank LRC lines found")
+        log_lyrics_event(song_id, "lyrics_lrc_content_empty")
         return None
 
     # Load audio
     logger.info("Loading vocals from %s", vocals_path)
+    audio_load_started_at = perf_counter()
     y, sr = load_vocals(vocals_path)
+    log_lyrics_event(
+        song_id,
+        "lyrics_audio_loaded",
+        alignment_mode="synced",
+        elapsed_ms=round((perf_counter() - audio_load_started_at) * 1000, 1),
+        sample_rate=sr,
+    )
     # WhisperX expects float32 numpy array at 16kHz
     import librosa
 
+    resample_started_at = perf_counter()
     y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+    log_lyrics_event(
+        song_id,
+        "lyrics_audio_resampled",
+        alignment_mode="synced",
+        elapsed_ms=round((perf_counter() - resample_started_at) * 1000, 1),
+        sample_count=len(y_16k),
+    )
 
     # Build segments and line mapping
     segments = _lrc_lines_to_segments(lrc_lines)
@@ -146,6 +190,7 @@ def align_lyrics_to_vocals(
 
     if not segments:
         logger.warning("align_lyrics_to_vocals: no segments constructed")
+        log_lyrics_event(song_id, "lyrics_segments_empty", alignment_mode="synced")
         return None
 
     logger.info(
@@ -156,6 +201,7 @@ def align_lyrics_to_vocals(
     )
 
     activity_started = False
+    model_load_started_at = perf_counter()
     try:
         if _is_cuda_device(device):
             begin_gpu_activity(f"lyrics-alignment:{language}")
@@ -163,6 +209,15 @@ def align_lyrics_to_vocals(
         model_a, metadata = whisperx.load_align_model(
             language_code=language, device=device
         )
+        log_lyrics_event(
+            song_id,
+            "lyrics_model_loaded",
+            alignment_mode="synced",
+            elapsed_ms=round((perf_counter() - model_load_started_at) * 1000, 1),
+            language=language,
+            device=device,
+        )
+        align_started_at = perf_counter()
         result = whisperx.align(
             segments,
             model_a,
@@ -171,8 +226,16 @@ def align_lyrics_to_vocals(
             device,
             return_char_alignments=False,
         )
+        log_lyrics_event(
+            song_id,
+            "lyrics_whisperx_align_finished",
+            alignment_mode="synced",
+            elapsed_ms=round((perf_counter() - align_started_at) * 1000, 1),
+            segment_count=len(segments),
+        )
     except Exception as e:
         logger.error("WhisperX alignment failed: %s", e, exc_info=True)
+        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode="synced")
         return None
     finally:
         if activity_started:
@@ -200,12 +263,20 @@ def align_lyrics_to_vocals(
 
     if not aligned_words:
         logger.warning("align_lyrics_to_vocals: alignment produced no words")
+        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode="synced")
         return None
 
     logger.info(
         "Alignment complete: %d words across %d lines",
         len(aligned_words),
         len(content_lines),
+    )
+    log_lyrics_event(
+        song_id,
+        "lyrics_alignment_words_ready",
+        alignment_mode="synced",
+        word_count=len(aligned_words),
+        line_count=len(content_lines),
     )
 
     mean_score = round(
@@ -259,7 +330,7 @@ def align_plain_lyrics_to_vocals(
     plain_content: str,
     vocals_path: Path,
     language: str = "en",
-    device: str = "cpu",
+    device: str = "auto",
 ) -> AlignmentResult | None:
     """
     Align plain text lyrics to vocals using WhisperX forced alignment.
@@ -272,16 +343,35 @@ def align_plain_lyrics_to_vocals(
     import whisperx
     from datetime import datetime, timezone
 
+    device = _resolve_alignment_device(device)
     segments = _plain_lines_to_segments(plain_content)
+    song_id = _song_id_from_vocals_path(vocals_path)
     if not segments:
         logger.warning("align_plain_lyrics_to_vocals: no usable lines found")
+        log_lyrics_event(song_id, "lyrics_plain_segments_empty")
         return None
 
     logger.info("Loading vocals from %s", vocals_path)
+    audio_load_started_at = perf_counter()
     y, sr = load_vocals(vocals_path)
+    log_lyrics_event(
+        song_id,
+        "lyrics_audio_loaded",
+        alignment_mode="plain",
+        elapsed_ms=round((perf_counter() - audio_load_started_at) * 1000, 1),
+        sample_rate=sr,
+    )
     import librosa
 
+    resample_started_at = perf_counter()
     y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+    log_lyrics_event(
+        song_id,
+        "lyrics_audio_resampled",
+        alignment_mode="plain",
+        elapsed_ms=round((perf_counter() - resample_started_at) * 1000, 1),
+        sample_count=len(y_16k),
+    )
 
     logger.info(
         "Running plain-text forced alignment for %d lines (language=%s, device=%s)",
@@ -291,6 +381,7 @@ def align_plain_lyrics_to_vocals(
     )
 
     activity_started = False
+    model_load_started_at = perf_counter()
     try:
         if _is_cuda_device(device):
             begin_gpu_activity(f"plain-lyrics-alignment:{language}")
@@ -298,6 +389,15 @@ def align_plain_lyrics_to_vocals(
         model_a, metadata = whisperx.load_align_model(
             language_code=language, device=device
         )
+        log_lyrics_event(
+            song_id,
+            "lyrics_model_loaded",
+            alignment_mode="plain",
+            elapsed_ms=round((perf_counter() - model_load_started_at) * 1000, 1),
+            language=language,
+            device=device,
+        )
+        align_started_at = perf_counter()
         result = whisperx.align(
             segments,
             model_a,
@@ -306,8 +406,16 @@ def align_plain_lyrics_to_vocals(
             device,
             return_char_alignments=False,
         )
+        log_lyrics_event(
+            song_id,
+            "lyrics_whisperx_align_finished",
+            alignment_mode="plain",
+            elapsed_ms=round((perf_counter() - align_started_at) * 1000, 1),
+            segment_count=len(segments),
+        )
     except Exception as e:
         logger.error("WhisperX plain alignment failed: %s", e, exc_info=True)
+        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode="plain")
         return None
     finally:
         if activity_started:
@@ -332,6 +440,7 @@ def align_plain_lyrics_to_vocals(
 
     if not aligned_words:
         logger.warning("align_plain_lyrics_to_vocals: alignment produced no words")
+        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode="plain")
         return None
 
     mean_score = round(
@@ -342,6 +451,14 @@ def align_plain_lyrics_to_vocals(
         "Plain alignment complete: %d words, mean_score=%.3f",
         len(aligned_words),
         mean_score,
+    )
+    log_lyrics_event(
+        song_id,
+        "lyrics_alignment_words_ready",
+        alignment_mode="plain",
+        word_count=len(aligned_words),
+        line_count=len(segments),
+        mean_score=mean_score,
     )
 
     return AlignmentResult(
@@ -359,7 +476,7 @@ def align_plain_lyrics_to_vocals(
 # ---------------------------------------------------------------------------
 
 
-def load_alignment_model(language: str = "en", device: str = "cpu"):
+def load_alignment_model(language: str = "en", device: str = "auto"):
     """
     Load the WhisperX wav2vec2 alignment model once for reuse across many songs.
 
@@ -368,6 +485,7 @@ def load_alignment_model(language: str = "en", device: str = "cpu"):
     """
     import whisperx
 
+    device = _resolve_alignment_device(device)
     logger.info("Loading WhisperX alignment model (language=%s, device=%s)", language, device)
     return whisperx.load_align_model(language_code=language, device=device)
 
@@ -378,7 +496,7 @@ def align_lyrics_to_vocals_with_model(
     model_a,
     metadata,
     language: str = "en",
-    device: str = "cpu",
+    device: str = "auto",
 ) -> AlignmentResult | None:
     """
     Align LRC lyrics using a pre-loaded WhisperX model.
@@ -389,6 +507,7 @@ def align_lyrics_to_vocals_with_model(
     import whisperx
     from datetime import datetime, timezone
 
+    device = _resolve_alignment_device(device)
     lrc_lines = parse_lrc_lines(lrc_content)
     if not lrc_lines:
         return None
@@ -454,7 +573,7 @@ def align_plain_lyrics_to_vocals_with_model(
     model_a,
     metadata,
     language: str = "en",
-    device: str = "cpu",
+    device: str = "auto",
 ) -> AlignmentResult | None:
     """
     Align plain text lyrics using a pre-loaded WhisperX model.
@@ -465,6 +584,7 @@ def align_plain_lyrics_to_vocals_with_model(
     import whisperx
     from datetime import datetime, timezone
 
+    device = _resolve_alignment_device(device)
     segments = _plain_lines_to_segments(plain_content)
     if not segments:
         return None

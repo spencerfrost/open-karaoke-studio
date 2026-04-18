@@ -19,7 +19,8 @@ from app.services import FileService, audio, file_management
 from app.services.audio import create_audio_progress_mapper, detect_loudness, detect_vocal_range
 from app.services.chord_detection_service import detect_chords
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
-from app.services.lyrics_selection import build_alignment_attempts
+from app.services.lyrics_selection import SongData, build_alignment_attempts, select_initial_lyrics
+from app.services.lyrics_timing import log_lyrics_event
 from app.services.separation_engines import (
     separate_with_clean_backing,
     separate_with_demucs,
@@ -64,6 +65,14 @@ def _create_lyrics_alignment_job(
         engine_type=LYRICS_JOB_ENGINE_TYPE,
     )
     job_repository.create(lyrics_job)
+    log_lyrics_event(
+        song_id,
+        "lyrics_job_queued",
+        lyrics_job_id=lyrics_job_id,
+        title=title,
+        artist=artist,
+        queued_at=lyrics_job.created_at,
+    )
     return lyrics_job_id
 
 
@@ -442,7 +451,7 @@ def _fetch_thumbnail_safe(
         return None
 
 
-def _build_alignment_attempts(song, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
+def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
     return build_alignment_attempts(
         song,
         include_remote=include_remote,
@@ -704,6 +713,18 @@ def align_song_lyrics(song_id: str) -> dict:
 
     MIN_SCORE = 0.5
     task_started_at = perf_counter()
+    lyrics_job = job_repository.get_by_id(_get_lyrics_job_id(song_id))
+    queue_wait_ms = None
+    if lyrics_job and lyrics_job.created_at:
+        now = datetime.now(lyrics_job.created_at.tzinfo) if lyrics_job.created_at.tzinfo else datetime.now()
+        queue_wait_ms = round((now - lyrics_job.created_at).total_seconds() * 1000, 1)
+    log_lyrics_event(
+        song_id,
+        "lyrics_task_started",
+        lyrics_job_id=_get_lyrics_job_id(song_id),
+        queue_wait_ms=queue_wait_ms,
+        task_started_at=datetime.now(),
+    )
 
     config = get_config()
     vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
@@ -717,6 +738,7 @@ def align_song_lyrics(song_id: str) -> dict:
 
     if not vocals_path.exists():
         logger.warning("align_song_lyrics: vocals.mp3 not found for song %s", song_id)
+        log_lyrics_event(song_id, "lyrics_vocals_missing", vocals_path=vocals_path)
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
@@ -728,6 +750,7 @@ def align_song_lyrics(song_id: str) -> dict:
         song = SongRepository(session).fetch(song_id)
         if not song:
             logger.warning("align_song_lyrics: song %s not found", song_id)
+            log_lyrics_event(song_id, "lyrics_song_missing")
             _complete_lyrics_alignment_job(
                 song_id,
                 status=JobStatus.FAILED,
@@ -735,24 +758,98 @@ def align_song_lyrics(song_id: str) -> dict:
                 error="song not found",
             )
             return {"status": "not_found", "song_id": song_id}
+        song_data: SongData = {
+            "id": song.id,
+            "title": song.title,
+            "artist": song.artist,
+            "album": song.album,
+            "plain_lyrics": song.plain_lyrics,
+            "synced_lyrics": song.synced_lyrics,
+            "word_synced_lyrics": song.word_synced_lyrics,
+        }
+
+    log_lyrics_event(
+        song_id,
+        "lyrics_source_snapshot",
+        has_plain_lyrics=bool(song_data["plain_lyrics"]),
+        plain_lyrics_length=len(song_data["plain_lyrics"] or ""),
+        has_synced_lyrics=bool(song_data["synced_lyrics"]),
+        synced_lyrics_length=len(song_data["synced_lyrics"] or ""),
+        has_word_synced_lyrics=bool(song_data["word_synced_lyrics"]),
+        artist=song_data["artist"],
+        title=song_data["title"],
+    )
 
     attempts_started_at = perf_counter()
-    attempts = _build_alignment_attempts(song, include_remote=True)
+    attempts = _build_alignment_attempts(song_data, include_remote=True)
+    attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
     logger.info(
         "align_song_lyrics: built %d attempts for song %s in %.2fs",
         len(attempts),
         song_id,
-        perf_counter() - attempts_started_at,
+        attempts_elapsed_ms / 1000,
     )
+    log_lyrics_event(
+        song_id,
+        "lyrics_attempts_built",
+        elapsed_ms=attempts_elapsed_ms,
+        attempt_count=len(attempts),
+        sources=[
+            {
+                "source": attempt["source"],
+                "source_type": attempt["source_type"],
+                "persist": attempt["persist"],
+            }
+            for attempt in attempts
+        ],
+    )
+
+    initial_lyrics_attempt = select_initial_lyrics(attempts)
+    persisted_plain_lyrics = False
+    persisted_synced_lyrics = False
+    if initial_lyrics_attempt:
+        immediate_persist_started_at = perf_counter()
+        with get_db_session() as session:
+            song = SongRepository(session).fetch(song_id)
+            if not song:
+                return {"status": "not_found", "song_id": song_id}
+
+            if initial_lyrics_attempt["source_type"] == "synced" and not song.synced_lyrics:
+                song.synced_lyrics = initial_lyrics_attempt["content"]
+                persisted_synced_lyrics = True
+            elif (
+                initial_lyrics_attempt["source_type"] == "plain"
+                and not song.plain_lyrics
+                and not song.synced_lyrics
+            ):
+                song.plain_lyrics = initial_lyrics_attempt["content"]
+                persisted_plain_lyrics = True
+
+            if persisted_plain_lyrics or persisted_synced_lyrics:
+                session.commit()
+
+        if persisted_plain_lyrics or persisted_synced_lyrics:
+            log_lyrics_event(
+                song_id,
+                "lyrics_initial_persisted",
+                source=initial_lyrics_attempt["source"],
+                source_type=initial_lyrics_attempt["source_type"],
+                persist_elapsed_ms=round((perf_counter() - immediate_persist_started_at) * 1000, 1),
+                persisted_plain_lyrics=persisted_plain_lyrics,
+                persisted_synced_lyrics=persisted_synced_lyrics,
+                total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            )
+
     _update_lyrics_alignment_job(
         song_id,
         status=JobStatus.PROCESSING,
         progress=35,
-        message="Aligning lyrics to vocals",
+        message="Lyrics fetched, aligning to vocals",
     )
 
     if not attempts:
         logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
+        log_lyrics_event(song_id, "lyrics_no_candidates")
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
@@ -767,6 +864,7 @@ def align_song_lyrics(song_id: str) -> dict:
     for idx, attempt in enumerate(attempts):
         source_type = attempt["source_type"]
         source_label = attempt["source"]
+        attempt_started_at = perf_counter()
         logger.info(
             "align_song_lyrics: attempt %d/%d for song %s (%s, source=%s)",
             idx + 1,
@@ -774,6 +872,15 @@ def align_song_lyrics(song_id: str) -> dict:
             song_id,
             source_type,
             source_label,
+        )
+        log_lyrics_event(
+            song_id,
+            "lyrics_attempt_started",
+            attempt_index=idx + 1,
+            attempt_total=len(attempts),
+            source=source_label,
+            source_type=source_type,
+            content_length=len(attempt["content"]),
         )
 
         try:
@@ -783,6 +890,14 @@ def align_song_lyrics(song_id: str) -> dict:
                 result = align_lyrics_to_vocals(attempt["content"], vocals_path)
         except Exception:
             align_error_count += 1
+            log_lyrics_event(
+                song_id,
+                "lyrics_attempt_failed",
+                attempt_index=idx + 1,
+                source=source_label,
+                source_type=source_type,
+                elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
+            )
             logger.warning(
                 "align_song_lyrics: attempt failed for song %s (source=%s)",
                 song_id,
@@ -792,6 +907,14 @@ def align_song_lyrics(song_id: str) -> dict:
             continue
 
         if not result:
+            log_lyrics_event(
+                song_id,
+                "lyrics_attempt_empty",
+                attempt_index=idx + 1,
+                source=source_label,
+                source_type=source_type,
+                elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
+            )
             logger.info(
                 "align_song_lyrics: no words returned for song %s (source=%s)",
                 song_id,
@@ -803,11 +926,31 @@ def align_song_lyrics(song_id: str) -> dict:
             best_result = result
             best_attempt = attempt
 
+        log_lyrics_event(
+            song_id,
+            "lyrics_attempt_finished",
+            attempt_index=idx + 1,
+            source=source_label,
+            source_type=source_type,
+            elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
+            word_count=result["word_count"],
+            line_count=result["line_count"],
+            mean_score=result["mean_score"],
+        )
+
         if result["mean_score"] >= MIN_SCORE:
+            persist_started_at = perf_counter()
             with get_db_session() as session:
                 song = SongRepository(session).fetch(song_id)
                 if not song:
                     return {"status": "not_found", "song_id": song_id}
+
+                should_persist_plain_lyrics = bool(
+                    attempt["persist"] and source_type == "plain" and not song.plain_lyrics
+                )
+                should_persist_synced_lyrics = bool(
+                    attempt["persist"] and source_type == "synced" and not song.synced_lyrics
+                )
 
                 song.word_synced_lyrics = _json.dumps({
                     "words": result["words"],
@@ -823,12 +966,28 @@ def align_song_lyrics(song_id: str) -> dict:
 
                 # Persist high-confidence remotely-fetched lyrics for reuse.
                 if attempt["persist"]:
-                    if source_type == "plain" and not song.plain_lyrics:
+                    if should_persist_plain_lyrics:
                         song.plain_lyrics = attempt["content"]
-                    if source_type == "synced" and not song.synced_lyrics:
+                    if should_persist_synced_lyrics:
                         song.synced_lyrics = attempt["content"]
 
                 session.commit()
+
+            persist_elapsed_ms = round((perf_counter() - persist_started_at) * 1000, 1)
+            log_lyrics_event(
+                song_id,
+                "lyrics_persisted",
+                attempt_index=idx + 1,
+                source=source_label,
+                source_type=source_type,
+                persist_elapsed_ms=persist_elapsed_ms,
+                total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+                word_count=result["word_count"],
+                line_count=result["line_count"],
+                mean_score=result["mean_score"],
+                persisted_plain_lyrics=should_persist_plain_lyrics,
+                persisted_synced_lyrics=should_persist_synced_lyrics,
+            )
 
             logger.info(
                 "align_song_lyrics: stored %d words (mean_score=%.3f, source=%s) for song %s",
@@ -844,6 +1003,15 @@ def align_song_lyrics(song_id: str) -> dict:
                     "Lyrics ready"
                     f" ({result['word_count']} words, {perf_counter() - task_started_at:.1f}s)"
                 ),
+            )
+            log_lyrics_event(
+                song_id,
+                "lyrics_task_completed",
+                status="ok",
+                source=source_label,
+                source_type=source_type,
+                total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+                queue_wait_ms=queue_wait_ms,
             )
             return {"status": "ok", "song_id": song_id, "source": source_label}
 
@@ -862,6 +1030,18 @@ def align_song_lyrics(song_id: str) -> dict:
                 f" ({best_result['mean_score']:.3f})"
             ),
         )
+        log_lyrics_event(
+            song_id,
+            "lyrics_task_completed",
+            status="low_confidence",
+            source=best_attempt["source"],
+            source_type=best_attempt["source_type"],
+            best_score=best_result["mean_score"],
+            attempted=len(attempts),
+            errors=align_error_count,
+            total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            queue_wait_ms=queue_wait_ms,
+        )
         return {
             "status": "low_confidence",
             "song_id": song_id,
@@ -872,6 +1052,15 @@ def align_song_lyrics(song_id: str) -> dict:
         }
 
     logger.warning("align_song_lyrics: no result produced for song %s", song_id)
+    log_lyrics_event(
+        song_id,
+        "lyrics_task_completed",
+        status="no_result",
+        attempted=len(attempts),
+        errors=align_error_count,
+        total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+        queue_wait_ms=queue_wait_ms,
+    )
     _complete_lyrics_alignment_job(
         song_id,
         status=JobStatus.COMPLETED,
@@ -1218,8 +1407,17 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                 results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
                 continue
             song_label = f"{song.artist or '?'} — {song.title or song_id}"
+            song_data: SongData = {
+                "id": song.id,
+                "title": song.title,
+                "artist": song.artist,
+                "album": song.album,
+                "plain_lyrics": song.plain_lyrics,
+                "synced_lyrics": song.synced_lyrics,
+                "word_synced_lyrics": song.word_synced_lyrics,
+            }
 
-        attempts = _build_alignment_attempts(song, include_remote=False)
+        attempts = _build_alignment_attempts(song_data, include_remote=False)
         if not attempts:
             failed += 1
             results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
@@ -1516,6 +1714,13 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 vocals_path.stat().st_size if vocals_path.exists() else "missing",
                 song_id,
             )
+            log_lyrics_event(
+                song_id,
+                "vocals_ready",
+                vocals_path=vocals_path,
+                vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
+                pipeline_progress=70,
+            )
             _create_lyrics_alignment_job(
                 song_id,
                 title=metadata.get("title"),
@@ -1523,6 +1728,11 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             )
             celery.send_task("detect_song_vocal_range", args=[song_id])
             celery.send_task("align_song_lyrics", args=[song_id])
+            log_lyrics_event(
+                song_id,
+                "lyrics_task_dispatched",
+                lyrics_job_id=_get_lyrics_job_id(song_id),
+            )
 
         success, final_engine_type = run_separation_with_fallback(
             engine_type=engine_type,

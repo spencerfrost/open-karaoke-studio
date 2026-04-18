@@ -155,6 +155,15 @@ class LoggingConfig:
                     "backupCount": 5,
                     "encoding": "utf8",
                 },
+                "file_lyrics_timing": {
+                    "class": "logging.handlers.RotatingFileHandler",
+                    "level": "INFO",
+                    "formatter": "json",
+                    "filename": str(self.log_dir / "lyrics_timing.jsonl"),
+                    "maxBytes": 10485760,
+                    "backupCount": 5,
+                    "encoding": "utf8",
+                },
             },
             "loggers": {
                 # Root logger
@@ -178,6 +187,11 @@ class LoggingConfig:
                 "celery.task": {
                     "level": "INFO",
                     "handlers": ["console", "file_celery",],
+                    "propagate": False,
+                },
+                "app.lyrics_timing": {
+                    "level": "INFO",
+                    "handlers": ["file_lyrics_timing"],
                     "propagate": False,
                 },
                 # Third-party loggers (reduce noise)

@@ -1,11 +1,23 @@
+from time import perf_counter
 from typing import Literal, Optional, TypedDict
 
 from app.config.logging import get_structured_logger
+from app.services.lyrics_timing import log_lyrics_event
 
 logger = get_structured_logger(
     "app.services.lyrics_selection",
     {"component": "lyrics_selection"},
 )
+
+
+class SongData(TypedDict):
+    id: str
+    title: Optional[str]
+    artist: Optional[str]
+    album: Optional[str]
+    plain_lyrics: Optional[str]
+    synced_lyrics: Optional[str]
+    word_synced_lyrics: Optional[str]
 
 
 class AlignmentAttempt(TypedDict):
@@ -15,8 +27,28 @@ class AlignmentAttempt(TypedDict):
     persist: bool
 
 
+def _attempt_priority(attempt: AlignmentAttempt) -> tuple[int, int, str]:
+    source_rank = 0 if attempt["source"].startswith("db:") else 1
+    type_rank = 0 if attempt["source_type"] == "synced" else 1
+    return (source_rank, type_rank, attempt["source"])
+
+
+def select_initial_lyrics(attempts: list[AlignmentAttempt]) -> AlignmentAttempt | None:
+    """Pick the best remote candidate to persist for immediate display."""
+    remote_attempts = [attempt for attempt in attempts if not attempt["source"].startswith("db:")]
+    if not remote_attempts:
+        return None
+
+    for source_type in ("synced", "plain"):
+        for attempt in remote_attempts:
+            if attempt["source_type"] == source_type:
+                return attempt
+
+    return None
+
+
 def build_alignment_attempts(
-    song,
+    song: SongData,
     include_remote: bool = True,
     max_remote_results: int = 3,
 ) -> list[AlignmentAttempt]:
@@ -48,14 +80,14 @@ def build_alignment_attempts(
             }
         )
 
-    add_attempt(song.plain_lyrics, "plain", "db:plain")
-    add_attempt(song.synced_lyrics, "synced", "db:synced")
+    add_attempt(song["synced_lyrics"], "synced", "db:synced")
+    add_attempt(song["plain_lyrics"], "plain", "db:plain")
 
     if not include_remote:
         return attempts
 
-    track_name = (song.title or "").strip()
-    artist_name = (song.artist or "").strip()
+    track_name = (song["title"] or "").strip()
+    artist_name = (song["artist"] or "").strip()
     if not track_name or not artist_name:
         return attempts
 
@@ -66,25 +98,34 @@ def build_alignment_attempts(
         "track_name": track_name,
         "artist_name": artist_name,
     }
-    if song.album:
-        params["album_name"] = song.album
+    if song["album"]:
+        params["album_name"] = song["album"]
 
     try:
+        started_at = perf_counter()
         lrclib_results = LyricsService().search_lyrics_structured(params)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_finished",
+            provider="lrclib",
+            elapsed_ms=round((perf_counter() - started_at) * 1000, 1),
+            result_count=len(lrclib_results),
+        )
         for idx, candidate in enumerate(lrclib_results[:max_remote_results]):
-            add_attempt(
-                candidate.get("plainLyrics"),
-                "plain",
-                f"lrclib:{idx + 1}",
-                persist=True,
-            )
             add_attempt(
                 candidate.get("syncedLyrics"),
                 "synced",
                 f"lrclib:{idx + 1}",
                 persist=True,
             )
+            add_attempt(
+                candidate.get("plainLyrics"),
+                "plain",
+                f"lrclib:{idx + 1}",
+                persist=True,
+            )
     except Exception:
+        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="lrclib")
         logger.debug(
             "LRCLIB candidate fetch failed for %s - %s",
             artist_name,
@@ -93,21 +134,30 @@ def build_alignment_attempts(
         )
 
     try:
+        started_at = perf_counter()
         synced_results = SyncedLyricsService().search_lyrics_structured(params)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_finished",
+            provider="syncedlyrics",
+            elapsed_ms=round((perf_counter() - started_at) * 1000, 1),
+            result_count=len(synced_results),
+        )
         for idx, candidate in enumerate(synced_results[:max_remote_results]):
-            add_attempt(
-                candidate.get("plainLyrics"),
-                "plain",
-                f"syncedlyrics:{idx + 1}",
-                persist=True,
-            )
             add_attempt(
                 candidate.get("syncedLyrics"),
                 "synced",
                 f"syncedlyrics:{idx + 1}",
                 persist=True,
             )
+            add_attempt(
+                candidate.get("plainLyrics"),
+                "plain",
+                f"syncedlyrics:{idx + 1}",
+                persist=True,
+            )
     except Exception:
+        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="syncedlyrics")
         logger.debug(
             "syncedlyrics candidate fetch failed for %s - %s",
             artist_name,
@@ -115,4 +165,4 @@ def build_alignment_attempts(
             exc_info=True,
         )
 
-    return attempts
+    return sorted(attempts, key=_attempt_priority)
