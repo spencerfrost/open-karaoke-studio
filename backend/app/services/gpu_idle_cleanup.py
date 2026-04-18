@@ -43,8 +43,9 @@ def begin_gpu_activity(reason: str) -> None:
         if _cleanup_timer is not None:
             _cleanup_timer.cancel()
             _cleanup_timer = None
+        active_count = _active_gpu_users
 
-    logger.debug("GPU activity started (%s); active users=%d", reason, _active_gpu_users)
+    logger.debug("GPU activity started (%s); active users=%d", reason, active_count)
 
 
 def end_gpu_activity(reason: str) -> None:
@@ -138,7 +139,7 @@ def _release_gpu_resources(idle_for_seconds: float) -> None:
         try:
             torch.cuda.ipc_collect()
         except RuntimeError:
-            logger.debug("torch.cuda.ipc_collect failed during idle cleanup", exc_info=True)
+            logger.warning("torch.cuda.ipc_collect failed during idle cleanup", exc_info=True)
 
     reserved_after = torch.cuda.memory_reserved()
     allocated_after = torch.cuda.memory_allocated()
