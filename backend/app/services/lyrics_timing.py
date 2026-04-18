@@ -1,11 +1,11 @@
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.config.logging import get_structured_logger
 
-logger = logging.getLogger("app.lyrics_timing")
+logger = get_structured_logger(__name__, {"component": "lyrics_timing"})
 
 
 def _normalize_value(value: Any) -> Any:
