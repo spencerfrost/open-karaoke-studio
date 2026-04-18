@@ -72,7 +72,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
         }
       });
     }
-  }, [isAuthenticated, user, sessionId, isConnecting, joinAsHost, logout]);
+  }, [isAuthenticated, user?.id, user?.isHost, user?.isAdmin, sessionId, isConnecting, joinAsHost, logout]);
 
   const hasAutoJoined = useRef(false);
 
