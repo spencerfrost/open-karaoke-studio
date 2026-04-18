@@ -22,6 +22,7 @@ interface JobData {
   task_id?: string;
   artist?: string;
   title?: string;
+  engine_type?: string;
 }
 
 /**
@@ -57,6 +58,7 @@ function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
     message: job.status_message || job.error || job.notes || undefined,
     artist: job.artist,
     title: job.title,
+    engineType: job.engine_type,
   };
 }
 
@@ -117,7 +119,7 @@ export function useJobsWebSocket() {
         queryClient.invalidateQueries({ queryKey: ["songs"] });
         if (jobData.song_id) {
           queryClient.invalidateQueries({
-            queryKey: ["song", jobData.song_id],
+            queryKey: ["songs", jobData.song_id],
           });
         }
       }
@@ -152,7 +154,7 @@ export function useJobsWebSocket() {
           queryClient.invalidateQueries({ queryKey: ["songs"] });
           completedJobs.forEach((j) => {
             if (j.song_id) {
-              queryClient.invalidateQueries({ queryKey: ["song", j.song_id] });
+              queryClient.invalidateQueries({ queryKey: ["songs", j.song_id] });
             }
           });
         }

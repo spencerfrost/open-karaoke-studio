@@ -13,9 +13,12 @@ export const SongActions: React.FC<SongActionsProps> = ({
   const processingStatus = useProcessingIndicators((state) =>
     state.getStatus(song.id),
   );
+  const isLyricsOnlyProcessing =
+    processingStatus?.engineType === "lyrics_alignment";
   const isActivelyProcessing =
-    processingStatus?.status === "queued" ||
-    processingStatus?.status === "processing";
+    !isLyricsOnlyProcessing &&
+    (processingStatus?.status === "queued" ||
+      processingStatus?.status === "processing");
 
   return (
     <div className="flex items-center justify-around">

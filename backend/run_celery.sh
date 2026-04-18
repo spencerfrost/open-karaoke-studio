@@ -38,12 +38,22 @@ celery -A app.jobs.celery_app.celery worker \
     --queues=audio \
     --hostname=audio@%h &
 
-# Worker 2: enrichment tasks — concurrency=4 allows parallel post-processing
+# Worker 2: enrichment tasks — concurrency=3 allows parallel post-processing
+# while leaving room for a dedicated lyrics worker.
 celery -A app.jobs.celery_app.celery worker \
     --loglevel=info \
-    --concurrency=4 \
+    --concurrency=3 \
     --pool=threads \
     --queues=enrichment \
     --hostname=enrichment@%h &
+
+# Worker 3: lyrics alignment gets dedicated capacity so it cannot sit behind
+# artwork, fingerprinting, or chord detection.
+celery -A app.jobs.celery_app.celery worker \
+    --loglevel=info \
+    --concurrency=1 \
+    --pool=threads \
+    --queues=lyrics \
+    --hostname=lyrics@%h &
 
 wait

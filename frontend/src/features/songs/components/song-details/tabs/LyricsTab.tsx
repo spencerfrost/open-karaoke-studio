@@ -3,6 +3,7 @@ import { Song } from "@/types/Song";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 import { FileText, Music, AlertCircle, Search } from "lucide-react";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
@@ -17,6 +18,13 @@ interface LyricsTabProps {
 export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
+  const processingStatus = useProcessingIndicators((state) =>
+    state.getStatus(song.id),
+  );
+  const isLyricsProcessing =
+    processingStatus?.engineType === "lyrics_alignment" &&
+    (processingStatus.status === "queued" ||
+      processingStatus.status === "processing");
 
   const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
   const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] = useState(false);
@@ -159,9 +167,14 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
       {!hasLyrics && (
         <div className="flex flex-col items-center justify-center py-12">
           <AlertCircle size={48} className="text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Lyrics Available</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            {isLyricsProcessing ? "Lyrics Are Still Processing" : "No Lyrics Available"}
+          </h3>
           <p className="text-sm text-muted-foreground text-center max-w-md">
-            Search for lyrics online or paste them manually above.
+            {isLyricsProcessing
+              ? (processingStatus?.message ??
+                "The YouTube import is still aligning lyrics in the background. This tab will refresh automatically.")
+              : "Search for lyrics online or paste them manually above."}
           </p>
         </div>
       )}

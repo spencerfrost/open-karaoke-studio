@@ -21,7 +21,8 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
   const processingStatus = useProcessingIndicators((state) =>
     state.getStatus(song.id),
   );
-  const isProcessing = !!processingStatus;
+  const isBlockingProcessing =
+    !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -36,7 +37,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
       {showSyncedBadge && song.syncedLyrics && <SyncedLyricsBadge />}
 
       {/* Play button overlay - hide if processing or showPlayButton is false */}
-      {showPlayButton && !isProcessing && (
+      {showPlayButton && !isBlockingProcessing && (
         <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
           <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
             <Play className="w-12 h-12 text-white fill-white" />
@@ -45,7 +46,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
       )}
 
       {/* Processing indicator overlay */}
-      {processingStatus && (
+      {isBlockingProcessing && processingStatus && (
         <ProcessingIndicator status={processingStatus} variant="overlay" />
       )}
 

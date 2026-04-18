@@ -6,6 +6,8 @@ import { OverviewTab, DetailsTab, LyricsTab, AudioTab } from "./tabs";
 import { MetadataEditContent } from "./MetadataEditContent";
 import { SongActionPanel } from "@/features/songs/components/admin/SongActionPanel";
 import { cn } from "@/lib/utils";
+import { useSongs } from "@/hooks/api/useSongs";
+import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 import { Info, FileText, Music2, Settings, Wrench } from "lucide-react";
 
 interface SongDetailsDialogProps {
@@ -24,8 +26,20 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   onClose,
   className = "",
 }) => {
+  const { useSong } = useSongs();
+  const processingStatus = useProcessingIndicators((state) =>
+    state.getStatus(song.id),
+  );
+  const { data: liveSong } = useSong(song.id, {
+    enabled: isOpen,
+    refetchInterval:
+      isOpen && processingStatus?.status === "processing"
+        ? 3000
+        : false,
+  });
   const [currentView, setCurrentView] = useState<DialogView>("tabs");
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
+  const currentSong = liveSong ?? song;
 
   // Close audio when dialog closes
   useEffect(() => {
@@ -143,7 +157,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   className="mt-0 data-[state=inactive]:hidden"
                 >
                   <OverviewTab
-                    song={song}
+                    song={currentSong}
                     onClose={onClose}
                     onSongDeleted={onClose}
                   />
@@ -154,7 +168,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   className="mt-0 data-[state=inactive]:hidden"
                 >
                   <DetailsTab
-                    song={song}
+                    song={currentSong}
                     onLaunchItunesSearch={handleLaunchItunesSearch}
                   />
                 </TabsContent>
@@ -163,21 +177,21 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   value="lyrics"
                   className="mt-0 data-[state=inactive]:hidden"
                 >
-                  <LyricsTab song={song} />
+                  <LyricsTab song={currentSong} />
                 </TabsContent>
 
                 <TabsContent
                   value="audio"
                   className="mt-0 data-[state=inactive]:hidden"
                 >
-                  <AudioTab song={song} />
+                  <AudioTab song={currentSong} />
                 </TabsContent>
 
                 <TabsContent
                   value="actions"
                   className="mt-0 data-[state=inactive]:hidden"
                 >
-                  <SongActionPanel song={song} onDone={onClose} />
+                  <SongActionPanel song={currentSong} onDone={onClose} />
                 </TabsContent>
               </div>
             </div>
@@ -186,7 +200,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
           /* iTunes Search View */
           <div className="p-6 h-full overflow-y-auto">
             <MetadataEditContent
-              song={song}
+              song={currentSong}
               onBack={handleBackFromItunesSearch}
             />
           </div>

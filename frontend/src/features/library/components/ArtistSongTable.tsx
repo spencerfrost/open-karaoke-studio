@@ -25,9 +25,11 @@ interface SongTableRowProps {
 const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   const { getArtworkUrl } = useSongs();
   const { isHost } = useSessionStore();
-  const isProcessing = useProcessingIndicators((state) =>
-    state.isProcessing(song.id),
+  const processingStatus = useProcessingIndicators((state) =>
+    state.getStatus(song.id),
   );
+  const isBlockingProcessing =
+    !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
   const [imgError, setImgError] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
 
@@ -85,7 +87,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
           className="size-7 text-accent"
           aria-label="Add to karaoke queue"
           onClick={handleQueueClick}
-          disabled={isProcessing}
+          disabled={isBlockingProcessing}
         >
           <ListPlus className="size-4" />
         </Button>
@@ -99,7 +101,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
             e.stopPropagation();
             dialogs.openDialog("details");
           }}
-          disabled={isProcessing}
+          disabled={isBlockingProcessing}
         >
           <MoreVertical className="size-4" />
         </Button>
@@ -114,7 +116,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
               e.stopPropagation();
               dialogs.openDialog("delete");
             }}
-            disabled={isProcessing}
+            disabled={isBlockingProcessing}
           >
             <Trash className="size-4" />
           </Button>

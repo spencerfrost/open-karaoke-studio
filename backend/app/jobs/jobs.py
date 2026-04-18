@@ -7,12 +7,13 @@ import threading
 import traceback
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Callable, Optional
 
 import librosa
 
 from app.config.logging import get_structured_logger
-from app.db.models import JobStatus
+from app.db.models import Job, JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio, file_management
 from app.services.audio import create_audio_progress_mapper, detect_loudness, detect_vocal_range
@@ -36,6 +37,86 @@ structured_logger = get_structured_logger(
     "app.jobs", {"job_module": "jobs", "component": "task_processor"}
 )
 job_repository = JobRepository()
+
+
+LYRICS_JOB_ENGINE_TYPE = "lyrics_alignment"
+
+
+def _get_lyrics_job_id(song_id: str) -> str:
+    return f"lyrics-align:{song_id}"
+
+
+def _create_lyrics_alignment_job(
+    song_id: str,
+    title: Optional[str] = None,
+    artist: Optional[str] = None,
+) -> str:
+    lyrics_job_id = _get_lyrics_job_id(song_id)
+    lyrics_job = Job(
+        id=lyrics_job_id,
+        filename="lyrics-alignment",
+        status=JobStatus.PENDING,
+        progress=0,
+        status_message="Queued lyrics alignment",
+        song_id=song_id,
+        title=title,
+        artist=artist,
+        engine_type=LYRICS_JOB_ENGINE_TYPE,
+    )
+    job_repository.create(lyrics_job)
+    return lyrics_job_id
+
+
+def _update_lyrics_alignment_job(
+    song_id: str,
+    *,
+    status: JobStatus,
+    progress: int,
+    message: str,
+    error: Optional[str] = None,
+) -> None:
+    lyrics_job_id = _get_lyrics_job_id(song_id)
+    lyrics_job = job_repository.get_by_id(lyrics_job_id)
+    if not lyrics_job:
+        lyrics_job = Job(
+            id=lyrics_job_id,
+            filename="lyrics-alignment",
+            status=status,
+            progress=progress,
+            status_message=message,
+            song_id=song_id,
+            error=error,
+            engine_type=LYRICS_JOB_ENGINE_TYPE,
+        )
+    else:
+        lyrics_job.status = status
+        lyrics_job.progress = progress
+        lyrics_job.status_message = message
+        lyrics_job.error = error
+
+    if status == JobStatus.PROCESSING and lyrics_job.started_at is None:
+        lyrics_job.started_at = datetime.now()
+    if status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+        lyrics_job.completed_at = datetime.now()
+
+    job_repository.update(lyrics_job)
+
+
+def _complete_lyrics_alignment_job(
+    song_id: str,
+    *,
+    status: JobStatus,
+    message: str,
+    error: Optional[str] = None,
+) -> None:
+    _update_lyrics_alignment_job(
+        song_id,
+        status=status,
+        progress=100,
+        message=message,
+        error=error,
+    )
+    job_repository.delete_job(_get_lyrics_job_id(song_id))
 
 
 def select_and_run_separation_engine(
@@ -622,24 +703,61 @@ def align_song_lyrics(song_id: str) -> dict:
     from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
 
     MIN_SCORE = 0.5
+    task_started_at = perf_counter()
 
     config = get_config()
     vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
 
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PROCESSING,
+        progress=10,
+        message="Fetching lyrics candidates",
+    )
+
     if not vocals_path.exists():
         logger.warning("align_song_lyrics: vocals.mp3 not found for song %s", song_id)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message="Lyrics alignment skipped: vocals not ready",
+        )
         return {"status": "no_audio", "song_id": song_id}
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
         if not song:
             logger.warning("align_song_lyrics: song %s not found", song_id)
+            _complete_lyrics_alignment_job(
+                song_id,
+                status=JobStatus.FAILED,
+                message="Lyrics alignment failed: song not found",
+                error="song not found",
+            )
             return {"status": "not_found", "song_id": song_id}
 
+    attempts_started_at = perf_counter()
     attempts = _build_alignment_attempts(song, include_remote=True)
+    logger.info(
+        "align_song_lyrics: built %d attempts for song %s in %.2fs",
+        len(attempts),
+        song_id,
+        perf_counter() - attempts_started_at,
+    )
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PROCESSING,
+        progress=35,
+        message="Aligning lyrics to vocals",
+    )
 
     if not attempts:
         logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message="Lyrics alignment finished: no lyrics candidates found",
+        )
         return {"status": "no_lyrics", "song_id": song_id}
 
     best_result = None
@@ -719,6 +837,14 @@ def align_song_lyrics(song_id: str) -> dict:
                 source_label,
                 song_id,
             )
+            _complete_lyrics_alignment_job(
+                song_id,
+                status=JobStatus.COMPLETED,
+                message=(
+                    "Lyrics ready"
+                    f" ({result['word_count']} words, {perf_counter() - task_started_at:.1f}s)"
+                ),
+            )
             return {"status": "ok", "song_id": song_id, "source": source_label}
 
     if best_result and best_attempt:
@@ -727,6 +853,14 @@ def align_song_lyrics(song_id: str) -> dict:
             best_result["mean_score"],
             best_attempt["source"],
             song_id,
+        )
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message=(
+                "Lyrics alignment finished with low confidence"
+                f" ({best_result['mean_score']:.3f})"
+            ),
         )
         return {
             "status": "low_confidence",
@@ -738,6 +872,11 @@ def align_song_lyrics(song_id: str) -> dict:
         }
 
     logger.warning("align_song_lyrics: no result produced for song %s", song_id)
+    _complete_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.COMPLETED,
+        message="Lyrics alignment finished without a usable result",
+    )
     return {
         "status": "no_result",
         "song_id": song_id,
@@ -1376,6 +1515,11 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
                 vocals_path.stat().st_size if vocals_path.exists() else "missing",
                 song_id,
+            )
+            _create_lyrics_alignment_job(
+                song_id,
+                title=metadata.get("title"),
+                artist=metadata.get("artist"),
             )
             celery.send_task("detect_song_vocal_range", args=[song_id])
             celery.send_task("align_song_lyrics", args=[song_id])

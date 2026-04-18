@@ -2,16 +2,18 @@
 Session Playlist API endpoints.
 
 Generates a YouTube Music playlist from the songs performed in a session.
-Playlist state is held in memory — it only needs to live long enough for
-performers to grab the link/QR code after the session ends.
+Playlist state is persisted to the Job model so it survives worker restarts.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 from app.api.dependencies import get_db
 from app.db.models import DbSong, KaraokeSession, PerformanceHistory
+from app.db.models import Job, JobStatus
+from app.repositories.job_repository import JobRepository
 from app.services.youtube_music_service import YoutubeMusicService
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
@@ -21,9 +23,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["session-playlist"])
 
 PlaylistStatus = Literal["pending", "processing", "ready", "failed"]
-
-# In-memory store: session_id → playlist state dict
-_playlist_state: Dict[str, dict] = {}
 
 
 class SessionPlaylistResponse(BaseModel):
@@ -36,28 +35,71 @@ class SessionPlaylistResponse(BaseModel):
     completed_at: Optional[str] = None
 
 
-def _generate_playlist(session_id: str, db: Session) -> None:
+def _job_to_response(job: Job) -> SessionPlaylistResponse:
+    """Convert a Job to a SessionPlaylistResponse."""
+    youtube_music_url = None
+    youtube_music_playlist_id = None
+    song_count = 0
+
+    if job.status_message:
+        try:
+            data = json.loads(job.status_message)
+            youtube_music_url = data.get("youtube_music_url")
+            youtube_music_playlist_id = data.get("youtube_music_playlist_id")
+            song_count = data.get("song_count", 0)
+        except (ValueError, KeyError):
+            pass
+
+    status_map = {
+        JobStatus.PENDING: "pending",
+        JobStatus.PROCESSING: "processing",
+        JobStatus.COMPLETED: "ready",
+        JobStatus.FAILED: "failed",
+    }
+    playlist_status: PlaylistStatus = status_map.get(job.status, "pending")
+
+    return SessionPlaylistResponse(
+        status=playlist_status,
+        youtube_music_url=youtube_music_url,
+        youtube_music_playlist_id=youtube_music_playlist_id,
+        song_count=song_count,
+        error_message=job.error,
+        created_at=job.created_at.isoformat() if job.created_at else datetime.now(timezone.utc).isoformat(),
+        completed_at=job.completed_at.isoformat() if job.completed_at else None,
+    )
+
+
+def _generate_playlist(session_id: str, job_id: str) -> None:
     """Background task: create a YouTube Music playlist for the session."""
-    state = _playlist_state[session_id]
-    state["status"] = "processing"
+    job_repo = JobRepository()
+    job = job_repo.get_job(job_id)
+    if not job:
+        logger.error("Playlist job %s not found", job_id)
+        return
+
+    job.status = JobStatus.PROCESSING
+    job_repo.update(job)
 
     try:
-        rows = (
-            db.query(PerformanceHistory)
-            .filter(PerformanceHistory.session_id == session_id)
-            .order_by(PerformanceHistory.performed_at)
-            .all()
-        )
+        from app.db.database import get_db_session
 
-        video_ids = []
-        for row in rows:
-            song: Optional[DbSong] = row.song
-            if song and song.video_id:
-                video_ids.append(song.video_id)
+        with get_db_session() as db:
+            rows = (
+                db.query(PerformanceHistory)
+                .filter(PerformanceHistory.session_id == session_id)
+                .order_by(PerformanceHistory.performed_at)
+                .all()
+            )
+            video_ids = []
+            for row in rows:
+                song: Optional[DbSong] = row.song
+                if song and song.video_id:
+                    video_ids.append(song.video_id)
 
         if not video_ids:
-            state["status"] = "failed"
-            state["error_message"] = "No songs with video IDs found in this session"
+            job.status = JobStatus.FAILED
+            job.error = "No songs with video IDs found in this session"
+            job_repo.update(job)
             return
 
         date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
@@ -67,20 +109,22 @@ def _generate_playlist(session_id: str, db: Session) -> None:
         service = YoutubeMusicService()
         url, playlist_id = service.create_playlist(name, description, video_ids)
 
-        state["status"] = "ready"
-        state["youtube_music_url"] = url
-        state["youtube_music_playlist_id"] = playlist_id
-        state["song_count"] = len(video_ids)
-        state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        job.status = JobStatus.COMPLETED
+        job.status_message = json.dumps({
+            "youtube_music_url": url,
+            "youtube_music_playlist_id": playlist_id,
+            "song_count": len(video_ids),
+        })
+        job.completed_at = datetime.now(timezone.utc)
+        job_repo.update(job)
 
     except Exception as e:
         logger.error(
             "Failed to generate playlist for session %s: %s", session_id, e, exc_info=True
         )
-        state["status"] = "failed"
-        state["error_message"] = str(e)
-    finally:
-        db.close()
+        job.status = JobStatus.FAILED
+        job.error = str(e)
+        job_repo.update(job)
 
 
 @router.post("/{session_id}/playlist", status_code=202)
@@ -101,24 +145,27 @@ async def generate_session_playlist(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Return existing state if already generated or in progress
-    if session_id in _playlist_state:
-        state = _playlist_state[session_id]
-        return SessionPlaylistResponse(**state)
+    job_id = f"playlist-{session_id}"
+    job_repo = JobRepository()
+    existing = job_repo.get_job(job_id)
 
-    now = datetime.now(timezone.utc).isoformat()
-    _playlist_state[session_id] = {
-        "status": "pending",
-        "youtube_music_url": None,
-        "youtube_music_playlist_id": None,
-        "song_count": 0,
-        "error_message": None,
-        "created_at": now,
-        "completed_at": None,
-    }
+    if existing:
+        return _job_to_response(existing)
 
-    background_tasks.add_task(_generate_playlist, session_id, db)
-    return SessionPlaylistResponse(**_playlist_state[session_id])
+    now = datetime.now(timezone.utc)
+    job = Job(
+        id=job_id,
+        filename=session_id,
+        status=JobStatus.PENDING,
+        song_id=session_id,
+        engine_type="playlist_generation",
+        title=f"Playlist for session {session_id}",
+        created_at=now,
+    )
+    job_repo.create(job)
+
+    background_tasks.add_task(_generate_playlist, session_id, job_id)
+    return _job_to_response(job)
 
 
 @router.get("/{session_id}/playlist", response_model=SessionPlaylistResponse)
@@ -126,7 +173,9 @@ async def get_session_playlist(session_id: str) -> SessionPlaylistResponse:
     """
     Poll for the status of the playlist generation for a session.
     """
-    state = _playlist_state.get(session_id)
-    if not state:
+    job_id = f"playlist-{session_id}"
+    job_repo = JobRepository()
+    job = job_repo.get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Playlist generation not started")
-    return SessionPlaylistResponse(**state)
+    return _job_to_response(job)

@@ -35,6 +35,7 @@ export interface Song {
   // Lyrics
   plainLyrics?: string;
   syncedLyrics?: string;
+  lyrics?: string;
 
   // iTunes metadata
   itunesTrackId?: number;
@@ -77,9 +78,11 @@ export interface SongProcessingStatus {
   song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
+  rawStatus?: string;
   message?: string;
   artist?: string;
   title?: string;
+  engineType?: string;
 }
 
 export interface LyricsResult {
