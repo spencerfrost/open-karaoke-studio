@@ -126,7 +126,7 @@ def build_alignment_attempts(
             )
     except Exception as e:
         log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="lrclib", exc_type=type(e).__name__)
-        logger.debug(
+        logger.warning(
             "LRCLIB candidate fetch failed for %s - %s",
             artist_name,
             track_name,
@@ -158,7 +158,7 @@ def build_alignment_attempts(
             )
     except Exception as e:
         log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="syncedlyrics", exc_type=type(e).__name__)
-        logger.debug(
+        logger.warning(
             "syncedlyrics candidate fetch failed for %s - %s",
             artist_name,
             track_name,
