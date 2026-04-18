@@ -25,6 +25,10 @@ router = APIRouter(prefix="/api/sessions", tags=["session-playlist"])
 PlaylistStatus = Literal["pending", "processing", "ready", "failed"]
 
 
+def _playlist_job_id(session_id: str) -> str:
+    return f"playlist-{session_id}"
+
+
 class SessionPlaylistResponse(BaseModel):
     status: PlaylistStatus
     youtube_music_url: Optional[str] = None
@@ -47,7 +51,7 @@ def _job_to_response(job: Job) -> SessionPlaylistResponse:
             youtube_music_url = data.get("youtube_music_url")
             youtube_music_playlist_id = data.get("youtube_music_playlist_id")
             song_count = data.get("song_count", 0)
-        except (ValueError, KeyError):
+        except ValueError:
             pass
 
     status_map = {
@@ -145,7 +149,7 @@ async def generate_session_playlist(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    job_id = f"playlist-{session_id}"
+    job_id = _playlist_job_id(session_id)
     job_repo = JobRepository()
     existing = job_repo.get_job(job_id)
 
@@ -155,17 +159,23 @@ async def generate_session_playlist(
     now = datetime.now(timezone.utc)
     job = Job(
         id=job_id,
-        filename=session_id,
+        filename=job_id,
         status=JobStatus.PENDING,
-        song_id=session_id,
+        song_id=None,
         engine_type="playlist_generation",
         title=f"Playlist for session {session_id}",
         created_at=now,
     )
-    job_repo.create(job)
-
+    try:
+        job_repo.create(job)
+    except Exception:
+        # Concurrent request already created it — return whichever got there first
+        existing = job_repo.get_job(job_id)
+        if existing:
+            return _job_to_response(existing)
+        raise
     background_tasks.add_task(_generate_playlist, session_id, job_id)
-    return _job_to_response(job)
+    return _job_to_response(job_repo.get_job(job_id))
 
 
 @router.get("/{session_id}/playlist", response_model=SessionPlaylistResponse)
@@ -173,7 +183,7 @@ async def get_session_playlist(session_id: str) -> SessionPlaylistResponse:
     """
     Poll for the status of the playlist generation for a session.
     """
-    job_id = f"playlist-{session_id}"
+    job_id = _playlist_job_id(session_id)
     job_repo = JobRepository()
     job = job_repo.get_job(job_id)
     if not job:
