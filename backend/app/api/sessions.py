@@ -169,7 +169,7 @@ async def get_my_session(
 @router.post("/my", response_model=SessionResponse, status_code=201)
 async def get_or_create_my_session(
     request: Request,
-    session_data: SessionCreateRequest,
+    session_data: SessionCreateRequest = SessionCreateRequest(),
     user_agent: Optional[str] = Header(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
@@ -303,7 +303,7 @@ async def get_or_create_my_session(
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
     request: Request,
-    session_data: SessionCreateRequest,
+    session_data: SessionCreateRequest = SessionCreateRequest(),
     user_agent: Optional[str] = Header(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
