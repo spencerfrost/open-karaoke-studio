@@ -13,6 +13,7 @@ export interface FingerprintCandidate {
   album?: string | null;
   year?: number | null;
   duration?: number | null;
+  releaseType?: string | null;
 }
 
 export interface ValidationResult {

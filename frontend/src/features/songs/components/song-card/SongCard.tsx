@@ -7,7 +7,7 @@ import { useSongDialogs } from "../../hooks/useSongDialogs";
 import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { SongActions } from "./SongActions";
-import { SongDetailsDialog } from "../song-details/SongDetailsDialog";
+import { SongManagementDialog } from "../song-details/SongManagementDialog";
 import { JoinSessionDialog } from "../JoinSessionDialog";
 import { DeleteSongDialog } from "../DeleteSongDialog";
 import { SongCardProps } from "./SongCard.types";
@@ -80,7 +80,7 @@ export const SongCard: React.FC<SongCardProps> = ({
         onDetails={showAction("details") ? handleDetailsClick : undefined}
       />
 
-      <SongDetailsDialog
+      <SongManagementDialog
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}

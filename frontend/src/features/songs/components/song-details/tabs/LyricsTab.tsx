@@ -1,15 +1,16 @@
 import React, { useState, useCallback } from "react";
 import { Song } from "@/types/Song";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
-import { FileText, Music, AlertCircle, Search } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
+import { createLogger } from "@/lib/logger";
 import LyricsFetchDialog from "@/features/lyrics/components/LyricsFetchDialog";
 import PasteLyricsDialog from "@/features/lyrics/components/PasteLyricsDialog";
 import type { LyricsResult } from "@/features/lyrics/components/LyricsFetchDialog";
+
+const logger = createLogger("component:LyricsTab");
 
 interface LyricsTabProps {
   song: Song;
@@ -18,31 +19,31 @@ interface LyricsTabProps {
 export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
-  const processingStatus = useProcessingIndicators((state) =>
-    state.getStatus(song.id),
+
+  const [isEditingPlain, setIsEditingPlain] = useState(false);
+  const [plainEditValue, setPlainEditValue] = useState(song.plainLyrics ?? "");
+
+  const [isEditingSynced, setIsEditingSynced] = useState(false);
+  const [syncedEditValue, setSyncedEditValue] = useState(
+    song.syncedLyrics ?? "",
   );
-  const isLyricsProcessing =
-    processingStatus?.engineType === "lyrics_alignment" &&
-    (processingStatus.status === "queued" ||
-      processingStatus.status === "processing");
 
-  const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
-  const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] = useState(false);
+  const [isPlainFetchDialogOpen, setIsPlainFetchDialogOpen] = useState(false);
+  const [isSyncedFetchDialogOpen, setIsSyncedFetchDialogOpen] = useState(false);
+  const [isPasteDialogOpen, setIsPasteDialogOpen] = useState(false);
+  const [pasteTarget, setPasteTarget] = useState<"plain" | "synced">("plain");
 
-  const handleLyricsSelected = useCallback(
-    (lyricsResult: LyricsResult) => {
+  const handlePlainLyricsSelected = useCallback(
+    (result: LyricsResult) => {
       updateSongMutation.mutate(
-        {
-          id: song.id,
-          plainLyrics: lyricsResult.plainLyrics,
-          syncedLyrics: lyricsResult.syncedLyrics,
-        },
+        { id: song.id, plainLyrics: result.plainLyrics },
         {
           onSuccess: () => {
-            setIsLyricsDialogOpen(false);
-            toast.success("Lyrics updated successfully");
+            setIsPlainFetchDialogOpen(false);
+            toast.success("Plain lyrics updated");
           },
           onError: (error) => {
+            logger.error("Failed to update plain lyrics", error);
             toast.error(
               `Failed to update lyrics: ${error instanceof Error ? error.message : "Unknown error"}`,
             );
@@ -53,22 +54,19 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
     [song.id, updateSongMutation],
   );
 
-  const handlePasteLyricsConfirmed = useCallback(
-    (pastedLyrics: string) => {
+  const handleSyncedLyricsSelected = useCallback(
+    (result: LyricsResult) => {
       updateSongMutation.mutate(
-        {
-          id: song.id,
-          plainLyrics: pastedLyrics,
-          syncedLyrics: undefined,
-        },
+        { id: song.id, syncedLyrics: result.syncedLyrics },
         {
           onSuccess: () => {
-            setIsPasteLyricsDialogOpen(false);
-            toast.success("Lyrics pasted successfully");
+            setIsSyncedFetchDialogOpen(false);
+            toast.success("Synced lyrics updated");
           },
           onError: (error) => {
+            logger.error("Failed to update synced lyrics", error);
             toast.error(
-              `Failed to save lyrics: ${error instanceof Error ? error.message : "Unknown error"}`,
+              `Failed to update lyrics: ${error instanceof Error ? error.message : "Unknown error"}`,
             );
           },
         },
@@ -76,160 +74,299 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
     },
     [song.id, updateSongMutation],
   );
-  // Check for any type of lyrics
-  const hasSyncedLyrics = !!song.syncedLyrics;
-  const hasPlainLyrics = !!song.plainLyrics;
-  const hasLyrics = hasSyncedLyrics || hasPlainLyrics;
 
-  // Prioritize synced lyrics, then plain lyrics
-  const displayLyrics = song.syncedLyrics || song.plainLyrics || "";
-  const isUsingSyncedLyrics = !!song.syncedLyrics;
+  const handlePasteConfirmed = useCallback(
+    (pasted: string) => {
+      const patch =
+        pasteTarget === "plain"
+          ? { id: song.id, plainLyrics: pasted }
+          : { id: song.id, syncedLyrics: pasted };
 
-  // Process lyrics for display - must be before conditional returns
-  const processedLyrics = React.useMemo(() => {
-    if (!displayLyrics) return [];
+      updateSongMutation.mutate(patch, {
+        onSuccess: () => {
+          setIsPasteDialogOpen(false);
+          toast.success("Lyrics pasted successfully");
+        },
+        onError: (error) => {
+          logger.error("Failed to paste lyrics", error);
+          toast.error(
+            `Failed to save lyrics: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        },
+      });
+    },
+    [song.id, pasteTarget, updateSongMutation],
+  );
 
-    // If using synced lyrics, they might be in LRC format with timestamps
-    if (isUsingSyncedLyrics) {
-      return displayLyrics
-        .split("\n")
-        .map((line: string) => {
-          // Remove LRC timestamp format [mm:ss.xx] or [mm:ss.xxx]
-          const cleanedLine = line
-            .replace(/^\[\d{2}:\d{2}\.\d{2,3}\]\s*/, "")
-            .trim();
-          return cleanedLine;
-        })
-        .filter((line: string) => line.length > 0);
+  const savePlain = useCallback(() => {
+    updateSongMutation.mutate(
+      { id: song.id, plainLyrics: plainEditValue },
+      {
+        onSuccess: () => {
+          setIsEditingPlain(false);
+          toast.success("Plain lyrics saved");
+        },
+        onError: (error) => {
+          logger.error("Failed to save plain lyrics", error);
+          toast.error(
+            `Failed to save: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        },
+      },
+    );
+  }, [song.id, plainEditValue, updateSongMutation]);
+
+  const saveSynced = useCallback(() => {
+    updateSongMutation.mutate(
+      { id: song.id, syncedLyrics: syncedEditValue },
+      {
+        onSuccess: () => {
+          setIsEditingSynced(false);
+          toast.success("Synced lyrics saved");
+        },
+        onError: (error) => {
+          logger.error("Failed to save synced lyrics", error);
+          toast.error(
+            `Failed to save: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        },
+      },
+    );
+  }, [song.id, syncedEditValue, updateSongMutation]);
+
+  const clearWordSynced = useCallback(() => {
+    updateSongMutation.mutate(
+      { id: song.id, wordSyncedLyrics: null as unknown as string },
+      {
+        onSuccess: () => toast.success("Word-synced lyrics cleared"),
+        onError: (error) => {
+          logger.error("Failed to clear word-synced lyrics", error);
+          toast.error(
+            `Failed to clear: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        },
+      },
+    );
+  }, [song.id, updateSongMutation]);
+
+  let wordSyncedDisplay: string | null = null;
+  if (song.wordSyncedLyrics) {
+    try {
+      wordSyncedDisplay = JSON.stringify(
+        JSON.parse(song.wordSyncedLyrics),
+        null,
+        2,
+      );
+    } catch {
+      wordSyncedDisplay = song.wordSyncedLyrics;
     }
-
-    // For plain lyrics, just split and clean
-    return displayLyrics
-      .split("\n")
-      .filter((line: string) => line.trim().length > 0)
-      .map((line: string) => line.trim());
-  }, [displayLyrics, isUsingSyncedLyrics]);
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Header with badges */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileText size={20} className="text-muted-foreground" />
-          <h3 className="text-lg font-semibold">Song Lyrics</h3>
-        </div>
-        <div className="flex gap-2">
-          {hasSyncedLyrics && (
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              <Music size={12} className="mr-1" />
-              Synced
-            </Badge>
-          )}
-          {hasPlainLyrics && !hasSyncedLyrics && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-              <FileText size={12} className="mr-1" />
-              Plain Text
-            </Badge>
-          )}
-          {hasLyrics && (
-            <Badge variant="outline" className="text-xs">
-              {processedLyrics.length} lines
-            </Badge>
-          )}
-        </div>
-      </div>
+    <>
+      <Tabs defaultValue="plain">
+        <TabsList className="grid grid-cols-3 w-full">
+          <TabsTrigger value="plain">
+            Plain{song.plainLyrics ? " ●" : ""}
+          </TabsTrigger>
+          <TabsTrigger value="synced">
+            Synced{song.syncedLyrics ? " ●" : ""}
+          </TabsTrigger>
+          <TabsTrigger value="word-synced">
+            Word-Synced{song.wordSyncedLyrics ? " ●" : ""}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsLyricsDialogOpen(true)}
-          disabled={updateSongMutation.isPending}
-          className="flex-1 flex items-center justify-center gap-2"
-        >
-          <Search size={16} />
-          Search Lyrics
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsPasteLyricsDialogOpen(true)}
-          disabled={updateSongMutation.isPending}
-          className="flex-1 flex items-center justify-center gap-2"
-        >
-          <FileText size={16} />
-          Paste Lyrics
-        </Button>
-      </div>
-
-      {/* No lyrics state */}
-      {!hasLyrics && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <AlertCircle size={48} className="text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">
-            {isLyricsProcessing ? "Lyrics Are Still Processing" : "No Lyrics Available"}
-          </h3>
-          <p className="text-sm text-muted-foreground text-center max-w-md">
-            {isLyricsProcessing
-              ? (processingStatus?.message ??
-                "The YouTube import is still aligning lyrics in the background. This tab will refresh automatically.")
-              : "Search for lyrics online or paste them manually above."}
-          </p>
-        </div>
-      )}
-
-      {/* Lyrics content */}
-      {hasLyrics && <Card>
-        <CardContent className="pt-6">
-          {processedLyrics.length > 0 ? (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-              {processedLyrics.map((line: string, index: number) => (
-                <p
-                  key={index}
-                  className="text-base leading-relaxed hover:bg-muted/30 px-2 py-1 rounded transition-colors"
-                >
-                  {line}
-                </p>
-              ))}
+        <TabsContent value="plain" className="space-y-2 mt-3">
+          {isEditingPlain ? (
+            <Textarea
+              value={plainEditValue}
+              onChange={(e) => setPlainEditValue(e.target.value)}
+              rows={12}
+              autoFocus
+            />
+          ) : song.plainLyrics ? (
+            <div className="max-h-64 overflow-y-auto text-sm whitespace-pre-wrap">
+              {song.plainLyrics}
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
-              <AlertCircle size={16} />
-              <span className="text-sm">Lyrics could not be parsed</span>
+            <p className="text-muted-foreground text-sm py-8 text-center">
+              No plain lyrics
+            </p>
+          )}
+          <div className="flex gap-2">
+            {isEditingPlain ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={savePlain}
+                  disabled={updateSongMutation.isPending}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPlainEditValue(song.plainLyrics ?? "");
+                    setIsEditingPlain(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPlainFetchDialogOpen(true)}
+                >
+                  Search
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPasteTarget("plain");
+                    setIsPasteDialogOpen(true);
+                  }}
+                >
+                  Paste
+                </Button>
+                {song.plainLyrics && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPlainEditValue(song.plainLyrics ?? "");
+                      setIsEditingPlain(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="synced" className="space-y-2 mt-3">
+          {isEditingSynced ? (
+            <Textarea
+              value={syncedEditValue}
+              onChange={(e) => setSyncedEditValue(e.target.value)}
+              rows={12}
+              autoFocus
+            />
+          ) : song.syncedLyrics ? (
+            <div className="max-h-64 overflow-y-auto text-sm whitespace-pre-wrap">
+              {song.syncedLyrics}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm py-8 text-center">
+              No synced lyrics
+            </p>
+          )}
+          <div className="flex gap-2">
+            {isEditingSynced ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={saveSynced}
+                  disabled={updateSongMutation.isPending}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSyncedEditValue(song.syncedLyrics ?? "");
+                    setIsEditingSynced(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSyncedFetchDialogOpen(true)}
+                >
+                  Search
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPasteTarget("synced");
+                    setIsPasteDialogOpen(true);
+                  }}
+                >
+                  Paste
+                </Button>
+                {song.syncedLyrics && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSyncedEditValue(song.syncedLyrics ?? "");
+                      setIsEditingSynced(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="word-synced" className="space-y-2 mt-3">
+          {wordSyncedDisplay ? (
+            <pre className="max-h-64 overflow-y-auto text-xs bg-muted rounded p-3 whitespace-pre-wrap">
+              {wordSyncedDisplay}
+            </pre>
+          ) : (
+            <p className="text-muted-foreground text-sm py-8 text-center">
+              No word-synced lyrics
+            </p>
+          )}
+          {song.wordSyncedLyrics && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearWordSynced}
+                disabled={updateSongMutation.isPending}
+              >
+                Clear
+              </Button>
             </div>
           )}
-        </CardContent>
-      </Card>}
+        </TabsContent>
+      </Tabs>
 
-      {/* Info footer */}
-      {hasSyncedLyrics && isUsingSyncedLyrics && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-          <Music size={14} className="inline mr-2" />
-          This song includes synchronized lyrics that will be displayed during
-          karaoke playback
-        </div>
-      )}
-
-      {hasPlainLyrics && !hasSyncedLyrics && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-          <FileText size={14} className="inline mr-2" />
-          These are plain text lyrics without timing synchronization
-        </div>
-      )}
-
-      {/* Lyrics Dialogs */}
       <LyricsFetchDialog
-        isOpen={isLyricsDialogOpen}
-        onClose={() => setIsLyricsDialogOpen(false)}
+        isOpen={isPlainFetchDialogOpen}
+        onClose={() => setIsPlainFetchDialogOpen(false)}
         song={song}
-        onLyricsSelected={handleLyricsSelected}
+        onLyricsSelected={handlePlainLyricsSelected}
+      />
+      <LyricsFetchDialog
+        isOpen={isSyncedFetchDialogOpen}
+        onClose={() => setIsSyncedFetchDialogOpen(false)}
+        song={song}
+        onLyricsSelected={handleSyncedLyricsSelected}
       />
       <PasteLyricsDialog
-        isOpen={isPasteLyricsDialogOpen}
-        onClose={() => setIsPasteLyricsDialogOpen(false)}
-        onLyricsConfirmed={handlePasteLyricsConfirmed}
+        isOpen={isPasteDialogOpen}
+        onClose={() => setIsPasteDialogOpen(false)}
+        onLyricsConfirmed={handlePasteConfirmed}
       />
-    </div>
+    </>
   );
 };

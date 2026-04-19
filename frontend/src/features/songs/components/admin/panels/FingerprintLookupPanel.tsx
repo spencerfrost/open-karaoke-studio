@@ -127,6 +127,11 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
                         <span className="font-medium">Year: </span>{c.year}
                       </p>
                     )}
+                    {c.releaseType && (
+                      <p className="text-xs text-muted-foreground/70">
+                        <span className="font-medium">Type: </span>{c.releaseType}
+                      </p>
+                    )}
                     {c.duration != null && (
                       <p className="text-xs text-muted-foreground/70">
                         <span className="font-medium">Duration: </span>

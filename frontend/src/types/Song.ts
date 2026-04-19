@@ -35,6 +35,7 @@ export interface Song {
   // Lyrics
   plainLyrics?: string;
   syncedLyrics?: string;
+  wordSyncedLyrics?: string;
   lyrics?: string;
 
   // iTunes metadata

@@ -117,6 +117,7 @@ class DbSong(Base):
             # Lyrics
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
+            "wordSyncedLyrics": self.word_synced_lyrics,
             # iTunes metadata
             "itunesTrackId": self.itunes_track_id,
             "itunesExplicit": self.itunes_explicit,

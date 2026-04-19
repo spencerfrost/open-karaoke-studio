@@ -47,7 +47,7 @@ const ISSUE_ACTION_MAP: Record<string, string[]> = {
   unknown_artist:      ["edit", "musicbrainz"],
   missing_source:      ["replace-yt", "replace-upload"],
   missing_duration:    ["replace-yt", "replace-upload"],
-  missing_album:       ["edit", "musicbrainz"],
+  missing_album:       ["edit", "musicbrainz", "fingerprint"],
   missing_lyrics:      ["search-lyrics", "paste-lyrics"],
   missing_vocal_range: ["analyze-vocal-range"],
 };

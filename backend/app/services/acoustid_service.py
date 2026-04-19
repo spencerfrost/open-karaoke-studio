@@ -10,13 +10,17 @@ logger = logging.getLogger(__name__)
 
 _MIN_AUTO_CORRECT_SCORE = 0.9
 
+_RELEASE_TYPE_PRIORITY: dict[str, int] = {"Album": 0, "EP": 1, "Single": 2}
+
 
 def _parse_candidates(raw_data: dict) -> list[dict]:
     """
     Parse a raw AcoustID API response into a list of candidate dicts sorted by score descending.
 
     Each candidate contains:
-      score, recordingId, title, artist, releases (list of all album titles)
+      score, recordingId, title, artist, releases (list of all album titles),
+      year (earliest release year), release_type_priority (0=LP, 1=EP, 2=Single, 3=unknown),
+      album (title from the best-typed release)
     """
     candidates = []
     if raw_data.get("status") != "ok" or "results" not in raw_data:
@@ -29,11 +33,25 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
             artist_name = "".join(
                 a["name"] + a.get("joinphrase", "") for a in artists
             ) or None
-            releases = [
-                r["title"]
-                for r in (recording.get("releases") or [])
-                if r.get("title")
+            raw_releases = recording.get("releases") or []
+            releases = [r["title"] for r in raw_releases if r.get("title")]
+            years = [
+                r["date"]["year"]
+                for r in raw_releases
+                if r.get("date") and r["date"].get("year")
             ]
+            year = min(years) if years else None
+
+            # Find the best release type and its album title
+            best_priority = 3
+            best_album: str | None = releases[0] if releases else None
+            for r in raw_releases:
+                rtype = (r.get("releasegroup") or {}).get("type")
+                priority = _RELEASE_TYPE_PRIORITY.get(rtype, 3)
+                if priority < best_priority and r.get("title"):
+                    best_priority = priority
+                    best_album = r["title"]
+
             candidates.append(
                 {
                     "score": score,
@@ -41,10 +59,19 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
                     "title": recording.get("title"),
                     "artist": artist_name,
                     "releases": releases,
+                    "year": year,
+                    "release_type_priority": best_priority,
+                    "album": best_album,
                 }
             )
 
-    return sorted(candidates, key=lambda c: c["score"], reverse=True)
+    # Deduplicate by recordingId, keeping the highest score for each
+    seen: dict[str, dict] = {}
+    for c in candidates:
+        rid = c["recordingId"]
+        if rid not in seen or c["score"] > seen[rid]["score"]:
+            seen[rid] = c
+    return sorted(seen.values(), key=lambda c: c["score"], reverse=True)
 
 
 def _album_matches(song_album: str, candidate_releases: list[str]) -> bool:
@@ -221,14 +248,22 @@ class AcoustIdService:
 
         candidates = _parse_candidates(raw)
 
-        # Flatten releases to a single album string for the frontend display
+        _PRIORITY_TO_LABEL = {0: "Album", 1: "EP", 2: "Single"}
+
+        # Sort by year ascending (None last), then release type (LP first)
+        sorted_candidates = sorted(
+            candidates,
+            key=lambda c: (c["year"] or float("inf"), c["release_type_priority"]),
+        )
         return [
             {
                 "score": c["score"],
                 "recordingId": c["recordingId"],
                 "title": c["title"],
                 "artist": c["artist"],
-                "album": c["releases"][0] if c["releases"] else None,
+                "album": c["album"],
+                "year": c["year"],
+                "releaseType": _PRIORITY_TO_LABEL.get(c["release_type_priority"]),
             }
-            for c in candidates
+            for c in sorted_candidates
         ]

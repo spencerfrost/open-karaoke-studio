@@ -43,6 +43,7 @@ class SongResponse(BaseModel):
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    wordSyncedLyrics: Optional[str] = None
 
     # iTunes metadata
     itunesTrackId: Optional[int] = None

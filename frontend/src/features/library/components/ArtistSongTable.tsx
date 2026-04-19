@@ -7,7 +7,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import { useSongDialogs } from "@/features/songs/hooks/useSongDialogs";
-import { SongDetailsDialog } from "@/features/songs/components/song-details/SongDetailsDialog";
+import { SongManagementDialog } from "@/features/songs/components/song-details/SongManagementDialog";
 import { JoinSessionDialog } from "@/features/songs/components/JoinSessionDialog";
 import { DeleteSongDialog } from "@/features/songs/components/DeleteSongDialog";
 
@@ -123,7 +123,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         )}
       </div>
 
-      <SongDetailsDialog
+      <SongManagementDialog
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
