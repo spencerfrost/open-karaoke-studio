@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,7 @@ export const DataQualityTab: React.FC = () => {
   const { token } = useAuthStore();
   const [result, setResult] = useState<MetadataAuditResult | null>(null);
   const [expandedSongId, setExpandedSongId] = useState<string | null>(null);
+  const [selectedIssueTypes, setSelectedIssueTypes] = useState<string[]>([]);
 
   const scanMutation = useMutation({
     mutationFn: async () => {
@@ -59,6 +60,7 @@ export const DataQualityTab: React.FC = () => {
     onSuccess: (data) => {
       setResult(data);
       setExpandedSongId(null);
+      setSelectedIssueTypes([]);
       logger.info("Data quality scan complete", {
         scanned: data.total_songs_scanned,
         flagged: data.total_flagged,
@@ -109,6 +111,58 @@ export const DataQualityTab: React.FC = () => {
       (n, s) => n + s.issues.filter((i) => i.severity === "info").length,
       0,
     ) ?? 0;
+
+  const availableIssueFilters = useMemo(() => {
+    if (!result) {
+      return [] as Array<MetadataIssue & { count: number }>;
+    }
+
+    const issuesByType = new Map<string, MetadataIssue & { count: number }>();
+
+    result.flagged_songs.forEach((song) => {
+      song.issues.forEach((issue) => {
+        const existing = issuesByType.get(issue.type);
+        if (existing) {
+          existing.count += 1;
+          return;
+        }
+
+        issuesByType.set(issue.type, { ...issue, count: 1 });
+      });
+    });
+
+    return Array.from(issuesByType.values()).sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+  }, [result]);
+
+  const filteredSongs = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    if (selectedIssueTypes.length === 0) {
+      return result.flagged_songs;
+    }
+
+    const selectedTypes = new Set(selectedIssueTypes);
+    return result.flagged_songs.filter((song) =>
+      song.issues.some((issue) => selectedTypes.has(issue.type)),
+    );
+  }, [result, selectedIssueTypes]);
+
+  const toggleIssueFilter = (issueType: string) => {
+    setExpandedSongId(null);
+    setSelectedIssueTypes((current) =>
+      current.includes(issueType)
+        ? current.filter((type) => type !== issueType)
+        : [...current, issueType],
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -162,10 +216,55 @@ export const DataQualityTab: React.FC = () => {
         </div>
       )}
 
+      {result && availableIssueFilters.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">Filter Results</p>
+            {selectedIssueTypes.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs"
+                onClick={() => {
+                  setExpandedSongId(null);
+                  setSelectedIssueTypes([]);
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableIssueFilters.map((issue) => {
+              const isActive = selectedIssueTypes.includes(issue.type);
+
+              return (
+                <button
+                  key={issue.type}
+                  type="button"
+                  className="rounded-full"
+                  onClick={() => toggleIssueFilter(issue.type)}
+                >
+                  <Badge
+                    variant="outline"
+                    className={`text-xs transition-colors ${SEVERITY_BADGE_CLASS[issue.severity]} ${
+                      isActive ? "bg-muted" : "opacity-70"
+                    }`}
+                  >
+                    {issue.label} ({issue.count})
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Results list */}
       {result && result.flagged_songs.length > 0 && (
         <div className="divide-y rounded-lg border">
-          {result.flagged_songs.map((flaggedSong) => (
+          {filteredSongs.length > 0 ? filteredSongs.map((flaggedSong) => (
             <div key={flaggedSong.id}>
               <button
                 type="button"
@@ -207,7 +306,12 @@ export const DataQualityTab: React.FC = () => {
                 </div>
               )}
             </div>
-          ))}
+          )) : (
+            <div className="py-12 text-center text-muted-foreground">
+              <p className="font-medium">No matching results</p>
+              <p className="text-sm">Try a different issue filter or clear the current selection.</p>
+            </div>
+          )}
         </div>
       )}
 
