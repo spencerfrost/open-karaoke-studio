@@ -92,7 +92,7 @@ services:
     container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
-    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment
+    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment,lyrics
     volumes:
       - ./karaoke_library:/app/karaoke_library
       - backend_logs:/app/backend/logs
@@ -103,7 +103,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
-      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
