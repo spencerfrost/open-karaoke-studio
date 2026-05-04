@@ -7,13 +7,15 @@ import logging
 from typing import List, Optional
 
 from app.db.database import SessionLocal
+from app.db.models import JobStatus
 from app.exceptions import ServiceError
+from app.jobs.celery_app import celery
+from app.jobs.jobs import _create_lyrics_alignment_job, _get_lyrics_job_id
+from app.repositories import JobRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
-from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
 from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
-from app.services.lyrics_selection import build_alignment_attempts
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,8 +25,6 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
-
-MIN_ALIGNMENT_SCORE = 0.5
 
 
 class LyricsResult(BaseModel):
@@ -50,6 +50,92 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _validate_alignment_source(source: Optional[str]) -> Optional[str]:
+    if source not in (None, "plain", "synced"):
+        raise HTTPException(status_code=400, detail="source must be 'plain' or 'synced'")
+    return source
+
+
+def _validate_song_and_vocals(song_id: str, db: Session):
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    return song
+
+
+def _validate_db_alignment_request(song, source: Optional[str]) -> None:
+    if source == "plain" and not song.plain_lyrics:
+        raise HTTPException(status_code=404, detail=f"No plain lyrics for song: {song.id}")
+    if source == "synced" and not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song.id}")
+    if source is None and not (song.plain_lyrics or song.synced_lyrics):
+        raise HTTPException(status_code=404, detail=f"No synced or plain lyrics for song: {song.id}")
+
+
+def _enqueue_song_alignment(
+    song,
+    *,
+    include_remote: bool,
+    source: Optional[str],
+    language: str,
+) -> dict:
+    job_repository = JobRepository()
+    job_id = _get_lyrics_job_id(song.id)
+    existing_job = job_repository.get_by_id(job_id)
+    in_flight_statuses = {JobStatus.PENDING, JobStatus.DOWNLOADING, JobStatus.PROCESSING}
+
+    if existing_job and existing_job.status in in_flight_statuses:
+        return {
+            "jobId": existing_job.id,
+            "taskId": existing_job.task_id,
+            "songId": song.id,
+            "status": existing_job.status.value,
+            "dispatched": False,
+            "includeRemote": include_remote,
+            "source": source,
+            "language": language,
+            "message": "Lyrics alignment already in progress.",
+        }
+
+    task = celery.send_task(
+        "align_song_lyrics",
+        args=[song.id],
+        kwargs={
+            "include_remote": include_remote,
+            "source": source,
+            "language": language,
+        },
+    )
+    _create_lyrics_alignment_job(
+        song.id,
+        title=song.title,
+        artist=song.artist,
+        task_id=task.id,
+        status_message="Queued lyrics alignment",
+    )
+
+    return {
+        "jobId": job_id,
+        "taskId": task.id,
+        "songId": song.id,
+        "status": JobStatus.PENDING.value,
+        "dispatched": True,
+        "includeRemote": include_remote,
+        "source": source,
+        "language": language,
+        "message": "Lyrics alignment queued.",
+    }
 
 
 # ============================================================================
@@ -298,68 +384,44 @@ async def align_song_lyrics(
     db: Session = Depends(get_db),
 ):
     """
-    Run forced alignment and store result in word_synced_lyrics.
+    Enqueue background lyrics alignment using stored and remote lyric candidates.
 
-    Tries plain lyrics first; falls back to synced. Use ?source=plain or ?source=synced to force a source.
-    Only saves the result if mean_score >= 0.5. Returns 422 if vocals.mp3 is not present.
+    This is the general alignment entry point. It may fetch remote lyrics candidates
+    and uses the full background alignment pipeline, including offset correction for
+    low-confidence synced lyrics.
     """
-    song = SongRepository(db).fetch(song_id)
-    if not song:
-        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    source = _validate_alignment_source(source)
+    song = _validate_song_and_vocals(song_id, db)
+    return _enqueue_song_alignment(
+        song,
+        include_remote=True,
+        source=source,
+        language=language,
+    )
 
-    file_service = FileService()
-    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-    if not vocals_path.exists():
-        raise HTTPException(
-            status_code=422,
-            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
-        )
 
-    attempts = build_alignment_attempts(song, include_remote=False)
-    if source in ("plain", "synced"):
-        attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+@router.post("/songs/{song_id}/align-db", response_model=dict, status_code=200)
+async def align_song_lyrics_from_database(
+    song_id: str,
+    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
+    db: Session = Depends(get_db),
+):
+    """
+    Enqueue background lyrics alignment using only the lyrics currently stored in the database.
 
-    if not attempts:
-        raise HTTPException(status_code=404, detail=f"No synced or plain lyrics for song: {song_id}")
-
-    selected_attempt = attempts[0]
-    source_content = selected_attempt["content"]
-    use_plain = selected_attempt["source_type"] == "plain"
-
-    if use_plain:
-        result = align_plain_lyrics_to_vocals(source_content, vocals_path, language=language)
-    else:
-        result = align_lyrics_to_vocals(source_content, vocals_path, language=language)
-
-    if result is None:
-        raise HTTPException(status_code=500, detail="Alignment failed — check server logs for details.")
-
-    confident = result["mean_score"] >= MIN_ALIGNMENT_SCORE
-    if confident:
-        song.word_synced_lyrics = json.dumps({
-            "words": result["words"],
-            "language": result["language"],
-            "mean_score": result["mean_score"],
-            "word_count": result["word_count"],
-            "line_count": result["line_count"],
-            "aligned_at": result["aligned_at"],
-            "lyrics_source_type": selected_attempt["source_type"],
-            "lyrics_source": selected_attempt["source"],
-            "lyrics_attempt": 1,
-        })
-        db.commit()
-
-    return {
-        "saved": confident,
-        "meanScore": result["mean_score"],
-        "wordCount": result["word_count"],
-        "lineCount": result["line_count"],
-        "lowConfidence": not confident,
-        "message": (
-            f"Aligned {result['word_count']} words (mean_score={result['mean_score']:.3f}). "
-            + ("Saved." if confident else "Score too low — not saved.")
-        ),
-    }
+    This path is intended for user-pasted or manually edited lyrics and never fetches
+    remote lyric candidates.
+    """
+    source = _validate_alignment_source(source)
+    song = _validate_song_and_vocals(song_id, db)
+    _validate_db_alignment_request(song, source)
+    return _enqueue_song_alignment(
+        song,
+        include_remote=False,
+        source=source,
+        language=language,
+    )
 
 
 # ============================================================================

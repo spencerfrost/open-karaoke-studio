@@ -21,6 +21,7 @@ from typing import Literal, Optional
 import numpy as np
 
 from .audio import compute_rms_curve, load_vocals
+from .lyrics_alignment import AlignmentResult
 from .lyrics_analysis import (
     LrcLine,
     SectionBreakCandidate,
@@ -54,6 +55,20 @@ class OffsetAnalysisResult(TypedDict):
     successful_anchors: int
     anchors: list[AnchorMeasurement]
     max_deviation: Optional[float]
+
+
+class WhisperXOffsetEvidence(TypedDict):
+    offset: Optional[float]
+    anchor_count: int
+    spread: Optional[float]
+    offsets: list[float]
+    cluster_count: int
+    inlier_count: int
+    inlier_ratio: float
+    cluster_quality: float
+    dominant_cluster: Optional[dict]
+    repeated_text_groups: dict[str, list[int]]
+    outlier_line_indices: list[int]
 
 
 # ---------------------------------------------------------------------------
@@ -411,3 +426,221 @@ def shift_lrc_timestamps(content: str, shift_seconds: float) -> str:
         result_lines.append(new_line)
 
     return "\n".join(result_lines)
+
+
+def _normalize_lyric_text(text: str) -> str:
+    """Normalize lyric text for repeat grouping comparisons."""
+    lowered = text.lower().strip()
+    lowered = re.sub(r"[^a-z0-9\s]", "", lowered)
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
+def _build_repeated_text_groups(lrc_lines: list[LrcLine]) -> dict[str, list[int]]:
+    groups: dict[str, list[int]] = {}
+    for idx, line in enumerate(lrc_lines):
+        normalized = _normalize_lyric_text(line["text"])
+        if not normalized:
+            continue
+        groups.setdefault(normalized, []).append(idx)
+    return {text: indices for text, indices in groups.items() if len(indices) > 1}
+
+
+def _cluster_offsets_by_tolerance(
+    offsets: list[float],
+    line_indices: list[int],
+    tolerance_seconds: float = 0.4,
+) -> list[dict]:
+    """Cluster offsets by proximity, keeping line indices for diagnostics."""
+    if not offsets:
+        return []
+
+    pairs = sorted(zip(offsets, line_indices), key=lambda item: item[0])
+    clusters: list[dict] = []
+
+    current_offsets: list[float] = [pairs[0][0]]
+    current_lines: list[int] = [pairs[0][1]]
+
+    for offset, line_idx in pairs[1:]:
+        if abs(offset - current_offsets[-1]) <= tolerance_seconds:
+            current_offsets.append(offset)
+            current_lines.append(line_idx)
+            continue
+
+        clusters.append(
+            {
+                "offset": float(median(current_offsets)),
+                "count": len(current_offsets),
+                "spread": (max(current_offsets) - min(current_offsets)) if len(current_offsets) > 1 else 0.0,
+                "line_indices": sorted(current_lines),
+                "offsets": current_offsets.copy(),
+            }
+        )
+        current_offsets = [offset]
+        current_lines = [line_idx]
+
+    clusters.append(
+        {
+            "offset": float(median(current_offsets)),
+            "count": len(current_offsets),
+            "spread": (max(current_offsets) - min(current_offsets)) if len(current_offsets) > 1 else 0.0,
+            "line_indices": sorted(current_lines),
+            "offsets": current_offsets.copy(),
+        }
+    )
+
+    clusters.sort(key=lambda cluster: (cluster["count"], -cluster["spread"]), reverse=True)
+    return clusters
+
+
+def _compute_repeated_text_disagreement_penalty(
+    offsets_by_line: dict[int, float], repeated_text_groups: dict[str, list[int]]
+) -> float:
+    """Penalize evidence when repeated lyric lines disagree strongly on offset."""
+    penalty = 0.0
+    for indices in repeated_text_groups.values():
+        repeated_offsets = [offsets_by_line[idx] for idx in indices if idx in offsets_by_line]
+        if len(repeated_offsets) < 2:
+            continue
+        spread = max(repeated_offsets) - min(repeated_offsets)
+        # Allow modest disagreement on repeated chorus lines without zeroing quality.
+        if spread > 0.6:
+            penalty += min(0.08, (spread - 0.6) / 30.0)
+    return min(0.25, penalty)
+
+
+def compute_whisperx_offset_evidence(
+    alignment_result: AlignmentResult,
+    lrc_content: str,
+    min_word_score: float = 0.7,
+    min_line_anchors: int = 3,
+    cluster_tolerance_seconds: float = 0.5,
+) -> WhisperXOffsetEvidence:
+    """Estimate a global LRC timing offset from high-confidence words in a low-confidence alignment.
+
+    Even when WhisperX mean_score is below the acceptance threshold, individual
+    words may carry high confidence scores.  Groups those words by LRC line and
+    computes the delta between WhisperX-detected onset and LRC timestamp for each
+    qualifying line, then returns the median delta.
+
+    Args:
+        alignment_result: Result from align_lyrics_to_vocals() (may be low confidence).
+        lrc_content: The original LRC content that was aligned.
+        min_word_score: Per-word score threshold to count as a high-confidence anchor.
+        min_line_anchors: Minimum qualifying lines required to return an estimate.
+
+    Returns detailed evidence for a global offset estimate.
+    """
+    lrc_lines = parse_lrc_lines(lrc_content)
+    lrc_timestamps = {i: line["timestamp"] for i, line in enumerate(lrc_lines)}
+    repeated_text_groups = _build_repeated_text_groups(lrc_lines)
+
+    line_words: dict[int, list] = {}
+    for word in alignment_result["words"]:
+        if word["score"] >= min_word_score:
+            idx = word["line_index"]
+            line_words.setdefault(idx, []).append(word)
+
+    offsets: list[float] = []
+    line_indices: list[int] = []
+    for line_idx, words in line_words.items():
+        lrc_ts = lrc_timestamps.get(line_idx)
+        if lrc_ts is None:
+            continue
+        detected_onset = min(w["start"] for w in words)
+        offsets.append(detected_onset - lrc_ts)
+        line_indices.append(line_idx)
+
+    if len(offsets) < min_line_anchors:
+        logger.debug(
+            "compute_whisperx_offset: only %d qualifying lines (need %d), skipping",
+            len(offsets),
+            min_line_anchors,
+        )
+        return {
+            "offset": None,
+            "anchor_count": len(offsets),
+            "spread": None,
+            "offsets": offsets,
+            "cluster_count": 0,
+            "inlier_count": 0,
+            "inlier_ratio": 0.0,
+            "cluster_quality": 0.0,
+            "dominant_cluster": None,
+            "repeated_text_groups": repeated_text_groups,
+            "outlier_line_indices": [],
+        }
+
+    clusters = _cluster_offsets_by_tolerance(
+        offsets,
+        line_indices,
+        tolerance_seconds=cluster_tolerance_seconds,
+    )
+    dominant_cluster = clusters[0] if clusters else None
+
+    if dominant_cluster is None:
+        return {
+            "offset": None,
+            "anchor_count": len(offsets),
+            "spread": None,
+            "offsets": offsets,
+            "cluster_count": 0,
+            "inlier_count": 0,
+            "inlier_ratio": 0.0,
+            "cluster_quality": 0.0,
+            "dominant_cluster": None,
+            "repeated_text_groups": repeated_text_groups,
+            "outlier_line_indices": [],
+        }
+
+    result = dominant_cluster["offset"]
+    spread = dominant_cluster["spread"]
+    inlier_count = dominant_cluster["count"]
+    inlier_ratio = inlier_count / len(offsets)
+
+    dominant_line_indices = set(dominant_cluster["line_indices"])
+    outlier_line_indices = [idx for idx in line_indices if idx not in dominant_line_indices]
+    offsets_by_line = {line_idx: offset for line_idx, offset in zip(line_indices, offsets)}
+    disagreement_penalty = _compute_repeated_text_disagreement_penalty(offsets_by_line, repeated_text_groups)
+
+    # Cluster quality favors compact, dominant clusters and penalizes repeated-text disagreement.
+    base_quality = inlier_ratio * (1.0 / (1.0 + (spread * 0.7)))
+    cluster_quality = max(0.0, min(1.0, base_quality - disagreement_penalty))
+
+    logger.info(
+        "compute_whisperx_offset: offset=%.3fs from %d/%d line anchors (spread=%.3fs, clusters=%d, inlier_ratio=%.3f, cluster_quality=%.3f)",
+        result,
+        inlier_count,
+        len(offsets),
+        spread,
+        len(clusters),
+        inlier_ratio,
+        cluster_quality,
+    )
+    return {
+        "offset": result,
+        "anchor_count": len(offsets),
+        "spread": spread,
+        "offsets": offsets,
+        "cluster_count": len(clusters),
+        "inlier_count": inlier_count,
+        "inlier_ratio": inlier_ratio,
+        "cluster_quality": cluster_quality,
+        "dominant_cluster": dominant_cluster,
+        "repeated_text_groups": repeated_text_groups,
+        "outlier_line_indices": sorted(set(outlier_line_indices)),
+    }
+
+
+def compute_whisperx_offset(
+    alignment_result: AlignmentResult,
+    lrc_content: str,
+    min_word_score: float = 0.7,
+    min_line_anchors: int = 3,
+) -> Optional[float]:
+    evidence = compute_whisperx_offset_evidence(
+        alignment_result,
+        lrc_content,
+        min_word_score=min_word_score,
+        min_line_anchors=min_line_anchors,
+    )
+    return evidence["offset"]

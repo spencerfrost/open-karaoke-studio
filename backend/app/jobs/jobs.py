@@ -2,13 +2,14 @@
 Celery task definitions for audio processing
 """
 
+import hashlib
 import shutil
 import threading
 import traceback
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import librosa
 
@@ -47,10 +48,65 @@ def _get_lyrics_job_id(song_id: str) -> str:
     return f"lyrics-align:{song_id}"
 
 
+def _make_alignment_cache_key(
+    *,
+    source_type: str,
+    content: str,
+    language: str,
+    alignment_mode: str,
+) -> tuple[str, str, str, str]:
+    return (
+        source_type,
+        alignment_mode,
+        language,
+        hashlib.sha1(content.encode("utf-8")).hexdigest(),
+    )
+
+
+def _run_alignment_attempt(
+    *,
+    attempt: dict,
+    vocals_path: Path,
+    language: str,
+    alignment_cache: dict[tuple[str, str, str, str], dict | None],
+    alignment_mode: str,
+):
+    from app.services.lyrics_alignment import align_plain_lyrics_to_vocals, align_synced_lyrics_to_vocals
+
+    cache_key = _make_alignment_cache_key(
+        source_type=attempt["source_type"],
+        content=attempt["content"],
+        language=language,
+        alignment_mode=alignment_mode,
+    )
+    if cache_key in alignment_cache:
+        return alignment_cache[cache_key]
+
+    if attempt["source_type"] == "plain":
+        result = align_plain_lyrics_to_vocals(
+            attempt["content"],
+            vocals_path,
+            language=language,
+            alignment_mode=alignment_mode,
+        )
+    else:
+        result = align_synced_lyrics_to_vocals(
+            attempt["content"],
+            vocals_path,
+            language=language,
+            mode=alignment_mode,
+        )
+
+    alignment_cache[cache_key] = result
+    return result
+
+
 def _create_lyrics_alignment_job(
     song_id: str,
     title: Optional[str] = None,
     artist: Optional[str] = None,
+    task_id: Optional[str] = None,
+    status_message: str = "Queued lyrics alignment",
 ) -> str:
     lyrics_job_id = _get_lyrics_job_id(song_id)
     lyrics_job = Job(
@@ -58,7 +114,8 @@ def _create_lyrics_alignment_job(
         filename="lyrics-alignment",
         status=JobStatus.PENDING,
         progress=0,
-        status_message="Queued lyrics alignment",
+        status_message=status_message,
+        task_id=task_id,
         song_id=song_id,
         title=title,
         artist=artist,
@@ -701,7 +758,12 @@ def detect_song_vocal_range(song_id: str) -> dict:
 
 
 @celery.task(name="align_song_lyrics")
-def align_song_lyrics(song_id: str) -> dict:
+def align_song_lyrics(
+    song_id: str,
+    include_remote: bool = True,
+    source: Optional[str] = None,
+    language: str = "en",
+) -> dict:
     """Run WhisperX forced alignment against vocals.mp3 and store word-level timings."""
     logger.info("[PIPELINE] align_song_lyrics starting for song %s", song_id)
     import json as _json
@@ -709,10 +771,15 @@ def align_song_lyrics(song_id: str) -> dict:
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
-    from app.services.lyrics_alignment import align_lyrics_to_vocals, align_plain_lyrics_to_vocals
 
     MIN_SCORE = 0.5
+    synced_recovery_modes = [
+        "synced_padded_small",
+        "synced_padded_medium",
+        "synced_stripped_plain",
+    ]
     task_started_at = perf_counter()
+    alignment_cache: dict[tuple[str, str, str, str], dict | None] = {}
     lyrics_job = job_repository.get_by_id(_get_lyrics_job_id(song_id))
     queue_wait_ms = None
     if lyrics_job and lyrics_job.created_at:
@@ -733,8 +800,18 @@ def align_song_lyrics(song_id: str) -> dict:
         song_id,
         status=JobStatus.PROCESSING,
         progress=10,
-        message="Fetching lyrics candidates",
+        message="Fetching lyrics candidates" if include_remote else "Loading stored lyrics candidates",
     )
+
+    if source not in {None, "plain", "synced"}:
+        logger.warning("align_song_lyrics: invalid source %s for song %s", source, song_id)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics alignment failed: invalid source",
+            error=f"invalid source: {source}",
+        )
+        return {"status": "invalid_source", "song_id": song_id, "source": source}
 
     if not vocals_path.exists():
         logger.warning("align_song_lyrics: vocals.mp3 not found for song %s", song_id)
@@ -778,10 +855,15 @@ def align_song_lyrics(song_id: str) -> dict:
         has_word_synced_lyrics=bool(song_data["word_synced_lyrics"]),
         artist=song_data["artist"],
         title=song_data["title"],
+        include_remote=include_remote,
+        requested_source=source,
+        language=language,
     )
 
     attempts_started_at = perf_counter()
-    attempts = _build_alignment_attempts(song_data, include_remote=True)
+    attempts = _build_alignment_attempts(song_data, include_remote=include_remote)
+    if source in {"plain", "synced"}:
+        attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
     logger.info(
         "align_song_lyrics: built %d attempts for song %s in %.2fs",
@@ -802,6 +884,9 @@ def align_song_lyrics(song_id: str) -> dict:
             }
             for attempt in attempts
         ],
+        include_remote=include_remote,
+        requested_source=source,
+        language=language,
     )
 
     initial_lyrics_attempt = select_initial_lyrics(attempts)
@@ -844,7 +929,7 @@ def align_song_lyrics(song_id: str) -> dict:
         song_id,
         status=JobStatus.PROCESSING,
         progress=35,
-        message="Lyrics fetched, aligning to vocals",
+        message="Lyrics fetched, aligning to vocals" if include_remote else "Stored lyrics loaded, aligning to vocals",
     )
 
     if not attempts:
@@ -859,19 +944,23 @@ def align_song_lyrics(song_id: str) -> dict:
 
     best_result = None
     best_attempt = None
+    best_synced_result = None
+    best_synced_attempt = None
     align_error_count = 0
 
     for idx, attempt in enumerate(attempts):
         source_type = attempt["source_type"]
         source_label = attempt["source"]
+        alignment_mode = "plain" if source_type == "plain" else "synced_strict"
         attempt_started_at = perf_counter()
         logger.info(
-            "align_song_lyrics: attempt %d/%d for song %s (%s, source=%s)",
+            "align_song_lyrics: attempt %d/%d for song %s (%s, source=%s, mode=%s)",
             idx + 1,
             len(attempts),
             song_id,
             source_type,
             source_label,
+            alignment_mode,
         )
         log_lyrics_event(
             song_id,
@@ -880,14 +969,18 @@ def align_song_lyrics(song_id: str) -> dict:
             attempt_total=len(attempts),
             source=source_label,
             source_type=source_type,
+            alignment_mode=alignment_mode,
             content_length=len(attempt["content"]),
         )
 
         try:
-            if source_type == "plain":
-                result = align_plain_lyrics_to_vocals(attempt["content"], vocals_path)
-            else:
-                result = align_lyrics_to_vocals(attempt["content"], vocals_path)
+            result = _run_alignment_attempt(
+                attempt=attempt,
+                vocals_path=vocals_path,
+                language=language,
+                alignment_cache=alignment_cache,
+                alignment_mode=alignment_mode,
+            )
         except Exception:
             align_error_count += 1
             log_lyrics_event(
@@ -896,6 +989,7 @@ def align_song_lyrics(song_id: str) -> dict:
                 attempt_index=idx + 1,
                 source=source_label,
                 source_type=source_type,
+                alignment_mode=alignment_mode,
                 elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             )
             logger.warning(
@@ -913,6 +1007,7 @@ def align_song_lyrics(song_id: str) -> dict:
                 attempt_index=idx + 1,
                 source=source_label,
                 source_type=source_type,
+                alignment_mode=alignment_mode,
                 elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             )
             logger.info(
@@ -926,12 +1021,19 @@ def align_song_lyrics(song_id: str) -> dict:
             best_result = result
             best_attempt = attempt
 
+        if source_type == "synced" and (
+            not best_synced_result or result["mean_score"] > best_synced_result["mean_score"]
+        ):
+            best_synced_result = result
+            best_synced_attempt = attempt
+
         log_lyrics_event(
             song_id,
             "lyrics_attempt_finished",
             attempt_index=idx + 1,
             source=source_label,
             source_type=source_type,
+            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             word_count=result["word_count"],
             line_count=result["line_count"],
@@ -1022,6 +1124,242 @@ def align_song_lyrics(song_id: str) -> dict:
             best_attempt["source"],
             song_id,
         )
+
+        if best_synced_result and best_synced_attempt:
+            from app.services.lyrics_offset import compute_whisperx_offset_evidence, shift_lrc_timestamps
+
+            MIN_OFFSET_ANCHORS = 6
+            MAX_OFFSET_SPREAD_SECONDS = 3.0
+            MAX_ABS_OFFSET_SECONDS = 12.0
+            MIN_INLIER_RATIO = 0.55
+            MIN_INLIER_COUNT = 8
+
+            def _required_cluster_quality(inlier_ratio: float) -> float:
+                if inlier_ratio >= 0.75:
+                    return 0.18
+                if inlier_ratio >= 0.65:
+                    return 0.22
+                if inlier_ratio >= 0.55:
+                    return 0.26
+                return 0.30
+
+            offset_candidates: list[dict[str, Any]] = []
+
+            def _offset_candidate_rejection_reason(evidence):
+                offset = evidence["offset"]
+                spread = evidence["spread"]
+                anchor_count = evidence["anchor_count"]
+                inlier_count = evidence.get("inlier_count", 0)
+                inlier_ratio = evidence.get("inlier_ratio", 0.0)
+                cluster_quality = evidence.get("cluster_quality", 0.0)
+                if offset is None or spread is None:
+                    return "missing_offset_or_spread"
+                if anchor_count < MIN_OFFSET_ANCHORS:
+                    return "insufficient_anchors"
+                if inlier_count < MIN_INLIER_COUNT:
+                    return "insufficient_inliers"
+                if inlier_ratio < MIN_INLIER_RATIO:
+                    return "low_inlier_ratio"
+                if cluster_quality < _required_cluster_quality(inlier_ratio):
+                    return "low_cluster_quality"
+                if spread > MAX_OFFSET_SPREAD_SECONDS:
+                    return "spread_too_wide"
+                if abs(offset) > MAX_ABS_OFFSET_SECONDS:
+                    return "offset_too_large"
+                return None
+
+            def _is_reliable_offset_candidate(evidence):
+                return _offset_candidate_rejection_reason(evidence) is None
+
+            best_offset_candidate = None
+            strict_evidence = compute_whisperx_offset_evidence(best_synced_result, best_synced_attempt["content"])
+            strict_reason = _offset_candidate_rejection_reason(strict_evidence)
+            offset_candidates.append({
+                "alignment_mode": "synced_strict",
+                "anchor_count": strict_evidence["anchor_count"],
+                "offset": strict_evidence["offset"],
+                "spread": strict_evidence["spread"],
+                "cluster_count": strict_evidence.get("cluster_count"),
+                "inlier_count": strict_evidence.get("inlier_count"),
+                "inlier_ratio": strict_evidence.get("inlier_ratio"),
+                "cluster_quality": strict_evidence.get("cluster_quality"),
+                "outlier_line_count": len(strict_evidence.get("outlier_line_indices", [])),
+                "mean_score": best_synced_result["mean_score"],
+                "reliable": strict_reason is None,
+                "rejection_reason": strict_reason,
+            })
+            if strict_reason is None:
+                best_offset_candidate = {
+                    "alignment_mode": "synced_strict",
+                    "offset": strict_evidence["offset"],
+                    "evidence": strict_evidence,
+                    "result": best_synced_result,
+                }
+            else:
+                logger.info(
+                    "align_song_lyrics: rejected strict offset candidate for song %s "
+                    "(reason=%s, anchors=%s, spread=%s, offset=%s, inlier_ratio=%s, cluster_quality=%s)",
+                    song_id,
+                    strict_reason,
+                    strict_evidence["anchor_count"],
+                    strict_evidence["spread"],
+                    strict_evidence["offset"],
+                    strict_evidence.get("inlier_ratio"),
+                    strict_evidence.get("cluster_quality"),
+                )
+
+            for recovery_mode in synced_recovery_modes:
+                try:
+                    recovery_result = _run_alignment_attempt(
+                        attempt=best_synced_attempt,
+                        vocals_path=vocals_path,
+                        language=language,
+                        alignment_cache=alignment_cache,
+                        alignment_mode=recovery_mode,
+                    )
+                except Exception:
+                    align_error_count += 1
+                    logger.warning(
+                        "align_song_lyrics: recovery mode failed for song %s (source=%s, mode=%s)",
+                        song_id,
+                        best_synced_attempt["source"],
+                        recovery_mode,
+                        exc_info=True,
+                    )
+                    continue
+
+                if not recovery_result:
+                    continue
+
+                recovery_evidence = compute_whisperx_offset_evidence(recovery_result, best_synced_attempt["content"])
+                recovery_reason = _offset_candidate_rejection_reason(recovery_evidence)
+                offset_candidates.append({
+                    "alignment_mode": recovery_mode,
+                    "anchor_count": recovery_evidence["anchor_count"],
+                    "offset": recovery_evidence["offset"],
+                    "spread": recovery_evidence["spread"],
+                    "cluster_count": recovery_evidence.get("cluster_count"),
+                    "inlier_count": recovery_evidence.get("inlier_count"),
+                    "inlier_ratio": recovery_evidence.get("inlier_ratio"),
+                    "cluster_quality": recovery_evidence.get("cluster_quality"),
+                    "outlier_line_count": len(recovery_evidence.get("outlier_line_indices", [])),
+                    "mean_score": recovery_result["mean_score"],
+                    "reliable": recovery_reason is None,
+                    "rejection_reason": recovery_reason,
+                })
+
+                if recovery_reason is not None:
+                    logger.info(
+                        "align_song_lyrics: rejected recovery offset candidate for song %s "
+                        "(mode=%s, reason=%s, anchors=%s, spread=%s, offset=%s, inlier_ratio=%s, cluster_quality=%s)",
+                        song_id,
+                        recovery_mode,
+                        recovery_reason,
+                        recovery_evidence["anchor_count"],
+                        recovery_evidence["spread"],
+                        recovery_evidence["offset"],
+                        recovery_evidence.get("inlier_ratio"),
+                        recovery_evidence.get("cluster_quality"),
+                    )
+                    continue
+
+                current_candidate_score = (
+                    -(best_offset_candidate["evidence"]["spread"] or 0.0),
+                    best_offset_candidate["evidence"].get("inlier_ratio", 0.0),
+                    best_offset_candidate["evidence"].get("cluster_quality", 0.0),
+                    best_offset_candidate["evidence"]["anchor_count"],
+                    best_offset_candidate["result"]["mean_score"],
+                ) if best_offset_candidate is not None else None
+                recovery_candidate_score = (
+                    -(recovery_evidence["spread"] or 0.0),
+                    recovery_evidence.get("inlier_ratio", 0.0),
+                    recovery_evidence.get("cluster_quality", 0.0),
+                    recovery_evidence["anchor_count"],
+                    recovery_result["mean_score"],
+                )
+
+                if (
+                    best_offset_candidate is None
+                    or recovery_candidate_score > current_candidate_score
+                ):
+                    best_offset_candidate = {
+                        "alignment_mode": recovery_mode,
+                        "offset": recovery_evidence["offset"],
+                        "evidence": recovery_evidence,
+                        "result": recovery_result,
+                    }
+
+            if best_offset_candidate is not None:
+                corrected_lrc = shift_lrc_timestamps(best_synced_attempt["content"], -best_offset_candidate["offset"])
+                with get_db_session() as session:
+                    song = SongRepository(session).fetch(song_id)
+                    if song:
+                        song.synced_lyrics = corrected_lrc
+                        session.commit()
+                log_lyrics_event(
+                    song_id,
+                    "lyrics_task_completed",
+                    status="offset_corrected",
+                    source=best_synced_attempt["source"],
+                    source_type=best_synced_attempt["source_type"],
+                    alignment_mode=best_offset_candidate["alignment_mode"],
+                    anchor_count=best_offset_candidate["evidence"]["anchor_count"],
+                    offset_spread=best_offset_candidate["evidence"]["spread"],
+                    inlier_count=best_offset_candidate["evidence"].get("inlier_count"),
+                    inlier_ratio=best_offset_candidate["evidence"].get("inlier_ratio"),
+                    cluster_quality=best_offset_candidate["evidence"].get("cluster_quality"),
+                    best_score=best_offset_candidate["result"]["mean_score"],
+                    offset=round(best_offset_candidate["offset"], 3),
+                    offset_candidates=offset_candidates,
+                    attempted=len(attempts),
+                    errors=align_error_count,
+                    total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+                    queue_wait_ms=queue_wait_ms,
+                )
+                _complete_lyrics_alignment_job(
+                    song_id,
+                    status=JobStatus.COMPLETED,
+                    message=(
+                        "Synced lyrics corrected by "
+                        f"{best_offset_candidate['offset']:+.3f}s using {best_offset_candidate['alignment_mode']}"
+                    ),
+                )
+                return {
+                    "status": "offset_corrected",
+                    "song_id": song_id,
+                    "offset": best_offset_candidate["offset"],
+                    "source": best_synced_attempt["source"],
+                    "alignment_mode": best_offset_candidate["alignment_mode"],
+                    "offset_candidates": offset_candidates,
+                    "attempted": len(attempts),
+                    "errors": align_error_count,
+                }
+
+            best_rejected_candidate = None
+            rejected_candidates = [candidate for candidate in offset_candidates if not candidate["reliable"]]
+            if rejected_candidates:
+                best_rejected_candidate = max(
+                    rejected_candidates,
+                    key=lambda candidate: (
+                        -float(candidate["spread"] or 0.0),
+                        candidate.get("inlier_ratio") or 0.0,
+                        candidate.get("cluster_quality") or 0.0,
+                        candidate["anchor_count"],
+                        candidate["mean_score"],
+                    ),
+                )
+
+            log_lyrics_event(
+                song_id,
+                "lyrics_offset_candidates_rejected",
+                source=best_synced_attempt["source"],
+                source_type=best_synced_attempt["source_type"],
+                candidate_count=len(offset_candidates),
+                rejected_count=len(rejected_candidates),
+                best_rejected_candidate=best_rejected_candidate,
+                offset_candidates=offset_candidates,
+            )
+
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
@@ -1037,6 +1375,7 @@ def align_song_lyrics(song_id: str) -> dict:
             source=best_attempt["source"],
             source_type=best_attempt["source_type"],
             best_score=best_result["mean_score"],
+            offset_candidates=offset_candidates if best_synced_result and best_synced_attempt else None,
             attempted=len(attempts),
             errors=align_error_count,
             total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
@@ -1047,6 +1386,7 @@ def align_song_lyrics(song_id: str) -> dict:
             "song_id": song_id,
             "best_score": best_result["mean_score"],
             "source": best_attempt["source"],
+            "offset_candidates": offset_candidates if best_synced_result and best_synced_attempt else None,
             "attempted": len(attempts),
             "errors": align_error_count,
         }

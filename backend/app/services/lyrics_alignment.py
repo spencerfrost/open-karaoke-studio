@@ -14,7 +14,7 @@ import logging
 import os
 from pathlib import Path
 from time import perf_counter
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 import numpy as np
 
@@ -73,12 +73,25 @@ class AlignmentResult(TypedDict):
     mean_score: float  # average confidence across all aligned words
 
 
+SyncedAlignmentMode = Literal[
+    "synced_strict",
+    "synced_padded_small",
+    "synced_padded_medium",
+    "synced_stripped_plain",
+]
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
 
-def _lrc_lines_to_segments(lrc_lines: list[LrcLine]) -> list[dict]:
+def _lrc_lines_to_segments(
+    lrc_lines: list[LrcLine],
+    *,
+    pad_before: float = 0.0,
+    pad_after: float = 0.0,
+) -> list[dict]:
     """
     Convert parsed LRC lines into the segment format expected by whisperx.align().
 
@@ -90,13 +103,13 @@ def _lrc_lines_to_segments(lrc_lines: list[LrcLine]) -> list[dict]:
     content_lines = [l for l in lrc_lines if l["text"].strip()]
 
     for i, line in enumerate(content_lines):
-        start_s = line["timestamp"]  # already in seconds from parse_lrc_lines
+        start_s = max(0.0, line["timestamp"] - pad_before)
 
         if i + 1 < len(content_lines):
             # End at next line's start, clamped to at least 0.5s window
-            end_s = max(start_s + 0.5, content_lines[i + 1]["timestamp"])
+            end_s = max(start_s + 0.5, content_lines[i + 1]["timestamp"] + pad_after)
         else:
-            end_s = start_s + 10.0  # generous window for the last line
+            end_s = start_s + 10.0 + pad_after  # generous window for the last line
 
         segments.append(
             {
@@ -123,6 +136,24 @@ def _build_line_index_map(lrc_lines: list[LrcLine]) -> dict[int, int]:
     return mapping
 
 
+def _synced_lrc_to_plain_text(lrc_content: str) -> str:
+    """Strip timestamps from synced lyrics while preserving line order."""
+    lrc_lines = parse_lrc_lines(lrc_content)
+    return "\n".join(line["text"].strip() for line in lrc_lines if line["text"].strip())
+
+
+def _get_synced_alignment_mode_config(mode: SyncedAlignmentMode) -> dict[str, float | str]:
+    if mode == "synced_strict":
+        return {"alignment_mode": "synced", "pad_before": 0.0, "pad_after": 0.0}
+    if mode == "synced_padded_small":
+        return {"alignment_mode": "synced_padded_small", "pad_before": 3.0, "pad_after": 3.0}
+    if mode == "synced_padded_medium":
+        return {"alignment_mode": "synced_padded_medium", "pad_before": 8.0, "pad_after": 8.0}
+    if mode == "synced_stripped_plain":
+        return {"alignment_mode": "synced_stripped_plain", "pad_before": 0.0, "pad_after": 0.0}
+    raise ValueError(f"Unsupported synced alignment mode: {mode}")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -133,6 +164,9 @@ def align_lyrics_to_vocals(
     vocals_path: Path,
     language: str = "en",
     device: str = "auto",
+    pad_before: float = 0.0,
+    pad_after: float = 0.0,
+    alignment_mode: str = "synced",
 ) -> AlignmentResult | None:
     """
     Align LRC lyrics to vocals audio using WhisperX forced alignment.
@@ -167,7 +201,7 @@ def align_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_audio_loaded",
-        alignment_mode="synced",
+        alignment_mode=alignment_mode,
         elapsed_ms=round((perf_counter() - audio_load_started_at) * 1000, 1),
         sample_rate=sr,
     )
@@ -179,18 +213,18 @@ def align_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_audio_resampled",
-        alignment_mode="synced",
+        alignment_mode=alignment_mode,
         elapsed_ms=round((perf_counter() - resample_started_at) * 1000, 1),
         sample_count=len(y_16k),
     )
 
     # Build segments and line mapping
-    segments = _lrc_lines_to_segments(lrc_lines)
+    segments = _lrc_lines_to_segments(lrc_lines, pad_before=pad_before, pad_after=pad_after)
     line_index_map = _build_line_index_map(lrc_lines)
 
     if not segments:
         logger.warning("align_lyrics_to_vocals: no segments constructed")
-        log_lyrics_event(song_id, "lyrics_segments_empty", alignment_mode="synced")
+        log_lyrics_event(song_id, "lyrics_segments_empty", alignment_mode=alignment_mode)
         return None
 
     logger.info(
@@ -212,7 +246,7 @@ def align_lyrics_to_vocals(
         log_lyrics_event(
             song_id,
             "lyrics_model_loaded",
-            alignment_mode="synced",
+            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - model_load_started_at) * 1000, 1),
             language=language,
             device=device,
@@ -229,13 +263,13 @@ def align_lyrics_to_vocals(
         log_lyrics_event(
             song_id,
             "lyrics_whisperx_align_finished",
-            alignment_mode="synced",
+            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - align_started_at) * 1000, 1),
             segment_count=len(segments),
         )
     except Exception as e:
         logger.error("WhisperX alignment failed: %s", e, exc_info=True)
-        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode="synced")
+        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode)
         return None
     finally:
         if activity_started:
@@ -263,7 +297,7 @@ def align_lyrics_to_vocals(
 
     if not aligned_words:
         logger.warning("align_lyrics_to_vocals: alignment produced no words")
-        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode="synced")
+        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode)
         return None
 
     logger.info(
@@ -274,7 +308,7 @@ def align_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_alignment_words_ready",
-        alignment_mode="synced",
+        alignment_mode=alignment_mode,
         word_count=len(aligned_words),
         line_count=len(content_lines),
     )
@@ -290,6 +324,61 @@ def align_lyrics_to_vocals(
         word_count=len(aligned_words),
         line_count=len(content_lines),
         mean_score=mean_score,
+    )
+
+
+def align_synced_lyrics_to_vocals(
+    lrc_content: str,
+    vocals_path: Path,
+    language: str = "en",
+    device: str = "auto",
+    mode: SyncedAlignmentMode = "synced_strict",
+) -> AlignmentResult | None:
+    """Align synced lyrics using one of several timestamp-aware or stripped modes."""
+    config = _get_synced_alignment_mode_config(mode)
+    if mode == "synced_stripped_plain":
+        lrc_lines = parse_lrc_lines(lrc_content)
+        line_index_map = _build_line_index_map(lrc_lines)
+        plain_text = _synced_lrc_to_plain_text(lrc_content)
+        result = align_plain_lyrics_to_vocals(
+            plain_text,
+            vocals_path,
+            language=language,
+            device=device,
+            alignment_mode=str(config["alignment_mode"]),
+        )
+        if not result:
+            return None
+
+        remapped_words: list[AlignedWord] = []
+        for word in result["words"]:
+            remapped_words.append(
+                AlignedWord(
+                    word=word["word"],
+                    start=word["start"],
+                    end=word["end"],
+                    score=word["score"],
+                    line_index=line_index_map.get(word["line_index"], word["line_index"]),
+                )
+            )
+
+        return AlignmentResult(
+            words=remapped_words,
+            language=result["language"],
+            aligned_at=result["aligned_at"],
+            word_count=result["word_count"],
+            line_count=result["line_count"],
+            mean_score=result["mean_score"],
+        )
+
+    return align_lyrics_to_vocals(
+        lrc_content,
+        vocals_path,
+        language=language,
+        device=device,
+        pad_before=float(config["pad_before"]),
+        pad_after=float(config["pad_after"]),
+        alignment_mode=str(config["alignment_mode"]),
     )
 
 
@@ -331,6 +420,7 @@ def align_plain_lyrics_to_vocals(
     vocals_path: Path,
     language: str = "en",
     device: str = "auto",
+    alignment_mode: str = "plain",
 ) -> AlignmentResult | None:
     """
     Align plain text lyrics to vocals using WhisperX forced alignment.
@@ -357,7 +447,7 @@ def align_plain_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_audio_loaded",
-        alignment_mode="plain",
+        alignment_mode=alignment_mode,
         elapsed_ms=round((perf_counter() - audio_load_started_at) * 1000, 1),
         sample_rate=sr,
     )
@@ -368,7 +458,7 @@ def align_plain_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_audio_resampled",
-        alignment_mode="plain",
+        alignment_mode=alignment_mode,
         elapsed_ms=round((perf_counter() - resample_started_at) * 1000, 1),
         sample_count=len(y_16k),
     )
@@ -392,7 +482,7 @@ def align_plain_lyrics_to_vocals(
         log_lyrics_event(
             song_id,
             "lyrics_model_loaded",
-            alignment_mode="plain",
+            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - model_load_started_at) * 1000, 1),
             language=language,
             device=device,
@@ -409,13 +499,13 @@ def align_plain_lyrics_to_vocals(
         log_lyrics_event(
             song_id,
             "lyrics_whisperx_align_finished",
-            alignment_mode="plain",
+            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - align_started_at) * 1000, 1),
             segment_count=len(segments),
         )
     except Exception as e:
         logger.error("WhisperX plain alignment failed: %s", e, exc_info=True)
-        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode="plain")
+        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode)
         return None
     finally:
         if activity_started:
@@ -440,7 +530,7 @@ def align_plain_lyrics_to_vocals(
 
     if not aligned_words:
         logger.warning("align_plain_lyrics_to_vocals: alignment produced no words")
-        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode="plain")
+        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode)
         return None
 
     mean_score = round(
@@ -455,7 +545,7 @@ def align_plain_lyrics_to_vocals(
     log_lyrics_event(
         song_id,
         "lyrics_alignment_words_ready",
-        alignment_mode="plain",
+        alignment_mode=alignment_mode,
         word_count=len(aligned_words),
         line_count=len(segments),
         mean_score=mean_score,
