@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
@@ -21,24 +21,32 @@ export interface SongInput {
   lyrics?: string;
 }
 
+export type SongSubmissionStatus = "idle" | "pending" | "queued";
+
 export const useSongCreation = () => {
-  const [isAdding, setIsAdding] = useState(false);
-  const [currentSong, setCurrentSong] = useState<SongInput | null>(null);
+  const [submissionStates, setSubmissionStates] = useState<
+    Record<string, "pending" | "queued">
+  >({});
+  const inFlightVideoIdRef = useRef<string | null>(null);
 
   const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
 
   const youtubeDownloadMutation = useYoutubeDownloadMutation({
-    onSuccess: () => {
-      // Download started successfully
-    },
     onError: (error) => {
-      toast.error(`Failed to start download: ${error.message}`);
+      logger.error("Error queueing song download:", error);
     },
   });
 
   const downloadFromYouTube = (songId: string, song: SongInput) => {
-    youtubeDownloadMutation.mutate({
+    logger.debug("Queueing backend processing request", {
+      songId,
+      videoId: song.videoId,
+      title: song.title,
+      source: song.source,
+    });
+
+    return youtubeDownloadMutation.mutateAsync({
       song_id: songId,
       video_id: song.videoId,
       title: song.title,
@@ -49,8 +57,37 @@ export const useSongCreation = () => {
   };
 
   const createSong = (song: SongInput) => {
-    setIsAdding(true);
-    setCurrentSong(song);
+    const existingState = submissionStates[song.videoId];
+    logger.debug("createSong invoked", {
+      videoId: song.videoId,
+      title: song.title,
+      source: song.source,
+      existingState,
+      inFlightVideoId: inFlightVideoIdRef.current,
+    });
+
+    if (existingState === "queued") {
+      logger.debug("Ignoring duplicate song submission after song was queued", {
+        videoId: song.videoId,
+      });
+      return Promise.resolve(null);
+    }
+
+    if (inFlightVideoIdRef.current === song.videoId || existingState === "pending") {
+      logger.debug("Ignoring duplicate song submission while request is in flight", {
+        videoId: song.videoId,
+      });
+      return Promise.resolve(null);
+    }
+
+    inFlightVideoIdRef.current = song.videoId;
+    setSubmissionStates((current) => ({
+      ...current,
+      [song.videoId]: "pending",
+    }));
+    logger.debug("Marked song as pending in local submission state", {
+      videoId: song.videoId,
+    });
 
     // Convert duration to seconds if it's provided
     let duration: number | undefined;
@@ -74,26 +111,54 @@ export const useSongCreation = () => {
 
     return createSongMutation
       .mutateAsync(songData)
-      .then((createdSong) => {
+      .then(async (createdSong) => {
         logger.debug("Song created successfully:", createdSong);
 
-        downloadFromYouTube(createdSong.id, song);
+        await downloadFromYouTube(createdSong.id, song);
+        setSubmissionStates((current) => ({
+          ...current,
+          [song.videoId]: "queued",
+        }));
+        logger.debug("Marked song as queued in local submission state", {
+          videoId: song.videoId,
+          songId: createdSong.id,
+        });
+        toast.success("Added to library and queued for processing");
 
         return createdSong;
       })
       .catch((error) => {
         logger.error("Error creating song:", error);
+        setSubmissionStates((current) => {
+          const nextState = { ...current };
+          delete nextState[song.videoId];
+          return nextState;
+        });
+        logger.debug("Cleared local submission state after failure", {
+          videoId: song.videoId,
+        });
         throw error;
       })
       .finally(() => {
-        setIsAdding(false);
+        inFlightVideoIdRef.current = null;
+        logger.debug("Reset transient add-song state", {
+          videoId: song.videoId,
+        });
       });
+  };
+
+  const getSubmissionStatus = (videoId: string): SongSubmissionStatus => {
+    const state = submissionStates[videoId];
+    if (state === "pending" || state === "queued") {
+      return state;
+    }
+    return "idle";
   };
 
   return {
     // State
-    isAdding,
-    currentSong,
+    submissionStates,
+    getSubmissionStatus,
 
     // Actions
     createSong,

@@ -59,6 +59,7 @@ export interface YouTubeResultsProps {
 export interface YouTubeResultCardProps {
   result: YoutubeVideoSearchResult;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: (result: YoutubeVideoSearchResult) => void;
 }
 

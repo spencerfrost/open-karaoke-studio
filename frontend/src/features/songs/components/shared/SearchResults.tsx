@@ -1,6 +1,7 @@
 import React from "react";
 import { SearchLoadingState } from "./LoadingStates";
 import { EmptySearchState, SearchErrorState } from "./EmptyStates";
+import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
 
 // Generic search results component that can display any type of result with any result card
 interface SearchResultsProps<TResult> {
@@ -8,10 +9,11 @@ interface SearchResultsProps<TResult> {
   isLoading: boolean;
   error: Error | null;
   onSelect: (result: TResult) => void;
-  loadingStates: Record<string, boolean>;
+  getSubmissionStatus: (key: string) => SongSubmissionStatus;
   resultCardComponent: React.ComponentType<{
     result: TResult;
     isLoading: boolean;
+    isSubmitted?: boolean;
     onSelect: () => void;
     onArtistClick?: (artistId: string, artistName: string) => void;
   }>;
@@ -26,7 +28,7 @@ export const SearchResults = <TResult,>({
   isLoading,
   error,
   onSelect,
-  loadingStates,
+  getSubmissionStatus,
   resultCardComponent: ResultCard,
   keyExtractor,
   emptyMessage,
@@ -56,11 +58,13 @@ export const SearchResults = <TResult,>({
       <div className="grid grid-cols-1 gap-4">
         {results.map((result) => {
           const key = keyExtractor(result);
+          const status = getSubmissionStatus(key);
           return (
             <ResultCard
               key={key}
               result={result}
-              isLoading={loadingStates[key] || false}
+              isLoading={status === "pending"}
+              isSubmitted={status === "queued"}
               onSelect={() => onSelect(result)}
               onArtistClick={onArtistClick}
             />

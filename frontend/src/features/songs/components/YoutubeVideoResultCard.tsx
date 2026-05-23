@@ -14,6 +14,7 @@ const formatDuration = (seconds: number) => {
 export const YouTubeResultCard: React.FC<YouTubeResultCardProps> = ({
   result,
   isLoading,
+  isSubmitted,
   onSelect,
 }) => {
   const handleSelect = () => {
@@ -27,6 +28,7 @@ export const YouTubeResultCard: React.FC<YouTubeResultCardProps> = ({
       subtitle={result.channel}
       duration={formatDuration(result.duration)}
       isLoading={isLoading}
+      isSubmitted={isSubmitted}
       onSelect={handleSelect}
     >
       <YouTubeAudioPreview videoId={result.id} />

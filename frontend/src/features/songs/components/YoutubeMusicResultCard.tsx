@@ -8,6 +8,7 @@ import { YouTubeAudioPreview } from "./shared/YouTubeAudioPreview";
 interface YoutubeMusicResultCardProps {
   result: YoutubeMusicSearchResult;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: (result: YoutubeMusicSearchResult) => void;
   onArtistClick?: (artistId: string, artistName: string) => void;
 }
@@ -15,6 +16,7 @@ interface YoutubeMusicResultCardProps {
 export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
   result,
   isLoading,
+  isSubmitted = false,
   onSelect,
   onArtistClick,
 }) => {
@@ -95,7 +97,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
           <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-auto">
             <Button
               onClick={handleSelect}
-              disabled={isLoading || result.existsInLibrary}
+              disabled={isLoading || isSubmitted || result.existsInLibrary}
               variant="default"
               size="sm"
               className="w-full sm:w-auto"
@@ -105,6 +107,8 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Adding...
                 </>
+              ) : isSubmitted ? (
+                "Queued"
               ) : result.existsInLibrary ? (
                 "Already Added"
               ) : (

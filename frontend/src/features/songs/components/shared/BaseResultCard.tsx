@@ -9,6 +9,7 @@ interface BaseResultCardProps {
   subtitle: string;
   duration?: string;
   isLoading?: boolean;
+  isSubmitted?: boolean;
   onSelect: () => void;
   existsInLibrary?: boolean;
   children?: React.ReactNode;
@@ -21,6 +22,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
   subtitle,
   duration,
   isLoading = false,
+  isSubmitted = false,
   onSelect,
   existsInLibrary = false,
   children,
@@ -68,7 +70,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
           <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-auto">
             <Button
               onClick={onSelect}
-              disabled={disabled || isLoading || existsInLibrary}
+              disabled={disabled || isLoading || isSubmitted || existsInLibrary}
               variant="default"
               size="sm"
               className="w-full sm:w-auto"
@@ -78,6 +80,8 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Adding...
                 </>
+              ) : isSubmitted ? (
+                "Queued"
               ) : existsInLibrary ? (
                 "Already Added"
               ) : (

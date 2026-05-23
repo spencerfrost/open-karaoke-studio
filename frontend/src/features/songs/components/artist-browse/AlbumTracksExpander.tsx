@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ChevronDown, ChevronRight, Disc, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
 
 import { useYoutubeMusicAlbumTracks } from "@/hooks/api/useYoutubeMusic";
 import { YoutubeMusicAlbum, YoutubeMusicSearchResult } from "@/types/Youtube";
@@ -9,13 +10,13 @@ import { YoutubeMusicAlbum, YoutubeMusicSearchResult } from "@/types/Youtube";
 interface AlbumTracksExpanderProps {
   album: YoutubeMusicAlbum;
   onSelectTrack: (track: YoutubeMusicSearchResult) => void;
-  loadingStates: Record<string, boolean>;
+  getSubmissionStatus: (videoId: string) => SongSubmissionStatus;
 }
 
 export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
   album,
   onSelectTrack,
-  loadingStates,
+  getSubmissionStatus,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -103,15 +104,19 @@ export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
 
           {!isLoading && !error && tracks.length > 0 && (
             <div className="divide-y">
-              {tracks.map((track, index) => (
+              {tracks.map((track, index) => {
+                const status = getSubmissionStatus(track.videoId);
+                return (
                 <TrackRow
                   key={track.videoId || index}
                   track={track}
                   trackNumber={track.trackNumber || index + 1}
-                  isLoading={loadingStates[track.videoId] || false}
+                    isLoading={status === "pending"}
+                    isSubmitted={status === "queued"}
                   onSelect={() => onSelectTrack(track)}
                 />
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -124,6 +129,7 @@ interface TrackRowProps {
   track: YoutubeMusicSearchResult;
   trackNumber: number;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: () => void;
 }
 
@@ -131,6 +137,7 @@ const TrackRow: React.FC<TrackRowProps> = ({
   track,
   trackNumber,
   isLoading,
+  isSubmitted = false,
   onSelect,
 }) => {
   const isDisabled = !track.videoId || track.existsInLibrary;
@@ -161,11 +168,13 @@ const TrackRow: React.FC<TrackRowProps> = ({
       <Button
         size="sm"
         onClick={onSelect}
-        disabled={isDisabled || isLoading}
+        disabled={isDisabled || isLoading || isSubmitted}
         className="flex-shrink-0"
       >
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
+        ) : isSubmitted ? (
+          "Queued"
         ) : !track.videoId ? (
           "Unavailable"
         ) : track.existsInLibrary ? (

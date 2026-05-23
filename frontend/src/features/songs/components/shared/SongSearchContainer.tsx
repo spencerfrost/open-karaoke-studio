@@ -122,24 +122,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   // Single song creation hook for both flows
   const songCreation = useSongCreation();
 
-  // Loading states for both result types
-  const youtubeMusicLoadingStates: Record<string, boolean> = Object.fromEntries(
-    (youtubeMusicSearch.data?.songs || []).map(
-      (result: YoutubeMusicSearchResult) => [
-        result.videoId,
-        songCreation.isAdding &&
-          songCreation.currentSong?.videoId === result.videoId,
-      ],
-    ),
-  );
-
-  const youtubeLoadingStates: Record<string, boolean> = Object.fromEntries(
-    (youtubeSearch.data || []).map((result: YoutubeVideoSearchResult) => [
-      result.id,
-      songCreation.isAdding && songCreation.currentSong?.videoId === result.id,
-    ]),
-  );
-
   const handleSearch = (searchQuery: string) => {
     setQuery(searchQuery);
     // Clear artist browse when searching
@@ -156,6 +138,12 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
 
   const handleYoutubeMusicSelect = async (result: YoutubeMusicSearchResult) => {
     try {
+      logger.debug("YouTube Music result selected", {
+        videoId: result.videoId,
+        title: result.title,
+        existsInLibrary: result.existsInLibrary,
+        status: songCreation.getSubmissionStatus(result.videoId),
+      });
       const songInput = mapYoutubeMusicToSongInput(result);
       await songCreation.createSong(songInput);
     } catch (error) {
@@ -166,6 +154,11 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
 
   const handleYouTubeSelect = async (result: YoutubeVideoSearchResult) => {
     try {
+      logger.debug("YouTube result selected", {
+        videoId: result.id,
+        title: result.title,
+        status: songCreation.getSubmissionStatus(result.id),
+      });
       const songInput = mapYouTubeToSongInput(result);
       await songCreation.createSong(songInput);
     } catch (error) {
@@ -201,7 +194,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               artistName={browsingArtist.name}
               onBack={handleBackFromArtist}
               onSelectSong={handleYoutubeMusicSelect}
-              loadingStates={youtubeMusicLoadingStates}
+              getSubmissionStatus={songCreation.getSubmissionStatus}
             />
           </CardContent>
         </Card>
@@ -263,7 +256,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
                     isLoading={youtubeMusicSearch.isLoading}
                     error={youtubeMusicSearch.error}
                     onSelect={handleYoutubeMusicSelect}
-                    loadingStates={youtubeMusicLoadingStates}
+                    getSubmissionStatus={songCreation.getSubmissionStatus}
                     resultCardComponent={YoutubeMusicResultCard}
                     keyExtractor={(result) => result.videoId}
                     emptyMessage="Search YouTube Music"
@@ -294,7 +287,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               isLoading={youtubeSearch.isLoading}
               error={youtubeSearch.error}
               onSelect={handleYouTubeSelect}
-              loadingStates={youtubeLoadingStates}
+              getSubmissionStatus={songCreation.getSubmissionStatus}
               resultCardComponent={YouTubeResultCard}
               keyExtractor={(result) => result.id}
               emptyMessage="Search YouTube"
