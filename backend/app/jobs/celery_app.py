@@ -23,7 +23,16 @@ broker_url = config.CELERY_BROKER_URL
 result_backend = config.CELERY_RESULT_BACKEND
 
 celery = Celery(
-    "app", broker=broker_url, backend=result_backend, include=["app.jobs.jobs"]
+    "app",
+    broker=broker_url,
+    backend=result_backend,
+    include=[
+        "app.jobs.audio_tasks",
+        "app.jobs.lyrics_tasks",
+        "app.jobs.batch_tasks",
+        "app.jobs.enrichment_tasks",
+        "app.jobs.metadata_tasks",
+    ],
 )
 
 celery_logging_config = logging_config.configure_celery_logging()
