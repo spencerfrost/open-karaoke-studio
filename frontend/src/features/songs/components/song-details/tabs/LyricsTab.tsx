@@ -136,7 +136,7 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
 
   const clearWordSynced = useCallback(() => {
     updateSongMutation.mutate(
-      { id: song.id, wordSyncedLyrics: null as unknown as string },
+      { id: song.id, wordSyncedLyrics: null },
       {
         onSuccess: () => toast.success("Word-synced lyrics cleared"),
         onError: (error) => {
