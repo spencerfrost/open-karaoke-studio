@@ -192,6 +192,18 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .text-shadow {
+    text-shadow: 0 0 12px rgb(255 179 71 / 0.35);
+  }
+
+  .instrumental-progress-fill {
+    transition: width 120ms ease-out;
+  }
+
+  .instrumental-progress-leadin {
+    animation: instrumentalLeadInPulse 900ms ease-in-out infinite;
+  }
 }
 
 /* Custom Animations */
@@ -224,5 +236,17 @@
 
   .pulse {
     animation: pulse 2s infinite ease-in-out;
+  }
+
+  @keyframes instrumentalLeadInPulse {
+    0% {
+      filter: brightness(1);
+    }
+    50% {
+      filter: brightness(1.2);
+    }
+    100% {
+      filter: brightness(1);
+    }
   }
 }
