@@ -18,8 +18,6 @@ import { parseLrcWithCountIn, attachWordTimestamps } from "@/utils/lrcParser";
 import { useLyricsAlignment } from "@/hooks/api/useLyricsAlignment";
 
 interface CountInStyleConfig {
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -161,18 +159,28 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       return parseLrcWithCountIn(lyrics, bpm);
     }, [isSync, lyrics, bpm]);
 
-    const { words: alignmentWords } = useLyricsAlignment(
+    const { words: alignmentWords, instrumentalIntervals } = useLyricsAlignment(
       isSync ? songId : undefined,
     );
 
     const parsedLrcDataWithWords = useMemo(() => {
       if (!parsedLrcData) return null;
-      if (!alignmentWords || alignmentWords.length === 0) return parsedLrcData;
+      if (!alignmentWords || alignmentWords.length === 0) {
+        return {
+          ...parsedLrcData,
+          ...(instrumentalIntervals
+            ? { instrumentalIntervals }
+            : {}),
+        };
+      }
       return {
         ...parsedLrcData,
         lines: attachWordTimestamps(parsedLrcData.lines, alignmentWords),
+        ...(instrumentalIntervals
+          ? { instrumentalIntervals }
+          : {}),
       };
-    }, [parsedLrcData, alignmentWords]);
+    }, [parsedLrcData, alignmentWords, instrumentalIntervals]);
 
     if (isSync) {
       if (!lyrics || !parsedLrcDataWithWords) {

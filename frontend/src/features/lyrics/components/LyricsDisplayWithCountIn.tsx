@@ -26,8 +26,6 @@ interface LyricsDisplayProps {
 
 interface LyricsDisplayWithCountInProps extends LyricsDisplayProps {
   bpm?: number;
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -36,8 +34,6 @@ const LyricsDisplayWithCountInComponent: React.FC<
   LyricsDisplayWithCountInProps
 > = ({
   bpm,
-  showCountdownNumbers = false,
-  showCountdownIcons = false,
   showProgressBar = false,
   showLeadInHighlight = false,
   ...lyricsDisplayProps
@@ -47,8 +43,6 @@ const LyricsDisplayWithCountInComponent: React.FC<
       {...lyricsDisplayProps}
       bpm={bpm}
       countInStyle={{
-        showCountdownNumbers,
-        showCountdownIcons,
         showProgressBar,
         showLeadInHighlight,
       }}
@@ -70,8 +64,6 @@ const LyricsDisplayWithCountIn = React.memo(
       prevProps.lyricsSize !== nextProps.lyricsSize ||
       prevProps.lyricsOffset !== nextProps.lyricsOffset ||
       prevProps.bpm !== nextProps.bpm ||
-      prevProps.showCountdownNumbers !== nextProps.showCountdownNumbers ||
-      prevProps.showCountdownIcons !== nextProps.showCountdownIcons ||
       prevProps.showProgressBar !== nextProps.showProgressBar ||
       prevProps.showLeadInHighlight !== nextProps.showLeadInHighlight ||
       prevProps.songId !== nextProps.songId

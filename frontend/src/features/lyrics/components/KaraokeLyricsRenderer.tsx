@@ -17,10 +17,9 @@ import React, {
   useCallback,
 } from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
+import { getActiveLineIndex } from "./activeLineTiming";
 
 interface CountInStyleConfig {
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -46,12 +45,14 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   className = "",
 }) => {
   const {
-    showCountdownNumbers = false,
-    showCountdownIcons = false,
     showProgressBar = false,
+    showLeadInHighlight = false,
   } = countInStyle;
 
+  const INSTRUMENTAL_PROGRESS_WIDTH_CLASS = "w-52 sm:w-72";
+
   const currentTimeMs = currentTime * 1000 + lyricsOffset;
+  const currentTimeSec = currentTimeMs / 1000;
 
   // Refs for scrolling
   const containerRef = useRef<HTMLDivElement>(null);
@@ -106,23 +107,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
 
   // Find current line index (across ALL lines, including blanks)
   const currentLineIndex = useMemo(() => {
-    let idx = parsedData.lines.findIndex((line, i) => {
-      const nextLine = parsedData.lines[i + 1];
-      return (
-        currentTimeMs >= line.timestamp &&
-        (!nextLine || currentTimeMs < nextLine.timestamp)
-      );
-    });
-
-    // If no current line found, check if we're before first line
-    if (idx === -1) {
-      idx =
-        currentTimeMs < parsedData.lines[0]?.timestamp
-          ? -1
-          : parsedData.lines.length - 1;
-    }
-
-    return idx;
+    return getActiveLineIndex(parsedData.lines, currentTimeMs);
   }, [parsedData.lines, currentTimeMs]);
 
   // Find current word index within the active line (null when no alignment data)
@@ -152,8 +137,62 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     );
   }, [parsedData.countInTriggers, currentTimeMs]);
 
+  const activeInstrumentalDisplay = useMemo(() => {
+    const interval = parsedData.instrumentalIntervals?.find((candidate) => {
+      const leadInStart = Math.min(candidate.lead_in_start, candidate.start);
+      return currentTimeSec >= leadInStart && currentTimeSec < candidate.end;
+    });
+
+    if (!interval) return null;
+
+    const isLeadIn = currentTimeSec < interval.start;
+    return {
+      interval,
+      isLeadIn,
+    };
+  }, [parsedData.instrumentalIntervals, currentTimeSec]);
+
+  const activeInstrumentalTargetLineIndex = useMemo(() => {
+    if (!activeInstrumentalDisplay) return null;
+
+    const backendLineIndex = activeInstrumentalDisplay.interval.next_line_index;
+    const sourceLineMatchIndex = parsedData.lines.findIndex(
+      (line) => line.sourceLineIndex === backendLineIndex,
+    );
+
+    if (sourceLineMatchIndex !== -1) {
+      return sourceLineMatchIndex;
+    }
+
+    if (backendLineIndex >= 0 && backendLineIndex < parsedData.lines.length) {
+      return backendLineIndex;
+    }
+
+    return null;
+  }, [activeInstrumentalDisplay, parsedData.lines]);
+
   // Calculate count-in progress and beat index
   const countInState = useMemo(() => {
+    if (activeInstrumentalDisplay) {
+      const intervalStart = activeInstrumentalDisplay.isLeadIn
+        ? Math.min(
+            activeInstrumentalDisplay.interval.lead_in_start,
+            activeInstrumentalDisplay.interval.start,
+          )
+        : activeInstrumentalDisplay.interval.start;
+      const intervalEnd = activeInstrumentalDisplay.isLeadIn
+        ? activeInstrumentalDisplay.interval.start
+        : activeInstrumentalDisplay.interval.end;
+      const elapsed = currentTimeSec - intervalStart;
+      const duration = Math.max(0.001, intervalEnd - intervalStart);
+      const progress = Math.max(0, Math.min(1, elapsed / duration));
+
+      return {
+        progress,
+        currentBeatIndex: -1,
+      };
+    }
+
     if (!activeCountInTrigger) return null;
 
     const elapsed = currentTimeMs - activeCountInTrigger.countInStart;
@@ -167,9 +206,8 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return {
       progress,
       currentBeatIndex,
-      trigger: activeCountInTrigger,
     };
-  }, [activeCountInTrigger, currentTimeMs]);
+  }, [activeCountInTrigger, activeInstrumentalDisplay, currentTimeMs, currentTimeSec]);
 
   // Auto-scroll to center the active line
   useLayoutEffect(() => {
@@ -250,22 +288,16 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
         return {
           inactive: "text-base",
           active: "text-lg",
-          countdown: "text-lg",
-          icon: "w-2 h-2",
         };
       case "large":
         return {
           inactive: "text-2xl",
           active: "text-4xl",
-          countdown: "text-3xl",
-          icon: "w-4 h-4",
         };
       default: // medium
         return {
           inactive: "text-xl",
           active: "text-2xl",
-          countdown: "text-2xl",
-          icon: "w-3 h-3",
         };
     }
   }, [lyricsSize]);
@@ -274,23 +306,70 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   const renderAllLines = () => {
     const isClickable = !!onSeek;
 
-    return parsedData.lines.map((line, index) => {
+    return parsedData.lines.flatMap((line, index) => {
+      const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
       const hasCountIn = activeCountInTrigger?.lineIndex === index;
+      const showsInstrumentalSeparator =
+        !!activeInstrumentalDisplay &&
+        activeInstrumentalTargetLineIndex === index &&
+        !!countInState &&
+        showProgressBar;
+
+      if (showsInstrumentalSeparator) {
+        const separatorStateClass = activeInstrumentalDisplay.isLeadIn
+          ? "bg-slate-300/15"
+          : "bg-orange-peel/15";
+        const progressFillClass = activeInstrumentalDisplay.isLeadIn
+          ? "from-slate-200 to-amber-400"
+          : "from-orange-peel to-amber-500";
+        const progressAriaLabel = activeInstrumentalDisplay.isLeadIn
+          ? "Lead-in progress"
+          : "Instrumental progress";
+
+        renderedElements.push(
+          <div
+            key={`instrumental-separator-${activeInstrumentalDisplay.interval.start}-${index}`}
+            className="py-2 px-4"
+          >
+            <div className="w-full flex justify-center">
+              <div
+                className={`h-2 rounded-full overflow-hidden backdrop-blur-sm ${INSTRUMENTAL_PROGRESS_WIDTH_CLASS} ${separatorStateClass}`}
+                role="progressbar"
+                aria-label={progressAriaLabel}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(countInState.progress * 100)}
+              >
+                <div
+                  className={`h-full rounded-full instrumental-progress-fill bg-gradient-to-r ${progressFillClass} ${
+                    activeInstrumentalDisplay.isLeadIn && showLeadInHighlight
+                      ? "instrumental-progress-leadin"
+                      : ""
+                  }`}
+                  style={{ width: `${countInState.progress * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>,
+        );
+      }
 
       // Check if this line is blank
       if (line.isBlank) {
-        return (
+        renderedElements.push(
           <div
-            key={line.timestamp}
+            key={`line-${line.timestamp}-${index}`}
             ref={(el) => {
               lineRefs.current[index] = el;
             }}
             className="py-2 px-4 text-center min-h-[1em]"
           >
             {/* Empty blank line */}
-          </div>
+          </div>,
         );
+
+        return renderedElements;
       }
 
       const fontSize = isActive ? fontSizes.active : fontSizes.inactive;
@@ -298,9 +377,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       const weight = isActive ? "font-bold" : "font-normal";
       const shadow = isActive ? "text-shadow" : "";
 
-      return (
+      renderedElements.push(
         <div
-          key={line.timestamp}
+          key={`line-${line.timestamp}-${index}`}
           ref={(el) => {
             lineRefs.current[index] = el;
           }}
@@ -308,71 +387,25 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
         >
-          {/* 3-column grid: left for count-in, center for text, right for balance */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 w-full">
-            {/* Left column: Count-in elements */}
-            <div className={`flex items-center justify-end gap-3 ${opacity}`}>
-              {hasCountIn && countInState && (
-                <>
-                  {/* Progress bar */}
-                  {showProgressBar && (
-                    <div className="w-32 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-orange-peel to-amber-500 rounded-full transition-all duration-100 ease-linear"
-                        style={{ width: `${countInState.progress * 100}%` }}
-                      />
-                    </div>
-                  )}
+          {/* Vertical layout: count-in above text */}
+          <div className="flex flex-col items-center justify-center gap-2 w-full">
+            {/* Top row: Count-in elements, rendered before the text so it appears as a separate line */}
+            {hasCountIn && countInState && (
+              <div className={`flex items-center justify-center gap-3 ${opacity}`}>
+                {showProgressBar && (
+                  <div className="w-32 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-orange-peel to-amber-500 rounded-full transition-all duration-100 ease-linear"
+                      style={{ width: `${countInState.progress * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
-                  {/* Countdown numbers */}
-                  {showCountdownNumbers && (
-                    <div className="flex gap-2">
-                      {[4, 3, 2, 1].map((num, idx) => (
-                        <span
-                          key={num}
-                          className={`
-                            font-bold transition-all duration-150
-                            ${fontSizes.countdown}
-                            ${
-                              idx === countInState.currentBeatIndex
-                                ? "text-orange-peel scale-110 opacity-100"
-                                : "text-white/30 scale-100 opacity-50"
-                            }
-                          `}
-                        >
-                          {num}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Countdown icons */}
-                  {showCountdownIcons && (
-                    <div className="flex gap-2 items-center">
-                      {[0, 1, 2, 3].map((idx) => (
-                        <div
-                          key={idx}
-                          className={`
-                            rounded-full transition-all duration-100
-                            ${fontSizes.icon}
-                            ${
-                              idx <= countInState.currentBeatIndex
-                                ? "bg-transparent border-2 border-white/30"
-                                : "bg-orange-peel"
-                            }
-                          `}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Center column: Centered text */}
+            {/* Bottom row: Lyrics text */}
             <div className="text-center">
               {isActive && line.words && line.words.length > 0 ? (
-                // Word-level bouncing ball rendering
                 <span
                   className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
                   onClick={
@@ -432,12 +465,11 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
                 </span>
               )}
             </div>
-
-            {/* Right column: Empty for balance */}
-            <div />
           </div>
-        </div>
+        </div>,
       );
+
+      return renderedElements;
     });
   };
 

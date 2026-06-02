@@ -1,6 +1,6 @@
 /**
  * CountInDisplay - Visual count-in animations for karaoke player
- * Displays 4 mix-and-match visual styles before upcoming lyric lines
+ * Displays progress-bar and lead-in highlight styles before upcoming lyric lines
  */
 
 import React, { useMemo } from "react";
@@ -10,9 +10,7 @@ interface CountInDisplayProps {
   trigger: CountInTrigger;
   currentTime: number; // seconds
 
-  // Boolean flags for each style (mix-and-match)
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
+  // Boolean flags for the supported styles
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 
@@ -24,8 +22,6 @@ interface CountInDisplayProps {
 const CountInDisplay: React.FC<CountInDisplayProps> = ({
   trigger,
   currentTime,
-  showCountdownNumbers = false,
-  showCountdownIcons = false,
   showProgressBar = false,
   showLeadInHighlight = false,
   lyricsSize,
@@ -41,12 +37,6 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
     );
   }, [currentTimeMs, trigger.countInStart, trigger.countInEnd]);
 
-  // Calculate current beat index (0-3 for 4 beats)
-  const currentBeatIndex = useMemo(() => {
-    const elapsed = currentTimeMs - trigger.countInStart;
-    return Math.floor(elapsed / trigger.beatInterval);
-  }, [currentTimeMs, trigger.countInStart, trigger.beatInterval]);
-
   // Calculate progress (0-1)
   const progress = useMemo(() => {
     const elapsed = currentTimeMs - trigger.countInStart;
@@ -54,8 +44,7 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
     return Math.max(0, Math.min(1, elapsed / duration));
   }, [currentTimeMs, trigger.countInStart, trigger.countInEnd]);
 
-  // Font size based on lyrics size
-  const countdownSize = useMemo(() => {
+  const overlayTextSize = useMemo(() => {
     switch (lyricsSize) {
       case "small":
         return "text-lg"; // 1.125rem
@@ -66,69 +55,10 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
     }
   }, [lyricsSize]);
 
-  const iconSize = useMemo(() => {
-    switch (lyricsSize) {
-      case "small":
-        return "w-2 h-2"; // 0.5rem
-      case "large":
-        return "w-4 h-4"; // 1rem
-      default:
-        return "w-3 h-3"; // 0.75rem
-    }
-  }, [lyricsSize]);
-
   if (!isActive) return null;
 
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* Numerical Countdown (4 3 2 1) - Left of lyrics */}
-      {showCountdownNumbers && (
-        <div
-          className="absolute top-1/2 -translate-y-1/2 flex gap-2"
-          style={{ left: "10%" }}
-        >
-          {[4, 3, 2, 1].map((num, idx) => (
-            <span
-              key={num}
-              className={`
-                font-bold transition-all duration-150
-                ${countdownSize}
-                ${
-                  idx === currentBeatIndex
-                    ? "text-orange-peel scale-125 opacity-100"
-                    : "text-white/30 scale-100 opacity-70"
-                }
-              `}
-            >
-              {num}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Countdown Icons (●●●●) - Left of lyrics */}
-      {showCountdownIcons && (
-        <div
-          className="absolute top-1/2 -translate-y-1/2 flex gap-1.5"
-          style={{ left: showCountdownNumbers ? "18%" : "10%" }}
-        >
-          {[0, 1, 2, 3].map((idx) => (
-            <div
-              key={idx}
-              className={`
-                rounded-full transition-all duration-100
-                ${iconSize}
-                ${
-                  idx <= currentBeatIndex
-                    ? "bg-transparent border-2 border-white/30"
-                    : "bg-orange-peel"
-                }
-              `}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Progress Bar - Centered in gap area */}
       {showProgressBar && (
         <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-3/5 max-w-md">
@@ -151,7 +81,7 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
             textShadow: `0 0 ${progress * 20}px rgba(255, 107, 53, 0.5)`,
           }}
         >
-          <div className={`font-semibold text-background/70 ${countdownSize}`}>
+          <div className={`font-semibold text-background/70 ${overlayTextSize}`}>
             {upcomingLineContent}
           </div>
         </div>

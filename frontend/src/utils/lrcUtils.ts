@@ -72,5 +72,6 @@ export {
   type CountInTrigger,
   type LrcLine,
   type InstrumentalGap,
+  type InstrumentalInterval,
   type WordTimestamp,
 } from "./lrcParser";

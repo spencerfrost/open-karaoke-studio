@@ -327,9 +327,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               songArtist={player.song?.artist}
               songAlbum={player.song?.album}
               songDuration={player.song?.duration}
-              // Count-in props (hardcoded for initial testing)
-              showCountdownNumbers={false}
-              showCountdownIcons={false}
               showProgressBar={true}
               showLeadInHighlight={false}
             />

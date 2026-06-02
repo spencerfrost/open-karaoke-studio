@@ -15,6 +15,7 @@ export interface LrcLine {
   timestamp: number; // milliseconds
   content: string;
   isBlank: boolean;
+  sourceLineIndex: number; // original LRC source line index
   words?: WordTimestamp[]; // word-level timestamps from forced alignment
 }
 
@@ -23,6 +24,16 @@ export interface InstrumentalGap {
   endTime: number; // milliseconds
   duration: number; // milliseconds
   lineIndexAfter: number; // which line comes after this gap
+}
+
+export interface InstrumentalInterval {
+  start: number; // seconds
+  end: number; // seconds
+  duration: number; // seconds
+  lead_in_start: number; // seconds
+  next_line_index: number;
+  confidence: number;
+  source: string;
 }
 
 export interface CountInTrigger {
@@ -37,6 +48,7 @@ export interface ParsedLrcData {
   lines: LrcLine[];
   gaps: InstrumentalGap[];
   countInTriggers: CountInTrigger[];
+  instrumentalIntervals?: InstrumentalInterval[];
 }
 
 /**
@@ -47,10 +59,14 @@ export function parseLrc(lrcContent: string): LrcLine[] {
 
   const lines: LrcLine[] = [];
   // LRC timestamp format: [mm:ss.xx] or [mm:ss.xxx]
-  const timestampRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
+  // Parse line-by-line so sourceLineIndex matches backend indexing behavior.
+  const timestampRegex = /^\[(\d{1,2}):(\d{2})\.(\d{2,3})\]\s*(.*)$/;
+  const sourceLines = lrcContent.trim().split(/\r?\n/);
 
-  let match;
-  while ((match = timestampRegex.exec(lrcContent)) !== null) {
+  sourceLines.forEach((rawLine, sourceLineIndex) => {
+    const match = rawLine.match(timestampRegex);
+    if (!match) return;
+
     const [, minutes, seconds, ms, content] = match;
 
     // Parse timestamp to milliseconds
@@ -64,8 +80,9 @@ export function parseLrc(lrcContent: string): LrcLine[] {
       timestamp,
       content: content || "",
       isBlank: !content || content.trim().length === 0,
+      sourceLineIndex,
     });
-  }
+  });
 
   // Sort by timestamp
   return lines.sort((a, b) => a.timestamp - b.timestamp);
@@ -228,23 +245,90 @@ export function attachWordTimestamps(
 ): LrcLine[] {
   if (!words || words.length === 0) return lines;
 
+  const EARLY_LINE_START_TOLERANCE_SEC = 0.8;
+
+  const lineIndexToParsedIndex = new Map<number, number>();
+  lines.forEach((line, parsedIndex) => {
+    lineIndexToParsedIndex.set(line.sourceLineIndex, parsedIndex);
+  });
+
   // lines are sorted by timestamp (guaranteed by parseLrc)
   const lineTimestampsSec = lines.map((l) => l.timestamp / 1000);
 
-  // Group words by their owning line index (rightmost line with timestamp <= word.start)
-  const byLineIdx = new Map<number, WordTimestamp[]>();
-  for (const w of words) {
-    let lineIdx = -1;
+  const getTimestampLineIdx = (wordStartSec: number): number => {
+    let matchedIdx = -1;
     for (let i = 0; i < lineTimestampsSec.length; i++) {
-      if (lineTimestampsSec[i] <= w.start) {
-        lineIdx = i;
+      if (lineTimestampsSec[i] <= wordStartSec) {
+        matchedIdx = i;
       } else {
         break;
       }
     }
+    return matchedIdx;
+  };
+
+  // Prefer the backend's explicit line_index when it stays consistent with the
+  // word timing. WhisperX can split one lyric line into multiple output
+  // segments, which shifts subsequent segment indexes even though the word
+  // timestamps still line up with the original LRC line.
+  const pickLineIdxForGroup = (
+    groupStartSec: number,
+    mappedLineIdx: number,
+  ): number => {
+    const timestampLineIdx = getTimestampLineIdx(groupStartSec);
+
+    if (mappedLineIdx === -1) {
+      return timestampLineIdx;
+    }
+
+    if (timestampLineIdx === -1) {
+      const mappedLineStartSec = lineTimestampsSec[mappedLineIdx];
+      return groupStartSec >= mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
+        ? mappedLineIdx
+        : -1;
+    }
+
+    if (mappedLineIdx === timestampLineIdx) {
+      return mappedLineIdx;
+    }
+
+    if (mappedLineIdx === timestampLineIdx + 1) {
+      const mappedLineStartSec = lineTimestampsSec[mappedLineIdx];
+      return groupStartSec >= mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
+        ? mappedLineIdx
+        : timestampLineIdx;
+    }
+
+    return timestampLineIdx;
+  };
+
+  const byLineIdx = new Map<number, WordTimestamp[]>();
+  for (let i = 0; i < words.length; ) {
+    const groupLineIndex = words[i].line_index;
+    const group: WordTimestamp[] = [];
+
+    while (i < words.length && words[i].line_index === groupLineIndex) {
+      group.push(words[i]);
+      i += 1;
+    }
+
+    const mappedLineIdx = lineIndexToParsedIndex.get(groupLineIndex) ?? -1;
+    if (mappedLineIdx === -1) {
+      for (const word of group) {
+        const lineIdx = getTimestampLineIdx(word.start);
+        if (lineIdx === -1) continue;
+        const bucket = byLineIdx.get(lineIdx) ?? [];
+        bucket.push(word);
+        byLineIdx.set(lineIdx, bucket);
+      }
+      continue;
+    }
+
+    const lineIdx = pickLineIdxForGroup(group[0].start, mappedLineIdx);
     if (lineIdx === -1) continue;
+
     const bucket = byLineIdx.get(lineIdx) ?? [];
-    bucket.push(w);
+    bucket.push(...group);
     byLineIdx.set(lineIdx, bucket);
   }
 
