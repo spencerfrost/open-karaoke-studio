@@ -283,7 +283,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         celery.send_task("fingerprint_single_song", args=[song_id])
         celery.send_task("detect_song_loudness", args=[song_id])
+        celery.send_task("prefetch_song_lyrics", args=[song_id])
         logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
+        logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
 
         original_file = song_dir / "original.mp3"
 

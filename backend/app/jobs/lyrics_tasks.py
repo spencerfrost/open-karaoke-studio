@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, Optional
 
 from app.db.models import JobStatus
+from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
 from celery.utils.log import get_task_logger
@@ -22,12 +23,133 @@ from .lyrics_support import build_alignment_attempts_for_song, run_alignment_att
 logger = get_task_logger(__name__)
 
 
+def _format_synced_lyrics_for_storage(content: str, min_confidence: float = 0.3) -> str:
+    analysis = analyze_lyrics(content, min_confidence=min_confidence)
+    if analysis["candidates"] and analysis["modified_lrc"] != content:
+        return analysis["modified_lrc"]
+    return content
+
+
 def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
     return build_alignment_attempts_for_song(
         song,
         include_remote=include_remote,
         max_remote_results=max_remote_results,
     )
+
+
+def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | None) -> tuple[bool, bool]:
+    """Persist top remote lyrics candidate without overwriting existing lyric fields."""
+    if not candidate:
+        return (False, False)
+
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    persisted_plain_lyrics = False
+    persisted_synced_lyrics = False
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            return (False, False)
+
+        if candidate["source_type"] == "synced" and not song.synced_lyrics:
+            formatted_synced_lyrics = _format_synced_lyrics_for_storage(candidate["content"])
+            candidate["content"] = formatted_synced_lyrics
+            song.synced_lyrics = formatted_synced_lyrics
+            song.word_synced_lyrics = None
+            persisted_synced_lyrics = True
+        elif candidate["source_type"] == "plain" and not song.plain_lyrics and not song.synced_lyrics:
+            song.plain_lyrics = candidate["content"]
+            persisted_plain_lyrics = True
+
+        if persisted_plain_lyrics or persisted_synced_lyrics:
+            session.commit()
+
+    return (persisted_plain_lyrics, persisted_synced_lyrics)
+
+
+@celery.task(name="prefetch_song_lyrics")
+def prefetch_song_lyrics(
+    song_id: str,
+    include_remote: bool = True,
+    source: Optional[str] = None,
+) -> dict:
+    """Fetch and persist top plain/synced lyrics candidate before alignment starts."""
+    logger.info("[PIPELINE] prefetch_song_lyrics starting for song %s", song_id)
+
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    if source not in {None, "plain", "synced"}:
+        logger.warning("prefetch_song_lyrics: invalid source %s for song %s", source, song_id)
+        return {"status": "invalid_source", "song_id": song_id, "source": source}
+
+    started_at = perf_counter()
+    log_lyrics_event(song_id, "lyrics_prefetch_started", include_remote=include_remote, requested_source=source)
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            log_lyrics_event(song_id, "lyrics_prefetch_song_missing")
+            return {"status": "not_found", "song_id": song_id}
+        song_data: SongData = {
+            "id": song.id,
+            "title": song.title,
+            "artist": song.artist,
+            "album": song.album,
+            "plain_lyrics": song.plain_lyrics,
+            "synced_lyrics": song.synced_lyrics,
+            "word_synced_lyrics": song.word_synced_lyrics,
+        }
+
+    attempts = _build_alignment_attempts(song_data, include_remote=include_remote)
+    if source in {"plain", "synced"}:
+        attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+
+    initial_lyrics_attempt = select_initial_lyrics(attempts)
+    if not initial_lyrics_attempt:
+        log_lyrics_event(
+            song_id,
+            "lyrics_prefetch_finished",
+            status="no_candidate",
+            attempt_count=len(attempts),
+            elapsed_ms=round((perf_counter() - started_at) * 1000, 1),
+            include_remote=include_remote,
+            requested_source=source,
+        )
+        return {
+            "status": "no_candidate",
+            "song_id": song_id,
+            "attempt_count": len(attempts),
+        }
+
+    persisted_plain_lyrics, persisted_synced_lyrics = _persist_initial_lyrics_candidate(song_id, initial_lyrics_attempt)
+
+    status = "persisted" if (persisted_plain_lyrics or persisted_synced_lyrics) else "no_change"
+    log_lyrics_event(
+        song_id,
+        "lyrics_prefetch_finished",
+        status=status,
+        attempt_count=len(attempts),
+        source=initial_lyrics_attempt["source"],
+        source_type=initial_lyrics_attempt["source_type"],
+        persisted_plain_lyrics=persisted_plain_lyrics,
+        persisted_synced_lyrics=persisted_synced_lyrics,
+        elapsed_ms=round((perf_counter() - started_at) * 1000, 1),
+        include_remote=include_remote,
+        requested_source=source,
+    )
+    return {
+        "status": status,
+        "song_id": song_id,
+        "attempt_count": len(attempts),
+        "source": initial_lyrics_attempt["source"],
+        "source_type": initial_lyrics_attempt["source_type"],
+        "persisted_plain_lyrics": persisted_plain_lyrics,
+        "persisted_synced_lyrics": persisted_synced_lyrics,
+    }
 
 
 @celery.task(name="align_song_lyrics")
@@ -155,29 +277,12 @@ def align_song_lyrics(
     )
 
     initial_lyrics_attempt = select_initial_lyrics(attempts)
-    persisted_plain_lyrics = False
-    persisted_synced_lyrics = False
     if initial_lyrics_attempt:
         immediate_persist_started_at = perf_counter()
-        with get_db_session() as session:
-            song = SongRepository(session).fetch(song_id)
-            if not song:
-                return {"status": "not_found", "song_id": song_id}
-
-            if initial_lyrics_attempt["source_type"] == "synced" and not song.synced_lyrics:
-                song.synced_lyrics = initial_lyrics_attempt["content"]
-                persisted_synced_lyrics = True
-            elif (
-                initial_lyrics_attempt["source_type"] == "plain"
-                and not song.plain_lyrics
-                and not song.synced_lyrics
-            ):
-                song.plain_lyrics = initial_lyrics_attempt["content"]
-                persisted_plain_lyrics = True
-
-            if persisted_plain_lyrics or persisted_synced_lyrics:
-                session.commit()
-
+        persisted_plain_lyrics, persisted_synced_lyrics = _persist_initial_lyrics_candidate(
+            song_id,
+            initial_lyrics_attempt,
+        )
         if persisted_plain_lyrics or persisted_synced_lyrics:
             log_lyrics_event(
                 song_id,
@@ -549,10 +654,12 @@ def align_song_lyrics(
 
             if best_offset_candidate is not None:
                 corrected_lrc = shift_lrc_timestamps(best_synced_attempt["content"], -best_offset_candidate["offset"])
+                corrected_lrc = _format_synced_lyrics_for_storage(corrected_lrc)
                 with get_db_session() as session:
                     song = SongRepository(session).fetch(song_id)
                     if song:
                         song.synced_lyrics = corrected_lrc
+                        song.word_synced_lyrics = None
                         session.commit()
                 log_lyrics_event(
                     song_id,
