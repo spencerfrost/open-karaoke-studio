@@ -26,6 +26,11 @@ from app.services.lyrics_timing import log_lyrics_event
 logger = logging.getLogger(__name__)
 
 
+_INSTR_INTRO_MIN_GAP_SECONDS = 2.5
+_INSTR_MID_SONG_MIN_GAP_SECONDS = 8.0
+_INSTR_LEAD_IN_SECONDS = 1.5
+
+
 def _song_id_from_vocals_path(vocals_path: Path) -> str:
     return vocals_path.parent.name
 
@@ -64,8 +69,19 @@ class AlignedWord(TypedDict):
     line_index: int  # which LRC line this word belongs to
 
 
+class InstrumentalInterval(TypedDict):
+    start: float  # seconds
+    end: float  # seconds
+    duration: float  # seconds
+    lead_in_start: float  # seconds
+    next_line_index: int  # line index of next lyric line
+    confidence: float
+    source: str
+
+
 class AlignmentResult(TypedDict):
     words: list[AlignedWord]
+    instrumental_intervals: list[InstrumentalInterval]
     language: str
     aligned_at: str
     word_count: int
@@ -152,6 +168,75 @@ def _get_synced_alignment_mode_config(mode: SyncedAlignmentMode) -> dict[str, fl
     if mode == "synced_stripped_plain":
         return {"alignment_mode": "synced_stripped_plain", "pad_before": 0.0, "pad_after": 0.0}
     raise ValueError(f"Unsupported synced alignment mode: {mode}")
+
+
+def _build_instrumental_intervals(
+    aligned_words: list[AlignedWord],
+    *,
+    intro_min_gap_seconds: float = _INSTR_INTRO_MIN_GAP_SECONDS,
+    mid_song_min_gap_seconds: float = _INSTR_MID_SONG_MIN_GAP_SECONDS,
+    lead_in_seconds: float = _INSTR_LEAD_IN_SECONDS,
+) -> list[InstrumentalInterval]:
+    """
+    Derive instrumental windows from lyric-free gaps between aligned words.
+
+    We include:
+    - Intro gap from 0.0s to first aligned word start.
+    - Inter-word gaps only when the next lyric belongs to a different line.
+
+    This intentionally favors precision over recall: intro can be shorter, but
+    mid-song cues must be clearly long breaks so we avoid false positives from
+    repeated tails, ad-libs, and missed low-register words.
+    """
+    if not aligned_words:
+        return []
+
+    sorted_words = sorted(aligned_words, key=lambda w: (w["start"], w["end"]))
+    intervals: list[InstrumentalInterval] = []
+
+    first_word = sorted_words[0]
+    intro_gap = first_word["start"]
+    if intro_gap >= intro_min_gap_seconds:
+        lead_in_start = max(0.0, first_word["start"] - lead_in_seconds)
+        intervals.append(
+            InstrumentalInterval(
+                start=0.0,
+                end=round(first_word["start"], 3),
+                duration=round(intro_gap, 3),
+                lead_in_start=round(lead_in_start, 3),
+                next_line_index=first_word["line_index"],
+                confidence=round(min(1.0, intro_gap / 8.0), 3),
+                source="whisperx_gap",
+            )
+        )
+
+    for idx in range(len(sorted_words) - 1):
+        current_word = sorted_words[idx]
+        next_word = sorted_words[idx + 1]
+        gap_start = current_word["end"]
+        gap_end = next_word["start"]
+        gap_duration = gap_end - gap_start
+
+        # Ignore micro-pauses and pauses that stay within a single lyric line.
+        if gap_duration < mid_song_min_gap_seconds:
+            continue
+        if next_word["line_index"] == current_word["line_index"]:
+            continue
+
+        lead_in_start = max(gap_start, gap_end - lead_in_seconds)
+        intervals.append(
+            InstrumentalInterval(
+                start=round(gap_start, 3),
+                end=round(gap_end, 3),
+                duration=round(gap_duration, 3),
+                lead_in_start=round(lead_in_start, 3),
+                next_line_index=next_word["line_index"],
+                confidence=round(min(1.0, gap_duration / 8.0), 3),
+                source="whisperx_gap",
+            )
+        )
+
+    return intervals
 
 
 # ---------------------------------------------------------------------------
@@ -316,9 +401,11 @@ def align_lyrics_to_vocals(
     mean_score = round(
         sum(w["score"] for w in aligned_words) / len(aligned_words), 3
     )
+    instrumental_intervals = _build_instrumental_intervals(aligned_words)
 
     return AlignmentResult(
         words=aligned_words,
+        instrumental_intervals=instrumental_intervals,
         language=language,
         aligned_at=datetime.now(timezone.utc).isoformat(),
         word_count=len(aligned_words),
@@ -351,6 +438,7 @@ def align_synced_lyrics_to_vocals(
             return None
 
         remapped_words: list[AlignedWord] = []
+        remapped_intervals: list[InstrumentalInterval] = []
         for word in result["words"]:
             remapped_words.append(
                 AlignedWord(
@@ -362,8 +450,25 @@ def align_synced_lyrics_to_vocals(
                 )
             )
 
+        for interval in result.get("instrumental_intervals", []):
+            remapped_intervals.append(
+                InstrumentalInterval(
+                    start=interval["start"],
+                    end=interval["end"],
+                    duration=interval["duration"],
+                    lead_in_start=interval["lead_in_start"],
+                    next_line_index=line_index_map.get(
+                        interval["next_line_index"],
+                        interval["next_line_index"],
+                    ),
+                    confidence=interval["confidence"],
+                    source=interval["source"],
+                )
+            )
+
         return AlignmentResult(
             words=remapped_words,
+            instrumental_intervals=remapped_intervals,
             language=result["language"],
             aligned_at=result["aligned_at"],
             word_count=result["word_count"],
@@ -536,6 +641,7 @@ def align_plain_lyrics_to_vocals(
     mean_score = round(
         sum(w["score"] for w in aligned_words) / len(aligned_words), 3
     )
+    instrumental_intervals = _build_instrumental_intervals(aligned_words)
 
     logger.info(
         "Plain alignment complete: %d words, mean_score=%.3f",
@@ -553,6 +659,7 @@ def align_plain_lyrics_to_vocals(
 
     return AlignmentResult(
         words=aligned_words,
+        instrumental_intervals=instrumental_intervals,
         language=language,
         aligned_at=datetime.now(timezone.utc).isoformat(),
         word_count=len(aligned_words),
@@ -647,8 +754,10 @@ def align_lyrics_to_vocals_with_model(
         return None
 
     mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
+    instrumental_intervals = _build_instrumental_intervals(aligned_words)
     return AlignmentResult(
         words=aligned_words,
+        instrumental_intervals=instrumental_intervals,
         language=language,
         aligned_at=datetime.now(timezone.utc).isoformat(),
         word_count=len(aligned_words),
@@ -713,8 +822,10 @@ def align_plain_lyrics_to_vocals_with_model(
         return None
 
     mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
+    instrumental_intervals = _build_instrumental_intervals(aligned_words)
     return AlignmentResult(
         words=aligned_words,
+        instrumental_intervals=instrumental_intervals,
         language=language,
         aligned_at=datetime.now(timezone.utc).isoformat(),
         word_count=len(aligned_words),

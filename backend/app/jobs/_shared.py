@@ -10,24 +10,8 @@ from app.services.lyrics_timing import log_lyrics_event
 
 LYRICS_JOB_ENGINE_TYPE = "lyrics_alignment"
 
-_job_repository: JobRepository | None = None
-
-
-def _get_job_repository() -> JobRepository:
-    global _job_repository
-    if _job_repository is None:
-        _job_repository = JobRepository()
-    return _job_repository
-
-
-class _LazyJobRepository:
-    """Lazy proxy that preserves existing attribute access patterns."""
-
-    def __getattr__(self, name):
-        return getattr(_get_job_repository(), name)
-
-
-job_repository = _LazyJobRepository()
+# Keep a single repository instance shared by task modules.
+job_repository = JobRepository()
 
 
 def _get_lyrics_job_id(song_id: str) -> str:
@@ -69,7 +53,7 @@ def _create_lyrics_alignment_job(
         artist=artist,
         engine_type=LYRICS_JOB_ENGINE_TYPE,
     )
-    _get_job_repository().create(lyrics_job)
+    job_repository.create(lyrics_job)
     log_lyrics_event(
         song_id,
         "lyrics_job_queued",
@@ -90,7 +74,7 @@ def _update_lyrics_alignment_job(
     error: Optional[str] = None,
 ) -> None:
     lyrics_job_id = _get_lyrics_job_id(song_id)
-    lyrics_job = _get_job_repository().get_by_id(lyrics_job_id)
+    lyrics_job = job_repository.get_by_id(lyrics_job_id)
     if not lyrics_job:
         lyrics_job = Job(
             id=lyrics_job_id,
@@ -113,7 +97,7 @@ def _update_lyrics_alignment_job(
     if status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
         lyrics_job.completed_at = datetime.now()
 
-    _get_job_repository().update(lyrics_job)
+    job_repository.update(lyrics_job)
 
 
 def _complete_lyrics_alignment_job(
@@ -130,4 +114,4 @@ def _complete_lyrics_alignment_job(
         message=message,
         error=error,
     )
-    _get_job_repository().delete_job(_get_lyrics_job_id(song_id))
+    job_repository.delete_job(_get_lyrics_job_id(song_id))

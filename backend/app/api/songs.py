@@ -922,6 +922,8 @@ async def update_song(
             if "syncedLyrics" in lyrics_data:
                 db_song.synced_lyrics = lyrics_data["syncedLyrics"] or None
                 db_song.word_synced_lyrics = None
+            if "wordSyncedLyrics" in lyrics_data:
+                db_song.word_synced_lyrics = lyrics_data["wordSyncedLyrics"] or None
             db.commit()
 
         # Handle album + artist linkage when iTunes collection ID is provided

@@ -39,7 +39,7 @@ def validate_direction(
     return normalized
 
 
-LYRICS_FIELDS = {"plainLyrics", "syncedLyrics"}
+LYRICS_FIELDS = {"plainLyrics", "syncedLyrics", "wordSyncedLyrics"}
 
 
 def extract_lyrics_fields(data: dict) -> dict:

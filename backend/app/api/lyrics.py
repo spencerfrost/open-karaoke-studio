@@ -373,6 +373,9 @@ async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
     except Exception:
         return {"alignment": None}
 
+    if isinstance(alignment, dict):
+        alignment.setdefault("instrumental_intervals", [])
+
     return {"alignment": alignment}
 
 

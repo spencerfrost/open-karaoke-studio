@@ -117,6 +117,7 @@ class SongUpdateRequest(BaseModel):
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    wordSyncedLyrics: Optional[str] = None
 
     # iTunes metadata
     itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
