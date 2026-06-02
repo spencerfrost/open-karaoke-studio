@@ -81,6 +81,9 @@ export interface SongProcessingStatus {
   message?: string;
   artist?: string;
   title?: string;
+  // Prefer camelCase in frontend state, keep snake_case for compatibility with raw payloads.
+  engineType?: string;
+  engine_type?: string;
 }
 
 export interface LyricsResult {

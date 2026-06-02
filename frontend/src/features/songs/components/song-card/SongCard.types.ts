@@ -9,7 +9,7 @@ export interface SongCardProps {
   showArtist?: boolean;
 }
 
-export type SongCardAction = "delete" | "details" | "queue";
+export type SongCardAction = "details" | "queue";
 
 export interface SongArtworkProps {
   song: Song;
@@ -17,13 +17,6 @@ export interface SongArtworkProps {
   showSyncedBadge?: boolean;
   onPlay: (e?: React.MouseEvent) => void;
   showPlayButton?: boolean;
-}
-
-export interface SongActionsProps {
-  song: Song;
-  onQueue?: (e: React.MouseEvent) => void;
-  onDelete?: (e: React.MouseEvent) => void;
-  onDetails?: (e: React.MouseEvent) => void;
 }
 
 export interface SongInfoProps {

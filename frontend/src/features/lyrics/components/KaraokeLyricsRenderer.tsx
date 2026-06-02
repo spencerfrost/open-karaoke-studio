@@ -20,12 +20,146 @@ import type { ParsedLrcData } from "@/utils/lrcUtils";
 import { getActiveLineIndex } from "./activeLineTiming";
 
 type ParsedLine = ParsedLrcData["lines"][number];
+type InstrumentalInterval = NonNullable<
+  ParsedLrcData["instrumentalIntervals"]
+>[number];
 
 interface SeekableSpanProps {
   onClick?: () => void;
   role?: "button";
   tabIndex?: number;
   onKeyDown?: (e: React.KeyboardEvent<HTMLSpanElement>) => void;
+}
+
+export function getInstrumentalSeparatorLineIndex(
+  lines: ParsedLine[],
+  targetLineIndex: number | null,
+): number | null {
+  if (
+    targetLineIndex === null ||
+    targetLineIndex < 0 ||
+    targetLineIndex >= lines.length
+  ) {
+    return null;
+  }
+
+  let separatorLineIndex = targetLineIndex;
+
+  while (separatorLineIndex > 0 && lines[separatorLineIndex - 1]?.isBlank) {
+    separatorLineIndex -= 1;
+  }
+
+  return separatorLineIndex;
+}
+
+export function getInstrumentalTargetLineIndex(
+  lines: ParsedLine[],
+  interval: InstrumentalInterval,
+): number | null {
+  if (lines.length === 0) return null;
+
+  const intervalEndMs = interval.end * 1000;
+  const TIMESTAMP_EPSILON_MS = 25;
+  const intervalEndSec = interval.end;
+  const WORD_EPSILON_SEC = 0.03;
+
+  // Primary strategy: use attached alignment words when available.
+  // This keeps instrumental placement tied to the same timing source as the
+  // interval itself, even if LRC timestamps/indexes drift.
+  let wordMatchedIndex: number | null = null;
+  let earliestStartAtOrAfterEnd = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < lines.length; i++) {
+    const words = lines[i].words;
+    if (!words || words.length === 0) continue;
+
+    const firstWordStart = words.reduce(
+      (minStart, word) => Math.min(minStart, word.start),
+      Number.POSITIVE_INFINITY,
+    );
+
+    if (firstWordStart >= intervalEndSec - WORD_EPSILON_SEC) {
+      if (firstWordStart < earliestStartAtOrAfterEnd) {
+        earliestStartAtOrAfterEnd = firstWordStart;
+        wordMatchedIndex = i;
+      }
+    }
+  }
+
+  if (wordMatchedIndex !== null) {
+    return wordMatchedIndex;
+  }
+
+  // Prefer timestamp matching first because it is stable even when backend
+  // line indexes use a different namespace (content-only vs raw source lines).
+  const exactOrAfterByTime = lines.findIndex(
+    (line) => line.timestamp >= intervalEndMs - TIMESTAMP_EPSILON_MS,
+  );
+  if (exactOrAfterByTime !== -1) {
+    return exactOrAfterByTime;
+  }
+
+  const sourceLineMatchIndex = lines.findIndex(
+    (line) => line.sourceLineIndex === interval.next_line_index,
+  );
+  if (sourceLineMatchIndex !== -1) {
+    return sourceLineMatchIndex;
+  }
+
+  if (interval.next_line_index >= 0 && interval.next_line_index < lines.length) {
+    return interval.next_line_index;
+  }
+
+  return null;
+}
+
+interface InstrumentalProgressState {
+  progress: number;
+  isLeadIn: boolean;
+  isActiveWindow: boolean;
+}
+
+export function getInstrumentalProgressState(
+  interval: InstrumentalInterval,
+  currentTimeSec: number,
+): InstrumentalProgressState {
+  const leadInStart = Math.min(interval.lead_in_start, interval.start);
+
+  if (currentTimeSec <= leadInStart) {
+    return {
+      progress: 0,
+      isLeadIn: true,
+      isActiveWindow: false,
+    };
+  }
+
+  if (currentTimeSec >= interval.end) {
+    return {
+      progress: 1,
+      isLeadIn: false,
+      isActiveWindow: false,
+    };
+  }
+
+  if (currentTimeSec < interval.start) {
+    return {
+      progress: getProgress(
+        currentTimeSec - leadInStart,
+        Math.max(0.001, interval.start - leadInStart),
+      ),
+      isLeadIn: true,
+      isActiveWindow: true,
+    };
+  }
+
+  return {
+    progress: getProgress(
+      currentTimeSec - interval.start,
+      Math.max(0.001, interval.end - interval.start),
+    ),
+    isLeadIn: false,
+    isActiveWindow: true,
+  };
 }
 
 function getCenteredScrollTop(
@@ -303,21 +437,38 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   const activeInstrumentalTargetLineIndex = useMemo(() => {
     if (!activeInstrumentalDisplay) return null;
 
-    const backendLineIndex = activeInstrumentalDisplay.interval.next_line_index;
-    const sourceLineMatchIndex = parsedData.lines.findIndex(
-      (line) => line.sourceLineIndex === backendLineIndex,
+    return getInstrumentalTargetLineIndex(
+      parsedData.lines,
+      activeInstrumentalDisplay.interval,
     );
-
-    if (sourceLineMatchIndex !== -1) {
-      return sourceLineMatchIndex;
-    }
-
-    if (backendLineIndex >= 0 && backendLineIndex < parsedData.lines.length) {
-      return backendLineIndex;
-    }
-
-    return null;
   }, [activeInstrumentalDisplay, parsedData.lines]);
+
+  const activeInstrumentalSeparatorLineIndex = useMemo(() => {
+    return getInstrumentalSeparatorLineIndex(
+      parsedData.lines,
+      activeInstrumentalTargetLineIndex,
+    );
+  }, [activeInstrumentalTargetLineIndex, parsedData.lines]);
+
+  const instrumentalSeparatorsByLine = useMemo(() => {
+    const byLine = new Map<number, InstrumentalInterval[]>();
+
+    for (const interval of parsedData.instrumentalIntervals ?? []) {
+      const targetLineIndex = getInstrumentalTargetLineIndex(parsedData.lines, interval);
+      const separatorLineIndex = getInstrumentalSeparatorLineIndex(
+        parsedData.lines,
+        targetLineIndex,
+      );
+
+      if (separatorLineIndex === null) continue;
+
+      const existing = byLine.get(separatorLineIndex) ?? [];
+      existing.push(interval);
+      byLine.set(separatorLineIndex, existing);
+    }
+
+    return byLine;
+  }, [parsedData.instrumentalIntervals, parsedData.lines]);
 
   // Calculate count-in progress and beat index
   const countInState = useMemo(() => {
@@ -443,22 +594,31 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
       const hasCountIn = activeCountInTrigger?.lineIndex === index;
-      const showsInstrumentalSeparator =
-        !!activeInstrumentalDisplay &&
-        activeInstrumentalTargetLineIndex === index &&
-        !!countInState &&
-        showProgressBar;
+      const lineInstrumentalIntervals = instrumentalSeparatorsByLine.get(index) ?? [];
 
-      if (showsInstrumentalSeparator) {
-        renderedElements.push(
-          <InstrumentalSeparator
-            key={`instrumental-separator-${activeInstrumentalDisplay.interval.start}-${index}`}
-            isLeadIn={activeInstrumentalDisplay.isLeadIn}
-            progress={countInState.progress}
-            showLeadInHighlight={showLeadInHighlight}
-            widthClass={INSTRUMENTAL_PROGRESS_WIDTH_CLASS}
-          />,
-        );
+      if (showProgressBar && lineInstrumentalIntervals.length > 0) {
+        for (const interval of lineInstrumentalIntervals) {
+          const progressState = getInstrumentalProgressState(interval, currentTimeSec);
+          const isResolvedActiveInterval =
+            !!activeInstrumentalDisplay &&
+            activeInstrumentalDisplay.interval.start === interval.start &&
+            activeInstrumentalDisplay.interval.end === interval.end &&
+            activeInstrumentalSeparatorLineIndex === index;
+
+          renderedElements.push(
+            <InstrumentalSeparator
+              key={`instrumental-separator-${interval.start}-${interval.end}-${index}`}
+              isLeadIn={progressState.isLeadIn}
+              progress={progressState.progress}
+              showLeadInHighlight={
+                showLeadInHighlight &&
+                progressState.isActiveWindow &&
+                isResolvedActiveInterval
+              }
+              widthClass={INSTRUMENTAL_PROGRESS_WIDTH_CLASS}
+            />,
+          );
+        }
       }
 
       // Check if this line is blank
