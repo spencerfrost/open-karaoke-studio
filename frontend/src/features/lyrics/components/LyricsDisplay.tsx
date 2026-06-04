@@ -6,16 +6,18 @@
 
 import React, { memo, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, FileText } from "lucide-react";
+import { Search, FileText, Mic2, Loader2 } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useApiMutation } from "@/hooks/api/useApi";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
 import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
 import { parseLrcWithCountIn, attachWordTimestamps } from "@/utils/lrcParser";
 import { useLyricsAlignment } from "@/hooks/api/useLyricsAlignment";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CountInStyleConfig {
   showProgressBar?: boolean;
@@ -65,8 +67,61 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
     const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] =
       useState(false);
+    const queryClient = useQueryClient();
     const { useUpdateSong } = useSongs();
     const updateSongMutation = useUpdateSong();
+
+    const transcribeLyricsMutation = useApiMutation<{ job_id?: string; status?: string }, void>(
+      "lyrics/songs/transcribe-placeholder/align",
+      "post",
+      {
+        mutationFn: async () => {
+          if (!songId) {
+            throw new Error("Missing song ID");
+          }
+
+          const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
+            method: "POST",
+            credentials: "include",
+          });
+
+          if (!response.ok) {
+            let errorMessage = `Failed to start transcription (${response.status})`;
+            try {
+              const contentType = response.headers.get("Content-Type") || "";
+              if (contentType.includes("application/json")) {
+                const errorData = await response.json();
+                errorMessage =
+                  errorData?.detail || errorData?.error || errorData?.message || errorMessage;
+              }
+            } catch {
+              // Keep fallback error message when response parsing fails.
+            }
+            throw new Error(errorMessage);
+          }
+
+          return response.json();
+        },
+        onSuccess: () => {
+          toast.success("Transcription started. Lyrics will appear when processing completes.");
+          if (songId) {
+            queryClient.invalidateQueries({ queryKey: ["songs", songId] });
+            queryClient.invalidateQueries({ queryKey: ["lyrics", songId, "alignment"] });
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to start transcription: ${error.message}`);
+        },
+      },
+    );
+
+    const handleTranscribeLyrics = () => {
+      if (!songId) {
+        toast.error("Missing song information");
+        return;
+      }
+      transcribeLyricsMutation.mutate();
+    };
 
     const handleLyricsSearch = () => {
       if (!songId || !songTitle || !songArtist) {
@@ -190,8 +245,25 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             role="region"
             aria-label={ariaLabel}
           >
-            <div className="text-background/50 text-lg">
-              No synced lyrics available
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-background/50 text-lg">
+                No synced lyrics available
+              </div>
+              {songId && (
+                <Button
+                  onClick={handleTranscribeLyrics}
+                  variant="outline"
+                  size="sm"
+                  disabled={transcribeLyricsMutation.isPending}
+                >
+                  {transcribeLyricsMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Mic2 className="w-4 h-4 mr-2" />
+                  )}
+                  Transcribe Lyrics
+                </Button>
+              )}
             </div>
           </div>
         );
@@ -239,26 +311,46 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             <div className="text-gray-500 text-sm mb-4">
               Enjoy the music and sing along if you know the words!
             </div>
-            {songForDialog && (
+            {(songForDialog || songId) && (
               <div className="flex gap-2">
-                <Button
-                  onClick={handleLyricsSearch}
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Search for Lyrics
-                </Button>
-                <Button
-                  onClick={handlePasteLyrics}
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Paste Lyrics
-                </Button>
+                {songForDialog && (
+                  <Button
+                    onClick={handleLyricsSearch}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Search for Lyrics
+                  </Button>
+                )}
+                {songForDialog && (
+                  <Button
+                    onClick={handlePasteLyrics}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Paste Lyrics
+                  </Button>
+                )}
+                {songId && (
+                  <Button
+                    onClick={handleTranscribeLyrics}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    disabled={transcribeLyricsMutation.isPending}
+                  >
+                    {transcribeLyricsMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mic2 className="w-4 h-4 mr-2" />
+                    )}
+                    Transcribe Lyrics
+                  </Button>
+                )}
               </div>
             )}
           </div>
