@@ -1,5 +1,7 @@
 """Lyrics-alignment Celery tasks."""
 
+import json
+
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
@@ -68,6 +70,101 @@ def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | 
             session.commit()
 
     return (persisted_plain_lyrics, persisted_synced_lyrics)
+
+
+def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_reason: str) -> bool:
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    formatted_synced_lyrics = _format_synced_lyrics_for_storage(transcription["synced_lyrics"])
+    asr_provider = str(
+        transcription.get("asr_provider")
+        or transcription.get("alignment", {}).get("asr_provider")
+        or "whisperx"
+    )
+    asr_model = str(
+        transcription.get("asr_model")
+        or transcription.get("alignment", {}).get("asr_model")
+        or "unknown"
+    )
+    alignment_payload = {
+        **transcription["alignment"],
+        "lyrics_source_type": "synced",
+        "lyrics_source": f"asr:{asr_provider}",
+        "lyrics_attempt": 0,
+        "fallback_reason": fallback_reason,
+        "asr_provider": asr_provider,
+        "asr_model": asr_model,
+    }
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if not song:
+            return False
+
+        song.plain_lyrics = transcription["plain_lyrics"]
+        song.synced_lyrics = formatted_synced_lyrics
+        song.word_synced_lyrics = json.dumps(alignment_payload)
+        session.commit()
+
+    transcription["synced_lyrics"] = formatted_synced_lyrics
+    transcription["alignment"] = alignment_payload
+    return True
+
+
+def _run_asr_fallback(song_id: str, vocals_path: Path, language: str, fallback_reason: str) -> dict | None:
+    from app.services.lyrics_transcription import transcribe_lyrics_from_vocals
+
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PROCESSING,
+        progress=50,
+        message="Transcribing vocals with ASR fallback",
+    )
+    log_lyrics_event(song_id, "lyrics_asr_fallback_requested", fallback_reason=fallback_reason, language=language)
+
+    transcription = transcribe_lyrics_from_vocals(vocals_path=vocals_path, language=language)
+    if not transcription:
+        log_lyrics_event(song_id, "lyrics_asr_fallback_unavailable", fallback_reason=fallback_reason)
+        return None
+
+    asr_provider = str(
+        transcription.get("asr_provider")
+        or transcription.get("alignment", {}).get("asr_provider")
+        or "whisperx"
+    )
+    asr_model = str(
+        transcription.get("asr_model")
+        or transcription.get("alignment", {}).get("asr_model")
+        or "unknown"
+    )
+
+    if not _persist_asr_fallback(song_id, transcription, fallback_reason):
+        return {"status": "not_found", "song_id": song_id}
+
+    log_lyrics_event(
+        song_id,
+        "lyrics_asr_fallback_persisted",
+        fallback_reason=fallback_reason,
+        asr_provider=asr_provider,
+        asr_model=asr_model,
+        line_count=transcription["alignment"]["line_count"],
+        word_count=transcription["alignment"]["word_count"],
+        mean_score=transcription["alignment"]["mean_score"],
+    )
+    _complete_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.COMPLETED,
+        message="Lyrics transcribed with ASR fallback",
+    )
+    return {
+        "status": "ok",
+        "song_id": song_id,
+        "source": f"asr:{asr_provider}",
+        "fallback_reason": fallback_reason,
+        "asr_provider": asr_provider,
+        "asr_model": asr_model,
+    }
 
 
 @celery.task(name="prefetch_song_lyrics")
@@ -161,8 +258,6 @@ def align_song_lyrics(
 ) -> dict:
     """Run WhisperX forced alignment against vocals.mp3 and store word-level timings."""
     logger.info("[PIPELINE] align_song_lyrics starting for song %s", song_id)
-    import json as _json
-
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
@@ -305,6 +400,9 @@ def align_song_lyrics(
     if not attempts:
         logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
         log_lyrics_event(song_id, "lyrics_no_candidates")
+        asr_result = _run_asr_fallback(song_id, vocals_path, language, "no_candidates")
+        if asr_result:
+            return asr_result
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
@@ -420,7 +518,7 @@ def align_song_lyrics(
                     attempt["persist"] and source_type == "synced" and not song.synced_lyrics
                 )
 
-                song.word_synced_lyrics = _json.dumps(
+                song.word_synced_lyrics = json.dumps(
                     {
                         "words": result["words"],
                         "instrumental_intervals": result.get("instrumental_intervals", []),
@@ -725,6 +823,9 @@ def align_song_lyrics(
                 offset_candidates=offset_candidates,
             )
 
+        asr_result = _run_asr_fallback(song_id, vocals_path, language, "low_confidence")
+        if asr_result:
+            return asr_result
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
@@ -754,6 +855,9 @@ def align_song_lyrics(
         }
 
     logger.warning("align_song_lyrics: no result produced for song %s", song_id)
+    asr_result = _run_asr_fallback(song_id, vocals_path, language, "no_result")
+    if asr_result:
+        return asr_result
     log_lyrics_event(
         song_id,
         "lyrics_task_completed",
