@@ -14,6 +14,7 @@ import asyncio
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -65,9 +66,19 @@ config = get_config()
 logging_config = setup_logging(config)
 logger = logging.getLogger(__name__)
 
-# Clean up stuck jobs on startup
-logger.info("Open Karaoke Studio backend starting")
-cleanup_stuck_jobs()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown."""
+    logger.info("Open Karaoke Studio backend starting")
+    cleanup_stuck_jobs()
+    if not os.environ.get("JWT_SECRET_KEY"):
+        logger.error(
+            "JWT_SECRET_KEY is not set — a random key was generated. "
+            "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
+        )
+    yield
+
 
 # Create FastAPI app with metadata
 app = FastAPI(
@@ -76,6 +87,7 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend integration
@@ -195,15 +207,6 @@ async def internal_error_handler(request, exc):
             "message": "An unexpected error occurred",
         }
     )
-
-
-@app.on_event("startup")
-async def check_jwt_secret():
-    if not os.environ.get("JWT_SECRET_KEY"):
-        logger.error(
-            "JWT_SECRET_KEY is not set — a random key was generated. "
-            "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
-        )
 
 
 if __name__ == "__main__":
