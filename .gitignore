@@ -102,6 +102,9 @@ pipeline_timing.jsonl
 backend/logs/lyrics_timing.jsonl
 backend/scripts/lyric_alignment/.offset_test_backups.json
 
+# Local Serena assistant config (not shared via git)
+.serena/
+
 # Hugging Face / model cache artifacts
 .hf-cache/
 .hf_cache/
