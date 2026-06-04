@@ -101,3 +101,14 @@ audio-pipeline.mmd
 pipeline_timing.jsonl
 backend/logs/lyrics_timing.jsonl
 backend/scripts/lyric_alignment/.offset_test_backups.json
+
+# Hugging Face / model cache artifacts
+.hf-cache/
+.hf_cache/
+.cache/huggingface/
+**/.cache/huggingface/
+**/huggingface/
+**/models--*/
+**/datasets--*/
+**/spaces--*/
+backend/scripts/ai_lyrics/asr_experiments/results
