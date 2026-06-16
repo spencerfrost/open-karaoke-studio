@@ -6,15 +6,17 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 | Category | Count |
 |----------|-------|
-| **Critical Issues** | 5 |
+| **Critical Issues** | 4 |
 | **Important Issues** | 9 |
 | **Nice-to-Have** | 7 |
 | **Total TODOs Found** | 10+ explicit TODOs |
 | **Console.log Statements** | 50+ in frontend |
 | **ESLint Disables** | 9 |
 | **Backend Tests** | 2,277 files |
-| **Frontend Tests** | 0 files |
-| **Print Statements (Backend)** | 7 WebSocket files |
+| **Frontend Tests** | 4 files (infrastructure exists) |
+| **Print Statements (Backend)** | 0 (resolved) |
+
+**Note:** Several issues documented here have been resolved since this document was written. See [docs/websocket-protocol.md](websocket-protocol.md) for the current WebSocket message catalog.
 
 ---
 
@@ -32,6 +34,8 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 ### 1. Celery Job Cancellation Not Implemented
 
 **Severity:** 🔴 CRITICAL
+
+**Status:** 🚧 **Still Pending**
 
 **Location:** [jobs_service.py:134](backend/app/services/jobs_service.py#L134)
 
@@ -61,6 +65,8 @@ current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
 
 **Severity:** 🔴 CRITICAL
 
+**Status:** ✅ **RESOLVED** (2026-03-06)
+
 **Locations:** 5 files in `/backend/app/ws/`
 - [session_specific.py](backend/app/ws/session_specific.py)
 - [sessions.py](backend/app/ws/sessions.py)
@@ -68,23 +74,7 @@ current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
 - [queue.py](backend/app/ws/queue.py)
 - [jobs.py](backend/app/ws/jobs.py)
 
-**Problem:**
-- `print()` instead of `logging` module
-- Invisible logs in Celery workers (violates CLAUDE.md logging guidance)
-- No log levels (can't filter by severity)
-- Poor debugging experience in production
-
-**Impact:** MEDIUM-HIGH - Can't debug production issues, missing critical logs
-
-**Recommendation:**
-```python
-# Replace this:
-print(f"Session {session_id} connected")
-
-# With this:
-logger = logging.getLogger(__name__)
-logger.info(f"Session {session_id} connected")
-```
+**Resolution:** All `print()` statements replaced with Python `logging` module. See `docs/websocket-protocol.md` for the complete WebSocket message catalog.
 
 ---
 
@@ -139,25 +129,32 @@ const songId = (job as any).song_id;  // Type bypass
 
 **Severity:** 🟠 IMPORTANT
 
+**Status:** 🚧 **In Progress** - Test infrastructure exists, coverage needs expansion
+
 **Location:** `/frontend/src/` (entire frontend)
 
-**Problem:**
-- Zero test files in frontend (only node_modules tests)
-- Backend has 2,277 test files
-- No test coverage for React components, hooks, or stores
+**Progress:**
+- ✅ Vitest configured
+- ✅ Mock data and API handlers added
+- ✅ 4 test files exist (player store, LRC parser, lyrics timing, lyrics renderer)
 
-**Impact:** HIGH - No quality assurance for UI, risky refactoring
+**Current State:**
+- 4 test files exist (not 0 as originally documented)
+- Tests cover: player store, LRC parsing, lyrics timing/rendering
+- Missing: queue operations, session connection lifecycle, WebSocket sync integration
 
 **Recommendation:**
-- Set up Vitest or Jest + React Testing Library
-- Start with critical paths: player, queue, session
-- Add test coverage to CI/CD pipeline
+- Expand test coverage for critical paths: queue management, session lifecycle
+- Add integration tests with mocked WebSockets
+- Aim for 70%+ coverage of critical paths
 
 ---
 
 ### 6. Excessive Console Logging in Production
 
 **Severity:** 🟠 IMPORTANT
+
+**Status:** 🚧 **In Progress** - Using `createLogger()` but console.log still present
 
 **Locations:** 50+ console.log statements across frontend
 
@@ -167,18 +164,14 @@ const songId = (job as any).song_id;  // Type bypass
 - [sessionStore.ts](frontend/src/stores/sessionStore.ts) - State changes
 - [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts) - Player state
 
-**Problem:**
-- Performance overhead in production
-- Cluttered browser console
-- Potential security leaks (data exposure)
-- Makes debugging harder (signal vs noise)
-
-**Impact:** MEDIUM - Production performance, potential security issues
+**Current State:**
+- Logger utility exists (`createLogger` from `@/lib/logger`)
+- Some files still use console.log directly
+- Need to migrate all console statements to proper logging
 
 **Recommendation:**
-- Replace with proper logging library (e.g., loglevel, pino)
-- Add debug environment variable
-- Remove or guard console statements in production build
+- Replace remaining console.log with createLogger
+- Guard debug logging in production via `VITE_LOG_LEVEL`
 
 ---
 
@@ -291,19 +284,19 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Severity:** 🟡 MEDIUM
 
+**Status:** 🚧 **In Progress** - Workaround still in place
+
 **Location:** [useKaraokePlayerStore.ts:722](frontend/src/stores/useKaraokePlayerStore.ts#L722)
 
-**Problem:**
+**Current State:**
 ```typescript
 // Note: We don't reset the store state here as it causes infinite loops
 ```
 
-**Impact:** MEDIUM - Workaround for deeper architectural issue
-
-**Recommendation:**
-- Investigate root cause of infinite loop
-- Properly handle store cleanup
-- Fix architecture rather than working around it
+**Investigation Needed:**
+- Root cause of infinite loop
+- Proper store lifecycle management
+- Fix architecture vs working around it
 
 ---
 
@@ -505,7 +498,8 @@ These can be fixed quickly with high impact:
 ## Notes
 
 - Many issues have TODOs already in code
-- Backend is well-tested, frontend has zero tests
+- Backend is well-tested, frontend has 4 test files (infrastructure exists)
 - Most critical issues are in WebSocket layer
 - Many "nice-to-have" items are already tracked in code comments
+- **New:** See [docs/websocket-protocol.md](websocket-protocol.md) for the complete WebSocket message catalog
 - See [ROADMAP.md](ROADMAP.md) for how these fit into future plans
