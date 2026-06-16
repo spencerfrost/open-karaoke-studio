@@ -115,3 +115,4 @@ backend/scripts/lyric_alignment/.offset_test_backups.json
 **/datasets--*/
 **/spaces--*/
 backend/scripts/ai_lyrics/asr_experiments/results
+three_track_compare_test/
