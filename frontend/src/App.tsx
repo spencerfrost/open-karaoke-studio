@@ -15,6 +15,7 @@ import JoinSessionPage from "./pages/JoinSessionPage";
 import QRJoinPage from "./pages/QRJoinPage";
 import HostDashboard from "./pages/HostDashboard";
 import AdminPanel from "./pages/AdminPanel";
+import AdminThreeTrackComparePage from "./pages/AdminThreeTrackComparePage";
 import { SessionProvider } from "./contexts/SessionContext";
 import SessionGuard from "./components/SessionGuard";
 import HostGuard from "./components/HostGuard";
@@ -96,6 +97,14 @@ const App: React.FC = () => {
               element={
                 <AdminGuard>
                   <AdminPanel />
+                </AdminGuard>
+              }
+            />
+            <Route
+              path="/admin/compare-three-track"
+              element={
+                <AdminGuard>
+                  <AdminThreeTrackComparePage />
                 </AdminGuard>
               }
             />

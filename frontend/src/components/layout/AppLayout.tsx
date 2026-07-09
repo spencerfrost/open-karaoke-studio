@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import { Music, Upload, List, Sliders, Mic2, ShieldCheck } from "lucide-react";
+import { Music, Upload, List, Sliders, Mic2, ShieldCheck, Waves } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -25,6 +25,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     }
     if (user?.isAdmin) {
       hostItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
+      hostItems.push({
+        name: "Compare",
+        path: "/admin/compare-three-track",
+        icon: Waves,
+      });
     }
 
     // Only show session-specific navigation if user is in a session
