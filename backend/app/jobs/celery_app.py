@@ -66,19 +66,3 @@ celery.conf.update(
     task_default_queue="enrichment",
     **celery_logging_config,
 )
-
-
-def init_celery(app):
-    """Initialize Celery with Flask app context."""
-    if not app:
-        return celery
-
-    class ContextTask(celery.Task):
-        """Celery task with Flask application context."""
-
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return self.run(*args, **kwargs)
-
-    celery.Task = ContextTask
-    return celery

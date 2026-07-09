@@ -9,7 +9,7 @@ from pathlib import Path
 class BaseConfig:
     """Base configuration class containing common settings for all environments."""
 
-    # Flask Core Settings
+    # Application Settings
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
         # For development, provide a default; for production, this will raise an error
@@ -92,7 +92,7 @@ class BaseConfig:
         """Default CORS origins for this environment. Override in subclasses."""
         return ["*"]  # Will be overridden in specific environments
 
-    # Flask-specific settings
+    # Compatibility settings
     TESTING = False
     DEBUG = False
 
@@ -120,7 +120,8 @@ class BaseConfig:
         required_vars = []
 
         # Check for production-critical environment variables
-        if os.getenv("FLASK_ENV") == "production":
+        env = os.getenv("ENVIRONMENT", os.getenv("FLASK_ENV", "development")).lower()
+        if env == "production":
             if not os.environ.get("SECRET_KEY"):
                 required_vars.append("SECRET_KEY")
 

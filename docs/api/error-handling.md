@@ -188,52 +188,55 @@ async function handleApiCall<T>(apiCall: () => Promise<T>): Promise<T> {
 
 ### **Adding New Endpoints**
 
-When creating new API endpoints, follow this error handling pattern:
+When creating new API endpoints with FastAPI, follow this pattern:
 
 ```python
-from app.utils.error_handlers import handle_api_error
-from app.utils.validation import validate_json_request
-from app.exceptions import DatabaseError, ValidationError, ResourceNotFoundError
+from fastapi import APIRouter, Depends, HTTPException
+from app.exceptions import DatabaseError, ValidationError, NotFoundError
+from app.schemas.my_domain import MyRequestSchema, MyResponseSchema
+from app.db.session import get_db
+from sqlalchemy.orm import Session
 
-@bp.route("/new-endpoint", methods=["POST"])
-@handle_api_error
-@validate_json_request(RequestSchema)
-def new_endpoint(validated_data: RequestSchema):
+router = APIRouter(prefix="/api/my-domain", tags=["My Domain"])
+
+@router.post("/", response_model=MyResponseSchema)
+async def create_something(
+    data: MyRequestSchema,
+    db: Session = Depends(get_db)
+):
     try:
         # Endpoint logic here
-        return jsonify({"success": True})
+        return {"success": True, "id": "123"}
 
-    except ValidationError:
-        raise  # Let error handlers deal with it
-    except ConnectionError as e:
-        raise DatabaseError(
-            "Database connection failed",
-            "DATABASE_CONNECTION_ERROR",
-            {"error": str(e)}
-        )
+    except ValidationError as e:
+        # Pydantic handles basic validation, but business logic validation
+        # should raise ValidationError which is handled by global handlers
+        raise HTTPException(status_code=400, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise ServiceError(
-            "Unexpected error in new endpoint",
-            "NEW_ENDPOINT_ERROR",
-            {"error": str(e)}
-        )
+        # Unexpected errors are caught by the global 500 handler in main.py
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 ```
 
 ### **Testing Error Scenarios**
 
 ```python
-def test_error_handling(client):
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_error_handling():
     # Test validation error
     response = client.post('/api/songs', json={})
-    assert response.status_code == 400
-    error_data = response.get_json()
-    assert error_data['code'] == 'MISSING_PARAMETERS'
-
+    assert response.status_code == 422 # FastAPI default for validation errors
+    
     # Test resource not found
-    response = client.get('/api/songs/nonexistent')
+    response = client.get('/api/songs/nonexistent-uuid')
     assert response.status_code == 404
-    error_data = response.get_json()
-    assert error_data['code'] == 'RESOURCE_NOT_FOUND'
+    error_data = response.json()
+    assert "error" in error_data or "detail" in error_data
 ```
 
 ## 📚 Related Documentation
