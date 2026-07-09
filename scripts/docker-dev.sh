@@ -29,17 +29,16 @@ case $COMMAND in
         fi
         
         # Start services
-        docker-compose -f docker-compose.dev.yml up -d
+        docker-compose up -d
         
         echo ""
         echo -e "${GREEN}✅ Services started!${NC}"
         echo ""
         echo "🌐 URLs:"
         echo "   Frontend:           http://localhost:5192"
-        echo "   Flask API:          http://localhost:5123"
-        echo "   FastAPI Sessions:   http://localhost:5124"
-        echo "   Session Test:       http://localhost:5124/session-test"
-        echo "   API Docs:           http://localhost:5124/docs"
+        echo "   FastAPI Backend:    http://localhost:15123 (Container: 5123)"
+        echo "   API Docs:           http://localhost:15123/docs"
+        echo "   Health Check:       http://localhost:15123/api/health"
         echo ""
         echo "📋 Useful commands:"
         echo "   View logs:          ./scripts/docker-dev.sh logs"
@@ -48,53 +47,53 @@ case $COMMAND in
         echo "   Restart services:   ./scripts/docker-dev.sh restart"
         echo "   Rebuild containers: ./scripts/docker-dev.sh build"
         echo ""
-        echo "🔍 Check status:      docker-compose -f docker-compose.dev.yml ps"
+        echo "🔍 Check status:      docker-compose ps"
         ;;
     
     down)
         echo -e "${BLUE}🛑 Stopping development environment...${NC}"
-        docker-compose -f docker-compose.dev.yml down
+        docker-compose down
         echo -e "${GREEN}✅ Services stopped${NC}"
         ;;
     
     logs)
         shift
-        docker-compose -f docker-compose.dev.yml logs "$@"
+        docker-compose logs "$@"
         ;;
     
     restart)
         echo -e "${BLUE}🔄 Restarting development environment...${NC}"
-        docker-compose -f docker-compose.dev.yml restart
+        docker-compose restart
         echo -e "${GREEN}✅ Services restarted${NC}"
         ;;
     
     build)
         echo -e "${BLUE}🔨 Rebuilding containers...${NC}"
-        docker-compose -f docker-compose.dev.yml build
+        docker-compose build
         echo -e "${GREEN}✅ Build complete${NC}"
         ;;
     
     rebuild)
         echo -e "${BLUE}🔨 Rebuilding and restarting...${NC}"
-        docker-compose -f docker-compose.dev.yml down
-        docker-compose -f docker-compose.dev.yml build
-        docker-compose -f docker-compose.dev.yml up -d
+        docker-compose down
+        docker-compose build
+        docker-compose up -d
         echo -e "${GREEN}✅ Rebuild and restart complete${NC}"
         ;;
     
     shell-backend)
         echo -e "${BLUE}🐚 Opening shell in backend container...${NC}"
-        docker exec -it karaoke-flask-dev /bin/bash
+        docker exec -it karaoke-api-prod /bin/bash
         ;;
     
     shell-frontend)
         echo -e "${BLUE}🐚 Opening shell in frontend container...${NC}"
-        docker exec -it karaoke-frontend-dev /bin/sh
+        docker exec -it karaoke-frontend-prod /bin/sh
         ;;
     
     shell-celery)
         echo -e "${BLUE}🐚 Opening shell in celery container...${NC}"
-        docker exec -it karaoke-celery-dev /bin/bash
+        docker exec -it karaoke-celery-prod /bin/bash
         ;;
     
     clean)
@@ -102,7 +101,7 @@ case $COMMAND in
         read -p "Are you sure? This will remove all containers, volumes, and images (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            docker-compose -f docker-compose.dev.yml down -v
+            docker-compose down -v
             docker system prune -f
             echo -e "${GREEN}✅ Cleanup complete${NC}"
         else
