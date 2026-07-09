@@ -35,29 +35,11 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 **Severity:** 🔴 CRITICAL
 
-**Status:** 🚧 **Still Pending**
+**Status:** ✅ **RESOLVED** (commit `9d8368df4`)
 
-**Location:** [jobs_service.py:134](backend/app/services/jobs_service.py#L134)
+**Location:** [jobs_service.py](backend/app/services/jobs_service.py)
 
-**Problem:**
-- UI has cancel button but backend doesn't actually cancel jobs
-- Jobs marked as cancelled continue running
-- Wastes system resources (CPU/GPU for audio processing)
-
-**Evidence:**
-```python
-# TODO: Implement actual job cancellation in Celery
-# This would involve celery.control.revoke(task_id, terminate=True)
-```
-
-**Impact:** HIGH - Resource waste, users think jobs are cancelled but they keep running
-
-**Recommendation:**
-```python
-from celery import current_app
-
-current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
-```
+**Resolution:** `cancel_job()` now calls `celery.control.revoke(job.task_id, terminate=True, signal="SIGTERM")` before marking the job cancelled.
 
 ---
 
@@ -300,21 +282,11 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 ---
 
-### 13. Deprecated Test File Not Removed
+### ~~13. Deprecated Test File Not Removed~~ ✅ RESOLVED
 
-**Severity:** 🟢 LOW
+**Was:** `test_songs_api.py.deprecated` left in `backend/tests/integration/test_api/`.
 
-**Location:** [test_songs_api.py.deprecated](backend/tests/integration/test_api/test_songs_api.py.deprecated)
-
-**Problem:**
-- Old test file not deleted
-- Clutters codebase
-
-**Impact:** LOW - Code cleanliness
-
-**Recommendation:**
-- Delete file OR
-- Restore if still needed
+**Fixed:** File no longer exists in the repo.
 
 ---
 
@@ -459,22 +431,11 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 These can be fixed quickly with high impact:
 
-1. **Replace print() with logging** (1-2 hours)
-   - Search and replace across backend
-   - High impact on debuggability
-
-2. **Remove console.log statements** (2-3 hours)
+1. **Remove console.log statements** (2-3 hours)
    - Replace with proper logging
    - Guard with debug flags
 
-3. **Delete deprecated test file** (5 minutes)
-   - Simple cleanup
-
-4. **Implement Celery job cancellation** (1-2 hours)
-   - Add revoke call
-   - High user impact
-
-5. **Fix default singer hardcode** (1 hour)
+2. **Fix default singer hardcode** (1 hour)
    - Add to localStorage
    - Quick UX improvement
 
@@ -482,16 +443,14 @@ These can be fixed quickly with high impact:
 
 ## Recommended Priority Order
 
-1. Fix global performance state (security/correctness)
-2. Remove console.log/print statements (production readiness)
-3. Add frontend test infrastructure (quality assurance)
-4. Implement Celery job cancellation (resource management)
-5. Fix type safety issues (code quality)
-6. Complete preload implementation (performance)
-7. Add settings feature for singer names (UX)
-8. Implement queue drag-and-drop (UX enhancement)
-9. Clean up experimental code (code organization)
-10. Address ESLint warnings (code quality)
+1. Remove remaining frontend console.log statements (production readiness)
+2. Add frontend test infrastructure (quality assurance)
+3. Fix type safety issues (code quality)
+4. Complete preload implementation (performance)
+5. Add settings feature for singer names (UX)
+6. Implement queue drag-and-drop (UX enhancement)
+7. Clean up experimental code (code organization)
+8. Address ESLint warnings (code quality)
 
 ---
 

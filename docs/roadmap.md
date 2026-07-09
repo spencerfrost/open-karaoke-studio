@@ -21,7 +21,6 @@ Brain dump of ideas, improvements, and future work organized by theme. This is a
 
 ### Known Pain Points 😓
 
-- **Session State Bugs:** Global performance state violates session isolation
 - **Limited Frontend Test Coverage:** Test infrastructure exists but coverage is minimal
 
 ---
