@@ -11,6 +11,8 @@ from app.services.separation_engines import (
     separate_with_hybrid,
     separate_with_roformer,
     separate_with_three_track,
+    separate_with_three_track_duality_v2,
+    separate_with_three_track_mel1143,
 )
 from celery.utils.log import get_task_logger
 
@@ -33,6 +35,8 @@ def select_and_run_separation_engine(
         "hybrid": separate_with_hybrid,
         "clean_backing": separate_with_clean_backing,
         "three_track": separate_with_three_track,
+        "three_track_duality_v2": separate_with_three_track_duality_v2,
+        "three_track_mel1143": separate_with_three_track_mel1143,
     }
 
     separator_fn = engine_map.get(engine_type, separate_with_demucs)
@@ -44,7 +48,7 @@ def select_and_run_separation_engine(
         "stop_event": stop_event,
     }
 
-    if engine_type == "three_track" and on_vocals_ready is not None:
+    if engine_type.startswith("three_track") and on_vocals_ready is not None:
         kwargs["on_vocals_ready"] = on_vocals_ready
 
     return separator_fn(**kwargs)
@@ -69,7 +73,7 @@ def run_separation_with_fallback(
             stop_event=stop_event,
             on_vocals_ready=on_vocals_ready,
         )
-        if success or engine_type != "three_track":
+        if success or not engine_type.startswith("three_track"):
             return success, engine_type
 
         logger.warning(

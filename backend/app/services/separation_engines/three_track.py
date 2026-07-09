@@ -57,6 +57,8 @@ def separate_with_three_track(
     stop_event: Optional[threading.Event] = None,
     on_vocals_ready: Optional[Callable[[Path], None]] = None,
     timing_sink: Optional[Dict[str, float]] = None,
+    karaoke_model: str = KARAOKE_MODEL,
+    engine_label: str = "Three-Track (Demucs + Roformer + De-Noise)",
 ) -> bool:
     """
     Multi-pass separation producing three independent audio tracks.
@@ -79,8 +81,12 @@ def separate_with_three_track(
     Returns:
         True if separation succeeded, False otherwise.
     """
-    logger.info("Starting Three-Track separation for: %s", input_path.name)
-    status_callback("Engine: Three-Track (Demucs + Roformer + De-Noise)")
+    logger.info(
+        "Starting Three-Track separation for: %s (karaoke model: %s)",
+        input_path.name,
+        karaoke_model,
+    )
+    status_callback(f"Engine: {engine_label}")
 
     def _ts(key: str) -> None:
         """Record a timestamp into timing_sink if one was provided."""
@@ -173,8 +179,8 @@ def separate_with_three_track(
             output_dir=str(temp_dir),
             output_format="wav",
         )
-        status_callback(f"Progress: 55% - Loading model: {KARAOKE_MODEL}")
-        karaoke_separator.load_model(model_filename=KARAOKE_MODEL)
+        status_callback(f"Progress: 55% - Loading model: {karaoke_model}")
+        karaoke_separator.load_model(model_filename=karaoke_model)
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")

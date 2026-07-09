@@ -36,6 +36,12 @@ from app.services.separation_engines.roformer_three_track import (
 from app.services.separation_engines.three_track import (
     separate_with_three_track as demucs_three_track,
 )
+from app.services.separation_engines.three_track_duality_v2 import (
+    separate_with_three_track_duality_v2,
+)
+from app.services.separation_engines.three_track_mel1143 import (
+    separate_with_three_track_mel1143,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +68,8 @@ Reference mix: {song_id}/original.mp3
 Fairness note (as-run):
 - demucs_three_track: Demucs primary + Roformer karaoke + de-noise on backing
 - roformer_three_track: Roformer primary + Roformer karaoke + de-noise disabled
+- three_track_duality_v2: Demucs primary + InstVoc Duality V2 vocal split + de-noise on backing
+- three_track_mel1143: Demucs primary + Mel-Roformer-Viperx-1143 vocal split + de-noise on backing
 
 Backing vocal A/B is not apples-to-apples on the polish step; focus lead vocal
 and instrumental when judging the Roformer-primary upgrade.
@@ -72,6 +80,8 @@ See manifest.json for timings, success flags, and errors.
 ENGINES: list[tuple[str, Callable[..., bool]]] = [
     ("demucs_three_track", demucs_three_track),
     ("roformer_three_track", roformer_three_track),
+    ("three_track_duality_v2", separate_with_three_track_duality_v2),
+    ("three_track_mel1143", separate_with_three_track_mel1143),
 ]
 
 

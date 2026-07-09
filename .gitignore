@@ -116,3 +116,5 @@ backend/scripts/lyric_alignment/.offset_test_backups.json
 **/spaces--*/
 backend/scripts/ai_lyrics/asr_experiments/results
 three_track_compare_test/
+GEM.md
+three_track_compare_gpu_5/

@@ -102,7 +102,7 @@ class DbSong(Base):
             ),
             "backingVocalPath": (
                 f"/api/songs/{self.id}/download/backing-vocals"
-                if self.engine_type == "three_track"
+                if self.engine_type and self.engine_type.startswith("three_track")
                 else None
             ),
             "thumbnail": self.thumbnail_path,

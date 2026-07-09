@@ -32,7 +32,13 @@ class YouTubeDownloadRequest(BaseModel):
     artist: Optional[str] = Field(None, max_length=200, description="Custom artist override")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
     searchThumbnailUrl: Optional[str] = Field(None, max_length=500, description="Original search result thumbnail URL")
-    engine_type: str = Field("three_track", description="Separation engine to use (demucs, roformer, hybrid, clean_backing, three_track)")
+    engine_type: str = Field(
+        "three_track",
+        description=(
+            "Separation engine to use (demucs, roformer, hybrid, clean_backing, "
+            "three_track, three_track_duality_v2, three_track_mel1143)"
+        ),
+    )
 
     @field_validator("video_id", "song_id")
     @classmethod
@@ -54,7 +60,15 @@ class YouTubeDownloadRequest(BaseModel):
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        valid_engines = {
+            "demucs",
+            "roformer",
+            "hybrid",
+            "clean_backing",
+            "three_track",
+            "three_track_duality_v2",
+            "three_track_mel1143",
+        }
         if v not in valid_engines:
             raise ValueError(f"Invalid engine_type. Must be one of: {', '.join(valid_engines)}")
         return v

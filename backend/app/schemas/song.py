@@ -148,13 +148,25 @@ class SongReprocessRequest(BaseModel):
 
     engine_type: str = Field(
         default="three_track",
-        description="Separation engine to use (three_track, demucs, roformer, hybrid, clean_backing)",
+        description=(
+            "Separation engine to use "
+            "(three_track, three_track_duality_v2, three_track_mel1143, "
+            "demucs, roformer, hybrid, clean_backing)"
+        ),
     )
 
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        valid_engines = {
+            "demucs",
+            "roformer",
+            "hybrid",
+            "clean_backing",
+            "three_track",
+            "three_track_duality_v2",
+            "three_track_mel1143",
+        }
         if v not in valid_engines:
             raise ValueError(
                 f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"
@@ -173,7 +185,15 @@ class SongReplaceYouTubeRequest(BaseModel):
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        valid_engines = {
+            "demucs",
+            "roformer",
+            "hybrid",
+            "clean_backing",
+            "three_track",
+            "three_track_duality_v2",
+            "three_track_mel1143",
+        }
         if v not in valid_engines:
             raise ValueError(
                 f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"

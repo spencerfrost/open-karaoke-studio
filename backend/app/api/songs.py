@@ -1120,7 +1120,7 @@ async def reprocess_song(
     Returns immediately with a job ID for tracking progress.
 
     - **song_id**: The song ID to reprocess
-    - **engine_type**: Separation engine to use (demucs, roformer, hybrid, clean_backing)
+    - **engine_type**: Separation engine to use (demucs, roformer, hybrid, clean_backing, three_track, three_track_duality_v2, three_track_mel1143)
     """
     from datetime import datetime, timezone
     from pathlib import Path
@@ -1663,7 +1663,15 @@ async def replace_song_upload(
     if not (audio_file.content_type or "").startswith("audio/"):
         raise HTTPException(status_code=400, detail="File must be an audio file")
 
-    valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+    valid_engines = {
+        "demucs",
+        "roformer",
+        "hybrid",
+        "clean_backing",
+        "three_track",
+        "three_track_duality_v2",
+        "three_track_mel1143",
+    }
     if engine_type not in valid_engines:
         raise HTTPException(status_code=400, detail=f"engine_type must be one of: {valid_engines}")
 
