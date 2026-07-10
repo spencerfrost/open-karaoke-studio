@@ -650,12 +650,29 @@ class SongRepository:
 
 ---
 
+### Authorization: Permission Ladder
+
+All endpoint auth decisions align to this ladder. Gate new endpoints against a tier, never ad hoc.
+
+| Tier | Authenticated by | Can do |
+|---|---|---|
+| Random request | nothing | public reads only (login, register, join session) |
+| **Session member** (anon guest) | server-minted `device_id` + `session_id` headers (from session join) | browse library, queue songs, download/create new songs in their session |
+| Performer (future) | account JWT | session member + favourites, own history |
+| Host | account JWT, `is_host` | run sessions, playback, queue moderation |
+| Admin | account JWT, `is_admin` | library maintenance, user management |
+
+Session membership is verified by `require_session_member` / `require_host_or_session_member` in `backend/app/api/dependencies.py`: the `X-Session-ID`/`X-Device-ID` headers must match an active `SessionDevice` in a live, unexpired session. The `device_id` is an unguessable credential minted server-side at join time; revocation is deactivating the device or expiring the session. `join-by-code`/`join-by-id` are rate-limited (per-IP) since the 4-char display code is the entry gate for the anonymous tier.
+
+---
+
 ### API Conventions
 
 **Headers:**
 ```
-X-Session-ID: {session_id}      # Required for queue operations
-Authorization: Bearer {token}   # Required for auth-gated endpoints (delete, reprocess)
+X-Session-ID: {session_id}      # Session membership (with X-Device-ID); also queue operations
+X-Device-ID: {device_id}        # Session membership credential minted at join
+Authorization: Bearer {token}   # Required for account-gated endpoints (host/admin tiers)
 Content-Type: application/json
 ```
 

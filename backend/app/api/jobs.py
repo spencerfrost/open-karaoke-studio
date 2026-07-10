@@ -16,8 +16,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 
+from app.api.dependencies import require_host
 from app.db.database import SessionLocal
-from app.db.models import JobStatus
+from app.db.models import JobStatus, User
 from app.services.jobs_service import JobsService
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,10 @@ def get_jobs_service() -> JobsService:
 # ============================================================================
 
 @router.get("/status", response_model=JobStatisticsResponse)
-async def get_job_status(jobs_service: JobsService = Depends(get_jobs_service)):
+async def get_job_status(
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Get the overall status of job processing with statistics.
     """
@@ -122,6 +126,7 @@ async def get_job_status(jobs_service: JobsService = Depends(get_jobs_service)):
 async def get_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
     jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
 ):
     """
     List all jobs with their status.
@@ -150,7 +155,11 @@ async def get_jobs(
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_service)):
+async def get_job(
+    job_id: str,
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Get detailed information about a specific job.
     """
@@ -163,7 +172,11 @@ async def get_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_serv
 
 
 @router.post("/{job_id}/cancel", response_model=JobActionResponse)
-async def cancel_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_service)):
+async def cancel_job(
+    job_id: str,
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Cancel a pending or in-progress job.
     """

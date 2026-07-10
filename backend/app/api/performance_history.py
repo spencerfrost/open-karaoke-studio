@@ -7,8 +7,8 @@ Provides read access to the persistent log of all songs performed.
 import logging
 from typing import List, Optional
 
-from app.api.dependencies import get_db
-from app.db.models import DbSong, KaraokeSession, PerformanceHistory
+from app.api.dependencies import get_db, require_host
+from app.db.models import DbSong, KaraokeSession, PerformanceHistory, User
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -42,6 +42,7 @@ def get_performance_history(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
 ):
     """
     Get paginated list of all performances, most recent first.

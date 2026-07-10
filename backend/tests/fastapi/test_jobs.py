@@ -3,9 +3,19 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from app.api.dependencies import get_current_user
 from app.db.models import JobStatus
 from tests.conftest import create_test_app
 from fastapi.testclient import TestClient
+
+
+def _get_mock_user():
+    mock_user = MagicMock()
+    mock_user.id = 1
+    mock_user.username = "testuser"
+    mock_user.is_admin = True
+    mock_user.is_host = True
+    return mock_user
 
 
 def _make_job(
@@ -37,7 +47,9 @@ def _make_job(
 
 @pytest.fixture(scope="module")
 def app():
-    return create_test_app()
+    app = create_test_app()
+    app.dependency_overrides[get_current_user] = _get_mock_user
+    return app
 
 
 @pytest.fixture(scope="module")

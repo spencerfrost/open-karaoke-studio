@@ -14,15 +14,14 @@ import uuid
 from datetime import datetime
 from typing import Generator, List, Optional
 
+from app.api.dependencies import get_current_user, require_host
+from app.db.database import SessionLocal
+from app.db.models import KaraokeSession, SessionDevice, User
+from app.limiter import limiter
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-
-from app.api.dependencies import get_current_user, require_host
-from app.db.database import SessionLocal
-from app.db.models import KaraokeSession, SessionDevice, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -31,6 +30,7 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 # ============================================================================
 # Pydantic Models
 # ============================================================================
+
 
 class DeviceInfo(BaseModel):
     """Connected device information"""
@@ -60,14 +60,18 @@ class SessionResponse(BaseModel):
 class SessionCreateRequest(BaseModel):
     """Request model for creating a session"""
 
-    device_type: str = Field(default="stage", description="Type of device (stage, performer, audience)")
+    device_type: str = Field(
+        default="stage", description="Type of device (stage, performer, audience)"
+    )
     display_name: Optional[str] = Field(None, description="Display name for the host")
 
 
 class SessionJoinByCodeRequest(BaseModel):
     """Request model for joining by display code"""
 
-    code: str = Field(..., min_length=4, max_length=4, description="4-character session code")
+    code: str = Field(
+        ..., min_length=4, max_length=4, description="4-character session code"
+    )
     device_type: str = Field(default="performer", description="Type of device")
     display_name: Optional[str] = Field(None, description="Display name for the user")
 
@@ -102,6 +106,7 @@ class SessionLeaveResponse(BaseModel):
 # Dependencies
 # ============================================================================
 
+
 def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
@@ -118,6 +123,7 @@ def get_db() -> Generator[Session, None, None]:
 # ============================================================================
 # Endpoints
 # ============================================================================
+
 
 @router.get("/my", response_model=Optional[SessionResponse])
 async def get_my_session(
@@ -141,7 +147,10 @@ async def get_my_session(
 
     active_devices = (
         db.query(SessionDevice)
-        .filter(SessionDevice.session_id == session.session_id, SessionDevice.is_active.is_(True))
+        .filter(
+            SessionDevice.session_id == session.session_id,
+            SessionDevice.is_active.is_(True),
+        )
         .all()
     )
 
@@ -206,7 +215,10 @@ async def get_or_create_my_session(
 
         active_devices = (
             db.query(SessionDevice)
-            .filter(SessionDevice.session_id == existing.session_id, SessionDevice.is_active.is_(True))
+            .filter(
+                SessionDevice.session_id == existing.session_id,
+                SessionDevice.is_active.is_(True),
+            )
             .all()
         )
 
@@ -234,9 +246,7 @@ async def get_or_create_my_session(
 
     # Get host settings for session duration
     host_settings = (
-        db.query(HostSettings)
-        .filter(HostSettings.user_id == current_user.id)
-        .first()
+        db.query(HostSettings).filter(HostSettings.user_id == current_user.id).first()
     )
     duration_hours = host_settings.session_duration_hours if host_settings else 8
 
@@ -294,7 +304,9 @@ async def get_or_create_my_session(
         except IntegrityError:
             db.rollback()
             if attempt == max_attempts - 1:
-                raise HTTPException(status_code=500, detail="Failed to create unique session")
+                raise HTTPException(
+                    status_code=500, detail="Failed to create unique session"
+                )
             continue
 
     raise HTTPException(status_code=500, detail="Failed to create session")
@@ -379,6 +391,7 @@ async def create_session(
 
 
 @router.post("/join-by-code", response_model=SessionResponse)
+@limiter.limit("10/minute")
 async def join_session_by_code(
     request: Request,
     join_data: SessionJoinByCodeRequest,
@@ -471,6 +484,7 @@ async def join_session_by_code(
 
 
 @router.post("/join-by-id", response_model=SessionResponse)
+@limiter.limit("10/minute")
 async def join_session_by_id(
     request: Request,
     join_data: SessionJoinByIdRequest,
@@ -606,7 +620,9 @@ async def get_session_info(
         raise HTTPException(status_code=410, detail="Session has expired")
 
     # Use provided device_id for identity if supplied, otherwise fall back to IP
-    client_identity = device_id or (request.client.host if request.client else "unknown")
+    client_identity = device_id or (
+        request.client.host if request.client else "unknown"
+    )
 
     # Get all active devices in the session
     active_devices = (
@@ -705,9 +721,7 @@ async def leave_session(
 
     # Check if this was the host
     session = (
-        db.query(KaraokeSession)
-        .filter(KaraokeSession.session_id == session_id)
-        .first()
+        db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
     )
 
     if session and client_host == session.host_device_id:

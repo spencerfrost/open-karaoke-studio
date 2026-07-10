@@ -5,15 +5,14 @@ FastAPI router for YouTube search and download endpoints.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field, field_validator
-
-
+from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.youtube_service import YouTubeService
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +25,23 @@ def get_session_manager(request: Request) -> SessionConnectionManager:
 
 class YouTubeDownloadRequest(BaseModel):
     """Request model for YouTube download."""
-    video_id: str = Field(..., min_length=1, max_length=100, description="YouTube video ID")
-    song_id: str = Field(..., min_length=1, max_length=100, description="Song ID to associate with")
-    title: Optional[str] = Field(None, max_length=200, description="Custom title override")
-    artist: Optional[str] = Field(None, max_length=200, description="Custom artist override")
+
+    video_id: str = Field(
+        ..., min_length=1, max_length=100, description="YouTube video ID"
+    )
+    song_id: str = Field(
+        ..., min_length=1, max_length=100, description="Song ID to associate with"
+    )
+    title: Optional[str] = Field(
+        None, max_length=200, description="Custom title override"
+    )
+    artist: Optional[str] = Field(
+        None, max_length=200, description="Custom artist override"
+    )
     album: Optional[str] = Field(None, max_length=200, description="Album name")
-    searchThumbnailUrl: Optional[str] = Field(None, max_length=500, description="Original search result thumbnail URL")
+    searchThumbnailUrl: Optional[str] = Field(
+        None, max_length=500, description="Original search result thumbnail URL"
+    )
     engine_type: str = Field(
         "three_track",
         description=(
@@ -70,12 +80,15 @@ class YouTubeDownloadRequest(BaseModel):
             "three_track_mel1143",
         }
         if v not in valid_engines:
-            raise ValueError(f"Invalid engine_type. Must be one of: {', '.join(valid_engines)}")
+            raise ValueError(
+                f"Invalid engine_type. Must be one of: {', '.join(valid_engines)}"
+            )
         return v
 
 
 class YouTubeSearchResponse(BaseModel):
     """Response model for YouTube search results."""
+
     success: bool
     message: str
     data: list
@@ -83,6 +96,7 @@ class YouTubeSearchResponse(BaseModel):
 
 class YouTubeDownloadResponse(BaseModel):
     """Response model for YouTube download initiation."""
+
     success: bool
     message: str
     data: dict
@@ -91,11 +105,11 @@ class YouTubeDownloadResponse(BaseModel):
 @router.get("/search", response_model=YouTubeSearchResponse)
 async def search_youtube(
     query: str = Query(..., min_length=1, description="Search query"),
-    maxResults: int = Query(10, ge=1, le=50, description="Maximum number of results")
+    maxResults: int = Query(10, ge=1, le=50, description="Maximum number of results"),
 ):
     """
     Search YouTube for videos.
-    
+
     Returns a list of video results matching the query.
     """
     try:
@@ -105,7 +119,7 @@ async def search_youtube(
         return YouTubeSearchResponse(
             success=True,
             message=f"Found {len(results)} videos matching '{query}'",
-            data=results
+            data=results,
         )
 
     except ValidationError as e:
@@ -117,20 +131,17 @@ async def search_youtube(
     except ConnectionError as e:
         logger.error("YouTube connection error: %s", e)
         raise HTTPException(
-            status_code=503,
-            detail=f"Failed to connect to YouTube API: {str(e)}"
+            status_code=503, detail=f"Failed to connect to YouTube API: {str(e)}"
         )
     except TimeoutError as e:
         logger.error("YouTube timeout error: %s", e)
         raise HTTPException(
-            status_code=504,
-            detail=f"YouTube API request timed out: {str(e)}"
+            status_code=504, detail=f"YouTube API request timed out: {str(e)}"
         )
     except Exception as e:
         logger.error("Unexpected YouTube search error: %s", e, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during YouTube search: {str(e)}"
+            status_code=500, detail=f"Unexpected error during YouTube search: {str(e)}"
         )
 
 
@@ -151,7 +162,12 @@ async def preview_youtube(video_id: str):
     except ServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        logger.error("Unexpected error getting preview URL for %s: %s", video_id, e, exc_info=True)
+        logger.error(
+            "Unexpected error getting preview URL for %s: %s",
+            video_id,
+            e,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"Failed to get preview: {str(e)}")
 
 
@@ -160,12 +176,14 @@ async def download_youtube(
     body: YouTubeDownloadRequest,
     request: Request,
     manager: SessionConnectionManager = Depends(get_session_manager),
+    requester: RequesterContext = Depends(require_host_or_session_member),
 ):
     """
     Download and process a YouTube video.
-    
+
     Creates a background job to download the video and process the audio.
     Returns immediately with a job ID for tracking progress.
+    Requires a logged-in account or active session membership.
     """
     try:
         youtube_service = YouTubeService()
@@ -184,14 +202,17 @@ async def download_youtube(
             job_id,
         )
 
-        await broadcast_job_created(manager, {
-            "id": job_id,
-            "song_id": body.song_id,
-            "status": "pending",
-            "progress": 0,
-            "artist": body.artist,
-            "title": body.title,
-        })
+        await broadcast_job_created(
+            manager,
+            {
+                "id": job_id,
+                "song_id": body.song_id,
+                "status": "pending",
+                "progress": 0,
+                "artist": body.artist,
+                "title": body.title,
+            },
+        )
 
         return YouTubeDownloadResponse(
             success=True,
@@ -200,7 +221,7 @@ async def download_youtube(
                 "jobId": job_id,
                 "status": "pending",
                 "message": "YouTube processing job created",
-            }
+            },
         )
 
     except ValidationError as e:
@@ -211,5 +232,5 @@ async def download_youtube(
         logger.error("Unexpected YouTube download error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected error starting YouTube download: {str(e)}"
+            detail=f"Unexpected error starting YouTube download: {str(e)}",
         )

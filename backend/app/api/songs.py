@@ -20,7 +20,13 @@ from collections import defaultdict
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import (
+    RequesterContext,
+    get_current_user,
+    require_admin,
+    require_host,
+    require_host_or_session_member,
+)
 from app.api.validators import (
     CAMEL_TO_SNAKE_CASE,
     VALID_ARTIST_SORT_FIELDS,
@@ -50,14 +56,23 @@ from app.schemas.song import (
     MetadataIssue,
     PaginationInfo,
     SongCreateRequest,
-    SongReprocessRequest,
     SongReplaceYouTubeRequest,
+    SongReprocessRequest,
     SongResponse,
     SongSearchResponse,
     SongUpdateRequest,
 )
 from app.services.file_service import FileService
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -91,9 +106,7 @@ def get_db() -> Generator[Session, None, None]:
 # ============================================================================
 
 
-def _download_album_cover(
-    collection_id: int, artwork_urls: list[str]
-) -> str | None:
+def _download_album_cover(collection_id: int, artwork_urls: list[str]) -> str | None:
     """Download the highest-res iTunes artwork and cache it locally.
 
     Returns the relative path 'covers/{collection_id}.jpg' on success, None on failure.
@@ -126,7 +139,9 @@ def _download_album_cover(
         logger.info("Downloaded album cover for collection %s", collection_id)
         return f"covers/{collection_id}.jpg"
     except Exception as e:
-        logger.warning("Failed to download album cover for collection %s: %s", collection_id, e)
+        logger.warning(
+            "Failed to download album cover for collection %s: %s", collection_id, e
+        )
         return None
 
 
@@ -328,7 +343,11 @@ async def get_artists(
                     "id": artist_id,
                     "name": display_name or name,
                     "songCount": count,
-                    "firstLetter": "#" if name and name[0].isdigit() else (name[0].upper() if name else "?"),
+                    "firstLetter": (
+                        "#"
+                        if name and name[0].isdigit()
+                        else (name[0].upper() if name else "?")
+                    ),
                 }
                 for artist_id, display_name, name, count in results
             ],
@@ -426,7 +445,7 @@ async def get_songs_by_fingerprint_status(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """Return songs filtered by acoustid_fingerprint_status."""
     valid = {"no_match", "failed", "not_checked", "matched", "skipped", "ambiguous"}
@@ -445,7 +464,7 @@ async def get_songs_by_fingerprint_status(
 @router.get("/library-audit")
 async def get_library_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """
     Audit the karaoke library by cross-referencing filesystem directories with DB records.
@@ -555,36 +574,74 @@ def _check_song_metadata(song: DbSong) -> list:
     artist = song.artist or ""
 
     if not title.strip():
-        issues.append({"type": "empty_title", "label": "Missing Title", "severity": "error"})
+        issues.append(
+            {"type": "empty_title", "label": "Missing Title", "severity": "error"}
+        )
     if not artist.strip():
-        issues.append({"type": "empty_artist", "label": "Missing Artist", "severity": "error"})
+        issues.append(
+            {"type": "empty_artist", "label": "Missing Artist", "severity": "error"}
+        )
     if artist.strip() == "Unknown Artist":
-        issues.append({"type": "unknown_artist", "label": "Unknown Artist", "severity": "warning"})
+        issues.append(
+            {"type": "unknown_artist", "label": "Unknown Artist", "severity": "warning"}
+        )
 
     title_lower = title.lower()
     if any(p in title_lower for p in _SUSPICIOUS_TITLE_PATTERNS):
-        issues.append({"type": "suspicious_title", "label": "Raw YouTube Title", "severity": "warning"})
+        issues.append(
+            {
+                "type": "suspicious_title",
+                "label": "Raw YouTube Title",
+                "severity": "warning",
+            }
+        )
 
     if len(title) > 80:
         issues.append({"type": "long_title", "label": "Long Title", "severity": "info"})
 
     if len(title) < 5 and len(artist) > 40:
-        issues.append({"type": "swapped_fields", "label": "Possibly Swapped", "severity": "warning"})
+        issues.append(
+            {
+                "type": "swapped_fields",
+                "label": "Possibly Swapped",
+                "severity": "warning",
+            }
+        )
 
     combined = f"{title} {artist}"
     if "\ufffd" in combined or any(ord(c) > 0xFFFF for c in combined):
-        issues.append({"type": "encoding_artifact", "label": "Encoding Issue", "severity": "warning"})
+        issues.append(
+            {
+                "type": "encoding_artifact",
+                "label": "Encoding Issue",
+                "severity": "warning",
+            }
+        )
 
     if not song.source:
-        issues.append({"type": "missing_source", "label": "No Source", "severity": "info"})
+        issues.append(
+            {"type": "missing_source", "label": "No Source", "severity": "info"}
+        )
     if song.duration is None:
-        issues.append({"type": "missing_duration", "label": "No Duration", "severity": "warning"})
+        issues.append(
+            {"type": "missing_duration", "label": "No Duration", "severity": "warning"}
+        )
     if not song.album:
-        issues.append({"type": "missing_album", "label": "No Album", "severity": "info"})
+        issues.append(
+            {"type": "missing_album", "label": "No Album", "severity": "info"}
+        )
     if not song.plain_lyrics and not song.synced_lyrics:
-        issues.append({"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"})
+        issues.append(
+            {"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"}
+        )
     if not song.vocal_range_low and not song.vocal_range_high:
-        issues.append({"type": "missing_vocal_range", "label": "No Vocal Range", "severity": "info"})
+        issues.append(
+            {
+                "type": "missing_vocal_range",
+                "label": "No Vocal Range",
+                "severity": "info",
+            }
+        )
 
     return issues
 
@@ -592,7 +649,7 @@ def _check_song_metadata(song: DbSong) -> list:
 @router.get("/metadata-audit", response_model=MetadataAuditResponse)
 async def get_metadata_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """
     Scan all songs for metadata quality issues.
@@ -633,7 +690,7 @@ async def get_metadata_audit(
 async def delete_orphaned_directory(
     dir_name: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """
     Delete an orphaned library directory that has no corresponding DB record.
@@ -647,9 +704,7 @@ async def delete_orphaned_directory(
     # Confirm it's actually on disk
     song_dir = config.LIBRARY_DIR / dir_name
     if not song_dir.exists() or not song_dir.is_dir():
-        raise HTTPException(
-            status_code=404, detail=f"Directory not found: {dir_name}"
-        )
+        raise HTTPException(status_code=404, detail=f"Directory not found: {dir_name}")
 
     # Confirm there is no DB record (safety check)
     repo = SongRepository(db)
@@ -669,7 +724,7 @@ async def delete_orphaned_directory(
 async def bulk_delete_orphaned_directories(
     request: BulkDeleteOrphansRequest = Body(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """
     Bulk-delete multiple orphaned library directories with no corresponding DB records.
@@ -710,7 +765,7 @@ async def bulk_delete_orphaned_directories(
 async def bulk_delete_ghost_records(
     request: BulkDeleteGhostsRequest = Body(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """
     Bulk-delete multiple ghost DB records that have no corresponding files on disk.
@@ -765,7 +820,7 @@ async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
 @router.get("/duplicates")
 async def get_duplicate_songs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """
     Return clusters of songs that share the same case-insensitive title+artist.
@@ -816,9 +871,15 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=SongResponse, status_code=201)
-async def create_song(song_data: SongCreateRequest, db: Session = Depends(get_db)):
+async def create_song(
+    song_data: SongCreateRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+):
     """
     Create a new song with basic information.
+
+    Requires a logged-in account or active session membership.
     """
     song_id = song_data.id or str(uuid.uuid4())
     logger.info("Creating new song with ID: %s", song_id)
@@ -872,10 +933,15 @@ async def create_song(song_data: SongCreateRequest, db: Session = Depends(get_db
 
 @router.patch("/{song_id}", response_model=SongResponse)
 async def update_song(
-    song_id: str, update_data: SongUpdateRequest, db: Session = Depends(get_db)
+    song_id: str,
+    update_data: SongUpdateRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
 ):
     """
     Update a song with any provided fields.
+
+    Requires a logged-in account or active session membership.
     """
     try:
         repo = SongRepository(db)
@@ -965,7 +1031,7 @@ async def update_song(
 async def delete_song(
     song_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """
     Delete a song by its ID.
@@ -1047,7 +1113,10 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{song_id}/download/{track_type}")
 async def download_song_track(
-    song_id: str, track_type: str, db: Session = Depends(get_db)
+    song_id: str,
+    track_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Download a specific audio track for a song.
@@ -1111,7 +1180,7 @@ async def reprocess_song(
     song_id: str,
     request: SongReprocessRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """
     Re-process a song's audio with a different separation engine.
@@ -1214,8 +1283,10 @@ async def reprocess_song(
 
 @router.post("/fingerprint", status_code=202)
 async def batch_fingerprint_songs_endpoint(
-    force: bool = Query(False, description="Re-fingerprint all songs, including already-processed ones"),
-    current_user: User = Depends(get_current_user),
+    force: bool = Query(
+        False, description="Re-fingerprint all songs, including already-processed ones"
+    ),
+    current_user: User = Depends(require_admin),
 ):
     """Dispatch a Celery task to fingerprint songs. Pass ?force=true to reprocess everything."""
     from app.jobs.jobs import batch_fingerprint_songs
@@ -1226,8 +1297,10 @@ async def batch_fingerprint_songs_endpoint(
 
 @router.post("/backfill-artwork", status_code=202)
 async def backfill_artwork_endpoint(
-    force: bool = Query(False, description="Reprocess all songs, including those already with album art"),
-    current_user: User = Depends(get_current_user),
+    force: bool = Query(
+        False, description="Reprocess all songs, including those already with album art"
+    ),
+    current_user: User = Depends(require_admin),
 ):
     """Dispatch a Celery task to backfill album art for songs missing it."""
     from app.jobs.jobs import batch_backfill_artwork
@@ -1238,9 +1311,12 @@ async def backfill_artwork_endpoint(
 
 @router.post("/backfill-duration", status_code=202)
 async def backfill_duration_endpoint(
-    mode: str = Query("missing", description="'missing' to fill only null durations, 'all' to recompute every song"),
+    mode: str = Query(
+        "missing",
+        description="'missing' to fill only null durations, 'all' to recompute every song",
+    ),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Dispatch a Celery task to populate duration from the original audio file."""
     if mode not in ("missing", "all"):
@@ -1261,7 +1337,7 @@ async def backfill_duration_endpoint(
 async def lookup_song_fingerprint(
     song_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Run AcoustID fingerprint synchronously and return all candidates. Does not save results."""
     from pathlib import Path
@@ -1277,10 +1353,13 @@ async def lookup_song_fingerprint(
     instrumental = song_dir / "instrumental.mp3"
     vocals = song_dir / "vocals.mp3"
     audio_path = (
-        original if original.exists()
-        else instrumental if instrumental.exists()
-        else vocals if vocals.exists()
-        else None
+        original
+        if original.exists()
+        else (
+            instrumental
+            if instrumental.exists()
+            else vocals if vocals.exists() else None
+        )
     )
 
     if not audio_path:
@@ -1302,7 +1381,7 @@ async def apply_song_fingerprint(
     song_id: str,
     request: FingerprintApplyRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Apply a selected AcoustID candidate to the song record."""
     song_repo = SongRepository(db)
@@ -1340,7 +1419,7 @@ async def apply_song_fingerprint(
 async def skip_fingerprint(
     song_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Mark a song's AcoustID status as skipped so it no longer appears in the review panel."""
     repo = SongRepository(db)
@@ -1357,7 +1436,7 @@ async def skip_fingerprint(
 async def analyze_vocal_range(
     song_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Detect vocal range from the isolated vocals stem and persist the result."""
     import asyncio
@@ -1373,16 +1452,24 @@ async def analyze_vocal_range(
     config = get_config()
     vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
     if not vocals_path.exists():
-        raise HTTPException(status_code=404, detail="Vocals stem not found — song may not be processed yet")
+        raise HTTPException(
+            status_code=404,
+            detail="Vocals stem not found — song may not be processed yet",
+        )
 
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: detect_vocal_range(vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)),
+        lambda: detect_vocal_range(
+            vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
+        ),
     )
 
     if result is None:
-        raise HTTPException(status_code=404, detail="Could not detect vocal range (insufficient voiced frames)")
+        raise HTTPException(
+            status_code=404,
+            detail="Could not detect vocal range (insufficient voiced frames)",
+        )
 
     low, high = result
     repo.update(song_id, vocal_range_low=low, vocal_range_high=high)
@@ -1394,7 +1481,7 @@ async def analyze_vocal_range(
 async def fingerprint_single_song_endpoint(
     song_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Dispatch an AcoustID fingerprint job for a single song."""
     if not SongRepository(db).fetch(song_id):
@@ -1410,16 +1497,16 @@ async def validate_youtube_replacement(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Validate a YouTube replacement track with AcoustID before processing."""
-    from pathlib import Path
     import shutil
     import uuid
+    from pathlib import Path
 
-    from app.services.youtube_service import YouTubeService
-    from app.services.acoustid_service import AcoustIdService
     from app.schemas.song import ReplacementValidationResponse
+    from app.services.acoustid_service import AcoustIdService
+    from app.services.youtube_service import YouTubeService
 
     song_repo = SongRepository(db)
     if not song_repo.fetch(song_id):
@@ -1495,7 +1582,9 @@ async def validate_youtube_replacement(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("YouTube validation failed for song %s: %s", song_id, e, exc_info=True)
+        logger.error(
+            "YouTube validation failed for song %s: %s", song_id, e, exc_info=True
+        )
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
@@ -1504,15 +1593,15 @@ async def validate_upload_replacement(
     song_id: str,
     audio_file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Validate an uploaded replacement track with AcoustID before processing."""
-    from pathlib import Path
-    import tempfile
     import shutil
+    import tempfile
+    from pathlib import Path
 
-    from app.services.acoustid_service import AcoustIdService
     from app.schemas.song import ReplacementValidationResponse
+    from app.services.acoustid_service import AcoustIdService
 
     song_repo = SongRepository(db)
     if not song_repo.fetch(song_id):
@@ -1569,7 +1658,9 @@ async def validate_upload_replacement(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Upload validation failed for song %s: %s", song_id, e, exc_info=True)
+        logger.error(
+            "Upload validation failed for song %s: %s", song_id, e, exc_info=True
+        )
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
@@ -1595,7 +1686,7 @@ async def replace_song_youtube(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Replace a song's audio source with a YouTube Music track and reprocess."""
     from datetime import datetime, timezone
@@ -1648,7 +1739,7 @@ async def replace_song_upload(
     audio_file: UploadFile = File(...),
     engine_type: str = Form(default="three_track"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Replace a song's audio source with an uploaded MP3 and reprocess."""
     from datetime import datetime, timezone
@@ -1673,7 +1764,9 @@ async def replace_song_upload(
         "three_track_mel1143",
     }
     if engine_type not in valid_engines:
-        raise HTTPException(status_code=400, detail=f"engine_type must be one of: {valid_engines}")
+        raise HTTPException(
+            status_code=400, detail=f"engine_type must be one of: {valid_engines}"
+        )
 
     job_repository = JobRepository()
     active_jobs = job_repository.get_jobs_by_status(

@@ -6,14 +6,24 @@ import {
 } from "@tanstack/react-query";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
+import { useSessionStore } from "@/stores/sessionStore";
 import { toast } from "sonner";
 
 const logger = createLogger("hook:api");
 
-/** Get Authorization header if a token is available. */
+/** Get Authorization header if a token is available, plus session-membership headers. */
 function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const token = useAuthStore.getState().token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const { sessionId, deviceId } = useSessionStore.getState();
+  if (sessionId && deviceId) {
+    headers["X-Session-ID"] = sessionId;
+    headers["X-Device-ID"] = deviceId;
+  }
+  return headers;
 }
 
 /** Handle 401 responses by clearing stale auth state and prompting re-login. */

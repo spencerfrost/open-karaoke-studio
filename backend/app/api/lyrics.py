@@ -6,8 +6,9 @@ import json
 import logging
 from typing import List, Optional
 
+from app.api.dependencies import get_current_user
 from app.db.database import SessionLocal
-from app.db.models import JobStatus
+from app.db.models import JobStatus, User
 from app.exceptions import ServiceError
 from app.jobs.celery_app import celery
 from app.jobs.jobs import _create_lyrics_alignment_job, _get_lyrics_job_id
@@ -218,6 +219,7 @@ async def update_song_lyrics(
     type: str = Query(..., description="Lyrics type: 'plain' or 'synced'"),
     db: Session = Depends(get_db),
     body: dict = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Update plain or synced lyrics for a song."""
     if type not in ("plain", "synced"):
@@ -238,7 +240,12 @@ async def update_song_lyrics(
 
 
 @router.delete("/songs/{song_id}/{type}", status_code=204)
-async def clear_song_lyrics(song_id: str, type: str, db: Session = Depends(get_db)):
+async def clear_song_lyrics(
+    song_id: str,
+    type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Clear plain, synced, or word_synced lyrics for a song."""
     if type not in ("plain", "synced", "word_synced"):
         raise HTTPException(status_code=400, detail="type must be 'plain', 'synced', or 'word_synced'")
@@ -281,6 +288,7 @@ async def apply_analysis(
     song_id: str,
     min_confidence: float = Query(0.3, ge=0.0, le=1.0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Run section-break analysis and apply the result directly to synced_lyrics."""
     song = SongRepository(db).fetch(song_id)
@@ -324,7 +332,11 @@ async def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/songs/{song_id}/analyze/offset/apply", response_model=dict, status_code=200)
-async def apply_offset_correction(song_id: str, db: Session = Depends(get_db)):
+async def apply_offset_correction(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Compute global offset and apply the corrected timestamps directly to synced_lyrics."""
     song = SongRepository(db).fetch(song_id)
     if not song:
@@ -385,6 +397,7 @@ async def align_song_lyrics(
     language: str = Query("en", description="BCP-47 language code for the alignment model"),
     source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Enqueue background lyrics alignment using stored and remote lyric candidates.
@@ -409,6 +422,7 @@ async def align_song_lyrics_from_database(
     language: str = Query("en", description="BCP-47 language code for the alignment model"),
     source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Enqueue background lyrics alignment using only the lyrics currently stored in the database.
@@ -472,6 +486,7 @@ async def batch_align_status(db: Session = Depends(get_db)):
 async def batch_align_songs(
     mode: str = Query("missing", description="'missing' = only unaligned songs, 'all' = re-run everyone"),
     language: str = Query("en", description="BCP-47 language code"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Dispatch a Celery task to run forced alignment across the library.
