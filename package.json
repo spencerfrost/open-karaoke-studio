@@ -15,5 +15,8 @@
     "lint:backend": "cd backend && flake8 .",
     "check:backend": "cd backend && isort . && black . && flake8 ."
   },
-  "packageManager": "pnpm@10.9.0"
+  "packageManager": "pnpm@10.9.0",
+  "devDependencies": {
+    "typescript": "~5.8.3"
+  }
 }
