@@ -30,6 +30,19 @@ import {
   YoutubeVideoSearchResult,
 } from "@/types/Youtube";
 
+// Surface the backend's message (e.g. demo download limits, "demo is busy")
+// when it's a real user-facing string; fall back for opaque server errors.
+const addSongErrorMessage = (error: unknown): string => {
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.startsWith("HTTP error!")
+  ) {
+    return error.message;
+  }
+  return "Failed to add song";
+};
+
 // Data mappers to convert search results to unified SongInput
 const mapYoutubeMusicToSongInput = (
   result: YoutubeMusicSearchResult,
@@ -148,7 +161,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       await songCreation.createSong(songInput);
     } catch (error) {
       logger.error("Failed to create YouTube Music song:", error);
-      toast.error("Failed to add song");
+      toast.error(addSongErrorMessage(error));
     }
   };
 
@@ -163,7 +176,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       await songCreation.createSong(songInput);
     } catch (error) {
       logger.error("Failed to create YouTube song:", error);
-      toast.error("Failed to add song");
+      toast.error(addSongErrorMessage(error));
     }
   };
 
