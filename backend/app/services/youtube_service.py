@@ -58,7 +58,7 @@ class YouTubeService(YouTubeServiceInterface):
         except Exception as e:
             logger.error("YouTube search failed: %s", e)
             raise ServiceError(f"Failed to search YouTube: {e}")
-        
+
     def _build_search_result_entry(self, entry: dict) -> dict:
         """Helper to build a search result entry dict from yt-dlp entry"""
         thumbnails = entry.get("thumbnails")
@@ -69,9 +69,7 @@ class YouTubeService(YouTubeServiceInterface):
             "channel": entry.get("channel") or entry.get("uploader"),
             "channelId": entry.get("channel_id") or entry.get("uploader_id"),
             "thumbnail": (
-                thumbnails[0]["url"]
-                if thumbnails and len(thumbnails) > 0
-                else None
+                thumbnails[0]["url"] if thumbnails and len(thumbnails) > 0 else None
             ),
             "duration": entry.get("duration"),
         }
@@ -193,9 +191,7 @@ class YouTubeService(YouTubeServiceInterface):
                         repo = SongRepository(session)
                         repo.update(song_id, duration=metadata_dict["duration"])
             except Exception as e:
-                logger.warning(
-                    "Failed to update duration for song %s: %s", song_id, e
-                )
+                logger.warning("Failed to update duration for song %s: %s", song_id, e)
             return song_id, metadata_dict
 
         except Exception as e:
@@ -245,7 +241,9 @@ class YouTubeService(YouTubeServiceInterface):
                 info = ydl.extract_info(url, download=False)
                 stream_url = info.get("url")
                 if not stream_url:
-                    raise ServiceError(f"No audio stream URL found for video {video_id}")
+                    raise ServiceError(
+                        f"No audio stream URL found for video {video_id}"
+                    )
                 return stream_url
         except ServiceError:
             raise
@@ -283,6 +281,8 @@ class YouTubeService(YouTubeServiceInterface):
         title: str = None,
         song_id: str = None,
         engine_type: str = "three_track",
+        session_id: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
@@ -342,6 +342,8 @@ class YouTubeService(YouTubeServiceInterface):
                 title=title or "Unknown Title",
                 artist=artist or "Unknown Artist",
                 created_at=datetime.now(timezone.utc),
+                session_id=session_id,
+                user_id=user_id,
             )
 
             # Save job to database using repository

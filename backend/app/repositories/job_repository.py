@@ -52,6 +52,8 @@ class JobRepository:
                         completed_at=job.completed_at,
                         error=job.error,
                         engine_type=job.engine_type,
+                        session_id=job.session_id,
+                        user_id=job.user_id,
                     )
                     session.add(db_job)
                 else:
@@ -67,6 +69,8 @@ class JobRepository:
                     db_job.completed_at = job.completed_at  # type: ignore
                     db_job.error = job.error  # type: ignore
                     db_job.engine_type = job.engine_type  # type: ignore
+                    db_job.session_id = job.session_id  # type: ignore
+                    db_job.user_id = job.user_id  # type: ignore
 
                 session.flush()
                 session.commit()
