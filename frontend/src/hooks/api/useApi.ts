@@ -12,7 +12,7 @@ import { toast } from "sonner";
 const logger = createLogger("hook:api");
 
 /** Get Authorization header if a token is available, plus session-membership headers. */
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   const token = useAuthStore.getState().token;
   if (token) {

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  getAuthHeaders,
   useApiQuery,
   useApiMutation,
   uploadFile,
@@ -191,6 +192,7 @@ export function useSongs() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify(data),
           credentials: "include",
@@ -259,6 +261,7 @@ export function useSongs() {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              ...getAuthHeaders(),
             },
             body: JSON.stringify(updates),
             credentials: "include",
@@ -331,6 +334,7 @@ export function useSongs() {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              ...getAuthHeaders(),
             },
             body: JSON.stringify(metadata),
             credentials: "include",
@@ -410,6 +414,7 @@ export function useSongs() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify(metadata),
           credentials: "include",
@@ -482,6 +487,7 @@ export function useSongs() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify(metadata),
           credentials: "include",
