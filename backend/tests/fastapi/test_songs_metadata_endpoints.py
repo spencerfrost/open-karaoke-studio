@@ -1,4 +1,5 @@
 """Tests for the new AcoustID metadata review endpoints."""
+
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -130,7 +131,11 @@ class TestReplaceSongYouTube:
 
             response = client.post(
                 "/api/songs/song-123/replace-youtube",
-                json={"video_id": "abc123", "title": "New Title", "artist": "New Artist"},
+                json={
+                    "video_id": "abc123",
+                    "title": "New Title",
+                    "artist": "New Artist",
+                },
             )
         assert response.status_code == 202
         assert response.json()["status"] == "pending"
@@ -194,7 +199,13 @@ class TestReplaceSongUpload:
 
             response = client.post(
                 "/api/songs/song-123/replace-upload",
-                files={"audio_file": ("test.mp3", BytesIO(b"fake audio data"), "audio/mpeg")},
+                files={
+                    "audio_file": (
+                        "test.mp3",
+                        BytesIO(b"fake audio data"),
+                        "audio/mpeg",
+                    )
+                },
             )
 
         assert response.status_code == 202

@@ -1,4 +1,5 @@
 """FastAPI tests for /api/jobs endpoints."""
+
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -79,6 +80,7 @@ def mock_jobs_service(app):
     svc.dismiss_job.return_value = True
 
     from app.api.jobs import get_jobs_service
+
     app.dependency_overrides[get_jobs_service] = lambda: svc
     yield svc
     app.dependency_overrides.pop(get_jobs_service, None)
@@ -114,13 +116,17 @@ class TestGetJobs:
         mock_jobs_service.reset_mock()
         response = client.get("/api/jobs?status=completed")
         assert response.status_code == 200
-        mock_jobs_service.get_jobs_by_status.assert_called_once_with(JobStatus.COMPLETED)
+        mock_jobs_service.get_jobs_by_status.assert_called_once_with(
+            JobStatus.COMPLETED
+        )
 
     def test_filter_by_invalid_status_returns_400(self, client, mock_jobs_service):
         response = client.get("/api/jobs?status=not_a_status")
         assert response.status_code == 400
 
-    def test_filter_status_excludes_dismissed_by_default(self, client, mock_jobs_service):
+    def test_filter_status_excludes_dismissed_by_default(
+        self, client, mock_jobs_service
+    ):
         job = _make_job(dismissed=True)
         mock_jobs_service.get_jobs_by_status.return_value = [job, _make_job()]
         response = client.get("/api/jobs?status=completed")
@@ -152,7 +158,10 @@ class TestGetDismissedJobs:
 
 class TestGetJob:
     def test_returns_job_details(self, client, mock_jobs_service):
-        mock_jobs_service.get_job_with_details.return_value = {"id": "job-1", "status": "completed"}
+        mock_jobs_service.get_job_with_details.return_value = {
+            "id": "job-1",
+            "status": "completed",
+        }
         response = client.get("/api/jobs/job-1")
         assert response.status_code == 200
         assert response.json()["id"] == "job-1"
@@ -161,7 +170,10 @@ class TestGetJob:
         mock_jobs_service.get_job_with_details.return_value = None
         response = client.get("/api/jobs/no-such-job")
         assert response.status_code == 404
-        mock_jobs_service.get_job_with_details.return_value = {"id": "job-1", "status": "completed"}
+        mock_jobs_service.get_job_with_details.return_value = {
+            "id": "job-1",
+            "status": "completed",
+        }
 
 
 class TestCancelJob:
