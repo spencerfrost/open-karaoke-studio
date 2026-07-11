@@ -44,6 +44,7 @@ export default defineConfig({
           text: 'Documentation',
           items: [
             { text: 'Features', link: '/features' },
+            { text: 'Demo Accounts', link: '/demo-accounts' },
             { text: 'Roadmap', link: '/roadmap' },
             { text: 'Tech Debt', link: '/tech-debt' },
           ]
