@@ -35,9 +35,11 @@ def _get_secret_key() -> str:
     return key
 
 
-def create_access_token(user: User) -> str:
+def create_access_token(user: User, expires_minutes: Optional[int] = None) -> str:
     """Generate a JWT access token for the given user."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_minutes is None:
+        expires_minutes = ACCESS_TOKEN_EXPIRE_MINUTES
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     payload = {
         "sub": str(user.id),
         "username": user.username,

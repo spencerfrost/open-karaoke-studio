@@ -55,6 +55,12 @@ class BaseConfig:
     DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
     ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
+    # Public demo alias credentials (feature disabled when unset).
+    # NOTE: app.services.demo_service reads these from os.environ at call time
+    # so tests can monkeypatch them; these attrs exist for documentation parity.
+    DEMO_LOGIN_USERNAME = os.environ.get("DEMO_LOGIN_USERNAME")
+    DEMO_LOGIN_PASSWORD = os.environ.get("DEMO_LOGIN_PASSWORD")
+
     # Upload Configuration
     MAX_CONTENT_LENGTH = int(
         os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024)

@@ -3,17 +3,15 @@ FastAPI router for user management endpoints.
 """
 
 import logging
-from typing import Optional
-
-from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from typing import List, Optional
 
 from app.api.dependencies import get_current_user, get_db, require_admin
 from app.db.models import User
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
+from app.services.demo_service import DEMO_TOKEN_EXPIRE_MINUTES, resolve_demo_login
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -23,31 +21,40 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 class RegisterUserRequest(BaseModel):
     """Request model for user registration."""
+
     username: str = Field(..., min_length=1, max_length=100, description="Username")
-    display_name: Optional[str] = Field(None, max_length=200, description="Display name")
+    display_name: Optional[str] = Field(
+        None, max_length=200, description="Display name"
+    )
     password: str = Field(..., min_length=8, description="Password")
 
 
 class LoginUserRequest(BaseModel):
     """Request model for user login."""
+
     username: str = Field(..., min_length=1, max_length=100, description="Username")
     password: str = Field(..., description="Password")
 
 
 class UpdateUserRequest(BaseModel):
     """Request model for updating user."""
-    display_name: Optional[str] = Field(None, max_length=200, description="New display name")
+
+    display_name: Optional[str] = Field(
+        None, max_length=200, description="New display name"
+    )
     password: Optional[str] = Field(None, min_length=8, description="New password")
 
 
 class RegisterResponse(BaseModel):
     """Response model for user registration."""
+
     success: bool
     id: str
 
 
 class LoginResponse(BaseModel):
     """Response model for user login."""
+
     success: bool
     id: str
     display_name: Optional[str] = None
@@ -58,11 +65,13 @@ class LoginResponse(BaseModel):
 
 class UpdateResponse(BaseModel):
     """Response model for user update."""
+
     success: bool
 
 
 class UserListItem(BaseModel):
     """User info for admin listing."""
+
     id: int
     username: str
     display_name: Optional[str]
@@ -72,19 +81,15 @@ class UserListItem(BaseModel):
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 @limiter.limit("3/minute")
-async def register_user(request: Request, body: RegisterUserRequest, db: Session = Depends(get_db)):
+async def register_user(
+    request: Request, body: RegisterUserRequest, db: Session = Depends(get_db)
+):
     """Register a new user."""
     try:
         if db.query(User).filter(User.username == body.username).first():
-            raise HTTPException(
-                status_code=400,
-                detail="Username already exists"
-            )
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-        user = User(
-            username=body.username,
-            display_name=body.display_name
-        )
+        user = User(username=body.username, display_name=body.display_name)
         user.set_password(body.password)
 
         db.add(user)
@@ -98,23 +103,35 @@ async def register_user(request: Request, body: RegisterUserRequest, db: Session
         db.rollback()
         logger.error("Failed to register user: %s", e, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to register user: {str(e)}"
+            status_code=500, detail=f"Failed to register user: {str(e)}"
         )
 
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
-async def login_user(request: Request, body: LoginUserRequest, db: Session = Depends(get_db)):
+async def login_user(
+    request: Request, body: LoginUserRequest, db: Session = Depends(get_db)
+):
     """Log in a user."""
     try:
+        demo_user = resolve_demo_login(db, body.username, body.password)
+        if demo_user is not None:
+            token = create_access_token(
+                demo_user, expires_minutes=DEMO_TOKEN_EXPIRE_MINUTES
+            )
+            return LoginResponse(
+                success=True,
+                id=str(demo_user.id),
+                display_name=demo_user.display_name,
+                token=token,
+                is_admin=False,
+                is_host=True,
+            )
+
         user = db.query(User).filter(User.username == body.username).first()
 
         if not user or not user.check_password(body.password):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid username or password"
-            )
+            raise HTTPException(status_code=401, detail="Invalid username or password")
 
         token = create_access_token(user)
 
@@ -131,10 +148,7 @@ async def login_user(request: Request, body: LoginUserRequest, db: Session = Dep
         raise
     except Exception as e:
         logger.error("Failed to login user: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to login: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to login: {str(e)}")
 
 
 @router.patch("/{user_id}", response_model=UpdateResponse)
@@ -150,23 +164,23 @@ async def update_user(
     """
     if body.display_name is None and body.password is None:
         raise HTTPException(
-            status_code=400,
-            detail="At least one field must be provided for update"
+            status_code=400, detail="At least one field must be provided for update"
         )
 
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(
-            status_code=403,
-            detail="You can only update your own account"
+            status_code=403, detail="You can only update your own account"
         )
 
     try:
         user = db.query(User).filter(User.id == user_id).first()
 
         if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user.is_demo:
             raise HTTPException(
-                status_code=404,
-                detail="User not found"
+                status_code=403, detail="Demo accounts can't be modified."
             )
 
         if body.display_name is not None:
@@ -184,10 +198,7 @@ async def update_user(
     except Exception as e:
         db.rollback()
         logger.error("Failed to update user: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update user: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to update user: {str(e)}")
 
 
 @router.get("", response_model=List[UserListItem])
@@ -222,5 +233,7 @@ async def set_user_host(
         raise HTTPException(status_code=404, detail="User not found")
     user.is_host = is_host
     db.commit()
-    logger.info("Admin %s set user %s is_host=%s", current_user.username, user.username, is_host)
+    logger.info(
+        "Admin %s set user %s is_host=%s", current_user.username, user.username, is_host
+    )
     return UpdateResponse(success=True)
