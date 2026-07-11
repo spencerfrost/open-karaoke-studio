@@ -62,6 +62,7 @@ from app.schemas.song import (
     SongSearchResponse,
     SongUpdateRequest,
 )
+from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
 from fastapi import (
     APIRouter,
@@ -881,6 +882,13 @@ async def create_song(
 
     Requires a logged-in account or active session membership.
     """
+    # Enforce demo download quota up front: the add-song flow creates the song
+    # here and then calls POST /api/youtube/download. Blocking only the download
+    # would leave an orphaned, track-less song in the library, so a demo user
+    # over quota must be rejected before anything is persisted. No-op for
+    # non-demo requesters.
+    enforce_demo_download_quota(db, requester)
+
     song_id = song_data.id or str(uuid.uuid4())
     logger.info("Creating new song with ID: %s", song_id)
 

@@ -20,14 +20,14 @@ class HostSettingsResponse(BaseModel):
     queue_submission_mode: str
     max_songs_per_singer: int
     queue_open: bool
-    session_duration_hours: int
+    session_duration_hours: float
 
 
 class HostSettingsUpdateRequest(BaseModel):
     queue_submission_mode: Optional[str] = Field(None, pattern="^(instant|approval)$")
     max_songs_per_singer: Optional[int] = Field(None, ge=0, le=50)
     queue_open: Optional[bool] = None
-    session_duration_hours: Optional[int] = Field(None, ge=1, le=24)
+    session_duration_hours: Optional[float] = Field(None, gt=0, le=24)
 
 
 def _get_or_create_settings(db: Session, user_id: int) -> HostSettings:
@@ -62,6 +62,11 @@ async def update_host_settings(
     current_user: User = Depends(require_host),
 ):
     """Update the current host's settings."""
+    if current_user.is_demo:
+        raise HTTPException(
+            status_code=403, detail="Demo accounts can't change host settings."
+        )
+
     settings = _get_or_create_settings(db, current_user.id)
 
     if update.queue_submission_mode is not None:

@@ -5,14 +5,20 @@ FastAPI router for YouTube search and download endpoints.
 import logging
 from typing import Optional
 
-from app.api.dependencies import RequesterContext, require_host_or_session_member
+from app.api.dependencies import (
+    RequesterContext,
+    get_db,
+    require_host_or_session_member,
+)
 from app.exceptions import NetworkError, ServiceError, ValidationError
+from app.services.demo_service import enforce_demo_download_quota
 from app.services.youtube_service import YouTubeService
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +183,7 @@ async def download_youtube(
     request: Request,
     manager: SessionConnectionManager = Depends(get_session_manager),
     requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
 ):
     """
     Download and process a YouTube video.
@@ -184,7 +191,12 @@ async def download_youtube(
     Creates a background job to download the video and process the audio.
     Returns immediately with a job ID for tracking progress.
     Requires a logged-in account or active session membership.
+    Demo sessions are subject to download quotas (429 when exceeded).
     """
+    # Outside the try: the 429/403 quota errors must not be swallowed
+    # by the generic exception handler below.
+    session_id, user_id = enforce_demo_download_quota(db, requester)
+
     try:
         youtube_service = YouTubeService()
         job_id = youtube_service.download_and_process_async(
@@ -193,6 +205,8 @@ async def download_youtube(
             artist=body.artist or "",
             title=body.title or "",
             engine_type=body.engine_type,
+            session_id=session_id,
+            user_id=user_id,
         )
 
         logger.info(
