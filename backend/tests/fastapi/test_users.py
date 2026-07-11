@@ -17,8 +17,8 @@ class TestUserRegistration:
             json={
                 "username": "testuser",
                 "display_name": "Test User",
-                "password": "testpass123"
-            }
+                "password": "testpass123",
+            },
         )
 
         assert response.status_code == 201
@@ -30,25 +30,21 @@ class TestUserRegistration:
         """Test that username is required."""
         response = client.post(
             "/api/users/register",
-            json={"display_name": "Test User", "password": "testpass123"}
+            json={"display_name": "Test User", "password": "testpass123"},
         )
 
         assert response.status_code == 422
 
     def test_register_requires_password(self, client):
         """Test that password is required."""
-        response = client.post(
-            "/api/users/register",
-            json={"username": "testuser"}
-        )
+        response = client.post("/api/users/register", json={"username": "testuser"})
 
         assert response.status_code == 422
 
     def test_register_password_min_length(self, client):
         """Test that password must be at least 8 characters."""
         response = client.post(
-            "/api/users/register",
-            json={"username": "testuser", "password": "short"}
+            "/api/users/register", json={"username": "testuser", "password": "short"}
         )
 
         assert response.status_code == 422
@@ -62,7 +58,7 @@ class TestUserRegistration:
 
         response = client.post(
             "/api/users/register",
-            json={"username": "existinguser", "password": "password123"}
+            json={"username": "existinguser", "password": "password123"},
         )
 
         assert response.status_code == 400
@@ -83,7 +79,7 @@ class TestUserLogin:
 
         response = client.post(
             "/api/users/login",
-            json={"username": "testuser", "password": "correctpassword"}
+            json={"username": "testuser", "password": "correctpassword"},
         )
 
         assert response.status_code == 200
@@ -94,19 +90,13 @@ class TestUserLogin:
 
     def test_login_requires_username(self, client):
         """Test that username is required."""
-        response = client.post(
-            "/api/users/login",
-            json={"password": "somepassword"}
-        )
+        response = client.post("/api/users/login", json={"password": "somepassword"})
 
         assert response.status_code == 422
 
     def test_login_requires_password(self, client):
         """Test that password is required."""
-        response = client.post(
-            "/api/users/login",
-            json={"username": "testuser"}
-        )
+        response = client.post("/api/users/login", json={"username": "testuser"})
 
         assert response.status_code == 422
 
@@ -114,7 +104,7 @@ class TestUserLogin:
         """Test login fails with non-existent username."""
         response = client.post(
             "/api/users/login",
-            json={"username": "nonexistent", "password": "somepassword"}
+            json={"username": "nonexistent", "password": "somepassword"},
         )
 
         assert response.status_code == 401
@@ -128,7 +118,7 @@ class TestUserLogin:
 
         response = client.post(
             "/api/users/login",
-            json={"username": "testuser2", "password": "wrongpassword"}
+            json={"username": "testuser2", "password": "wrongpassword"},
         )
 
         assert response.status_code == 401
@@ -146,8 +136,7 @@ class TestUserUpdate:
         user_db.refresh(user)
 
         response = client.patch(
-            f"/api/users/{user.id}",
-            json={"display_name": "New Display Name"}
+            f"/api/users/{user.id}", json={"display_name": "New Display Name"}
         )
 
         assert response.status_code == 200
@@ -164,8 +153,7 @@ class TestUserUpdate:
         user_db.refresh(user)
 
         response = client.patch(
-            f"/api/users/{user.id}",
-            json={"password": "newpassword123"}
+            f"/api/users/{user.id}", json={"password": "newpassword123"}
         )
 
         assert response.status_code == 200
@@ -179,10 +167,7 @@ class TestUserUpdate:
         user_db.commit()
         user_db.refresh(user)
 
-        response = client.patch(
-            f"/api/users/{user.id}",
-            json={"password": "short"}
-        )
+        response = client.patch(f"/api/users/{user.id}", json={"password": "short"})
 
         assert response.status_code == 422
 
@@ -194,21 +179,30 @@ class TestUserUpdate:
         user_db.commit()
         user_db.refresh(user)
 
-        response = client.patch(
-            f"/api/users/{user.id}",
-            json={}
-        )
+        response = client.patch(f"/api/users/{user.id}", json={})
 
         assert response.status_code == 400
 
     def test_update_user_not_found(self, client):
         """Test update fails when user not found."""
-        response = client.patch(
-            "/api/users/99999",
-            json={"display_name": "Test"}
-        )
+        response = client.patch("/api/users/99999", json={"display_name": "Test"})
 
         assert response.status_code == 404
+
+    def test_update_demo_account_forbidden(self, client, user_db):
+        """Demo pool accounts can't be modified (prevents password hijack)."""
+        user = User(username="demo-pool-x")
+        user.set_password("password123")
+        user.is_demo = True
+        user_db.add(user)
+        user_db.commit()
+        user_db.refresh(user)
+
+        response = client.patch(
+            f"/api/users/{user.id}", json={"password": "newpassword123"}
+        )
+
+        assert response.status_code == 403
 
     def test_update_requires_auth(self, client, fastapi_app):
         """Test that update endpoint requires authentication."""
@@ -220,11 +214,9 @@ class TestUserUpdate:
 
         fastapi_app.dependency_overrides[get_current_user] = require_auth
         try:
-            response = client.patch(
-                "/api/users/1",
-                json={"display_name": "Test"}
-            )
+            response = client.patch("/api/users/1", json={"display_name": "Test"})
             assert response.status_code == 401
         finally:
             from tests.fastapi.conftest import _get_mock_user
+
             fastapi_app.dependency_overrides[get_current_user] = _get_mock_user

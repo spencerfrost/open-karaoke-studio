@@ -21,7 +21,14 @@ import app.api.karaoke_queue as _queue_api
 import app.api.lyrics as _lyrics_api
 import app.api.sessions as _sessions_api
 import app.api.songs as _songs_api
-from app.api.dependencies import get_current_user, get_db, require_host
+from app.api.dependencies import (
+    RequesterContext,
+    get_current_user,
+    get_db,
+    require_admin,
+    require_host,
+    require_host_or_session_member,
+)
 from app.db.models import Base
 from tests.conftest import create_test_app
 
@@ -33,7 +40,16 @@ def _get_mock_user():
     mock_user.username = "testuser"
     mock_user.is_admin = True
     mock_user.is_host = True
+    # Explicit: a MagicMock attribute would otherwise be truthy and trip
+    # demo-account guards (e.g. host-settings updates return 403).
+    mock_user.is_demo = False
     return mock_user
+
+
+def _get_mock_requester():
+    """Bypass the host-or-session-member gate for integration tests."""
+    return RequesterContext(user=_get_mock_user())
+
 
 # Create a single file-based SQLite database for the integration test session
 _test_db_fd, _test_db_path = tempfile.mkstemp(suffix=".db")
@@ -68,6 +84,8 @@ def integration_app():
     # Bypass authentication for integration tests
     app.dependency_overrides[get_current_user] = _get_mock_user
     app.dependency_overrides[require_host] = _get_mock_user
+    app.dependency_overrides[require_admin] = _get_mock_user
+    app.dependency_overrides[require_host_or_session_member] = _get_mock_requester
     return app
 
 
