@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.services.lyrics_selection import build_alignment_attempts
@@ -6,24 +5,26 @@ from app.services.lyrics_selection import build_alignment_attempts
 
 def make_song(**overrides):
     data = {
+        "id": "song-1",
         "title": "Test Song",
         "artist": "Test Artist",
         "album": "Test Album",
         "plain_lyrics": "db plain",
         "synced_lyrics": "[00:00.00]db synced",
+        "word_synced_lyrics": None,
     }
     data.update(overrides)
-    return SimpleNamespace(**data)
+    return data
 
 
-def test_build_alignment_attempts_prefers_db_plain_then_db_synced():
+def test_build_alignment_attempts_prefers_db_synced_then_db_plain():
     attempts = build_alignment_attempts(make_song(), include_remote=False)
 
-    assert [attempt["source"] for attempt in attempts] == ["db:plain", "db:synced"]
-    assert [attempt["source_type"] for attempt in attempts] == ["plain", "synced"]
+    assert [attempt["source"] for attempt in attempts] == ["db:synced", "db:plain"]
+    assert [attempt["source_type"] for attempt in attempts] == ["synced", "plain"]
 
 
-def test_build_alignment_attempts_adds_remote_plain_before_remote_synced():
+def test_build_alignment_attempts_adds_remote_synced_before_remote_plain():
     with patch("app.services.lyrics_service.LyricsService") as mock_lrclib_cls, patch(
         "app.services.syncedlyrics_service.SyncedLyricsService"
     ) as mock_synced_cls:
@@ -44,17 +45,19 @@ def test_build_alignment_attempts_adds_remote_plain_before_remote_synced():
             include_remote=True,
         )
 
+    # Attempts are ordered synced-type first, then plain-type; within a type
+    # they are sorted by source name ("lrclib:1" < "syncedlyrics:1").
     assert [attempt["source"] for attempt in attempts] == [
         "lrclib:1",
-        "lrclib:1",
         "syncedlyrics:1",
+        "lrclib:1",
         "syncedlyrics:1",
     ]
     assert [attempt["source_type"] for attempt in attempts] == [
-        "plain",
+        "synced",
         "synced",
         "plain",
-        "synced",
+        "plain",
     ]
 
 
@@ -80,4 +83,4 @@ def test_build_alignment_attempts_deduplicates_same_content_per_source_type():
         )
 
     assert len(attempts) == 2
-    assert [attempt["source_type"] for attempt in attempts] == ["plain", "synced"]
+    assert [attempt["source_type"] for attempt in attempts] == ["synced", "plain"]

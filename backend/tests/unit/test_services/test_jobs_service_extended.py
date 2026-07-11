@@ -45,20 +45,20 @@ def test_get_jobs_by_status_delegates_to_repo(service, mock_repo):
     mock_repo.get_jobs_by_status.assert_called_once_with(JobStatus.PENDING)
 
 
-def test_get_dismissed_jobs_sorted_newest_first(service, mock_repo):
+def test_get_in_flight_jobs_sorted_newest_first(service, mock_repo):
     older = _make_mock_job("old", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc))
     newer = _make_mock_job("new", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc))
-    mock_repo.get_dismissed_jobs.return_value = [older, newer]
-    result = service.get_dismissed_jobs()
+    mock_repo.get_in_flight_jobs.return_value = [older, newer]
+    result = service.get_in_flight_jobs()
     assert result[0].id == "new"
     assert result[1].id == "old"
 
 
-def test_get_dismissed_jobs_handles_none_created_at(service, mock_repo):
+def test_get_in_flight_jobs_handles_none_created_at(service, mock_repo):
     job = _make_mock_job("j1")
     job.created_at = None
-    mock_repo.get_dismissed_jobs.return_value = [job]
-    result = service.get_dismissed_jobs()
+    mock_repo.get_in_flight_jobs.return_value = [job]
+    result = service.get_in_flight_jobs()
     assert len(result) == 1
 
 
@@ -88,32 +88,10 @@ def test_cancel_job_celery_failure_still_cancels_job(service, mock_repo):
     assert job.status == JobStatus.CANCELLED
 
 
-def test_dismiss_job_returns_false_for_missing_job(service, mock_repo):
-    mock_repo.get_job.return_value = None
-    assert service.dismiss_job("missing") is False
-
-
-def test_dismiss_job_returns_false_for_pending(service, mock_repo):
-    mock_repo.get_job.return_value = _make_mock_job(status=JobStatus.PENDING)
-    assert service.dismiss_job("job-1") is False
-
-
-def test_dismiss_job_returns_false_for_processing(service, mock_repo):
-    mock_repo.get_job.return_value = _make_mock_job(status=JobStatus.PROCESSING)
-    assert service.dismiss_job("job-1") is False
-
-
-def test_dismiss_job_completed_delegates_to_repo(service, mock_repo):
-    mock_repo.get_job.return_value = _make_mock_job(status=JobStatus.COMPLETED)
-    mock_repo.dismiss_job.return_value = True
-    assert service.dismiss_job("job-1") is True
-    mock_repo.dismiss_job.assert_called_once_with("job-1")
-
-
-def test_dismiss_job_failed_succeeds(service, mock_repo):
-    mock_repo.get_job.return_value = _make_mock_job(status=JobStatus.FAILED)
-    mock_repo.dismiss_job.return_value = True
-    assert service.dismiss_job("job-1") is True
+def test_delete_job_delegates_to_repo(service, mock_repo):
+    mock_repo.delete_job.return_value = True
+    assert service.delete_job("job-1") is True
+    mock_repo.delete_job.assert_called_once_with("job-1")
 
 
 def test_get_statistics_manual_computation_when_no_get_stats(service, mock_repo):
@@ -171,15 +149,14 @@ def test_get_job_with_details_no_estimate_when_progress_zero(service, mock_repo)
     assert "expected_completion" not in result
 
 
-def test_get_all_jobs_include_dismissed_calls_get_all(service, mock_repo):
+def test_get_all_jobs_delegates_to_repo(service, mock_repo):
     mock_repo.get_all_jobs.return_value = []
-    service.get_all_jobs(include_dismissed=True)
+    service.get_all_jobs()
     mock_repo.get_all_jobs.assert_called_once()
-    mock_repo.get_active_jobs.assert_not_called()
 
 
 def test_get_all_jobs_handles_naive_datetime(service, mock_repo):
     job = _make_mock_job(created_at=datetime(2026, 1, 1))  # no tzinfo
-    mock_repo.get_active_jobs.return_value = [job]
+    mock_repo.get_all_jobs.return_value = [job]
     result = service.get_all_jobs()
     assert len(result) == 1

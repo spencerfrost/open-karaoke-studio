@@ -51,8 +51,6 @@ class TestJobsService:
             created_at=datetime(2022, 12, 31, tzinfo=timezone.utc),  # Older date
         )
 
-        # Mock both methods that could be called
-        mock_job_store.get_active_jobs.return_value = [job1, job3, job2]
         mock_job_store.get_all_jobs.return_value = [job1, job3, job2]
 
         service = JobsService(job_repository=mock_job_store)

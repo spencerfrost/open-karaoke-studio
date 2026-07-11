@@ -1,6 +1,6 @@
 """FastAPI tests for /api/jobs endpoints."""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -23,7 +23,6 @@ def _make_job(
     job_id="job-1",
     status=JobStatus.COMPLETED,
     song_id="song-1",
-    dismissed=False,
     task_id=None,
 ):
     job = Mock()
@@ -31,7 +30,6 @@ def _make_job(
     job.song_id = song_id
     job.task_id = task_id
     job.status = status
-    job.dismissed = dismissed
     job.progress = 0
     job.error_message = None
     job.created_at = None
@@ -41,7 +39,6 @@ def _make_job(
         "song_id": song_id,
         "status": status.value,
         "progress": 0,
-        "dismissed": dismissed,
     }
     return job
 
@@ -71,13 +68,10 @@ def mock_jobs_service(app):
         "raw_cancelled": 0,
     }
     svc.get_all_jobs.return_value = [_make_job()]
-    svc.get_active_jobs.return_value = [_make_job()]
-    svc.get_dismissed_jobs.return_value = []
     svc.get_jobs_by_status.return_value = [_make_job()]
     svc.get_job.return_value = _make_job()
     svc.get_job_with_details.return_value = {"id": "job-1", "status": "completed"}
     svc.cancel_job.return_value = True
-    svc.dismiss_job.return_value = True
 
     from app.api.jobs import get_jobs_service
 
@@ -100,17 +94,11 @@ class TestGetJobStatus:
 
 
 class TestGetJobs:
-    def test_returns_active_jobs_by_default(self, client, mock_jobs_service):
+    def test_returns_all_jobs_by_default(self, client, mock_jobs_service):
         response = client.get("/api/jobs")
         assert response.status_code == 200
         assert "jobs" in response.json()
-        mock_jobs_service.get_active_jobs.assert_called()
-
-    def test_include_dismissed_calls_get_all(self, client, mock_jobs_service):
-        mock_jobs_service.reset_mock()
-        response = client.get("/api/jobs?include_dismissed=true")
-        assert response.status_code == 200
-        mock_jobs_service.get_all_jobs.assert_called_once_with(include_dismissed=True)
+        mock_jobs_service.get_all_jobs.assert_called()
 
     def test_filter_by_valid_status(self, client, mock_jobs_service):
         mock_jobs_service.reset_mock()
@@ -124,36 +112,11 @@ class TestGetJobs:
         response = client.get("/api/jobs?status=not_a_status")
         assert response.status_code == 400
 
-    def test_filter_status_excludes_dismissed_by_default(
-        self, client, mock_jobs_service
-    ):
-        job = _make_job(dismissed=True)
-        mock_jobs_service.get_jobs_by_status.return_value = [job, _make_job()]
-        response = client.get("/api/jobs?status=completed")
-        assert response.status_code == 200
-        # Only the non-dismissed job should appear
-        assert len(response.json()["jobs"]) == 1
-
     def test_service_error_returns_500(self, client, mock_jobs_service):
-        mock_jobs_service.get_active_jobs.side_effect = RuntimeError("db down")
+        mock_jobs_service.get_all_jobs.side_effect = RuntimeError("db down")
         response = client.get("/api/jobs")
         assert response.status_code == 500
-        mock_jobs_service.get_active_jobs.side_effect = None
-
-
-class TestGetDismissedJobs:
-    def test_returns_dismissed_list(self, client, mock_jobs_service):
-        dismissed = _make_job(dismissed=True)
-        mock_jobs_service.get_dismissed_jobs.return_value = [dismissed]
-        response = client.get("/api/jobs/dismissed")
-        assert response.status_code == 200
-        assert len(response.json()["jobs"]) == 1
-
-    def test_service_error_returns_500(self, client, mock_jobs_service):
-        mock_jobs_service.get_dismissed_jobs.side_effect = RuntimeError("fail")
-        response = client.get("/api/jobs/dismissed")
-        assert response.status_code == 500
-        mock_jobs_service.get_dismissed_jobs.side_effect = None
+        mock_jobs_service.get_all_jobs.side_effect = None
 
 
 class TestGetJob:
@@ -200,37 +163,3 @@ class TestCancelJob:
         response = client.post("/api/jobs/job-1/cancel")
         assert response.status_code == 500
         mock_jobs_service.cancel_job.return_value = True
-
-
-class TestDismissJob:
-    def test_dismiss_completed_job_succeeds(self, client, mock_jobs_service):
-        mock_jobs_service.get_job.return_value = _make_job(status=JobStatus.COMPLETED)
-        mock_jobs_service.dismiss_job.return_value = True
-        response = client.post("/api/jobs/job-1/dismiss")
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-
-    def test_dismiss_nonexistent_returns_404(self, client, mock_jobs_service):
-        mock_jobs_service.get_job.return_value = None
-        response = client.post("/api/jobs/ghost/dismiss")
-        assert response.status_code == 404
-
-    def test_dismiss_pending_job_returns_400(self, client, mock_jobs_service):
-        mock_jobs_service.get_job.return_value = _make_job(status=JobStatus.PENDING)
-        response = client.post("/api/jobs/job-1/dismiss")
-        assert response.status_code == 400
-
-    def test_dismiss_service_failure_returns_500(self, client, mock_jobs_service):
-        mock_jobs_service.get_job.return_value = _make_job(status=JobStatus.FAILED)
-        mock_jobs_service.dismiss_job.return_value = False
-        response = client.post("/api/jobs/job-1/dismiss")
-        assert response.status_code == 500
-        mock_jobs_service.dismiss_job.return_value = True
-
-
-class TestStartAudioProcessing:
-    def test_returns_queued_job(self, client, mock_jobs_service):
-        response = client.post("/api/jobs/process-audio", json={"song_id": "s-1"})
-        assert response.status_code == 200
-        assert response.json()["status"] == "queued"
-        assert response.json()["id"] == "s-1"

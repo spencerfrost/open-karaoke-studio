@@ -44,20 +44,19 @@ async def test_get_current_jobs_list_returns_list():
     mock_job = MagicMock()
     mock_job.to_dict.return_value = {"id": "job-1", "status": "completed"}
     with patch("app.ws.jobs.JobsService") as MockService:
-        MockService.return_value.get_all_jobs.return_value = [mock_job]
+        MockService.return_value.get_in_flight_jobs.return_value = [mock_job]
         result = await get_current_jobs_list()
     assert isinstance(result, list)
     assert result[0]["id"] == "job-1"
 
 
 @pytest.mark.asyncio
-async def test_get_current_jobs_list_falls_back_on_error():
+async def test_get_current_jobs_list_returns_empty_on_error():
     with patch("app.ws.jobs.JobsService") as MockService:
-        MockService.return_value.get_all_jobs.side_effect = Exception("DB down")
+        MockService.return_value.get_in_flight_jobs.side_effect = Exception("DB down")
         result = await get_current_jobs_list()
-    # Falls back to mock data
-    assert isinstance(result, list)
-    assert len(result) > 0
+    # Errors are swallowed and an empty list is returned
+    assert result == []
 
 
 # ---------------------------------------------------------------------------

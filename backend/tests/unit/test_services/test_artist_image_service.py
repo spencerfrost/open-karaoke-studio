@@ -91,7 +91,9 @@ async def test_returns_cached_image_if_exists(svc, artist_repo, mock_artist):
     mock_artist.image_status = "found"
     mock_artist.image_path = "/library/artists/queen.jpg"
 
-    result = await svc.get_or_fetch_artist_image("Queen")
+    # The service only trusts the cached path when the file is still on disk.
+    with patch.object(Path, "exists", return_value=True):
+        result = await svc.get_or_fetch_artist_image("Queen")
 
     assert result == Path("/library/artists/queen.jpg")
     artist_repo.update_image.assert_not_called()
