@@ -43,7 +43,11 @@ class Job:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
-    engine_type: Optional[str] = None  # Separation engine used (e.g., 'demucs', 'roformer', 'hybrid')
+    engine_type: Optional[str] = (
+        None  # Separation engine used (e.g., 'demucs', 'roformer', 'hybrid')
+    )
+    session_id: Optional[str] = None  # Karaoke session that initiated the job
+    user_id: Optional[int] = None  # Account that initiated the job (if any)
 
     def __post_init__(self):
         if self.created_at is None:
@@ -83,6 +87,8 @@ class DbJob(Base):
     completed_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
     engine_type = Column(String, nullable=True)  # Separation engine used
+    session_id = Column(String, nullable=True, index=True)  # Initiating karaoke session
+    user_id = Column(Integer, nullable=True)  # Initiating account (if any)
 
     def to_job(self) -> Job:
         """Convert database job to domain job object."""
@@ -101,4 +107,6 @@ class DbJob(Base):
             completed_at=self.completed_at,  # type: ignore[assignment]
             error=self.error,  # type: ignore[assignment]
             engine_type=self.engine_type,  # type: ignore[assignment]
+            session_id=self.session_id,  # type: ignore[assignment]
+            user_id=self.user_id,  # type: ignore[assignment]
         )

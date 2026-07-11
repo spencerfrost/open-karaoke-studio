@@ -86,7 +86,7 @@ class KaraokeSession(Base):
 
     @classmethod
     def create_new_session(
-        cls, db_session, host_device_id: str, duration_hours: int = 24
+        cls, db_session, host_device_id: str, duration_hours: float = 24
     ) -> "KaraokeSession":
         """Create a new karaoke session with unique display code."""
         display_code = cls.generate_display_code(db_session)
