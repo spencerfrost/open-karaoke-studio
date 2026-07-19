@@ -20,9 +20,12 @@ backend_path = str(Path(__file__).parent.parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
+import app.api.host_settings as _host_settings_api
+import app.api.jobs as _jobs_api
+import app.api.karaoke_queue as _queue_api
+import app.api.lyrics as _lyrics_api
+import app.api.sessions as _sessions_api
+import app.api.songs as _songs_api
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
@@ -30,6 +33,8 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.db.models import Base  # noqa: F401 — triggers all model imports
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from tests.conftest import create_test_app
 
 _engine = create_engine(
@@ -72,7 +77,14 @@ def _get_mock_requester():
 def fastapi_app():
     """Create FastAPI application for testing with isolated DB."""
     app = create_test_app()
+    # Override all local get_db functions (each module defines its own)
     app.dependency_overrides[get_db] = _get_test_db
+    app.dependency_overrides[_songs_api.get_db] = _get_test_db
+    app.dependency_overrides[_jobs_api.get_db] = _get_test_db
+    app.dependency_overrides[_queue_api.get_db] = _get_test_db
+    app.dependency_overrides[_lyrics_api.get_db] = _get_test_db
+    app.dependency_overrides[_sessions_api.get_db] = _get_test_db
+    app.dependency_overrides[_host_settings_api.get_db] = _get_test_db
     app.dependency_overrides[get_current_user] = _get_mock_user
     app.dependency_overrides[require_host_or_session_member] = _get_mock_requester
     return app
