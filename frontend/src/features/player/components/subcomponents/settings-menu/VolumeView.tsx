@@ -53,10 +53,10 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
         {/* Vocal Volume */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-background">
+            <Label className="text-foreground">
               {backingVocalUrl ? "Lead Vocals" : "Vocals"}
             </Label>
-            <span className="text-sm text-background/60">
+            <span className="text-sm text-foreground/60">
               {Math.round(vocalVolume * 100)}%
             </span>
           </div>
@@ -76,8 +76,8 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
             <Separator className="bg-white/10" />
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-background">Backing Vocals</Label>
-                <span className="text-sm text-background/60">
+                <Label className="text-foreground">Backing Vocals</Label>
+                <span className="text-sm text-foreground/60">
                   {Math.round(backingVocalVolume * 100)}%
                 </span>
               </div>
@@ -98,8 +98,8 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
         {/* Instrumental Volume */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-background">Instrumental</Label>
-            <span className="text-sm text-background/60">
+            <Label className="text-foreground">Instrumental</Label>
+            <span className="text-sm text-foreground/60">
               {Math.round(instrumentalVolume * 100)}%
             </span>
           </div>

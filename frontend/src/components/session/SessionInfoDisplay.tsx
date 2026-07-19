@@ -176,8 +176,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
   // Color schemes for code variant
   const codeColorSchemes = {
-    player: "bg-orange-peel text-background hover:bg-orange-peel/90",
-    page: "bg-card text-foreground hover:bg-card/90 border border-border",
+    player: "bg-orange-peel text-foreground hover:bg-orange-peel/90",
+    page: "bg-card text-card-foreground hover:bg-card/90 border border-border",
   };
 
   // Collapsed trigger — a small pill to restore the widget
@@ -186,7 +186,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
       <div className={className}>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="flex items-center gap-1 rounded-full bg-card/80 border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+          className="flex items-center gap-1 rounded-full bg-card/80 border border-border px-2 py-1 text-xs text-muted-foreground hover:text-card-foreground hover:bg-card transition-colors"
           title="Show session info"
         >
           <Users className="h-3 w-3" />

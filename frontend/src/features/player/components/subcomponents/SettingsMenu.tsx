@@ -123,7 +123,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
           variant="ghost"
           size="icon"
           className={cn(
-            "text-background/60 hover:text-background hover:bg-white/10",
+            "text-foreground/60 hover:text-foreground hover:bg-white/10",
             className,
           )}
           aria-label="Open settings"
@@ -144,7 +144,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ className }) => {
           transition={{
             layout: { type: "spring", stiffness: 400, damping: 30 },
           }}
-          className="relative flex flex-col justify-end rounded-md bg-black/95 backdrop-blur-md border border-white/10 text-background overflow-hidden"
+          className="relative flex flex-col justify-end rounded-md bg-black/95 backdrop-blur-md border border-white/10 text-foreground overflow-hidden"
         >
           <AnimatePresence initial={false}>
             <motion.div
@@ -174,7 +174,7 @@ export const SettingsMenuTrigger: React.FC<{
     size="icon"
     onClick={onClick}
     className={cn(
-      "text-background/60 hover:text-background hover:bg-white/10",
+      "text-foreground/60 hover:text-foreground hover:bg-white/10",
       className,
     )}
     aria-label="Open settings"

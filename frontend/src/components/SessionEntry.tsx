@@ -160,7 +160,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="vintage-texture-overlay" />
       <div className="vintage-sunburst-pattern" />
-      <div className="bg-card text-card-foreground rounded-lg shadow-xl border border-orange-peel p-8 max-w-md w-full relative z-10">
+      <Card className="block p-8 rounded-lg shadow-xl border-orange-peel max-w-md w-full relative z-10">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-heading text-rust mb-2">
             Open Karaoke Studio
@@ -295,7 +295,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
             All devices need to be in a session to use the karaoke features.
           </p>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

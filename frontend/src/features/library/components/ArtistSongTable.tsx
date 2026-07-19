@@ -95,7 +95,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 text-foreground"
+          className="size-7 text-card-foreground"
           aria-label="Song details"
           onClick={(e) => {
             e.stopPropagation();

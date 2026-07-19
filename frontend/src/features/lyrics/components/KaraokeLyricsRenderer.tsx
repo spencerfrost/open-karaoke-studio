@@ -650,7 +650,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           ref={(el) => {
             lineRefs.current[index] = el;
           }}
-          className={`py-2 px-4 transition-all duration-500 ${fontSize} ${weight} ${shadow} text-background`}
+          className={`py-2 px-4 transition-all duration-500 ${fontSize} ${weight} ${shadow} text-foreground`}
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
         >

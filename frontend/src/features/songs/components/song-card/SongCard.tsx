@@ -94,7 +94,7 @@ export const SongCard: React.FC<SongCardProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="text-foreground p-2 size-6"
+            className="text-card-foreground p-2 size-6"
             aria-label="Song details"
             onClick={handleDetailsClick}
           >

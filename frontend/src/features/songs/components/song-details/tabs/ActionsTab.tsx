@@ -206,7 +206,7 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
             <select
               value={selectedEngine}
               onChange={(e) => setSelectedEngine(e.target.value as EngineType)}
-              className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-md border bg-card text-card-foreground px-3 py-1.5 text-sm"
             >
               {ENGINE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>

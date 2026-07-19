@@ -79,17 +79,17 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
             )}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <item.icon className="w-5 h-5 text-background/60 shrink-0" />
+              <item.icon className="w-5 h-5 text-foreground/60 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-background">
+                <div className="text-sm font-medium text-foreground">
                   {item.label}
                 </div>
-                <div className="text-xs text-background/40 truncate">
+                <div className="text-xs text-foreground/40 truncate">
                   {item.summary}
                 </div>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-background/40 group-hover:text-background/60 shrink-0" />
+            <ChevronRight className="w-4 h-4 text-foreground/40 group-hover:text-foreground/60 shrink-0" />
           </button>
         ))}
 
@@ -101,8 +101,8 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
           )}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Settings2 className="w-5 h-5 text-background/60 shrink-0" />
-            <span className="text-sm font-medium text-background">
+            <Settings2 className="w-5 h-5 text-foreground/60 shrink-0" />
+            <span className="text-sm font-medium text-foreground">
               Auto-scroll
             </span>
           </div>
@@ -120,8 +120,8 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
           )}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Guitar className="w-5 h-5 text-background/60 shrink-0" />
-            <span className="text-sm font-medium text-background">
+            <Guitar className="w-5 h-5 text-foreground/60 shrink-0" />
+            <span className="text-sm font-medium text-foreground">
               Guitar Chords
             </span>
           </div>

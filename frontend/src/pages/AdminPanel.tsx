@@ -15,6 +15,7 @@ import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditT
 import { DataQualityTab } from "@/features/songs/components/admin/DataQualityTab";
 import { DuplicatesTab } from "@/features/songs/components/admin/DuplicatesTab";
 import { LyricsAlignmentTab } from "@/features/songs/components/admin/LyricsAlignmentTab";
+import { Card } from "@/components/ui/card";
 
 interface UserListItem {
   id: number;
@@ -211,7 +212,7 @@ const AdminPanel: React.FC = () => {
           <TabsContent value="users">
         <div className="max-w-2xl space-y-6">
         {/* Create User Form */}
-        <div className="p-4 rounded-lg bg-card border border-border/50 space-y-4">
+        <Card className="block p-4 rounded-lg border-border/50 shadow-none space-y-4">
           <h2 className="font-semibold flex items-center gap-2">
             <UserPlus size={16} />
             Add User
@@ -283,7 +284,7 @@ const AdminPanel: React.FC = () => {
               </Button>
             </div>
           </form>
-        </div>
+        </Card>
 
         <div className="space-y-2">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -307,9 +308,9 @@ const AdminPanel: React.FC = () => {
           {users && users.length > 0 && (
             <div className="space-y-2">
               {users.map((user) => (
-                <div
+                <Card
                   key={user.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border/50"
+                  className="flex-row items-center gap-3 border-border/50"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -346,7 +347,7 @@ const AdminPanel: React.FC = () => {
                       />
                     </div>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
           )}

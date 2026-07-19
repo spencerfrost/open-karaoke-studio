@@ -39,7 +39,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85dvh] border-white/10 bg-black/95 text-background backdrop-blur-md">
+      <DrawerContent className="max-h-[85dvh] border-white/10 bg-black/95 text-foreground backdrop-blur-md">
         <div className="overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <DrawerHeader className="pb-2 text-left">
             <DrawerTitle className="text-base font-semibold">
@@ -50,7 +50,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
           <div className="px-4 pb-2 space-y-4">
             {/* Instrumental volume */}
             <div className="rounded-md border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
-              <span className="text-xs uppercase tracking-wide text-background/70">
+              <span className="text-xs uppercase tracking-wide text-foreground/70">
                 Instrumental Volume {Math.round(instrumentalVolume * 100)}%
               </span>
               <Slider
@@ -65,7 +65,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
 
             {/* Playback speed */}
             <div className="rounded-md border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
-              <span className="text-xs uppercase tracking-wide text-background/70">
+              <span className="text-xs uppercase tracking-wide text-foreground/70">
                 Playback Speed {playbackSpeed.toFixed(2)}x
               </span>
               <Slider
@@ -87,8 +87,8 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
                       variant="outline"
                       className={
                         isSelected
-                          ? "h-9 min-w-14 border-white/40 bg-white/20 px-3 text-xs text-background hover:bg-white/20"
-                          : "h-9 min-w-14 border-white/20 bg-transparent px-3 text-xs text-background hover:bg-white/10"
+                          ? "h-9 min-w-14 border-white/40 bg-white/20 px-3 text-xs text-foreground hover:bg-white/20"
+                          : "h-9 min-w-14 border-white/20 bg-transparent px-3 text-xs text-foreground hover:bg-white/10"
                       }
                       onClick={() => setPlaybackSpeed(preset)}
                     >
@@ -101,7 +101,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
 
             {/* Lyrics size */}
             <div className="rounded-md border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
-              <span className="text-xs uppercase tracking-wide text-background/70">
+              <span className="text-xs uppercase tracking-wide text-foreground/70">
                 Lyrics Size
               </span>
               <div className="flex gap-2">
@@ -115,8 +115,8 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
                       variant="outline"
                       className={
                         isSelected
-                          ? "h-9 flex-1 border-white/40 bg-white/20 px-3 text-xs font-semibold uppercase text-background hover:bg-white/20"
-                          : "h-9 flex-1 border-white/20 bg-transparent px-3 text-xs font-semibold uppercase text-background hover:bg-white/10"
+                          ? "h-9 flex-1 border-white/40 bg-white/20 px-3 text-xs font-semibold uppercase text-foreground hover:bg-white/20"
+                          : "h-9 flex-1 border-white/20 bg-transparent px-3 text-xs font-semibold uppercase text-foreground hover:bg-white/10"
                       }
                       onClick={() => setLyricsSize(size)}
                     >
@@ -132,7 +132,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
               <div className="flex items-center justify-between gap-3">
                 <Label
                   htmlFor="show-guitar-chords"
-                  className="text-sm text-background"
+                  className="text-sm text-foreground"
                 >
                   Show Guitar Chords
                 </Label>
@@ -147,7 +147,7 @@ const MoreOptionsSheet: React.FC<MoreOptionsSheetProps> = ({
             {/* Session info */}
             {sessionId && displayCode && (
               <div className="rounded-md border border-white/10 bg-white/5 p-4">
-                <span className="mb-2 block text-xs uppercase tracking-wide text-background/70">
+                <span className="mb-2 block text-xs uppercase tracking-wide text-foreground/70">
                   Session
                 </span>
                 <SessionInfoDisplay

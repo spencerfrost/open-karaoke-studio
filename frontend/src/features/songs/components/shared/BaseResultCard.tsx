@@ -44,7 +44,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
             </div>
             <div>
               <h3
-                className="font-medium text-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
+                className="font-medium text-card-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
                 title={title}
               >
                 {title}

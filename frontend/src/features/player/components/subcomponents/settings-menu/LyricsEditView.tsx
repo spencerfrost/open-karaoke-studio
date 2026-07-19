@@ -119,13 +119,13 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
           <>
             <Separator className="bg-white/10" />
             <div className="space-y-2">
-              <Label className="text-background">Find or Replace Lyrics</Label>
+              <Label className="text-foreground">Find or Replace Lyrics</Label>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setIsLyricsDialogOpen(true)}
-                  className="flex-1 text-background border-white/20 hover:bg-white/10"
+                  className="flex-1 text-foreground border-white/20 hover:bg-white/10"
                 >
                   <Search className="w-4 h-4 mr-2" />
                   Search
@@ -134,13 +134,13 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsPasteLyricsDialogOpen(true)}
-                  className="flex-1 text-background border-white/20 hover:bg-white/10"
+                  className="flex-1 text-foreground border-white/20 hover:bg-white/10"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Paste
                 </Button>
               </div>
-              <p className="text-xs text-background/40">
+              <p className="text-xs text-foreground/40">
                 Search for better lyrics or paste your own
               </p>
             </div>

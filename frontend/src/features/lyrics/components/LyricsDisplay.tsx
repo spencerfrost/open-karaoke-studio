@@ -246,7 +246,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             aria-label={ariaLabel}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="text-background/50 text-lg">
+              <div className="text-foreground/50 text-lg">
                 No synced lyrics available
               </div>
               {songId && (
@@ -295,7 +295,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       >
         {lyrics ? (
           <div
-            className={`text-2xl font-semibold text-background whitespace-pre-line text-center ${lyricsSizeClass}`}
+            className={`text-2xl font-semibold text-foreground whitespace-pre-line text-center ${lyricsSizeClass}`}
             role="document"
           >
             {lyrics}

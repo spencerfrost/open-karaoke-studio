@@ -14,7 +14,7 @@ export const EmptySearchState: React.FC<EmptySearchStateProps> = ({
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <Search className="h-12 w-12 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium text-foreground mb-2">{message}</h3>
+      <h3 className="text-lg font-medium text-card-foreground mb-2">{message}</h3>
       <p className="text-muted-foreground text-center">{description}</p>
     </div>
   );
@@ -37,7 +37,7 @@ export const NoResultsState: React.FC<NoResultsStateProps> = ({
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <Icon className="h-12 w-12 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium text-foreground mb-2">
+      <h3 className="text-lg font-medium text-card-foreground mb-2">
         No results found
       </h3>
       <p className="text-muted-foreground text-center mb-4">
@@ -72,7 +72,7 @@ export const SearchErrorState: React.FC<SearchErrorStateProps> = ({
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-      <h3 className="text-lg font-medium text-foreground mb-2">
+      <h3 className="text-lg font-medium text-card-foreground mb-2">
         Search failed
       </h3>
       <p className="text-muted-foreground text-center mb-4">

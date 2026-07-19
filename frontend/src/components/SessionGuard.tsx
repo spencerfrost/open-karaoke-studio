@@ -24,7 +24,7 @@ const SessionGuard: React.FC<SessionGuardProps> = ({
   // Show loading while recovering session
   if (isRecovering) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+      <div className="min-h-screen bg-card text-card-foreground flex items-center justify-center">
         <div className="vintage-texture-overlay" />
         <div className="text-center space-y-4 relative z-10">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>

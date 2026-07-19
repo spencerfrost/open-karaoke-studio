@@ -40,7 +40,7 @@ const SpeedView: React.FC<SpeedViewProps> = ({ onBack }) => {
       <div className="px-4 py-4 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Playback Speed</span>
-          <span className="text-sm text-background/60">{displaySpeed}</span>
+          <span className="text-sm text-foreground/60">{displaySpeed}</span>
         </div>
 
         <Slider
@@ -67,7 +67,7 @@ const SpeedView: React.FC<SpeedViewProps> = ({ onBack }) => {
           ))}
         </div>
 
-        <p className="text-xs text-background/40 text-center">
+        <p className="text-xs text-foreground/40 text-center">
           Pitch-preserving time-stretch
         </p>
       </div>

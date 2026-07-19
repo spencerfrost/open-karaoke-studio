@@ -174,14 +174,14 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
       <div className="px-4 py-4 space-y-4">
         {/* Lyrics Offset - Drag to adjust */}
         <div className="space-y-2">
-          <Label className="text-background">Timing Offset</Label>
+          <Label className="text-foreground">Timing Offset</Label>
           <div className="flex items-center gap-2">
             {/* Decrease button */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(lyricsOffset - 100)}
-              className="h-8 w-8 text-background/60 hover:text-background hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
             >
               <Minus className="w-4 h-4" />
             </Button>
@@ -199,7 +199,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               onMouseDown={handleOffsetMouseDown}
               onTouchStart={handleOffsetTouchStart}
             >
-              <span className="text-background">
+              <span className="text-foreground">
                 {lyricsOffset > 0 ? "+" : ""}
                 {lyricsOffset}ms
               </span>
@@ -210,7 +210,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(lyricsOffset + 100)}
-              className="h-8 w-8 text-background/60 hover:text-background hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
             >
               <Plus className="w-4 h-4" />
             </Button>
@@ -220,13 +220,13 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(0)}
-              className="h-8 w-8 text-background/60 hover:text-background hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
               title="Reset to 0"
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
           </div>
-          <div className="text-xs text-background/40 text-center">
+          <div className="text-xs text-foreground/40 text-center">
             Drag up/down to adjust
           </div>
 

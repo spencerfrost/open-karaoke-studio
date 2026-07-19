@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
@@ -324,8 +325,8 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ label, value, className }) => (
-  <div className="rounded-lg border bg-card p-3 text-center">
+  <Card className="block rounded-lg p-3 text-center shadow-none">
     <p className={`text-2xl font-bold ${className ?? ""}`}>{value}</p>
     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-  </div>
+  </Card>
 );

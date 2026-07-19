@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -147,7 +148,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
   onApprove,
   onReject,
 }) => (
-  <div className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border/50">
+  <Card className="flex-row items-center gap-3 p-3 rounded-lg border-border/50 shadow-none">
     <div className="flex-1 min-w-0">
       <p className="font-medium text-sm truncate">
         {item.song?.title ?? "Unknown"}
@@ -199,7 +200,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
         <Trash2 size={16} />
       </Button>
     </div>
-  </div>
+  </Card>
 );
 
 const HostDashboard: React.FC = () => {
@@ -301,7 +302,7 @@ const HostDashboard: React.FC = () => {
 
         {/* Quick Settings Bar */}
         {!settingsLoading && settings && (
-          <div className="flex flex-wrap items-center gap-4 p-4 rounded-lg bg-card border border-border/50">
+          <Card className="flex-row flex-wrap items-center gap-4 p-4 rounded-lg border-border/50 shadow-none">
             <div className="flex items-center gap-2">
               <Switch
                 id="queue-open"
@@ -342,12 +343,12 @@ const HostDashboard: React.FC = () => {
               <Settings size={14} className="mr-1" />
               {settingsOpen ? "Hide settings" : "More settings"}
             </Button>
-          </div>
+          </Card>
         )}
 
         {/* Extended Settings */}
         {settingsOpen && settings && (
-          <div className="p-4 rounded-lg bg-card border border-border/50 space-y-4">
+          <Card className="block p-4 rounded-lg border-border/50 shadow-none space-y-4">
             <h3 className="font-semibold text-sm">Session Settings</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -398,7 +399,7 @@ const HostDashboard: React.FC = () => {
                 </Select>
               </div>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Now Playing */}

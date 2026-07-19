@@ -82,9 +82,9 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }
           </p>
           {validation.acoustidStatus === "matched" && validation.title && (
             <p className="text-xs text-muted-foreground">
-              Matched: <span className="text-foreground">{validation.title}</span>
+              Matched: <span className="text-card-foreground">{validation.title}</span>
               {" by "}
-              <span className="text-foreground">{validation.artist}</span>
+              <span className="text-card-foreground">{validation.artist}</span>
             </p>
           )}
           <div className="flex gap-2 pt-1">

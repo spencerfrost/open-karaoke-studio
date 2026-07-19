@@ -35,7 +35,7 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
             key={item.name}
             variant="ghost"
             onClick={() => navigate(item.path)}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 text-background h-full rounded-none ${
+            className={`flex-1 flex flex-col items-center justify-center gap-1 text-foreground h-full rounded-none ${
               active ? "opacity-100" : "opacity-50"
             }`}
             aria-current={active ? "page" : undefined}

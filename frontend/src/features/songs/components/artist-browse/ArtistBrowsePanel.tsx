@@ -148,7 +148,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={handleLoadMore}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   Load more
                 </Button>
@@ -176,7 +176,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   size="sm"
                   onClick={() => setLoadMoreAlbums(true)}
                   disabled={isLoadingMoreAlbums}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   {isLoadingMoreAlbums ? (
                     <>
@@ -211,7 +211,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   size="sm"
                   onClick={() => setLoadMoreSingles(true)}
                   disabled={isLoadingMoreSingles}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   {isLoadingMoreSingles ? (
                     <>

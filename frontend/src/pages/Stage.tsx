@@ -191,7 +191,7 @@ const Stage: React.FC = () => {
           Up Next
         </h2>
 
-        <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-background border border-orange-peel">
+        <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-foreground border border-orange-peel">
           <KaraokeQueueList
             items={queueQuery.data?.upcoming || []}
             emptyMessage="No upcoming songs in the queue"

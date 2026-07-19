@@ -25,6 +25,22 @@ export default tseslint.config(
       ],
       // Prevent console.log usage - use logger instead
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // text-background inverted its meaning in the theme-token migration
+      // (docs/plans/2026-07-19-theme-token-migration.md); use text-foreground
+      // on the page or text-card-foreground on raised surfaces instead.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/text-background/]',
+          message:
+            'text-background is retired — use text-foreground (on the page) or text-card-foreground (on cards).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/text-background/]',
+          message:
+            'text-background is retired — use text-foreground (on the page) or text-card-foreground (on cards).',
+        },
+      ],
     },
   },
 )

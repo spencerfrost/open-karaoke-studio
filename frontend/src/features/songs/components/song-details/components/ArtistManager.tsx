@@ -69,7 +69,7 @@ export const ArtistManager: React.FC<ArtistManagerProps> = ({
                 aria-label={`Remove ${artist.name}`}
                 className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
               >
-                <XCircle size={14} className="text-muted-foreground hover:text-foreground transition-colors" />
+                <XCircle size={14} className="text-muted-foreground hover:text-card-foreground transition-colors" />
               </button>
             </Badge>
           ))}
@@ -99,7 +99,7 @@ export const ArtistManager: React.FC<ArtistManagerProps> = ({
             <button
               type="button"
               onClick={() => setShowAddInput(true)}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-card-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
               aria-label="Add featured artist"
             >
               <Plus size={14} />

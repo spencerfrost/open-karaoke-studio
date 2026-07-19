@@ -58,7 +58,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <h3
-                className="font-medium text-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
+                className="font-medium text-card-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
                 title={result.title}
               >
                 {result.title}

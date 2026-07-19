@@ -257,7 +257,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       )}
       {/* Song Info Header */}
       {player.song && (
-        <div className="absolute top-2 left-3 z-30 text-background/50">
+        <div className="absolute top-2 left-3 z-30 text-foreground/50">
           <h1 className="font-bold text-xl">{player.song.title}</h1>
           <h2
             className="text-base cursor-pointer hover:text-orange-peel transition-colors"
@@ -333,7 +333,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           </>
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full gap-4">
-            <div className="text-background/60 text-xl font-semibold">
+            <div className="text-foreground/60 text-xl font-semibold">
               No songs in the queue
             </div>
             <Button
