@@ -35,7 +35,7 @@ function IndeterminateProgress({
       {...props}
     >
       <div 
-        className="absolute h-full w-1/3 rounded-full bg-gradient-to-r from-dark-cyan to-orange-peel animate-[indeterminate-slide_2.5s_ease-in-out_infinite]"
+        className="absolute h-full w-1/3 rounded-full bg-gradient-to-r from-accent to-primary animate-[indeterminate-slide_2.5s_ease-in-out_infinite]"
       />
       <style>{`
         @keyframes indeterminate-slide {
