@@ -20,6 +20,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
 
   const [title, setTitle] = useState(song.title);
   const [album, setAlbum] = useState(song.album ?? "");
+  const [showName, setShowName] = useState(song.showName ?? "");
   const [year, setYear] = useState(song.year?.toString() ?? "");
   const [primaryArtist, setPrimaryArtist] = useState(song.artist);
   const [featuredArtists, setFeaturedArtists] = useState<SongArtist[]>(
@@ -39,6 +40,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
         id: song.id,
         title,
         album: album || undefined,
+        showName: showName || undefined,
         year: year ? parseInt(year) : undefined,
         artist: artistString,
       },
@@ -70,6 +72,16 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
             id="song-album"
             value={album}
             onChange={(e) => setAlbum(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="song-show-name">Show Name</Label>
+          <Input
+            id="song-show-name"
+            value={showName}
+            onChange={(e) => setShowName(e.target.value)}
+            placeholder="Musical or soundtrack, e.g. Wicked"
           />
         </div>
 
@@ -134,8 +146,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
               <span className="text-muted-foreground">Loudness</span>
               <span>
                 {song.loudnessDbfs.toFixed(1)} dBFS
-                {song.gainDb != null &&
-                  ` (+${song.gainDb.toFixed(1)} dB gain)`}
+                {song.gainDb != null && ` (+${song.gainDb.toFixed(1)} dB gain)`}
               </span>
             </div>
           )}

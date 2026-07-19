@@ -31,6 +31,7 @@ export interface Song {
   album?: string;
   releaseDate?: string;
   year?: number;
+  showName?: string; // Musical/soundtrack, e.g. "Wicked"
 
   // Lyrics
   plainLyrics?: string;

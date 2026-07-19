@@ -22,6 +22,11 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
       <div>
         <h1 className="text-3xl font-bold leading-tight">{song.title}</h1>
         <p className="text-xl text-muted-foreground mt-1">{song.artist}</p>
+        {song.showName && (
+          <p className="text-sm text-muted-foreground italic mt-1">
+            from {song.showName}
+          </p>
+        )}
       </div>
 
       {/* Primary metadata grid */}
