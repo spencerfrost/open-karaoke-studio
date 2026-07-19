@@ -121,27 +121,27 @@ User Input (YouTube URL + Metadata)
 
 ### Separation Engines
 
-**1. Three-Track** ([three_track.py](backend/app/services/separation_engines/three_track.py)) — **Default**
+**1. Three-Track** ([three_track.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/three_track.py)) — **Default**
 - Pipeline: Demucs (htdemucs_ft) → Roformer Karaoke → De-Noise
 - Produces 3 independent tracks: lead vocals, backing vocals, instrumental
 - Roformer runs on vocals-only audio, eliminating instrumental bleed-through
 - Best overall separation quality
 
-**2. Demucs Standard** ([demucs_standard.py](backend/app/services/separation_engines/demucs_standard.py))
+**2. Demucs Standard** ([demucs_standard.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/demucs_standard.py))
 - Model: `htdemucs_ft`
 - 2-stem separation (vocals + instrumental)
 - Fast, balanced quality
 
-**3. Audio-Sep Roformer** ([audio_sep_roformer.py](backend/app/services/separation_engines/audio_sep_roformer.py))
+**3. Audio-Sep Roformer** ([audio_sep_roformer.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/audio_sep_roformer.py))
 - Model: Roformer architecture
 - Better vocal isolation than Demucs alone
 - Slower, higher quality
 
-**4. Hybrid Sequential** ([hybrid_sequential.py](backend/app/services/separation_engines/hybrid_sequential.py))
+**4. Hybrid Sequential** ([hybrid_sequential.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/hybrid_sequential.py))
 - Multi-stage: Roformer → Demucs
 - Highest 2-stem quality, slowest
 
-**5. Clean Backing** ([clean_backing.py](backend/app/services/separation_engines/clean_backing.py))
+**5. Clean Backing** ([clean_backing.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/clean_backing.py))
 - 3-stage advanced processing
 - Experimental
 
@@ -175,7 +175,7 @@ karaoke_library/
 
 **Purpose:** Broadcast job processing status to all connected clients
 
-**File:** [jobs.py](backend/app/ws/jobs.py)
+**File:** [jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
 
 **Message Types:**
 - `subscribe_to_jobs` - Client subscribes
@@ -197,7 +197,7 @@ ws://server:5123/ws/jobs
 
 **Purpose:** All karaoke functionality for a specific session
 
-**File:** [session_specific.py](backend/app/ws/session_specific.py)
+**File:** [session_specific.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
 
 **Connection:**
 ```
@@ -271,7 +271,7 @@ In-memory runtime state is hydrated from persisted playback state on reconnect.
 
 ### Connection Manager
 
-**File:** [connection_manager.py](backend/app/ws/connection_manager.py)
+**File:** [connection_manager.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/connection_manager.py)
 
 **Class:** `SessionConnectionManager`
 
@@ -572,7 +572,7 @@ queue = db.query(KaraokeQueueItem)\
 
 **Purpose:** Separate data access from business logic
 
-**Example:** [song_repository.py](backend/app/repositories/song_repository.py)
+**Example:** [song_repository.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/repositories/song_repository.py)
 
 ```python
 class SongRepository:
@@ -598,55 +598,72 @@ class SongRepository:
 
 ### REST Endpoints
 
-**Songs** - `/api/songs`
-- `GET /api/songs` - List songs (pagination, search, filter)
+**Songs** - `/api/songs` ([full docs](/api/songs))
+- `GET /api/songs` - List songs (pagination, sorting)
+- `GET /api/songs/search` - Fuzzy search with pagination / artist grouping
+- `GET /api/songs/artists`, `GET /api/songs/by-artist/{artist_name}` - Artist browsing
 - `GET /api/songs/{song_id}` - Get song details
-- `POST /api/songs` - Create song (manual upload)
-- `PUT /api/songs/{song_id}` - Update metadata
+- `POST /api/songs` - Create song
+- `PATCH /api/songs/{song_id}` - Update metadata
 - `DELETE /api/songs/{song_id}` - Delete song + files
-- `GET /api/songs/{song_id}/{track_type}` - Stream audio (`vocal`/`instrumental`/`original`)
+- `GET /api/songs/{song_id}/download/{track_type}` - Stream audio (`vocals`/`instrumental`/`backing-vocals`/`original`)
 - `POST /api/songs/{song_id}/reprocess` - Reprocess with different engine
+- Plus library-maintenance routes (audits, duplicates, fingerprinting, replace) — see Swagger
 
-**Sessions** - `/api/sessions`
-- `POST /api/sessions` - Create session (host)
-- `POST /api/sessions/join/code` - Join by 4-char code
-- `POST /api/sessions/join/id` - Join by session ID
-- `GET /api/sessions/{session_id}` - Get session info
-- `POST /api/sessions/{session_id}/validate` - Check validity
+**Sessions** - `/api/sessions` ([full docs](/api/sessions))
+- `GET|POST /api/sessions/my` - Get / get-or-create the host's session
+- `POST /api/sessions` - Create session
+- `POST /api/sessions/join-by-code` - Join by 4-char code (rate-limited)
+- `POST /api/sessions/join-by-id` - Join by session ID (rate-limited)
+- `GET /api/sessions/{session_id}/info` - Get session info
+- `GET /api/sessions/{session_id}/validate` - Check validity
 - `POST /api/sessions/{session_id}/leave` - Leave session
+- `POST|GET /api/sessions/{session_id}/playlist` - Generate / poll YouTube Music playlist
 
-**Queue** - `/api/karaoke-queue`
-- `GET /api/karaoke-queue` - Get queue state (`current`, `upcoming`, `items`)
-- `POST /api/karaoke-queue` - Add song to queue
+**Queue** - `/api/karaoke-queue` ([full docs](/api/queue))
+- `GET /api/karaoke-queue` - Get queue state (`current`, `upcoming`, `items`, `pending`)
+- `POST /api/karaoke-queue` - Add song to queue (host settings enforced)
 - `DELETE /api/karaoke-queue/{queue_id}` - Remove from queue
 - `PUT /api/karaoke-queue/reorder` - Reorder queue
 - `POST /api/karaoke-queue/{queue_id}/play` - Load specific item as current (does not auto-play)
+- `POST /api/karaoke-queue/{item_id}/approve`, `DELETE .../{item_id}/reject` - Moderate pending items (host)
+- `POST /api/karaoke-queue/skip` - Skip current song (host)
 
-**Jobs** - `/api/jobs`
+**Jobs** - `/api/jobs` ([full docs](/api/jobs), host-only)
+- `GET /api/jobs/status` - Job statistics
 - `GET /api/jobs` - List all jobs
 - `GET /api/jobs/{job_id}` - Get job details
-- `PUT /api/jobs/{job_id}/dismiss` - Dismiss from UI
-- `POST /api/jobs/{job_id}/cancel` - Cancel job (UI only, not implemented)
+- `POST /api/jobs/{job_id}/cancel` - Cancel job (revokes Celery task)
 
-**YouTube** - `/api/youtube`
+**YouTube** - `/api/youtube` ([full docs](/api/youtube))
 - `GET /api/youtube/search` - Search YouTube videos
-- `POST /api/youtube/download` - Download & process video
+- `GET /api/youtube/preview/{video_id}` - Redirect to audio preview stream
+- `POST /api/youtube/download` - Download & process video (session member or account)
 
 **YouTube Music** - `/api/youtube-music`
-- `GET /api/youtube-music/search` - Search YouTube Music (enhanced metadata)
+- `GET /api/youtube-music/search` - Search YouTube Music (artists + songs)
+- `GET /api/youtube-music/artist/{artist_id}`, `.../releases`, `/api/youtube-music/album/{album_id}/tracks`
 
-**Lyrics** - `/api/lyrics`
-- `POST /api/lyrics/fetch` - Fetch synced lyrics (syncedlyrics)
-- `GET /api/lyrics/search` - Search for lyrics online
+**MusicBrainz** - `/api/musicbrainz`
+- `GET /api/musicbrainz/search` - Search MusicBrainz recordings
 
-**Metadata** - `/api/metadata`
-- `GET /api/metadata/search` - Search iTunes
-- `GET /api/metadata/artwork` - Get artwork URL
+**Lyrics** - `/api/lyrics` ([full docs](/api/lyrics))
+- `GET /api/lyrics/search`, `GET /api/lyrics/search-synced` - Search external lyric providers
+- `GET|POST /api/lyrics/songs/{song_id}`, `DELETE .../{type}` - Song lyrics CRUD
+- Analysis + word-level alignment routes (`/analyze`, `/align`, `/batch/align`)
 
-**Users / Auth** - `/api/users`
-- `POST /api/users/register` - Create user account
-- `POST /api/users/login` - Authenticate and receive JWT token
-- `PATCH /api/users/{user_id}` - Update user (password reset, etc.)
+**Artists & Albums** - `/api/artists`, `/api/albums` ([full docs](/api/library))
+- `PATCH|DELETE /api/artists/{artist_id}` - Rename / delete artist (admin)
+- Artist image endpoints; `POST /api/artists/{artist_id}/split-credits` (admin)
+- `GET /api/albums/{album_id}/cover` - Album cover image
+
+**Users / Auth** - `/api/users` ([full docs](/api/authentication))
+- `POST /api/users/register` - Create user account (rate-limited)
+- `POST /api/users/login` - Authenticate and receive JWT token (rate-limited)
+- `PATCH /api/users/{user_id}` - Update user (display name, password)
+- `GET /api/users`, `POST /api/users/{user_id}/set-host` - Admin user management
+
+**Misc** - `GET /api/health`, `GET|PUT /api/host-settings` (host), `GET /api/performance-history`
 
 ---
 
@@ -703,12 +720,12 @@ GET /api/songs/search?q=artist+title&filter_by=artist
 **1. Server State** (TanStack Query)
 - Songs, queue, jobs, sessions
 - Cached, auto-refetching, optimistic updates
-- Managed by [useApiQuery](frontend/src/hooks/useApi.ts), [useApiMutation](frontend/src/hooks/useApi.ts)
+- Managed by [useApiQuery](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useApi.ts), [useApiMutation](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useApi.ts)
 
 **2. Client State** (Zustand)
-- Player state ([useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts))
-- Session state ([sessionStore.ts](frontend/src/stores/sessionStore.ts))
-- Processing indicators ([processingIndicatorsStore.ts](frontend/src/stores/processingIndicatorsStore.ts))
+- Player state ([useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts))
+- Session state ([sessionStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/sessionStore.ts))
+- Processing indicators ([processingIndicatorsStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/processingIndicatorsStore.ts))
 
 **3. Form State** (React Hook Form)
 - Form inputs, validation
@@ -1026,10 +1043,10 @@ WebSocket → Service → Repository → Database
 
 ## Related Documentation
 
-- [FEATURES.md](FEATURES.md) - What the app can do
-- [TECH-DEBT.md](TECH-DEBT.md) - Known issues
-- [ROADMAP.md](ROADMAP.md) - Future plans
-- [CLAUDE.md](CLAUDE.md) - AI assistant context
+- [FEATURES.md](/features) - What the app can do
+- [TECH-DEBT.md](/tech-debt) - Known issues
+- [ROADMAP.md](/roadmap) - Future plans
+- [CLAUDE.md](https://github.com/spencerfrost/open-karaoke-studio/blob/master/CLAUDE.md) - AI assistant context
 
 ---
 

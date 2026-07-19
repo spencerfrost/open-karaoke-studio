@@ -241,9 +241,8 @@ def test_error_handling():
 
 ## 📚 Related Documentation
 
-- **[Coding Standards](../development/coding-standards.md)** - General backend coding practices
 - **[API Reference](README.md)** - Complete API endpoint documentation
-- **[Architecture Overview](../architecture/backend/README.md)** - Backend system design
+- **[Architecture Overview](/architecture)** - System design
 
 ---
 

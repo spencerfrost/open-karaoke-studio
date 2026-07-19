@@ -5,10 +5,11 @@ export default defineConfig({
   title: 'Open Karaoke Studio',
   description: 'Self-hosted AI-powered karaoke application',
   lang: 'en-US',
-  
+
+  // Internal working docs — keep in the repo, out of the published site
+  srcExclude: ['plans/**', 'superpowers/**', 'research/**'],
+
   themeConfig: {
-    logo: '/logo.svg',
-    
     nav: [
       { text: 'Guide', link: '/guide' },
       { text: 'Features', link: '/features' },
@@ -35,9 +36,22 @@ export default defineConfig({
             { text: 'Songs API', link: '/api/songs' },
             { text: 'Jobs API', link: '/api/jobs' },
             { text: 'Queue API', link: '/api/queue' },
-            { text: 'Metadata API', link: '/api/metadata' },
+            { text: 'Sessions API', link: '/api/sessions' },
+            { text: 'Lyrics API', link: '/api/lyrics' },
+            { text: 'Library API', link: '/api/library' },
+            { text: 'YouTube & Metadata Search', link: '/api/youtube' },
             { text: 'Authentication', link: '/api/authentication' },
             { text: 'Error Handling', link: '/api/error-handling' },
+            { text: 'Usage Examples', link: '/api/examples/README' },
+          ]
+        },
+        {
+          text: 'Internals',
+          collapsed: false,
+          items: [
+            { text: 'WebSocket Protocol', link: '/websocket-protocol' },
+            { text: 'Lyrics Analysis System', link: '/lyrics-analysis-system' },
+            { text: 'Instrumental Intervals (Frontend)', link: '/instrumental-intervals-frontend' },
           ]
         },
         {
@@ -75,8 +89,6 @@ export default defineConfig({
   markdown: {
     lineNumbers: true
   },
-
-  ignoreDeadLinks: true,
 
   vite: {
     build: {

@@ -317,10 +317,10 @@ ALTER TABLE songs ADD COLUMN word_level_timing TEXT;    -- JSON for future word-
 
 ## Related Documentation
 
-- [AI Lyrics Generation Guide](../ai_lyrics_generation.md)
-- [ASR Experiments Results](../backend/scripts/ai_lyrics/asr_experiments/README.md)
-- [Lyric Timing Solutions](../LYRIC_TIMING_SOLUTIONS.md)
-- [Database Schema](../backend/app/db/models/song.py)
+- [AI Lyrics Generation Guide](./ai_lyrics_generation.md)
+- [ASR Experiments Results](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/ai_lyrics/asr_experiments/README.md)
+- [Lyric Timing Solutions](./LYRIC_TIMING_SOLUTIONS.md)
+- [Database Schema](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/song.py)
 
 ---
 

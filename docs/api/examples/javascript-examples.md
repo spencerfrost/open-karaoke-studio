@@ -98,16 +98,14 @@ const newSong = await songService.createSong({
   title: "Bohemian Rhapsody",
   artist: "Queen",
   album: "A Night at the Opera",
-  year: "1975",
   source: "youtube",
-  sourceUrl: "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
-  videoId: "fJ9rUzIMcZQ",
+  video_id: "fJ9rUzIMcZQ",
 });
 
 // Update song metadata
 await songService.updateSong(newSong.id, {
-  genre: "Rock",
-  language: "English",
+  title: "Bohemian Rhapsody (Remastered)",
+  year: 1975,
 });
 ```
 
@@ -406,14 +404,6 @@ class JobsService {
 
   async cancelJob(jobId) {
     const response = await fetch(`${this.baseUrl}/jobs/${jobId}/cancel`, {
-      method: "POST",
-      credentials: "include",
-    });
-    return response.json();
-  }
-
-  async dismissJob(jobId) {
-    const response = await fetch(`${this.baseUrl}/jobs/${jobId}/dismiss`, {
       method: "POST",
       credentials: "include",
     });

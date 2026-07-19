@@ -226,7 +226,7 @@ pnpm build
 
 ### Method 3: Local File Upload
 
-**Note:** Direct file upload is planned but not yet implemented. See [Roadmap](ROADMAP.md).
+**Note:** Direct file upload is planned but not yet implemented. See [Roadmap](/roadmap).
 
 ---
 
@@ -422,9 +422,9 @@ alembic upgrade head
 ### Getting Help
 
 **Documentation:**
-- [Architecture](ARCHITECTURE.md) - System design
-- [Features](FEATURES.md) - Feature details
-- [Tech Debt](TECH-DEBT.md) - Known issues
+- [Architecture](/architecture) - System design
+- [Features](/features) - Feature details
+- [Tech Debt](/tech-debt) - Known issues
 - [API Reference](api-reference.md) - API docs
 
 **Community:**
@@ -460,7 +460,7 @@ alembic upgrade head
 
 **Learn More:**
 
-- [Architecture Overview](ARCHITECTURE.md) - How it works
+- [Architecture Overview](/architecture) - How it works
 - [API Documentation](api-reference.md) - API reference
 - [Contributing Guide](contributing.md) - Contribute to project
 
@@ -468,7 +468,7 @@ alembic upgrade head
 
 ## Related Documentation
 
-- [Features](FEATURES.md) - Complete feature list
-- [Architecture](ARCHITECTURE.md) - Technical architecture
-- [Roadmap](ROADMAP.md) - Future plans
+- [Features](/features) - Complete feature list
+- [Architecture](/architecture) - Technical architecture
+- [Roadmap](/roadmap) - Future plans
 - [API Reference](api-reference.md) - API documentation

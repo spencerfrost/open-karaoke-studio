@@ -115,6 +115,7 @@ Notes:
 - `current` is nullable.
 - `upcoming` never includes the current loaded item.
 - `items` is retained for compatibility and includes `current` first (if present), then `upcoming`.
+- The response also includes a `pending` array of items awaiting host approval (see [Approval Flow](#approval-flow)).
 
 ### `POST /api/karaoke-queue`
 
@@ -129,7 +130,12 @@ Request body:
 }
 ```
 
-Response: created queue item.
+Response (`201 Created`): the created queue item, including its `status` (`active` or `pending`).
+
+Host settings are enforced for non-host requesters:
+- `403` if the host has closed the queue (`queue_open` off).
+- `429` if the singer already has the maximum allowed songs in the queue (`max_songs_per_singer`).
+- If the host's `queue_submission_mode` is `approval`, the item is created with `status: "pending"` and must be approved before it appears in `upcoming`.
 
 ### `DELETE /api/karaoke-queue/{item_id}`
 
@@ -172,6 +178,42 @@ Important:
 - Playback starts when host sends WebSocket play command.
 
 Response includes song metadata for current item.
+
+### `POST /api/karaoke-queue/skip`
+
+Skip the currently loaded song: removes it from the queue and clears `current` (nothing auto-plays next). **Requires host authentication.**
+
+Response:
+
+```json
+{ "success": true }
+```
+
+---
+
+## Approval Flow
+
+When the host's queue submission mode is `approval`, non-host submissions enter a `pending` state and are surfaced to the host via the `pending` array in `GET /api/karaoke-queue` and the `pending_queue_updated` WebSocket event.
+
+### `POST /api/karaoke-queue/{item_id}/approve`
+
+Move a pending item into the active queue. **Requires host authentication.** Returns `404` if the item isn't pending in this session.
+
+Response:
+
+```json
+{ "success": true }
+```
+
+### `DELETE /api/karaoke-queue/{item_id}/reject`
+
+Remove a pending item without adding it to the queue. **Requires host authentication.**
+
+Response:
+
+```json
+{ "success": true }
+```
 
 ---
 

@@ -296,9 +296,9 @@ it("should fetch and display instrumental intervals", async () => {
 
 ## Examples in Codebase
 
-- **Data consumption**: [useLyricsAlignment.ts](../frontend/src/hooks/api/useLyricsAlignment.ts)
-- **Type definitions**: [lrcParser.ts](../frontend/src/utils/lrcParser.ts) — `InstrumentalInterval` interface
-- **Renderer integration**: [KaraokeLyricsRenderer.tsx](../frontend/src/features/lyrics/components/KaraokeLyricsRenderer.tsx) — `activeInstrumentalInterval` logic
+- **Data consumption**: [useLyricsAlignment.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useLyricsAlignment.ts)
+- **Type definitions**: [lrcParser.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/utils/lrcParser.ts) — `InstrumentalInterval` interface
+- **Renderer integration**: [KaraokeLyricsRenderer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/KaraokeLyricsRenderer.tsx) — `activeInstrumentalInterval` logic
 
 ---
 

@@ -5,9 +5,6 @@ hero:
   name: "Open Karaoke Studio"
   text: "Self-hosted AI-powered karaoke for small gatherings"
   tagline: "Real-time multi-device synchronization with vocal/instrumental separation"
-  image:
-    src: /logo.svg
-    alt: Open Karaoke Studio
   actions:
     - theme: brand
       text: "Get Started"

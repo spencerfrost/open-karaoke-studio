@@ -38,10 +38,8 @@ curl -X POST "http://localhost:5123/api/songs" \
     "title": "Bohemian Rhapsody",
     "artist": "Queen",
     "album": "A Night at the Opera",
-    "year": "1975",
     "source": "youtube",
-    "sourceUrl": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
-    "videoId": "fJ9rUzIMcZQ"
+    "video_id": "fJ9rUzIMcZQ"
   }'
 ```
 
@@ -54,8 +52,7 @@ curl -X PATCH "http://localhost:5123/api/songs/{song_id}" \
   -d '{
     "title": "Updated Title",
     "artist": "Updated Artist",
-    "genre": "Rock",
-    "language": "English"
+    "year": 1975
   }'
 ```
 
@@ -102,19 +99,11 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail" \
   -o "thumbnail.jpg"
 ```
 
-### Get Thumbnail (Specific Format)
+### Get Album Cover
 
 ```bash
-# Get thumbnail in specific format
-curl -X GET "http://localhost:5123/api/songs/{song_id}/thumbnail.webp" \
-  -o "thumbnail.webp"
-```
-
-### Get Cover Art
-
-```bash
-# Get high-quality cover art
-curl -X GET "http://localhost:5123/api/songs/{song_id}/cover.jpg" \
+# Get the album cover (albumId comes from the song details response)
+curl -X GET "http://localhost:5123/api/albums/{album_id}/cover" \
   -o "cover_art.jpg"
 ```
 
@@ -124,7 +113,7 @@ curl -X GET "http://localhost:5123/api/songs/{song_id}/cover.jpg" \
 
 ```bash
 # Search for lyrics using LRCLIB
-curl -X GET "http://localhost:5123/api/lyrics/search?artist=Queen&title=Bohemian+Rhapsody" \
+curl -X GET "http://localhost:5123/api/lyrics/search?artist_name=Queen&track_name=Bohemian+Rhapsody" \
   -H "Accept: application/json"
 ```
 
@@ -132,37 +121,36 @@ curl -X GET "http://localhost:5123/api/lyrics/search?artist=Queen&title=Bohemian
 
 ```bash
 # Get saved lyrics for a song
-curl -X GET "http://localhost:5123/api/lyrics/{song_id}" \
+curl -X GET "http://localhost:5123/api/lyrics/songs/{song_id}" \
   -H "Accept: application/json"
 ```
 
 ### Save Lyrics
 
 ```bash
-# Save lyrics to a song
-curl -X POST "http://localhost:5123/api/lyrics/{song_id}" \
+# Save synced lyrics to a song (type is 'plain' or 'synced')
+curl -X POST "http://localhost:5123/api/lyrics/songs/{song_id}?type=synced" \
   -H "Content-Type: application/json" \
   -d '{
-    "lyrics": "Is this the real life? Is this just fantasy?",
-    "synced_lyrics": "[00:00.00] Is this the real life?\n[00:03.00] Is this just fantasy?"
+    "content": "[00:00.00] Is this the real life?\n[00:03.00] Is this just fantasy?"
   }'
 ```
 
 ## 🔍 Metadata & Search
 
-### Search Metadata
+### Search MusicBrainz
 
 ```bash
-# Search for song metadata using iTunes
-curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen&title=Bohemian+Rhapsody" \
-  -H "Accept: application/json"
+# Search MusicBrainz recordings (requires authentication)
+curl -X GET "http://localhost:5123/api/musicbrainz/search?query=Queen+Bohemian+Rhapsody" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### Get Artists List
 
 ```bash
 # Get all artists in the library with pagination
-curl -X GET "http://localhost:5123/api/songs/artists?page=1&limit=20" \
+curl -X GET "http://localhost:5123/api/songs/artists?offset=0&limit=20" \
   -H "Accept: application/json"
 ```
 
@@ -188,10 +176,13 @@ curl -X GET "http://localhost:5123/api/youtube/search?q=Queen+Bohemian+Rhapsody"
 
 ```bash
 # Download and process a YouTube video
+# Requires a logged-in account or active session membership
 curl -X POST "http://localhost:5123/api/youtube/download" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {token}" \
   -d '{
-    "url": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
+    "video_id": "fJ9rUzIMcZQ",
+    "song_id": "123e4567-e89b-12d3-a456-426614174000",
     "title": "Bohemian Rhapsody",
     "artist": "Queen"
   }'
@@ -231,13 +222,7 @@ curl -X POST "http://localhost:5123/api/jobs/{job_id}/cancel" \
   -H "Content-Type: application/json"
 ```
 
-### Dismiss Completed Job
-
-```bash
-# Remove a completed job from the UI
-curl -X POST "http://localhost:5123/api/jobs/{job_id}/dismiss" \
-  -H "Content-Type: application/json"
-```
+Note: all Jobs API endpoints require host authentication (`Authorization: Bearer {token}`).
 
 ## 🎵 Karaoke Queue
 
@@ -394,12 +379,12 @@ All API responses follow a consistent JSON format:
 
 ```json
 {
-  "data": [...],
+  "songs": [...],
   "pagination": {
-    "page": 1,
-    "limit": 20,
     "total": 156,
-    "pages": 8
+    "limit": 20,
+    "offset": 0,
+    "hasMore": true
   }
 }
 ```
@@ -410,7 +395,7 @@ All API responses follow a consistent JSON format:
 
 ```bash
 # Respect rate limits for external APIs
-curl -X GET "http://localhost:5123/api/metadata/search?artist=Queen" \
+curl -X GET "http://localhost:5123/api/songs/search?q=Queen" \
   -H "Accept: application/json" \
   --max-time 30
 ```
@@ -429,12 +414,3 @@ else
 fi
 ```
 
-### File Upload Handling
-
-```bash
-# Upload large files with progress
-curl -X POST "http://localhost:5123/api/songs/upload" \
-  -F "file=@large_audio_file.mp3" \
-  --progress-bar \
-  -o upload_response.json
-```

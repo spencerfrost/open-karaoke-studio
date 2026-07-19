@@ -32,9 +32,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [Library.tsx](frontend/src/pages/Library.tsx) - Main library page
-- [AlphabeticalNavigation.tsx](frontend/src/features/library/components/AlphabeticalNavigation.tsx) - Artist browsing
-- [RecentlyAddedSongs.tsx](frontend/src/features/library/components/RecentlyAddedSongs/RecentlyAddedSongs.tsx) - Recent songs carousel
+- [Library.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/Library.tsx) - Main library page
+- [AlphabeticalNavigation.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/library/components/AlphabeticalNavigation.tsx) - Artist browsing
+- [RecentlyAddedSongs.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/library/components/RecentlyAddedSongs/RecentlyAddedSongs.tsx) - Recent songs carousel
 
 **Known Limitations:** None
 
@@ -73,10 +73,10 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [AddSong.tsx](frontend/src/pages/AddSong.tsx) - Add song page
-- [AddSongDialog.tsx](frontend/src/features/songs/components/AddSongDialog.tsx) - Add song workflow
-- [SongSearchContainer.tsx](frontend/src/features/songs/components/shared/SongSearchContainer.tsx) - Search interface
-- [ArtistBrowsePanel.tsx](frontend/src/features/songs/components/artist-browse/ArtistBrowsePanel.tsx) - Artist browsing
+- [AddSong.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/AddSong.tsx) - Add song page
+- [AddSongDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/AddSongDialog.tsx) - Add song workflow
+- [SongSearchContainer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/shared/SongSearchContainer.tsx) - Search interface
+- [ArtistBrowsePanel.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/artist-browse/ArtistBrowsePanel.tsx) - Artist browsing
 
 **Known Limitations:**
 - No progress feedback for very long downloads (large files)
@@ -115,9 +115,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [MetadataEditContent.tsx](frontend/src/features/songs/components/song-details/MetadataEditContent.tsx) - Metadata editor
-- [BpmEditor.tsx](frontend/src/features/songs/components/song-details/BpmEditor.tsx) - BPM editing
-- [MetadataComparisonView.tsx](frontend/src/features/songs/components/song-details/metadata-edit/MetadataComparisonView.tsx) - iTunes comparison
+- [MetadataEditContent.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/MetadataEditContent.tsx) - Metadata editor
+- [BpmEditor.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/BpmEditor.tsx) - BPM editing
+- [MetadataComparisonView.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/metadata-edit/MetadataComparisonView.tsx) - iTunes comparison
 
 **Known Limitations:** None
 
@@ -139,9 +139,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [SongCard.tsx](frontend/src/features/songs/components/song-card/SongCard.tsx) - Song card component
-- [SongActions.tsx](frontend/src/features/songs/components/song-card/SongActions.tsx) - Action buttons
-- [PrimaryActionsSection.tsx](frontend/src/features/songs/components/song-details/PrimaryActionsSection.tsx) - Details actions
+- [SongCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-card/SongCard.tsx) - Song card component
+- [SongActions.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-card/SongActions.tsx) - Action buttons
+- [PrimaryActionsSection.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/PrimaryActionsSection.tsx) - Details actions
 
 **Known Limitations:** None
 
@@ -166,8 +166,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [KaraokeQueueList.tsx](frontend/src/features/queue/components/KaraokeQueueList.tsx) - Queue display
-- [KaraokeQueueItem.tsx](frontend/src/features/queue/components/KaraokeQueueItem.tsx) - Queue item
+- [KaraokeQueueList.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueList.tsx) - Queue display
+- [KaraokeQueueItem.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueItem.tsx) - Queue item
 
 **Known Limitations:**
 - No drag-and-drop reordering (planned)
@@ -187,8 +187,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [Stage.tsx](frontend/src/pages/Stage.tsx) - Stage page with queue
-- [useKaraokeQueue.ts](frontend/src/hooks/api/useKaraokeQueue.ts) - Queue operations
+- [Stage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/Stage.tsx) - Stage page with queue
+- [useKaraokeQueue.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useKaraokeQueue.ts) - Queue operations
 
 **Known Limitations:**
 - Drag-to-reorder not yet implemented
@@ -227,9 +227,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [KaraokePlayer.tsx](frontend/src/features/player/components/KaraokePlayer.tsx) - Main player
-- [useKaraokePlayer.ts](frontend/src/features/player/hooks/useKaraokePlayer.ts) - Player logic
-- [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts) - Player state
+- [KaraokePlayer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/KaraokePlayer.tsx) - Main player
+- [useKaraokePlayer.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/hooks/useKaraokePlayer.ts) - Player logic
+- [useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts) - Player state
 
 **Known Limitations:** None
 
@@ -246,8 +246,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [ChordCarousel.tsx](frontend/src/features/player/components/subcomponents/ChordCarousel.tsx) - Chord display
-- [useSongChords.ts](frontend/src/hooks/api/useSongs.ts) - Chord data hook
+- [ChordCarousel.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/ChordCarousel.tsx) - Chord display
+- [useSongChords.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useSongs.ts) - Chord data hook
 
 ---
 
@@ -275,9 +275,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [PlayerControls.tsx](frontend/src/features/player/components/subcomponents/PlayerControls.tsx) - Control interface
-- [BottomControlsArea.tsx](frontend/src/features/player/components/subcomponents/BottomControlsArea.tsx) - Bottom bar
-- [ProgressBar.tsx](frontend/src/features/player/components/subcomponents/ProgressBar.tsx) - Seek bar
+- [PlayerControls.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/PlayerControls.tsx) - Control interface
+- [BottomControlsArea.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/BottomControlsArea.tsx) - Bottom bar
+- [ProgressBar.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/ProgressBar.tsx) - Seek bar
 
 **Known Limitations:** None
 
@@ -314,7 +314,7 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [PlayerSidebar.tsx](frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx) - Sidebar interface
+- [PlayerSidebar.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/PlayerSidebar.tsx) - Sidebar interface
 
 **Known Limitations:** None
 
@@ -345,8 +345,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [MiniPlayer.tsx](frontend/src/components/player/MiniPlayer/MiniPlayer.tsx) - Mini player component
-- [useMiniPlayer.ts](frontend/src/components/player/MiniPlayer/useMiniPlayer.ts) - Mini player logic
+- [MiniPlayer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/player/MiniPlayer/MiniPlayer.tsx) - Mini player component
+- [useMiniPlayer.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/player/MiniPlayer/useMiniPlayer.ts) - Mini player logic
 
 **Known Limitations:** None
 
@@ -369,8 +369,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [SongEnded.tsx](frontend/src/features/player/components/subcomponents/SongEnded.tsx) - Song ended state
-- [QueueEnded.tsx](frontend/src/features/player/components/subcomponents/QueueEnded.tsx) - Queue ended state
+- [SongEnded.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/SongEnded.tsx) - Song ended state
+- [QueueEnded.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/subcomponents/QueueEnded.tsx) - Queue ended state
 
 **Known Limitations:** None
 
@@ -410,9 +410,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [KaraokeLyricsRenderer.tsx](frontend/src/features/lyrics/components/KaraokeLyricsRenderer.tsx) - Lyrics renderer
-- [LyricsDisplayWithCountIn.tsx](frontend/src/features/lyrics/components/LyricsDisplayWithCountIn.tsx) - Count-in integration
-- [CountInDisplay.tsx](frontend/src/features/lyrics/components/CountInDisplay.tsx) - Count-in component
+- [KaraokeLyricsRenderer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/KaraokeLyricsRenderer.tsx) - Lyrics renderer
+- [LyricsDisplayWithCountIn.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsDisplayWithCountIn.tsx) - Count-in integration
+- [CountInDisplay.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/CountInDisplay.tsx) - Count-in component
 
 **Known Limitations:** None
 
@@ -443,9 +443,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [LyricsFetchDialog.tsx](frontend/src/features/lyrics/components/LyricsFetchDialog.tsx) - Fetch dialog
-- [LyricsResults.tsx](frontend/src/features/lyrics/components/LyricsResults.tsx) - Results display
-- [useLyrics.ts](frontend/src/hooks/api/useLyrics.ts) - Lyrics API hooks
+- [LyricsFetchDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsFetchDialog.tsx) - Fetch dialog
+- [LyricsResults.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsResults.tsx) - Results display
+- [useLyrics.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useLyrics.ts) - Lyrics API hooks
 
 **Known Limitations:** None
 
@@ -463,7 +463,7 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [PasteLyricsDialog.tsx](frontend/src/features/lyrics/components/PasteLyricsDialog.tsx) - Paste dialog
+- [PasteLyricsDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/PasteLyricsDialog.tsx) - Paste dialog
 
 **Known Limitations:**
 - No manual LRC timestamp editor (paste plain text only)
@@ -487,8 +487,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [LyricsTimingControls.tsx](frontend/src/features/lyrics/components/LyricsTimingControls.tsx) - Timing controls
-- [LyricsSizeControl.tsx](frontend/src/features/lyrics/components/LyricsSizeControl.tsx) - Size control
+- [LyricsTimingControls.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsTimingControls.tsx) - Timing controls
+- [LyricsSizeControl.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsSizeControl.tsx) - Size control
 
 **Known Limitations:** None
 
@@ -520,9 +520,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [JoinSessionPage.tsx](frontend/src/pages/JoinSessionPage.tsx) - Join page
-- [SessionContext.tsx](frontend/src/contexts/SessionContext.tsx) - Session provider
-- [sessionStore.ts](frontend/src/stores/sessionStore.ts) - Session state
+- [JoinSessionPage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/JoinSessionPage.tsx) - Join page
+- [SessionContext.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/contexts/SessionContext.tsx) - Session provider
+- [sessionStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/sessionStore.ts) - Session state
 
 **Known Limitations:**
 - QR code display exists but not prominently used
@@ -553,9 +553,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [sessionWebSocketService.ts](frontend/src/services/sessionWebSocketService.ts) - Session WebSocket client
-- [jobsWebSocketService.ts](frontend/src/services/jobsWebSocketService.ts) - Jobs WebSocket client
-- [session_specific.py](backend/app/ws/session_specific.py) - Session WebSocket handler
+- [sessionWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/sessionWebSocketService.ts) - Session WebSocket client
+- [jobsWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/jobsWebSocketService.ts) - Jobs WebSocket client
+- [session_specific.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py) - Session WebSocket handler
 
 **Known Limitations:** None
 
@@ -588,9 +588,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [SessionGuard.tsx](frontend/src/components/SessionGuard.tsx) - Route protection
-- [SessionRecoveryLoading.tsx](frontend/src/features/session/components/SessionRecoveryLoading.tsx) - Recovery UI
-- [useSessionConnection.ts](frontend/src/features/session/hooks/useSessionConnection.ts) - Connection logic
+- [SessionGuard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/SessionGuard.tsx) - Route protection
+- [SessionRecoveryLoading.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/session/components/SessionRecoveryLoading.tsx) - Recovery UI
+- [useSessionConnection.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/session/hooks/useSessionConnection.ts) - Connection logic
 
 **Known Limitations:** None
 
@@ -627,9 +627,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [PerformanceControlsPage.tsx](frontend/src/pages/PerformanceControlsPage.tsx) - Controls page
-- [PerformanceControlsPanel.tsx](frontend/src/features/performance/components/PerformanceControlsPanel.tsx) - Controls panel
-- [usePerformanceControlsLogic.ts](frontend/src/features/performance/hooks/usePerformanceControlsLogic.ts) - Controls logic
+- [PerformanceControlsPage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/PerformanceControlsPage.tsx) - Controls page
+- [PerformanceControlsPanel.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/performance/components/PerformanceControlsPanel.tsx) - Controls panel
+- [usePerformanceControlsLogic.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/performance/hooks/usePerformanceControlsLogic.ts) - Controls logic
 
 **Known Limitations:** None
 
@@ -663,9 +663,9 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working (cancellation not implemented)
 
 **Key Files:**
-- [JobsQueue.tsx](frontend/src/features/jobs/components/JobsQueue.tsx) - Queue display
-- [JobsQueueDrawer.tsx](frontend/src/features/jobs/components/JobsQueueDrawer.tsx) - Drawer component
-- [useJobsWebSocket.ts](frontend/src/hooks/api/useJobsWebSocket.ts) - WebSocket hook
+- [JobsQueue.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/jobs/components/JobsQueue.tsx) - Queue display
+- [JobsQueueDrawer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/jobs/components/JobsQueueDrawer.tsx) - Drawer component
+- [useJobsWebSocket.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useJobsWebSocket.ts) - WebSocket hook
 
 **Known Limitations:**
 - Job cancellation UI exists but Celery cancellation not implemented
@@ -707,10 +707,10 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [jobs.py](backend/app/jobs/jobs.py) - Celery tasks
-- [audio.py](backend/app/services/audio.py) - Analysis functions (BPM, chords, vocal range, loudness)
-- [separation_engines/](backend/app/services/separation_engines/) - Per-engine separation logic
-- [youtube_service.py](backend/app/services/youtube_service.py) - YouTube download
+- [jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/jobs.py) - Celery tasks
+- [audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py) - Analysis functions (BPM, chords, vocal range, loudness)
+- [separation_engines/](https://github.com/spencerfrost/open-karaoke-studio/tree/master/backend/app/services/separation_engines) - Per-engine separation logic
+- [youtube_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/youtube_service.py) - YouTube download
 
 **Known Limitations:**
 - CPU processing is slow (10-20 minutes per song)
@@ -737,8 +737,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [MetadataEditContent.tsx](frontend/src/features/songs/components/song-details/MetadataEditContent.tsx) - Metadata editor
-- [itunes_service.py](backend/app/services/itunes_service.py) - iTunes API
+- [MetadataEditContent.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/MetadataEditContent.tsx) - Metadata editor
+- [itunes_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/itunes_service.py) - iTunes API
 
 **Known Limitations:** None
 
@@ -758,8 +758,8 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [youtube_music_service.py](backend/app/services/youtube_music_service.py) - YouTube Music API
-- [SongSearchContainer.tsx](frontend/src/features/songs/components/shared/SongSearchContainer.tsx) - Search UI
+- [youtube_music_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/youtube_music_service.py) - YouTube Music API
+- [SongSearchContainer.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/shared/SongSearchContainer.tsx) - Search UI
 
 **Known Limitations:** None
 
@@ -786,10 +786,10 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [users.py](backend/app/api/users.py) - Auth endpoints
-- [auth_service.py](backend/app/services/auth_service.py) - JWT creation/verification
-- [authStore.ts](frontend/src/stores/authStore.ts) - Frontend auth state
-- [dependencies.py](backend/app/api/dependencies.py) - FastAPI auth dependencies
+- [users.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/users.py) - Auth endpoints
+- [auth_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/auth_service.py) - JWT creation/verification
+- [authStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/authStore.ts) - Frontend auth state
+- [dependencies.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/dependencies.py) - FastAPI auth dependencies
 
 ---
 
@@ -805,7 +805,7 @@ Complete inventory of features in the application, organized by domain and descr
 **Status:** ✅ Fully working
 
 **Key Files:**
-- [cli/](cli/) - Go CLI tool
+- [cli/](https://github.com/spencerfrost/open-karaoke-studio/tree/master/cli) - Go CLI tool
 
 ---
 
@@ -829,6 +829,6 @@ Complete inventory of features in the application, organized by domain and descr
 ## Notes
 
 - All major features are fully functional
-- Some minor enhancements planned (see [ROADMAP.md](ROADMAP.md))
-- For technical architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md)
-- For known issues and tech debt, see [TECH-DEBT.md](TECH-DEBT.md)
+- Some minor enhancements planned (see [ROADMAP.md](/roadmap))
+- For technical architecture details, see [ARCHITECTURE.md](/architecture)
+- For known issues and tech debt, see [TECH-DEBT.md](/tech-debt)

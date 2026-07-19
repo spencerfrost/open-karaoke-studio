@@ -37,7 +37,7 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 **Status:** ✅ **RESOLVED** (commit `9d8368df4`)
 
-**Location:** [jobs_service.py](backend/app/services/jobs_service.py)
+**Location:** [jobs_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/jobs_service.py)
 
 **Resolution:** `cancel_job()` now calls `celery.control.revoke(job.task_id, terminate=True, signal="SIGTERM")` before marking the job cancelled.
 
@@ -50,11 +50,11 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 **Status:** ✅ **RESOLVED** (2026-03-06)
 
 **Locations:** 5 files in `/backend/app/ws/`
-- [session_specific.py](backend/app/ws/session_specific.py)
-- [sessions.py](backend/app/ws/sessions.py)
-- [connection_manager.py](backend/app/ws/connection_manager.py)
-- [queue.py](backend/app/ws/queue.py)
-- [jobs.py](backend/app/ws/jobs.py)
+- [session_specific.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
+- [sessions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/sessions.py)
+- [connection_manager.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/connection_manager.py)
+- [queue.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/queue.py)
+- [jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
 
 **Resolution:** All `print()` statements replaced with Python `logging` module. See `docs/websocket-protocol.md` for the complete WebSocket message catalog.
 
@@ -64,7 +64,7 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [useJobsSync.ts:27](frontend/src/hooks/useJobsSync.ts#L27)
+**Location:** [useJobsSync.ts:27](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/useJobsSync.ts#L27)
 
 **Problem:**
 - Type bypass with `as any`
@@ -89,7 +89,7 @@ const songId = (job as any).song_id;  // Type bypass
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py:23](backend/alembic/versions/20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py#L23)
+**Location:** [20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py:23](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/alembic/versions/20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py#L23)
 
 **Problem:**
 - Migration checks if column exists before adding
@@ -141,10 +141,10 @@ const songId = (job as any).song_id;  // Type bypass
 **Locations:** 50+ console.log statements across frontend
 
 **Key Areas:**
-- [sessionWebSocketService.ts](frontend/src/services/sessionWebSocketService.ts) - WebSocket events
-- [jobsWebSocketService.ts](frontend/src/services/jobsWebSocketService.ts) - Job updates
-- [sessionStore.ts](frontend/src/stores/sessionStore.ts) - State changes
-- [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts) - Player state
+- [sessionWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/sessionWebSocketService.ts) - WebSocket events
+- [jobsWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/jobsWebSocketService.ts) - Job updates
+- [sessionStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/sessionStore.ts) - State changes
+- [useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts) - Player state
 
 **Current State:**
 - Logger utility exists (`createLogger` from `@/lib/logger`)
@@ -162,8 +162,8 @@ const songId = (job as any).song_id;  // Type bypass
 **Severity:** 🟠 IMPORTANT
 
 **Location:**
-- [singers.ts:9-12](frontend/src/constants/singers.ts#L9-L12)
-- [PrimaryActionsSection.tsx:56, 88](frontend/src/features/songs/components/song-details/PrimaryActionsSection.tsx#L56)
+- [singers.ts:9-12](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/constants/singers.ts#L9-L12)
+- [PrimaryActionsSection.tsx:56, 88](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/PrimaryActionsSection.tsx#L56)
 
 **Problem:**
 ```typescript
@@ -186,7 +186,7 @@ Also hardcoded "Unknown Singer" in action buttons.
 
 **Severity:** 🟠 IMPORTANT
 
-**Location:** [useKaraokePlayer.ts:111](frontend/src/features/player/hooks/useKaraokePlayer.ts#L111)
+**Location:** [useKaraokePlayer.ts:111](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/hooks/useKaraokePlayer.ts#L111)
 
 **Problem:**
 ```typescript
@@ -207,7 +207,7 @@ console.log("Preloading song:", preloadSongId);
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [batch_test.py:39-43](backend/scripts/lyric_alignment/batch_test.py#L39-L43)
+**Location:** [batch_test.py:39-43](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/lyric_alignment/batch_test.py#L39-L43)
 
 **Problem:**
 - Analysis and reporting logic commented out with TODO
@@ -226,7 +226,7 @@ console.log("Preloading song:", preloadSongId);
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [KaraokeQueueList.tsx:42](frontend/src/features/queue/components/KaraokeQueueList.tsx#L42)
+**Location:** [KaraokeQueueList.tsx:42](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueList.tsx#L42)
 
 **Problem:**
 ```typescript
@@ -246,7 +246,7 @@ console.log("Preloading song:", preloadSongId);
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [useKaraokePlayer.ts:204](frontend/src/features/player/hooks/useKaraokePlayer.ts#L204)
+**Location:** [useKaraokePlayer.ts:204](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/hooks/useKaraokePlayer.ts#L204)
 
 **Problem:**
 ```typescript
@@ -268,7 +268,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Status:** 🚧 **In Progress** - Workaround still in place
 
-**Location:** [useKaraokePlayerStore.ts:722](frontend/src/stores/useKaraokePlayerStore.ts#L722)
+**Location:** [useKaraokePlayerStore.ts:722](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts#L722)
 
 **Current State:**
 ```typescript
@@ -299,11 +299,11 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 **Locations:** 9 occurrences of `eslint-disable` comments
 
 **Files:**
-- [Stage.tsx](frontend/src/pages/Stage.tsx)
-- [AddSongDialog.tsx](frontend/src/features/songs/components/AddSongDialog.tsx)
-- [LyricsFetchDialog.tsx](frontend/src/features/lyrics/components/LyricsFetchDialog.tsx)
-- [FileUpload.tsx](frontend/src/components/FileUpload.tsx)
-- [LibrarySearchInput.tsx](frontend/src/components/LibrarySearchInput.tsx)
+- [Stage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/Stage.tsx)
+- [AddSongDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/AddSongDialog.tsx)
+- [LyricsFetchDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsFetchDialog.tsx)
+- [FileUpload.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/upload/FileUpload.tsx)
+- [LibrarySearchInput.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/LibrarySearchInput.tsx)
 
 **Problem:**
 - `react-hooks/exhaustive-deps` disabled in multiple components
@@ -323,7 +323,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Severity:** 🟢 LOW
 
-**Location:** [KaraokeQueueItem.tsx:56](frontend/src/features/queue/components/KaraokeQueueItem.tsx#L56)
+**Location:** [KaraokeQueueItem.tsx:56](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueItem.tsx#L56)
 
 **Problem:**
 ```typescript
@@ -361,7 +361,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 ### ~~17. WebSocket Cleanup Management~~ ✅ RESOLVED (2026-03-06)
 
-**Was:** `window.__playerWebSocketCleanup` global used for tracking WebSocket listener teardown in [useKaraokePlayerStore.ts](frontend/src/stores/useKaraokePlayerStore.ts).
+**Was:** `window.__playerWebSocketCleanup` global used for tracking WebSocket listener teardown in [useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts).
 
 **Fixed:** Replaced with a module-private `playerWebSocketCleanups` array. No longer pollutes the global namespace.
 
@@ -371,7 +371,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Severity:** 🟢 LOW
 
-**Location:** [useSongs.ts:183, 254](frontend/src/hooks/api/useSongs.ts#L183)
+**Location:** [useSongs.ts:183, 254](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useSongs.ts#L183)
 
 **Problem:**
 ```typescript
@@ -422,7 +422,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Recommendation:**
 - Add inline comments to complex logic
-- Document WebSocket protocol in [docs/](docs/)
+- ~~Document WebSocket protocol~~ — done, see [WebSocket Protocol](/websocket-protocol)
 - Create architecture diagrams
 
 ---
@@ -461,4 +461,4 @@ These can be fixed quickly with high impact:
 - Most critical issues are in WebSocket layer
 - Many "nice-to-have" items are already tracked in code comments
 - **New:** See [docs/websocket-protocol.md](websocket-protocol.md) for the complete WebSocket message catalog
-- See [ROADMAP.md](ROADMAP.md) for how these fit into future plans
+- See [ROADMAP.md](/roadmap) for how these fit into future plans

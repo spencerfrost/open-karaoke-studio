@@ -56,7 +56,7 @@ See [ARCHITECTURE.md](docs/architecture.md) for a full technical overview and [F
 - [FEATURES.md](docs/features.md) — Complete feature inventory with user stories
 - [ARCHITECTURE.md](docs/architecture.md) — Technical deep-dive: WebSocket design, processing pipeline, database schema
 - [TECH-DEBT.md](docs/tech-debt.md) — Known issues prioritized by severity
-- [ROADMAP.md](ROADMAP.md) — Future improvements
+- [ROADMAP.md](docs/roadmap.md) — Future improvements
 
 ## Contributing
 
