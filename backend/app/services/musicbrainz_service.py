@@ -14,6 +14,10 @@ _TIMEOUT = 10.0
 
 _FEAT_JOINPHRASE = re.compile(r"\bfeat\.?\b|\bfeaturing\b|\bft\.?\b", re.IGNORECASE)
 
+# Strips trailing/inline parenthetical boilerplate from soundtrack titles,
+# e.g. "Wicked (Original Broadway Cast Recording)" -> "Wicked".
+_BOILERPLATE_PAREN = re.compile(r"\s*\([^)]*\)")
+
 
 def _parse_artist_credits(
     artist_credit_list: list,
@@ -144,6 +148,53 @@ def get_recording_release_info(recording_id: str) -> dict:
     year = int(date[:4]) if date and len(date) >= 4 and date[:4].isdigit() else None
 
     return {"album": album, "year": year}
+
+
+def _strip_show_name_boilerplate(title: str) -> str:
+    """Remove parenthetical boilerplate from a soundtrack/show title."""
+    return _BOILERPLATE_PAREN.sub("", title).strip()
+
+
+def get_recording_show_name(recording_id: str) -> str | None:
+    """Return the show/soundtrack name for a recording, if any.
+
+    Looks up the recording's releases and their release-groups; if any
+    release-group carries a "Soundtrack" secondary type, returns its title
+    with boilerplate parentheticals stripped (e.g. "Wicked"). Returns None
+    when no soundtrack release-group is found or on failure.
+
+    Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
+    """
+    time.sleep(1)
+
+    headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
+    params = {"inc": "releases release-groups", "fmt": "json"}
+
+    try:
+        with httpx.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = client.get(
+                f"{_MB_BASE}/recording/{recording_id}",
+                params=params,
+                headers=headers,
+            )
+            resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning(
+            "MusicBrainz show-name lookup failed for %s: %s", recording_id, e
+        )
+        return None
+
+    data = resp.json()
+    for release in data.get("releases", []):
+        rg = release.get("release-group") or {}
+        secondary_types = rg.get("secondary-types") or []
+        if "Soundtrack" in secondary_types:
+            title = rg.get("title") or release.get("title") or ""
+            show_name = _strip_show_name_boilerplate(title)
+            if show_name:
+                return show_name
+
+    return None
 
 
 def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:

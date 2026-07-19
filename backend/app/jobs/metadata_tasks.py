@@ -181,6 +181,7 @@ def enrich_song_artist_credits(song_id: str) -> dict:
     from app.repositories.artist_repository import ArtistRepository
     from app.repositories.song_repository import SongRepository
     from app.services.credits_resolver import resolve_artist_credits
+    from app.services.musicbrainz_service import get_recording_show_name
     from app.services.song_artist_service import try_ampersand_split
 
     with get_db_session() as session:
@@ -188,6 +189,19 @@ def enrich_song_artist_credits(song_id: str) -> dict:
         if not song:
             logger.warning("enrich_song_artist_credits: song %s not found", song_id)
             return {"status": "not_found", "song_id": song_id}
+
+        # Fill show_name from a MusicBrainz "Soundtrack" release-group, but only
+        # when empty so a manually-entered override is preserved.
+        if song.musicbrainz_recording_id and not song.show_name:
+            try:
+                show_name = get_recording_show_name(song.musicbrainz_recording_id)
+                if show_name:
+                    song.show_name = show_name
+                    logger.info("Set show_name=%r for song %s", show_name, song_id)
+            except Exception:
+                logger.warning(
+                    "show_name enrichment failed for song %s", song_id, exc_info=True
+                )
 
         credits = resolve_artist_credits(
             title=song.title,

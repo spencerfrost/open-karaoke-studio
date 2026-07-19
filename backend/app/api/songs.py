@@ -203,7 +203,7 @@ async def search_songs(
     """
     Search songs with pagination and optional artist grouping.
 
-    - **q**: Search query (searches title, artist, album)
+    - **q**: Search query (searches title, artist, album, show name)
     - **limit**: Maximum number of results (1-100)
     - **offset**: Number of results to skip
     - **group_by_artist**: If true, group results by artist
@@ -227,6 +227,7 @@ async def search_songs(
             DbSong.title.ilike(f"%{query}%"),
             DbSong.artist.ilike(f"%{query}%"),
             DbSong.album.ilike(f"%{query}%"),
+            DbSong.show_name.ilike(f"%{query}%"),
         )
 
         if group_by_artist:
@@ -900,6 +901,7 @@ async def create_song(
             "title": song_data.title,
             "artist": song_data.artist,
             "album": song_data.album,
+            "show_name": song_data.show_name,
             "duration": song_data.duration,
             "source": song_data.source,
             "video_id": song_data.video_id,
@@ -1420,6 +1422,13 @@ async def apply_song_fingerprint(
         request.score,
         request.recording_id,
     )
+
+    # Now that the song has a confirmed recording ID, run MusicBrainz enrichment
+    # (artist credits + soundtrack show_name).
+    from app.jobs.celery_app import celery
+
+    celery.send_task("enrich_song_artist_credits", args=[song_id])
+
     return {"status": "applied"}
 
 
