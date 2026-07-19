@@ -34,6 +34,11 @@
   --popover: var(--lemon-chiffon);
   --popover-foreground: var(--black);
 
+  /* Raised neutral surface (nav bars, recessed grooves) — distinct from
+     card (opaque cream) and background (the page gradient's dark mix) */
+  --surface: var(--russet);
+  --surface-foreground: var(--lemon-chiffon);
+
   --primary: var(--orange-peel);
   --primary-foreground: var(--lemon-chiffon);
   --secondary: var(--rust);
@@ -84,6 +89,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);

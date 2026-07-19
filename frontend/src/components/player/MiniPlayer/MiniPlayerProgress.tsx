@@ -22,7 +22,7 @@ const MiniPlayerProgress: React.FC<MiniPlayerProgressProps> = ({
       className={`w-full h-1 bg-white/20 rounded-full overflow-hidden ${className}`}
     >
       <div
-        className="h-full bg-gradient-to-r from-dark-cyan to-orange-peel transition-all duration-300"
+        className="h-full bg-gradient-to-r from-accent to-primary transition-all duration-300"
         style={{ width: `${progressPercentage}%` }}
       />
     </div>

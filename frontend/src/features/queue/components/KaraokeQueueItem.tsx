@@ -22,16 +22,16 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
 }) => {
   return (
     <div
-      className={`p-4 flex items-center border-b border-orange-peel/30 ${className} ${
-        isActive ? "bg-dark-cyan/30" : "bg-transparent"
+      className={`p-4 flex items-center border-b border-primary/30 ${className} ${
+        isActive ? "bg-accent/30" : "bg-transparent"
       }`}
     >
       {/* Position indicator */}
       <div
         className={`h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0 ${
           isActive
-            ? "bg-dark-cyan text-lemon-chiffon"
-            : "bg-orange-peel/25 text-orange-peel"
+            ? "bg-accent text-foreground"
+            : "bg-primary/25 text-primary"
         }`}
       >
         {index + 1}
@@ -41,14 +41,14 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
       <div className="flex-1 min-w-0">
         <h3
           className={`font-semibold text-xl truncate ${
-            isActive ? "text-orange-peel" : "text-lemon-chiffon"
+            isActive ? "text-primary" : "text-foreground"
           }`}
         >
           {item.song.title}
         </h3>
         <p className="opacity-80 truncate">
           {item.song.artist} •{" "}
-          <span className="text-orange-peel">Singer: {item.singer}</span>
+          <span className="text-primary">Singer: {item.singer}</span>
         </p>
       </div>
 

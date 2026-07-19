@@ -17,7 +17,7 @@ const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <div
-        className="p-4 rounded-lg flex items-center justify-center bg-lemon-chiffon"
+        className="p-4 rounded-lg flex items-center justify-center bg-card"
         style={{
           boxShadow: `0 0 0 2px #fd9a02, 0 6px 12px rgba(0, 0, 0, 0.3)`,
           width: `${size + 32}px`,

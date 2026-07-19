@@ -80,8 +80,8 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = "" }) => {
           {/* Song info and icon */}
           <div className="flex items-center gap-3 mb-2">
             {/* Music icon / album art placeholder */}
-            <div className="flex-shrink-0 w-10 h-10 rounded bg-gradient-to-br from-dark-cyan/30 to-orange-peel/30 flex items-center justify-center">
-              <Music size={20} className="text-orange-peel" />
+            <div className="flex-shrink-0 w-10 h-10 rounded bg-gradient-to-br from-accent/30 to-primary/30 flex items-center justify-center">
+              <Music size={20} className="text-primary" />
             </div>
 
             {/* Song title and artist */}

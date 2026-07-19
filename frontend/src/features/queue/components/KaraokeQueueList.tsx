@@ -24,7 +24,7 @@ const KaraokeQueueList: React.FC<KaraokeQueueListProps> = ({
 }) => {
   if (!items.length) {
     return (
-      <div className={`p-8 text-center text-lemon-chiffon/80 ${className}`}>
+      <div className={`p-8 text-center text-foreground/80 ${className}`}>
         <p className="text-lg mb-3">{emptyMessage}</p>
         <p className="mb-4">Add songs to get started!</p>
         <div className="flex justify-center">
