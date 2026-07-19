@@ -162,28 +162,6 @@ def mock_youtube_music_service():
 
 
 @pytest.fixture
-def mock_metadata_service():
-    """Mock metadata service for testing."""
-    with patch("app.api.metadata.MetadataService") as mock:
-        service_instance = Mock()
-        mock.return_value = service_instance
-
-        # Default mock response
-        service_instance.search_metadata.return_value = [
-            {
-                "id": 1440806768,
-                "title": "Bohemian Rhapsody",
-                "artist": "Queen",
-                "album": "A Night at the Opera",
-                "releaseDate": "1975-11-21T08:00:00Z",
-                "primaryGenre": "Rock",
-            }
-        ]
-
-        yield service_instance
-
-
-@pytest.fixture
 def mock_lyrics_service():
     """Mock lyrics service for testing."""
     with patch("app.api.lyrics.LyricsService") as mock:

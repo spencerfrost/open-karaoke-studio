@@ -62,7 +62,6 @@ class TestRootEndpoint:
         assert "queue" in endpoints
         assert "youtube" in endpoints
         assert "youtube_music" in endpoints
-        assert "metadata" in endpoints
         assert "lyrics" in endpoints
         assert "users" in endpoints
 

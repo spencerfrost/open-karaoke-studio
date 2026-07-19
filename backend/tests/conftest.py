@@ -107,7 +107,6 @@ def create_test_app():
         host_settings_router,
         jobs_router,
         lyrics_router,
-        metadata_router,
         performance_history_router,
         queue_router,
         sessions_router,
@@ -150,7 +149,6 @@ def create_test_app():
     test_app.include_router(queue_router)
     test_app.include_router(youtube_router)
     test_app.include_router(youtube_music_router)
-    test_app.include_router(metadata_router)
     test_app.include_router(lyrics_router)
     test_app.include_router(users_router)
     test_app.include_router(performance_history_router)
@@ -182,7 +180,6 @@ def create_test_app():
                 "queue": "/api/karaoke-queue",
                 "youtube": "/api/youtube",
                 "youtube_music": "/api/youtube-music",
-                "metadata": "/api/metadata",
                 "lyrics": "/api/lyrics",
                 "users": "/api/users",
             },

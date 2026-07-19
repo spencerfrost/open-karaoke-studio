@@ -3,7 +3,6 @@ import { Song } from "@/types/Song";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab, DetailsTab, LyricsTab, AudioTab } from "./tabs";
-import { MetadataEditContent } from "./MetadataEditContent";
 import { SongActionPanel } from "@/features/songs/components/admin/SongActionPanel";
 import { cn } from "@/lib/utils";
 import { useSongs } from "@/hooks/api/useSongs";
@@ -17,7 +16,6 @@ interface SongDetailsDialogProps {
   className?: string;
 }
 
-type DialogView = "tabs" | "itunes-search";
 type TabValue = "overview" | "details" | "lyrics" | "audio" | "actions";
 
 export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
@@ -37,7 +35,6 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
         ? 3000
         : false,
   });
-  const [currentView, setCurrentView] = useState<DialogView>("tabs");
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
   const currentSong = liveSong ?? song;
 
@@ -51,7 +48,6 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
         audio.currentTime = 0;
       });
       // Reset view when dialog closes
-      setCurrentView("tabs");
       setActiveTab("overview");
     }
   }, [isOpen]);
@@ -60,11 +56,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        if (currentView === "itunes-search") {
-          setCurrentView("tabs");
-        } else {
-          onClose();
-        }
+        onClose();
       }
     };
 
@@ -72,15 +64,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
       document.addEventListener("keydown", handleEscape);
       return () => document.removeEventListener("keydown", handleEscape);
     }
-  }, [isOpen, onClose, currentView]);
-
-  const handleLaunchItunesSearch = () => {
-    setCurrentView("itunes-search");
-  };
-
-  const handleBackFromItunesSearch = () => {
-    setCurrentView("tabs");
-  };
+  }, [isOpen, onClose]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -167,10 +151,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
                   value="details"
                   className="mt-0 data-[state=inactive]:hidden"
                 >
-                  <DetailsTab
-                    song={currentSong}
-                    onLaunchItunesSearch={handleLaunchItunesSearch}
-                  />
+                  <DetailsTab song={currentSong} />
                 </TabsContent>
 
                 <TabsContent

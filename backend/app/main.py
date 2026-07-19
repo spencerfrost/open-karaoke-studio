@@ -29,7 +29,6 @@ from app.api import (
     host_settings_router,
     jobs_router,
     lyrics_router,
-    metadata_router,
     musicbrainz_router,
     performance_history_router,
     queue_router,
@@ -117,7 +116,6 @@ app.include_router(sessions_router)
 app.include_router(queue_router)
 app.include_router(youtube_router)
 app.include_router(youtube_music_router)
-app.include_router(metadata_router)
 app.include_router(lyrics_router)
 app.include_router(users_router)
 app.include_router(host_settings_router)
@@ -141,7 +139,6 @@ async def root():
             "queue": "/api/karaoke-queue",
             "youtube": "/api/youtube",
             "youtube_music": "/api/youtube-music",
-            "metadata": "/api/metadata",
             "lyrics": "/api/lyrics",
             "users": "/api/users",
         },

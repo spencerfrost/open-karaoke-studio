@@ -6,9 +6,6 @@
 // Component exports
 export { DeleteSongDialog } from "./components/DeleteSongDialog";
 export { JoinSessionDialog } from "./components/JoinSessionDialog";
-export { default as MetadataEditor } from "./components/MetadataEditor";
-export { MetadataEditorTab } from "./components/MetadataEditorTab";
-export { MetadataSearchTab } from "./components/MetadataSearchTab";
 export { YoutubeMusicResultCard } from "./components/YoutubeMusicResultCard";
 export { YouTubeResultCard } from "./components/YoutubeVideoResultCard";
 
