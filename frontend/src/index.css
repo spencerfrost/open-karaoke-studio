@@ -7,9 +7,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Vintage theme color palette */
+/*
+ * Legacy (vintage) theme. Semantic tokens describe roles, not colors:
+ * --background/--foreground are the page itself (dark gradient base, light text);
+ * --card is the raised opaque surface (cream, dark text). Components must only
+ * reference roles — raw palette vars below are slated for removal (see
+ * docs/plans/2026-07-19-theme-token-migration.md).
+ */
 :root {
-  /* Base colors */
+  /* Raw palette (legacy theme internals — do not use directly in components) */
   --black: #080705;
   --rust: #b44819;
   --russet: #774320;
@@ -20,8 +26,8 @@
 
   /* UI Elements */
   --radius: 0.5rem;
-  --background: var(--lemon-chiffon);
-  --foreground: var(--black);
+  --background: color-mix(in srgb, var(--russet), var(--black) 50%);
+  --foreground: var(--lemon-chiffon);
 
   --card: var(--lemon-chiffon);
   --card-foreground: var(--black);
@@ -39,9 +45,34 @@
   --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
 
+  --success: var(--color-green-500);
+  --success-foreground: var(--lemon-chiffon);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--black);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--lemon-chiffon);
+
   --border: var(--orange-peel);
   --input: color-mix(in srgb, var(--black), transparent 20%);
   --ring: var(--dark-cyan);
+
+  /* Translucent panels sitting on the page background */
+  --glass: color-mix(in oklab, var(--lemon-chiffon) 10%, transparent);
+  --glass-border: color-mix(in oklab, var(--lemon-chiffon) 20%, transparent);
+  /* Scrims behind modals/covers; consumed with opacity modifiers (bg-overlay/60) */
+  --overlay: var(--black);
+
+  /* Full body background value — themes may use a gradient or a flat color */
+  --page-bg: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
+
+  /* Glow effects — legacy is subtle/warm; neon themes redefine these */
+  --glow-primary: 0 0 12px rgb(255 179 71 / 0.35);
+  --glow-accent: none;
+
+  /* Typography roles */
+  --display-font: "Syne", system-ui, sans-serif;
+  --body-font: "Manrope", system-ui, sans-serif;
+  --accent-font: "VT323", monospace;
 }
 
 @theme inline {
@@ -64,9 +95,24 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --shadow-glow-primary: var(--glow-primary);
+  --shadow-glow-accent: var(--glow-accent);
+  --font-display: var(--display-font);
+  --font-body: var(--body-font);
+  --font-accent: var(--accent-font);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -92,13 +138,9 @@
 
 @layer base {
   body {
-    font-family: "Manrope", system-ui, sans-serif;
+    font-family: var(--body-font);
     @apply bg-background text-foreground;
-    background-image: linear-gradient(
-      135deg,
-      var(--russet) 0%,
-      var(--rust) 100%
-    );
+    background-image: var(--page-bg);
   }
 
   h1,
@@ -107,22 +149,22 @@
   h4,
   h5,
   h6 {
-    font-family: "Syne", system-ui, sans-serif;
+    font-family: var(--display-font);
     font-weight: 700;
   }
 
   .font-heading {
-    font-family: "Syne", system-ui, sans-serif;
+    font-family: var(--display-font);
     font-weight: 700;
   }
   .font-body {
-    font-family: "Manrope", system-ui, sans-serif;
+    font-family: var(--body-font);
     font-weight: 400;
   }
 
   /* Retro-style font for vintage flair */
   .font-retro {
-    font-family: "VT323", monospace;
+    font-family: var(--accent-font);
     letter-spacing: 0.05em;
   }
 
@@ -194,7 +236,7 @@
   }
 
   .text-shadow {
-    text-shadow: 0 0 12px rgb(255 179 71 / 0.35);
+    text-shadow: var(--glow-primary);
   }
 
   .instrumental-progress-fill {
