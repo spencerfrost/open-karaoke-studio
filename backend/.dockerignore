@@ -21,3 +21,7 @@ scripts/*
 tests/
 .env
 .env.*
+.cache/
+.hf_cache/
+.hf-cache/
+*.db.bak
