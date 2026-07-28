@@ -107,7 +107,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
 
   if (!artists.length) {
     return (
-      <div className={`text-center py-8 text-gray-500 ${className}`}>
+      <div className={`text-center py-8 text-muted-foreground ${className}`}>
         No artists found.
       </div>
     );

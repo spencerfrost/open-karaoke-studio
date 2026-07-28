@@ -68,7 +68,7 @@ const ChordCarousel: React.FC<ChordCarouselProps> = ({
           className,
         )}
       >
-        <div className="rounded-full border border-white/15 bg-black/40 px-5 py-2 text-sm text-white/45 backdrop-blur-sm">
+        <div className="rounded-full border border-glass-border/15 bg-overlay/40 px-5 py-2 text-sm text-foreground/45 backdrop-blur-sm">
           Chords unavailable
         </div>
       </div>
@@ -84,7 +84,7 @@ const ChordCarousel: React.FC<ChordCarouselProps> = ({
       aria-live="polite"
       aria-label="Current and upcoming chords"
     >
-      <div className="rounded-full border border-white/10 bg-black/35 px-4 py-2 backdrop-blur-sm">
+      <div className="rounded-full border border-glass-border/10 bg-overlay/35 px-4 py-2 backdrop-blur-sm">
         <div className="flex items-center justify-center gap-3 sm:gap-4">
           {visibleChords.map(({ slot, event }) => {
             const isCurrent = slot === 0;
@@ -95,7 +95,7 @@ const ChordCarousel: React.FC<ChordCarouselProps> = ({
                   "w-16 text-center transition-all duration-200 sm:w-20",
                   isCurrent
                     ? "scale-110 text-2xl font-bold text-orange-peel sm:text-3xl"
-                    : "text-lg text-white/50 sm:text-xl",
+                    : "text-lg text-foreground/50 sm:text-xl",
                 )}
                 aria-current={isCurrent ? "true" : undefined}
               >

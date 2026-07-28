@@ -26,10 +26,10 @@ interface SongManagementHeaderProps {
 }
 
 const STATUS_CONFIG = {
-  processing: { label: "Processing", className: "text-yellow-600 border-yellow-400" },
-  queued: { label: "Queued", className: "text-yellow-600 border-yellow-400" },
-  processed: { label: "Ready", className: "text-green-600 border-green-400" },
-  error: { label: "Error", className: "text-red-600 border-red-400" },
+  processing: { label: "Processing", className: "text-warning-strong border-warning/50" },
+  queued: { label: "Queued", className: "text-warning-strong border-warning/50" },
+  processed: { label: "Ready", className: "text-success-strong border-success/50" },
+  error: { label: "Error", className: "text-destructive-strong border-destructive/50" },
 } as const;
 
 export const SongManagementHeader: React.FC<SongManagementHeaderProps> = ({
@@ -78,8 +78,8 @@ export const SongManagementHeader: React.FC<SongManagementHeaderProps> = ({
             <Music2 size={24} className="text-muted-foreground" />
           </div>
         )}
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <Pencil className="h-4 w-4 text-white" />
+        <div className="absolute inset-0 bg-overlay/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <Pencil className="h-4 w-4 text-foreground" />
         </div>
       </button>
 

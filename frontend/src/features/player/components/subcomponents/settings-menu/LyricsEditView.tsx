@@ -102,7 +102,7 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
   return (
     <div className="py-2">
       {/* Header with back button */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <button
           onClick={onBack}
           className="flex items-center gap-2 hover:text-orange-peel transition-colors"
@@ -117,7 +117,7 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
         {/* Lyrics Search/Replace Buttons */}
         {song && (
           <>
-            <Separator className="bg-white/10" />
+            <Separator className="bg-glass/10" />
             <div className="space-y-2">
               <Label className="text-foreground">Find or Replace Lyrics</Label>
               <div className="flex gap-2">
@@ -125,7 +125,7 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsLyricsDialogOpen(true)}
-                  className="flex-1 text-foreground border-white/20 hover:bg-white/10"
+                  className="flex-1 text-foreground border-glass-border/20 hover:bg-glass/10"
                 >
                   <Search className="w-4 h-4 mr-2" />
                   Search
@@ -134,7 +134,7 @@ const LyricsEditView: React.FC<LyricsEditViewProps> = ({ onBack }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsPasteLyricsDialogOpen(true)}
-                  className="flex-1 text-foreground border-white/20 hover:bg-white/10"
+                  className="flex-1 text-foreground border-glass-border/20 hover:bg-glass/10"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Paste

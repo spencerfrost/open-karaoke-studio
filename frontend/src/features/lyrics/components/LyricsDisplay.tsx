@@ -282,7 +282,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
           />
 
           {/* Bottom vignette fade */}
-          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-b from-transparent to-black/100 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-b from-transparent to-overlay/100 pointer-events-none" />
         </div>
       );
     }
@@ -305,10 +305,10 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             className="flex flex-col items-center justify-center h-full text-center p-8"
             role="status"
           >
-            <div className="text-gray-400 text-lg mb-2">
+            <div className="text-foreground/60 text-lg mb-2">
               🎵 No lyrics available
             </div>
-            <div className="text-gray-500 text-sm mb-4">
+            <div className="text-foreground/40 text-sm mb-4">
               Enjoy the music and sing along if you know the words!
             </div>
             {(songForDialog || songId) && (

@@ -24,7 +24,7 @@ function IndeterminateProgress({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden bg-black/30",
+        "relative w-full overflow-hidden bg-overlay/30",
         sizeClasses[size],
         className
       )}

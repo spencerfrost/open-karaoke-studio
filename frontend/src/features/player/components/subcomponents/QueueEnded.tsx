@@ -42,7 +42,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
   return (
     <button
       onClick={onClick}
-      className="group relative bg-black/60 hover:bg-black/80 rounded-lg overflow-hidden transition-all duration-200 hover:scale-105 hover:ring-2 hover:ring-orange-peel/50 text-left"
+      className="group relative bg-overlay/60 hover:bg-overlay/80 rounded-lg overflow-hidden transition-all duration-200 hover:scale-105 hover:ring-2 hover:ring-orange-peel/50 text-left"
     >
       {/* Artwork */}
       <div className="aspect-video w-full relative">
@@ -59,19 +59,19 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
         )}
 
         {/* Play overlay on hover */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-overlay/40">
           <div className="bg-orange-peel/90 rounded-full p-2">
-            <Play className="w-6 h-6 text-black fill-black" />
+            <Play className="w-6 h-6 text-card-foreground fill-card-foreground" />
           </div>
         </div>
       </div>
 
       {/* Song info */}
       <div className="p-2">
-        <h4 className="text-sm font-medium text-white truncate">
+        <h4 className="text-sm font-medium text-foreground truncate">
           {song.title}
         </h4>
-        <p className="text-xs text-white/60 truncate">{song.artist}</p>
+        <p className="text-xs text-foreground/60 truncate">{song.artist}</p>
       </div>
     </button>
   );
@@ -118,16 +118,16 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
       <div className="flex flex-col items-center gap-6 p-6 max-w-4xl w-full">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-1">
+          <h2 className="text-2xl font-bold text-foreground mb-1">
             Queue Complete! 🎉
           </h2>
-          <p className="text-white/60">No more songs left to sing</p>
+          <p className="text-foreground/60">No more songs left to sing</p>
         </div>
 
         {/* Suggestions Section */}
         {hasSuggestions && (
           <div className="w-full">
-            <h3 className="text-sm font-medium text-white/80 mb-3">
+            <h3 className="text-sm font-medium text-foreground/80 mb-3">
               {suggestionReason}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -145,12 +145,12 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
 
         {/* Loading state for suggestions */}
         {isLoading && (
-          <div className="text-white/60 text-sm">Finding more songs...</div>
+          <div className="text-foreground/60 text-sm">Finding more songs...</div>
         )}
 
         {/* No suggestions fallback */}
         {!isLoading && !hasSuggestions && (
-          <div className="text-white/60 text-sm text-center">
+          <div className="text-foreground/60 text-sm text-center">
             <p>No other songs by {currentSong.artist} in your library.</p>
             <p className="mt-1">
               Add more songs to continue your karaoke session!
@@ -164,7 +164,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
             variant="outline"
             size="lg"
             onClick={() => navigate("/library")}
-            className="bg-black/50 hover:bg-black/70 border-white/30 hover:border-white/50 text-white gap-2"
+            className="bg-overlay/50 hover:bg-overlay/70 border-glass-border/30 hover:border-glass-border/50 text-foreground gap-2"
           >
             <Library className="w-5 h-5" />
             Browse Library

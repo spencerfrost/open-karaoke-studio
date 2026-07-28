@@ -38,7 +38,7 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
   return (
     <div className="py-2">
       {/* Header with back button */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <button
           onClick={onBack}
           className="flex items-center gap-2 hover:text-orange-peel transition-colors"
@@ -73,7 +73,7 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
         {/* Backing Vocal Volume (only for three-track songs) */}
         {backingVocalUrl && (
           <>
-            <Separator className="bg-white/10" />
+            <Separator className="bg-glass/10" />
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-foreground">Backing Vocals</Label>
@@ -93,7 +93,7 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
           </>
         )}
 
-        <Separator className="bg-white/10" />
+        <Separator className="bg-glass/10" />
 
         {/* Instrumental Volume */}
         <div className="space-y-2">

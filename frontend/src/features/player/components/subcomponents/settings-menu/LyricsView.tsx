@@ -39,7 +39,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ onBack, onNavigate }) => {
   return (
     <div className="py-2">
       {/* Header with back button */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <button
           onClick={onBack}
           className="flex items-center gap-2 hover:text-orange-peel transition-colors"
@@ -57,7 +57,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ onBack, onNavigate }) => {
             onClick={item.onClick}
             className={cn(
               "w-full px-4 py-3 flex items-center justify-between",
-              "hover:bg-white/5 active:bg-white/10 transition-colors",
+              "hover:bg-glass/5 active:bg-glass/10 transition-colors",
               "text-left group",
             )}
           >
@@ -89,7 +89,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ onBack, onNavigate }) => {
               Text Size
             </span>
           </div>
-          <div className="flex rounded-md overflow-hidden border border-white/10">
+          <div className="flex rounded-md overflow-hidden border border-glass-border/10">
             {(["small", "medium", "large"] as LyricsSize[]).map((size) => (
               <button
                 key={size}
@@ -97,8 +97,8 @@ const LyricsView: React.FC<LyricsViewProps> = ({ onBack, onNavigate }) => {
                 className={cn(
                   "px-2.5 py-1 text-xs font-medium transition-colors",
                   lyricsSize === size
-                    ? "bg-orange-peel text-black"
-                    : "text-foreground/60 hover:bg-white/10 hover:text-foreground",
+                    ? "bg-orange-peel text-card-foreground"
+                    : "text-foreground/60 hover:bg-glass/10 hover:text-foreground",
                 )}
               >
                 {size === "small" ? "S" : size === "medium" ? "M" : "L"}

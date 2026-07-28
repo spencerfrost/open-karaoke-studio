@@ -75,13 +75,13 @@ export const SongLyricsSection: React.FC<SongLyricsSectionProps> = ({
 
         <div className="flex gap-2">
           {hasSyncedLyrics && (
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
+            <Badge variant="secondary" className="bg-success/15 text-success-strong">
               <Music size={12} className="mr-1" />
               Synced
             </Badge>
           )}
           {hasPlainLyrics && !hasSyncedLyrics && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            <Badge variant="secondary" className="bg-info/15 text-info-strong">
               <FileText size={12} className="mr-1" />
               Plain
             </Badge>

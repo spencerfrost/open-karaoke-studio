@@ -187,8 +187,8 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                   aria-label="Edit artist image"
                 >
                   <ArtistImagePreview imageUrl={imageUrl} artistName={artist.name} />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Pencil className="h-5 w-5 text-white" />
+                  <div className="absolute inset-0 bg-overlay/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Pencil className="h-5 w-5 text-foreground" />
                   </div>
                 </button>
               </div>

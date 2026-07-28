@@ -63,7 +63,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
             }
             placeholder="ABCD"
             maxLength={4}
-            className="w-full text-center text-4xl font-bold tracking-widest bg-gray-800 border-2 border-orange-peel/50 rounded-lg px-4 py-6 focus:outline-none focus:border-orange-peel focus:ring-2 focus:ring-orange-peel/20 uppercase"
+            className="w-full text-center text-4xl font-bold tracking-widest bg-input border-2 border-orange-peel/50 rounded-lg px-4 py-6 focus:outline-none focus:border-orange-peel focus:ring-2 focus:ring-orange-peel/20 uppercase"
             autoFocus
           />
         </div>
@@ -80,7 +80,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
                 e.target.value as "performer" | "controller",
               )
             }
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-peel"
+            className="w-full px-3 py-2 bg-input border border-glass-border/20 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-peel"
           >
             <option value="performer">Performer</option>
             <option value="controller">Controller</option>
@@ -93,7 +93,7 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
           disabled={
             !sessionCode.trim() || sessionCode.length !== 4 || isConnecting
           }
-          className="w-full bg-orange-peel hover:bg-orange-peel/80 text-black font-bold py-4 text-lg"
+          className="w-full bg-orange-peel hover:bg-orange-peel/80 text-card-foreground font-bold py-4 text-lg"
         >
           {isConnecting ? "Joining..." : "Join Session"}
         </Button>
@@ -113,8 +113,8 @@ const SessionJoinForm: React.FC<SessionJoinFormProps> = ({
 
         {/* Error Display */}
         {connectionError && (
-          <div className="p-4 bg-red-900/50 border border-red-700 rounded-md">
-            <p className="text-red-200 text-center">{connectionError}</p>
+          <div className="p-4 bg-destructive/20 border border-destructive/40 rounded-md">
+            <p className="text-destructive text-center">{connectionError}</p>
           </div>
         )}
       </div>

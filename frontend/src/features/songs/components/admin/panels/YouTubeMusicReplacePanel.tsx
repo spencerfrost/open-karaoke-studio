@@ -136,11 +136,11 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
         <div
           className={`rounded border p-3 text-sm space-y-2 ${
             validation.validated
-              ? "bg-green-500/10 border-green-500/30"
-              : "bg-yellow-500/10 border-yellow-500/30"
+              ? "bg-success/10 border-success/40"
+              : "bg-warning/10 border-warning/40"
           }`}
         >
-          <p className={validation.validated ? "text-green-400" : "text-yellow-400"}>
+          <p className={validation.validated ? "text-success-strong" : "text-warning-strong"}>
             {validation.message}
           </p>
           {validation.acoustidStatus === "matched" && validation.title && (

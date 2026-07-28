@@ -119,7 +119,7 @@ const ArtistImageSearch: React.FC<ArtistImageSearchProps> = ({
                 }}
               />
               {candidate.title && (
-                <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute inset-x-0 bottom-0 bg-overlay/60 text-foreground text-[10px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                   {candidate.title}
                 </div>
               )}

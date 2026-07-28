@@ -101,8 +101,8 @@ export const JoinSessionDialog: React.FC<JoinSessionDialogProps> = ({
             </div>
 
             {connectionError && (
-              <div className="p-3 bg-red-900/50 border border-red-700 rounded-md">
-                <p className="text-red-200 text-sm">{connectionError}</p>
+              <div className="p-3 bg-destructive/20 border border-destructive/40 rounded-md">
+                <p className="text-destructive text-sm">{connectionError}</p>
               </div>
             )}
           </div>

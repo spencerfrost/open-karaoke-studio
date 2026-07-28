@@ -202,8 +202,8 @@ const KnobControl: React.FC<KnobControlProps> = ({
         <div
           ref={knobRef}
           className={`
-            relative rounded-full bg-gradient-to-br from-gray-600 to-gray-800 
-            border-2 border-gray-500 cursor-ns-resize select-none
+            relative rounded-full bg-gradient-to-br from-glass/20 to-overlay/60 
+            border-2 border-glass-border/30 cursor-ns-resize select-none
             ${currentSize.knob} ${isDragging ? "ring-2 ring-orange-peel" : ""}
             hover:ring-1 hover:ring-orange-peel/50 transition-all
           `}
@@ -220,7 +220,7 @@ const KnobControl: React.FC<KnobControlProps> = ({
           />
 
           {/* Center dot */}
-          <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-gray-400 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-glass/40 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
         </div>
       </div>
 

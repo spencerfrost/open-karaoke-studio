@@ -14,8 +14,8 @@ const SessionRecoveryLoading: React.FC = () => {
           Reconnecting to your previous karaoke session...
         </p>
         {recoveryError && (
-          <div className="p-4 bg-red-900/50 border border-red-700 rounded-md mb-4">
-            <p className="text-red-200 text-center">{recoveryError}</p>
+          <div className="p-4 bg-destructive/20 border border-destructive/40 rounded-md mb-4">
+            <p className="text-destructive text-center">{recoveryError}</p>
           </div>
         )}
         <div className="flex justify-center">

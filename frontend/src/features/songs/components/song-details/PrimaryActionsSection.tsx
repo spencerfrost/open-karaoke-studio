@@ -139,7 +139,7 @@ export const PrimaryActionsSection: React.FC<PrimaryActionsSectionProps> = ({
             trigger={
               <Button
                 variant="outline"
-                className="flex-1 sm:flex-initial sm:min-w-[140px] flex items-center justify-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-white"
+                className="flex-1 sm:flex-initial sm:min-w-[140px] flex items-center justify-center gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                 size="lg"
                 disabled={deleteSongMutation.isPending}
               >

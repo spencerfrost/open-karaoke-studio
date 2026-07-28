@@ -97,10 +97,10 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
                   <span
                     className={`text-xs font-mono font-semibold ${
                       c.score >= 0.85
-                        ? "text-green-500"
+                        ? "text-success-strong"
                         : c.score >= 0.5
                           ? "text-amber-500"
-                          : "text-red-500"
+                          : "text-destructive-strong"
                     }`}
                   >
                     {Math.round(c.score * 100)}%

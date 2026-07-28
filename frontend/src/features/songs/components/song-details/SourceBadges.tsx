@@ -31,7 +31,7 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
         variant="secondary"
         className={cn(
           badgeSize,
-          "bg-blue-100 text-blue-800 border-blue-200",
+          "bg-info/15 text-info-strong border-info/30",
           className,
         )}
       >
@@ -49,7 +49,7 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
         variant="secondary"
         className={cn(
           badgeSize,
-          "bg-red-100 text-red-800 border-red-200",
+          "bg-destructive/15 text-destructive-strong border-destructive/30",
           className,
         )}
       >
@@ -67,7 +67,7 @@ export const SourceBadges: React.FC<SourceBadgesProps> = ({
         variant="secondary"
         className={cn(
           badgeSize,
-          "bg-green-100 text-green-800 border-green-200",
+          "bg-success/15 text-success-strong border-success/30",
           className,
         )}
       >

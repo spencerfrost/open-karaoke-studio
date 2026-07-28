@@ -188,10 +188,10 @@ const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
   showLeadInHighlight,
   widthClass,
 }) => {
-  const separatorStateClass = isLeadIn ? "bg-slate-300/15" : "bg-orange-peel/15";
+  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-orange-peel/15";
   const progressFillClass = isLeadIn
-    ? "from-slate-200 to-amber-400"
-    : "from-orange-peel to-amber-500";
+    ? "from-foreground to-primary"
+    : "from-orange-peel to-primary/80";
   const progressAriaLabel = isLeadIn ? "Lead-in progress" : "Instrumental progress";
 
   return (
@@ -660,9 +660,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
             {hasCountIn && countInState && (
               <div className={`flex items-center justify-center gap-3 ${opacity}`}>
                 {showProgressBar && (
-                  <div className="w-32 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div className="w-32 h-1.5 bg-glass/20 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-orange-peel to-amber-500 rounded-full transition-all duration-100 ease-linear"
+                      className="h-full bg-gradient-to-r from-orange-peel to-primary/80 rounded-full transition-all duration-100 ease-linear"
                       style={{ width: `${countInState.progress * 100}%` }}
                     />
                   </div>

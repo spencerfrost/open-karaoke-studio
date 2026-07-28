@@ -108,7 +108,7 @@ export function LyricsTab({
                             {option.trackName || "Lyrics"}
                           </h4>
                           {option.syncedLyrics && (
-                            <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full">
+                            <span className="px-2 py-0.5 text-xs bg-success/15 text-success-strong rounded-full">
                               Synchronized
                             </span>
                           )}

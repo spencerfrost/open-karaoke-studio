@@ -11,16 +11,16 @@ const SessionStatusHeader: React.FC = () => {
   return (
     <div className="flex justify-between items-center mb-6 z-10">
       <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold text-orange-peel font-retro">
+        <h1 className="text-2xl font-bold text-orange-peel font-accent tracking-[0.05em]">
           Performance Controls
         </h1>
         {sessionId && displayCode && (
-          <div className="text-sm text-lemon-chiffon bg-black/40 rounded px-2 py-1">
+          <div className="text-sm text-lemon-chiffon bg-overlay/40 rounded px-2 py-1">
             Session: {displayCode} {isHost ? "(Host)" : ""}
           </div>
         )}
         <div>
-          <pre className="text-xs text-lemon-chiffon bg-black/40 rounded px-2 py-1 max-w-xs overflow-x-auto">
+          <pre className="text-xs text-lemon-chiffon bg-overlay/40 rounded px-2 py-1 max-w-xs overflow-x-auto">
             {isPlaying ? "Playing" : "Paused"}
           </pre>
         </div>

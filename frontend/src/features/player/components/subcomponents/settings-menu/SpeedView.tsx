@@ -26,7 +26,7 @@ const SpeedView: React.FC<SpeedViewProps> = ({ onBack }) => {
   return (
     <div className="py-2">
       {/* Header with back button */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <button
           onClick={onBack}
           className="flex items-center gap-2 hover:text-orange-peel transition-colors"

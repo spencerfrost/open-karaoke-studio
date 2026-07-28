@@ -48,7 +48,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
           "[&::-webkit-scrollbar]:hidden md:[&::-webkit-scrollbar]:block",
           // Scrollbar height and track
           "md:[&::-webkit-scrollbar]:h-1.5",
-          "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-white/10",
+          "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-glass/10",
           // Scrollbar thumb
           "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-orange-peel/40",
           "md:hover:[&::-webkit-scrollbar-thumb]:bg-orange-peel/70",

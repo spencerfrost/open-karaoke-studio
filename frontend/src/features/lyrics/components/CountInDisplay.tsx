@@ -62,7 +62,7 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
       {/* Progress Bar - Centered in gap area */}
       {showProgressBar && (
         <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-3/5 max-w-md">
-          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+          <div className="w-full h-1 bg-glass/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-orange-peel to-amber-500 rounded-full transition-all duration-100 ease-linear"
               style={{ width: `${progress * 100}%` }}

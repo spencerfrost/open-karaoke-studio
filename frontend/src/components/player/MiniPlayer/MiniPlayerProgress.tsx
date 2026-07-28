@@ -19,7 +19,7 @@ const MiniPlayerProgress: React.FC<MiniPlayerProgressProps> = ({
 
   return (
     <div
-      className={`w-full h-1 bg-white/20 rounded-full overflow-hidden ${className}`}
+      className={`w-full h-1 bg-glass/20 rounded-full overflow-hidden ${className}`}
     >
       <div
         className="h-full bg-gradient-to-r from-accent to-primary transition-all duration-300"

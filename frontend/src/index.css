@@ -45,25 +45,41 @@
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
   --accent-foreground: var(--lemon-chiffon);
-  --destructive: var(--color-red-800);
-  --destructive-foreground: var(--lemon-chiffon);
   --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
 
+  /*
+   * Status roles. Each status has three parts:
+   *   --x            the color itself — fills (bg-x) and text on the dark page
+   *   --x-foreground text/icons placed ON an --x fill
+   *   --x-strong     darker variant for text/icons on LIGHT surfaces
+   *                  (card, popover, muted), where the mid tone lacks contrast
+   * Themes only need to set the base; -strong derives unless overridden.
+   */
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--lemon-chiffon);
+  --destructive-strong: color-mix(in oklab, var(--destructive), var(--black) 35%);
   --success: var(--color-green-500);
-  --success-foreground: var(--lemon-chiffon);
+  --success-foreground: var(--black);
+  --success-strong: color-mix(in oklab, var(--success), var(--black) 35%);
   --warning: var(--color-yellow-500);
   --warning-foreground: var(--black);
+  --warning-strong: color-mix(in oklab, var(--warning), var(--black) 35%);
   --info: var(--color-blue-500);
   --info-foreground: var(--lemon-chiffon);
+  --info-strong: color-mix(in oklab, var(--info), var(--black) 35%);
 
   --border: var(--orange-peel);
   --input: color-mix(in srgb, var(--black), transparent 20%);
   --ring: var(--dark-cyan);
 
-  /* Translucent panels sitting on the page background */
-  --glass: color-mix(in oklab, var(--lemon-chiffon) 10%, transparent);
-  --glass-border: color-mix(in oklab, var(--lemon-chiffon) 20%, transparent);
+  /*
+   * Translucent panels sitting on the page background. These are tint bases,
+   * not finished colors — always consume them with an opacity modifier
+   * (bg-glass/10, border-glass-border/20), same as --overlay below.
+   */
+  --glass: var(--lemon-chiffon);
+  --glass-border: var(--lemon-chiffon);
   /* Scrims behind modals/covers; consumed with opacity modifiers (bg-overlay/60) */
   --overlay: var(--black);
 
@@ -71,7 +87,7 @@
   --page-bg: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
 
   /* Glow effects — legacy is subtle/warm; neon themes redefine these */
-  --glow-primary: 0 0 12px rgb(255 179 71 / 0.35);
+  --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
   --glow-accent: none;
 
   /* Typography roles */
@@ -103,12 +119,16 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-strong: var(--destructive-strong);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-strong: var(--success-strong);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-strong: var(--warning-strong);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-info-strong: var(--info-strong);
   --color-glass: var(--glass);
   --color-glass-border: var(--glass-border);
   --color-overlay: var(--overlay);
@@ -146,8 +166,9 @@
 @layer base {
   body {
     font-family: var(--body-font);
-    @apply bg-background text-foreground;
-    background-image: var(--page-bg);
+    @apply text-foreground;
+    /* Shorthand, not background-image: --page-bg may be a flat color */
+    background: var(--page-bg);
   }
 
   h1,
@@ -160,20 +181,11 @@
     font-weight: 700;
   }
 
-  .font-heading {
-    font-family: var(--display-font);
-    font-weight: 700;
-  }
-  .font-body {
-    font-family: var(--body-font);
-    font-weight: 400;
-  }
-
-  /* Retro-style font for vintage flair */
-  .font-retro {
-    font-family: var(--accent-font);
-    letter-spacing: 0.05em;
-  }
+  /*
+   * font-display / font-body / font-accent come from @theme above. The old
+   * .font-heading / .font-body / .font-retro base classes are gone —
+   * .font-body in particular collided with the generated utility.
+   */
 
   /* Custom scrollbar */
   ::-webkit-scrollbar {
@@ -182,17 +194,17 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
+    background: color-mix(in oklab, var(--overlay) 10%, transparent);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--dark-cyan);
+    background: var(--accent);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--dark-cyan), white 10%);
+    background: color-mix(in oklab, var(--accent), var(--foreground) 10%);
   }
 }
 

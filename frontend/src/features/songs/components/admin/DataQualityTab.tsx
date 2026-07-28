@@ -38,7 +38,7 @@ interface MetadataAuditResult {
 }
 
 const SEVERITY_BADGE_CLASS: Record<Severity, string> = {
-  error: "border-red-500 text-red-500",
+  error: "border-destructive/50 text-destructive-strong",
   warning: "border-amber-500 text-amber-500",
   info: "border-muted-foreground/50 text-muted-foreground",
 };
@@ -194,7 +194,7 @@ export const DataQualityTab: React.FC = () => {
           {errorCount > 0 && (
             <>
               <span>·</span>
-              <span className="font-medium text-red-500">
+              <span className="font-medium text-destructive-strong">
                 {errorCount} error{errorCount !== 1 ? "s" : ""}
               </span>
             </>

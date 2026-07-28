@@ -59,7 +59,7 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
   return (
     <div className="py-2">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <div className="flex items-center gap-2">
           <Settings2 className="w-5 h-5 text-orange-peel" />
           <h2 className="text-lg font-semibold">Settings</h2>
@@ -74,7 +74,7 @@ const MainView: React.FC<MainViewProps> = ({ onNavigate }) => {
             onClick={item.onClick}
             className={cn(
               "w-full px-4 py-3 flex items-center justify-between",
-              "hover:bg-white/5 active:bg-white/10 transition-colors",
+              "hover:bg-glass/5 active:bg-glass/10 transition-colors",
               "text-left group",
             )}
           >

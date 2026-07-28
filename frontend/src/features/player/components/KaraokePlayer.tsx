@@ -158,9 +158,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   if (player.error) {
     return (
       <div
-        className={`aspect-video flex flex-col items-center justify-center bg-black/80 rounded-xl text-center p-8 ${className}`}
+        className={`aspect-video flex flex-col items-center justify-center bg-overlay/80 rounded-xl text-center p-8 ${className}`}
       >
-        <div className="text-red-500 text-lg font-semibold mb-4">
+        <div className="text-destructive text-lg font-semibold mb-4">
           {player.error.message}
         </div>
         <button
@@ -178,7 +178,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       isFullscreen={ui.isFullscreen}
       containerRef={ui.containerRef}
       fsError={ui.fsError}
-      className={`bg-black/80 rounded-xl overflow-hidden relative ${className}`}
+      className={`bg-overlay/80 rounded-xl overflow-hidden relative ${className}`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false);
@@ -200,7 +200,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             /* In fullscreen: single Play button */
             <Button
               variant="outline"
-              className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
+              className="p-0 rounded-full bg-overlay/70 hover:bg-overlay/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
               style={{ height: "12rem", width: "12rem" }}
               onClick={() => player.isReady && player.togglePlay()}
               disabled={!player.isReady}
@@ -218,7 +218,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             <>
               <Button
                 variant="outline"
-                className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto"
+                className="p-0 rounded-full bg-overlay/70 hover:bg-overlay/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto"
                 style={{ height: "12rem", width: "12rem" }}
                 onClick={handleFullscreenOnly}
                 aria-label="Fullscreen"
@@ -231,7 +231,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               </Button>
               <Button
                 variant="outline"
-                className="p-0 rounded-full bg-black/70 hover:bg-black/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
+                className="p-0 rounded-full bg-overlay/70 hover:bg-overlay/90 border-2 border-orange-peel/50 hover:border-orange-peel transition-all pointer-events-auto disabled:opacity-50 disabled:pointer-events-none"
                 style={{ height: "12rem", width: "12rem" }}
                 onClick={handleFullscreenAndPlay}
                 disabled={!player.isReady}
@@ -340,7 +340,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               variant="outline"
               size="lg"
               onClick={() => navigate("/library")}
-              className="bg-black/60 hover:bg-black/80 border-white/20 hover:border-white/40 text-white gap-2"
+              className="bg-overlay/60 hover:bg-overlay/80 border-glass-border/20 hover:border-glass-border/40 text-foreground gap-2"
             >
               <Library className="w-5 h-5" />
               Browse Library

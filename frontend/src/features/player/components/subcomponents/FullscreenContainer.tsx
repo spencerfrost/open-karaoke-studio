@@ -38,7 +38,7 @@ const FullscreenContainer: React.FC<FullscreenContainerProps> = ({
     >
       {/* Fullscreen Error Display */}
       {fsError && (
-        <div className="absolute top-12 right-2 z-30 bg-red-500 text-white text-xs px-2 py-1 rounded shadow">
+        <div className="absolute top-12 right-2 z-30 bg-destructive text-destructive-foreground text-xs px-2 py-1 rounded shadow">
           {fsError}
         </div>
       )}

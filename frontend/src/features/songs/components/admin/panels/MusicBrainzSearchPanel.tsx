@@ -99,10 +99,10 @@ export const MusicBrainzSearchPanel: React.FC<ReplacePanelProps> = ({
               <span
                 className={`text-xs font-mono font-semibold shrink-0 w-10 text-right ${
                   r.score >= 0.85
-                    ? "text-green-500"
+                    ? "text-success-strong"
                     : r.score >= 0.5
                       ? "text-amber-500"
-                      : "text-red-500"
+                      : "text-destructive-strong"
                 }`}
               >
                 {Math.round(r.score * 100)}%

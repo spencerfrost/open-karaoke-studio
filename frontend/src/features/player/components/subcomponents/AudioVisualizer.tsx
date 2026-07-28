@@ -169,7 +169,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   }, [isPlaying, isReady, getWaveformData, barCount, height]);
 
   if (error) {
-    return <div className="text-red-500">Audio error: {error}</div>;
+    return <div className="text-destructive">Audio error: {error}</div>;
   }
 
   return (

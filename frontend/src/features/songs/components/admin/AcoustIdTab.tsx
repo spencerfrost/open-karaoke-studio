@@ -30,13 +30,13 @@ function useSongsByFingerprintStatus(status: StatusFilter) {
 const STATUS_STYLES: Record<StatusFilter, string> = {
   ambiguous: "text-orange-400 border-orange-500/40",
   no_match: "text-amber-400 border-amber-500/40",
-  failed: "text-red-400 border-red-500/40",
+  failed: "text-destructive border-destructive/40",
 };
 
 const ACTIVE_PILL_STYLES: Record<StatusFilter, string> = {
   ambiguous: "bg-orange-500/20 text-orange-400 border border-orange-500/40",
   no_match: "bg-amber-500/20 text-amber-400 border border-amber-500/40",
-  failed: "bg-red-500/20 text-red-400 border border-red-500/40",
+  failed: "bg-destructive/20 text-destructive border border-destructive/40",
 };
 
 export const AcoustIdTab: React.FC = () => {

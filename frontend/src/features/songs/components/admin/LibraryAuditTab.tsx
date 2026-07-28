@@ -356,14 +356,14 @@ export const LibraryAuditTab: React.FC = () => {
           </span>
           <span>·</span>
           <span
-            className={summary.ghost_count > 0 ? "font-medium text-red-500" : ""}
+            className={summary.ghost_count > 0 ? "font-medium text-destructive-strong" : ""}
           >
             {summary.ghost_count} ghost records
           </span>
           <span>·</span>
           <span
             className={
-              summary.incomplete_count > 0 ? "font-medium text-yellow-500" : ""
+              summary.incomplete_count > 0 ? "font-medium text-warning-strong" : ""
             }
           >
             {summary.incomplete_count} incomplete
@@ -501,7 +501,7 @@ export const LibraryAuditTab: React.FC = () => {
                 }}
                 aria-label="Select all ghost records"
               />
-              <Badge variant="outline" className="border-red-500 text-red-500">
+              <Badge variant="outline" className="border-destructive/50 text-destructive-strong">
                 {ghost_records.length}
               </Badge>
               Ghost Records
@@ -586,7 +586,7 @@ export const LibraryAuditTab: React.FC = () => {
       {incomplete_songs.length > 0 && (
         <section className="space-y-2">
           <h3 className="flex items-center gap-2 font-medium">
-            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+            <Badge variant="outline" className="border-warning/50 text-warning-strong">
               {incomplete_songs.length}
             </Badge>
             Incomplete Songs

@@ -163,7 +163,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-green-500 hover:text-green-400"
+            className="h-8 w-8 text-success hover:text-success/80"
             onClick={() => onApprove?.(item.id)}
             title="Approve"
           >

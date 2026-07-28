@@ -76,7 +76,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
             aria-label="Play now"
             title="Play now"
           >
-            <Play size={18} className="text-green-500 fill-green-500" />
+            <Play size={18} className="text-success fill-success" />
           </Button>
         )}
 
@@ -88,7 +88,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
             aria-label="Remove from queue"
             title="Remove from queue"
           >
-            <X size={18} className="text-red-400" />
+            <X size={18} className="text-destructive" />
           </Button>
         )}
       </div>

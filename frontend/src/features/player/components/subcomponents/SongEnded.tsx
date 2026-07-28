@@ -79,20 +79,20 @@ export const SongEnded: React.FC<SongEndedProps> = ({
       <div className="flex flex-col items-center gap-6 p-6 max-w-lg w-full">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white/80">Song Complete!</h2>
+          <h2 className="text-2xl font-bold text-foreground/80">Song Complete!</h2>
         </div>
 
         {/* Next song section */}
         {nextSong && (
           <div className="flex flex-col items-center gap-4">
-            <p className="text-sm text-white/50 uppercase tracking-wider">
+            <p className="text-sm text-foreground/50 uppercase tracking-wider">
               Up next
             </p>
 
             {/* Thumbnail with play overlay */}
             <button
               onClick={handlePlayNext}
-              className="relative group cursor-pointer w-48 h-48 rounded-xl overflow-hidden bg-black/60 flex items-center justify-center shadow-2xl"
+              className="relative group cursor-pointer w-48 h-48 rounded-xl overflow-hidden bg-overlay/60 flex items-center justify-center shadow-2xl"
               aria-label={`Play ${nextSong.title}`}
             >
               {nextArtworkUrl ? (
@@ -102,11 +102,11 @@ export const SongEnded: React.FC<SongEndedProps> = ({
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <Music size={64} className="text-white/20" />
+                <Music size={64} className="text-foreground/20" />
               )}
 
               {/* Play button overlay with countdown ring */}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/50 transition-colors">
+              <div className="absolute inset-0 flex items-center justify-center bg-overlay/40 group-hover:bg-overlay/50 transition-colors">
                 <div className="relative flex items-center justify-center">
                   {/* Countdown ring */}
                   {onPlayNext && (
@@ -138,7 +138,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
                   )}
                   <Play
                     size={48}
-                    className="text-white drop-shadow-lg group-hover:scale-110 transition-transform"
+                    className="text-foreground drop-shadow-lg group-hover:scale-110 transition-transform"
                     fill="currentColor"
                     strokeWidth={0}
                   />
@@ -148,10 +148,10 @@ export const SongEnded: React.FC<SongEndedProps> = ({
 
             {/* Song info */}
             <div className="text-center">
-              <h3 className="text-xl font-semibold text-white truncate max-w-xs">
+              <h3 className="text-xl font-semibold text-foreground truncate max-w-xs">
                 {nextSong.title}
               </h3>
-              <p className="text-white/60 text-sm truncate max-w-xs">
+              <p className="text-foreground/60 text-sm truncate max-w-xs">
                 {nextSong.artist}
               </p>
               {nextQueueItem?.singer && (
@@ -163,7 +163,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
 
             {/* Countdown text */}
             {onPlayNext && countdown > 0 && (
-              <p className="text-white/40 text-sm">
+              <p className="text-foreground/40 text-sm">
                 Playing in {countdown}s...
               </p>
             )}
@@ -171,7 +171,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
         )}
 
         {/* Previous song (minimal) */}
-        <div className="text-center text-white/30 text-xs mt-2">
+        <div className="text-center text-foreground/30 text-xs mt-2">
           Just played: {currentSong.title} — {currentSong.artist}
         </div>
 
@@ -180,7 +180,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
           variant="outline"
           size="sm"
           onClick={() => navigate("/library")}
-          className="bg-black/50 hover:bg-black/70 border-white/20 hover:border-white/40 text-white/70 gap-2"
+          className="bg-overlay/50 hover:bg-overlay/70 border-glass-border/20 hover:border-glass-border/40 text-foreground/70 gap-2"
         >
           <Library className="w-4 h-4" />
           Browse Library

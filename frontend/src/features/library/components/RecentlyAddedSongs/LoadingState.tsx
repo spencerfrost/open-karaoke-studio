@@ -11,7 +11,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({ songsPerPage }) => {
         {Array.from({ length: songsPerPage }).map((_, index) => (
           <div
             key={index}
-            className="aspect-square bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse"
+            className="aspect-square bg-muted rounded-lg animate-pulse"
           />
         ))}
       </div>

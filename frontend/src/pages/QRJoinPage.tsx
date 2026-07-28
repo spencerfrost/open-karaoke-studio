@@ -47,7 +47,7 @@ export default function QRJoinPage() {
       <div className="vintage-sunburst-pattern" />
       <div className="bg-card text-card-foreground rounded-lg shadow-xl border border-orange-peel p-8 max-w-md w-full relative z-10">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-heading text-rust">
+          <h1 className="text-3xl font-display font-bold text-rust">
             Open Karaoke Studio
           </h1>
         </div>

@@ -38,15 +38,15 @@ interface BatchResult {
 }
 
 const STATUS_ICON: Record<SongResult["status"], React.ReactNode> = {
-  activated: <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />,
+  activated: <CheckCircle2 className="h-4 w-4 text-success-strong shrink-0" />,
   low_confidence: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />,
-  failed: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+  failed: <XCircle className="h-4 w-4 text-destructive-strong shrink-0" />,
 };
 
 const STATUS_BADGE: Record<SongResult["status"], string> = {
-  activated: "border-green-500 text-green-600",
+  activated: "border-success/50 text-success-strong",
   low_confidence: "border-amber-500 text-amber-600",
-  failed: "border-red-500 text-red-500",
+  failed: "border-destructive/50 text-destructive-strong",
 };
 
 const STATUS_LABEL: Record<SongResult["status"], string> = {
@@ -176,7 +176,7 @@ export const LyricsAlignmentTab: React.FC = () => {
           <StatCard
             label="Word-aligned"
             value={status.aligned}
-            className="text-green-600"
+            className="text-success-strong"
           />
           <StatCard
             label="Needs alignment"
@@ -250,13 +250,13 @@ export const LyricsAlignmentTab: React.FC = () => {
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
             <span>{batchResult.processed} processed</span>
             <span>·</span>
-            <span className="font-medium text-green-600">
+            <span className="font-medium text-success-strong">
               {batchResult.activated} activated
             </span>
             {batchResult.failed > 0 && (
               <>
                 <span>·</span>
-                <span className="font-medium text-red-500">
+                <span className="font-medium text-destructive-strong">
                   {batchResult.failed} failed
                 </span>
               </>

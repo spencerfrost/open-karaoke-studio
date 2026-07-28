@@ -19,11 +19,11 @@ export default function JoinSessionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">Open Karaoke Studio</h1>
-          <p className="text-gray-400">Join a karaoke session</p>
+          <p className="text-foreground/60">Join a karaoke session</p>
         </div>
 
         <div className="space-y-6">
@@ -39,7 +39,7 @@ export default function JoinSessionPage() {
                     e.target.value as "stage" | "performer" | "controller",
                   )
                 }
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-input border border-glass-border/20 rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="stage">Stage (Host)</option>
                 <option value="performer">Performer</option>
@@ -49,7 +49,7 @@ export default function JoinSessionPage() {
             <button
               onClick={handleCreate}
               disabled={isConnecting}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-4 py-2 rounded-md font-medium transition-colors"
+              className="w-full bg-primary hover:bg-primary/90 disabled:bg-muted px-4 py-2 rounded-md font-medium transition-colors"
             >
               {isConnecting ? "Creating..." : "Create Session"}
             </button>
@@ -66,7 +66,7 @@ export default function JoinSessionPage() {
                 onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
                 placeholder="Enter 4-character code"
                 maxLength={4}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                className="w-full px-3 py-2 bg-input border border-glass-border/20 rounded-md focus:outline-none focus:ring-2 focus:ring-ring uppercase"
               />
             </div>
             <div className="space-y-2">
@@ -78,7 +78,7 @@ export default function JoinSessionPage() {
                     e.target.value as "stage" | "performer" | "controller",
                   )
                 }
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-input border border-glass-border/20 rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="performer">Performer</option>
                 <option value="controller">Controller</option>
@@ -88,7 +88,7 @@ export default function JoinSessionPage() {
             <button
               onClick={handleJoin}
               disabled={isConnecting || sessionCode.length !== 4}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-2 rounded-md font-medium transition-colors"
+              className="w-full bg-success hover:bg-success/90 disabled:bg-muted px-4 py-2 rounded-md font-medium transition-colors"
             >
               {isConnecting ? "Joining..." : "Join Session"}
             </button>
@@ -96,13 +96,13 @@ export default function JoinSessionPage() {
 
           {/* Error Display */}
           {connectionError && (
-            <div className="p-4 bg-red-900 border border-red-700 rounded-md">
-              <p className="text-red-200">{connectionError}</p>
+            <div className="p-4 bg-destructive/20 border border-destructive/40 rounded-md">
+              <p className="text-destructive">{connectionError}</p>
             </div>
           )}
         </div>
 
-        <div className="text-center text-sm text-gray-400">
+        <div className="text-center text-sm text-foreground/60">
           <p>
             Enter a 4-character session code to join an existing karaoke
             session,

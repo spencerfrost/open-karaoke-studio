@@ -112,7 +112,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             >
               <MoreHorizontal size={18} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-zinc-900 border-orange-peel/20">
+            <DropdownMenuContent align="end" className="bg-overlay/95 border-orange-peel/20">
               <DropdownMenuItem
                 onClick={() => setEditOpen(true)}
                 className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"

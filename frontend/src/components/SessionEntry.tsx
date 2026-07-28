@@ -162,7 +162,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       <div className="vintage-sunburst-pattern" />
       <Card className="block p-8 rounded-lg shadow-xl border-orange-peel max-w-md w-full relative z-10">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-heading text-rust mb-2">
+          <h1 className="text-3xl font-display font-bold text-rust mb-2">
             Open Karaoke Studio
           </h1>
           <p className="text-muted-foreground">

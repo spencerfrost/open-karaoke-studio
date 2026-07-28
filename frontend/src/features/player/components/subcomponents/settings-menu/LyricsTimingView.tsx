@@ -160,7 +160,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
   return (
     <div className="py-2">
       {/* Header with back button */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-glass-border/10">
         <button
           onClick={onBack}
           className="flex items-center gap-2 hover:text-orange-peel transition-colors"
@@ -181,7 +181,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(lyricsOffset - 100)}
-              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-glass/10"
             >
               <Minus className="w-4 h-4" />
             </Button>
@@ -190,11 +190,11 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
             <div
               ref={offsetRef}
               className={cn(
-                "flex-1 py-2 px-3 rounded-md bg-white/5 border border-white/10",
+                "flex-1 py-2 px-3 rounded-md bg-glass/5 border border-glass-border/10",
                 "cursor-ns-resize select-none text-center font-mono text-lg",
-                "hover:bg-white/10 hover:border-white/20 transition-colors",
+                "hover:bg-glass/10 hover:border-glass-border/20 transition-colors",
                 isDragging &&
-                  "bg-white/15 border-orange-peel ring-1 ring-orange-peel",
+                  "bg-glass/15 border-orange-peel ring-1 ring-orange-peel",
               )}
               onMouseDown={handleOffsetMouseDown}
               onTouchStart={handleOffsetTouchStart}
@@ -210,7 +210,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(lyricsOffset + 100)}
-              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-glass/10"
             >
               <Plus className="w-4 h-4" />
             </Button>
@@ -220,7 +220,7 @@ const LyricsTimingView: React.FC<LyricsTimingViewProps> = ({ onBack }) => {
               variant="ghost"
               size="icon"
               onClick={() => setLyricsOffset(0)}
-              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-white/10"
+              className="h-8 w-8 text-foreground/60 hover:text-foreground hover:bg-glass/10"
               title="Reset to 0"
             >
               <RotateCcw className="w-4 h-4" />

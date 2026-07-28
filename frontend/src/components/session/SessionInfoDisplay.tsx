@@ -327,11 +327,11 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
       {details.deviceType && (
         <div className="flex items-center gap-2">
-          <DeviceIcon className="h-4 w-4 text-green-500" />
+          <DeviceIcon className="h-4 w-4 text-success-strong" />
           <span className="text-sm">
             You are {isHost ? "the host" : "a participant"}
             {isHost && (
-              <Crown className="inline h-3 w-3 ml-1 text-yellow-500" />
+              <Crown className="inline h-3 w-3 ml-1 text-warning-strong" />
             )}
           </span>
         </div>
@@ -339,7 +339,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
       {details.participants && (
         <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-blue-500" />
+          <Users className="h-4 w-4 text-info-strong" />
           <span className="text-sm">
             {participantCount} participant{participantCount !== 1 ? "s" : ""}
           </span>
