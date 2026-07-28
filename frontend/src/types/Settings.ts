@@ -20,6 +20,10 @@ export interface DisplaySettings {
   lyricsSize: "small" | "medium" | "large";
   showAudioVisualizations: boolean;
   showProgress: boolean;
+  // Optional on purpose: zustand's persist merges shallowly, so an existing
+  // user's stored `display` object replaces the default wholesale and this key
+  // reads as undefined. Every read must default it with `?? true`.
+  songPreviewsEnabled?: boolean;
 }
 
 export interface AppSettings {

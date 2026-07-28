@@ -17,6 +17,10 @@ export interface SongArtworkProps {
   showSyncedBadge?: boolean;
   onPlay: (e?: React.MouseEvent) => void;
   showPlayButton?: boolean;
+  /** Enables the hover-to-preview behaviour on this artwork. */
+  enablePreview?: boolean;
+  /** Renders an explicit preview control, for pointers that cannot hover. */
+  showPreviewButton?: boolean;
 }
 
 export interface SongInfoProps {

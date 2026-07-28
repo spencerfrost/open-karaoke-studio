@@ -31,6 +31,7 @@ const defaultDisplaySettings: DisplaySettings = {
   lyricsSize: "medium",
   showAudioVisualizations: true,
   showProgress: true,
+  songPreviewsEnabled: true,
 };
 
 // Initial settings

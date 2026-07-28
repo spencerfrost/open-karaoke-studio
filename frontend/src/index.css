@@ -58,7 +58,11 @@
    */
   --destructive: var(--color-red-500);
   --destructive-foreground: var(--lemon-chiffon);
-  --destructive-strong: color-mix(in oklab, var(--destructive), var(--black) 35%);
+  --destructive-strong: color-mix(
+    in oklab,
+    var(--destructive),
+    var(--black) 35%
+  );
   --success: var(--color-green-500);
   --success-foreground: var(--black);
   --success-strong: color-mix(in oklab, var(--success), var(--black) 35%);
@@ -308,6 +312,29 @@
     }
     100% {
       filter: brightness(1);
+    }
+  }
+
+  /* Song-card hover-preview equalizer. Plain CSS rather than per-bar JS
+     animation, since a library grid can show dozens of cards at once. */
+  @keyframes eqBar {
+    0%,
+    100% {
+      transform: scaleY(0.35);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .eq-bar {
+    transform-origin: bottom;
+    animation: eqBar 900ms ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .eq-bar {
+      animation: none;
     }
   }
 }

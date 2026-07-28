@@ -241,6 +241,19 @@ const SettingsPage: React.FC = () => {
                 className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />
             </div>
+            <div>
+              <label className="block mb-1">
+                Preview Songs on Hover in Library
+              </label>
+              <input
+                type="checkbox"
+                checked={settings.display.songPreviewsEnabled ?? true}
+                onChange={(e) =>
+                  handleDisplayChange("songPreviewsEnabled", e.target.checked)
+                }
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+              />
+            </div>
           </div>
         </div>
 

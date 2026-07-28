@@ -8,7 +8,7 @@ export interface ChordEvent {
 export interface SongArtist {
   id: number;
   name: string;
-  role: 'primary' | 'featured';
+  role: "primary" | "featured";
 }
 
 export interface Song {
@@ -79,9 +79,12 @@ export interface SongProcessingStatus {
   song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
+  rawStatus?: string; // Backend job status before mapping to SongStatus
   message?: string;
   artist?: string;
   title?: string;
+  engineType?: string; // Separation engine running the job (demucs, lyrics_alignment, ...)
+  engine_type?: string; // Snake-case variant as delivered by some websocket payloads
 }
 
 export interface LyricsResult {
