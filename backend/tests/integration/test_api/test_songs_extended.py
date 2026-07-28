@@ -1,4 +1,5 @@
 """Extended integration tests for songs API — covers routes not in test_songs_api.py."""
+
 import uuid
 
 from app.db.models import DbSong
@@ -242,6 +243,24 @@ def test_download_track_missing_file(client):
     song = _create_song(client, title="Track Missing", artist="NoFiles")
     response = client.get(f"/api/songs/{song['id']}/download/vocals")
     # Song dir exists (created by POST) but vocals file doesn't
+    assert response.status_code == 404
+
+
+def test_download_track_is_public(unauthenticated_client):
+    """The download route must be reachable without an Authorization header.
+
+    <audio> elements cannot send one, so this endpoint is deliberately public.
+    A 401 here would mean HTTPBearer rejected the request before the handler
+    ran — i.e. the auth dependency crept back in.
+    """
+    # Invalid track type → the handler's own 400, not an auth 401
+    response = unauthenticated_client.get(f"/api/songs/{uuid.uuid4()}/download/kazoo")
+    assert response.status_code == 400
+
+    # Valid track type on a missing song → the handler's own 404
+    response = unauthenticated_client.get(
+        f"/api/songs/{uuid.uuid4()}/download/original"
+    )
     assert response.status_code == 404
 
 

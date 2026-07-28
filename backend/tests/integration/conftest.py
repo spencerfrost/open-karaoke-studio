@@ -7,12 +7,6 @@ avoiding module cache clearing that pollutes other test suites.
 
 import os
 import tempfile
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from unittest.mock import MagicMock
 
 import app.api.host_settings as _host_settings_api
@@ -21,6 +15,7 @@ import app.api.karaoke_queue as _queue_api
 import app.api.lyrics as _lyrics_api
 import app.api.sessions as _sessions_api
 import app.api.songs as _songs_api
+import pytest
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
@@ -30,6 +25,9 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.db.models import Base
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from tests.conftest import create_test_app
 
 
@@ -93,6 +91,26 @@ def integration_app():
 def client(integration_app):
     """Test client for integration tests."""
     with TestClient(integration_app) as c:
+        yield c
+
+
+@pytest.fixture(scope="session")
+def unauthenticated_app():
+    """FastAPI app with the test database but *no* auth bypass.
+
+    Used to prove that deliberately public routes stay reachable without an
+    Authorization header. Routes guarded by HTTPBearer will 401 here.
+    """
+    app = create_test_app()
+    app.dependency_overrides[get_db] = _get_test_db
+    app.dependency_overrides[_songs_api.get_db] = _get_test_db
+    return app
+
+
+@pytest.fixture(scope="session")
+def unauthenticated_client(unauthenticated_app):
+    """Test client that sends no credentials."""
+    with TestClient(unauthenticated_app) as c:
         yield c
 
 

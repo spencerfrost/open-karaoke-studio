@@ -1126,10 +1126,14 @@ async def download_song_track(
     song_id: str,
     track_type: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """
     Download a specific audio track for a song.
+
+    Public endpoint: served unauthenticated so <audio> elements can load it
+    directly (they cannot send an Authorization header). Same precedent as
+    GET /{song_id}/thumbnail. Safety comes from the track_type allowlist and
+    the library-bounds check below.
 
     - **track_type**: Type of track to download (vocals, instrumental, original)
     """
@@ -1174,6 +1178,7 @@ async def download_song_track(
             track_file,
             media_type="audio/mpeg",
             filename=f"{track_type}.mp3",
+            content_disposition_type="inline",
         )
 
     except HTTPException:
