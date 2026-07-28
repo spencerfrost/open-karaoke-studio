@@ -1,4 +1,5 @@
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("service:api");
 
@@ -147,9 +148,13 @@ export async function downloadFile(
   filename: string,
 ): Promise<void> {
   try {
+    // Track downloads require a bearer token; without it the request 401s and the
+    // global 401 handler logs the user out.
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${endpoint}`, {
       method: "GET",
       credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
     if (!response.ok) {
