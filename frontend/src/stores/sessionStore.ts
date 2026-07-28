@@ -127,10 +127,7 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null,
           });
 
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            sessionData.device_id,
-          );
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
           sessionEndedCleanup?.();
           sessionEndedCleanup = sessionWebSocketService.on(
@@ -211,11 +208,8 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null, // Clear any recovery errors
           });
 
-          // Update WebSocket services for new session - pass device_id for host registration
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            sessionData.device_id,
-          );
+          // Update WebSocket services for new session
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
@@ -424,11 +418,8 @@ export const useSessionStore = create<SessionState>()(
             sessionInfo: sessionData,
           });
 
-          // Reconnect WebSocket - pass device_id for host registration
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            deviceId,
-          );
+          // Reconnect WebSocket
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
@@ -659,3 +650,12 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+// The server is the authority on host status. It answers the `authenticate` message sent
+// on every WebSocket open, so this also corrects isHost after a reconnect. Registered once
+// at module scope against the singleton service.
+sessionWebSocketService.on("authenticated", (data) => {
+  const isHost = Boolean((data as { is_host?: boolean })?.is_host);
+  logger.info("Session authentication resolved by server. isHost:", isHost);
+  useSessionStore.setState({ isHost });
+});

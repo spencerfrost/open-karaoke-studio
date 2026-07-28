@@ -29,7 +29,7 @@ export function createMockSessionWebSocketService() {
     deviceId: null as string | null,
 
     // Mock implementations
-    connectToSession: vi.fn((sessionId: string, _hostDeviceId?: string) => {
+    connectToSession: vi.fn((sessionId: string) => {
       mockService.isConnected = true;
       mockService.currentSessionId = sessionId;
       mockService.deviceId = `mock-device-${Date.now()}`;
@@ -39,7 +39,8 @@ export function createMockSessionWebSocketService() {
         mockService.emit("session_connected", {
           session_id: sessionId,
           device_id: mockService.deviceId,
-          is_host: !!_hostDeviceId,
+          // Connections start unprivileged; host status arrives via `authenticated`.
+          is_host: false,
           performance_state: { ...mockPerformanceState },
         });
       }, 0);

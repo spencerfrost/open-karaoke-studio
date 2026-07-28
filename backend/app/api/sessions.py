@@ -121,6 +121,36 @@ def get_db() -> Generator[Session, None, None]:
 
 
 # ============================================================================
+# Helpers
+# ============================================================================
+
+
+def deactivate_expired_sessions(db: Session) -> int:
+    """
+    Mark sessions whose expiry has passed as inactive.
+
+    Sessions are normally retired when the host disconnects, but a session whose host
+    never disconnects cleanly stays flagged active long past its expiry. Those rows are
+    invisible to users yet still match "active session" queries, so they are reconciled
+    here. Returns the number of rows updated.
+    """
+    updated = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.is_active.is_(True),
+            KaraokeSession.expires_at <= datetime.utcnow(),
+        )
+        .update({KaraokeSession.is_active: False}, synchronize_session=False)
+    )
+
+    if updated:
+        db.commit()
+        logger.info("Deactivated %d expired session(s)", updated)
+
+    return updated
+
+
+# ============================================================================
 # Endpoints
 # ============================================================================
 
@@ -133,16 +163,20 @@ async def get_my_session(
     """
     Get the host's current active session, or null if none exists.
     """
+    # Same shape as get_or_create_my_session: filter expiry in SQL and take the newest,
+    # so a stale row cannot mask a live session and make this report "no session".
     session = (
         db.query(KaraokeSession)
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
+            KaraokeSession.expires_at > datetime.utcnow(),
         )
+        .order_by(KaraokeSession.created_at.desc())
         .first()
     )
 
-    if not session or session.is_expired():
+    if not session:
         return None
 
     active_devices = (
@@ -189,17 +223,25 @@ async def get_or_create_my_session(
     """
     from app.db.models import HostSettings
 
-    # Check for existing active session
+    # Retire any sessions whose expiry has passed but that are still flagged active, so a
+    # stale row cannot be picked below and cause a duplicate session to be created.
+    deactivate_expired_sessions(db)
+
+    # Check for an existing live session. Expiry is filtered in SQL and the newest session
+    # wins - an unordered .first() could otherwise return a stale row, fail the expiry check,
+    # and orphan a live session that still has performers in it.
     existing = (
         db.query(KaraokeSession)
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
+            KaraokeSession.expires_at > datetime.utcnow(),
         )
+        .order_by(KaraokeSession.created_at.desc())
         .first()
     )
 
-    if existing and not existing.is_expired():
+    if existing:
         # Register this device in the existing session
         device_id = f"rest_{uuid.uuid4().hex[:12]}"
         device_type = session_data.device_type
@@ -337,6 +379,9 @@ async def create_session(
     for attempt in range(max_attempts):
         try:
             session = KaraokeSession.create_new_session(db, host_device_id=device_id)
+            # Record the owning user. Host authority on the session WebSocket is derived
+            # from host_user_id, so a session created without it can never have a host.
+            session.host_user_id = current_user.id
             db.add(session)
             db.commit()
 

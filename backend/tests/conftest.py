@@ -197,15 +197,12 @@ def create_test_app():
     async def jobs_ws(websocket: WebSocket):
         await websocket_jobs_endpoint(websocket, manager)
 
+    # Must mirror the production registration in app/main.py exactly - this route
+    # previously declared a device_id query param that main.py did not, which hid a
+    # production bug from every test.
     @test_app.websocket("/ws/session/{session_id}")
-    async def unified_session_ws(
-        websocket: WebSocket,
-        session_id: str,
-        device_id: Optional[str] = None,
-    ):
-        await websocket_unified_session_endpoint(
-            websocket, session_id, manager, device_id
-        )
+    async def unified_session_ws(websocket: WebSocket, session_id: str):
+        await websocket_unified_session_endpoint(websocket, session_id, manager)
 
     # Root endpoint for testing
     @test_app.get("/")

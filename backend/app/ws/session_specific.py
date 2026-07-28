@@ -9,15 +9,16 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
-from fastapi import Query, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
 
 from app.db.database import get_db_session
-from app.db.models import SessionPlaybackState
+from app.db.models import KaraokeSession, SessionPlaybackState, User
+from app.services.auth_service import verify_token
 
 from .connection_manager import SessionConnectionManager
 from .queue import get_current_queue_state
@@ -39,6 +40,49 @@ def get_session_cleanup_lock(session_id: str) -> asyncio.Lock:
     if session_id not in session_cleanup_locks:
         session_cleanup_locks[session_id] = asyncio.Lock()
     return session_cleanup_locks[session_id]
+
+
+def resolve_host_claim(token: str, session_id: str) -> Tuple[bool, Optional[str]]:
+    """
+    Resolve a JWT against the owner of a session.
+
+    Host authority comes from the authenticated user (KaraokeSession.host_user_id), never
+    from a device token - device ids are handed out by unauthenticated endpoints and cannot
+    be trusted as credentials.
+
+    Returns (is_host, error). `error` is None when the token itself is valid; `is_host` is
+    False for a valid token belonging to someone who does not own this session.
+    """
+    payload = verify_token(token)
+    if payload is None:
+        return False, "invalid_token"
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        return False, "invalid_token_payload"
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return False, "invalid_token_payload"
+
+    with get_db_session() as db:
+        # A signed token is not enough - the account must still exist, so a deleted
+        # user's unexpired token cannot retain host authority.
+        if db.query(User).filter(User.id == user_id).first() is None:
+            return False, "user_not_found"
+
+        session = (
+            db.query(KaraokeSession)
+            .filter(KaraokeSession.session_id == session_id)
+            .first()
+        )
+        if session is None:
+            return False, "session_not_found"
+        if session.host_user_id is None:
+            return False, "session_has_no_host"
+
+        return user_id == session.host_user_id, None
 
 
 def get_session_performance_state(session_id: str):
@@ -132,17 +176,17 @@ async def websocket_unified_session_endpoint(
     websocket: WebSocket,
     session_id: str,
     manager: SessionConnectionManager,
-    device_id: Optional[str] = Query(None),
 ):
     """
     Unified session WebSocket endpoint.
     Handles all session-related communication: performance controls, player state, and queue management.
     Only devices in the specified session can access this endpoint.
-    """
-    # Verify session exists in database and check if this is the host
-    with get_db_session() as db:
-        from app.db.models import KaraokeSession
 
+    Connections start unprivileged. A client becomes the host only by sending an
+    `authenticate` message carrying the host user's JWT - see resolve_host_claim.
+    """
+    # Verify session exists in database
+    with get_db_session() as db:
         db_session = (
             db.query(KaraokeSession)
             .filter(
@@ -160,10 +204,8 @@ async def websocket_unified_session_endpoint(
             await websocket.close(code=1008, reason="Session has expired")
             return
 
-        host_device_id = db_session.host_device_id
-
-        # Determine if this connection is the host based on device_id query param
-        is_host = device_id is not None and device_id == host_device_id
+    # Host authority is granted only via the `authenticate` message below.
+    is_host = False
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -177,16 +219,8 @@ async def websocket_unified_session_endpoint(
     await manager.join_room(websocket, session_room)
 
     logger.info(
-        f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})"
+        f"Session {session_id} unified client connected: {ws_connection_id} (unauthenticated)"
     )
-
-    # If this is the host reconnecting within the grace period, cancel pending termination
-    if is_host and session_id in session_termination_tasks:
-        pending_task = session_termination_tasks.pop(session_id)
-        pending_task.cancel()
-        logger.info(
-            f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
-        )
 
     try:
         # Hydrate in-memory state from persisted playback state before greeting client
@@ -210,6 +244,50 @@ async def websocket_unified_session_endpoint(
             data = await websocket.receive_text()
             message = json.loads(data)
             message_type = message.get("type")
+
+            # === AUTHENTICATION ===
+            # The only way a connection gains host authority. Performers never send this.
+            if message_type == "authenticate":
+                token = message.get("token")
+                if not token:
+                    await websocket.send_text(
+                        json.dumps({"type": "auth_failed", "reason": "missing_token"})
+                    )
+                    continue
+
+                claimed_host, error = resolve_host_claim(token, session_id)
+                if error:
+                    logger.warning(
+                        "Session %s auth failed for %s: %s",
+                        session_id,
+                        ws_connection_id,
+                        error,
+                    )
+                    await websocket.send_text(
+                        json.dumps({"type": "auth_failed", "reason": error})
+                    )
+                    continue
+
+                is_host = claimed_host
+                logger.info(
+                    "Session %s client %s authenticated (is_host: %s)",
+                    session_id,
+                    ws_connection_id,
+                    is_host,
+                )
+
+                # Host reconnecting within the grace period - cancel pending termination
+                if is_host and session_id in session_termination_tasks:
+                    pending_task = session_termination_tasks.pop(session_id)
+                    pending_task.cancel()
+                    logger.info(
+                        f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
+                    )
+
+                await websocket.send_text(
+                    json.dumps({"type": "authenticated", "is_host": is_host})
+                )
+                continue
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
             if message_type == "join_performance":
@@ -244,7 +322,13 @@ async def websocket_unified_session_endpoint(
             elif message_type == "update_player_state":
                 if not is_host:
                     await websocket.send_text(
-                        json.dumps({"type": "permission_denied", "action": message_type, "reason": "Host-only action"})
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Host-only action",
+                            }
+                        )
                     )
                     continue
 
@@ -283,7 +367,13 @@ async def websocket_unified_session_endpoint(
             ]:
                 if not is_host:
                     await websocket.send_text(
-                        json.dumps({"type": "permission_denied", "action": message_type, "reason": "Host-only action"})
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Host-only action",
+                            }
+                        )
                     )
                     continue
 
@@ -379,6 +469,7 @@ async def websocket_unified_session_endpoint(
         # This allows the host to survive a page refresh or brief network interruption
         # without destroying the session for all connected performers.
         if is_host:
+
             async def terminate_session_after_grace():
                 try:
                     await asyncio.sleep(HOST_DISCONNECT_GRACE_SECONDS)
@@ -413,17 +504,22 @@ async def websocket_unified_session_endpoint(
                                     db.delete(session)
                                     db.commit()
                                     logger.info(
-                                        "🗑️  Session %s deleted from database (code recycled)", session_id
+                                        "🗑️  Session %s deleted from database (code recycled)",
+                                        session_id,
                                     )
                         except Exception as e:
-                            logger.error("❌ Failed to delete session from database: %s", e)
+                            logger.error(
+                                "❌ Failed to delete session from database: %s", e
+                            )
 
                         # Force close all other connections in this session
                         if session_room in manager.rooms:
                             connections_to_close = list(manager.rooms[session_room])
                             for conn in connections_to_close:
                                 try:
-                                    await conn.close(code=1000, reason="Session ended by host")
+                                    await conn.close(
+                                        code=1000, reason="Session ended by host"
+                                    )
                                     logger.debug(
                                         f"🔌 Force closed connection {id(conn)} for session {session_id}"
                                     )
@@ -451,5 +547,3 @@ async def websocket_unified_session_endpoint(
             )
             task = asyncio.create_task(terminate_session_after_grace())
             session_termination_tasks[session_id] = task
-
-
