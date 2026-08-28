@@ -133,7 +133,14 @@ async def broadcast_job_completed(manager: SessionConnectionManager, job_data: d
 
 
 async def broadcast_job_failed(manager: SessionConnectionManager, job_data: dict):
-    """Broadcast job failure to all subscribed clients."""
+    """Broadcast job failure to all subscribed clients.
+
+    NOTE: this has no production callers. Job failures happen inside the
+    Celery worker process, which cannot reach this API-process-only
+    `manager`. Failure state instead reaches clients via the periodic
+    in-flight jobs list (see `get_current_jobs_list`) dropping the job and
+    the frontend's `useJobsWebSocket` invalidating the song query.
+    """
     await manager.broadcast_to_room(
         "jobs_updates", {"type": "job_failed", "job": job_data}
     )

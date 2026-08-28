@@ -75,6 +75,7 @@ class SongResponse(BaseModel):
     artists: List[SongArtistRef] = []
 
     status: str = "processed"
+    errorMessage: Optional[str] = None
 
     class Config:
         from_attributes = True

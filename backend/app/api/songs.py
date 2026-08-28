@@ -1237,9 +1237,7 @@ async def reprocess_song(
 
         # 3. Check if already processing (prevent duplicate jobs)
         job_repository = JobRepository()
-        active_jobs = job_repository.get_jobs_by_status(
-            [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
-        )
+        active_jobs = job_repository.get_in_flight_jobs()
         for job in active_jobs:
             if job.song_id == song_id:
                 raise HTTPException(
@@ -1248,7 +1246,7 @@ async def reprocess_song(
                 )
 
         # 4. Reset song status and create job record
-        repo.update(song_id, status="processing")
+        repo.update(song_id, status="processing", error_message=None)
 
         job_id = str(uuid.uuid4())
         job = Job(
@@ -1713,7 +1711,6 @@ async def replace_song_youtube(
     """Replace a song's audio source with a YouTube Music track and reprocess."""
     from datetime import datetime, timezone
 
-    from app.db.models import JobStatus
     from app.repositories import JobRepository
     from app.services.youtube_service import YouTubeService
 
@@ -1723,14 +1720,14 @@ async def replace_song_youtube(
         raise HTTPException(status_code=404, detail="Song not found")
 
     job_repository = JobRepository()
-    active_jobs = job_repository.get_jobs_by_status(
-        [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
-    )
+    active_jobs = job_repository.get_in_flight_jobs()
     if any(j.song_id == song_id for j in active_jobs):
         raise HTTPException(status_code=409, detail="Song is already being processed")
 
     song_repo.update(
         song_id,
+        status="processing",
+        error_message=None,
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
@@ -1791,14 +1788,14 @@ async def replace_song_upload(
         )
 
     job_repository = JobRepository()
-    active_jobs = job_repository.get_jobs_by_status(
-        [JobStatus.PENDING, JobStatus.PROCESSING, JobStatus.DOWNLOADING]
-    )
+    active_jobs = job_repository.get_in_flight_jobs()
     if any(j.song_id == song_id for j in active_jobs):
         raise HTTPException(status_code=409, detail="Song is already being processed")
 
     song_repo.update(
         song_id,
+        status="processing",
+        error_message=None,
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,

@@ -105,7 +105,7 @@ class TestReplaceSongYouTube:
             patch("app.repositories.JobRepository") as MockJobRepo,
         ):
             MockRepo.return_value.fetch.return_value = song
-            MockJobRepo.return_value.get_jobs_by_status.return_value = [active_job]
+            MockJobRepo.return_value.get_in_flight_jobs.return_value = [active_job]
             response = client.post(
                 "/api/songs/song-123/replace-youtube",
                 json={"video_id": "abc123"},
@@ -122,7 +122,7 @@ class TestReplaceSongYouTube:
             patch("app.services.youtube_service.YouTubeService") as MockYT,
         ):
             MockRepo.return_value.fetch.return_value = song
-            MockJobRepo.return_value.get_jobs_by_status.return_value = []
+            MockJobRepo.return_value.get_in_flight_jobs.return_value = []
 
             def _fake_download(**kwargs):
                 return "job-xyz"
@@ -171,7 +171,7 @@ class TestReplaceSongUpload:
             patch("app.repositories.JobRepository") as MockJobRepo,
         ):
             MockRepo.return_value.fetch.return_value = song
-            MockJobRepo.return_value.get_jobs_by_status.return_value = [active_job]
+            MockJobRepo.return_value.get_in_flight_jobs.return_value = [active_job]
             response = client.post(
                 "/api/songs/song-123/replace-upload",
                 files={"audio_file": ("test.mp3", BytesIO(b"audio"), "audio/mpeg")},
@@ -190,7 +190,7 @@ class TestReplaceSongUpload:
             patch("app.jobs.celery_app.celery") as mock_celery,
         ):
             MockRepo.return_value.fetch.return_value = song
-            MockJobRepo.return_value.get_jobs_by_status.return_value = []
+            MockJobRepo.return_value.get_in_flight_jobs.return_value = []
             MockFS.return_value.get_song_directory.return_value = mock_song_dir
 
             mock_task = MagicMock()

@@ -81,7 +81,7 @@ class TestReplaceSongYouTube:
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
             mock_repo_cls.return_value.update.return_value = None
-            mock_job_repo_cls.return_value.get_jobs_by_status.return_value = []
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = []
             mock_fs_cls.return_value.delete_song_files.return_value = None
             mock_yt_cls.return_value.download_and_process_async = Mock(return_value="job-123")
             response = client.post(f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD)
@@ -103,7 +103,7 @@ class TestReplaceSongYouTube:
             patch("app.repositories.JobRepository") as mock_job_repo_cls,
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
-            mock_job_repo_cls.return_value.get_jobs_by_status.return_value = [active_job]
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [active_job]
             response = client.post(f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD)
         assert response.status_code == 409
 
@@ -129,7 +129,7 @@ class TestReplaceSongUpload:
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
             mock_repo_cls.return_value.update.return_value = None
-            mock_job_repo_cls.return_value.get_jobs_by_status.return_value = []
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = []
             mock_job_repo_cls.return_value.create.return_value = None
             mock_job_repo_cls.return_value.update.return_value = None
             mock_fs_cls.return_value.get_song_directory.return_value = mock_path
@@ -165,7 +165,7 @@ class TestReplaceSongUpload:
             patch("app.repositories.JobRepository") as mock_job_repo_cls,
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
-            mock_job_repo_cls.return_value.get_jobs_by_status.return_value = []
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = []
             response = client.post(
                 f"/api/songs/{SONG_ID}/replace-upload",
                 data={"engine_type": "bad"},
@@ -180,7 +180,7 @@ class TestReplaceSongUpload:
             patch("app.repositories.JobRepository") as mock_job_repo_cls,
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
-            mock_job_repo_cls.return_value.get_jobs_by_status.return_value = [active_job]
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [active_job]
             response = client.post(
                 f"/api/songs/{SONG_ID}/replace-upload",
                 files={"audio_file": ("test.mp3", b"data", "audio/mpeg")},

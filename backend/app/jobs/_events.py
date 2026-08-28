@@ -8,10 +8,17 @@ _subscriptions_initialized = False
 
 
 def broadcast_job_event(job, was_created: bool = False):
-    """Broadcast a job event via WebSocket if available."""
-    # WebSocket broadcasting has been migrated to FastAPI.
-    # Job events are now handled by the FastAPI WebSocket server.
-    # Frontend polls the database via REST API for job status updates.
+    """Intentionally a no-op.
+
+    This runs in the Celery worker process, which has no WebSocket
+    connections of its own — `app.ws.jobs.SessionConnectionManager` lives
+    in the API process's memory, and there is no cross-process broadcast
+    mechanism (no Redis pub/sub) between them. The real WebSocket status
+    updates come from `app.ws.jobs`, which is polled by the frontend
+    (`useJobsWebSocket`'s periodic `requestJobsList`) and served from the
+    API process's own job list. Do not wire this up expecting it to reach
+    connected clients.
+    """
     pass
 
 

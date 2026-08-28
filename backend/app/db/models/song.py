@@ -58,8 +58,10 @@ class DbSong(Base):
     loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
     gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
 
-    # Processing state: "processing" | "processed" | "error"
+    # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")
+    # Failure reason when status="error" (yt-dlp/demucs error text, truncated)
+    error_message = Column(Text, nullable=True)
 
     # AcoustID fingerprinting
     musicbrainz_recording_id = Column(String, nullable=True)
@@ -98,6 +100,7 @@ class DbSong(Base):
             "artist": self.artist,
             "duration": self.duration,  # Duration in seconds
             "status": self.status,
+            "errorMessage": self.error_message,
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),

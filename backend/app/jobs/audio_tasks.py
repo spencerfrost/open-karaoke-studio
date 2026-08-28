@@ -152,24 +152,27 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         from app.repositories.song_repository import SongRepository
 
         with get_db_session() as session:
-            SongRepository(session).update(song_id, status="error")
+            SongRepository(session).update(
+                song_id, status="error", error_message="Processing was cancelled."
+            )
         logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
     except Exception as e:
-        error_message = str(e)
+        error_message = str(e)[:2000]
         logger.error("Error processing job %s: %s", job_id, error_message)
         traceback.print_exc()
         job.status = JobStatus.FAILED
         job.error = error_message
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
 
         with get_db_session() as session:
-            SongRepository(session).update(song_id, status="error")
+            SongRepository(session).update(
+                song_id, status="error", error_message=error_message
+            )
         return {
             "status": "error",
             "job_id": job_id,
@@ -369,19 +372,22 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if song_dir.exists():
             shutil.rmtree(song_dir)
         with get_db_session() as session:
-            SongRepository(session).update(song_id, status="error")
+            SongRepository(session).update(
+                song_id, status="error", error_message="Processing was cancelled."
+            )
         logger.info("Job %s was cancelled", job_id)
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
-        error_message = str(e)
+        error_message = str(e)[:2000]
         logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()
         job.status = JobStatus.FAILED
         job.error = error_message
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
         with get_db_session() as session:
-            SongRepository(session).update(song_id, status="error")
+            SongRepository(session).update(
+                song_id, status="error", error_message=error_message
+            )
         return {"status": "error", "job_id": job_id, "error": error_message}

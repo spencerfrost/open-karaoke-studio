@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.db.models import JobStatus
 from app.repositories.job_repository import JobRepository
+from app.repositories.song_repository import SongRepository
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +18,22 @@ def cleanup_stuck_jobs():
     terminal_statuses = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
     now = datetime.now()
     cleaned = 0
+    interrupted_message = "Processing was interrupted (server restarted)."
     for job in jobs:
         if job.status not in terminal_statuses:
             job.status = JobStatus.FAILED
             job.error = "Job was stuck in non-terminal state on startup."
             job.completed_at = now
             repo.update(job)
-            repo.delete_job(job.id)
+            if job.song_id:
+                from app.db.database import get_db_session
+
+                with get_db_session() as session:
+                    SongRepository(session).update(
+                        job.song_id,
+                        status="error",
+                        error_message=interrupted_message,
+                    )
             cleaned += 1
     if cleaned:
         logger.info("Marked %d stuck jobs as failed on startup.", cleaned)
