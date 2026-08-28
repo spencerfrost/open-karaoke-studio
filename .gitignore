@@ -6,6 +6,7 @@ Thumbs.db
 *.env
 .env.*
 !.env.example
+/secrets/
 
 # Python
 __pycache__/
@@ -119,3 +120,4 @@ three_track_compare_test/
 frontend/public/three-track-compare
 GEM.md
 three_track_compare_gpu_5/
+portfolio-content.json

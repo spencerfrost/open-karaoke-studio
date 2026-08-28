@@ -53,6 +53,7 @@ services:
       - "15123:5123"
     volumes:
       - ./karaoke_library:/app/karaoke_library
+      - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
     environment:
       - ENVIRONMENT=production
@@ -70,6 +71,7 @@ services:
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+      - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5123/api/health"]
       interval: 5s
@@ -95,6 +97,7 @@ services:
     command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment,lyrics
     volumes:
       - ./karaoke_library:/app/karaoke_library
+      - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -109,6 +112,7 @@ services:
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+      - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     depends_on:
       redis:
         condition: service_healthy

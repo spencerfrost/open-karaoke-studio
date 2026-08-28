@@ -55,6 +55,13 @@ class BaseConfig:
     DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
     ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
+    # Netscape-format cookie file for yt-dlp (age-restricted / login-gated
+    # videos). Disabled when unset.
+    # NOTE: app.services.youtube_service reads this from os.environ at call
+    # time so tests can monkeypatch it; this attr exists for documentation
+    # parity.
+    YTDLP_COOKIES_FILE = os.environ.get("YTDLP_COOKIES_FILE", "")
+
     # Public demo alias credentials (feature disabled when unset).
     # NOTE: app.services.demo_service reads these from os.environ at call time
     # so tests can monkeypatch them; these attrs exist for documentation parity.
