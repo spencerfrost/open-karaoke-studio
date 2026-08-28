@@ -5,7 +5,7 @@
 
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import type { PlayerError } from "../KaraokePlayer.types";
+import type { PlayerError } from "../../types/KaraokePlayer.types";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("component:player-error-boundary");

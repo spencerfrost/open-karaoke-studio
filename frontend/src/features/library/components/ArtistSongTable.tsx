@@ -156,58 +156,55 @@ interface ArtistSongTableProps {
   fetchNextPage?: () => void;
 }
 
-const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(({
-  songs,
-  hasNextPage,
-  isFetchingNextPage,
-  fetchNextPage,
-}) => {
-  if (songs.length === 0) return null;
+const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(
+  ({ songs, hasNextPage, isFetchingNextPage, fetchNextPage }) => {
+    if (songs.length === 0) return null;
 
-  return (
-    <div className="space-y-4">
-      {/* Column headers */}
-      <div className="flex items-center gap-3 px-3 pb-1 border-b border-lemon-chiffon/10">
-        <div className="w-9 shrink-0" />
-        <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
-          Title
-        </span>
-        <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
-          Time
-        </span>
-        <div className="w-[76px] shrink-0" />
-      </div>
-
-      {/* Rows */}
-      <div>
-        {songs.filter(Boolean).map((song) => (
-          <SongTableRow key={song.id} song={song} />
-        ))}
-      </div>
-
-      {/* Load More */}
-      {hasNextPage && (
-        <div className="flex justify-center mt-4">
-          <Button
-            onClick={fetchNextPage}
-            disabled={isFetchingNextPage}
-            variant="outline"
-            className="px-8"
-          >
-            {isFetchingNextPage ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load More Songs"
-            )}
-          </Button>
+    return (
+      <div className="space-y-4">
+        {/* Column headers */}
+        <div className="flex items-center gap-3 px-3 pb-1 border-b border-lemon-chiffon/10">
+          <div className="w-9 shrink-0" />
+          <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
+            Title
+          </span>
+          <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
+            Time
+          </span>
+          <div className="w-[76px] shrink-0" />
         </div>
-      )}
-    </div>
-  );
-});
+
+        {/* Rows */}
+        <div>
+          {songs.filter(Boolean).map((song) => (
+            <SongTableRow key={song.id} song={song} />
+          ))}
+        </div>
+
+        {/* Load More */}
+        {hasNextPage && (
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={fetchNextPage}
+              disabled={isFetchingNextPage}
+              variant="outline"
+              className="px-8"
+            >
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Load More Songs"
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  },
+);
 
 ArtistSongTable.displayName = "ArtistSongTable";
 

@@ -88,7 +88,10 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                 </p>
               )}
               {result.videoId && (
-                <YouTubeAudioPreview videoId={result.videoId} className="mt-2" />
+                <YouTubeAudioPreview
+                  videoId={result.videoId}
+                  className="mt-2"
+                />
               )}
             </div>
           </div>

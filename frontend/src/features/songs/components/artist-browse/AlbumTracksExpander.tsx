@@ -107,14 +107,14 @@ export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
               {tracks.map((track, index) => {
                 const status = getSubmissionStatus(track.videoId);
                 return (
-                <TrackRow
-                  key={track.videoId || index}
-                  track={track}
-                  trackNumber={track.trackNumber || index + 1}
+                  <TrackRow
+                    key={track.videoId || index}
+                    track={track}
+                    trackNumber={track.trackNumber || index + 1}
                     isLoading={status === "pending"}
                     isSubmitted={status === "queued"}
-                  onSelect={() => onSelectTrack(track)}
-                />
+                    onSelect={() => onSelectTrack(track)}
+                  />
                 );
               })}
             </div>

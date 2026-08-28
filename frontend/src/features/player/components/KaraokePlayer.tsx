@@ -154,6 +154,10 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   const noop = () => {};
   const noopVolume = (/*volume: number*/) => {};
 
+  // Hoisted so the header's event handlers close over a narrowed value —
+  // TypeScript cannot keep `player.song` narrowed inside a callback.
+  const song = player.song;
+
   // Error state
   if (player.error) {
     return (
@@ -256,14 +260,14 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         </div>
       )}
       {/* Song Info Header */}
-      {player.song && (
+      {song && (
         <div className="absolute top-2 left-3 z-30 text-foreground/50">
-          <h1 className="font-bold text-xl">{player.song.title}</h1>
+          <h1 className="font-bold text-xl">{song.title}</h1>
           <h2
             className="text-base cursor-pointer hover:text-orange-peel transition-colors"
             onClick={() =>
               navigate(
-                `/library?expandArtist=${encodeURIComponent(player.song.artist)}`,
+                `/library?expandArtist=${encodeURIComponent(song.artist)}`,
               )
             }
             role="button"
@@ -271,12 +275,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 navigate(
-                  `/library?expandArtist=${encodeURIComponent(player.song.artist)}`,
+                  `/library?expandArtist=${encodeURIComponent(song.artist)}`,
                 );
               }
             }}
           >
-            {player.song.artist}
+            {song.artist}
           </h2>
         </div>
       )}
@@ -314,7 +318,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           )
         ) : player.song ? (
           <>
-            {player.showChords && <ChordCarousel chords={songChords} currentTime={player.currentTime} />}
+            {player.showChords && (
+              <ChordCarousel
+                chords={songChords}
+                currentTime={player.currentTime}
+              />
+            )}
             <LyricsDisplayWithCountIn
               lyrics={player.lyrics}
               isSync={player.isLyricsSync}

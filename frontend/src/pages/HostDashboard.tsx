@@ -78,7 +78,9 @@ function useQueueAction(path: string, method: "POST" | "DELETE" = "POST") {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (itemId?: string) => {
-      const url = itemId ? `/api/karaoke-queue/${itemId}/${path}` : `/api/karaoke-queue/${path}`;
+      const url = itemId
+        ? `/api/karaoke-queue/${itemId}/${path}`
+        : `/api/karaoke-queue/${path}`;
       const res = await fetch(url, {
         method,
         headers: { Authorization: `Bearer ${token}` },
@@ -259,16 +261,13 @@ const HostDashboard: React.FC = () => {
     updateSettings.mutate(
       { queue_open: open },
       {
-        onSuccess: () =>
-          toast.success(open ? "Queue opened" : "Queue closed"),
+        onSuccess: () => toast.success(open ? "Queue opened" : "Queue closed"),
         onError: (e) => toast.error(e.message),
       },
     );
   };
 
-  const handleSubmissionModeChange = (
-    mode: "instant" | "approval",
-  ) => {
+  const handleSubmissionModeChange = (mode: "instant" | "approval") => {
     updateSettings.mutate(
       { queue_submission_mode: mode },
       {
@@ -421,7 +420,9 @@ const HostDashboard: React.FC = () => {
               </Button>
             </div>
             <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
-              <p className="font-medium">{currentItem.song?.title ?? "Unknown"}</p>
+              <p className="font-medium">
+                {currentItem.song?.title ?? "Unknown"}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {currentItem.song?.artist ?? "Unknown"} &bull; Singer:{" "}
                 {currentItem.singer}

@@ -79,7 +79,9 @@ export const SongEnded: React.FC<SongEndedProps> = ({
       <div className="flex flex-col items-center gap-6 p-6 max-w-lg w-full">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground/80">Song Complete!</h2>
+          <h2 className="text-2xl font-bold text-foreground/80">
+            Song Complete!
+          </h2>
         </div>
 
         {/* Next song section */}

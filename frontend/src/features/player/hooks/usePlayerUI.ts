@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { PlayerUIHook } from "../KaraokePlayer.types";
+import type { PlayerUIHook } from "../types/KaraokePlayer.types";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 
 export const usePlayerUI = (): PlayerUIHook => {
@@ -128,7 +128,7 @@ export const usePlayerUI = (): PlayerUIHook => {
       return;
     }
 
-    let hideTimer: NodeJS.Timeout;
+    let hideTimer: ReturnType<typeof setTimeout>;
 
     const showControls = () => {
       setIsControlsVisible(true);

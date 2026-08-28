@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { ReplacePanelProps } from "./types";
 
-export const EditMetadataPanel: React.FC<ReplacePanelProps> = ({ song, onDone }) => {
+export const EditMetadataPanel: React.FC<ReplacePanelProps> = ({
+  song,
+  onDone,
+}) => {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(song.title ?? "");
@@ -46,7 +49,9 @@ export const EditMetadataPanel: React.FC<ReplacePanelProps> = ({ song, onDone })
     <div className="space-y-3 pt-1">
       <div className="space-y-2">
         <div>
-          <label className="text-xs font-medium text-muted-foreground">Title</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Title
+          </label>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -54,7 +59,9 @@ export const EditMetadataPanel: React.FC<ReplacePanelProps> = ({ song, onDone })
           />
         </div>
         <div>
-          <label className="text-xs font-medium text-muted-foreground">Artist</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Artist
+          </label>
           <Input
             value={artist}
             onChange={(e) => setArtist(e.target.value)}
@@ -62,7 +69,9 @@ export const EditMetadataPanel: React.FC<ReplacePanelProps> = ({ song, onDone })
           />
         </div>
         <div>
-          <label className="text-xs font-medium text-muted-foreground">Album</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Album
+          </label>
           <Input
             value={album}
             onChange={(e) => setAlbum(e.target.value)}

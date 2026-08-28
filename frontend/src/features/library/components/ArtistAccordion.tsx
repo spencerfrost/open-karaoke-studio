@@ -41,7 +41,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   const groupedArtists = React.useMemo(() => {
     return artists.reduce(
       (groups, artist) => {
-        const letter = /^\d/.test(artist.firstLetter) ? "#" : artist.firstLetter;
+        const letter = /^\d/.test(artist.firstLetter)
+          ? "#"
+          : artist.firstLetter;
         if (!groups[letter]) {
           groups[letter] = [];
         }
@@ -123,12 +125,13 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             const letterArtists = groupedArtists[letter];
             return (
               <div key={letter} id={`artist-section-${letter}`}>
-                <div className={`sticky top-0 px-3 py-2 mb-3 z-10
+                <div
+                  className={`sticky top-0 px-3 py-2 mb-3 z-10
                   flex items-center justify-center
                   rounded-full w-12 h-12
                   font-bold text-lg bg-dark-cyan/50 text-orange-peel
-                  `
-                }>
+                  `}
+                >
                   {letter}
                 </div>
 
@@ -146,7 +149,6 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
               </div>
             );
           })}
-
         </div>
 
         {/* Mobile: full-height touch index bar */}

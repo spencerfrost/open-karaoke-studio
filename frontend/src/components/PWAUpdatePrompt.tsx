@@ -28,9 +28,9 @@ export function PWAUpdatePrompt() {
   return (
     <AlertDialog open={needRefresh}>
       <AlertDialogContent
-        // Prevent closing via Escape or overlay click
+        // Prevent closing via Escape. Alert dialogs already ignore outside
+        // clicks, so there is no pointer-down handler to add here.
         onEscapeKeyDown={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
       >
         <AlertDialogHeader>
           <AlertDialogTitle>Update available</AlertDialogTitle>

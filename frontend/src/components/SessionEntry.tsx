@@ -63,16 +63,33 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
   const hasAutoHostJoined = useRef(false);
   useEffect(() => {
     if (hasAutoHostJoined.current) return;
-    if (isAuthenticated && (user?.isHost || user?.isAdmin) && !sessionId && !isConnecting) {
+    if (
+      isAuthenticated &&
+      (user?.isHost || user?.isAdmin) &&
+      !sessionId &&
+      !isConnecting
+    ) {
       hasAutoHostJoined.current = true;
       joinAsHost().catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
-        if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
+        if (
+          message.includes("401") ||
+          message.toLowerCase().includes("unauthorized")
+        ) {
           logout();
         }
       });
     }
-  }, [isAuthenticated, user?.id, user?.isHost, user?.isAdmin, sessionId, isConnecting, joinAsHost, logout]);
+  }, [
+    isAuthenticated,
+    user?.id,
+    user?.isHost,
+    user?.isAdmin,
+    sessionId,
+    isConnecting,
+    joinAsHost,
+    logout,
+  ]);
 
   const hasAutoJoined = useRef(false);
 
@@ -197,7 +214,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
                 </span>
               </div>
             </div>
-
 
             {/* Session Code - Secondary */}
             <div className="space-y-4">

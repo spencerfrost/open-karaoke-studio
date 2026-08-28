@@ -4,13 +4,7 @@
  */
 
 import React, { useState, useRef, useCallback } from "react";
-import {
-  ChevronLeft,
-  Minus,
-  Plus,
-  RotateCcw,
-  Save,
-} from "lucide-react";
+import { ChevronLeft, Minus, Plus, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";

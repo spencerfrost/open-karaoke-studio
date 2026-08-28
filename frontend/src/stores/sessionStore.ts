@@ -213,16 +213,19 @@ export const useSessionStore = create<SessionState>()(
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          sessionEndedCleanup = sessionWebSocketService.on(
+            "session_ended",
+            (data) => {
+              logger.info("Session ended by host:", data?.reason);
+              get().clearSession();
+              if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== "/"
+              ) {
+                window.location.href = "/";
+              }
+            },
+          );
 
           // Store host session data in localStorage for recovery
           localStorage.setItem(
@@ -292,16 +295,19 @@ export const useSessionStore = create<SessionState>()(
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          sessionEndedCleanup = sessionWebSocketService.on(
+            "session_ended",
+            (data) => {
+              logger.info("Session ended by host:", data?.reason);
+              get().clearSession();
+              if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== "/"
+              ) {
+                window.location.href = "/";
+              }
+            },
+          );
 
           // Store session data in localStorage for recovery
           if (sessionData.is_host) {
@@ -423,16 +429,19 @@ export const useSessionStore = create<SessionState>()(
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          sessionEndedCleanup = sessionWebSocketService.on(
+            "session_ended",
+            (data) => {
+              logger.info("Session ended by host:", data?.reason);
+              get().clearSession();
+              if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== "/"
+              ) {
+                window.location.href = "/";
+              }
+            },
+          );
 
           logger.info("Host session recovered:", sessionData);
         } catch (error) {
@@ -538,16 +547,19 @@ export const useSessionStore = create<SessionState>()(
 
           // Register session_ended handler (replacing any previous registration)
           sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          sessionEndedCleanup = sessionWebSocketService.on(
+            "session_ended",
+            (data) => {
+              logger.info("Session ended by host:", data?.reason);
+              get().clearSession();
+              if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== "/"
+              ) {
+                window.location.href = "/";
+              }
+            },
+          );
 
           logger.info("Performer session recovered:", sessionData);
         } catch (error) {

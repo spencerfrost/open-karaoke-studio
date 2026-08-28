@@ -38,17 +38,17 @@ type ActiveAction =
 
 // Maps data-quality issue types to the button keys that can resolve them.
 const ISSUE_ACTION_MAP: Record<string, string[]> = {
-  empty_title:         ["edit"],
-  empty_artist:        ["edit"],
-  suspicious_title:    ["edit", "musicbrainz", "replace-yt"],
-  long_title:          ["edit"],
-  swapped_fields:      ["edit"],
-  encoding_artifact:   ["edit"],
-  unknown_artist:      ["edit", "musicbrainz"],
-  missing_source:      ["replace-yt", "replace-upload"],
-  missing_duration:    ["replace-yt", "replace-upload"],
-  missing_album:       ["edit", "musicbrainz", "fingerprint"],
-  missing_lyrics:      ["search-lyrics", "paste-lyrics"],
+  empty_title: ["edit"],
+  empty_artist: ["edit"],
+  suspicious_title: ["edit", "musicbrainz", "replace-yt"],
+  long_title: ["edit"],
+  swapped_fields: ["edit"],
+  encoding_artifact: ["edit"],
+  unknown_artist: ["edit", "musicbrainz"],
+  missing_source: ["replace-yt", "replace-upload"],
+  missing_duration: ["replace-yt", "replace-upload"],
+  missing_album: ["edit", "musicbrainz", "fingerprint"],
+  missing_lyrics: ["search-lyrics", "paste-lyrics"],
   missing_vocal_range: ["analyze-vocal-range"],
 };
 
@@ -100,10 +100,15 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
         const err = await res.json().catch(() => null);
         throw new Error(err?.detail ?? "Vocal range analysis failed");
       }
-      return res.json() as Promise<{ vocal_range_low: string; vocal_range_high: string }>;
+      return res.json() as Promise<{
+        vocal_range_low: string;
+        vocal_range_high: string;
+      }>;
     },
     onSuccess: (data) => {
-      toast.success(`Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`);
+      toast.success(
+        `Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`,
+      );
       invalidateAndDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -111,9 +116,16 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
 
   const handleLyricsSelected = (result: LyricsResult) => {
     updateSongMutation.mutate(
-      { id: song.id, plainLyrics: result.plainLyrics, syncedLyrics: result.syncedLyrics },
       {
-        onSuccess: () => { setIsSearchOpen(false); invalidateAndDone(); },
+        id: song.id,
+        plainLyrics: result.plainLyrics,
+        syncedLyrics: result.syncedLyrics,
+      },
+      {
+        onSuccess: () => {
+          setIsSearchOpen(false);
+          invalidateAndDone();
+        },
         onError: (e: Error) => toast.error(e.message),
       },
     );
@@ -123,7 +135,10 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
     updateSongMutation.mutate(
       { id: song.id, plainLyrics: pastedLyrics, syncedLyrics: undefined },
       {
-        onSuccess: () => { setIsPasteOpen(false); invalidateAndDone(); },
+        onSuccess: () => {
+          setIsPasteOpen(false);
+          invalidateAndDone();
+        },
         onError: (e: Error) => toast.error(e.message),
       },
     );
@@ -206,17 +221,27 @@ export const SongActionPanel: React.FC<SongActionPanelProps> = ({
             onClick={() => analyzeVocalRangeMutation.mutate()}
             disabled={analyzeVocalRangeMutation.isPending}
           >
-            {analyzeVocalRangeMutation.isPending ? "Analyzing..." : "Analyze Vocal Range"}
+            {analyzeVocalRangeMutation.isPending
+              ? "Analyzing..."
+              : "Analyze Vocal Range"}
           </Button>
         )}
         {show("search-lyrics") && (
-          <Button size="sm" variant="outline" onClick={() => setIsSearchOpen(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsSearchOpen(true)}
+          >
             <Search className="w-3.5 h-3.5 mr-1.5" />
             Search Lyrics
           </Button>
         )}
         {show("paste-lyrics") && (
-          <Button size="sm" variant="outline" onClick={() => setIsPasteOpen(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsPasteOpen(true)}
+          >
             <FileText className="w-3.5 h-3.5 mr-1.5" />
             Paste Lyrics
           </Button>

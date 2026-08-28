@@ -9,6 +9,7 @@ interface BaseResultCardProps {
   subtitle: string;
   duration?: string;
   isLoading?: boolean;
+  isSubmitted?: boolean;
   onSelect: () => void;
   existsInLibrary?: boolean;
   children?: React.ReactNode;
@@ -21,6 +22,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
   subtitle,
   duration,
   isLoading = false,
+  isSubmitted = false,
   onSelect,
   existsInLibrary = false,
   children,

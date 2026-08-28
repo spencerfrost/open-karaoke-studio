@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, LayoutGrid, List, MoreHorizontal, Users } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Users,
+} from "lucide-react";
 import { useInfiniteArtistSongs } from "@/hooks/api/useArtistSongs";
 import {
   DropdownMenu,
@@ -112,7 +119,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             >
               <MoreHorizontal size={18} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-overlay/95 border-orange-peel/20">
+            <DropdownMenuContent
+              align="end"
+              className="bg-overlay/95 border-orange-peel/20"
+            >
               <DropdownMenuItem
                 onClick={() => setEditOpen(true)}
                 className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"

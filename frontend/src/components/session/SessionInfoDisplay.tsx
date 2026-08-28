@@ -107,7 +107,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener(
         "webkitfullscreenchange",
-        handleFullscreenChange
+        handleFullscreenChange,
       );
     };
   }, []);

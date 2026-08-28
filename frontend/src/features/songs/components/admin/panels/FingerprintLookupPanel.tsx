@@ -14,7 +14,9 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
 }) => {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
-  const [candidates, setCandidates] = useState<FingerprintCandidate[] | null>(null);
+  const [candidates, setCandidates] = useState<FingerprintCandidate[] | null>(
+    null,
+  );
   const [selected, setSelected] = useState<FingerprintCandidate | null>(null);
 
   const lookupMutation = useMutation({
@@ -31,7 +33,11 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
     },
     onSuccess: (data) => {
       setCandidates(data.candidates);
-      logger.info("fingerprint lookup: %d candidates for song %s", data.candidates.length, song.id);
+      logger.info(
+        "fingerprint lookup: %d candidates for song %s",
+        data.candidates.length,
+        song.id,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -71,7 +77,9 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
     <div className="space-y-3">
       {candidates === null ? (
         <p className="text-sm text-muted-foreground">
-          {lookupMutation.isPending ? "Running fingerprint lookup..." : "Starting lookup..."}
+          {lookupMutation.isPending
+            ? "Running fingerprint lookup..."
+            : "Starting lookup..."}
         </p>
       ) : candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -80,7 +88,8 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {candidates.length} candidate{candidates.length !== 1 ? "s" : ""} found — click to select
+            {candidates.length} candidate{candidates.length !== 1 ? "s" : ""}{" "}
+            found — click to select
           </p>
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {candidates.map((c) => (
@@ -105,37 +114,47 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
                   >
                     {Math.round(c.score * 100)}%
                   </span>
-                  <span className="text-[10px] text-muted-foreground/60 leading-tight">match</span>
+                  <span className="text-[10px] text-muted-foreground/60 leading-tight">
+                    match
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    <span className="text-muted-foreground font-normal">Title: </span>
+                    <span className="text-muted-foreground font-normal">
+                      Title:{" "}
+                    </span>
                     {c.title}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    <span className="font-medium text-muted-foreground/60">Artist: </span>
+                    <span className="font-medium text-muted-foreground/60">
+                      Artist:{" "}
+                    </span>
                     {c.artist}
                   </p>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                     {c.album && (
                       <p className="text-xs text-muted-foreground/70 truncate">
-                        <span className="font-medium">Album: </span>{c.album}
+                        <span className="font-medium">Album: </span>
+                        {c.album}
                       </p>
                     )}
                     {c.year && (
                       <p className="text-xs text-muted-foreground/70">
-                        <span className="font-medium">Year: </span>{c.year}
+                        <span className="font-medium">Year: </span>
+                        {c.year}
                       </p>
                     )}
                     {c.releaseType && (
                       <p className="text-xs text-muted-foreground/70">
-                        <span className="font-medium">Type: </span>{c.releaseType}
+                        <span className="font-medium">Type: </span>
+                        {c.releaseType}
                       </p>
                     )}
                     {c.duration != null && (
                       <p className="text-xs text-muted-foreground/70">
                         <span className="font-medium">Duration: </span>
-                        {Math.floor(c.duration / 60)}:{String(Math.round(c.duration % 60)).padStart(2, "0")}
+                        {Math.floor(c.duration / 60)}:
+                        {String(Math.round(c.duration % 60)).padStart(2, "0")}
                       </p>
                     )}
                   </div>
@@ -149,7 +168,9 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
               disabled={applyMutation.isPending}
               onClick={() => applyMutation.mutate(selected)}
             >
-              {applyMutation.isPending ? "Applying..." : `Apply "${selected.title}"`}
+              {applyMutation.isPending
+                ? "Applying..."
+                : `Apply "${selected.title}"`}
             </Button>
           )}
         </div>

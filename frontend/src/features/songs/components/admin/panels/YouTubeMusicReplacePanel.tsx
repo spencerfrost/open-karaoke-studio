@@ -28,24 +28,30 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
     timeoutRef.current = setTimeout(() => setDebouncedQuery(value), 400);
   };
 
-  const { data, isFetching } = useYoutubeMusicSearch(debouncedQuery, !!debouncedQuery);
+  const { data, isFetching } = useYoutubeMusicSearch(
+    debouncedQuery,
+    !!debouncedQuery,
+  );
   const songs = data?.songs ?? [];
 
   const validateMutation = useMutation({
     mutationFn: async (result: YoutubeMusicSearchResult) => {
-      const res = await fetch(`/api/songs/${song.id}/validate-youtube-replacement`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `/api/songs/${song.id}/validate-youtube-replacement`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            video_id: result.videoId,
+            title: result.title,
+            artist: result.artist,
+            engine_type: "three_track",
+          }),
         },
-        body: JSON.stringify({
-          video_id: result.videoId,
-          title: result.title,
-          artist: result.artist,
-          engine_type: "three_track",
-        }),
-      });
+      );
       if (!res.ok) throw new Error("Validation request failed");
       return res.json() as Promise<ValidationResult>;
     },
@@ -140,12 +146,19 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
               : "bg-warning/10 border-warning/40"
           }`}
         >
-          <p className={validation.validated ? "text-success-strong" : "text-warning-strong"}>
+          <p
+            className={
+              validation.validated
+                ? "text-success-strong"
+                : "text-warning-strong"
+            }
+          >
             {validation.message}
           </p>
           {validation.acoustidStatus === "matched" && validation.title && (
             <p className="text-xs text-muted-foreground">
-              Matched: <span className="text-card-foreground">{validation.title}</span>
+              Matched:{" "}
+              <span className="text-card-foreground">{validation.title}</span>
               {" by "}
               <span className="text-card-foreground">{validation.artist}</span>
             </p>
@@ -157,17 +170,23 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
                 disabled={replaceMutation.isPending}
                 onClick={() => replaceMutation.mutate(selected!)}
               >
-                {replaceMutation.isPending ? "Starting..." : "Confirm & Process"}
+                {replaceMutation.isPending
+                  ? "Starting..."
+                  : "Confirm & Process"}
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground italic">
-                Try a different track, or use MusicBrainz to set metadata manually.
+                Try a different track, or use MusicBrainz to set metadata
+                manually.
               </p>
             )}
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => { setValidation(null); setSelected(null); }}
+              onClick={() => {
+                setValidation(null);
+                setSelected(null);
+              }}
             >
               Cancel
             </Button>

@@ -5,7 +5,13 @@ import { Pause, Play, TestTube2, Waves } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -184,11 +190,10 @@ const AdminThreeTrackComparePage: React.FC = () => {
   const [activeEngine, setActiveEngine] = useState<EngineKey>(DEFAULT_ENGINE);
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekPreviewTime, setSeekPreviewTime] = useState<number | null>(null);
-  const [volumes, setVolumes] = useState<
-    Record<CompareEngineKey, Record<StemKey, number>>
-  >(
-    DEFAULT_VOLUMES,
-  );
+  const [volumes, setVolumes] =
+    useState<Record<CompareEngineKey, Record<StemKey, number>>>(
+      DEFAULT_VOLUMES,
+    );
 
   const sharedVolumes = volumes.demucs_three_track;
 
@@ -205,11 +210,6 @@ const AdminThreeTrackComparePage: React.FC = () => {
       };
     });
   }, [manifest]);
-
-  const selectedSong = useMemo(
-    () => songOptions.find((song) => song.id === songId) ?? null,
-    [songId, songOptions],
-  );
 
   const ensureAudioContext = async (): Promise<AudioContext> => {
     if (!audioContextRef.current) {
@@ -230,7 +230,11 @@ const AdminThreeTrackComparePage: React.FC = () => {
 
   const getCurrentOffset = (): number => {
     const context = audioContextRef.current;
-    if (!context || !isPlayingRef.current || playbackStartRef.current === null) {
+    if (
+      !context ||
+      !isPlayingRef.current ||
+      playbackStartRef.current === null
+    ) {
       return playbackOffsetRef.current;
     }
     const elapsed = context.currentTime - playbackStartRef.current;
@@ -374,7 +378,9 @@ const AdminThreeTrackComparePage: React.FC = () => {
     runtime.sources = localSources;
 
     const effectiveOffset = clamp(fromOffset, 0, durationRef.current);
-    Object.values(localSources).forEach((source) => source?.start(0, effectiveOffset));
+    Object.values(localSources).forEach((source) =>
+      source?.start(0, effectiveOffset),
+    );
 
     const referenceStem = localSources.instrumental;
     if (referenceStem) {
@@ -468,20 +474,6 @@ const AdminThreeTrackComparePage: React.FC = () => {
     });
   };
 
-  const resetVolumes = (engine: EngineKey) => {
-    STEMS.forEach((stem) => {
-      const gainNode = runtimesRef.current[engine].gains[stem];
-      if (gainNode) {
-        gainNode.gain.value = 1;
-      }
-    });
-
-    setVolumes((current) => ({
-      ...current,
-      [engine]: { vocals: 1, backing: 1, instrumental: 1 },
-    }));
-  };
-
   const resetSharedVolumes = () => {
     COMPARE_ENGINES.forEach((engine) => {
       STEMS.forEach((stem) => {
@@ -496,7 +488,10 @@ const AdminThreeTrackComparePage: React.FC = () => {
   };
 
   const handleEngineToggle = async (value: string) => {
-    if (value !== "original" && !COMPARE_ENGINES.includes(value as CompareEngineKey)) {
+    if (
+      value !== "original" &&
+      !COMPARE_ENGINES.includes(value as CompareEngineKey)
+    ) {
       return;
     }
 
@@ -530,19 +525,31 @@ const AdminThreeTrackComparePage: React.FC = () => {
             `/three-track-compare/${selectedSongId}/${engine}/vocals.mp3`,
             STEM_FETCH_TIMEOUT_MS,
           ).then((buffer) =>
-            decodeBufferWithTimeout(decodeContext, buffer, STEM_DECODE_TIMEOUT_MS),
+            decodeBufferWithTimeout(
+              decodeContext,
+              buffer,
+              STEM_DECODE_TIMEOUT_MS,
+            ),
           ),
           fetchArrayBufferWithTimeout(
             `/three-track-compare/${selectedSongId}/${engine}/backing_vocals.mp3`,
             STEM_FETCH_TIMEOUT_MS,
           ).then((buffer) =>
-            decodeBufferWithTimeout(decodeContext, buffer, STEM_DECODE_TIMEOUT_MS),
+            decodeBufferWithTimeout(
+              decodeContext,
+              buffer,
+              STEM_DECODE_TIMEOUT_MS,
+            ),
           ),
           fetchArrayBufferWithTimeout(
             `/three-track-compare/${selectedSongId}/${engine}/instrumental.mp3`,
             STEM_FETCH_TIMEOUT_MS,
           ).then((buffer) =>
-            decodeBufferWithTimeout(decodeContext, buffer, STEM_DECODE_TIMEOUT_MS),
+            decodeBufferWithTimeout(
+              decodeContext,
+              buffer,
+              STEM_DECODE_TIMEOUT_MS,
+            ),
           ),
         ]);
 
@@ -678,12 +685,17 @@ const AdminThreeTrackComparePage: React.FC = () => {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Compare all generated three-track engines with one shared timeline. Backing vocal A/B is not fully apples-to-apples.
+              Compare all generated three-track engines with one shared
+              timeline. Backing vocal A/B is not fully apples-to-apples.
             </p>
           </div>
 
           <div className="w-full sm:w-[340px]">
-            <Select value={songId} onValueChange={setSongId} disabled={isLoadingManifest || songOptions.length === 0}>
+            <Select
+              value={songId}
+              onValueChange={setSongId}
+              disabled={isLoadingManifest || songOptions.length === 0}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select test song" />
               </SelectTrigger>
@@ -707,7 +719,9 @@ const AdminThreeTrackComparePage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Engine</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Engine
+              </p>
               <ToggleGroup
                 type="single"
                 value={activeEngine}
@@ -721,7 +735,10 @@ const AdminThreeTrackComparePage: React.FC = () => {
                 <ToggleGroupItem value="roformer_three_track" className="px-4">
                   Roformer
                 </ToggleGroupItem>
-                <ToggleGroupItem value="three_track_duality_v2" className="px-4">
+                <ToggleGroupItem
+                  value="three_track_duality_v2"
+                  className="px-4"
+                >
                   Duality V2
                 </ToggleGroupItem>
                 <ToggleGroupItem value="three_track_mel1143" className="px-4">
@@ -737,16 +754,26 @@ const AdminThreeTrackComparePage: React.FC = () => {
               <Button
                 type="button"
                 variant={isPlaying ? "secondary" : "default"}
-                onClick={isPlaying ? handlePause : () => void handlePlayEngine(activeEngine)}
+                onClick={
+                  isPlaying
+                    ? handlePause
+                    : () => void handlePlayEngine(activeEngine)
+                }
                 disabled={isLoadingAudio}
               >
-                {isPlaying ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                {isPlaying ? (
+                  <Pause className="h-4 w-4 mr-1" />
+                ) : (
+                  <Play className="h-4 w-4 mr-1" />
+                )}
                 {isPlaying ? "Pause" : `Play ${ENGINE_LABEL[activeEngine]}`}
               </Button>
               <Badge variant="outline">{formatTime(currentTime)}</Badge>
               <span className="text-xs text-muted-foreground">/</span>
               <Badge variant="outline">{formatTime(duration)}</Badge>
-              {isLoadingAudio && <Badge variant="secondary">Loading tracks...</Badge>}
+              {isLoadingAudio && (
+                <Badge variant="secondary">Loading tracks...</Badge>
+              )}
             </div>
 
             <Slider
@@ -762,7 +789,9 @@ const AdminThreeTrackComparePage: React.FC = () => {
             {STEMS.map((stem) => (
               <div key={`shared-${stem}`} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="capitalize">{stem === "backing" ? "Backing Vocals" : stem}</span>
+                  <span className="capitalize">
+                    {stem === "backing" ? "Backing Vocals" : stem}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {Math.round(sharedVolumes[stem] * 100)}%
                   </span>
@@ -772,7 +801,9 @@ const AdminThreeTrackComparePage: React.FC = () => {
                   max={1.5}
                   step={0.01}
                   value={[sharedVolumes[stem]]}
-                  onValueChange={([value]) => handleSharedVolumeChange(stem, value)}
+                  onValueChange={([value]) =>
+                    handleSharedVolumeChange(stem, value)
+                  }
                   disabled={isLoadingAudio || activeEngine === "original"}
                 />
               </div>

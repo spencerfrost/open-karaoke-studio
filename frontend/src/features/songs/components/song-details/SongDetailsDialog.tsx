@@ -31,9 +31,7 @@ export const SongDetailsDialog: React.FC<SongDetailsDialogProps> = ({
   const { data: liveSong } = useSong(song.id, {
     enabled: isOpen,
     refetchInterval:
-      isOpen && processingStatus?.status === "processing"
-        ? 3000
-        : false,
+      isOpen && processingStatus?.status === "processing" ? 3000 : false,
   });
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
   const currentSong = liveSong ?? song;

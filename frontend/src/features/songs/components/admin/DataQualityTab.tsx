@@ -86,7 +86,9 @@ export const DataQualityTab: React.FC = () => {
       return res.json() as Promise<{ taskId: string; queued: number }>;
     },
     onSuccess: (data) => {
-      toast.success(`Queued duration backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`);
+      toast.success(
+        `Queued duration backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`,
+      );
     },
     onError: () => toast.error("Failed to queue duration backfill"),
   });
@@ -264,52 +266,56 @@ export const DataQualityTab: React.FC = () => {
       {/* Results list */}
       {result && result.flagged_songs.length > 0 && (
         <div className="divide-y rounded-lg border">
-          {filteredSongs.length > 0 ? filteredSongs.map((flaggedSong) => (
-            <div key={flaggedSong.id}>
-              <button
-                type="button"
-                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
-                onClick={() =>
-                  setExpandedSongId((prev) =>
-                    prev === flaggedSong.id ? null : flaggedSong.id,
-                  )
-                }
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {flaggedSong.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {flaggedSong.artist}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1 ml-4 shrink-0 justify-end">
-                  {flaggedSong.issues.map((issue) => (
-                    <Badge
-                      key={issue.type}
-                      variant="outline"
-                      className={`text-xs ${SEVERITY_BADGE_CLASS[issue.severity]}`}
-                    >
-                      {issue.label}
-                    </Badge>
-                  ))}
-                </div>
-              </button>
+          {filteredSongs.length > 0 ? (
+            filteredSongs.map((flaggedSong) => (
+              <div key={flaggedSong.id}>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+                  onClick={() =>
+                    setExpandedSongId((prev) =>
+                      prev === flaggedSong.id ? null : flaggedSong.id,
+                    )
+                  }
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {flaggedSong.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {flaggedSong.artist}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1 ml-4 shrink-0 justify-end">
+                    {flaggedSong.issues.map((issue) => (
+                      <Badge
+                        key={issue.type}
+                        variant="outline"
+                        className={`text-xs ${SEVERITY_BADGE_CLASS[issue.severity]}`}
+                      >
+                        {issue.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </button>
 
-              {expandedSongId === flaggedSong.id && (
-                <div className="border-t bg-muted/20 p-4">
-                  <SongActionPanel
-                    song={flaggedSong as unknown as Song}
-                    issues={flaggedSong.issues.map((i) => i.type)}
-                    onDone={handleDone}
-                  />
-                </div>
-              )}
-            </div>
-          )) : (
+                {expandedSongId === flaggedSong.id && (
+                  <div className="border-t bg-muted/20 p-4">
+                    <SongActionPanel
+                      song={flaggedSong as unknown as Song}
+                      issues={flaggedSong.issues.map((i) => i.type)}
+                      onDone={handleDone}
+                    />
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
             <div className="py-12 text-center text-muted-foreground">
               <p className="font-medium">No matching results</p>
-              <p className="text-sm">Try a different issue filter or clear the current selection.</p>
+              <p className="text-sm">
+                Try a different issue filter or clear the current selection.
+              </p>
             </div>
           )}
         </div>
@@ -351,7 +357,8 @@ export const DataQualityTab: React.FC = () => {
             disabled={backfillDurationMutation.isPending}
           >
             <Clock className="mr-2 h-4 w-4" />
-            {backfillDurationMutation.variables === "missing" && backfillDurationMutation.isPending
+            {backfillDurationMutation.variables === "missing" &&
+            backfillDurationMutation.isPending
               ? "Queueing..."
               : "Backfill Missing"}
           </Button>
@@ -361,7 +368,8 @@ export const DataQualityTab: React.FC = () => {
             disabled={backfillDurationMutation.isPending}
           >
             <Clock className="mr-2 h-4 w-4" />
-            {backfillDurationMutation.variables === "all" && backfillDurationMutation.isPending
+            {backfillDurationMutation.variables === "all" &&
+            backfillDurationMutation.isPending
               ? "Queueing..."
               : "Refresh All"}
           </Button>

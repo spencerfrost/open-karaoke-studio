@@ -45,8 +45,7 @@ const apiGet = async <T>(url: string): Promise<T> => {
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
       const errorData: any = await response.json();
-      errorMessage =
-        errorData?.detail || errorData?.message || errorMessage;
+      errorMessage = errorData?.detail || errorData?.message || errorMessage;
     } catch (jsonError: any) {
       logger.error("Error parsing error response:", jsonError);
     }
@@ -125,7 +124,10 @@ const apiSend = async <T, V>(
  * @param {Omit<UseQueryOptions<T, Error, T, TQueryKey>, 'queryKey' | 'queryFn'>} [options] - Additional options for the query.
  * @returns {UseQueryResult<T, Error>} - The result of the query.
  */
-export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
+export function useApiQuery<
+  T,
+  TQueryKey extends readonly unknown[] = readonly unknown[],
+>(
   queryKey: TQueryKey,
   url: string,
   options?: Omit<

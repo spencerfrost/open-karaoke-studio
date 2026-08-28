@@ -100,9 +100,8 @@ class SessionWebSocketService {
   private websocket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: EventData) => void>> = new Map();
   private isConnected = false;
-  private maxReconnectAttempts = 5;
   private reconnectAttempts = 0;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentSessionId: string | null = null;
   private deviceId: string | null = null;
 
@@ -110,7 +109,7 @@ class SessionWebSocketService {
     // Don't initialize connection immediately - wait for session
   }
 
-  private initializeConnection(sessionId: string, url: string) {
+  private initializeConnection(url: string) {
     try {
       logger.debug(
         "Attempting to connect to unified session WebSocket at:",
@@ -229,7 +228,7 @@ class SessionWebSocketService {
           baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${this.currentSessionId}`;
         }
 
-        this.initializeConnection(this.currentSessionId, baseSocketUrl);
+        this.initializeConnection(baseSocketUrl);
       }
     }, delay);
   }
@@ -325,7 +324,7 @@ class SessionWebSocketService {
       socketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
     }
 
-    this.initializeConnection(sessionId, socketUrl);
+    this.initializeConnection(socketUrl);
   }
 
   /**

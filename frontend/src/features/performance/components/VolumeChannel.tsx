@@ -24,7 +24,9 @@ const VolumeChannel: React.FC<VolumeChannelProps> = ({
     <div className={`flex flex-col items-center gap-2 ${className ?? ""}`}>
       <div className="flex items-center gap-2">
         <span className="text-primary shrink-0">
-          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+          {React.cloneElement(icon as React.ReactElement<{ size?: number }>, {
+            size: 18,
+          })}
         </span>
         <span className="text-sm font-semibold text-lemon-chiffon">
           {label} {Math.round(volume * 100)}%

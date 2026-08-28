@@ -1,12 +1,13 @@
-import { attachWordTimestamps, parseLrc, type WordTimestamp } from "./lrcParser";
+import {
+  attachWordTimestamps,
+  parseLrc,
+  type WordTimestamp,
+} from "./lrcParser";
 
 describe("attachWordTimestamps", () => {
   it("prefers backend line_index over timestamp grouping for synced lines", () => {
     const lines = parseLrc(
-      [
-        "[00:10.000]first line",
-        "[00:12.000]second line starts now",
-      ].join("\n"),
+      ["[00:10.000]first line", "[00:12.000]second line starts now"].join("\n"),
     );
 
     const words: WordTimestamp[] = [
@@ -50,7 +51,10 @@ describe("attachWordTimestamps", () => {
 
     const result = attachWordTimestamps(lines, words);
 
-    expect(result[0].words?.map((word) => word.word)).toEqual(["first", "line"]);
+    expect(result[0].words?.map((word) => word.word)).toEqual([
+      "first",
+      "line",
+    ]);
     expect(result[1].words?.map((word) => word.word)).toEqual([
       "second",
       "line",
@@ -61,10 +65,7 @@ describe("attachWordTimestamps", () => {
 
   it("falls back to timestamp grouping when line_index cannot be mapped", () => {
     const lines = parseLrc(
-      [
-        "[00:10.000]first line",
-        "[00:12.000]second line",
-      ].join("\n"),
+      ["[00:10.000]first line", "[00:12.000]second line"].join("\n"),
     );
 
     const words: WordTimestamp[] = [

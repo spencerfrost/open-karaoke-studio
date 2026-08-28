@@ -1,10 +1,10 @@
 import React from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Minus, Plus } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import KnobControl from "@/features/performance/components/KnobControl";
 
-interface LyricsTimingControlsProps { }
+interface LyricsTimingControlsProps {}
 
 const LyricsTimingControls: React.FC<LyricsTimingControlsProps> = () => {
   const { lyricsOffset, setLyricsOffset } = useKaraokePlayerStore();
@@ -39,11 +39,7 @@ const LyricsTimingControls: React.FC<LyricsTimingControlsProps> = () => {
         </Button>
 
         {/* Reset Timing */}
-        <Button
-          onClick={() => setLyricsOffset(0)}
-          variant="ghost"
-          size="auto"
-        >
+        <Button onClick={() => setLyricsOffset(0)} variant="ghost" size="auto">
           <RotateCcw size="24" />
         </Button>
 

@@ -25,18 +25,18 @@ const LibraryPage: React.FC = () => {
 
   const songsParams = effectiveSearchTerm.trim()
     ? {
-      q: effectiveSearchTerm,
-      limit: 24,
-      offset: 0,
-      sort: "relevance",
-      direction: "desc",
-    }
+        q: effectiveSearchTerm,
+        limit: 24,
+        offset: 0,
+        sort: "relevance",
+        direction: "desc",
+      }
     : {
-      limit: 24,
-      offset: 0,
-      sort_by: "date_added",
-      direction: "desc",
-    };
+        limit: 24,
+        offset: 0,
+        sort_by: "date_added",
+        direction: "desc",
+      };
 
   const songsQuery = useSongs(songsParams);
 
@@ -68,8 +68,18 @@ const LibraryPage: React.FC = () => {
           {!hasSearch ? (
             <Tabs defaultValue="recently-added">
               <TabsList className="mb-4" variant="line">
-                <TabsTrigger className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel" value="recently-added">Recently Added</TabsTrigger>
-                <TabsTrigger className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel" value="recently-sang">Recently Sang</TabsTrigger>
+                <TabsTrigger
+                  className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel"
+                  value="recently-added"
+                >
+                  Recently Added
+                </TabsTrigger>
+                <TabsTrigger
+                  className="text-xl font-semibold text-orange-peel/80 hover:text-orange-peel"
+                  value="recently-sang"
+                >
+                  Recently Sang
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="recently-added">
                 <RecentlyAddedSongs maxSongs={48} />
@@ -83,7 +93,7 @@ const LibraryPage: React.FC = () => {
               songs={songsQuery.data || []}
               hasNextPage={false}
               isFetchingNextPage={false}
-              fetchNextPage={() => { }}
+              fetchNextPage={() => {}}
               searchTerm={searchTerm}
             />
           )}

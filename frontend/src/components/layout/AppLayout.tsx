@@ -1,6 +1,14 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import { Music, Upload, List, Sliders, Mic2, ShieldCheck, Waves } from "lucide-react";
+import {
+  Music,
+  Upload,
+  List,
+  Sliders,
+  Mic2,
+  ShieldCheck,
+  Waves,
+} from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 

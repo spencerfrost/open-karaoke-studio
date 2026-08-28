@@ -1,11 +1,8 @@
 import { create } from "zustand";
 import * as Tone from "tone";
-import { createLogger } from "@/lib/logger";
 import { useAudioControlsStore } from "./useAudioControlsStore";
 import { useAuthStore } from "./authStore";
 import { getGrainParams } from "./shared/audioHelpers";
-
-const logger = createLogger("store:playbackState");
 
 /**
  * Auth header for track downloads.
@@ -352,7 +349,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
           }),
           fetch(vocalUrl, { cache: "reload", headers: authHeaders }).then(
             (r) => {
-              if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
+              if (!r.ok)
+                throw new Error(`fetch failed with status ${r.status}`);
               return r.arrayBuffer();
             },
           ),

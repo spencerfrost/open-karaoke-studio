@@ -10,7 +10,10 @@ import type { ReplacePanelProps, ValidationResult } from "./types";
 
 const logger = createLogger("component:UploadReplacePanel");
 
-export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }) => {
+export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({
+  song,
+  onDone,
+}) => {
   const { token } = useAuthStore();
   const [file, setFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -25,11 +28,14 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }
     mutationFn: async (audioFile: File) => {
       const formData = new FormData();
       formData.append("audio_file", audioFile);
-      const res = await fetch(`/api/songs/${song.id}/validate-upload-replacement`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
+      const res = await fetch(
+        `/api/songs/${song.id}/validate-upload-replacement`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        },
+      );
       if (!res.ok) throw new Error("Validation request failed");
       return res.json() as Promise<ValidationResult>;
     },
@@ -65,7 +71,9 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }
           disabled={validateMutation.isPending}
           onClick={() => validateMutation.mutate(file)}
         >
-          {validateMutation.isPending ? "Checking AcoustID..." : "Check AcoustID Match"}
+          {validateMutation.isPending
+            ? "Checking AcoustID..."
+            : "Check AcoustID Match"}
         </Button>
       )}
 
@@ -77,12 +85,19 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }
               : "bg-warning/10 border-warning/40"
           }`}
         >
-          <p className={validation.validated ? "text-success-strong" : "text-warning-strong"}>
+          <p
+            className={
+              validation.validated
+                ? "text-success-strong"
+                : "text-warning-strong"
+            }
+          >
             {validation.message}
           </p>
           {validation.acoustidStatus === "matched" && validation.title && (
             <p className="text-xs text-muted-foreground">
-              Matched: <span className="text-card-foreground">{validation.title}</span>
+              Matched:{" "}
+              <span className="text-card-foreground">{validation.title}</span>
               {" by "}
               <span className="text-card-foreground">{validation.artist}</span>
             </p>
@@ -94,13 +109,17 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({ song, onDone }
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground italic">
-                Try a different file, or use MusicBrainz to set metadata manually.
+                Try a different file, or use MusicBrainz to set metadata
+                manually.
               </p>
             )}
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => { setValidation(null); setFile(null); }}
+              onClick={() => {
+                setValidation(null);
+                setFile(null);
+              }}
             >
               Cancel
             </Button>

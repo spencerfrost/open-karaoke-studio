@@ -29,9 +29,7 @@ const KaraokeQueueItem: React.FC<KaraokeQueueItemProps> = ({
       {/* Position indicator */}
       <div
         className={`h-10 w-10 rounded-full flex items-center justify-center mr-4 text-lg font-semibold shrink-0 ${
-          isActive
-            ? "bg-accent text-foreground"
-            : "bg-primary/25 text-primary"
+          isActive ? "bg-accent text-foreground" : "bg-primary/25 text-primary"
         }`}
       >
         {index + 1}

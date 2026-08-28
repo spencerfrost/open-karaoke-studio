@@ -40,7 +40,9 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
       const { sessionId } = useSessionStore.getState();
       const { user } = useAuthStore.getState();
       if (!sessionId && (user?.isHost || user?.isAdmin)) {
-        logger.debug("🎤 SessionProvider: Host logged in, auto-creating session...");
+        logger.debug(
+          "🎤 SessionProvider: Host logged in, auto-creating session...",
+        );
         await joinAsHost();
       }
 

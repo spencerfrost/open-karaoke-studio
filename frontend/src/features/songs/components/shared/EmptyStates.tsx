@@ -14,7 +14,9 @@ export const EmptySearchState: React.FC<EmptySearchStateProps> = ({
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <Search className="h-12 w-12 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium text-card-foreground mb-2">{message}</h3>
+      <h3 className="text-lg font-medium text-card-foreground mb-2">
+        {message}
+      </h3>
       <p className="text-muted-foreground text-center">{description}</p>
     </div>
   );

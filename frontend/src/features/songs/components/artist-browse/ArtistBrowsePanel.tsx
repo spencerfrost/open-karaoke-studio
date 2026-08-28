@@ -137,8 +137,8 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   <TopSongCard
                     key={song.videoId}
                     song={song}
-                      isLoading={getSubmissionStatus(song.videoId) === "pending"}
-                      isSubmitted={getSubmissionStatus(song.videoId) === "queued"}
+                    isLoading={getSubmissionStatus(song.videoId) === "pending"}
+                    isSubmitted={getSubmissionStatus(song.videoId) === "queued"}
                     onSelect={() => onSelectSong(song)}
                   />
                 ))}
@@ -166,7 +166,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     key={album.browseId}
                     album={album}
                     onSelectTrack={onSelectSong}
-                      getSubmissionStatus={getSubmissionStatus}
+                    getSubmissionStatus={getSubmissionStatus}
                   />
                 ))}
               </div>
@@ -201,7 +201,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     key={album.browseId}
                     album={album}
                     onSelectTrack={onSelectSong}
-                      getSubmissionStatus={getSubmissionStatus}
+                    getSubmissionStatus={getSubmissionStatus}
                   />
                 ))}
               </div>

@@ -69,7 +69,10 @@ export const ArtistManager: React.FC<ArtistManagerProps> = ({
                 aria-label={`Remove ${artist.name}`}
                 className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
               >
-                <XCircle size={14} className="text-muted-foreground hover:text-card-foreground transition-colors" />
+                <XCircle
+                  size={14}
+                  className="text-muted-foreground hover:text-card-foreground transition-colors"
+                />
               </button>
             </Badge>
           ))}

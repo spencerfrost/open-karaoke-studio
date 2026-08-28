@@ -101,7 +101,8 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
       { songId: song.id, singer: "Host" },
       {
         onSuccess: () => toast.success(`Added "${song.title}" to the queue`),
-        onError: () => toast.error(`Failed to add "${song.title}" to the queue`),
+        onError: () =>
+          toast.error(`Failed to add "${song.title}" to the queue`),
       },
     );
   };
@@ -145,7 +146,9 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
 
         {/* Loading state for suggestions */}
         {isLoading && (
-          <div className="text-foreground/60 text-sm">Finding more songs...</div>
+          <div className="text-foreground/60 text-sm">
+            Finding more songs...
+          </div>
         )}
 
         {/* No suggestions fallback */}

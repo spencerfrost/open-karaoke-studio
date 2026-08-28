@@ -79,7 +79,10 @@ export const DuplicatesTab: React.FC = () => {
         return {
           clusters: updatedClusters,
           total_clusters: updatedClusters.length,
-          total_duplicates: updatedClusters.reduce((sum, c) => sum + c.length, 0),
+          total_duplicates: updatedClusters.reduce(
+            (sum, c) => sum + c.length,
+            0,
+          ),
         };
       });
     } catch {
@@ -118,10 +121,15 @@ export const DuplicatesTab: React.FC = () => {
       {/* Summary bar */}
       {result && (
         <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-          <span>{result.total_clusters} duplicate cluster{result.total_clusters !== 1 ? "s" : ""}</span>
+          <span>
+            {result.total_clusters} duplicate cluster
+            {result.total_clusters !== 1 ? "s" : ""}
+          </span>
           <span>·</span>
           <span
-            className={result.total_duplicates > 0 ? "font-medium text-amber-500" : ""}
+            className={
+              result.total_duplicates > 0 ? "font-medium text-amber-500" : ""
+            }
           >
             {result.total_duplicates} duplicate songs
           </span>
@@ -129,54 +137,61 @@ export const DuplicatesTab: React.FC = () => {
       )}
 
       {/* Clusters */}
-      {result && result.clusters.map((cluster, i) => {
-        const representative = cluster[0];
-        return (
-          <section key={`${representative.title}-${representative.artist}-${i}`} className="space-y-2">
-            <h3 className="flex items-center gap-2 font-medium">
-              <Badge variant="outline" className="border-amber-500 text-amber-500">
-                {cluster.length}
-              </Badge>
-              {representative.title}
-              <span className="text-xs font-normal text-muted-foreground">
-                by {representative.artist}
-              </span>
-            </h3>
-            <div className="divide-y rounded-lg border">
-              {cluster.map((song) => (
-                <div
-                  key={song.id}
-                  className="flex items-center justify-between px-4 py-3"
+      {result &&
+        result.clusters.map((cluster, i) => {
+          const representative = cluster[0];
+          return (
+            <section
+              key={`${representative.title}-${representative.artist}-${i}`}
+              className="space-y-2"
+            >
+              <h3 className="flex items-center gap-2 font-medium">
+                <Badge
+                  variant="outline"
+                  className="border-amber-500 text-amber-500"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{song.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {song.artist}
-                      <span className="mx-1.5">·</span>
-                      Added {formatDate(song.date_added)}
-                      {song.source && (
-                        <>
-                          <span className="mx-1.5">·</span>
-                          {song.source}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deletingIds.has(song.id)}
-                    onClick={() => deleteSong(song.id)}
+                  {cluster.length}
+                </Badge>
+                {representative.title}
+                <span className="text-xs font-normal text-muted-foreground">
+                  by {representative.artist}
+                </span>
+              </h3>
+              <div className="divide-y rounded-lg border">
+                {cluster.map((song) => (
+                  <div
+                    key={song.id}
+                    className="flex items-center justify-between px-4 py-3"
                   >
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    {deletingIds.has(song.id) ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+                    <div>
+                      <p className="text-sm font-medium">{song.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {song.artist}
+                        <span className="mx-1.5">·</span>
+                        Added {formatDate(song.date_added)}
+                        {song.source && (
+                          <>
+                            <span className="mx-1.5">·</span>
+                            {song.source}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={deletingIds.has(song.id)}
+                      onClick={() => deleteSong(song.id)}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      {deletingIds.has(song.id) ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
       {/* Clean state */}
       {isClean && (

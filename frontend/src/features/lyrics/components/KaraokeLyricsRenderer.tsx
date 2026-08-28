@@ -106,7 +106,10 @@ export function getInstrumentalTargetLineIndex(
     return sourceLineMatchIndex;
   }
 
-  if (interval.next_line_index >= 0 && interval.next_line_index < lines.length) {
+  if (
+    interval.next_line_index >= 0 &&
+    interval.next_line_index < lines.length
+  ) {
     return interval.next_line_index;
   }
 
@@ -167,7 +170,9 @@ function getCenteredScrollTop(
   lineElement: HTMLDivElement,
 ): number {
   return (
-    lineElement.offsetTop - container.clientHeight / 2 + lineElement.clientHeight / 2
+    lineElement.offsetTop -
+    container.clientHeight / 2 +
+    lineElement.clientHeight / 2
   );
 }
 
@@ -192,7 +197,9 @@ const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
   const progressFillClass = isLeadIn
     ? "from-foreground to-primary"
     : "from-orange-peel to-primary/80";
-  const progressAriaLabel = isLeadIn ? "Lead-in progress" : "Instrumental progress";
+  const progressAriaLabel = isLeadIn
+    ? "Lead-in progress"
+    : "Instrumental progress";
 
   return (
     <div className="py-2 px-4">
@@ -207,7 +214,9 @@ const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
         >
           <div
             className={`h-full rounded-full instrumental-progress-fill bg-gradient-to-r ${progressFillClass} ${
-              isLeadIn && showLeadInHighlight ? "instrumental-progress-leadin" : ""
+              isLeadIn && showLeadInHighlight
+                ? "instrumental-progress-leadin"
+                : ""
             }`}
             style={{ width: `${progress * 100}%` }}
           />
@@ -310,10 +319,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   onSeek,
   className = "",
 }) => {
-  const {
-    showProgressBar = false,
-    showLeadInHighlight = false,
-  } = countInStyle;
+  const { showProgressBar = false, showLeadInHighlight = false } = countInStyle;
 
   const INSTRUMENTAL_PROGRESS_WIDTH_CLASS = "w-52 sm:w-72";
 
@@ -454,7 +460,10 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     const byLine = new Map<number, InstrumentalInterval[]>();
 
     for (const interval of parsedData.instrumentalIntervals ?? []) {
-      const targetLineIndex = getInstrumentalTargetLineIndex(parsedData.lines, interval);
+      const targetLineIndex = getInstrumentalTargetLineIndex(
+        parsedData.lines,
+        interval,
+      );
       const separatorLineIndex = getInstrumentalSeparatorLineIndex(
         parsedData.lines,
         targetLineIndex,
@@ -506,7 +515,12 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       progress,
       currentBeatIndex,
     };
-  }, [activeCountInTrigger, activeInstrumentalDisplay, currentTimeMs, currentTimeSec]);
+  }, [
+    activeCountInTrigger,
+    activeInstrumentalDisplay,
+    currentTimeMs,
+    currentTimeSec,
+  ]);
 
   // Auto-scroll to center the active line
   useLayoutEffect(() => {
@@ -594,11 +608,15 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
       const hasCountIn = activeCountInTrigger?.lineIndex === index;
-      const lineInstrumentalIntervals = instrumentalSeparatorsByLine.get(index) ?? [];
+      const lineInstrumentalIntervals =
+        instrumentalSeparatorsByLine.get(index) ?? [];
 
       if (showProgressBar && lineInstrumentalIntervals.length > 0) {
         for (const interval of lineInstrumentalIntervals) {
-          const progressState = getInstrumentalProgressState(interval, currentTimeSec);
+          const progressState = getInstrumentalProgressState(
+            interval,
+            currentTimeSec,
+          );
           const isResolvedActiveInterval =
             !!activeInstrumentalDisplay &&
             activeInstrumentalDisplay.interval.start === interval.start &&
@@ -658,7 +676,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           <div className="flex flex-col items-center justify-center gap-2 w-full">
             {/* Top row: Count-in elements, rendered before the text so it appears as a separate line */}
             {hasCountIn && countInState && (
-              <div className={`flex items-center justify-center gap-3 ${opacity}`}>
+              <div
+                className={`flex items-center justify-center gap-3 ${opacity}`}
+              >
                 {showProgressBar && (
                   <div className="w-32 h-1.5 bg-glass/20 rounded-full overflow-hidden">
                     <div

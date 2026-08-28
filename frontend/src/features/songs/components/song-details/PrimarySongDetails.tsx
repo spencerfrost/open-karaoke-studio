@@ -69,12 +69,18 @@ export const PrimarySongDetails: React.FC<PrimarySongDetailsProps> = ({
       {/* Special features badges */}
       <div className="flex flex-wrap gap-2">
         {song.syncedLyrics && (
-          <Badge variant="secondary" className="bg-success/15 text-success-strong">
+          <Badge
+            variant="secondary"
+            className="bg-success/15 text-success-strong"
+          >
             Synced Lyrics
           </Badge>
         )}
         {song.itunesExplicit && (
-          <Badge variant="secondary" className="bg-destructive/15 text-destructive-strong">
+          <Badge
+            variant="secondary"
+            className="bg-destructive/15 text-destructive-strong"
+          >
             Explicit
           </Badge>
         )}

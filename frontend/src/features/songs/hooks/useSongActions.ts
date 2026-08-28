@@ -81,7 +81,7 @@ export const useSongActions = (
     }
   };
 
-  const handleAddToQueue = (singerName: string, sessionCode?: string) => {
+  const handleAddToQueue = (singerName: string) => {
     addToKaraokeQueue.mutate(
       { songId: song.id, singer: singerName },
       {

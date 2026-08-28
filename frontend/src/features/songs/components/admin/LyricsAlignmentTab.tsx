@@ -7,7 +7,14 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { CheckCircle2, AlertTriangle, XCircle, Mic2, RefreshCw, Loader2 } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Mic2,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
 
 const logger = createLogger("component:LyricsAlignmentTab");
 
@@ -103,11 +110,15 @@ export const LyricsAlignmentTab: React.FC = () => {
           statusQuery.refetch();
           logger.info("Batch alignment complete", data.result);
           if (data.result.activated > 0) {
-            toast.success(`Activated ${data.result.activated} song${data.result.activated !== 1 ? "s" : ""} with word-level lyrics`);
+            toast.success(
+              `Activated ${data.result.activated} song${data.result.activated !== 1 ? "s" : ""} with word-level lyrics`,
+            );
           } else if (data.result.processed === 0) {
             toast.info("No songs needed alignment");
           } else {
-            toast.warning(`Processed ${data.result.processed} songs — ${data.result.failed} failed, ${data.result.activated} activated`);
+            toast.warning(
+              `Processed ${data.result.processed} songs — ${data.result.failed} failed, ${data.result.activated} activated`,
+            );
           }
         } else if (data.state === "FAILURE") {
           stopPolling();
@@ -218,7 +229,9 @@ export const LyricsAlignmentTab: React.FC = () => {
 
       <Button
         onClick={handleRun}
-        disabled={isRunning || (mode === "missing" && status?.needsAlignment === 0)}
+        disabled={
+          isRunning || (mode === "missing" && status?.needsAlignment === 0)
+        }
         className="w-full sm:w-auto"
       >
         {isRunning ? (
@@ -239,7 +252,11 @@ export const LyricsAlignmentTab: React.FC = () => {
       {isRunning && taskId && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-          <span>Running in background… task <code className="font-mono text-xs">{taskId.slice(0, 8)}</code> — this page will update automatically.</span>
+          <span>
+            Running in background… task{" "}
+            <code className="font-mono text-xs">{taskId.slice(0, 8)}</code> —
+            this page will update automatically.
+          </span>
         </div>
       )}
 

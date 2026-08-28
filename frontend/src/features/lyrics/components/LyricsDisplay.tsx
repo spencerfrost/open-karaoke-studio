@@ -71,49 +71,55 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     const { useUpdateSong } = useSongs();
     const updateSongMutation = useUpdateSong();
 
-    const transcribeLyricsMutation = useApiMutation<{ job_id?: string; status?: string }, void>(
-      "lyrics/songs/transcribe-placeholder/align",
-      "post",
-      {
-        mutationFn: async () => {
-          if (!songId) {
-            throw new Error("Missing song ID");
-          }
+    const transcribeLyricsMutation = useApiMutation<
+      { job_id?: string; status?: string },
+      void
+    >("lyrics/songs/transcribe-placeholder/align", "post", {
+      mutationFn: async () => {
+        if (!songId) {
+          throw new Error("Missing song ID");
+        }
 
-          const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
-            method: "POST",
-            credentials: "include",
-          });
+        const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
+          method: "POST",
+          credentials: "include",
+        });
 
-          if (!response.ok) {
-            let errorMessage = `Failed to start transcription (${response.status})`;
-            try {
-              const contentType = response.headers.get("Content-Type") || "";
-              if (contentType.includes("application/json")) {
-                const errorData = await response.json();
-                errorMessage =
-                  errorData?.detail || errorData?.error || errorData?.message || errorMessage;
-              }
-            } catch {
-              // Keep fallback error message when response parsing fails.
+        if (!response.ok) {
+          let errorMessage = `Failed to start transcription (${response.status})`;
+          try {
+            const contentType = response.headers.get("Content-Type") || "";
+            if (contentType.includes("application/json")) {
+              const errorData = await response.json();
+              errorMessage =
+                errorData?.detail ||
+                errorData?.error ||
+                errorData?.message ||
+                errorMessage;
             }
-            throw new Error(errorMessage);
+          } catch {
+            // Keep fallback error message when response parsing fails.
           }
+          throw new Error(errorMessage);
+        }
 
-          return response.json();
-        },
-        onSuccess: () => {
-          toast.success("Transcription started. Lyrics will appear when processing completes.");
-          if (songId) {
-            queryClient.invalidateQueries({ queryKey: ["songs", songId] });
-            queryClient.invalidateQueries({ queryKey: ["lyrics", songId, "alignment"] });
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to start transcription: ${error.message}`);
-        },
+        return response.json();
       },
-    );
+      onSuccess: () => {
+        toast.success(
+          "Transcription started. Lyrics will appear when processing completes.",
+        );
+        if (songId) {
+          queryClient.invalidateQueries({ queryKey: ["songs", songId] });
+          queryClient.invalidateQueries({
+            queryKey: ["lyrics", songId, "alignment"],
+          });
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to start transcription: ${error.message}`);
+      },
+    });
 
     const handleTranscribeLyrics = () => {
       if (!songId) {
@@ -223,17 +229,13 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       if (!alignmentWords || alignmentWords.length === 0) {
         return {
           ...parsedLrcData,
-          ...(instrumentalIntervals
-            ? { instrumentalIntervals }
-            : {}),
+          ...(instrumentalIntervals ? { instrumentalIntervals } : {}),
         };
       }
       return {
         ...parsedLrcData,
         lines: attachWordTimestamps(parsedLrcData.lines, alignmentWords),
-        ...(instrumentalIntervals
-          ? { instrumentalIntervals }
-          : {}),
+        ...(instrumentalIntervals ? { instrumentalIntervals } : {}),
       };
     }, [parsedLrcData, alignmentWords, instrumentalIntervals]);
 

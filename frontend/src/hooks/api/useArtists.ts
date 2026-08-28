@@ -17,7 +17,9 @@ interface UseArtistsResult {
   error: unknown;
 }
 
-export function useArtists({ search = "" }: UseArtistsParams = {}): UseArtistsResult {
+export function useArtists({
+  search = "",
+}: UseArtistsParams = {}): UseArtistsResult {
   const queryKey = ["artists", { search }];
   const queryFn = async () => {
     const params = new URLSearchParams();

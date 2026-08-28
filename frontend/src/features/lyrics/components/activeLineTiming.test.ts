@@ -1,4 +1,8 @@
-import { attachWordTimestamps, parseLrc, type WordTimestamp } from "@/utils/lrcParser";
+import {
+  attachWordTimestamps,
+  parseLrc,
+  type WordTimestamp,
+} from "@/utils/lrcParser";
 
 import { getActiveLineIndex } from "./activeLineTiming";
 
@@ -6,10 +10,9 @@ describe("getActiveLineIndex", () => {
   it("switches to the next lyric line when aligned words start before the LRC timestamp", () => {
     const lines = attachWordTimestamps(
       parseLrc(
-        [
-          "[00:10.000]first line",
-          "[00:12.000]second line starts early",
-        ].join("\n"),
+        ["[00:10.000]first line", "[00:12.000]second line starts early"].join(
+          "\n",
+        ),
       ),
       [
         { word: "first", start: 10.0, end: 10.4, line_index: 0 },
@@ -52,10 +55,9 @@ describe("getActiveLineIndex", () => {
   it("keeps the final lyric line active through its last aligned word", () => {
     const lines = attachWordTimestamps(
       parseLrc(
-        [
-          "[00:10.000]first line",
-          "[00:20.000]final line keeps singing",
-        ].join("\n"),
+        ["[00:10.000]first line", "[00:20.000]final line keeps singing"].join(
+          "\n",
+        ),
       ),
       [
         { word: "first", start: 10.0, end: 10.3, line_index: 0 },

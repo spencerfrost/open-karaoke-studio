@@ -119,14 +119,18 @@ export const AcoustIdTab: React.FC = () => {
             disabled={backfillArtworkMutation.isPending}
             className="px-3 py-1 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 disabled:opacity-50 transition-colors"
           >
-            {backfillArtworkMutation.isPending ? "Dispatching…" : "Backfill Album Art"}
+            {backfillArtworkMutation.isPending
+              ? "Dispatching…"
+              : "Backfill Album Art"}
           </button>
           <button
             onClick={() => reprocessAllMutation.mutate()}
             disabled={reprocessAllMutation.isPending}
             className="px-3 py-1 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 disabled:opacity-50 transition-colors"
           >
-            {reprocessAllMutation.isPending ? "Dispatching…" : "Re-fingerprint All"}
+            {reprocessAllMutation.isPending
+              ? "Dispatching…"
+              : "Re-fingerprint All"}
           </button>
         </div>
       </div>

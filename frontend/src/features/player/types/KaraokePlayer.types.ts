@@ -92,8 +92,8 @@ export interface KaraokePlayerHook {
   setLyricsOffset: (offset: number) => void;
   setShowChords: (enabled: boolean) => void;
 
-  // Visualizer
-  waveformData: Uint8Array | null;
+  // Visualizer — the store copies the analyser's bytes into a plain array
+  waveformData: number[] | null;
 
   // Advanced
   reload: () => Promise<void>;

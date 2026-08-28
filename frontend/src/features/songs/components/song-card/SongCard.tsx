@@ -61,7 +61,8 @@ export const SongCard: React.FC<SongCardProps> = ({
     dialogs.openDialog("details");
   };
 
-  const showAction = (action: string) => actions.includes(action as "details" | "queue");
+  const showAction = (action: string) =>
+    actions.includes(action as "details" | "queue");
 
   return (
     <Card className="group overflow-hidden relative hover:shadow-lg transition-shadow pt-0 pb-2 gap-0.5">

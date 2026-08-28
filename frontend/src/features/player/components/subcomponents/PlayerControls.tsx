@@ -57,7 +57,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = memo(
     className = "",
   }) => {
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-    const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleMouseEnter = () => {
       setShowVolumeSlider(true);

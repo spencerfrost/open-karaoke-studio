@@ -6,7 +6,7 @@ import type {
   KaraokePlayerHook,
   PlayerOptions,
   PlayerError,
-} from "../KaraokePlayer.types";
+} from "../types/KaraokePlayer.types";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:karaoke-player");
@@ -21,7 +21,6 @@ export const useKaraokePlayer = (
   const {
     songId: currentSongId,
     connect,
-    disconnect,
     connected,
     currentTime,
     isReady,

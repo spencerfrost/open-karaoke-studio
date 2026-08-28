@@ -283,7 +283,8 @@ export function attachWordTimestamps(
 
     if (timestampLineIdx === -1) {
       const mappedLineStartSec = lineTimestampsSec[mappedLineIdx];
-      return groupStartSec >= mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
+      return groupStartSec >=
+        mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
         ? mappedLineIdx
         : -1;
     }
@@ -294,7 +295,8 @@ export function attachWordTimestamps(
 
     if (mappedLineIdx === timestampLineIdx + 1) {
       const mappedLineStartSec = lineTimestampsSec[mappedLineIdx];
-      return groupStartSec >= mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
+      return groupStartSec >=
+        mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC
         ? mappedLineIdx
         : timestampLineIdx;
     }

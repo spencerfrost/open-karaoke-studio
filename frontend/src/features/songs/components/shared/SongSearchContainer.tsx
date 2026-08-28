@@ -29,6 +29,7 @@ import {
   YoutubeMusicSearchResult,
   YoutubeVideoSearchResult,
 } from "@/types/Youtube";
+import { parseDurationToSeconds } from "@/utils/formatters";
 
 // Surface the backend's message (e.g. demo download limits, "demo is busy")
 // when it's a real user-facing string; fall back for opaque server errors.
@@ -53,7 +54,7 @@ const mapYoutubeMusicToSongInput = (
   videoId: result.videoId,
   source: "youtube_music",
   url: `https://www.youtube.com/watch?v=${result.videoId}`,
-  duration: result.duration,
+  duration: parseDurationToSeconds(result.duration),
   thumbnail: result.thumbnails[0]?.url || "",
 });
 
@@ -66,7 +67,7 @@ const mapYouTubeToSongInput = (
   videoId: result.id,
   source: "youtube",
   url: result.url,
-  duration: result.duration.toString(),
+  duration: result.duration,
   thumbnail: result.thumbnail,
 });
 
@@ -211,7 +212,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
             />
           </CardContent>
         </Card>
-
       </div>
     );
   }

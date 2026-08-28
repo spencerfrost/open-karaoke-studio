@@ -10,7 +10,10 @@ interface ChordCarouselProps {
 
 const WINDOW_RADIUS = 2;
 
-function findActiveChordIndex(chords: ChordEvent[], timeSeconds: number): number {
+function findActiveChordIndex(
+  chords: ChordEvent[],
+  timeSeconds: number,
+): number {
   if (chords.length === 0) return -1;
   if (timeSeconds < chords[0].time) return 0;
 

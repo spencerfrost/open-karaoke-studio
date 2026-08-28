@@ -74,7 +74,6 @@ export const MetadataEditForm: React.FC<MetadataEditFormProps> = ({
             placeholder="Enter album name (optional)"
           />
         </div>
-
       </div>
     </div>
   );

@@ -25,9 +25,7 @@ const VolumeView: React.FC<VolumeViewProps> = ({ onBack }) => {
   const instrumentalVolume = useKaraokePlayerStore(
     (state) => state.instrumentalVolume,
   );
-  const setVocalVolume = useKaraokePlayerStore(
-    (state) => state.setVocalVolume,
-  );
+  const setVocalVolume = useKaraokePlayerStore((state) => state.setVocalVolume);
   const setBackingVocalVolume = useKaraokePlayerStore(
     (state) => state.setBackingVocalVolume,
   );

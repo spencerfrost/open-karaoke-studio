@@ -35,9 +35,8 @@ class JobsWebSocketService {
   private websocket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
   private isConnected = false;
-  private maxReconnectAttempts = 5;
   private reconnectAttempts = 0;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.initializeConnection();

@@ -81,7 +81,9 @@ const CountInDisplay: React.FC<CountInDisplayProps> = ({
             textShadow: `0 0 ${progress * 20}px rgba(255, 107, 53, 0.5)`,
           }}
         >
-          <div className={`font-semibold text-foreground/70 ${overlayTextSize}`}>
+          <div
+            className={`font-semibold text-foreground/70 ${overlayTextSize}`}
+          >
             {upcomingLineContent}
           </div>
         </div>

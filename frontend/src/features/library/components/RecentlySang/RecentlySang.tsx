@@ -89,12 +89,16 @@ const RecentlySang: React.FC = () => {
                 className="border-b border-lemon-chiffon/10 hover:bg-lemon-chiffon/5"
               >
                 <td className="py-2 pr-4 text-lemon-chiffon">
-                  {item.song_title ?? <span className="text-lemon-chiffon/40">Deleted song</span>}
+                  {item.song_title ?? (
+                    <span className="text-lemon-chiffon/40">Deleted song</span>
+                  )}
                 </td>
                 <td className="py-2 pr-4 text-lemon-chiffon/80">
                   {item.artist ?? "—"}
                 </td>
-                <td className="py-2 pr-4 text-lemon-chiffon/80">{item.singer_name}</td>
+                <td className="py-2 pr-4 text-lemon-chiffon/80">
+                  {item.singer_name}
+                </td>
                 <td className="py-2 pr-4 text-lemon-chiffon/60 font-mono text-xs">
                   {item.session_code ?? "—"}
                 </td>
