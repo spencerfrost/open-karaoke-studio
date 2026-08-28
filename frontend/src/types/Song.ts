@@ -66,6 +66,7 @@ export interface Song {
   gainDb?: number; // Gain correction to reach -14 dBFS target
 
   status: SongStatus;
+  errorMessage?: string; // Failure reason when status="error"
 }
 
 export interface SongProcessingRequest {

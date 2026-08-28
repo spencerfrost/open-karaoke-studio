@@ -10,10 +10,16 @@ import { FingerprintLookupPanel } from "@/features/songs/components/admin/panels
 import { MusicBrainzSearchPanel } from "@/features/songs/components/admin/panels/MusicBrainzSearchPanel";
 import { YouTubeMusicReplacePanel } from "@/features/songs/components/admin/panels/YouTubeMusicReplacePanel";
 import { UploadReplacePanel } from "@/features/songs/components/admin/panels/UploadReplacePanel";
+import { useSongRecovery } from "../../../hooks/useSongRecovery";
 
 const logger = createLogger("component:ActionsTab");
 
-type ActiveAction = "fingerprint" | "musicbrainz" | "replace-yt" | "replace-upload" | null;
+type ActiveAction =
+  | "fingerprint"
+  | "musicbrainz"
+  | "replace-yt"
+  | "replace-upload"
+  | null;
 
 const ENGINE_OPTIONS = [
   { value: "three_track", label: "Three Track" },
@@ -43,6 +49,18 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
     setActiveAction((prev) => (prev === action ? null : action));
 
   const reprocessMutation = useReprocessSong();
+  const { recoverSong, isRecovering } = useSongRecovery({ onSuccess: onDone });
+
+  const canRetryDownload = song.status === "error" && !!song.videoId;
+
+  const handleRetryDownload = () => {
+    recoverSong({
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      videoId: song.videoId,
+    });
+  };
 
   const analyzeVocalRangeMutation = useMutation({
     mutationFn: async () => {
@@ -54,10 +72,15 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
         const err = await res.json().catch(() => null);
         throw new Error(err?.detail ?? "Vocal range analysis failed");
       }
-      return res.json() as Promise<{ vocal_range_low: string; vocal_range_high: string }>;
+      return res.json() as Promise<{
+        vocal_range_low: string;
+        vocal_range_high: string;
+      }>;
     },
     onSuccess: (data) => {
-      toast.success(`Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`);
+      toast.success(
+        `Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`,
+      );
       onDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -95,6 +118,20 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
 
   return (
     <div className="space-y-6">
+      {canRetryDownload && (
+        <div>
+          <Button
+            className="w-full"
+            disabled={isRecovering(song.id)}
+            onClick={handleRetryDownload}
+          >
+            {isRecovering(song.id)
+              ? "Retrying…"
+              : "Retry Download & Processing"}
+          </Button>
+        </div>
+      )}
+
       <div>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
           Identify Song
@@ -150,7 +187,9 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
             disabled={analyzeVocalRangeMutation.isPending}
             onClick={() => analyzeVocalRangeMutation.mutate()}
           >
-            {analyzeVocalRangeMutation.isPending ? "Analyzing…" : "Analyze Vocal Range"}
+            {analyzeVocalRangeMutation.isPending
+              ? "Analyzing…"
+              : "Analyze Vocal Range"}
           </Button>
         </div>
       </div>
@@ -163,7 +202,12 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
           <Button
             variant="secondary"
             size="sm"
-            disabled={reprocessMutation.isPending}
+            disabled={reprocessMutation.isPending || canRetryDownload}
+            title={
+              canRetryDownload
+                ? "No original audio on disk — use Retry Download & Processing above instead."
+                : undefined
+            }
             onClick={() => setShowReprocess((prev) => !prev)}
           >
             {reprocessMutation.isPending ? "Reprocessing…" : "Reprocess Audio"}
@@ -177,6 +221,12 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
             Skip Fingerprint
           </Button>
         </div>
+        {canRetryDownload && (
+          <p className="text-xs text-muted-foreground mt-2">
+            No original audio on disk — use &ldquo;Retry Download &amp;
+            Processing&rdquo; above instead.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 space-y-2">
@@ -184,7 +234,9 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
           <FingerprintLookupPanel
             song={song}
             onDone={() => {
-              queryClient.invalidateQueries({ queryKey: ["admin-acoustid-songs"] });
+              queryClient.invalidateQueries({
+                queryKey: ["admin-acoustid-songs"],
+              });
               onDone();
             }}
           />
@@ -219,7 +271,9 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
               disabled={reprocessMutation.isPending}
               onClick={handleReprocessConfirm}
             >
-              {reprocessMutation.isPending ? "Reprocessing…" : "Confirm Reprocess"}
+              {reprocessMutation.isPending
+                ? "Reprocessing…"
+                : "Confirm Reprocess"}
             </Button>
           </div>
         )}
