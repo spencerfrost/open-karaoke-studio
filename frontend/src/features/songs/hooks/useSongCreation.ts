@@ -14,7 +14,7 @@ export interface SongInput {
   videoId: string;
   source: "youtube" | "youtube_music";
   url: string;
-  duration?: string;
+  duration?: number; // seconds
   thumbnail: string;
   startTime?: number;
   endTime?: number;
@@ -73,10 +73,16 @@ export const useSongCreation = () => {
       return Promise.resolve(null);
     }
 
-    if (inFlightVideoIdRef.current === song.videoId || existingState === "pending") {
-      logger.debug("Ignoring duplicate song submission while request is in flight", {
-        videoId: song.videoId,
-      });
+    if (
+      inFlightVideoIdRef.current === song.videoId ||
+      existingState === "pending"
+    ) {
+      logger.debug(
+        "Ignoring duplicate song submission while request is in flight",
+        {
+          videoId: song.videoId,
+        },
+      );
       return Promise.resolve(null);
     }
 
@@ -89,22 +95,11 @@ export const useSongCreation = () => {
       videoId: song.videoId,
     });
 
-    // Convert duration to seconds if it's provided
-    let duration: number | undefined;
-    if (song.duration) {
-      const durationValue =
-        typeof song.duration === "string"
-          ? parseFloat(song.duration)
-          : song.duration;
-      // Assume duration is already in seconds (no conversion needed)
-      duration = durationValue;
-    }
-
     const songData = {
       title: song.title,
       artist: song.artist,
       album: song.album || "",
-      duration,
+      duration: song.duration,
       source: song.source,
       video_id: song.videoId,
     };
