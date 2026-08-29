@@ -15,6 +15,8 @@ export interface SongArtworkProps {
   song: Song;
   artworkUrl: string | null;
   showSyncedBadge?: boolean;
+  /** Shows a "needs review" flag when the song's AcoustID match is ambiguous. Host-only. */
+  showAmbiguousBadge?: boolean;
   onPlay: (e?: React.MouseEvent) => void;
   showPlayButton?: boolean;
   /** Enables the hover-to-preview behaviour on this artwork. */

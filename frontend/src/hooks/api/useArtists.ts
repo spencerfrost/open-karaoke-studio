@@ -5,6 +5,14 @@ export interface Artist {
   name: string;
   songCount: number;
   firstLetter: string;
+  /** True for a musical/soundtrack show folded into the artist browse list, not a real artist row. */
+  isShow?: boolean;
+}
+
+interface Show {
+  name: string;
+  songCount: number;
+  firstLetter: string;
 }
 
 interface UseArtistsParams {
@@ -24,10 +32,35 @@ export function useArtists({
   const queryFn = async () => {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search);
-    const res = await fetch(`/api/songs/artists?${params.toString()}`);
-    if (!res.ok) throw new Error("Failed to fetch artists");
-    const data = await res.json();
-    return Array.isArray(data.artists) ? data.artists : [];
+
+    const [artistsRes, showsRes] = await Promise.all([
+      fetch(`/api/songs/artists?${params.toString()}`),
+      fetch(`/api/songs/shows?${params.toString()}`),
+    ]);
+    if (!artistsRes.ok) throw new Error("Failed to fetch artists");
+    if (!showsRes.ok) throw new Error("Failed to fetch shows");
+
+    const artistsData = await artistsRes.json();
+    const showsData = await showsRes.json();
+
+    const artists: Artist[] = Array.isArray(artistsData.artists)
+      ? artistsData.artists
+      : [];
+    const shows: Show[] = Array.isArray(showsData.shows) ? showsData.shows : [];
+
+    // Shows aren't real artist rows, so they get a synthetic id — negative,
+    // never collides with a real (positive, serial) artist id.
+    const showsAsArtists: Artist[] = shows.map((show, i) => ({
+      id: -(i + 1),
+      name: show.name,
+      songCount: show.songCount,
+      firstLetter: show.firstLetter,
+      isShow: true,
+    }));
+
+    return [...artists, ...showsAsArtists].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
   };
 
   const { data, isLoading, error } = useQuery({

@@ -5,9 +5,13 @@ import {
   LayoutGrid,
   List,
   MoreHorizontal,
+  Theater,
   Users,
 } from "lucide-react";
-import { useInfiniteArtistSongs } from "@/hooks/api/useArtistSongs";
+import {
+  useInfiniteArtistSongs,
+  useInfiniteShowSongs,
+} from "@/hooks/api/useArtistSongs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,10 +45,18 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
 
-  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteArtistSongs(artist.name, 200, {
-      enabled: isExpanded,
-    });
+  // A show isn't a real artist row, so it has no artist image and no admin
+  // edit/collab actions — but it reuses this same accordion row and the same
+  // infinite-songs shape, just sourced from a different endpoint.
+  const artistSongs = useInfiniteArtistSongs(artist.name, 200, {
+    enabled: isExpanded && !artist.isShow,
+  });
+  const showSongs = useInfiniteShowSongs(artist.name, 200, {
+    enabled: isExpanded && !!artist.isShow,
+  });
+  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } = artist.isShow
+    ? showSongs
+    : artistSongs;
 
   return (
     <div
@@ -64,7 +76,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
               <ChevronRight size={20} className="text-orange-peel" />
             )}
             <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-orange-peel/20 flex items-center justify-center">
-              {imageError ? (
+              {artist.isShow ? (
+                <Theater size={18} className="text-orange-peel" />
+              ) : imageError ? (
                 <Users size={18} className="text-orange-peel" />
               ) : (
                 <img
@@ -110,7 +124,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           </div>
         )}
 
-        {isAdmin && (
+        {isAdmin && !artist.isShow && (
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
@@ -163,7 +177,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
         </div>
       )}
 
-      {isAdmin && (
+      {isAdmin && !artist.isShow && (
         <>
           <EditArtistDialog
             artist={artist}

@@ -49,7 +49,13 @@ export interface Song {
   albumCoverUrl?: string; // Computed by backend — points to /api/albums/{id}/cover
 
   // AcoustID fingerprinting
-  acoustidFingerprintStatus?: "not_checked" | "matched" | "no_match" | "failed";
+  acoustidFingerprintStatus?:
+    | "not_checked"
+    | "matched"
+    | "no_match"
+    | "ambiguous"
+    | "skipped"
+    | "failed";
   acoustidScore?: number;
   musicbrainzRecordingId?: string;
 

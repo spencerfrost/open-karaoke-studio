@@ -366,6 +366,45 @@ async def get_artists(
         raise HTTPException(status_code=500, detail=f"Failed to get artists: {str(e)}")
 
 
+@router.get("/shows")
+async def get_shows(
+    search: Optional[str] = Query(None, description="Search term to filter shows"),
+    db: Session = Depends(get_db),
+):
+    """Get a list of all unique musical/soundtrack show names with their song counts."""
+    try:
+        query = (
+            db.query(DbSong.show_name, func.count(DbSong.id).label("song_count"))
+            .filter(DbSong.show_name.isnot(None), DbSong.show_name != "")
+            .group_by(DbSong.show_name)
+            .order_by(DbSong.show_name)
+        )
+
+        if search and search.strip():
+            query = query.filter(DbSong.show_name.ilike(f"%{search.strip()}%"))
+
+        results = query.all()
+
+        return {
+            "shows": [
+                {
+                    "name": show_name,
+                    "songCount": count,
+                    "firstLetter": (
+                        "#"
+                        if show_name and show_name[0].isdigit()
+                        else (show_name[0].upper() if show_name else "?")
+                    ),
+                }
+                for show_name, count in results
+            ],
+        }
+
+    except Exception as e:
+        logger.error("Error getting shows: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get shows: {str(e)}")
+
+
 @router.get("/by-artist/{artist_name}")
 async def get_songs_by_artist(
     artist_name: str,
@@ -438,6 +477,69 @@ async def get_songs_by_artist(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get songs for artist: {str(e)}",
+        )
+
+
+@router.get("/by-show/{show_name}")
+async def get_songs_by_show(
+    show_name: str,
+    limit: int = Query(
+        20, ge=1, le=500, description="Maximum number of songs to return"
+    ),
+    offset: int = Query(0, ge=0, description="Number of songs to skip"),
+    sort: str = Query("title", description="Sort field: title, album, year, dateAdded"),
+    direction: str = Query("asc", description="Sort direction: asc or desc"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get songs for a specific musical/soundtrack show, with pagination.
+
+    - **show_name**: The show name (URL-encoded), matched exactly
+    - **limit**: Maximum number of songs to return (1-500)
+    - **offset**: Number of songs to skip
+    - **sort**: Sort field (title, album, year, dateAdded)
+    - **direction**: Sort direction (asc or desc)
+    """
+    show_name = unquote(show_name)
+
+    if sort not in VALID_ARTIST_SORT_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort field: {sort}. Must be one of: title, album, year, dateAdded",
+        )
+    db_sort_field = CAMEL_TO_SNAKE_CASE.get(sort, sort)
+    direction = validate_direction(direction, raise_on_invalid=True)
+
+    try:
+        base_query = db.query(DbSong).filter(DbSong.show_name == show_name)
+
+        sort_column = getattr(DbSong, db_sort_field, DbSong.title)
+        if direction.lower() == "desc":
+            base_query = base_query.order_by(sort_column.desc())
+        else:
+            base_query = base_query.order_by(sort_column.asc())
+
+        total_count = base_query.count()
+        songs = base_query.offset(offset).limit(limit).all()
+
+        return {
+            "songs": [song.to_dict() for song in songs],
+            "show": show_name,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "hasMore": offset + limit < total_count,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching songs for show '{show_name}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get songs for show: {str(e)}",
         )
 
 

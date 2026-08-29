@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuthStore } from "@/stores/authStore";
@@ -123,6 +124,8 @@ const AdminPanel: React.FC = () => {
   const { data: users, isLoading, error } = useUsers();
   const setHostMutation = useSetHost();
   const createUserMutation = useCreateUser();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") ?? "users";
 
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
@@ -173,7 +176,7 @@ const AdminPanel: React.FC = () => {
           <h1 className="text-2xl font-bold">Admin Panel</h1>
         </div>
 
-        <Tabs defaultValue="users">
+        <Tabs defaultValue={initialTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="acoustid">

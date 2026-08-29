@@ -1,5 +1,6 @@
 import React from "react";
-import { Music, Play } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Music, Play, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SongArtworkProps } from "./SongCard.types";
@@ -15,10 +16,32 @@ const SyncedLyricsBadge: React.FC = () => (
   </Badge>
 );
 
+const AmbiguousMatchBadge: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate("/admin?tab=acoustid");
+  };
+
+  return (
+    <Badge
+      className="absolute top-2 left-2 z-10 cursor-pointer bg-orange-500/20 text-orange-400 border border-orange-500/40 hover:bg-orange-500/30"
+      variant="outline"
+      onClick={handleClick}
+      title="AcoustID match needs review — click to open the admin review queue"
+    >
+      <TriangleAlert className="size-3" />
+      Needs review
+    </Badge>
+  );
+};
+
 export const SongArtwork: React.FC<SongArtworkProps> = ({
   song,
   artworkUrl,
   showSyncedBadge = true,
+  showAmbiguousBadge = false,
   onPlay,
   showPlayButton = true,
   enablePreview = true,
@@ -31,6 +54,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
     !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
 
   const preview = useSongPreview(song, { enabled: enablePreview });
+  const previewChromeVisible = preview.isPreviewing || preview.isLoading;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -49,6 +73,11 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
       {...preview.hoverHandlers}
     >
       {showSyncedBadge && song.syncedLyrics && <SyncedLyricsBadge />}
+
+      {/* Yields the top-left slot to the preview chip, which sits in the same spot. */}
+      {showAmbiguousBadge && !isBlockingProcessing && !previewChromeVisible && (
+        <AmbiguousMatchBadge />
+      )}
 
       {/* Play button overlay - hide if processing or showPlayButton is false */}
       {showPlayButton && !isBlockingProcessing && (
@@ -97,7 +126,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
       {showPreviewButton && preview.canPreview && (
         <PreviewToggleButton
           songTitle={song.title}
-          isActive={preview.isPreviewing || preview.isLoading}
+          isActive={previewChromeVisible}
           onToggle={preview.togglePreview}
         />
       )}

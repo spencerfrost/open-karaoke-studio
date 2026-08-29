@@ -72,6 +72,9 @@ export const SongCard: React.FC<SongCardProps> = ({
             song={song}
             artworkUrl={artworkUrl}
             showSyncedBadge={variant === "detailed"}
+            showAmbiguousBadge={
+              isHost && song.acoustidFingerprintStatus === "ambiguous"
+            }
             onPlay={songActions.handlePlay}
             showPlayButton={isHost}
           />
