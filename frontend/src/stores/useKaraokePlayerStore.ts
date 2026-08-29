@@ -16,6 +16,7 @@ import { createLogger } from "@/lib/logger";
 import { useAudioControlsStore } from "./useAudioControlsStore";
 import { usePlaybackStateStore } from "./usePlaybackStateStore";
 import { useUIPreferencesStore } from "./useUIPreferencesStore";
+import { useSettingsStore } from "./useSettingsStore";
 import {
   PerformanceState,
   MiniPlayerPosition,
@@ -472,6 +473,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     setLyricsSize: (size: "small" | "medium" | "large") => {
       useUIPreferencesStore.getState().setLyricsSize(size);
+      useSettingsStore.getState().setDisplaySettings({ lyricsSize: size });
       updatePerformanceControl("lyricsSize", size);
     },
 

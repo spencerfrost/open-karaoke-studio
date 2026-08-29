@@ -17,7 +17,7 @@ import React, {
   useCallback,
 } from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
-import { getActiveLineIndex } from "./activeLineTiming";
+import { getActiveLineIndex, lineHasWordTiming } from "./activeLineTiming";
 
 type ParsedLine = ParsedLrcData["lines"][number];
 type InstrumentalInterval = NonNullable<
@@ -245,22 +245,8 @@ const LyricContent: React.FC<LyricContentProps> = ({
   seekProps,
   currentWordIndex,
 }) => {
-  if (renderMode === "words") {
-    const words =
-      line.words && line.words.length > 0
-        ? line.words.map((w) => w.word)
-        : line.content.split(/\s+/).filter(Boolean);
-
-    if (words.length === 0) {
-      return (
-        <span
-          className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
-          {...seekProps}
-        >
-          {line.content}
-        </span>
-      );
-    }
+  if (renderMode === "words" && line.words && line.words.length > 0) {
+    const words = line.words.map((w) => w.word);
 
     return (
       <span
@@ -572,12 +558,6 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   // Render all lyrics lines (including blanks)
   const renderAllLines = () => {
     const isClickable = !!onSeek;
-    const hasAnyWordTiming = parsedData.lines.some(
-      (line) => !line.isBlank && !!line.words && line.words.length > 0,
-    );
-    const renderMode: "content" | "words" = hasAnyWordTiming
-      ? "words"
-      : "content";
 
     const getSeekProps = (lineTimestampMs: number): SeekableSpanProps => {
       if (!isClickable) {
@@ -661,6 +641,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
       const weight = isActive ? "font-bold" : "font-normal";
       const shadow = isActive ? "text-shadow" : "";
       const seekProps = getSeekProps(line.timestamp);
+      const lineRenderMode: "content" | "words" = lineHasWordTiming(line)
+        ? "words"
+        : "content";
 
       renderedElements.push(
         <div
@@ -694,7 +677,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
             <div className="text-center">
               <LyricContent
                 line={line}
-                renderMode={renderMode}
+                renderMode={lineRenderMode}
                 isActive={isActive}
                 opacity={opacity}
                 isClickable={isClickable}

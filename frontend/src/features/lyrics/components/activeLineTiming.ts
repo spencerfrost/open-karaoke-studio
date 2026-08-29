@@ -32,6 +32,14 @@ function getLineEndMs(
   return Math.min(lastWordEndMs, nextContentStartMs);
 }
 
+export function lineHasWordTiming(line: LrcLine): boolean {
+  return !!line.words && line.words.length > 0;
+}
+
+export function anyLineHasWordTiming(lines: LrcLine[]): boolean {
+  return lines.some((line) => !line.isBlank && lineHasWordTiming(line));
+}
+
 export function getActiveLineIndex(
   lines: LrcLine[],
   currentTimeMs: number,
@@ -47,10 +55,7 @@ export function getActiveLineIndex(
 
   if (contentLineIndices.length === 0) return -1;
 
-  const hasWordTimings = contentLineIndices.some((index) => {
-    const words = lines[index].words;
-    return !!words && words.length > 0;
-  });
+  const hasWordTimings = anyLineHasWordTiming(lines);
 
   if (!hasWordTimings) {
     const fallbackIndex = lines.findIndex((line, index) => {

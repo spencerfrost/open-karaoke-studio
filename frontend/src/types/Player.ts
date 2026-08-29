@@ -10,13 +10,3 @@ export interface PlayerState {
   instrumentalVolume: number;
   currentSong: KaraokeQueueItemWithSong | null;
 }
-
-export interface Lyric {
-  time: number; // In seconds
-  text: string;
-}
-
-export interface LyricSet {
-  songId: string;
-  lyrics: Lyric[];
-}

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { MiniPlayerPosition } from "./shared/types";
+import { useSettingsStore } from "./useSettingsStore";
 
 export interface UIPreferencesState {
   // Lyrics settings
@@ -32,7 +33,7 @@ export interface UIPreferencesState {
 
 export const useUIPreferencesStore = create<UIPreferencesState>((set) => ({
   // Default values
-  lyricsSize: "medium",
+  lyricsSize: useSettingsStore.getState().display.lyricsSize,
   lyricsOffset: 0,
   autoScrollEnabled: true,
   showChords: false,
