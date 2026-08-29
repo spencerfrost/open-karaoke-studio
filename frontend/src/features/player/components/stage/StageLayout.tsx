@@ -10,8 +10,10 @@
  */
 
 import React, { useCallback } from "react";
+import { Maximize, Minimize } from "lucide-react";
 import { ControlsStrip } from "@/features/performance/controls";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { usePlayerUI } from "../../hooks";
 import KaraokePlayer from "../KaraokePlayer";
@@ -43,11 +45,10 @@ const StageLayout: React.FC<StageLayoutProps> = ({
   onRemoveFromQueue,
 }) => {
   // Fullscreen now only has to hide browser chrome — the page IS the player.
-  // usePlayerUI also carries the toggle_fullscreen listener the phone drives.
   const ui = usePlayerUI();
   const isPlaying = useKaraokePlayerStore((state) => state.isPlaying);
   const { collapsed } = useStageRails(isPlaying);
-  useStageKeyboard();
+  useStageKeyboard({ onToggleFullscreen: ui.toggleFullscreen });
 
   const nextItem = upcoming[0];
   const handleNext = useCallback(() => {
@@ -73,8 +74,29 @@ const StageLayout: React.FC<StageLayoutProps> = ({
       <div className="vintage-texture-overlay" />
       <div className="absolute inset-0 z-[11] bg-overlay/85" />
 
+      {/* The stage's only fullscreen affordance — the mouse lives on the mic
+          stand, so this cannot be keyboard-only. A real click also carries the
+          user activation that requestFullscreen() requires. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={ui.toggleFullscreen}
+        aria-label={ui.isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        className={cn(
+          "absolute right-3 top-3 z-40 size-12 text-foreground/40 transition-opacity duration-500 hover:text-foreground",
+          collapsed && "opacity-35",
+        )}
+      >
+        {ui.isFullscreen ? (
+          <Minimize className="size-6" />
+        ) : (
+          <Maximize className="size-6" />
+        )}
+      </Button>
+
+      {/* Sits under the button so the two never overlap */}
       {ui.fsError && (
-        <div className="absolute right-3 top-3 z-40 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow">
+        <div className="absolute right-3 top-16 z-40 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow">
           {ui.fsError}
         </div>
       )}

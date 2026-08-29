@@ -1,21 +1,36 @@
 /**
  * useStageKeyboard - the one place stage keys are bound.
  *
- * The keyboard is already in the room, so it gets the two fixes that matter
+ * The keyboard is already in the room, so it gets the fixes that matter
  * mid-song: seek, and nudging the lyrics offset when they drift.
  *
  *   Space        play / pause
  *   Left/Right   seek -/+ 5s
  *   Up/Down      lyrics offset +/- 100ms
+ *   F            toggle fullscreen
+ *
+ * Escape is not bound: the Fullscreen API makes the browser exit on Escape and
+ * the page cannot prevent it, so a handler here would only shadow it.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 const SEEK_STEP_SECONDS = 5;
 const OFFSET_STEP_MS = 100;
 
-export const useStageKeyboard = () => {
+interface UseStageKeyboardOptions {
+  onToggleFullscreen?: () => void;
+}
+
+export const useStageKeyboard = ({
+  onToggleFullscreen,
+}: UseStageKeyboardOptions = {}) => {
+  // Held in a ref so the listener below keeps its empty deps — toggleFullscreen
+  // changes identity every time fullscreen does, and rebinding on that is noise.
+  const onToggleFullscreenRef = useRef(onToggleFullscreen);
+  onToggleFullscreenRef.current = onToggleFullscreen;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement) {
@@ -68,6 +83,14 @@ export const useStageKeyboard = () => {
         case "ArrowDown":
           e.preventDefault();
           setLyricsOffset(lyricsOffset - OFFSET_STEP_MS);
+          return;
+        case "KeyF":
+          // No isReady gate — hiding browser chrome is useful with no song
+          // loaded, and this runs off a real keypress so it carries the user
+          // activation requestFullscreen() demands.
+          if (e.ctrlKey || e.metaKey || e.altKey) return;
+          e.preventDefault();
+          onToggleFullscreenRef.current?.();
           return;
         default:
       }

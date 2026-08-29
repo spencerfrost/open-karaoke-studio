@@ -104,24 +104,10 @@ export interface KaraokePlayerHook {
 
 // Return interface for usePlayerUI hook
 export interface PlayerUIHook {
-  // UI state
   isFullscreen: boolean;
-  showVolumeSlider: boolean;
-  isControlsVisible: boolean;
-
-  // UI actions
   toggleFullscreen: () => void;
-  setShowVolumeSlider: (show: boolean) => void;
 
-  // Keyboard shortcuts
-  keyboardShortcuts: {
-    [key: string]: () => void;
-  };
-
-  // Focus management
-  focusPlayer: () => void;
-
-  // Internal refs and error state (for component usage)
+  // Attach containerRef to the element that should fill the screen
   containerRef: React.RefObject<HTMLDivElement | null>;
   fsError: string | null;
 }
