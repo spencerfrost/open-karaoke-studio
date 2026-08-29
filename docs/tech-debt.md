@@ -6,8 +6,8 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 | Category | Count |
 |----------|-------|
-| **Critical Issues** | 4 |
-| **Important Issues** | 9 |
+| **Critical Issues** | 5 |
+| **Important Issues** | 10 |
 | **Nice-to-Have** | 7 |
 | **Total TODOs Found** | 10+ explicit TODOs |
 | **Console.log Statements** | 50+ in frontend |
@@ -102,6 +102,27 @@ const songId = (job as any).song_id;  // Type bypass
 - Review migration history
 - Ensure migrations are idempotent
 - Document any manual database changes
+
+---
+
+### 22. `batch_align_lyrics` Crashes the Worker Process Mid-Batch (CUDA Allocator Corruption)
+
+**Severity:** 🔴 CRITICAL
+
+**Location:**
+- [batch_tasks.py:batch_align_lyrics](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py) — loads the wav2vec2 model once, then loops synchronously over every eligible song (hundreds) inside a single Celery task invocation using `align_lyrics_to_vocals_with_model`/`align_plain_lyrics_to_vocals_with_model`.
+- [gpu_idle_cleanup.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_idle_cleanup.py) — a `threading.Timer` that calls `torch.cuda.empty_cache()` after `GPU_IDLE_CLEANUP_SECONDS` of no tracked GPU activity, tracked via `begin_gpu_activity()`/`end_gpu_activity()`.
+- [lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) — the per-song `align_lyrics_to_vocals`/`align_plain_lyrics_to_vocals` (used by the single-song `align_song_lyrics` task) correctly bracket their CUDA work with `begin_gpu_activity()`/`end_gpu_activity()` (lines ~326/361, ~582/617). The `_with_model` variants used by `batch_align_lyrics` did **not** — the batch loop never told the idle-cleanup subsystem it was using the GPU.
+
+**Problem:** Found 2026-08-28 while running a library-wide alignment backfill; the batch task repeatedly died with no error in `logs/celery.log` and no task-failure event. `journalctl`/`dmesg` showed the real cause: four separate hard SIGSEGV crashes in `libc10_cuda.so` (`DeviceCachingAllocator::malloc`, PyTorch's CUDA caching allocator) over the course of the backfill, each captured by `systemd-coredump`. Because `batch_align_lyrics` never called `begin_gpu_activity()`, a leftover idle-cleanup timer (armed by an unrelated task that had run earlier in the same worker process) could fire `torch.cuda.empty_cache()` on its own daemon thread *while the batch loop's thread was mid-allocation* — `empty_cache()` racing a live `cudaMalloc` on another thread of the same process corrupts the allocator's internal free-list, producing exactly this segfault signature. Because it's a native crash (not a Python exception), Celery can't catch it, log a traceback, or mark the task failed — the worker process just dies silently, and the batch stops with zero record of why.
+
+**Impact:** CRITICAL — total, silent task loss. A multi-hundred-song backfill can die after processing only a handful of songs, with nothing in the logs to indicate why, and no automatic retry (the failure isn't visible to Celery as a failure at all).
+
+**Fix applied (2026-08-28):** `batch_align_lyrics` now brackets its entire loop with `begin_gpu_activity("batch-lyrics-alignment:...")` / `end_gpu_activity(...)` in a `try`/`finally`, matching the pattern already used by the per-song alignment functions. This cancels/suppresses the idle-cleanup timer for the full duration of the batch instead of leaving it free to fire mid-batch.
+
+**Follow-up still recommended:** restructure `batch_align_lyrics` into one Celery task per song — dispatched/chained the way `process_audio_job` already is — instead of one task looping over the whole library. This would also give proper per-song progress/retry instead of an all-or-nothing batch, and further reduce the blast radius if a similar native crash ever recurs from another cause.
+
+**Related, lower-severity fix (same day):** added `--without-gossip --without-mingle` to all three workers in `run_celery.sh` — this stops noisy "missed heartbeat" log spam from cross-worker gossip on this single-box setup, but was a symptom fix, not the cause of the silent failures described above.
 
 ---
 
@@ -287,6 +308,28 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 **Was:** `test_songs_api.py.deprecated` left in `backend/tests/integration/test_api/`.
 
 **Fixed:** File no longer exists in the repo.
+
+---
+
+### 21. Repeated Lyric Lines Break Word Alignment Matching
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:**
+- [lrcParser.ts:attachWordTimestamps](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/utils/lrcParser.ts) — frontend word-to-line matching
+- [lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) — WhisperX forced alignment
+
+**Problem:** Found during manual testing (2026-08-28) while verifying a fix for partial-alignment rendering. Two distinct failure modes, same underlying trigger — a lyric line repeating verbatim elsewhere in the song:
+
+1. **Duplicate-timestamp source data.** Some songs' `synced_lyrics` (from LRCLIB/`syncedlyrics`) have multiple distinct content lines sharing one identical `[mm:ss.xx]` timestamp — e.g. Atmosphere's "Fuck You Lucy" has ~12 consecutive lines all stamped `[00:53.90]`. `attachWordTimestamps`'s timestamp-based line matching can't distinguish between lines with identical timestamps, so word groups collapse onto the wrong line and duplicate/concatenate visually in the player.
+2. **Wrong occurrence matched during forced alignment.** When the exact same lyric line/phrase occurs twice in a song (e.g. Cameron Whitcomb's "The Hard Way" repeats "(You were right) I had to do it the hard way" twice, ~12s apart), WhisperX's forced alignment can anchor word timing to the wrong occurrence, leaving one instance of the line with no word data while its twin has correct timing.
+
+**Impact:** MEDIUM — cosmetic during karaoke playback (garbled/duplicated line text, or a line missing per-word highlighting) for the subset of songs with duplicate-timestamp LRC data or repeated lyric lines. Does not affect plain-lyrics or non-repeating synced-lyrics playback.
+
+**Recommendation:**
+- For (1): detect duplicate consecutive timestamps during LRC ingestion/parsing and either reject the source or fall back to evenly-spaced synthetic timestamps for that block.
+- For (2): investigate whether WhisperX alignment can be given position/context hints (e.g. previous alignment progress) to disambiguate repeated phrases, or accept the limitation and only auto-apply alignment above a stricter per-song confidence threshold.
+- Neither fix should be bundled with unrelated lyrics-rendering work — this is an alignment/data-quality problem, not a rendering bug.
 
 ---
 

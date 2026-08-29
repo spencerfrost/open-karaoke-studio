@@ -153,6 +153,7 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
     from app.services.file_service import FileService
+    from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
     from app.services.lyrics_alignment import (
         align_lyrics_to_vocals_with_model,
         align_plain_lyrics_to_vocals_with_model,
@@ -202,130 +203,139 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     activated = 0
     failed = 0
 
-    for song_id in eligible:
-        vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-        with get_db_session() as session:
-            song = SongRepository(session).fetch(song_id)
-            if not song:
+    # The whole batch runs as sustained CUDA work on this worker thread. Without
+    # this guard, the idle-VRAM-cleanup timer (armed by an unrelated task on this
+    # same process) can fire torch.cuda.empty_cache() concurrently with an
+    # in-flight allocation here and corrupt the CUDA caching allocator — this is
+    # what caused the segfaults in libc10_cuda.so during earlier batch runs.
+    begin_gpu_activity(f"batch-lyrics-alignment:{language}")
+    try:
+        for song_id in eligible:
+            vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+            with get_db_session() as session:
+                song = SongRepository(session).fetch(song_id)
+                if not song:
+                    failed += 1
+                    results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
+                    continue
+                song_label = f"{song.artist or '?'} — {song.title or song_id}"
+                song_data: SongData = {
+                    "id": song.id,
+                    "title": song.title,
+                    "artist": song.artist,
+                    "album": song.album,
+                    "plain_lyrics": song.plain_lyrics,
+                    "synced_lyrics": song.synced_lyrics,
+                    "word_synced_lyrics": song.word_synced_lyrics,
+                }
+
+            attempts = _build_alignment_attempts(song_data, include_remote=False)
+            if not attempts:
                 failed += 1
-                results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
+                results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
                 continue
-            song_label = f"{song.artist or '?'} — {song.title or song_id}"
-            song_data: SongData = {
-                "id": song.id,
-                "title": song.title,
-                "artist": song.artist,
-                "album": song.album,
-                "plain_lyrics": song.plain_lyrics,
-                "synced_lyrics": song.synced_lyrics,
-                "word_synced_lyrics": song.word_synced_lyrics,
-            }
+            best_result = None
+            best_attempt = None
+            align_error_count = 0
 
-        attempts = _build_alignment_attempts(song_data, include_remote=False)
-        if not attempts:
-            failed += 1
-            results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
-            continue
-        best_result = None
-        best_attempt = None
-        align_error_count = 0
+            for idx, attempt in enumerate(attempts):
+                source_content = attempt["content"]
+                use_plain = attempt["source_type"] == "plain"
 
-        for idx, attempt in enumerate(attempts):
-            source_content = attempt["content"]
-            use_plain = attempt["source_type"] == "plain"
+                try:
+                    result = (
+                        align_plain_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
+                        if use_plain
+                        else align_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
+                    )
+                except Exception as e:
+                    align_error_count += 1
+                    logger.warning(
+                        "batch_align_lyrics: attempt failed for %s (source=%s): %s",
+                        song_label,
+                        attempt["source"],
+                        e,
+                        exc_info=True,
+                    )
+                    continue
 
-            try:
-                result = (
-                    align_plain_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
-                    if use_plain
-                    else align_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
-                )
-            except Exception as e:
-                align_error_count += 1
-                logger.warning(
-                    "batch_align_lyrics: attempt failed for %s (source=%s): %s",
-                    song_label,
-                    attempt["source"],
-                    e,
-                    exc_info=True,
-                )
-                continue
+                if not result:
+                    continue
 
-            if not result:
-                continue
+                if not best_result or result["mean_score"] > best_result["mean_score"]:
+                    best_result = result
+                    best_attempt = attempt
 
-            if not best_result or result["mean_score"] > best_result["mean_score"]:
-                best_result = result
-                best_attempt = attempt
-
-            if result["mean_score"] >= MIN_SCORE:
-                with get_db_session() as session:
-                    song = SongRepository(session).fetch(song_id)
-                    song.word_synced_lyrics = _json.dumps({
-                        "words": result["words"],
-                        "instrumental_intervals": result.get("instrumental_intervals", []),
-                        "language": result["language"],
-                        "mean_score": result["mean_score"],
-                        "word_count": result["word_count"],
-                        "line_count": result["line_count"],
-                        "aligned_at": result["aligned_at"],
-                        "lyrics_source_type": attempt["source_type"],
-                        "lyrics_source": attempt["source"],
-                        "lyrics_attempt": idx + 1,
+                if result["mean_score"] >= MIN_SCORE:
+                    with get_db_session() as session:
+                        song = SongRepository(session).fetch(song_id)
+                        song.word_synced_lyrics = _json.dumps({
+                            "words": result["words"],
+                            "instrumental_intervals": result.get("instrumental_intervals", []),
+                            "language": result["language"],
+                            "mean_score": result["mean_score"],
+                            "word_count": result["word_count"],
+                            "line_count": result["line_count"],
+                            "aligned_at": result["aligned_at"],
+                            "lyrics_source_type": attempt["source_type"],
+                            "lyrics_source": attempt["source"],
+                            "lyrics_attempt": idx + 1,
+                        })
+                        if attempt["persist"]:
+                            if attempt["source_type"] == "plain" and not song.plain_lyrics:
+                                song.plain_lyrics = attempt["content"]
+                            if attempt["source_type"] == "synced" and not song.synced_lyrics:
+                                song.synced_lyrics = attempt["content"]
+                        session.commit()
+                    activated += 1
+                    results.append({
+                        "songId": song_id,
+                        "title": song_label,
+                        "status": "activated",
+                        "meanScore": result["mean_score"],
+                        "wordCount": result["word_count"],
+                        "sourceType": attempt["source_type"],
+                        "source": attempt["source"],
                     })
-                    if attempt["persist"]:
-                        if attempt["source_type"] == "plain" and not song.plain_lyrics:
-                            song.plain_lyrics = attempt["content"]
-                        if attempt["source_type"] == "synced" and not song.synced_lyrics:
-                            song.synced_lyrics = attempt["content"]
-                    session.commit()
-                activated += 1
-                results.append({
-                    "songId": song_id,
-                    "title": song_label,
-                    "status": "activated",
-                    "meanScore": result["mean_score"],
-                    "wordCount": result["word_count"],
-                    "sourceType": attempt["source_type"],
-                    "source": attempt["source"],
-                })
-                logger.info(
-                    "batch_align_lyrics %s: activated (score=%.3f, source=%s)",
-                    song_label,
-                    result["mean_score"],
-                    attempt["source"],
-                )
-                break
-        else:
-            failed += 1
-            if best_result and best_attempt:
-                results.append({
-                    "songId": song_id,
-                    "title": song_label,
-                    "status": "low_confidence",
-                    "meanScore": best_result["mean_score"],
-                    "wordCount": best_result["word_count"],
-                    "sourceType": best_attempt["source_type"],
-                    "source": best_attempt["source"],
-                    "attempted": len(attempts),
-                    "errors": align_error_count,
-                })
-                logger.info(
-                    "batch_align_lyrics %s: low_confidence (score=%.3f, source=%s)",
-                    song_label,
-                    best_result["mean_score"],
-                    best_attempt["source"],
-                )
+                    logger.info(
+                        "batch_align_lyrics %s: activated (score=%.3f, source=%s)",
+                        song_label,
+                        result["mean_score"],
+                        attempt["source"],
+                    )
+                    break
             else:
-                results.append({
-                    "songId": song_id,
-                    "title": song_label,
-                    "status": "failed",
-                    "reason": "alignment produced no words",
-                    "attempted": len(attempts),
-                    "errors": align_error_count,
-                })
-                logger.info("batch_align_lyrics %s: failed after %d attempts", song_label, len(attempts))
+                failed += 1
+                if best_result and best_attempt:
+                    results.append({
+                        "songId": song_id,
+                        "title": song_label,
+                        "status": "low_confidence",
+                        "meanScore": best_result["mean_score"],
+                        "wordCount": best_result["word_count"],
+                        "sourceType": best_attempt["source_type"],
+                        "source": best_attempt["source"],
+                        "attempted": len(attempts),
+                        "errors": align_error_count,
+                    })
+                    logger.info(
+                        "batch_align_lyrics %s: low_confidence (score=%.3f, source=%s)",
+                        song_label,
+                        best_result["mean_score"],
+                        best_attempt["source"],
+                    )
+                else:
+                    results.append({
+                        "songId": song_id,
+                        "title": song_label,
+                        "status": "failed",
+                        "reason": "alignment produced no words",
+                        "attempted": len(attempts),
+                        "errors": align_error_count,
+                    })
+                    logger.info("batch_align_lyrics %s: failed after %d attempts", song_label, len(attempts))
+    finally:
+        end_gpu_activity(f"batch-lyrics-alignment:{language}")
 
     logger.info("batch_align_lyrics: done — activated=%d, failed=%d", activated, failed)
     return {
