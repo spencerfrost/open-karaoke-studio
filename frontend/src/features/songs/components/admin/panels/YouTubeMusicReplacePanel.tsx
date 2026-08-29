@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { apiSend } from "@/hooks/api/useApi";
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";
+import { useSongRecovery } from "@/features/songs/hooks/useSongRecovery";
 import { YoutubeMusicSearchResult } from "@/types/Youtube";
 import type { ReplacePanelProps, ValidationResult } from "./types";
 
@@ -12,7 +13,6 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
   song,
   onDone,
 }) => {
-  const { token } = useAuthStore();
   const [query, setQuery] = useState(`${song.artist} ${song.title}`);
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [selected, setSelected] = useState<YoutubeMusicSearchResult | null>(
@@ -35,54 +35,27 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
   const songs = data?.songs ?? [];
 
   const validateMutation = useMutation({
-    mutationFn: async (result: YoutubeMusicSearchResult) => {
-      const res = await fetch(
-        `/api/songs/${song.id}/validate-youtube-replacement`,
+    mutationFn: (result: YoutubeMusicSearchResult) =>
+      apiSend<ValidationResult, Record<string, unknown>>(
+        `songs/${song.id}/validate-youtube-replacement`,
+        "post",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            video_id: result.videoId,
-            title: result.title,
-            artist: result.artist,
-            engine_type: "three_track",
-          }),
-        },
-      );
-      if (!res.ok) throw new Error("Validation request failed");
-      return res.json() as Promise<ValidationResult>;
-    },
-    onSuccess: (result) => setValidation(result),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const replaceMutation = useMutation({
-    mutationFn: async (result: YoutubeMusicSearchResult) => {
-      const res = await fetch(`/api/songs/${song.id}/replace-youtube`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
           video_id: result.videoId,
           title: result.title,
           artist: result.artist,
           engine_type: "three_track",
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to start replacement");
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success("Replacement queued — full reprocessing started");
-      onDone();
-    },
+        },
+      ),
+    onSuccess: (result) => setValidation(result),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Same /replace-youtube dispatch the library-audit and song-detail retries
+  // use, so the request shape and error handling stay in one place.
+  const { recoverSong, isRecovering } = useSongRecovery({
+    onSuccess: () => onDone(),
+  });
+  const isReplacing = isRecovering(song.id);
 
   const handleSelect = (result: YoutubeMusicSearchResult) => {
     setSelected(result);
@@ -167,12 +140,17 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
             {validation.validated ? (
               <Button
                 size="sm"
-                disabled={replaceMutation.isPending}
-                onClick={() => replaceMutation.mutate(selected!)}
+                disabled={isReplacing}
+                onClick={() =>
+                  recoverSong({
+                    id: song.id,
+                    title: selected!.title,
+                    artist: selected!.artist,
+                    videoId: selected!.videoId,
+                  })
+                }
               >
-                {replaceMutation.isPending
-                  ? "Starting..."
-                  : "Confirm & Process"}
+                {isReplacing ? "Starting..." : "Confirm & Process"}
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground italic">

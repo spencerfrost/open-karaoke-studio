@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { getAuthHeaders, handleUnauthorized } from "@/hooks/api/useApi";
+import { apiSend } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:song-recovery");
@@ -11,16 +11,6 @@ export interface RecoverableSong {
   title?: string;
   artist?: string;
   videoId?: string | null;
-}
-
-async function parseErrorMessage(response: Response): Promise<string> {
-  try {
-    const data = await response.json();
-    if (data?.detail) return data.detail;
-  } catch {
-    // fall through to status-based message
-  }
-  return `Request failed with status ${response.status}`;
 }
 
 /**
@@ -38,45 +28,37 @@ export function useSongRecovery(options?: {
 
   const recoverSong = useCallback(
     async (song: RecoverableSong): Promise<boolean> => {
-      setRecoveringIds((prev) => new Set(prev).add(song.id));
-      try {
-        const response = song.videoId
-          ? await fetch(`/api/songs/${song.id}/replace-youtube`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...getAuthHeaders(),
-              },
-              body: JSON.stringify({
+      const request: { url: string; body: Record<string, unknown> } =
+        song.videoId
+          ? {
+              url: `songs/${song.id}/replace-youtube`,
+              body: {
                 video_id: song.videoId,
                 title: song.title,
                 artist: song.artist,
                 engine_type: engineType,
-              }),
-            })
-          : await fetch(`/api/songs/${song.id}/reprocess`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...getAuthHeaders(),
               },
-              body: JSON.stringify({ engine_type: engineType }),
-            });
+            }
+          : {
+              url: `songs/${song.id}/reprocess`,
+              body: { engine_type: engineType },
+            };
 
-        if (!response.ok) {
-          handleUnauthorized(response);
-          const message = await parseErrorMessage(response);
-          toast.error(message);
-          return false;
-        }
+      setRecoveringIds((prev) => new Set(prev).add(song.id));
+      try {
+        await apiSend<unknown, Record<string, unknown>>(
+          request.url,
+          "post",
+          request.body,
+        );
 
         toast.success(
           song.videoId
             ? "Re-download & reprocess job dispatched"
             : "Reprocess job dispatched",
         );
+        // Prefix match, so this also invalidates ["songs", song.id].
         queryClient.invalidateQueries({ queryKey: ["songs"] });
-        queryClient.invalidateQueries({ queryKey: ["songs", song.id] });
         options?.onSuccess?.(song.id);
         return true;
       } catch (error) {
@@ -84,7 +66,11 @@ export function useSongRecovery(options?: {
           songId: song.id,
           error,
         });
-        toast.error("Failed to dispatch recovery job");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to dispatch recovery job",
+        );
         return false;
       } finally {
         setRecoveringIds((prev) => {
