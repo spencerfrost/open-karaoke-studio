@@ -2,16 +2,19 @@
  * PerformanceControlsPanel - the performer's phone.
  *
  * Renders the very same ControlsStrip the stage's left rail does, at touch
- * density, so the two surfaces cannot drift apart again. Transport and the
- * stage-fullscreen button sit underneath.
+ * density, so the two surfaces cannot drift apart again. The transport sits
+ * underneath.
+ *
+ * There is no fullscreen button here: driving the stage's fullscreen over the
+ * WebSocket could never work, because requestFullscreen() demands user
+ * activation the receiving tab does not have. The stage owns that locally now.
  */
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Maximize, Pause, Play, SkipBack } from "lucide-react";
+import { Pause, Play, SkipBack } from "lucide-react";
 import ProgressBar from "@/features/player/components/subcomponents/ProgressBar";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { formatTime } from "@/utils/formatters";
 import ControlsStrip from "../controls/ControlsStrip";
 
@@ -69,16 +72,6 @@ const PerformanceControlsPanel: React.FC = () => {
             ) : (
               <Play className="size-7.5" fill="currentColor" />
             )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-12 text-foreground/70"
-            onClick={() => sessionWebSocketService.toggleFullscreen()}
-            aria-label="Toggle fullscreen on stage"
-          >
-            <Maximize className="size-6" />
           </Button>
         </div>
       </div>
