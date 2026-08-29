@@ -22,7 +22,9 @@ export const formatTime = (
  */
 export const parseDurationToSeconds = (duration: string): number => {
   const parts = duration.split(":").map(Number);
-  if (parts.some(Number.isNaN)) return 0;
+  // A negative component means the string was malformed (e.g. a stray leading
+  // minus); fail safe to 0 rather than emit a negative duration downstream.
+  if (parts.some((part) => Number.isNaN(part) || part < 0)) return 0;
   if (parts.length === 3) {
     return parts[0] * 3600 + parts[1] * 60 + parts[2];
   } else if (parts.length === 2) {
