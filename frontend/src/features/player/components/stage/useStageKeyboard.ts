@@ -23,6 +23,12 @@ export const useStageKeyboard = () => {
         if (e.target.isContentEditable) return;
       }
 
+      // Radix preventDefaults its own arrow handling but never stops
+      // propagation, so a focused slider thumb or an open dialog would move
+      // AND run the shortcuts below. Bail out for anything that owns its keys.
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (t?.closest("[role='dialog'], [role='slider']")) return;
+
       const {
         isReady,
         isPlaying,
