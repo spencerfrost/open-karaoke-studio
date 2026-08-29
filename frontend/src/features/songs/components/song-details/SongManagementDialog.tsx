@@ -59,33 +59,18 @@ export const SongManagementDialog: React.FC<SongManagementDialogProps> = ({
 
         <Tabs defaultValue="details" className="flex flex-col flex-1 min-h-0">
           <div className="border-b flex-shrink-0">
-            <TabsList className="w-full grid grid-cols-3 p-0 h-auto bg-transparent rounded-none">
-              <TabsTrigger
-                value="details"
-                className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
-              >
-                <Settings size={18} className="text-muted-foreground" />
-                <span className="hidden sm:inline text-sm font-medium">
-                  Details
-                </span>
+            <TabsList variant="line" className="grid w-full grid-cols-3">
+              <TabsTrigger value="details">
+                <Settings size={18} />
+                <span className="hidden sm:inline">Details</span>
               </TabsTrigger>
-              <TabsTrigger
-                value="lyrics"
-                className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
-              >
-                <FileText size={18} className="text-muted-foreground" />
-                <span className="hidden sm:inline text-sm font-medium">
-                  Lyrics
-                </span>
+              <TabsTrigger value="lyrics">
+                <FileText size={18} />
+                <span className="hidden sm:inline">Lyrics</span>
               </TabsTrigger>
-              <TabsTrigger
-                value="actions"
-                className="flex items-center justify-center gap-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted/50 py-3 px-2 transition-colors"
-              >
-                <Wrench size={18} className="text-muted-foreground" />
-                <span className="hidden sm:inline text-sm font-medium">
-                  Actions
-                </span>
+              <TabsTrigger value="actions">
+                <Wrench size={18} />
+                <span className="hidden sm:inline">Actions</span>
               </TabsTrigger>
             </TabsList>
           </div>
