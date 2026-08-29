@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import { KaraokeQueueList } from "@/features/queue";
-import { KaraokePlayer } from "@/features/player";
+import { StageLayout } from "@/features/player/components/stage";
 
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -12,7 +11,6 @@ import {
 } from "@/hooks/api/useKaraokeQueue";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("page:stage");
@@ -158,48 +156,15 @@ const Stage: React.FC = () => {
   };
 
   return (
-    <AppLayout>
-      <div className="flex flex-col gap-4 min-h-full p-6 relative items-center z-20">
-        {/* Back button (to libary) */}
-        <Button
-          onClick={() => window.history.back()}
-          className="absolute *:top-2 left-6"
-          variant="ghost"
-          aria-label="Back to library"
-        >
-          <svg
-            className="w-6 h-6 text-orange-peel"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </Button>
-
-        <KaraokePlayer
-          songId={currentSong?.id || ""}
-          queueItems={queueQuery.data?.items}
-          onPlayNext={handlePlayFromQueue}
-        />
-        <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
-          Up Next
-        </h2>
-
-        <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-foreground border border-orange-peel">
-          <KaraokeQueueList
-            items={queueQuery.data?.upcoming || []}
-            emptyMessage="No upcoming songs in the queue"
-            onRemove={handleRemoveFromQueue}
-            onPlay={handlePlayFromQueue}
-          />
-        </div>
-      </div>
+    <AppLayout contentClassName="">
+      <StageLayout
+        songId={currentSong?.id || ""}
+        current={currentQueueItem}
+        upcoming={queueQuery.data?.upcoming || []}
+        queueItems={queueQuery.data?.items}
+        onPlayFromQueue={handlePlayFromQueue}
+        onRemoveFromQueue={handleRemoveFromQueue}
+      />
     </AppLayout>
   );
 };

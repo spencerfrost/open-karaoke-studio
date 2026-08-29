@@ -84,17 +84,14 @@ export const usePlayerUI = (): PlayerUIHook => {
     }
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts. Space is NOT bound here — play/pause is owned by
+  // useStageKeyboard, and a no-op handler here would still preventDefault.
   const keyboardShortcuts = useMemo(
     () => ({
       Escape: () => {
         if (isFullscreen) {
           exitFullscreen();
         }
-      },
-      " ": () => {
-        // Space bar for play/pause - will be handled by parent component
-        // This is just the mapping, actual implementation in parent
       },
       f: () => {
         toggleFullscreen();

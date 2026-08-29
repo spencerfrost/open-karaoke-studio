@@ -24,6 +24,8 @@ export interface KaraokePlayerProps {
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
+  /** Dim the song header while the stage rails are collapsed. */
+  dimHeader?: boolean;
 
   // Event callbacks
   onPlay?: () => void;

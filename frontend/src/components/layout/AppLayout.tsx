@@ -14,9 +14,17 @@ import { useAuthStore } from "@/stores/authStore";
 
 interface AppLayoutProps {
   children: ReactNode;
+  /**
+   * Padding for the content area. Pages that are edge-to-edge (the stage)
+   * pass "" so nothing frames them with page background.
+   */
+  contentClassName?: string;
 }
 
-const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+const AppLayout: React.FC<AppLayoutProps> = ({
+  children,
+  contentClassName = "p-2 sm:p-4",
+}) => {
   const { isHost, sessionId } = useSessionStore();
   const { user } = useAuthStore();
 
@@ -66,7 +74,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     <div className="flex flex-col h-screen">
       <div className="vintage-texture-overlay" />
       <div className="vintage-sunburst-pattern" />
-      <main className="flex-1 overflow-auto p-2 sm:p-4 relative z-10">
+      <main
+        className={`flex-1 overflow-auto relative z-10 ${contentClassName}`}
+      >
         {children}
       </main>
       <NavBar items={getNavigationItems()} />

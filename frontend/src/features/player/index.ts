@@ -11,3 +11,6 @@ export * from "./hooks";
 
 // Type exports
 export * from "./types/KaraokePlayer.types";
+
+// Stage layout exports
+export * from "./components/stage";
