@@ -1,23 +1,7 @@
 import { create } from "zustand";
 import * as Tone from "tone";
 import { useAudioControlsStore } from "./useAudioControlsStore";
-import { useAuthStore } from "./authStore";
 import { getGrainParams } from "./shared/audioHelpers";
-
-/**
- * Auth header for track downloads.
- *
- * /api/songs/{id}/download/{track} requires a bearer token. These fetches are not routed
- * through useApi, so the header has to be attached here - without it every track load
- * 401s, and the global 401 handler then logs the user out.
- *
- * Imports authStore directly rather than useApi's getAuthHeaders: useApi pulls in
- * useSessionStore -> sessionWebSocketService, which would create an import cycle.
- */
-function trackAuthHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export interface PlaybackStateState {
   // Audio/track info
@@ -337,33 +321,25 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
         }
         const tempContext = new window.AudioContext();
 
-        // Fetch required tracks
-        const authHeaders = trackAuthHeaders();
+        // Fetch required tracks. /api/songs/{id}/download/{track} is served
+        // unauthenticated (so <audio> elements can load it directly), so these
+        // carry no Authorization header.
         const [instArr, vocArr] = await Promise.all([
-          fetch(instrumentalUrl, {
-            cache: "reload",
-            headers: authHeaders,
-          }).then((r) => {
+          fetch(instrumentalUrl, { cache: "reload" }).then((r) => {
             if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
             return r.arrayBuffer();
           }),
-          fetch(vocalUrl, { cache: "reload", headers: authHeaders }).then(
-            (r) => {
-              if (!r.ok)
-                throw new Error(`fetch failed with status ${r.status}`);
-              return r.arrayBuffer();
-            },
-          ),
+          fetch(vocalUrl, { cache: "reload" }).then((r) => {
+            if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
+            return r.arrayBuffer();
+          }),
         ]);
 
         // Optionally fetch backing vocals (may 404 for legacy 2-track songs)
         let backingVocalArr: ArrayBuffer | null = null;
         if (backingVocalUrl) {
           try {
-            const resp = await fetch(backingVocalUrl, {
-              cache: "reload",
-              headers: authHeaders,
-            });
+            const resp = await fetch(backingVocalUrl, { cache: "reload" });
             if (resp.ok) {
               backingVocalArr = await resp.arrayBuffer();
             }
