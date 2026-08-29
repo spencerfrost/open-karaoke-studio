@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from app.api.dependencies import RequesterContext
-from app.db.models import DbJob, HostSettings, KaraokeSession, User
+from app.db.models import DbJob, HostSettings, JobStatus, KaraokeSession, User
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 DEMO_SESSION_DOWNLOAD_LIMIT = 3
 DEMO_DAILY_DOWNLOAD_LIMIT = 20
+# Attempts that delivered nothing must not burn quota. Failure rows persist now
+# (they back the in-app retry UI) rather than being deleted, so counting every
+# row would let one bad link cost a visitor a third of their session allowance.
+UNCOUNTED_JOB_STATUSES = (JobStatus.FAILED.value, JobStatus.CANCELLED.value)
 DEMO_TOKEN_EXPIRE_MINUTES = 30
 DEMO_SESSION_FALLBACK_DURATION_HOURS = 0.25
 
@@ -177,7 +181,12 @@ def enforce_demo_download_quota(
         )
 
     session_count = (
-        db.query(func.count(DbJob.id)).filter(DbJob.session_id == session_id).scalar()
+        db.query(func.count(DbJob.id))
+        .filter(
+            DbJob.session_id == session_id,
+            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
+        )
+        .scalar()
         or 0
     )
     if session_count >= DEMO_SESSION_DOWNLOAD_LIMIT:
@@ -194,7 +203,11 @@ def enforce_demo_download_quota(
         db.query(func.count(DbJob.id))
         .join(KaraokeSession, KaraokeSession.session_id == DbJob.session_id)
         .join(User, User.id == KaraokeSession.host_user_id)
-        .filter(User.is_demo.is_(True), DbJob.created_at >= cutoff)
+        .filter(
+            User.is_demo.is_(True),
+            DbJob.created_at >= cutoff,
+            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
+        )
         .scalar()
         or 0
     )
