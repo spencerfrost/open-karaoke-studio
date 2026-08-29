@@ -72,6 +72,24 @@ const PERFORMER_SESSION_STORAGE_KEY = "karaoke-performer-session";
 // createSession/joinSession/recoverSession is called.
 let sessionEndedCleanup: (() => void) | null = null;
 
+/**
+ * (Re)registers the sole session_ended listener, dropping any previous one.
+ *
+ * Every path that establishes a session — create, join, and both recover
+ * flows — needs this, and they must not stack listeners, so registration is
+ * centralized here rather than repeated per action.
+ */
+function registerSessionEndedHandler(getState: () => SessionState): void {
+  sessionEndedCleanup?.();
+  sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
+    logger.info("Session ended by host:", data?.reason);
+    getState().clearSession();
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
+  });
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -129,20 +147,7 @@ export const useSessionStore = create<SessionState>()(
 
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           localStorage.setItem(
             HOST_SESSION_STORAGE_KEY,
@@ -211,21 +216,7 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           // Store host session data in localStorage for recovery
           localStorage.setItem(
@@ -293,21 +284,7 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           // Store session data in localStorage for recovery
           if (sessionData.is_host) {
@@ -427,21 +404,7 @@ export const useSessionStore = create<SessionState>()(
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           logger.info("Host session recovered:", sessionData);
         } catch (error) {
@@ -545,21 +508,7 @@ export const useSessionStore = create<SessionState>()(
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           logger.info("Performer session recovered:", sessionData);
         } catch (error) {
