@@ -19,7 +19,7 @@ const SessionGuard: React.FC<SessionGuardProps> = ({
   requireSession = true,
   deviceType,
 }) => {
-  const { sessionId, isRecovering, isHost } = useSessionStore();
+  const { sessionId, isRecovering, isStageDevice } = useSessionStore();
 
   // Show loading while recovering session
   if (isRecovering) {
@@ -42,13 +42,13 @@ const SessionGuard: React.FC<SessionGuardProps> = ({
   // Device type protection logic - redirect gracefully if user accesses wrong route directly
   if (sessionId && deviceType) {
     // Stage routes require host devices - redirect performers to controls
-    if (deviceType === "stage" && !isHost) {
+    if (deviceType === "stage" && !isStageDevice) {
       logger.info("Performer device redirected from stage route to controls");
       return <Navigate to="/controls" replace />;
     }
 
     // Performer routes require non-host devices - redirect hosts to stage
-    if (deviceType === "performer" && isHost) {
+    if (deviceType === "performer" && isStageDevice) {
       logger.info("Host device redirected from performer route to stage");
       return <Navigate to="/stage" replace />;
     }

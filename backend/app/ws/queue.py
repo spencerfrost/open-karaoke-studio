@@ -56,39 +56,11 @@ async def get_current_queue_state(session_id: str):
                     current_item = candidate
 
             # Format data for frontend
-            pending_data = []
-            for item in queue_items:
-                if item.status == "pending" and item.song:
-                    pending_data.append({
-                        "id": item.id,
-                        "songId": item.song_id,
-                        "singer": item.singer_name,
-                        "position": item.position,
-                        "status": "pending",
-                        "addedAt": item.created_at.isoformat() if hasattr(item, "created_at") and item.created_at else None,
-                        "song": {
-                            "id": item.song.id,
-                            "title": item.song.title,
-                            "artist": item.song.artist,
-                            "album": item.song.album,
-                            "duration": item.song.duration,
-                            "coverArt": (
-                                f"/api/albums/{item.song.album_id}/cover"
-                                if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
-                                else f"/api/songs/{item.song.id}/thumbnail"
-                                if item.song.thumbnail_path
-                                else None
-                            ),
-                        },
-                    })
-
-            active_queue_items = [item for item in queue_items if item.status != "pending"]
-
             upcoming_data = []
             for idx, item in enumerate(
                 [
                     item
-                    for item in active_queue_items
+                    for item in queue_items
                     if item.song
                     and (current_item is None or item.id != current_item.id)
                 ],
@@ -115,10 +87,14 @@ async def get_current_queue_state(session_id: str):
                                 "duration": item.song.duration,
                                 "coverArt": (
                                     f"/api/albums/{item.song.album_id}/cover"
-                                    if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
-                                    else f"/api/songs/{item.song.id}/thumbnail"
-                                    if item.song.thumbnail_path
-                                    else None
+                                    if item.song.album_id
+                                    and item.song.album_rel
+                                    and item.song.album_rel.cover_path
+                                    else (
+                                        f"/api/songs/{item.song.id}/thumbnail"
+                                        if item.song.thumbnail_path
+                                        else None
+                                    )
                                 ),
                                 "syncedLyrics": item.song.synced_lyrics,
                                 "plainLyrics": item.song.plain_lyrics,
@@ -146,10 +122,14 @@ async def get_current_queue_state(session_id: str):
                         "duration": current_item.song.duration,
                         "coverArt": (
                             f"/api/albums/{current_item.song.album_id}/cover"
-                            if current_item.song.album_id and current_item.song.album_rel and current_item.song.album_rel.cover_path
-                            else f"/api/songs/{current_item.song.id}/thumbnail"
-                            if current_item.song.thumbnail_path
-                            else None
+                            if current_item.song.album_id
+                            and current_item.song.album_rel
+                            and current_item.song.album_rel.cover_path
+                            else (
+                                f"/api/songs/{current_item.song.id}/thumbnail"
+                                if current_item.song.thumbnail_path
+                                else None
+                            )
                         ),
                         "syncedLyrics": current_item.song.synced_lyrics,
                         "plainLyrics": current_item.song.plain_lyrics,
@@ -163,7 +143,6 @@ async def get_current_queue_state(session_id: str):
                 "current": current_data,
                 "upcoming": upcoming_data,
                 "items": items,
-                "pending": pending_data,
             }
     except Exception as e:
         logger.error("Error getting queue state from PostgreSQL: %s", e)
@@ -182,20 +161,6 @@ async def broadcast_queue_update(manager: SessionConnectionManager, session_id: 
             "current": queue_data.get("current"),
             "upcoming": queue_data.get("upcoming", []),
             "items": queue_data.get("items", []),
-            "pending": queue_data.get("pending", []),
-        },
-    )
-
-
-async def broadcast_pending_update(manager: SessionConnectionManager, session_id: str):
-    """Broadcast pending queue items update to the session room."""
-    queue_data = await get_current_queue_state(session_id)
-    session_room = manager.get_session_room_name(session_id)
-    await manager.broadcast_to_room(
-        session_room,
-        {
-            "type": "pending_queue_updated",
-            "pending": queue_data.get("pending", []),
         },
     )
 

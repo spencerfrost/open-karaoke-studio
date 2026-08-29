@@ -48,14 +48,14 @@ interface SessionWebSocketEvents {
   session_connected: (data: {
     session_id: string;
     device_id: string;
-    is_host: boolean;
+    is_session_owner: boolean;
     performance_state: PerformanceState;
   }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
 
   // Host authentication events
-  authenticated: (data: { is_host: boolean }) => void;
+  authenticated: (data: { is_session_owner: boolean }) => void;
   auth_failed: (data: { reason: string }) => void;
   permission_denied: (data: { action: string; reason: string }) => void;
 
@@ -88,7 +88,7 @@ type EventData =
       trigger?: string;
     }
   | { control: string; value: ControlValue }
-  | { is_host: boolean }
+  | { is_session_owner: boolean }
   | { reason: string }
   | { action: string; reason: string }
   | undefined;

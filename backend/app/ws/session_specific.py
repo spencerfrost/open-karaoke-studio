@@ -50,8 +50,9 @@ def resolve_host_claim(token: str, session_id: str) -> Tuple[bool, Optional[str]
     from a device token - device ids are handed out by unauthenticated endpoints and cannot
     be trusted as credentials.
 
-    Returns (is_host, error). `error` is None when the token itself is valid; `is_host` is
-    False for a valid token belonging to someone who does not own this session.
+    Returns (is_session_owner, error). `error` is None when the token itself is valid;
+    `is_session_owner` is False for a valid token belonging to someone who does not own
+    this session.
     """
     payload = verify_token(token)
     if payload is None:
@@ -204,8 +205,8 @@ async def websocket_unified_session_endpoint(
             await websocket.close(code=1008, reason="Session has expired")
             return
 
-    # Host authority is granted only via the `authenticate` message below.
-    is_host = False
+    # Session ownership is granted only via the `authenticate` message below.
+    is_session_owner = False
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -234,7 +235,7 @@ async def websocket_unified_session_endpoint(
                     "type": "session_connected",
                     "session_id": session_id,
                     "device_id": ws_connection_id,
-                    "is_host": is_host,
+                    "is_session_owner": is_session_owner,
                     "performance_state": session_state,
                 }
             )
@@ -268,16 +269,16 @@ async def websocket_unified_session_endpoint(
                     )
                     continue
 
-                is_host = claimed_host
+                is_session_owner = claimed_host
                 logger.info(
-                    "Session %s client %s authenticated (is_host: %s)",
+                    "Session %s client %s authenticated (is_session_owner: %s)",
                     session_id,
                     ws_connection_id,
-                    is_host,
+                    is_session_owner,
                 )
 
                 # Host reconnecting within the grace period - cancel pending termination
-                if is_host and session_id in session_termination_tasks:
+                if is_session_owner and session_id in session_termination_tasks:
                     pending_task = session_termination_tasks.pop(session_id)
                     pending_task.cancel()
                     logger.info(
@@ -285,7 +286,7 @@ async def websocket_unified_session_endpoint(
                     )
 
                 await websocket.send_text(
-                    json.dumps({"type": "authenticated", "is_host": is_host})
+                    json.dumps({"type": "authenticated", "is_session_owner": is_session_owner})
                 )
                 continue
 
@@ -320,7 +321,7 @@ async def websocket_unified_session_endpoint(
                     )
 
             elif message_type == "update_player_state":
-                if not is_host:
+                if not is_session_owner:
                     await websocket.send_text(
                         json.dumps(
                             {
@@ -365,7 +366,7 @@ async def websocket_unified_session_endpoint(
                 "song_loaded",
                 "song_ready",
             ]:
-                if not is_host:
+                if not is_session_owner:
                     await websocket.send_text(
                         json.dumps(
                             {
@@ -451,7 +452,7 @@ async def websocket_unified_session_endpoint(
 
     except WebSocketDisconnect:
         logger.info(
-            f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})"
+            f"Session {session_id} unified client disconnected: {ws_connection_id} (is_session_owner: {is_session_owner})"
         )
 
         manager.disconnect(websocket)
@@ -460,7 +461,7 @@ async def websocket_unified_session_endpoint(
         # If host disconnected, start a grace period before terminating the session.
         # This allows the host to survive a page refresh or brief network interruption
         # without destroying the session for all connected performers.
-        if is_host:
+        if is_session_owner:
 
             async def terminate_session_after_grace():
                 try:

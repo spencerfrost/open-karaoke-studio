@@ -40,16 +40,6 @@ type QueueQueryOptions = Omit<
   "queryKey" | "queryFn"
 >;
 
-type CurrentSongQueryOptions = Omit<
-  UseQueryOptions<
-    QueueApiResponse,
-    Error,
-    QueueApiResponse,
-    ["karaoke-queue", string]
-  >,
-  "queryKey" | "queryFn"
->;
-
 function normalizeQueueState(
   data: QueueApiResponse,
 ): KaraokeQueueStateResponse {
@@ -66,13 +56,11 @@ function normalizeQueueState(
   const current = data.current ?? null;
   const upcoming = data.upcoming ?? [];
   const items = data.items ?? [...(current ? [current] : []), ...upcoming];
-  const pending = data.pending;
 
   return {
     current,
     upcoming,
     items,
-    ...(pending !== undefined && { pending }),
   };
 }
 
@@ -101,20 +89,6 @@ export function useQueue(sessionCode?: string, options?: QueueQueryOptions) {
   return {
     ...query,
     data: query.data ? normalizeQueueState(query.data) : undefined,
-  };
-}
-
-/**
- * Hook: Get the current playing item
- */
-export function useCurrentSong(
-  sessionCode?: string,
-  options?: CurrentSongQueryOptions,
-) {
-  const queue = useQueue(sessionCode, options);
-  return {
-    ...queue,
-    data: queue.data?.current ?? null,
   };
 }
 
@@ -208,41 +182,4 @@ export function usePlayFromKaraokeQueue(
     },
     ...options,
   });
-}
-
-/**
- * Hook: Skip to the next item in the queue
- */
-export function useSkipToNext(
-  options?: Omit<
-    UseMutationOptions<KaraokeQueueItem | null, Error, void, unknown>,
-    "mutationFn"
-  >,
-) {
-  return useApiMutation<KaraokeQueueItem | null, void>(
-    "queue/next",
-    "post",
-    options,
-  );
-}
-
-/**
- * Hook: Get QR code data for joining the queue
- */
-export function useKaraokeQueueQrCode(
-  options?: Omit<
-    UseQueryOptions<
-      { qrCodeUrl: string },
-      Error,
-      { qrCodeUrl: string },
-      ["queue", "qr-code"]
-    >,
-    "queryKey" | "queryFn"
-  >,
-) {
-  return useApiQuery<{ qrCodeUrl: string }, ["queue", "qr-code"]>(
-    ["queue", "qr-code"],
-    "queue/qr-code",
-    options,
-  );
 }

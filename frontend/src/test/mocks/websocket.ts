@@ -40,7 +40,7 @@ export function createMockSessionWebSocketService() {
           session_id: sessionId,
           device_id: mockService.deviceId,
           // Connections start unprivileged; host status arrives via `authenticated`.
-          is_host: false,
+          is_session_owner: false,
           performance_state: { ...mockPerformanceState },
         });
       }, 0);

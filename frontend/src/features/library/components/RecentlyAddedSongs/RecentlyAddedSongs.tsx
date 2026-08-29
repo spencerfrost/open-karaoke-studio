@@ -15,8 +15,8 @@ interface RecentlyAddedSongsProps {
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   maxSongs = 48,
 }) => {
-  const { isHost } = useSessionStore();
-  const CardComponent = isHost ? SongCard : PerformerSongCard;
+  const { isStageDevice } = useSessionStore();
+  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
   const { useSongs } = useSongsHook();
   const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,

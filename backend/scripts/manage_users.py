@@ -21,7 +21,6 @@ from app.db.database import SessionLocal
 from app.db.models import HostSettings, User
 
 DEMO_SESSION_DURATION_HOURS = 0.25
-DEMO_MAX_SONGS_PER_SINGER = 5
 
 
 def create_user(args):
@@ -47,9 +46,6 @@ def create_user(args):
             settings = HostSettings(
                 user_id=user.id,
                 session_duration_hours=DEMO_SESSION_DURATION_HOURS,
-                queue_submission_mode="instant",
-                max_songs_per_singer=DEMO_MAX_SONGS_PER_SINGER,
-                queue_open=True,
             )
             db.add(settings)
             db.commit()
@@ -64,10 +60,7 @@ def create_user(args):
             role = "user"
         print(f"Created {role} user '{args.username}' (id={user.id})")
         if args.demo:
-            print(
-                f"Seeded host settings: {DEMO_SESSION_DURATION_HOURS}h sessions, "
-                f"instant queue, {DEMO_MAX_SONGS_PER_SINGER} songs per singer"
-            )
+            print(f"Seeded host settings: {DEMO_SESSION_DURATION_HOURS}h sessions")
     finally:
         db.close()
 

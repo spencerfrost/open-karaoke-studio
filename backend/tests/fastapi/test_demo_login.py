@@ -46,8 +46,6 @@ def _seed_pool(user_db, count=3):
             HostSettings(
                 user_id=user.id,
                 session_duration_hours=0.25,
-                queue_submission_mode="instant",
-                max_songs_per_singer=5,
             )
         )
         user_db.commit()

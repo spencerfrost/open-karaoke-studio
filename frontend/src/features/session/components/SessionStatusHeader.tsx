@@ -5,7 +5,7 @@ import WebSocketStatus from "./WebsocketStatus";
 import EndSessionButton from "./EndSessionButton";
 
 const SessionStatusHeader: React.FC = () => {
-  const { sessionId, displayCode, isHost } = useSessionStore();
+  const { sessionId, displayCode, isSessionOwner } = useSessionStore();
   const { isPlaying, connected } = useKaraokePlayerStore();
 
   return (
@@ -16,7 +16,7 @@ const SessionStatusHeader: React.FC = () => {
         </h1>
         {sessionId && displayCode && (
           <div className="text-sm text-lemon-chiffon bg-overlay/40 rounded px-2 py-1">
-            Session: {displayCode} {isHost ? "(Host)" : ""}
+            Session: {displayCode} {isSessionOwner ? "(Host)" : ""}
           </div>
         )}
         <div>

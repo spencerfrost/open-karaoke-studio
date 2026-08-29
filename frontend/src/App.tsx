@@ -13,12 +13,10 @@ import StagePage from "./pages/Stage";
 import PerformanceControlsPage from "./pages/PerformanceControlsPage";
 import JoinSessionPage from "./pages/JoinSessionPage";
 import QRJoinPage from "./pages/QRJoinPage";
-import HostDashboard from "./pages/HostDashboard";
 import AdminPanel from "./pages/AdminPanel";
 import AdminThreeTrackComparePage from "./pages/AdminThreeTrackComparePage";
 import { SessionProvider } from "./contexts/SessionContext";
 import SessionGuard from "./components/SessionGuard";
-import HostGuard from "./components/HostGuard";
 import AdminGuard from "./components/AdminGuard";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
@@ -78,16 +76,6 @@ const App: React.FC = () => {
                 <SessionGuard deviceType="performer" redirectTo="/controls">
                   <PerformanceControlsPage />
                 </SessionGuard>
-              }
-            />
-
-            {/* Host dashboard */}
-            <Route
-              path="/host"
-              element={
-                <HostGuard>
-                  <HostDashboard />
-                </HostGuard>
               }
             />
 

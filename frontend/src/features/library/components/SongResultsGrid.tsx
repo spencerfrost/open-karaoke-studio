@@ -30,8 +30,8 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   showArtist = true,
 }) => {
   const navigate = useNavigate();
-  const { isHost } = useSessionStore();
-  const CardComponent = isHost ? SongCard : PerformerSongCard;
+  const { isStageDevice } = useSessionStore();
+  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
 
   if (songs.length === 0 && searchTerm) {
     return (

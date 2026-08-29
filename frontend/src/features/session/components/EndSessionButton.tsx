@@ -14,12 +14,12 @@ interface EndSessionButtonProps {
 }
 
 const EndSessionButton: React.FC<EndSessionButtonProps> = ({ className }) => {
-  const { sessionId, isHost, clearSession } = useSessionStore();
+  const { sessionId, isSessionOwner, clearSession } = useSessionStore();
   const [showModal, setShowModal] = useState(false);
   // Capture sessionId before clearSession() wipes it from the store
   const endedSessionId = useRef<string | null>(null);
 
-  if (!sessionId || !isHost) return null;
+  if (!sessionId || !isSessionOwner) return null;
 
   const handleEndSession = async () => {
     endedSessionId.current = sessionId;

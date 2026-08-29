@@ -27,7 +27,7 @@ export const useSongActions = (
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { useDeleteSong } = useSongs();
-  const { displayCode, displayName, isHost } = useSessionStore();
+  const { displayCode, displayName, isStageDevice } = useSessionStore();
 
   // Use the provided sessionId or fall back to the current session from store
   const currentSessionId = sessionId || (displayCode ? displayCode : undefined);
@@ -45,7 +45,7 @@ export const useSongActions = (
     }
 
     // If not host, cannot play now
-    if (!isHost) {
+    if (!isStageDevice) {
       toast.error("Only the host device can start playing songs");
       return;
     }

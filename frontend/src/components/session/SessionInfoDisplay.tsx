@@ -115,7 +115,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   const {
     sessionId,
     displayCode,
-    isHost,
+    isStageDevice,
     deviceType,
     connectedDevices,
     sessionInfo,
@@ -126,8 +126,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
   // Check visibility
   if (!sessionId) return null;
-  if (visibility === "host-only" && !isHost) return null;
-  if (visibility === "performers-only" && isHost) return null;
+  if (visibility === "host-only" && !isStageDevice) return null;
+  if (visibility === "performers-only" && isStageDevice) return null;
 
   const handleLogout = () => {
     sessionWebSocketService.disconnect();
@@ -211,7 +211,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
 
       case "qr":
         // Performer devices never display a QR code
-        if (!isHost) return null;
+        if (!isStageDevice) return null;
         return (
           <div className={`cursor-pointer ${baseTriggerClass}`}>
             <QRCodeDisplay
@@ -293,7 +293,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
             variant={activeVariant === v ? "default" : "ghost"}
             size="sm"
             className="h-6 text-xs px-2"
-            disabled={v === "qr" && !isHost}
+            disabled={v === "qr" && !isStageDevice}
             onClick={() => setActiveVariant(v)}
           >
             {v}
@@ -301,7 +301,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         ))}
       </div>
 
-      {activeVariant === "qr" && isHost && (
+      {activeVariant === "qr" && isStageDevice && (
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground shrink-0">Size</span>
           <Slider
@@ -329,8 +329,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
         <div className="flex items-center gap-2">
           <DeviceIcon className="h-4 w-4 text-success-strong" />
           <span className="text-sm">
-            You are {isHost ? "the host" : "a participant"}
-            {isHost && (
+            You are {isStageDevice ? "the host" : "a participant"}
+            {isStageDevice && (
               <Crown className="inline h-3 w-3 ml-1 text-warning-strong" />
             )}
           </span>
@@ -403,7 +403,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
               Leave Session
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              {isHost
+              {isStageDevice
                 ? "This will end the session for all participants"
                 : "You will be disconnected from the session"}
             </p>

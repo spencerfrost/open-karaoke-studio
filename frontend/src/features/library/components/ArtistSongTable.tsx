@@ -24,7 +24,7 @@ interface SongTableRowProps {
 
 const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   const { getArtworkUrl } = useSongs();
-  const { isHost } = useSessionStore();
+  const { isStageDevice } = useSessionStore();
   const processingStatus = useProcessingIndicators((state) =>
     state.getStatus(song.id),
   );
@@ -106,7 +106,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
           <MoreVertical className="size-4" />
         </Button>
 
-        {isHost && (
+        {isStageDevice && (
           <Button
             variant="ghost"
             size="icon"

@@ -32,7 +32,10 @@ interface SessionState {
   displayCode: string | null;
   deviceId: string | null;
   displayName: string | null; // Add display name for the current user
-  isHost: boolean;
+  /** This browser is the stage/TV, as opposed to a performer's phone. */
+  isStageDevice: boolean;
+  /** This user owns the session (server-derived from host_user_id). */
+  isSessionOwner: boolean;
   deviceType: string;
   connectedDevices: ConnectedDevice[];
   sessionInfo: SessionInfo | null;
@@ -98,7 +101,8 @@ export const useSessionStore = create<SessionState>()(
       displayCode: null,
       deviceId: null,
       displayName: null, // Initialize display name
-      isHost: false,
+      isStageDevice: false,
+      isSessionOwner: false,
       deviceType: "performer",
       connectedDevices: [],
       sessionInfo: null,
@@ -137,7 +141,7 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
-            isHost: true,
+            isStageDevice: true,
             deviceType: "stage",
             isConnected: true,
             isConnecting: false,
@@ -205,7 +209,7 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
-            isHost: true,
+            isStageDevice: true,
             deviceType,
             isConnected: true,
             isConnecting: false,
@@ -274,7 +278,7 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
-            isHost: sessionData.is_host,
+            isStageDevice: sessionData.is_host,
             deviceType,
             isConnected: true,
             isConnecting: false,
@@ -394,7 +398,7 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId,
-            isHost: true,
+            isStageDevice: true,
             deviceType: "stage",
             isConnected: true,
             isRecovering: false,
@@ -498,7 +502,7 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId,
             displayName,
-            isHost: false,
+            isStageDevice: false,
             deviceType: "performer",
             isConnected: true,
             isRecovering: false,
@@ -526,7 +530,7 @@ export const useSessionStore = create<SessionState>()(
       },
 
       leaveSession: async () => {
-        const { sessionId, isHost } = get();
+        const { sessionId, isStageDevice } = get();
         if (!sessionId) return;
 
         try {
@@ -545,7 +549,7 @@ export const useSessionStore = create<SessionState>()(
         }
 
         // Clear stored session data for hosts and performers
-        if (isHost) {
+        if (isStageDevice) {
           localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
         } else {
           localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
@@ -591,7 +595,8 @@ export const useSessionStore = create<SessionState>()(
           displayCode: null,
           deviceId: null,
           displayName: null, // Clear display name
-          isHost: false,
+          isStageDevice: false,
+          isSessionOwner: false,
           deviceType: "performer",
           connectedDevices: [],
           sessionInfo: null,
@@ -612,11 +617,14 @@ export const useSessionStore = create<SessionState>()(
   ),
 );
 
-// The server is the authority on host status. It answers the `authenticate` message sent
-// on every WebSocket open, so this also corrects isHost after a reconnect. Registered once
-// at module scope against the singleton service.
+// The server is the authority on session ownership - it compares the token against
+// host_user_id. It answers the `authenticate` message sent on every WebSocket open, so this
+// also corrects ownership after a reconnect. It says nothing about the device role, which
+// this client decides for itself. Registered once at module scope against the singleton.
 sessionWebSocketService.on("authenticated", (data) => {
-  const isHost = Boolean((data as { is_host?: boolean })?.is_host);
-  logger.info("Session authentication resolved by server. isHost:", isHost);
-  useSessionStore.setState({ isHost });
+  const isSessionOwner = Boolean(
+    (data as { is_session_owner?: boolean })?.is_session_owner,
+  );
+  logger.info("Session ownership resolved by server:", isSessionOwner);
+  useSessionStore.setState({ isSessionOwner });
 });

@@ -21,7 +21,7 @@ export const SongCard: React.FC<SongCardProps> = ({
   showArtist = true,
 }) => {
   const { getArtworkUrl } = useSongs();
-  const { isHost } = useSessionStore();
+  const { isStageDevice } = useSessionStore();
   const artworkUrl = getArtworkUrl(song, "medium");
   const processingStatus = useProcessingIndicators((state) =>
     state.getStatus(song.id),
@@ -73,10 +73,10 @@ export const SongCard: React.FC<SongCardProps> = ({
             artworkUrl={artworkUrl}
             showSyncedBadge={variant === "detailed"}
             showAmbiguousBadge={
-              isHost && song.acoustidFingerprintStatus === "ambiguous"
+              isStageDevice && song.acoustidFingerprintStatus === "ambiguous"
             }
             onPlay={songActions.handlePlay}
-            showPlayButton={isHost}
+            showPlayButton={isStageDevice}
           />
           <SongInfo song={song} showArtist={showArtist} />
         </div>

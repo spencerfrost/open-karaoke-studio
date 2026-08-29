@@ -15,8 +15,6 @@ class TestHostSettingsFloatDuration:
             HostSettings(
                 user_id=1,
                 session_duration_hours=0.25,
-                queue_submission_mode="instant",
-                max_songs_per_singer=5,
             )
         )
         user_db.commit()

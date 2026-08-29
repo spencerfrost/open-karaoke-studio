@@ -3,7 +3,7 @@
 Regression tests for WebSocket host authority.
 
 Guards the bug where `device_id` was declared on the inner handler but never forwarded by
-the registered route, so `is_host` was False for every connection ever made (774/774 in
+the registered route, so `is_session_owner` was False for every connection ever made (774/774 in
 production logs). Host authority now derives from the authenticated user via the
 `authenticate` message, so these tests assert that contract directly.
 """
@@ -140,7 +140,7 @@ def test_connection_starts_unprivileged(ws_setup):
     session = session_factory(host_user_id=host.id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        assert _greeting(websocket)["is_host"] is False
+        assert _greeting(websocket)["is_session_owner"] is False
 
 
 def test_host_token_grants_host_authority(ws_setup):
@@ -154,7 +154,7 @@ def test_host_token_grants_host_authority(ws_setup):
         reply = _authenticate(websocket, create_access_token(host))
 
     assert reply["type"] == "authenticated"
-    assert reply["is_host"] is True
+    assert reply["is_session_owner"] is True
 
 
 def test_non_owner_token_does_not_grant_host_authority(ws_setup):
@@ -169,7 +169,7 @@ def test_non_owner_token_does_not_grant_host_authority(ws_setup):
         reply = _authenticate(websocket, create_access_token(stranger))
 
     assert reply["type"] == "authenticated"
-    assert reply["is_host"] is False
+    assert reply["is_session_owner"] is False
 
 
 def test_garbage_token_is_rejected(ws_setup):
@@ -226,7 +226,10 @@ def test_host_only_action_allowed_after_authentication(ws_setup):
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
         _greeting(websocket)
-        assert _authenticate(websocket, create_access_token(host))["is_host"] is True
+        assert (
+            _authenticate(websocket, create_access_token(host))["is_session_owner"]
+            is True
+        )
 
         websocket.send_json({"type": "playback_play"})
         websocket.send_json({"type": "join_performance"})

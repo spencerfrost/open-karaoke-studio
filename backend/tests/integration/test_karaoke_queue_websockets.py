@@ -272,7 +272,7 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
         websocket.send_json({"type": "authenticate", "token": host_token})
         auth_reply = websocket.receive_json()
         assert auth_reply["type"] == "authenticated"
-        assert auth_reply["is_host"] is True
+        assert auth_reply["is_session_owner"] is True
 
         websocket.send_json(
             {

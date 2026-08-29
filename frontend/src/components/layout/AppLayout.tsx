@@ -1,14 +1,6 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import {
-  Music,
-  Upload,
-  List,
-  Sliders,
-  Mic2,
-  ShieldCheck,
-  Waves,
-} from "lucide-react";
+import { Music, Upload, List, Sliders, ShieldCheck, Waves } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -25,7 +17,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   contentClassName = "p-2 sm:p-4",
 }) => {
-  const { isHost, sessionId } = useSessionStore();
+  const { isStageDevice, sessionId } = useSessionStore();
   const { user } = useAuthStore();
 
   // Filter navigation items based on user's device type
@@ -36,9 +28,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     ];
 
     const hostItems = [];
-    if (user?.isHost || user?.isAdmin) {
-      hostItems.push({ name: "KJ", path: "/host", icon: Mic2 });
-    }
     if (user?.isAdmin) {
       hostItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
       hostItems.push({
@@ -54,7 +43,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     }
 
     // Host devices see "Stage" tab
-    if (isHost) {
+    if (isStageDevice) {
       return [
         ...baseItems,
         { name: "Stage", path: "/stage", icon: List },
