@@ -26,6 +26,8 @@ interface SongPreviewState {
   start: (song: Song) => void;
   /** Stops the preview. Passing a songId makes it a no-op unless that song is the one playing. */
   stop: (songId?: string) => void;
+  /** Cuts the preview dead with no fade, even one already fading out. */
+  stopImmediate: () => void;
 }
 
 /**
@@ -172,15 +174,21 @@ export const useSongPreviewStore = create<SongPreviewState>((set, get) => {
     progress: 0,
 
     start: (song) => {
+      // A performance always wins. Checked here rather than only at the call
+      // site because the hover-intent timer arms 500ms before it fires, so
+      // playback can begin in between.
+      if (useKaraokePlayerStore.getState().isPlaying) return;
+
       // Already previewing this song — but if it is mid-fade-out, re-hovering
       // should restart it rather than let it die.
       if (get().previewSongId === song.id && get().status !== "idle") return;
 
-      token += 1;
       // Cut the outgoing song rather than crossfading — overlapping fades read
       // as a glitch instead of a transition.
       hardStop();
 
+      // One bump invalidates any in-flight callback from the preview we just
+      // tore down, and stamps the one replacing it.
       token += 1;
       pending = { token, song };
       targetVolume = volumeForSong(song);
@@ -219,6 +227,17 @@ export const useSongPreviewStore = create<SongPreviewState>((set, get) => {
       });
       set({ status: "idle" });
     },
+
+    stopImmediate: () => {
+      // Deliberately does not consult `status`: a preview mid-fade-out already
+      // reads as "idle" while its audio is still audible, which is exactly the
+      // case a hard cut has to catch.
+      if (get().previewSongId === null) return;
+
+      token += 1;
+      logger.debug("Preview cut", get().previewSongId);
+      hardStop();
+    },
   };
 });
 
@@ -227,14 +246,19 @@ export const useSongPreviewStore = create<SongPreviewState>((set, get) => {
 // mini-player, or a remote play over the session websocket).
 useKaraokePlayerStore.subscribe((state, previous) => {
   if (state.isPlaying && !previous.isPlaying) {
-    useSongPreviewStore.getState().stop();
+    // Hard cut, not a fade: there is no transition to smooth over here, and a
+    // fade would let the preview overlap the performance for its duration.
+    useSongPreviewStore.getState().stopImmediate();
   }
 });
 
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      useSongPreviewStore.getState().stop();
+      // Also a hard cut: the fade rides on requestAnimationFrame, which a
+      // hidden tab stops firing, so a faded stop would never reach hardStop
+      // and the preview would keep playing in the background.
+      useSongPreviewStore.getState().stopImmediate();
     }
   });
 }
