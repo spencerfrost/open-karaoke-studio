@@ -155,36 +155,12 @@ def _strip_show_name_boilerplate(title: str) -> str:
     return _BOILERPLATE_PAREN.sub("", title).strip()
 
 
-def get_recording_show_name(recording_id: str) -> str | None:
-    """Return the show/soundtrack name for a recording, if any.
+def _extract_show_name(data: dict) -> str | None:
+    """Pull a show/soundtrack name out of a recording's releases, if any.
 
-    Looks up the recording's releases and their release-groups; if any
-    release-group carries a "Soundtrack" secondary type, returns its title
-    with boilerplate parentheticals stripped (e.g. "Wicked"). Returns None
-    when no soundtrack release-group is found or on failure.
-
-    Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
+    If any release-group carries a "Soundtrack" secondary type, returns its
+    title with boilerplate parentheticals stripped (e.g. "Wicked").
     """
-    time.sleep(1)
-
-    headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
-    params = {"inc": "releases release-groups", "fmt": "json"}
-
-    try:
-        with httpx.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
-            resp = client.get(
-                f"{_MB_BASE}/recording/{recording_id}",
-                params=params,
-                headers=headers,
-            )
-            resp.raise_for_status()
-    except httpx.HTTPError as e:
-        logger.warning(
-            "MusicBrainz show-name lookup failed for %s: %s", recording_id, e
-        )
-        return None
-
-    data = resp.json()
     for release in data.get("releases", []):
         rg = release.get("release-group") or {}
         secondary_types = rg.get("secondary-types") or []
@@ -197,19 +173,25 @@ def get_recording_show_name(recording_id: str) -> str | None:
     return None
 
 
-def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:
-    """Fetch artist credits for a specific MusicBrainz recording.
+def get_recording_details(
+    recording_id: str,
+) -> tuple[str | None, list[tuple[str, str]] | None]:
+    """Return (show_name, artist_credits) for a recording in a single request.
 
-    Returns [(name, role), ...] or None on failure.
+    Both values come off the same /recording resource, so they are fetched
+    together — asking twice would double both the round trips and the
+    rate-limit sleep below for no benefit. Either element is None when absent
+    from the response; both are None if the lookup fails.
+
     Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
     """
     time.sleep(1)
 
     headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
-    params = {"inc": "artist-credits", "fmt": "json"}
+    params = {"inc": "releases release-groups artist-credits", "fmt": "json"}
 
     try:
-        with httpx.Client(timeout=_TIMEOUT) as client:
+        with httpx.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = client.get(
                 f"{_MB_BASE}/recording/{recording_id}",
                 params=params,
@@ -217,12 +199,13 @@ def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:
             )
             resp.raise_for_status()
     except httpx.HTTPError as e:
-        logger.warning("MusicBrainz recording lookup failed for %s: %s", recording_id, e)
-        return None
+        logger.warning(
+            "MusicBrainz recording lookup failed for %s: %s", recording_id, e
+        )
+        return None, None
 
     data = resp.json()
-    credits = data.get("artist-credit", [])
-    if not credits:
-        return None
+    raw_credits = data.get("artist-credit", [])
+    credits = _parse_artist_credits(raw_credits) if raw_credits else None
 
-    return _parse_artist_credits(credits)
+    return _extract_show_name(data), credits
