@@ -26,7 +26,7 @@ const AmbiguousMatchBadge: React.FC = () => {
 
   return (
     <Badge
-      className="absolute top-2 left-2 z-10 cursor-pointer bg-orange-500/20 text-orange-400 border border-orange-500/40 hover:bg-orange-500/30"
+      className="absolute top-2 left-2 z-10 cursor-pointer bg-warning/20 text-warning-strong border border-warning/40 hover:bg-warning/30"
       variant="outline"
       onClick={handleClick}
       title="AcoustID match needs review — click to open the admin review queue"
