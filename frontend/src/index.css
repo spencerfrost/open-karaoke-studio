@@ -243,6 +243,24 @@
     @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
 
+  /* Lyrics fade — both ends, so scrolling text never ends on a hard edge */
+  .mask-image-fade-y {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 14%,
+      black 80%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 14%,
+      black 80%,
+      transparent 100%
+    );
+  }
+
   /* Lyrics fade-out effect */
   .mask-image-fade-bottom {
     -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);

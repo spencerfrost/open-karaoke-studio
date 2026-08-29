@@ -535,22 +535,24 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   }, []);
 
   // Font size configurations
+  // Scaled for a 10-foot read: the stage is now the full viewport rather than
+  // a letterboxed box, so these are roughly double the old box-sized values.
   const fontSizes = useMemo(() => {
     switch (lyricsSize) {
       case "small":
         return {
-          inactive: "text-base",
-          active: "text-lg",
-        };
-      case "large":
-        return {
           inactive: "text-2xl",
           active: "text-4xl",
         };
+      case "large":
+        return {
+          inactive: "text-5xl",
+          active: "text-8xl",
+        };
       default: // medium
         return {
-          inactive: "text-xl",
-          active: "text-2xl",
+          inactive: "text-4xl",
+          active: "text-6xl",
         };
     }
   }, [lyricsSize]);

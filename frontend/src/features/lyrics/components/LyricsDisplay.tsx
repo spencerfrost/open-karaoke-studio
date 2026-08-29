@@ -191,12 +191,13 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       );
     };
 
+    // Matches the synced renderer's 10-foot scale
     const lyricsSizeClass =
       lyricsSize === "small"
-        ? "text-base"
+        ? "text-2xl"
         : lyricsSize === "large"
-          ? "text-3xl"
-          : "text-xl";
+          ? "text-5xl"
+          : "text-4xl";
 
     // Stable song object for LyricsFetchDialog — prevents re-triggering the
     // dialog's search useEffect on every currentTime re-render (every 100ms)
@@ -272,7 +273,11 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       }
 
       return (
-        <div className={`relative h-full w-full ${className}`}>
+        // Faded with a mask rather than a painted scrim: a gradient overlay
+        // has to guess the backdrop, and its edges show wherever it guesses wrong.
+        <div
+          className={`relative h-full w-full mask-image-fade-y ${className}`}
+        >
           <KaraokeLyricsRenderer
             parsedData={parsedLrcDataWithWords}
             currentTime={currentTime}
@@ -282,9 +287,6 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             countInStyle={countInStyle}
             onSeek={onSeek}
           />
-
-          {/* Bottom vignette fade */}
-          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-b from-transparent to-overlay/100 pointer-events-none" />
         </div>
       );
     }
@@ -297,7 +299,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       >
         {lyrics ? (
           <div
-            className={`text-2xl font-semibold text-foreground whitespace-pre-line text-center ${lyricsSizeClass}`}
+            className={`font-semibold text-foreground whitespace-pre-line text-center ${lyricsSizeClass}`}
             role="document"
           >
             {lyrics}
