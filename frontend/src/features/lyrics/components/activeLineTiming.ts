@@ -1,13 +1,22 @@
 import type { LrcLine } from "@/utils/lrcParser";
 
+/**
+ * Aligned word timings are authoritative whenever they exist — that is the
+ * whole point of running forced alignment. The LRC timestamp is only a rough
+ * tag and is used solely as the fallback for lines alignment did not cover.
+ *
+ * Blending the two (taking the earlier/later of the pair) breaks instrumental
+ * breaks: alignment discovers the vocal starts *later* than the stale LRC tag,
+ * so a blend would light the line up mid-break, while the instrumental progress
+ * bar — which trusts the aligned times — is still filling.
+ */
 function getLineStartMs(line: LrcLine): number {
-  const firstWordStartMs = line.words?.[0]?.start
-    ? line.words[0].start * 1000
-    : null;
+  if (!line.words || line.words.length === 0) return line.timestamp;
 
-  return firstWordStartMs === null
-    ? line.timestamp
-    : Math.min(line.timestamp, firstWordStartMs);
+  return line.words.reduce(
+    (earliest, word) => Math.min(earliest, word.start * 1000),
+    Number.POSITIVE_INFINITY,
+  );
 }
 
 function getLineEndMs(
@@ -27,8 +36,10 @@ function getLineEndMs(
     return nextContentStartMs;
   }
 
-  const lastWord = currentLine.words[currentLine.words.length - 1];
-  const lastWordEndMs = Math.max(currentLine.timestamp, lastWord.end * 1000);
+  const lastWordEndMs = currentLine.words.reduce(
+    (latest, word) => Math.max(latest, word.end * 1000),
+    Number.NEGATIVE_INFINITY,
+  );
   return Math.min(lastWordEndMs, nextContentStartMs);
 }
 

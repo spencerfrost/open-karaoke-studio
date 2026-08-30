@@ -27,6 +27,36 @@ describe("getActiveLineIndex", () => {
     expect(getActiveLineIndex(lines, 11_700)).toBe(1);
   });
 
+  it("leaves no line active during an instrumental break when aligned words start after the LRC timestamp", () => {
+    // The stale LRC tag claims the post-break line starts at 15s, but forced
+    // alignment places its first word at 25s — the 13s gap between 12s and 25s
+    // is exactly what the backend reports as an instrumental interval. Nothing
+    // should be highlighted while that break plays; the progress bar owns it.
+    const lines = attachWordTimestamps(
+      parseLrc(
+        [
+          "[00:10.000]Hold On for one more day",
+          "[00:15.000]You could sustain (You could sustain)",
+        ].join("\n"),
+      ),
+      [
+        { word: "Hold", start: 10.0, end: 10.4, line_index: 0 },
+        { word: "On", start: 10.45, end: 10.7, line_index: 0 },
+        { word: "for", start: 10.8, end: 11.0, line_index: 0 },
+        { word: "one", start: 11.1, end: 11.35, line_index: 0 },
+        { word: "more", start: 11.4, end: 11.7, line_index: 0 },
+        { word: "day", start: 11.75, end: 12.0, line_index: 0 },
+        { word: "You", start: 25.0, end: 25.3, line_index: 1 },
+        { word: "could", start: 25.35, end: 25.7, line_index: 1 },
+        { word: "sustain", start: 25.75, end: 27.0, line_index: 1 },
+      ] satisfies WordTimestamp[],
+    );
+
+    expect(getActiveLineIndex(lines, 11_000)).toBe(0);
+    expect(getActiveLineIndex(lines, 18_000)).toBe(-1);
+    expect(getActiveLineIndex(lines, 25_500)).toBe(1);
+  });
+
   it("keeps a lyric line active through its final aligned word even when a blank line follows", () => {
     const lines = attachWordTimestamps(
       parseLrc(
