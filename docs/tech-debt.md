@@ -6,8 +6,8 @@ Prioritized list of technical debt, known issues, and improvement opportunities 
 
 | Category | Count |
 |----------|-------|
-| **Critical Issues** | 5 |
-| **Important Issues** | 10 |
+| **Critical Issues** | 8 |
+| **Important Issues** | 19 |
 | **Nice-to-Have** | 7 |
 | **Total TODOs Found** | 10+ explicit TODOs |
 | **Console.log Statements** | 50+ in frontend |
@@ -123,6 +123,50 @@ const songId = (job as any).song_id;  // Type bypass
 **Follow-up still recommended:** restructure `batch_align_lyrics` into one Celery task per song — dispatched/chained the way `process_audio_job` already is — instead of one task looping over the whole library. This would also give proper per-song progress/retry instead of an all-or-nothing batch, and further reduce the blast radius if a similar native crash ever recurs from another cause.
 
 **Related, lower-severity fix (same day):** added `--without-gossip --without-mingle` to all three workers in `run_celery.sh` — this stops noisy "missed heartbeat" log spam from cross-worker gossip on this single-box setup, but was a symptom fix, not the cause of the silent failures described above.
+
+---
+
+### 23. Most HTTP Endpoints Have No Auth Dependency At All
+
+**Severity:** 🔴 CRITICAL
+
+**Location:** `main.py:110-124` includes every router with no `dependencies=`, so per-endpoint `Depends(...)` is the *only* gate — there is no router-level or app-level fallback.
+
+**Problem:** Found 2026-08-30 while rebuilding the frontend's access gate (the `isAuthenticated || sessionId` rule now enforced in `frontend/src/routes/guards.tsx`, replacing the passthrough left by commit `30e1f1882`). An inventory of every router turned up **~38 endpoints with no auth dependency whatsoever**, reachable by anyone who can reach the API — the entire read surface: every `GET /api/songs*` (list, search, artists, shows, by-artist, by-show, details, thumbnail, download), all of `lyrics.py`'s read endpoints, `youtube.py`/`youtube_music.py` search, and `sessions.py`'s `/info`, `/validate`, `/performers`. The frontend's route gate only controls what the React app *shows* — it does nothing to stop a direct `curl` against the API.
+
+**Impact:** CRITICAL — on a LAN deployment this is low-severity (anyone on the network could already see the TV), but the app is not scoped to stay LAN-only, and several of these endpoints leak more than song metadata (see #24 and #25 below for the session-specific instances).
+
+**Recommendation:** Apply `require_host_or_session_member` (`backend/app/api/dependencies.py`) across the read endpoints listed above, following the pattern already established for `POST /api/songs`, `PATCH /api/songs/{id}`, and `POST /api/youtube/download`. This is a large, mechanical change — worth its own PR rather than folding into unrelated feature work.
+
+---
+
+### 24. The Session WebSocket Accepts Unauthenticated Connects, and Two Handlers Are Ungated Inside It
+
+**Severity:** 🔴 CRITICAL
+
+**Location:** [session_specific.py:177-243](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py) (connect), lines 307-324 (`update_performance_control`), lines 448-454 (`queue_changed`).
+
+**Problem:** Found 2026-08-30 during the same audit as #23. `/ws/session/{session_id}` checks only that the `KaraokeSession` row exists, is active, and isn't expired — no token, no `X-Device-ID`, nothing tying the socket to a real `SessionDevice`. The 4-character `session_id` (which is also the `display_code` shown on screen and printed in every QR code — see #29) is the only thing standing between an anonymous client and the room. An anonymous connection can passively receive every broadcast in the room (`session_connected`, `control_updated`, `performance_state`, `playback_*`, `queue_updated` — full singer names and song metadata) and can actively call `request_queue_update`.
+
+Worse: the handler set is otherwise correctly gated on `is_session_owner` (see `update_player_state`, the `playback_play`/`playback_pause`/`reset_player_state`/`song_loaded`/`song_ready` group) — but two handlers were missed. `update_performance_control` has no ownership check at all and will write any key already present in the in-memory state dict, including `is_playing`, `current_time`, `duration`, and `current_song_id` alongside the intended volume/lyrics-size controls. `queue_changed` has no check either and lets any client trigger a `queue_updated` broadcast to the whole room.
+
+**Impact:** CRITICAL — an anonymous client on the LAN can corrupt in-memory playback state and spam room broadcasts for a session it never joined, and can surveil every session's queue and singer names without a credential.
+
+**Recommendation:** Add the same `is_session_owner` check already used by the sibling handlers to `update_performance_control` and `queue_changed`. The unauthenticated-connect design itself (vs. requiring a device credential at connect time) is a bigger decision — flag it for the same follow-up plan as #23 rather than deciding it here.
+
+---
+
+### 25. `/ws/jobs` Has No Auth Whatsoever
+
+**Severity:** 🔴 CRITICAL
+
+**Location:** [jobs.py:33-51](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
+
+**Problem:** Found 2026-08-30, same audit as #23-24. `manager.connect(websocket)` runs immediately on connect with no token check and no `authenticate` message handler at all — any anonymous client can connect, join the global `"jobs_updates"` room, and send `subscribe_to_jobs`/`request_jobs_list` to receive the full in-flight job list (`job.to_dict()`: filenames, titles, song ids, engine types). The equivalent HTTP endpoint, `GET /api/jobs`, requires `require_host` — this WebSocket is a straight bypass of that gate for read access.
+
+**Impact:** CRITICAL — anonymous job-queue surveillance; the WS and HTTP surfaces enforce different policies for the same data.
+
+**Recommendation:** Gate the connect (or at minimum the `subscribe_to_jobs` message) behind the same `require_host` check the HTTP endpoint uses.
 
 ---
 
@@ -330,6 +374,132 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 - For (1): detect duplicate consecutive timestamps during LRC ingestion/parsing and either reject the source or fall back to evenly-spaced synthetic timestamps for that block.
 - For (2): investigate whether WhisperX alignment can be given position/context hints (e.g. previous alignment progress) to disambiguate repeated phrases, or accept the limitation and only auto-apply alignment above a stricter per-song confidence threshold.
 - Neither fix should be bundled with unrelated lyrics-rendering work — this is an alignment/data-quality problem, not a rendering bug.
+
+---
+
+### 26. `POST /api/sessions/{id}/performers` Is Unauthenticated
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [sessions.py:969](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py)
+
+**Problem:** Found 2026-08-30 during the access-gate audit (see #23). Anyone who knows a session's 4-character id can inject arbitrary named performers into that session's roster and trigger a broadcast to every connected device — no membership or ownership check at all.
+
+**Impact:** IMPORTANT — directly undercuts the roster feature ([docs/plans/2026-08-29-roster-and-rotation.md](https://github.com/spencerfrost/open-karaoke-studio/blob/master/docs/plans/2026-08-29-roster-and-rotation.md)): a stranger can pollute a live session's singer queue.
+
+**Recommendation:** Gate behind `require_host_or_session_member`, scoped to the named session the way `require_queue_access` now does for the queue endpoints (`backend/app/api/karaoke_queue.py`).
+
+---
+
+### 27. `POST /api/sessions/{id}/playlist` Is Unauthenticated
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [session_playlist.py:135](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/session_playlist.py)
+
+**Problem:** Found 2026-08-30, same audit as #26. An anonymous caller can trigger a background YouTube Music playlist-generation job for any session id, guarded only by an idempotent job id (not an auth check).
+
+**Impact:** IMPORTANT — unauthenticated outbound work amplification against a third-party service.
+
+**Recommendation:** Same fix shape as #26.
+
+---
+
+### 28. `GET /api/sessions/{id}/info` Leaks the Device Roster and Trusts a Client-Supplied `device_id`
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [sessions.py:795-798](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py)
+
+**Problem:** Found 2026-08-30, same audit as #26. The endpoint returns the full connected-device roster (device ids, display names) to anonymous callers, and derives `is_host` by comparing `session.host_device_id` against a `device_id` passed as a plain query parameter — i.e. the client asserts its own host status and the server believes it for the purposes of this response.
+
+**Impact:** IMPORTANT — anonymous roster/device-id disclosure, plus a spoofable `is_host` flag in the response (though nothing privileged is gated on this specific response's `is_host` today — worth re-checking if that changes).
+
+**Recommendation:** Require the same credential (`X-Session-ID` + `X-Device-ID`) `require_session_member` already validates elsewhere instead of an unauthenticated query param.
+
+---
+
+### 29. `session_id` and `display_code` Are the Same Value — Anything Trusting the Id Alone Is Trusting a Displayed 4-Character Code
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [session.py:96](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/session.py) — `session_id=display_code` at session creation.
+
+**Problem:** Found 2026-08-30 during the same audit. `session_id` (the credential-shaped field used throughout the backend and the frontend's `sessionStore`) and `display_code` (the code printed on the stage screen and encoded in every QR code) are literally the same string. `_resolve_session_member` (`backend/app/api/dependencies.py`) is sound because it *also* requires the `rest_xxx`-prefixed `device_id`, but anything that trusts the session id by itself — the WS connect (#24), and `get_session_code` before this change (see `require_queue_access` in `backend/app/api/karaoke_queue.py`, which fixed this for the queue specifically) — is trusting a value that's designed to be shown on a TV and scanned from across a room.
+
+**Impact:** IMPORTANT — not a bug by itself, but a footgun: the next endpoint or handler that reads for "is this caller in session X" by checking `session_id == X` alone is reintroducing the same hole #23's queue fix just closed.
+
+**Recommendation:** When fixing #23/#24/#26/#27/#28, always pair the session id with the device credential (`_resolve_session_member`) or an account (`require_host_or_session_member`) — never trust `session_id` alone as proof of membership.
+
+---
+
+### 30. `require_host_or_session_member` Doesn't Fall Back to the Session Credential on an Expired Token
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [dependencies.py:36-42, 137-159](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/dependencies.py)
+
+**Problem:** Found 2026-08-30. `require_host_or_session_member` checks for a bearer token first; if one is present, `_resolve_user` raises `401` on an expired/invalid token and the function never falls through to the session-membership path — even though the caller may be holding a perfectly valid `X-Session-ID`/`X-Device-ID` pair. Concretely: a guest who signed into a host account at some point (token now expired, still cached client-side) loses queue/song-creation access despite an active session membership. Affects `POST /api/songs`, `PATCH /api/songs/{id}`, `POST /api/youtube/download`, and the new `require_queue_access` (`backend/app/api/karaoke_queue.py`) — anything built on this shared dependency.
+
+**Impact:** IMPORTANT — a confusing, hard-to-reproduce access loss for a returning user; not a security hole (fails closed), just a broken fallback.
+
+**Recommendation:** In `require_host_or_session_member`, catch the token-invalid case and continue to the session-membership check instead of raising immediately.
+
+---
+
+### 31. Host-Disconnect Session Teardown Is Keyed on the Socket, Not the User
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [session_specific.py:467-510](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
+
+**Problem:** Found 2026-08-30 during the same audit as #24. On `WebSocketDisconnect` of a connection with `is_session_owner=True`, a 30-second grace timer starts, after which `deactivate_session` + `force_close_session_connections` end the session for everyone. The timer is cancelled only when *some* connection re-authenticates as owner — but it's armed per-socket, not per-user, so a host with two tabs open who closes just one of them starts the countdown even though their other tab is still connected and still the owner.
+
+**Impact:** IMPORTANT — a host can lose their live session (and kick every performer) just by closing a duplicate tab, with no warning.
+
+**Recommendation:** Track "is the owning user still connected via *any* socket" rather than "did *this* socket reconnect within 30s" before arming or honoring the grace-period timer.
+
+---
+
+### 32. No Rate Limiting on the Unauthenticated Third-Party Proxy Endpoints
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** `/api/youtube/search`, `/api/youtube-music/*`, `/api/lyrics/search` (see #23 for the full unauthenticated-endpoint list).
+
+**Problem:** Found 2026-08-30. Only `register`, `login`, `join-by-code`, and `join-by-id` carry `@limiter.limit`. Every unauthenticated endpoint that proxies to a third-party API — YouTube, YouTube Music, LRCLIB — has no rate limit at all.
+
+**Impact:** IMPORTANT — an unauthenticated caller can drive unbounded outbound traffic to third-party services through this backend, which is both a cost/quota risk and a way to get the server's IP rate-limited or blocked upstream.
+
+**Recommendation:** Extend the existing `@limiter.limit` pattern to these endpoints; fold in with #23 since fixing auth on them is the more fundamental change anyway.
+
+---
+
+### 33. `KaraokeSession.host_user_id` Is Optional, Forcing an Admin-Bypass Escape Hatch
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [session.py:30](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/session.py)
+
+**Problem:** Found 2026-08-30 while adding `require_session_owner` to `backend/app/api/karaoke_queue.py` (the ownership check behind `DELETE`/`reorder`/`play`/`skip` on the queue). Because `host_user_id` can be `NULL` on legacy rows, a strict "only the owner may mutate" rule would make those sessions permanently unmutable by anyone — the new dependency has to fall back to `current_user.is_admin` to avoid that trap.
+
+**Impact:** IMPORTANT — not itself a vulnerability (the bypass is admin-only), but every future host-ownership check on `KaraokeSession` will need the same escape hatch until this is cleaned up, and each one is a place the bypass could be copied incorrectly.
+
+**Recommendation:** Backfill `host_user_id` for any existing `NULL` rows (or confirm none exist in production) and migrate the column to `NOT NULL`, then drop the admin-bypass requirement from new ownership checks going forward.
+
+---
+
+### 34. Dead WebSocket Code: an Unrouted Session Endpoint and an Empty Module
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** [ws/sessions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/sessions.py), `ws/session_state.py`.
+
+**Problem:** Found 2026-08-30. `ws/sessions.py` defines a complete, unauthenticated session create/join-over-websocket endpoint (`websocket_session_endpoint`) that is neither exported from `ws/__init__.py` nor routed in `main.py` — unreachable in production, but live in the codebase as a second, divergent implementation of session join. `ws/session_state.py` is a 0-byte file.
+
+**Impact:** IMPORTANT (maintainability, not runtime risk since it's unreachable) — dead code that could be mistaken for the real session-join path, or accidentally wired back in without the auth review the reachable paths have had.
+
+**Recommendation:** Delete both files.
 
 ---
 
