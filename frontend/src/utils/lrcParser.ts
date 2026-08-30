@@ -247,8 +247,13 @@ export function attachWordTimestamps(
 
   const EARLY_LINE_START_TOLERANCE_SEC = 0.8;
 
+  // Blank LRC lines are spacers — they render as empty vertical gaps and can
+  // never own sung words. Attaching words to one silently misplaces everything
+  // anchored to that line (instrumental progress bars, the active highlight),
+  // so blanks are excluded from every candidate lookup below.
   const lineIndexToParsedIndex = new Map<number, number>();
   lines.forEach((line, parsedIndex) => {
+    if (line.isBlank) return;
     lineIndexToParsedIndex.set(line.sourceLineIndex, parsedIndex);
   });
 
@@ -257,14 +262,22 @@ export function attachWordTimestamps(
 
   const getTimestampLineIdx = (wordStartSec: number): number => {
     let matchedIdx = -1;
-    for (let i = 0; i < lineTimestampsSec.length; i++) {
-      if (lineTimestampsSec[i] <= wordStartSec) {
-        matchedIdx = i;
-      } else {
-        break;
-      }
+    for (let i = 0; i < lines.length; i++) {
+      if (lineTimestampsSec[i] > wordStartSec) break;
+      if (lines[i].isBlank) continue;
+      matchedIdx = i;
     }
     return matchedIdx;
+  };
+
+  // The next content line after `fromIdx`, skipping blank spacers. Used so the
+  // "off by one line" tolerance below still recognises adjacency when a blank
+  // line sits between the two candidates.
+  const nextContentLineIdx = (fromIdx: number): number => {
+    for (let i = fromIdx + 1; i < lines.length; i++) {
+      if (!lines[i].isBlank) return i;
+    }
+    return -1;
   };
 
   // Prefer the backend's explicit line_index when it stays consistent with the
@@ -293,7 +306,7 @@ export function attachWordTimestamps(
       return mappedLineIdx;
     }
 
-    if (mappedLineIdx === timestampLineIdx + 1) {
+    if (mappedLineIdx === nextContentLineIdx(timestampLineIdx)) {
       const mappedLineStartSec = lineTimestampsSec[mappedLineIdx];
       return groupStartSec >=
         mappedLineStartSec - EARLY_LINE_START_TOLERANCE_SEC

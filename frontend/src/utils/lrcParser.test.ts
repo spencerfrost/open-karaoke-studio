@@ -89,6 +89,44 @@ describe("attachWordTimestamps", () => {
     expect(result[1].words?.map((word) => word.word)).toEqual(["second"]);
   });
 
+  it("never attaches words to a blank spacer line", () => {
+    // Shape taken from "Hold On" (Wilson Phillips): an instrumental break sits
+    // between two verses, and the LRC timestamp for the post-break line (81.31s)
+    // is ~5s earlier than where alignment actually finds the vocal (86.54s). A
+    // blank spacer at 85.88s falls between the two, so timestamp grouping used
+    // to hand that line's words to the spacer — which then anchored the
+    // instrumental progress bar *after* the lyric instead of before it.
+    const lines = parseLrc(
+      [
+        "[01:12.770]Hold On for one more day",
+        "[01:17.040] ",
+        "[01:21.310]You could sustain (You could sustain)",
+        "[01:25.880] ",
+        "[01:28.750]Hm, or are you comfortable with the pain?",
+      ].join("\n"),
+    );
+
+    const words: WordTimestamp[] = [
+      { word: "Hold", start: 74.534, end: 74.9, line_index: 21 },
+      { word: "On", start: 75.0, end: 76.559, line_index: 21 },
+      { word: "You", start: 86.544, end: 86.9, line_index: 22 },
+      { word: "could", start: 86.95, end: 87.3, line_index: 22 },
+      { word: "sustain", start: 87.35, end: 88.048, line_index: 22 },
+      { word: "Hm,", start: 90.473, end: 90.9, line_index: 23 },
+    ];
+
+    const result = attachWordTimestamps(lines, words);
+
+    expect(result[1].words).toBeUndefined();
+    expect(result[3].words).toBeUndefined();
+    expect(result[2].words?.map((word) => word.word)).toEqual([
+      "You",
+      "could",
+      "sustain",
+    ]);
+    expect(result[4].words?.map((word) => word.word)).toEqual(["Hm,"]);
+  });
+
   it("falls back to timestamp grouping when backend line indexes drift after a split segment", () => {
     const lines = parseLrc(
       [
