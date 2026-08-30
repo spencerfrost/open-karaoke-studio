@@ -33,11 +33,18 @@ Fix those two and the plans stop competing.
 | 1 | Session lifecycle (backend) | [2026-08-29-session-lifecycle.md](2026-08-29-session-lifecycle.md) | 0 | Backend |
 | 2 | Stage mode shell | [2026-08-29-stage-mode.md](2026-08-29-stage-mode.md) | 1 | Frontend |
 | 3 | Roster + derived order | [2026-08-29-roster-and-rotation.md](2026-08-29-roster-and-rotation.md) | 1 | Backend |
+| 3c | Create Session screen | [2026-08-30-create-session-screen.md](2026-08-30-create-session-screen.md) | 3a | Frontend |
 | 4 | The handoff screen | [2026-08-29-handoff-screen.md](2026-08-29-handoff-screen.md) | 2 **and** 3 | Frontend |
 | 5 | Performer accounts | [2026-08-29-performer-accounts.md](2026-08-29-performer-accounts.md) | 4 | Deferred |
 
 **2 and 3 run in parallel.** That is the payoff of this ordering — after unit 1 lands there
 is a frontend track and a backend track that do not touch the same files until unit 4.
+
+**3c is a side branch off 3a, not part of the 2/3 parallel pair.** It replaces the silent
+`joinAsHost()` auto-create in `Stage.tsx` with an explicit session-setup screen, and needs
+only unit 3a's roster table + `resolve_or_create_performer` service to pre-seed names at
+creation — it does not touch ordering (3b) or the handoff screen (4), so it can land whenever
+3a is done, in parallel with either.
 
 ## Why this order
 
