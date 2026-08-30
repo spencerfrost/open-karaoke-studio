@@ -1,7 +1,7 @@
 import { ReactElement, ReactNode } from "react";
 import { render, RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, MemoryRouter } from "react-router-dom";
 
 // Create a fresh QueryClient for each test
 function createTestQueryClient() {
@@ -26,6 +26,8 @@ interface WrapperProps {
 interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
   queryClient?: QueryClient;
   withRouter?: boolean;
+  /** Render inside a MemoryRouter seeded with these entries, instead of a BrowserRouter. */
+  initialEntries?: string[];
 }
 
 /**
@@ -38,6 +40,7 @@ function customRender(
   const {
     queryClient = createTestQueryClient(),
     withRouter = true,
+    initialEntries,
     ...renderOptions
   } = options;
 
@@ -47,7 +50,11 @@ function customRender(
     );
 
     if (withRouter) {
-      content = <BrowserRouter>{content}</BrowserRouter>;
+      content = initialEntries ? (
+        <MemoryRouter initialEntries={initialEntries}>{content}</MemoryRouter>
+      ) : (
+        <BrowserRouter>{content}</BrowserRouter>
+      );
     }
 
     return content;

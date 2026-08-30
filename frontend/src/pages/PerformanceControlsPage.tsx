@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import AppLayout from "@/components/layout/AppLayout";
 import { SessionRecoveryLoading } from "@/features/session";
@@ -10,15 +10,11 @@ import { ConnectedPerformanceControls } from "@/features/performance";
  * Uses session-based controls for proper isolation between karaoke sessions
  */
 const PerformanceControlsPage: React.FC = () => {
-  // Session state
-  const { sessionId, isRecovering, recoverSession } = useSessionStore();
-
-  useEffect(() => {
-    // Try to recover existing session on page load
-    if (!sessionId) {
-      recoverSession();
-    }
-  }, [sessionId, recoverSession]);
+  // RequireCapability({session: true}) already recovers and gates on a
+  // session at boot (SessionProvider) before this page can mount, so
+  // isRecovering here should always be false - kept as a defensive render
+  // branch, not a second recovery trigger.
+  const { isRecovering } = useSessionStore();
 
   const renderContent = () => {
     // Show loading state during session recovery
