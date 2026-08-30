@@ -15,10 +15,12 @@ from datetime import datetime, timedelta
 from typing import Generator, List, Optional
 
 from app.api.dependencies import (
+    RequesterContext,
     _resolve_user,
     get_current_user,
     optional_security,
     require_host,
+    require_host_or_session_member,
     require_session_member,
 )
 from app.db.database import SessionLocal
@@ -157,6 +159,21 @@ def get_db() -> Generator[Session, None, None]:
 def get_session_manager(request: Request) -> SessionConnectionManager:
     """Get the shared SessionConnectionManager from app state."""
     return request.app.state.session_manager
+
+
+def require_roster_access(
+    session_id: str,
+    requester: RequesterContext = Depends(require_host_or_session_member),
+) -> str:
+    """The session id this caller may read or add roster entries for.
+
+    Mirrors karaoke_queue.py's require_queue_access: an account holder may
+    address any session, an anonymous session guest is confined to the
+    session their device credential names.
+    """
+    if requester.user is None and requester.session_id != session_id:
+        raise HTTPException(status_code=403, detail="Not a member of that session")
+    return session_id
 
 
 # ============================================================================
@@ -943,7 +960,7 @@ async def end_session(
 
 @router.get("/{session_id}/performers", response_model=List[PerformerResponse])
 async def list_performers(
-    session_id: str,
+    session_id: str = Depends(require_roster_access),
     db: Session = Depends(get_db),
 ):
     """List the session's roster - everyone who has joined, been picked, or been
@@ -967,8 +984,8 @@ async def list_performers(
     "/{session_id}/performers", response_model=PerformerResponse, status_code=201
 )
 async def add_performer(
-    session_id: str,
     performer_data: PerformerCreateRequest,
+    session_id: str = Depends(require_roster_access),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
 ):

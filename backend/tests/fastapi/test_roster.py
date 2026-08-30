@@ -6,11 +6,25 @@ Tests for the session roster (unit 3a): resolve_or_create_performer and the
 from datetime import datetime, timedelta
 
 import pytest
+from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.db.models import KaraokeSession, SessionPerformer
 from app.services.roster_service import resolve_or_create_performer
-from tests.fastapi.conftest import _TestingSessionLocal
+from tests.fastapi.conftest import _get_mock_requester, _TestingSessionLocal
 
 HOST_USER_ID = 1
+
+
+def _as_guest_of(fastapi_app, session_id):
+    """Override the request identity to an anonymous member of `session_id`."""
+    fastapi_app.dependency_overrides[require_host_or_session_member] = (
+        lambda: RequesterContext(session_id=session_id)
+    )
+
+
+def _reset_overrides(fastapi_app):
+    fastapi_app.dependency_overrides[require_host_or_session_member] = (
+        _get_mock_requester
+    )
 
 
 @pytest.fixture
@@ -184,4 +198,42 @@ def test_join_by_code_without_a_name_creates_no_roster_entry(client, db):
     )
 
     assert response.status_code == 200
+    assert db.query(SessionPerformer).filter_by(session_id="BBBB").count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Access scoping - a guest is confined to their own session
+# ---------------------------------------------------------------------------
+
+
+def test_guest_cannot_list_another_sessions_roster(client, fastapi_app, db):
+    _make_session(db, "AAAA")
+    _make_session(db, "BBBB")
+    resolve_or_create_performer(db, "BBBB", "Spencer")
+    db.commit()
+
+    _as_guest_of(fastapi_app, "AAAA")
+    try:
+        own = client.get("/api/sessions/AAAA/performers")
+        other = client.get("/api/sessions/BBBB/performers")
+    finally:
+        _reset_overrides(fastapi_app)
+
+    assert own.status_code == 200
+    assert other.status_code == 403
+
+
+def test_guest_cannot_add_to_another_sessions_roster(client, fastapi_app, db):
+    _make_session(db, "AAAA")
+    _make_session(db, "BBBB")
+
+    _as_guest_of(fastapi_app, "AAAA")
+    try:
+        response = client.post(
+            "/api/sessions/BBBB/performers", json={"name": "Intruder"}
+        )
+    finally:
+        _reset_overrides(fastapi_app)
+
+    assert response.status_code == 403
     assert db.query(SessionPerformer).filter_by(session_id="BBBB").count() == 0
