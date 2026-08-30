@@ -2,9 +2,6 @@ import React, { useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSessionStore } from "@/stores/sessionStore";
-import { sessionWebSocketService } from "@/services/sessionWebSocketService";
-import { generateSessionPlaylist } from "@/services/api";
-import { getAuthHeaders } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
 import SessionEndModal from "./SessionEndModal";
 
@@ -15,7 +12,7 @@ interface EndSessionButtonProps {
 }
 
 const EndSessionButton: React.FC<EndSessionButtonProps> = ({ className }) => {
-  const { sessionId, isSessionOwner, clearSession } = useSessionStore();
+  const { sessionId, isSessionOwner, endSession } = useSessionStore();
   const [showModal, setShowModal] = useState(false);
   // Capture sessionId before clearSession() wipes it from the store
   const endedSessionId = useRef<string | null>(null);
@@ -24,29 +21,20 @@ const EndSessionButton: React.FC<EndSessionButtonProps> = ({ className }) => {
 
   const handleEndSession = async () => {
     endedSessionId.current = sessionId;
+    setShowModal(true);
 
     try {
-      // The owner ending the night retires the whole session, not just this device.
-      await fetch(`/api/sessions/${sessionId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      // The owner ending the night retires the whole session, not just this
+      // device. The store owns the sequence so the stage's exit prompt and this
+      // button cannot drift apart.
+      await endSession();
     } catch (err) {
       logger.warn("Failed to notify server of session end:", err);
     }
-
-    // Trigger playlist generation (fire and forget — modal will poll for result)
-    generateSessionPlaylist(sessionId).catch((err) =>
-      logger.warn("Failed to trigger playlist generation:", err),
-    );
-
-    setShowModal(true);
   };
 
   const handleModalClose = () => {
     setShowModal(false);
-    sessionWebSocketService.disconnect();
-    clearSession();
   };
 
   return (

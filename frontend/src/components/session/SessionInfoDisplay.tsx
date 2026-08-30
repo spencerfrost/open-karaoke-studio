@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
+import { createLogger } from "@/lib/logger";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
-import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import {
   Popover,
   PopoverContent,
@@ -22,6 +22,8 @@ import {
   Minimize2,
 } from "lucide-react";
 import { QRCodeDisplay } from "@/features/queue";
+
+const logger = createLogger("component:session-info-display");
 
 type DisplayVariant = "code" | "qr" | "status" | "minimal";
 type TriggerType = "click" | "hover" | "both";
@@ -119,7 +121,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
     deviceType,
     connectedDevices,
     sessionInfo,
-    clearSession,
+    leaveSession,
   } = useSessionStore();
 
   const { connected } = useKaraokePlayerStore();
@@ -129,10 +131,15 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   if (visibility === "host-only" && !isStageDevice) return null;
   if (visibility === "performers-only" && isStageDevice) return null;
 
-  const handleLogout = () => {
-    sessionWebSocketService.disconnect();
-    clearSession();
+  const handleLeaveSession = async () => {
     setIsOpen(false);
+    // The store's leaveSession tells the server this device is gone before it
+    // clears local state; clearing alone left the device listed as connected.
+    try {
+      await leaveSession();
+    } catch (error) {
+      logger.warn("Failed to leave session:", error);
+    }
     navigate("/");
   };
 
@@ -396,16 +403,14 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
             <Button
               variant="destructive"
               size="sm"
-              onClick={handleLogout}
+              onClick={handleLeaveSession}
               className="w-full"
             >
               <LogOut className="h-4 w-4 mr-2" />
               Leave Session
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              {isStageDevice
-                ? "This will end the session for all participants"
-                : "You will be disconnected from the session"}
+              You will be disconnected from the session
             </p>
           </div>
         </>

@@ -1,6 +1,7 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
+import { AccountCard } from "@/features/session";
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API
@@ -46,6 +47,8 @@ const SettingsPage: React.FC = () => {
         <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
           Settings
         </h1>
+
+        <AccountCard />
 
         {/* Theme Settings */}
         <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">

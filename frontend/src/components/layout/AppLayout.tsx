@@ -1,6 +1,14 @@
 import React, { ReactNode } from "react";
 import NavBar from "./NavBar";
-import { Music, Upload, List, Sliders, ShieldCheck, Waves } from "lucide-react";
+import {
+  Music,
+  Upload,
+  List,
+  Sliders,
+  ShieldCheck,
+  Waves,
+  Settings,
+} from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -27,7 +35,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       { name: "Add", path: "/add", icon: Upload },
     ];
 
-    const hostItems = [];
+    // Settings is where the account lives - logging in as a host, and logging
+    // out - so it has to be reachable from the nav, not just by URL.
+    const hostItems = [{ name: "Settings", path: "/settings", icon: Settings }];
     if (user?.isAdmin) {
       hostItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
       hostItems.push({
@@ -37,16 +47,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       });
     }
 
-    // Only show session-specific navigation if user is in a session
+    // No session yet. A host still needs a way in: entering stage mode is the
+    // only thing that starts a session, so gating this tab on a session
+    // existing would leave the URL bar as the sole entry point.
     if (!sessionId) {
-      return [...baseItems, ...hostItems];
+      const canHost = user?.isHost || user?.isAdmin;
+      return canHost
+        ? [
+            ...baseItems,
+            { name: "Stage", path: "/stage", icon: List },
+            ...hostItems,
+          ]
+        : [...baseItems, ...hostItems];
     }
 
-    // Host devices see "Stage" tab
+    // Host devices see "Stage" tab. A live session makes it the way back into
+    // stage mode, so it is highlighted - being out here is the temporary state.
     if (isStageDevice) {
       return [
         ...baseItems,
-        { name: "Stage", path: "/stage", icon: List },
+        { name: "Stage", path: "/stage", icon: List, highlight: true },
         ...hostItems,
       ];
     }

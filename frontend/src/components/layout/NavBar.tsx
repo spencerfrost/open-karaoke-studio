@@ -7,6 +7,8 @@ interface NavItem {
   name: string;
   path: string;
   icon: LucideIcon;
+  /** Draw attention to this tab - used for "get back into stage mode". */
+  highlight?: boolean;
 }
 
 interface NavBarProps {
@@ -35,9 +37,9 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
             key={item.name}
             variant="ghost"
             onClick={() => navigate(item.path)}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 text-foreground h-full rounded-none ${
+            className={`flex-1 flex flex-col items-center justify-center gap-1 h-full rounded-none ${
               active ? "opacity-100" : "opacity-50"
-            }`}
+            } ${item.highlight && !active ? "text-primary opacity-90" : "text-foreground"}`}
             aria-current={active ? "page" : undefined}
           >
             <Icon size={20} />

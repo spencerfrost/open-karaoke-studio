@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Camera, Keyboard, LogOut } from "lucide-react";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { AlertCircle, Camera, Keyboard } from "lucide-react";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("component:session-entry");
@@ -24,8 +22,16 @@ interface SessionEntryProps {
   redirectTo?: string;
 }
 
+/**
+ * SessionEntry - how a performer gets into someone else's session.
+ *
+ * It used to double as the host's create-a-session screen, and auto-created one
+ * on mount for any logged-in host. Sessions now begin in exactly one place -
+ * entering stage mode - so this is the performer half only. Host login lives in
+ * Settings.
+ */
 const SessionEntry: React.FC<SessionEntryProps> = ({
-  redirectTo = "/stage",
+  redirectTo = "/controls",
 }) => {
   const [searchParams] = useSearchParams();
   const [sessionCode, setSessionCode] = useState(
@@ -36,19 +42,13 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
     return localStorage.getItem("karaokeDisplayName") || "";
   });
 
-  const [showHostLogin, setShowHostLogin] = useState(false);
-
   const {
     sessionId,
     isConnecting,
     connectionError,
-    createSession,
     joinSession,
-    joinAsHost,
     clearSession,
   } = useSessionStore();
-
-  const { isAuthenticated, user, logout } = useAuthStore();
 
   const codeFromUrl = searchParams.get("code")?.toUpperCase().slice(0, 4);
 
@@ -58,38 +58,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
       clearSession();
     }
   }, [connectionError, clearSession]);
-
-  // Auto-join as host/admin — no button click needed
-  const hasAutoHostJoined = useRef(false);
-  useEffect(() => {
-    if (hasAutoHostJoined.current) return;
-    if (
-      isAuthenticated &&
-      (user?.isHost || user?.isAdmin) &&
-      !sessionId &&
-      !isConnecting
-    ) {
-      hasAutoHostJoined.current = true;
-      joinAsHost().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        if (
-          message.includes("401") ||
-          message.toLowerCase().includes("unauthorized")
-        ) {
-          logout();
-        }
-      });
-    }
-  }, [
-    isAuthenticated,
-    user?.id,
-    user?.isHost,
-    user?.isAdmin,
-    sessionId,
-    isConnecting,
-    joinAsHost,
-    logout,
-  ]);
 
   const hasAutoJoined = useRef(false);
 
@@ -120,30 +88,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
   if (sessionId) {
     return <Navigate to={redirectTo} replace />;
   }
-
-  const handleCreateSession = async () => {
-    if (!isAuthenticated) {
-      setShowHostLogin(true);
-      return;
-    }
-
-    try {
-      await createSession("stage");
-    } catch (error) {
-      logger.error("Failed to create session:", error);
-      toast.error("Failed to create session. Please try again.");
-    }
-  };
-
-  const handleLoginSuccess = async () => {
-    setShowHostLogin(false);
-    try {
-      await createSession("stage");
-    } catch (error) {
-      logger.error("Failed to create session after login:", error);
-      toast.error("Failed to create session. Please try again.");
-    }
-  };
 
   const handleJoinSession = async () => {
     if (!sessionCode.trim()) {
@@ -183,7 +127,7 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
             Open Karaoke Studio
           </h1>
           <p className="text-muted-foreground">
-            Join or create a karaoke session
+            Join the karaoke session on the stage screen
           </p>
         </div>
 
@@ -258,43 +202,6 @@ const SessionEntry: React.FC<SessionEntryProps> = ({
                 {isConnecting ? "Joining..." : "Join Session"}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Create Session */}
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>Create New Session</CardTitle>
-            <CardDescription>
-              {isAuthenticated
-                ? `Logged in as ${user?.displayName || "Host"}`
-                : "Host login required to create a session"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {showHostLogin && !isAuthenticated ? (
-              <LoginForm onSuccess={handleLoginSuccess} />
-            ) : (
-              <Button
-                onClick={handleCreateSession}
-                disabled={isConnecting}
-                variant="primary"
-                className="w-full"
-              >
-                {isConnecting ? "Creating..." : "Create Session as Host"}
-              </Button>
-            )}
-            {isAuthenticated && (
-              <Button
-                onClick={logout}
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground"
-              >
-                <LogOut className="h-3 w-3 mr-1" />
-                Log out
-              </Button>
-            )}
           </CardContent>
         </Card>
 

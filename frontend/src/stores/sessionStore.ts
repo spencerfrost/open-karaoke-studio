@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "./authStore";
+import { generateSessionPlaylist } from "@/services/api";
 
 const logger = createLogger("store:session");
 
@@ -61,6 +62,7 @@ interface SessionState {
   recoverPerformerSession: () => Promise<void>; // Add performer recovery method
   recoverSession: () => Promise<void>; // Add general recovery method
   leaveSession: () => Promise<void>;
+  endSession: () => Promise<void>;
   refreshSessionInfo: () => Promise<void>;
   clearSession: () => void;
 }
@@ -69,6 +71,16 @@ interface SessionState {
 const HOST_SESSION_STORAGE_KEY = "karaoke-host-session";
 // Storage key for performer sessions
 const PERFORMER_SESSION_STORAGE_KEY = "karaoke-performer-session";
+
+/** The device id this browser last held as the stage, if any. */
+function readStoredHostDeviceId(): string | null {
+  try {
+    const stored = localStorage.getItem(HOST_SESSION_STORAGE_KEY);
+    return stored ? (JSON.parse(stored).deviceId ?? null) : null;
+  } catch {
+    return null;
+  }
+}
 
 // Module-level reference to the active session_ended listener cleanup function.
 // Ensures only one listener is registered at a time regardless of how many times
@@ -121,12 +133,20 @@ export const useSessionStore = create<SessionState>()(
             throw new Error("Not authenticated");
           }
 
+          // Reuse this browser's device row when we already have one. Without
+          // it every mount inserts another row and inflates device_count.
+          const knownDeviceId = get().deviceId ?? readStoredHostDeviceId();
+
           const response = await fetch("/api/sessions/my", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            body: JSON.stringify({
+              device_type: "stage",
+              ...(knownDeviceId ? { device_id: knownDeviceId } : {}),
+            }),
           });
 
           if (!response.ok) {
@@ -209,7 +229,10 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
-            isStageDevice: true,
+            // The device role has to follow what was actually asked for:
+            // SessionGuard routes on this flag, so forcing it true here sent
+            // performers who created a session to the stage screen.
+            isStageDevice: deviceType === "stage",
             deviceType,
             isConnected: true,
             isConnecting: false,
@@ -567,6 +590,45 @@ export const useSessionStore = create<SessionState>()(
 
         // Clear local state regardless of server response
         get().clearSession();
+      },
+
+      /**
+       * End the night: retire the session for everyone, not just this device.
+       *
+       * The server keeps the row, its queue and its playback state - a session
+       * is retired, never deleted - so the recap and the history survive. Only
+       * the owning host may do this; `leaveSession` is the per-device verb.
+       */
+      endSession: async () => {
+        const { sessionId } = get();
+        if (!sessionId) return;
+
+        // Drop the session_ended listener first. The server broadcasts it to
+        // the whole room, this socket included, and its handler hard-navigates
+        // to "/" - which would tear down the recap before it renders. Ending
+        // the session deliberately is not the same as being told it ended.
+        sessionEndedCleanup?.();
+        sessionEndedCleanup = null;
+
+        try {
+          const token = useAuthStore.getState().token;
+          const response = await fetch(`/api/sessions/${sessionId}`, {
+            method: "DELETE",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to end session: ${response.statusText}`);
+          }
+
+          logger.info("Session ended:", sessionId);
+        } finally {
+          // Fire and forget - the recap modal polls for the result itself.
+          generateSessionPlaylist(sessionId).catch((error) =>
+            logger.warn("Failed to trigger playlist generation:", error),
+          );
+          get().clearSession();
+        }
       },
 
       refreshSessionInfo: async () => {

@@ -38,10 +38,13 @@ const App: React.FC = () => {
             <Route path="/join/:code" element={<QRJoinPage />} />
 
             {/* Session-required routes */}
+            {/* The desktop app does not need a session. A session is a night
+                on the stage, and entering stage mode is the only thing that
+                starts one. */}
             <Route
               path="/"
               element={
-                <SessionGuard>
+                <SessionGuard requireSession={false}>
                   <LibraryPage />
                 </SessionGuard>
               }
@@ -49,7 +52,7 @@ const App: React.FC = () => {
             <Route
               path="/add"
               element={
-                <SessionGuard>
+                <SessionGuard requireSession={false}>
                   <AddSongPage />
                 </SessionGuard>
               }
@@ -62,10 +65,12 @@ const App: React.FC = () => {
                 </SessionGuard>
               }
             />
+            {/* Stage creates its own session on entry, so it must not be
+                gated on already having one. */}
             <Route
               path="/stage"
               element={
-                <SessionGuard deviceType="stage" redirectTo="/stage">
+                <SessionGuard requireSession={false} deviceType="stage">
                   <StagePage />
                 </SessionGuard>
               }
