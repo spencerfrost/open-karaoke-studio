@@ -87,6 +87,9 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     if (!analyser && audioContext) {
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
+      // Default (0.8) smooths so heavily that the visualizer barely moves
+      // frame to frame; lower this for a snappier, more reactive look.
+      analyser.smoothingTimeConstant = 0.4;
     }
   }
 

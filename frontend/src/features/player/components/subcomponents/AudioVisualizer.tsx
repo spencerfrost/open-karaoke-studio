@@ -10,6 +10,24 @@ interface AudioVisualizerProps {
 // dark-cyan, orange-peel — alternated per bar, then hue-shifted across the row
 const BASE_COLORS = ["#01928B", "#FD9A02"];
 
+// Auto-leveling: each band scales against its own recently-seen peak rather
+// than a fixed 0-255 ceiling, so quiet songs and quiet frequency ranges
+// still show real movement instead of sitting near-silent while loud ones
+// peg the top. MIN_PEAK stops near-silence from getting amplified into
+// visual noise; PEAK_DECAY is how fast the ceiling relaxes back down once
+// the audio quiets, so a loud chorus doesn't flatten the following verse.
+// Sustained content (bass especially) sits close to its own peak almost
+// continuously, so RESPONSE_CURVE punishes anything short of the peak much
+// harder than a straight ratio would — "close to peak" should look
+// noticeably short, not nearly full, or nothing ever looks like it's moving.
+const MIN_PEAK = 24;
+// 0.9 decayed the peak ~10%/frame — at 60fps that collapses the "recent
+// peak" down to the current value within a couple frames, so avg/peak was
+// pinned at ~1 almost constantly (hence maxing out regardless of the curve
+// below). This needs a multi-second memory to mean anything.
+const PEAK_DECAY = 0.995;
+const RESPONSE_CURVE = 4.5;
+
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   height = 120,
   barCount = 120,
@@ -20,23 +38,71 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
+  // One value per half — the other half is drawn as its mirror, bass-out.
+  const halfCount = useMemo(
+    () => Math.max(1, Math.round(barCount / 2)),
+    [barCount],
+  );
   const barsRef = useRef<Float32Array>(new Float32Array(0));
+  const peaksRef = useRef<Float32Array>(new Float32Array(0));
+  const binPositionsRef = useRef<{
+    binCount: number;
+    halfCount: number;
+    positions: number[];
+  } | null>(null);
 
-  // Colors depend only on bar index, not on audio data — compute them once
-  // per barCount instead of re-running the hue math for every bar, every frame.
+  // Colors depend only on distance from center, not on audio data — compute
+  // them once per halfCount instead of re-running the hue math for every
+  // bar, every frame. Both mirrored bars at a given distance share a color.
   const barColors = useMemo(
     () =>
-      Array.from({ length: barCount }, (_, i) =>
-        adjustColorHue(BASE_COLORS[i % 2], (i / barCount) * 60),
+      Array.from({ length: halfCount }, (_, k) =>
+        adjustColorHue(BASE_COLORS[k % 2], (k / halfCount) * 60),
       ),
-    [barCount],
+    [halfCount],
   );
 
   useEffect(() => {
-    if (barsRef.current.length !== barCount) {
-      barsRef.current = new Float32Array(barCount);
+    if (barsRef.current.length !== halfCount) {
+      barsRef.current = new Float32Array(halfCount);
     }
-  }, [barCount]);
+    if (peaksRef.current.length !== halfCount) {
+      peaksRef.current = new Float32Array(halfCount).fill(MIN_PEAK);
+    }
+  }, [halfCount]);
+
+  // Frequency bins are linearly spaced, but music's energy is not — bass
+  // dominates the first few bins while everything above it trails off, so a
+  // linear bar mapping looks lively on one end and dead on the other. Log-
+  // spaced sampling gives bass, mids and highs roughly equal visual width.
+  //
+  // There are only ~128 usable bins, so several consecutive low buckets land
+  // on the exact same integer bin if we round to one — that read as chunky,
+  // stair-stepped groups of identical bars. Sampling a fractional position
+  // and interpolating between its two neighboring bins keeps every bucket
+  // distinct, since the interpolation weight still moves smoothly from one
+  // bucket to the next even while the underlying bin stays the same.
+  const getBinPositions = useCallback(
+    (binCount: number): number[] => {
+      const cached = binPositionsRef.current;
+      if (
+        cached &&
+        cached.binCount === binCount &&
+        cached.halfCount === halfCount
+      ) {
+        return cached.positions;
+      }
+      const minBin = 1; // skip the DC bin
+      const maxBin = Math.max(minBin + 1, binCount - 1);
+      const denom = Math.max(1, halfCount - 1);
+      const positions = Array.from({ length: halfCount }, (_, k) =>
+        minBin * Math.pow(maxBin / minBin, k / denom),
+      );
+      binPositionsRef.current = { binCount, halfCount, positions };
+      return positions;
+    },
+    [halfCount],
+  );
 
   // Sets the canvas's backing bitmap to match its current on-screen size.
   // Uses setTransform (absolute) rather than scale (cumulative) so it's safe
@@ -70,48 +136,52 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const drawBars = (valueAt: (index: number) => number) => {
+    // Draws one bar per distance-from-center k, mirrored to both halves —
+    // k = 0 (bass) sits at the two center-most bars, k = halfCount - 1
+    // (treble) sits at the two outer edges.
+    const drawMirroredBars = (valueAt: (k: number) => number) => {
       const { width, height: canvasHeight } = sizeRef.current;
       if (!width || !canvasHeight) return;
 
       ctx.clearRect(0, 0, width, canvasHeight);
 
-      const barWidth = width / barCount;
+      const totalBars = halfCount * 2;
+      const barWidth = width / totalBars;
       const spacing = Math.max(1, barWidth * 0.1); // 10% spacing between bars
+      const actualBarWidth = barWidth - spacing;
+      const radius = Math.min(4, actualBarWidth / 2);
 
-      for (let i = 0; i < barCount; i++) {
-        const barHeight = valueAt(i) * canvasHeight;
-        const x = i * barWidth;
+      for (let k = 0; k < halfCount; k++) {
+        const barHeight = valueAt(k) * canvasHeight;
         const y = (canvasHeight - barHeight) / 2;
 
         ctx.globalAlpha = 0.7;
-        ctx.fillStyle = barColors[i];
+        ctx.fillStyle = barColors[k];
 
-        // Rounded top effect using arc
-        const actualBarWidth = barWidth - spacing;
-        const radius = Math.min(4, actualBarWidth / 2);
-
-        ctx.beginPath();
-        ctx.moveTo(x + spacing / 2, y + barHeight);
-        ctx.lineTo(x + spacing / 2, y + radius);
-        ctx.arc(
-          x + spacing / 2 + radius,
-          y + radius,
-          radius,
-          Math.PI,
-          1.5 * Math.PI,
-        );
-        ctx.lineTo(x + actualBarWidth - radius, y);
-        ctx.arc(
-          x + actualBarWidth - radius,
-          y + radius,
-          radius,
-          1.5 * Math.PI,
-          0,
-        );
-        ctx.lineTo(x + actualBarWidth, y + barHeight);
-        ctx.closePath();
-        ctx.fill();
+        for (const barIndex of [halfCount - 1 - k, halfCount + k]) {
+          const x = barIndex * barWidth;
+          ctx.beginPath();
+          ctx.moveTo(x + spacing / 2, y + barHeight);
+          ctx.lineTo(x + spacing / 2, y + radius);
+          ctx.arc(
+            x + spacing / 2 + radius,
+            y + radius,
+            radius,
+            Math.PI,
+            1.5 * Math.PI,
+          );
+          ctx.lineTo(x + actualBarWidth - radius, y);
+          ctx.arc(
+            x + actualBarWidth - radius,
+            y + radius,
+            radius,
+            1.5 * Math.PI,
+            0,
+          );
+          ctx.lineTo(x + actualBarWidth, y + barHeight);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
 
       ctx.globalAlpha = 1.0;
@@ -121,28 +191,26 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const animate = () => {
         const frequencies = getFrequencyData();
         const bars = barsRef.current;
+        const peaks = peaksRef.current;
 
-        if (frequencies && bars.length === barCount) {
-          // Downsample frequency bins to barCount
-          const step = Math.floor(frequencies.length / barCount) || 1;
-          for (let i = 0; i < barCount; i++) {
-            let sum = 0;
-            let count = 0;
-            for (
-              let j = i * step;
-              j < (i + 1) * step && j < frequencies.length;
-              j++
-            ) {
-              sum += frequencies[j];
-              count++;
-            }
-            const avg = count ? sum / count : 0;
-            // getByteFrequencyData is already 0-255 magnitude, no midpoint
-            // to subtract — just normalize, with a small floor so quiet
-            // bars don't fully vanish.
-            bars[i] = Math.max(0.04, avg / 255);
+        if (frequencies && bars.length === halfCount) {
+          const positions = getBinPositions(frequencies.length);
+          for (let k = 0; k < halfCount; k++) {
+            const pos = positions[k];
+            const i0 = Math.floor(pos);
+            const i1 = Math.min(i0 + 1, frequencies.length - 1);
+            const frac = pos - i0;
+            const avg =
+              frequencies[i0] * (1 - frac) + frequencies[i1] * frac;
+            // Auto-level against this band's own recent peak (decaying
+            // slowly so it doesn't pump) instead of a fixed 0-255 ceiling,
+            // so both quiet songs and quiet bands still show real movement.
+            const peak = Math.max(avg, peaks[k] * PEAK_DECAY, MIN_PEAK);
+            peaks[k] = peak;
+            const level = Math.pow(Math.min(1, avg / peak), RESPONSE_CURVE);
+            bars[k] = Math.max(0.04, level);
           }
-          drawBars((i) => bars[i]);
+          drawMirroredBars((k) => bars[k]);
         }
 
         animationRef.current = requestAnimationFrame(animate);
@@ -156,14 +224,21 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       };
     } else {
       // Idle state: minimal flat bars
-      drawBars(() => 0.1);
+      drawMirroredBars(() => 0.1);
 
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
     }
-  }, [isPlaying, isReady, getFrequencyData, barCount, barColors]);
+  }, [
+    isPlaying,
+    isReady,
+    getFrequencyData,
+    halfCount,
+    barColors,
+    getBinPositions,
+  ]);
 
   if (error) {
     return <div className="text-destructive">Audio error: {error}</div>;
