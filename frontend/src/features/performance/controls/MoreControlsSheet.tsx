@@ -15,8 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
-import { useSessionStore } from "@/stores/sessionStore";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { cn } from "@/lib/utils";
 import type { Density } from "./density";
@@ -46,7 +44,6 @@ const MoreControlsSheet: React.FC<MoreControlsSheetProps> = ({
     autoScrollEnabled,
     setAutoScrollEnabled,
   } = useKaraokePlayerStore();
-  const { sessionId, displayCode } = useSessionStore();
 
   const sectionClass =
     "rounded-md border border-glass-border/10 bg-glass/5 p-4 flex flex-col gap-3";
@@ -154,20 +151,6 @@ const MoreControlsSheet: React.FC<MoreControlsSheetProps> = ({
                 />
               </div>
             </div>
-
-            {/* Session info */}
-            {sessionId && displayCode && (
-              <div className="rounded-md border border-glass-border/10 bg-glass/5 p-4">
-                <span className={cn("mb-2 block", sectionLabelClass)}>
-                  Session
-                </span>
-                <SessionInfoDisplay
-                  variant="code"
-                  trigger="click"
-                  visibility="all"
-                />
-              </div>
-            )}
           </div>
         </div>
       </DrawerContent>
