@@ -25,7 +25,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   const { user } = useAuthStore();
   const isAdmin = !!user?.isAdmin;
 
-  const toggleArtist = (artistName: string) => {
+  // Stable identity: it is handed to every row, and a new function per render
+  // would make React.memo on ArtistSection useless.
+  const toggleArtist = React.useCallback((artistName: string) => {
     setExpandedArtists((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(artistName)) {
@@ -35,7 +37,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
       }
       return newSet;
     });
-  };
+  }, []);
 
   // Group artists alphabetically
   const groupedArtists = React.useMemo(() => {
@@ -141,7 +143,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                       key={artist.name}
                       artist={artist}
                       isExpanded={expandedArtists.has(artist.name)}
-                      onToggle={() => toggleArtist(artist.name)}
+                      onToggle={toggleArtist}
                       isAdmin={isAdmin}
                     />
                   ))}

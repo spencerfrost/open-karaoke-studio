@@ -27,11 +27,56 @@ import { Artist } from "@/hooks/api/useArtists";
 interface ArtistSectionProps {
   artist: Artist;
   isExpanded: boolean;
-  onToggle: () => void;
+  /** Takes the artist name so the parent can pass one stable callback for every
+      row - a per-row closure would defeat the memo below. */
+  onToggle: (artistName: string) => void;
   isAdmin?: boolean;
 }
 
 type ViewMode = "grid" | "table";
+
+/**
+ * Holds the two useInfiniteQuery hooks and only mounts once a row is
+ * expanded, so collapsed rows carry no React Query observer at all.
+ */
+const ArtistSectionBody: React.FC<{ artist: Artist; viewMode: ViewMode }> = ({
+  artist,
+  viewMode,
+}) => {
+  // A show isn't a real artist row, so it has no artist image and no admin
+  // edit/collab actions — but it reuses this same accordion row and the same
+  // infinite-songs shape, just sourced from a different endpoint.
+  const artistSongs = useInfiniteArtistSongs(artist.name, 200, {
+    enabled: !artist.isShow,
+  });
+  const showSongs = useInfiniteShowSongs(artist.name, 200, {
+    enabled: !!artist.isShow,
+  });
+  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    artist.isShow ? showSongs : artistSongs;
+
+  return (
+    <div className="mb-8 px-4 mt-4">
+      {viewMode === "grid" ? (
+        <ArtistSongGrid
+          songs={songs}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          artistName={artist.name}
+          showArtist={false}
+        />
+      ) : (
+        <ArtistSongTable
+          songs={songs}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+        />
+      )}
+    </div>
+  );
+};
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
   artist,
@@ -45,19 +90,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
 
-  // A show isn't a real artist row, so it has no artist image and no admin
-  // edit/collab actions — but it reuses this same accordion row and the same
-  // infinite-songs shape, just sourced from a different endpoint.
-  const artistSongs = useInfiniteArtistSongs(artist.name, 200, {
-    enabled: isExpanded && !artist.isShow,
-  });
-  const showSongs = useInfiniteShowSongs(artist.name, 200, {
-    enabled: isExpanded && !!artist.isShow,
-  });
-  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } = artist.isShow
-    ? showSongs
-    : artistSongs;
-
   return (
     <div
       className="border border-orange-peel rounded-lg overflow-hidden"
@@ -66,7 +98,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       {/* Artist Header */}
       <div className="flex items-center bg-lemon-chiffon/10 text-lemon-chiffon">
         <button
-          onClick={onToggle}
+          onClick={() => onToggle(artist.name)}
           className="flex-1 px-4 py-3 flex items-center text-left hover:bg-lemon-chiffon/5 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -155,27 +187,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       </div>
 
       {/* Expanded Songs */}
-      {isExpanded && (
-        <div className="mb-8 px-4 mt-4">
-          {viewMode === "grid" ? (
-            <ArtistSongGrid
-              songs={songs}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              fetchNextPage={fetchNextPage}
-              artistName={artist.name}
-              showArtist={false}
-            />
-          ) : (
-            <ArtistSongTable
-              songs={songs}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              fetchNextPage={fetchNextPage}
-            />
-          )}
-        </div>
-      )}
+      {isExpanded && <ArtistSectionBody artist={artist} viewMode={viewMode} />}
 
       {isAdmin && !artist.isShow && (
         <>
@@ -195,4 +207,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   );
 };
 
-export default ArtistSection;
+/**
+ * Memoized because the library renders ~600 of these at once, and each one
+ * holds two React Query observers plus (for admins) a Radix dropdown. Without
+ * this, expanding a single row re-rendered every other row in the list, which
+ * is what made the accordion feel like it was thinking about it.
+ */
+export default React.memo(ArtistSection);
