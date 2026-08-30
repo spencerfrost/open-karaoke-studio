@@ -21,15 +21,26 @@ const OFFSET_STEP_MS = 100;
 
 interface UseStageKeyboardOptions {
   onToggleFullscreen?: () => void;
+  /**
+   * False while another stage screen covers the player. The guards below stop
+   * typed keys reaching the shortcuts, but arrowing around a song grid is not
+   * typing — and it should not be seeking the song playing underneath.
+   */
+  enabled?: boolean;
 }
 
 export const useStageKeyboard = ({
   onToggleFullscreen,
+  enabled = true,
 }: UseStageKeyboardOptions = {}) => {
   // Held in a ref so the listener below keeps its empty deps — toggleFullscreen
   // changes identity every time fullscreen does, and rebinding on that is noise.
   const onToggleFullscreenRef = useRef(onToggleFullscreen);
   onToggleFullscreenRef.current = onToggleFullscreen;
+
+  // Same reason: flipping screens must not tear down and rebind the listener.
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,6 +54,20 @@ export const useStageKeyboard = ({
       // AND run the shortcuts below. Bail out for anything that owns its keys.
       const t = e.target instanceof HTMLElement ? e.target : null;
       if (t?.closest("[role='dialog'], [role='slider']")) return;
+
+      // Fullscreen is not a playback control - it stays live on every stage
+      // screen, including while someone is browsing the library.
+      if (e.code === "KeyF") {
+        // No isReady gate — hiding browser chrome is useful with no song
+        // loaded, and this runs off a real keypress so it carries the user
+        // activation requestFullscreen() demands.
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        onToggleFullscreenRef.current?.();
+        return;
+      }
+
+      if (!enabledRef.current) return;
 
       const {
         isReady,
@@ -83,14 +108,6 @@ export const useStageKeyboard = ({
         case "ArrowDown":
           e.preventDefault();
           setLyricsOffset(lyricsOffset - OFFSET_STEP_MS);
-          return;
-        case "KeyF":
-          // No isReady gate — hiding browser chrome is useful with no song
-          // loaded, and this runs off a real keypress so it carries the user
-          // activation requestFullscreen() demands.
-          if (e.ctrlKey || e.metaKey || e.altKey) return;
-          e.preventDefault();
-          onToggleFullscreenRef.current?.();
           return;
         default:
       }

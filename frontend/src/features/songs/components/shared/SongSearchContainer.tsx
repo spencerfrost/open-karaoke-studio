@@ -85,6 +85,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   className = "",
   initialQuery = "",
   autoBrowseArtist = false,
+  onSubmitted,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [activeSource, setActiveSource] =
@@ -160,6 +161,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       });
       const songInput = mapYoutubeMusicToSongInput(result);
       await songCreation.createSong(songInput);
+      onSubmitted?.();
     } catch (error) {
       logger.error("Failed to create YouTube Music song:", error);
       toast.error(addSongErrorMessage(error));
@@ -175,6 +177,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
       });
       const songInput = mapYouTubeToSongInput(result);
       await songCreation.createSong(songInput);
+      onSubmitted?.();
     } catch (error) {
       logger.error("Failed to create YouTube song:", error);
       toast.error(addSongErrorMessage(error));

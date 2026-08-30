@@ -7,13 +7,17 @@
  *
  * While a song plays the rails collapse to icon strips and the chrome dims —
  * but nothing unmounts, so dialogs, drag state and focus all survive.
+ *
+ * The backdrop (sunburst, texture, scrim) belongs to the shell, not here: it is
+ * shared with every other stage screen, and painting a second full-viewport
+ * copy of it per screen is expensive enough to be felt on every click.
  */
 
 import React, { useCallback } from "react";
 import { ControlsStrip } from "@/features/performance/controls";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { cn } from "@/lib/utils";
-import { usePlayerUI } from "../../hooks";
+import type { PlayerUIHook } from "../../types/KaraokePlayer.types";
 import KaraokePlayer from "../KaraokePlayer";
 import StageTransport from "./StageTransport";
 import StageAmbientBar from "./StageAmbientBar";
@@ -33,6 +37,14 @@ interface StageLayoutProps {
   queueItems?: KaraokeQueueItemWithSong[];
   onPlayFromQueue: (id: string) => void;
   onRemoveFromQueue: (id: string) => void;
+  /**
+   * Fullscreen, owned by the stage shell. The container it targets is the
+   * shell's root, not this one, so the shell's other screens stay inside
+   * full screen instead of disappearing with the browser chrome.
+   */
+  ui: PlayerUIHook;
+  /** False while another stage screen is covering the player. */
+  keyboardEnabled?: boolean;
 }
 
 const StageLayout: React.FC<StageLayoutProps> = ({
@@ -42,12 +54,15 @@ const StageLayout: React.FC<StageLayoutProps> = ({
   queueItems,
   onPlayFromQueue,
   onRemoveFromQueue,
+  ui,
+  keyboardEnabled = true,
 }) => {
-  // Fullscreen now only has to hide browser chrome — the page IS the player.
-  const ui = usePlayerUI();
   const isPlaying = useKaraokePlayerStore((state) => state.isPlaying);
   const { collapsed } = useStageRails(isPlaying);
-  useStageKeyboard({ onToggleFullscreen: ui.toggleFullscreen });
+  useStageKeyboard({
+    onToggleFullscreen: ui.toggleFullscreen,
+    enabled: keyboardEnabled,
+  });
 
   const nextItem = upcoming[0];
   const handleNext = useCallback(() => {
@@ -64,15 +79,9 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 
   return (
     <div
-      ref={ui.containerRef}
       tabIndex={-1}
       className="relative h-full w-full overflow-hidden outline-none"
-      style={{ background: "var(--page-bg)" }}
     >
-      <div className="vintage-sunburst-pattern" />
-      <div className="vintage-texture-overlay" />
-      <div className="absolute inset-0 z-[11] bg-overlay/85" />
-
       {ui.fsError && (
         <div className="absolute right-3 top-3 z-40 rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow">
           {ui.fsError}

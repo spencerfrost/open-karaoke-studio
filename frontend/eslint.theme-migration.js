@@ -46,10 +46,7 @@ export const STAGE_3_PENDING = [
   'src/features/session/components/SessionEndModal.tsx',
   'src/features/session/components/SessionJoinForm.tsx',
   'src/features/session/components/SessionRecoveryLoading.tsx',
-  'src/features/session/components/SessionStatusHeader.tsx',
   'src/features/session/components/WebsocketStatus.tsx',
-  'src/pages/Library.tsx',
   'src/pages/QRJoinPage.tsx',
   'src/pages/Settings.tsx',
-  'src/pages/Stage.tsx',
 ]

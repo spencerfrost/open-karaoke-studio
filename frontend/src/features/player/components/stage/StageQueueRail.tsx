@@ -4,10 +4,10 @@
  */
 
 import React from "react";
-import { Link } from "react-router-dom";
 import { Library, Mic, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QRCodeDisplay } from "@/features/queue";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useSessionStore } from "@/stores/sessionStore";
 import { cn } from "@/lib/utils";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
@@ -31,6 +31,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
   onRemove,
 }) => {
   const { displayCode } = useSessionStore();
+  const openSongSelect = useOpenSongSelect();
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
@@ -55,11 +56,13 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
         {upcoming.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
             <p className="text-lg text-foreground/60">Nothing queued yet</p>
-            <Button asChild variant="secondary" className="gap-2">
-              <Link to="/library">
-                <Library className="size-4" />
-                Browse library
-              </Link>
+            <Button
+              variant="secondary"
+              className="gap-2"
+              onClick={() => openSongSelect()}
+            >
+              <Library className="size-4" />
+              Browse library
             </Button>
           </div>
         ) : (

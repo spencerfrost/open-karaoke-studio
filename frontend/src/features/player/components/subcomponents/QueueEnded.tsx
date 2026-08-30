@@ -6,7 +6,6 @@
  */
 
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { Music, Play, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +13,7 @@ import {
   getSuggestionReasonText,
 } from "../../hooks/useSongSuggestions";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import { useSessionStore } from "@/stores/sessionStore";
 import { toast } from "sonner";
@@ -82,7 +82,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
   onSelectSong,
   className = "",
 }) => {
-  const navigate = useNavigate();
+  const openSongSelect = useOpenSongSelect();
   const { getArtworkUrl } = useSongs();
   const { displayCode } = useSessionStore();
   const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
@@ -166,7 +166,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
           <Button
             variant="outline"
             size="lg"
-            onClick={() => navigate("/library")}
+            onClick={() => openSongSelect()}
             className="bg-overlay/50 hover:bg-overlay/70 border-glass-border/30 hover:border-glass-border/50 text-foreground gap-2"
           >
             <Library className="w-5 h-5" />

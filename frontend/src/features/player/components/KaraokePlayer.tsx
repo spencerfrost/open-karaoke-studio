@@ -8,7 +8,6 @@
  */
 
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { useKaraokePlayer } from "../hooks";
 import {
   PlayerErrorBoundary,
@@ -21,6 +20,7 @@ import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import { Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
@@ -37,7 +37,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   className = "",
 }) => {
   const player = useKaraokePlayer(songId, { autoPlay });
-  const navigate = useNavigate();
+  const openSongSelect = useOpenSongSelect();
 
   // Song API hooks
   const { useSongChords } = useSongs();
@@ -127,18 +127,12 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             </h1>
             <h2
               className="cursor-pointer pt-1 text-lg text-foreground/55 transition-colors hover:text-primary"
-              onClick={() =>
-                navigate(
-                  `/library?expandArtist=${encodeURIComponent(song.artist)}`,
-                )
-              }
+              onClick={() => openSongSelect({ expandArtist: song.artist })}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  navigate(
-                    `/library?expandArtist=${encodeURIComponent(song.artist)}`,
-                  );
+                  openSongSelect({ expandArtist: song.artist });
                 }
               }}
             >
@@ -202,7 +196,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => navigate("/library")}
+                onClick={() => openSongSelect()}
                 className="gap-2"
               >
                 <Library className="size-5" />

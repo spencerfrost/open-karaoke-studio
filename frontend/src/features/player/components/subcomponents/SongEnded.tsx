@@ -6,11 +6,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { Music, Library, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSongs } from "@/hooks/api/useSongs";
 import type { Song } from "@/types/Song";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
 const COUNTDOWN_SECONDS = 30;
@@ -32,7 +32,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
   onPlayNext,
   className = "",
 }) => {
-  const navigate = useNavigate();
+  const openSongSelect = useOpenSongSelect();
   const { getArtworkUrl } = useSongs();
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const hasTriggeredRef = useRef(false);
@@ -181,7 +181,7 @@ export const SongEnded: React.FC<SongEndedProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate("/library")}
+          onClick={() => openSongSelect()}
           className="bg-overlay/50 hover:bg-overlay/70 border-glass-border/20 hover:border-glass-border/40 text-foreground/70 gap-2"
         >
           <Library className="w-4 h-4" />
