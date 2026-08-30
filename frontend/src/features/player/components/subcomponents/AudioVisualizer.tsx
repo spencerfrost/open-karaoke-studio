@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
 interface AudioVisualizerProps {
@@ -7,17 +7,62 @@ interface AudioVisualizerProps {
   className?: string;
 }
 
+// dark-cyan, orange-peel — alternated per bar, then hue-shifted across the row
+const BASE_COLORS = ["#01928B", "#FD9A02"];
+
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   height = 120,
   barCount = 120,
   className = "",
 }) => {
-  const { isReady, isPlaying, error, getWaveformData } =
+  const { isReady, isPlaying, error, getFrequencyData } =
     useKaraokePlayerStore();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
+  const sizeRef = useRef({ width: 0, height: 0 });
+  const barsRef = useRef<Float32Array>(new Float32Array(0));
 
-  // Animation loop for real waveform data using Canvas
+  // Colors depend only on bar index, not on audio data — compute them once
+  // per barCount instead of re-running the hue math for every bar, every frame.
+  const barColors = useMemo(
+    () =>
+      Array.from({ length: barCount }, (_, i) =>
+        adjustColorHue(BASE_COLORS[i % 2], (i / barCount) * 60),
+      ),
+    [barCount],
+  );
+
+  useEffect(() => {
+    if (barsRef.current.length !== barCount) {
+      barsRef.current = new Float32Array(barCount);
+    }
+  }, [barCount]);
+
+  // Sets the canvas's backing bitmap to match its current on-screen size.
+  // Uses setTransform (absolute) rather than scale (cumulative) so it's safe
+  // to call again on every resize without compounding the DPR scale.
+  const resizeCanvas = useCallback((canvas: HTMLCanvasElement) => {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sizeRef.current = { width: rect.width, height: rect.height };
+  }, []);
+
+  // Keeps the bitmap in sync with layout changes — e.g. toggling fullscreen,
+  // or the stage rails collapsing/expanding around this bar.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    resizeCanvas(canvas);
+    const observer = new ResizeObserver(() => resizeCanvas(canvas));
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [resizeCanvas]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -25,119 +70,29 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas dimensions (accounting for device pixel ratio for sharp rendering)
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const drawBars = (valueAt: (index: number) => number) => {
+      const { width, height: canvasHeight } = sizeRef.current;
+      if (!width || !canvasHeight) return;
 
-    if (isReady && isPlaying && getWaveformData) {
-      const animate = () => {
-        const waveform = getWaveformData();
-        if (waveform && canvas) {
-          // Clear canvas
-          ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.clearRect(0, 0, width, canvasHeight);
 
-          // Downsample waveform data to barCount
-          const step = Math.floor(waveform.length / barCount) || 1;
-          const bars = Array.from({ length: barCount }, (_, i) => {
-            let sum = 0;
-            let count = 0;
-            for (
-              let j = i * step;
-              j < (i + 1) * step && j < waveform.length;
-              j++
-            ) {
-              sum += waveform[j];
-              count++;
-            }
-            const avg = count ? sum / count : 128;
-            return Math.max(0.1, Math.abs((avg - 128) / 128));
-          });
-
-          // Draw bars
-          const barWidth = rect.width / barCount;
-          const spacing = Math.max(1, barWidth * 0.1); // 10% spacing between bars
-
-          bars.forEach((value, index) => {
-            const barHeight = value * rect.height;
-            const x = index * barWidth;
-            const y = (rect.height - barHeight) / 2;
-
-            // Alternate colors: dark-cyan and orange-peel
-            const isEven = index % 2 === 0;
-            const baseColor = isEven ? "#01928B" : "#FD9A02";
-
-            // Apply hue rotation effect (simulate CSS hue-rotate)
-            const hueShift = (index / barCount) * 60;
-            const adjustedColor = adjustColorHue(baseColor, hueShift);
-
-            // Draw bar with opacity
-            ctx.globalAlpha = 0.7;
-            ctx.fillStyle = adjustedColor;
-
-            // Rounded top effect using arc
-            const actualBarWidth = barWidth - spacing;
-            const radius = Math.min(4, actualBarWidth / 2);
-
-            ctx.beginPath();
-            ctx.moveTo(x + spacing / 2, y + barHeight);
-            ctx.lineTo(x + spacing / 2, y + radius);
-            ctx.arc(
-              x + spacing / 2 + radius,
-              y + radius,
-              radius,
-              Math.PI,
-              1.5 * Math.PI,
-            );
-            ctx.lineTo(x + actualBarWidth - radius, y);
-            ctx.arc(
-              x + actualBarWidth - radius,
-              y + radius,
-              radius,
-              1.5 * Math.PI,
-              0,
-            );
-            ctx.lineTo(x + actualBarWidth, y + barHeight);
-            ctx.closePath();
-            ctx.fill();
-          });
-
-          ctx.globalAlpha = 1.0;
-        }
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      animate();
-
-      return () => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-      };
-    } else {
-      // Draw idle state (minimal bars)
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      const barWidth = rect.width / barCount;
-      const spacing = Math.max(1, barWidth * 0.1);
-      const minBarHeight = 0.1 * rect.height;
+      const barWidth = width / barCount;
+      const spacing = Math.max(1, barWidth * 0.1); // 10% spacing between bars
 
       for (let i = 0; i < barCount; i++) {
+        const barHeight = valueAt(i) * canvasHeight;
         const x = i * barWidth;
-        const y = (rect.height - minBarHeight) / 2;
-        const isEven = i % 2 === 0;
-        const baseColor = isEven ? "#01928B" : "#FD9A02";
-        const hueShift = (i / barCount) * 60;
-        const adjustedColor = adjustColorHue(baseColor, hueShift);
+        const y = (canvasHeight - barHeight) / 2;
 
         ctx.globalAlpha = 0.7;
-        ctx.fillStyle = adjustedColor;
+        ctx.fillStyle = barColors[i];
 
+        // Rounded top effect using arc
         const actualBarWidth = barWidth - spacing;
         const radius = Math.min(4, actualBarWidth / 2);
 
         ctx.beginPath();
-        ctx.moveTo(x + spacing / 2, y + minBarHeight);
+        ctx.moveTo(x + spacing / 2, y + barHeight);
         ctx.lineTo(x + spacing / 2, y + radius);
         ctx.arc(
           x + spacing / 2 + radius,
@@ -154,19 +109,61 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           1.5 * Math.PI,
           0,
         );
-        ctx.lineTo(x + actualBarWidth, y + minBarHeight);
+        ctx.lineTo(x + actualBarWidth, y + barHeight);
         ctx.closePath();
         ctx.fill();
       }
 
       ctx.globalAlpha = 1.0;
+    };
+
+    if (isReady && isPlaying && getFrequencyData) {
+      const animate = () => {
+        const frequencies = getFrequencyData();
+        const bars = barsRef.current;
+
+        if (frequencies && bars.length === barCount) {
+          // Downsample frequency bins to barCount
+          const step = Math.floor(frequencies.length / barCount) || 1;
+          for (let i = 0; i < barCount; i++) {
+            let sum = 0;
+            let count = 0;
+            for (
+              let j = i * step;
+              j < (i + 1) * step && j < frequencies.length;
+              j++
+            ) {
+              sum += frequencies[j];
+              count++;
+            }
+            const avg = count ? sum / count : 0;
+            // getByteFrequencyData is already 0-255 magnitude, no midpoint
+            // to subtract — just normalize, with a small floor so quiet
+            // bars don't fully vanish.
+            bars[i] = Math.max(0.04, avg / 255);
+          }
+          drawBars((i) => bars[i]);
+        }
+
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      animate();
+
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+      };
+    } else {
+      // Idle state: minimal flat bars
+      drawBars(() => 0.1);
 
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
     }
-  }, [isPlaying, isReady, getWaveformData, barCount, height]);
+  }, [isPlaying, isReady, getFrequencyData, barCount, barColors]);
 
   if (error) {
     return <div className="text-destructive">Audio error: {error}</div>;

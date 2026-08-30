@@ -7,7 +7,14 @@
  */
 
 import React from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import {
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { formatTime } from "@/utils/formatters";
@@ -16,9 +23,15 @@ import ProgressBar from "../subcomponents/ProgressBar";
 interface StageTransportProps {
   /** Play the next queue item; omitted when the queue has nothing after this. */
   onNext?: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 }
 
-const StageTransport: React.FC<StageTransportProps> = ({ onNext }) => {
+const StageTransport: React.FC<StageTransportProps> = ({
+  onNext,
+  onToggleFullscreen,
+  isFullscreen = false,
+}) => {
   const {
     isPlaying,
     isReady,
@@ -46,40 +59,60 @@ const StageTransport: React.FC<StageTransportProps> = ({ onNext }) => {
         </span>
       </div>
 
-      <div className="flex items-center justify-center gap-10">
+      <div className="flex items-center justify-between">
+        {/* Balances the fullscreen button on the right so the transport
+            buttons stay centered on the row. */}
+        <div className="size-12 shrink-0" aria-hidden="true" />
+
+        <div className="flex items-center gap-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-16 text-foreground/70 hover:text-foreground"
+            disabled={!isReady}
+            onClick={() => seek(0)}
+            aria-label="Restart song"
+          >
+            <SkipBack className="size-8.5" fill="currentColor" />
+          </Button>
+
+          <Button
+            className="size-22 rounded-full bg-primary text-card-foreground shadow-glow-primary hover:bg-primary/90"
+            disabled={!isReady}
+            onClick={isPlaying ? userPause : userPlay}
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? (
+              <Pause className="size-10.5" fill="currentColor" />
+            ) : (
+              <Play className="size-10.5" fill="currentColor" />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-16 text-foreground/70 hover:text-foreground"
+            disabled={!onNext}
+            onClick={onNext}
+            aria-label="Play next song"
+          >
+            <SkipForward className="size-8.5" fill="currentColor" />
+          </Button>
+        </div>
+
         <Button
           variant="ghost"
           size="icon"
-          className="size-16 text-foreground/70 hover:text-foreground"
-          disabled={!isReady}
-          onClick={() => seek(0)}
-          aria-label="Restart song"
+          onClick={onToggleFullscreen}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          className="size-12 shrink-0 text-foreground/40 hover:text-foreground"
         >
-          <SkipBack className="size-8.5" fill="currentColor" />
-        </Button>
-
-        <Button
-          className="size-22 rounded-full bg-primary text-card-foreground shadow-glow-primary hover:bg-primary/90"
-          disabled={!isReady}
-          onClick={isPlaying ? userPause : userPlay}
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? (
-            <Pause className="size-10.5" fill="currentColor" />
+          {isFullscreen ? (
+            <Minimize className="size-6" />
           ) : (
-            <Play className="size-10.5" fill="currentColor" />
+            <Maximize className="size-6" />
           )}
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-16 text-foreground/70 hover:text-foreground"
-          disabled={!onNext}
-          onClick={onNext}
-          aria-label="Play next song"
-        >
-          <SkipForward className="size-8.5" fill="currentColor" />
         </Button>
       </div>
     </div>

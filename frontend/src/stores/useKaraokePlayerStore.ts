@@ -107,6 +107,7 @@ interface KaraokePlayerState {
   setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  getFrequencyData: () => number[] | null;
   setMiniPlayerEnabled: (enabled: boolean) => void;
   setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
   dismissMiniPlayer: () => void;
@@ -507,6 +508,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     getWaveformData: () => {
       return usePlaybackStateStore.getState().getWaveformData();
+    },
+
+    getFrequencyData: () => {
+      return usePlaybackStateStore.getState().getFrequencyData();
     },
 
     setMiniPlayerEnabled: (enabled: boolean) => {

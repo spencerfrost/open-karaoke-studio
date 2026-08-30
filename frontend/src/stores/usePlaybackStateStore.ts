@@ -35,6 +35,7 @@ export interface PlaybackStateState {
   resetSongEnded: () => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  getFrequencyData: () => number[] | null;
 
   // Internal state updaters
   updatePlaybackState: (
@@ -501,6 +502,13 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       if (!analyser) return null;
       const array = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(array);
+      return Array.from(array);
+    },
+
+    getFrequencyData: () => {
+      if (!analyser) return null;
+      const array = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(array);
       return Array.from(array);
     },
 
