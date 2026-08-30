@@ -29,23 +29,32 @@ Fix those two and the plans stop competing.
 | # | Unit | Plan | Depends on | Track |
 |---|---|---|---|---|
 | — | Stage redesign (3-col player) | [2026-08-28-stage-redesign.md](2026-08-28-stage-redesign.md) | — | **Largely landed** |
-| 0 | Kill the KJ | [2026-08-29-kj-removal.md](2026-08-29-kj-removal.md) | — | Backend + frontend deletion |
+| 0 | Kill the KJ | [2026-08-29-kj-removal.md](2026-08-29-kj-removal.md) | — | **Shipped** — `bfffe584f` |
 | 1 | Session lifecycle (backend) | [2026-08-29-session-lifecycle.md](2026-08-29-session-lifecycle.md) | 0 | Backend |
 | 2 | Stage mode shell | [2026-08-29-stage-mode.md](2026-08-29-stage-mode.md) | 1 | Frontend |
-| 3 | Roster + derived order | [The Rotation Problem](https://claude.ai/code/artifact/e8bcfb43-9e1b-4b5d-8bbf-12d242defb6c) §§ phases 1–2 | 1 | Backend |
-| 4 | The handoff screen | Rotation doc phase 3 | 2 **and** 3 | Frontend |
-| 5 | Performer accounts | Rotation doc §07 | 4 | Deferred |
+| 3 | Roster + derived order | [2026-08-29-roster-and-rotation.md](2026-08-29-roster-and-rotation.md) | 1 | Backend |
+| 4 | The handoff screen | [2026-08-29-handoff-screen.md](2026-08-29-handoff-screen.md) | 2 **and** 3 | Frontend |
+| 5 | Performer accounts | [2026-08-29-performer-accounts.md](2026-08-29-performer-accounts.md) | 4 | Deferred |
 
 **2 and 3 run in parallel.** That is the payoff of this ordering — after unit 1 lands there
 is a frontend track and a backend track that do not touch the same files until unit 4.
 
 ## Why this order
 
+> The rotation design behind units 3–5 lives as an artifact rather than a repo file:
+> [The Rotation Problem](https://claude.ai/code/artifact/e8bcfb43-9e1b-4b5d-8bbf-12d242defb6c).
+> The three plan docs are the buildable version of it, reconciled against what unit 0 deleted.
+
 **0 first, because it is deletion that unblocks two things.** Removing the KJ collapses
 `isHost` to a single meaning (a rename, not a refactor) and clears the `pending` /
 `queue_open` path out of the queue API *before* rotation rewrites ordering in it. It is the
 cheapest unit and unblocks the most. All three KJ columns are at defaults in every row of
 the live DB, so nothing is stranded and there is no data to migrate.
+
+**Unit 0 shipped on 2026-08-29 as `bfffe584f`,** with two deviations from its plan:
+`host_settings` was kept and trimmed to `session_duration_hours` rather than dropped, and
+`requester_is_host` was deleted rather than tightened. `User.is_host` also stays — it gates
+`require_host` on 19 endpoints. See that plan's postscript.
 
 **1 second, because both 2 and 3 land on broken code without it.**
 
@@ -101,10 +110,10 @@ stage mode deletes. Without a new home there would be no logout anywhere in the 
 
 ## Open questions carried across units
 
-- **Aborting a stuck song.** The TV takes no input during a performance, so skip/abort comes
-  from a phone — or the transport gets one escape affordance that survives rail collapse.
-  *(unit 2)*
 - **A phone queues while the TV sits in song select.** Does the TV react and move, or stay
   put? Becomes sharper once rotation derives order. *(unit 2, settled by 3)*
-- **`session_duration_hours`'s home** after `host_settings` loses its other columns.
-  *(unit 0 — see that plan)*
+- **Where the queue-order mode toggle lives.** Its intended home was the KJ dashboard, which
+  no longer exists. Not the TV — see unit 4's "what stays off this screen." *(unit 3)*
+- **Whether a roster entry expires**, and how long the auto-pass timer runs. *(units 3, 4)*
+- **The permission ladder** a `Performer` tier slots into, below the surviving `User.is_host`.
+  *(unit 5)*

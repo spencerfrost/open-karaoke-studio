@@ -1,5 +1,8 @@
 # Unit 0 — Kill the karaoke jockey
 
+> **Shipped 2026-08-29 as `bfffe584f`.** Kept for the reasoning; see the postscript at the
+> bottom for where the implementation diverged from this plan.
+
 Part of [2026-08-29-sequencing.md](2026-08-29-sequencing.md). Nothing depends on this unit
 landing first *for correctness*, but two later units get materially cheaper if it does.
 
@@ -166,3 +169,25 @@ Type-check is the real safety net here: every dangling reference to `isHost`, `s
 ```bash
 tmux capture-pane -t open-karaoke:0.0 -p | tail -30   # API logs
 ```
+
+---
+
+## Postscript — what actually shipped
+
+`bfffe584f refactor: remove the karaoke jockey and split isHost`. Three deviations from the
+plan above, all deliberate:
+
+**`host_settings` was kept, trimmed to `session_duration_hours`.** The open decision resolved
+to option 2 rather than the recommended drop — the table survives as the per-host defaults
+table it was always meant to be, and `demo_service.py` is untouched.
+
+**`requester_is_host` was deleted, not tightened.** It only ever existed to bypass the
+enforcement being removed here, so there was nothing left for it to gate.
+
+**`User.is_host` stays.** It gates `require_host` on 19 endpoints including
+`POST /api/sessions/my`, and demo accounts are hosts without being admins. Only the *session
+store's* `isHost` was split — into `isStageDevice` (client-decided) and `isSessionOwner`
+(server-derived), with the wire field renamed to match. Worth knowing: the WS `authenticated`
+handler had been overwriting the device role with session ownership on every reconnect.
+
+Also landed: `karaoke_queue.status` dropped entirely, so unit 3 adds `lap` to a clean row.
