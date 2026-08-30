@@ -15,6 +15,7 @@ import {
 import { useSongs } from "@/hooks/api/useSongs";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
+import { useRoster } from "@/hooks/api/useRoster";
 import { useSessionStore } from "@/stores/sessionStore";
 import { toast } from "sonner";
 import type { Song } from "@/types/Song";
@@ -86,6 +87,13 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
   const { getArtworkUrl } = useSongs();
   const { displayCode } = useSessionStore();
   const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
+  const { data: roster } = useRoster(displayCode || undefined);
+  // The most recently joined active performer is the closest proxy the roster
+  // gives us to "who's most likely up next" - falls back to "Host" only when
+  // the roster is empty.
+  const defaultSinger = roster?.length
+    ? roster[roster.length - 1].name
+    : "Host";
 
   const { suggestions, isLoading } = useSongSuggestions({
     currentSong,
@@ -98,7 +106,7 @@ export const QueueEnded: React.FC<QueueEndedProps> = ({
       return;
     }
     addToQueue.mutate(
-      { songId: song.id, singer: "Host" },
+      { songId: song.id, singer: defaultSinger },
       {
         onSuccess: () => toast.success(`Added "${song.title}" to the queue`),
         onError: () =>

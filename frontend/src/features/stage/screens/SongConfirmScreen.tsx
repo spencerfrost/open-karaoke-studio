@@ -6,8 +6,11 @@
  * display name, so the queue ends up as a wall of one person. Asking once, here,
  * costs a tap and makes the queue mean something.
  *
- * The chip row is deliberately a stand-in. Unit 3's roster replaces these
- * deduplicated queue strings with real performer entries.
+ * The name grid comes from the session roster (unit 3a) rather than
+ * deduplicated queue strings, so it includes everyone who has joined, been
+ * picked, or been added by name - not just people who have already queued a
+ * song. "Someone else…" is also this screen's second caller: unit 4's "That's
+ * not me" reuses it verbatim.
  */
 
 import React, { useState } from "react";
@@ -19,26 +22,28 @@ import { Label } from "@/components/ui/label";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import type { Song } from "@/types/Song";
+import type { SessionPerformer } from "@/types/SessionPerformer";
 import { useStageShell } from "../StageShellContext";
 
 interface SongConfirmScreenProps {
   song: Song;
-  /** Names already used in this session's queue, most recent first. */
-  recentSingers: string[];
+  /** The session's roster, seat order. */
+  roster: SessionPerformer[];
 }
 
 const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
   song,
-  recentSingers,
+  roster,
 }) => {
   const shell = useStageShell();
 
   const { getArtworkUrl } = useSongs();
   const { handlePlayAs, handleAddToQueue } = useSongActions(song);
 
-  // Seeded with the most recent singer: at a small party the same person often
-  // queues twice in a row, and it makes the field a confirmation, not a chore.
-  const [singer, setSinger] = useState(recentSingers[0] ?? "");
+  const [singer, setSinger] = useState(roster[0]?.name ?? "");
+  // The free-text field only shows once someone taps "Someone else…" - the
+  // common case is picking a name that's already on the roster.
+  const [showOther, setShowOther] = useState(roster.length === 0);
 
   const trimmed = singer.trim();
   const canSubmit = trimmed.length > 0;
@@ -85,34 +90,57 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
         </div>
 
         <div className="w-full max-w-xl space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="stage-singer" className="text-lg">
-              Who's singing?
-            </Label>
-            <Input
-              id="stage-singer"
-              value={singer}
-              onChange={(e) => setSinger(e.target.value)}
-              placeholder="Enter a name"
-              maxLength={50}
-              autoFocus
-              className="h-14 text-center text-2xl"
-            />
-          </div>
+          <Label className="text-lg">Who's singing?</Label>
 
-          {recentSingers.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {recentSingers.map((name) => (
+          {!showOther && roster.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-3">
+              {roster.map((performer) => (
                 <Button
-                  key={name}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSinger(name)}
-                  className="rounded-full"
+                  key={performer.id}
+                  variant={singer === performer.name ? "primary" : "outline"}
+                  size="lg"
+                  onClick={() => setSinger(performer.name)}
+                  className="rounded-full text-lg"
                 >
-                  {name}
+                  {performer.name}
                 </Button>
               ))}
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => {
+                  setSinger("");
+                  setShowOther(true);
+                }}
+                className="rounded-full text-lg"
+              >
+                Someone else…
+              </Button>
+            </div>
+          )}
+
+          {showOther && (
+            <div className="space-y-2">
+              <Input
+                id="stage-singer"
+                value={singer}
+                onChange={(e) => setSinger(e.target.value)}
+                placeholder="Enter a name"
+                maxLength={50}
+                autoFocus
+                className="h-14 text-center text-2xl"
+              />
+              {roster.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSinger(roster[0]?.name ?? "");
+                    setShowOther(false);
+                  }}
+                >
+                  Pick from the roster instead
+                </Button>
+              )}
             </div>
           )}
         </div>

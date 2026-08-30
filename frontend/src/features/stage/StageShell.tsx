@@ -18,6 +18,8 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { StageLayout } from "@/features/player/components/stage";
 import { usePlayerUI } from "@/features/player/hooks";
+import { useRoster } from "@/hooks/api/useRoster";
+import { useSessionStore } from "@/stores/sessionStore";
 import { cn } from "@/lib/utils";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
@@ -27,7 +29,6 @@ import {
   type StageScreen,
   type StageShellApi,
 } from "./StageShellContext";
-import { useRecentSingers } from "./useRecentSingers";
 import ExitStagePrompt from "./ExitStagePrompt";
 import SongSelectScreen from "./screens/SongSelectScreen";
 import SongConfirmScreen from "./screens/SongConfirmScreen";
@@ -53,7 +54,9 @@ const StageShell: React.FC<StageShellProps> = ({
   const ui = usePlayerUI();
   const [screen, setScreen] = useState<StageScreen>({ name: "performance" });
   const [isExitPromptOpen, setIsExitPromptOpen] = useState(false);
-  const recentSingers = useRecentSingers(queueItems);
+  const { displayCode } = useSessionStore();
+  const rosterQuery = useRoster(displayCode || undefined);
+  const roster = useMemo(() => rosterQuery.data ?? [], [rosterQuery.data]);
 
   const openPerformance = useCallback(
     () => setScreen({ name: "performance" }),
@@ -172,10 +175,7 @@ const StageShell: React.FC<StageShellProps> = ({
 
           {screen.name === "confirm" && (
             <div className="absolute inset-0 z-20 overflow-hidden">
-              <SongConfirmScreen
-                song={screen.song}
-                recentSingers={recentSingers}
-              />
+              <SongConfirmScreen song={screen.song} roster={roster} />
             </div>
           )}
 
