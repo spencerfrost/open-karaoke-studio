@@ -47,12 +47,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
         )}
 
         <div className="flex items-center gap-2">
-          <SessionInfoDisplay
-            variant="qr"
-            colorScheme="page"
-            trigger="hover"
-            visibility="host-only"
-          />
+          <SessionInfoDisplay />
           {/* Deliberately quiet: the mouse lives on the mic stand, and nobody
               walking up to sing should end the night by brushing this. */}
           <Button
