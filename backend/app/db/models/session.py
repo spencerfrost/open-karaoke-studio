@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from .base import Base
 
 if TYPE_CHECKING:
+    from .performer import SessionPerformer
     from .queue import KaraokeQueueItem
     from .song import DbSong
 
@@ -49,6 +50,11 @@ class KaraokeSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+
+    # Relationship to roster entries
+    performers: Mapped[List["SessionPerformer"]] = relationship(
+        "SessionPerformer", back_populates="session", cascade="all, delete-orphan"
     )
 
     @classmethod

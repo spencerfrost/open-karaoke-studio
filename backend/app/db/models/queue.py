@@ -2,7 +2,9 @@
 Karaoke queue item SQLAlchemy model.
 """
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -19,5 +21,10 @@ class KaraokeQueueItem(Base):
     session_id = Column(
         String(4), ForeignKey("karaoke_sessions.session_id"), nullable=False
     )
+    performer_id = Column(
+        Integer, ForeignKey("session_performers.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     song = relationship("DbSong", back_populates="queue_items")
     session = relationship("KaraokeSession", back_populates="queue_items")
+    performer = relationship("SessionPerformer")
