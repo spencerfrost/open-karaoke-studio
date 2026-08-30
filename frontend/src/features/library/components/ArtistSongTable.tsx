@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Music, ListPlus, MoreVertical, Trash, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Song } from "@/types/Song";
 import { Button } from "@/components/ui/button";
 import { useSongs } from "@/hooks/api/useSongs";
@@ -8,7 +9,6 @@ import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import { useSongDialogs } from "@/features/songs/hooks/useSongDialogs";
 import { SongManagementDialog } from "@/features/songs/components/song-details/SongManagementDialog";
-import { JoinSessionDialog } from "@/features/songs/components/JoinSessionDialog";
 import { DeleteSongDialog } from "@/features/songs/components/DeleteSongDialog";
 
 function formatDuration(seconds?: number): string {
@@ -31,7 +31,6 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   const isBlockingProcessing =
     !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
   const [imgError, setImgError] = useState(false);
-  const [showJoinDialog, setShowJoinDialog] = useState(false);
 
   const songActions = useSongActions(song);
   const dialogs = useSongDialogs();
@@ -40,16 +39,9 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
 
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (songActions.handleQueueClick()) {
-      // added directly
-    } else {
-      setShowJoinDialog(true);
+    if (!songActions.handleQueueClick()) {
+      toast.error("Start a session on the Stage to queue songs.");
     }
-  };
-
-  const handleJoinSuccess = (singerName: string) => {
-    songActions.handleAddToQueue(singerName);
-    setShowJoinDialog(false);
   };
 
   return (
@@ -127,13 +119,6 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
-      />
-
-      <JoinSessionDialog
-        isOpen={showJoinDialog}
-        onClose={() => setShowJoinDialog(false)}
-        onJoinSuccess={handleJoinSuccess}
-        context={`add "${song.title}" to the karaoke queue`}
       />
 
       <DeleteSongDialog

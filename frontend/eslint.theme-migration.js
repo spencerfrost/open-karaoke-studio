@@ -9,7 +9,6 @@
  * classes stop compiling entirely.
  */
 export const STAGE_3_PENDING = [
-  'src/components/SessionEntry.tsx',
   'src/components/session/SessionInfoDisplay.tsx',
   'src/features/library/components/AlphabeticalIndexBar.tsx',
   'src/features/library/components/AlphabeticalNavigation.tsx',
@@ -44,9 +43,7 @@ export const STAGE_3_PENDING = [
   'src/features/player/components/subcomponents/settings-menu/VolumeView.tsx',
   'src/features/queue/components/KaraokeQueueItem.tsx',
   'src/features/session/components/SessionEndModal.tsx',
-  'src/features/session/components/SessionJoinForm.tsx',
   'src/features/session/components/SessionRecoveryLoading.tsx',
   'src/features/session/components/WebsocketStatus.tsx',
-  'src/pages/QRJoinPage.tsx',
   'src/pages/Settings.tsx',
 ]

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React from "react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSongs } from "@/hooks/api/useSongs";
@@ -10,7 +11,6 @@ import { useSongDialogs } from "../../hooks/useSongDialogs";
 import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { SongManagementDialog } from "../song-details/SongManagementDialog";
-import { JoinSessionDialog } from "../JoinSessionDialog";
 import { SongCardProps } from "./SongCard.types";
 
 export const SongCard: React.FC<SongCardProps> = ({
@@ -36,24 +36,13 @@ export const SongCard: React.FC<SongCardProps> = ({
 
   const songActions = useSongActions(song, {}, sessionId);
   const dialogs = useSongDialogs();
-  const [showJoinDialog, setShowJoinDialog] = useState(false);
 
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (songActions.handleQueueClick()) {
-      // Song was added directly (user is in session)
-      // Could show a success toast here
-    } else {
-      // User not in session, show join dialog
-      setShowJoinDialog(true);
+    if (!songActions.handleQueueClick()) {
+      toast.error("Start a session on the Stage to queue songs.");
     }
-  };
-
-  const handleJoinSuccess = (singerName: string) => {
-    // After successful join, add the song to queue
-    songActions.handleAddToQueue(singerName);
-    setShowJoinDialog(false);
   };
 
   const handleDetailsClick = (e: React.MouseEvent) => {
@@ -111,13 +100,6 @@ export const SongCard: React.FC<SongCardProps> = ({
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
-      />
-
-      <JoinSessionDialog
-        isOpen={showJoinDialog}
-        onClose={() => setShowJoinDialog(false)}
-        onJoinSuccess={handleJoinSuccess}
-        context={`add "${song.title}" to the karaoke queue`}
       />
     </Card>
   );

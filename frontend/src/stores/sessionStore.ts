@@ -230,8 +230,9 @@ export const useSessionStore = create<SessionState>()(
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
             // The device role has to follow what was actually asked for:
-            // SessionGuard routes on this flag, so forcing it true here sent
-            // performers who created a session to the stage screen.
+            // RequireCapability's device="performer" check routes on this
+            // flag, so forcing it true here sent performers who created a
+            // session to the stage screen.
             isStageDevice: deviceType === "stage",
             deviceType,
             isConnected: true,

@@ -9,7 +9,6 @@
 
 import React, { useEffect, useRef } from "react";
 import { StageShell } from "@/features/stage";
-import { LoginForm } from "@/components/auth/LoginForm";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -139,26 +138,6 @@ const Stage: React.FC = () => {
       cleanupUpdated();
     };
   }, [queueQuery]);
-
-  // Running the stage means owning the night, and the server only hands a
-  // session to a host account.
-  if (!isAuthenticated && !displayCode) {
-    return (
-      <StageFrame>
-        <div className="text-center">
-          <h1 className="font-display text-4xl font-bold text-primary">
-            Start a session
-          </h1>
-          <p className="pt-2 text-lg text-muted-foreground">
-            Sign in as the host to open the stage.
-          </p>
-        </div>
-        <div className="w-full">
-          <LoginForm />
-        </div>
-      </StageFrame>
-    );
-  }
 
   // Show loading state during session recovery or creation
   if (isRecovering || (isConnecting && !displayCode)) {

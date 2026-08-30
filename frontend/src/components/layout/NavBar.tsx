@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface NavItem {
+export interface NavItem {
   name: string;
   path: string;
   icon: LucideIcon;

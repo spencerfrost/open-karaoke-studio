@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { useSongActions } from "../../hooks/useSongActions";
 import { useSongs } from "@/hooks/api/useSongs";
 import { formatTime } from "@/utils/formatters";
@@ -19,7 +19,6 @@ import { Song } from "@/types/Song";
 import { humanizeSongError } from "../../utils/errorMessage";
 import { SongAudioPreview } from "./SongAudioPreview";
 import { LyricsPreview } from "./LyricsPreview";
-import { InlineJoinForm } from "./InlineJoinForm";
 
 interface PerformerSongDrawerProps {
   song: Song;
@@ -32,41 +31,31 @@ export const PerformerSongDrawer: React.FC<PerformerSongDrawerProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { displayCode, displayName } = useSessionStore();
+  const access = useAccess();
   const songActions = useSongActions(song);
   const { getArtworkUrl } = useSongs();
   const artworkUrl = getArtworkUrl(song, "large");
 
-  const isInSession = !!(displayCode && displayName);
+  const canQueue = access.inSession && Boolean(access.singerName);
   const isProcessed = song.status === "processed";
   const hasError = song.status === "error";
   const songError = humanizeSongError(song.errorMessage);
 
   const [addedToQueue, setAddedToQueue] = useState(false);
 
-  const handleAddToQueue = useCallback(
-    (singerName?: string) => {
-      const name = singerName || displayName;
-      if (!name) return;
+  const handleAddToQueue = useCallback(() => {
+    const name = access.singerName;
+    if (!name) return;
 
-      songActions.handleAddToQueue(name);
-      setAddedToQueue(true);
+    songActions.handleAddToQueue(name);
+    setAddedToQueue(true);
 
-      // Auto-close after showing success
-      setTimeout(() => {
-        setAddedToQueue(false);
-        onClose();
-      }, 1200);
-    },
-    [displayName, songActions, onClose],
-  );
-
-  const handleJoinSuccess = useCallback(
-    (singerName: string) => {
-      handleAddToQueue(singerName);
-    },
-    [handleAddToQueue],
-  );
+    // Auto-close after showing success
+    setTimeout(() => {
+      setAddedToQueue(false);
+      onClose();
+    }, 1200);
+  }, [access.singerName, songActions, onClose]);
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
@@ -163,16 +152,15 @@ export const PerformerSongDrawer: React.FC<PerformerSongDrawerProps> = ({
               <Check size={18} className="mr-2" />
               Added to Queue!
             </Button>
-          ) : isInSession ? (
-            <Button onClick={() => handleAddToQueue()} className="w-full">
+          ) : canQueue ? (
+            <Button onClick={handleAddToQueue} className="w-full">
               <ListPlus size={18} className="mr-2" />
               Add to Queue
             </Button>
           ) : (
-            <InlineJoinForm
-              onJoinSuccess={handleJoinSuccess}
-              songTitle={song.title}
-            />
+            <p className="text-sm text-muted-foreground text-center">
+              Start a session on the Stage to queue songs.
+            </p>
           )}
         </DrawerFooter>
       </DrawerContent>

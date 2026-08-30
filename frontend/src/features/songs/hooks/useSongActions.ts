@@ -6,6 +6,7 @@ import {
   usePlayFromKaraokeQueue,
 } from "@/hooks/api/useKaraokeQueue";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
@@ -31,10 +32,11 @@ export const useSongActions = (
   const shell = useStageShell();
   const queryClient = useQueryClient();
   const { useDeleteSong } = useSongs();
-  const { displayCode, displayName, isStageDevice } = useSessionStore();
+  const { sessionId: storeSessionId } = useSessionStore();
+  const access = useAccess();
 
   // Use the provided sessionId or fall back to the current session from store
-  const currentSessionId = sessionId || (displayCode ? displayCode : undefined);
+  const currentSessionId = sessionId ?? storeSessionId ?? undefined;
 
   const addToKaraokeQueue = useAddToKaraokeQueue(currentSessionId);
   const playFromQueueMutation = usePlayFromKaraokeQueue(currentSessionId);
@@ -49,7 +51,7 @@ export const useSongActions = (
    */
   const handlePlayAs = async (singerName?: string) => {
     // If not host, cannot play now
-    if (!isStageDevice) {
+    if (!access.isStageDevice) {
       toast.error("Only the host device can start playing songs");
       return;
     }
@@ -64,7 +66,7 @@ export const useSongActions = (
       // Step 1: Add song to queue
       const queueResponse = await addToKaraokeQueue.mutateAsync({
         songId: song.id,
-        singer: singerName?.trim() || displayName || "Unknown Singer",
+        singer: singerName?.trim() || access.singerName || "Unknown Singer",
       });
 
       // Step 2: Immediately play it from queue (moves to position 0)
@@ -132,12 +134,13 @@ export const useSongActions = (
     }
 
     // Check if user is in an active session
-    if (displayCode && displayName) {
+    if (access.inSession && access.singerName) {
       // User is in session and has a display name, add directly to queue
-      handleAddToQueue(displayName);
+      handleAddToQueue(access.singerName);
       return true;
     }
-    // User not in session or no display name, need to show join dialog
+    // No session to queue into - the gate means this can now only happen to
+    // an account holder (a guest can't reach this screen without a session).
     return false;
   };
 

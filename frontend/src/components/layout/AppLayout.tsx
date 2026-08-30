@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import NavBar from "./NavBar";
+import NavBar, { type NavItem } from "./NavBar";
 import {
   Music,
   Upload,
@@ -9,8 +9,7 @@ import {
   Waves,
   Settings,
 } from "lucide-react";
-import { useSessionStore } from "@/stores/sessionStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAccess } from "@/hooks/useAccess";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -25,58 +24,49 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   contentClassName = "p-2 sm:p-4",
 }) => {
-  const { isStageDevice, sessionId } = useSessionStore();
-  const { user } = useAuthStore();
+  const access = useAccess();
 
-  // Filter navigation items based on user's device type
+  // Tabs mirror routes/guards.tsx's capability checks exactly, so nothing
+  // shown here is a dead end.
   const getNavigationItems = () => {
-    const baseItems = [
+    const items: NavItem[] = [
       { name: "Library", path: "/", icon: Music },
       { name: "Add", path: "/add", icon: Upload },
     ];
 
-    // Settings is where the account lives - logging in as a host, and logging
-    // out - so it has to be reachable from the nav, not just by URL.
-    const hostItems = [{ name: "Settings", path: "/settings", icon: Settings }];
-    if (user?.isAdmin) {
-      hostItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
-      hostItems.push({
+    // A host account can always reach /stage - it's what creates a session,
+    // so it isn't gated on having one. Highlighted once this device is the
+    // one actually running the night.
+    if (access.isHost) {
+      items.push({
+        name: "Stage",
+        path: "/stage",
+        icon: List,
+        highlight: access.inSession && access.isStageDevice,
+      });
+    }
+
+    // Any non-stage device in a live session can reach /controls, host or not.
+    if (access.inSession && !access.isStageDevice) {
+      items.push({ name: "Controls", path: "/controls", icon: Sliders });
+    }
+
+    // Settings is where the account lives - so any account holder needs it
+    // reachable, not just a host.
+    if (access.isAuthenticated) {
+      items.push({ name: "Settings", path: "/settings", icon: Settings });
+    }
+
+    if (access.isAdmin) {
+      items.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
+      items.push({
         name: "Compare",
         path: "/admin/compare-three-track",
         icon: Waves,
       });
     }
 
-    // No session yet. A host still needs a way in: entering stage mode is the
-    // only thing that starts a session, so gating this tab on a session
-    // existing would leave the URL bar as the sole entry point.
-    if (!sessionId) {
-      const canHost = user?.isHost || user?.isAdmin;
-      return canHost
-        ? [
-            ...baseItems,
-            { name: "Stage", path: "/stage", icon: List },
-            ...hostItems,
-          ]
-        : [...baseItems, ...hostItems];
-    }
-
-    // Host devices see "Stage" tab. A live session makes it the way back into
-    // stage mode, so it is highlighted - being out here is the temporary state.
-    if (isStageDevice) {
-      return [
-        ...baseItems,
-        { name: "Stage", path: "/stage", icon: List, highlight: true },
-        ...hostItems,
-      ];
-    }
-
-    // Performer devices see "Controls" tab
-    return [
-      ...baseItems,
-      { name: "Controls", path: "/controls", icon: Sliders },
-      ...hostItems,
-    ];
+    return items;
   };
 
   return (

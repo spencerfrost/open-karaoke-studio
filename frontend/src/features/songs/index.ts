@@ -5,7 +5,6 @@
 
 // Component exports
 export { DeleteSongDialog } from "./components/DeleteSongDialog";
-export { JoinSessionDialog } from "./components/JoinSessionDialog";
 export { YoutubeMusicResultCard } from "./components/YoutubeMusicResultCard";
 export { YouTubeResultCard } from "./components/YoutubeVideoResultCard";
 
