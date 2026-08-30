@@ -51,19 +51,22 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
       </div>
 
       <div className={cn(cardClass, "min-h-0 flex-1 gap-4")}>
-        <span className={railLabelClass}>Up Next</span>
+        <div className="flex shrink-0 items-center justify-between">
+          <span className={railLabelClass}>Up Next</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => openSongSelect()}
+            aria-label="Browse library"
+            className="text-foreground/40 hover:text-foreground"
+          >
+            <Library className="size-4.5" />
+          </Button>
+        </div>
 
         {upcoming.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
             <p className="text-lg text-foreground/60">Nothing queued yet</p>
-            <Button
-              variant="secondary"
-              className="gap-2"
-              onClick={() => openSongSelect()}
-            >
-              <Library className="size-4" />
-              Browse library
-            </Button>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
