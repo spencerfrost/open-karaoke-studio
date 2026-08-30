@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useSessionStore } from "@/stores/sessionStore";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { generateSessionPlaylist } from "@/services/api";
+import { getAuthHeaders } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
 import SessionEndModal from "./SessionEndModal";
 
@@ -25,7 +26,11 @@ const EndSessionButton: React.FC<EndSessionButtonProps> = ({ className }) => {
     endedSessionId.current = sessionId;
 
     try {
-      await fetch(`/api/sessions/${sessionId}/leave`, { method: "POST" });
+      // The owner ending the night retires the whole session, not just this device.
+      await fetch(`/api/sessions/${sessionId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
     } catch (err) {
       logger.warn("Failed to notify server of session end:", err);
     }

@@ -1,6 +1,6 @@
 """Integration tests for /api/sessions REST endpoints."""
-import uuid
 
+import uuid
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper
@@ -192,11 +192,25 @@ def test_validate_session_not_found(client):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_leave_session_not_in_session(client):
+def test_leave_session_requires_a_membership_credential(client):
     session = _create_session(client)
     resp = client.post(f"/api/sessions/{session['session_id']}/leave")
-    # TestClient IP is "testclient" — not in the session
-    assert resp.status_code == 404
+    # Leaving identifies the device by its X-Session-ID / X-Device-ID credential; without
+    # one there is no device to leave. (This used to be matched against the request IP,
+    # which no device id could ever equal, so leaving always 404'd.)
+    assert resp.status_code == 422
+
+
+def test_leave_session_rejects_an_unknown_device(client):
+    session = _create_session(client)
+    resp = client.post(
+        f"/api/sessions/{session['session_id']}/leave",
+        headers={
+            "X-Session-ID": session["session_id"],
+            "X-Device-ID": "rest_not_a_real_device",
+        },
+    )
+    assert resp.status_code == 403
 
 
 # ─────────────────────────────────────────────────────────────────────────────

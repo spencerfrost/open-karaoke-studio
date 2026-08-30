@@ -66,6 +66,9 @@ def _get_mock_user():
     # Explicit: a MagicMock attribute would otherwise be truthy and trip
     # demo-quota logic on every test that resolves the requester.
     mock_user.is_demo = False
+    # Likewise explicit: this reaches the DB as a device's display_name, and SQLite cannot
+    # bind a MagicMock.
+    mock_user.display_name = "testuser"
     return mock_user
 
 

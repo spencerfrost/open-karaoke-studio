@@ -534,8 +534,18 @@ export const useSessionStore = create<SessionState>()(
         if (!sessionId) return;
 
         try {
+          // /leave identifies the device by its session credential; without these
+          // headers the request is rejected and this device stays listed as connected.
+          const { deviceId } = get();
+          const token = useAuthStore.getState().token;
           const response = await fetch(`/api/sessions/${sessionId}/leave`, {
             method: "POST",
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(deviceId
+                ? { "X-Session-ID": sessionId, "X-Device-ID": deviceId }
+                : {}),
+            },
           });
 
           if (!response.ok) {

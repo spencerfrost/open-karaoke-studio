@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from app.db.database import get_db_session
 from app.db.models import KaraokeSession, SessionPlaybackState, User
 from app.services.auth_service import verify_token
+from app.services.session_service import deactivate_session
 
 from .connection_manager import SessionConnectionManager
 from .queue import get_current_queue_state
@@ -286,7 +287,9 @@ async def websocket_unified_session_endpoint(
                     )
 
                 await websocket.send_text(
-                    json.dumps({"type": "authenticated", "is_session_owner": is_session_owner})
+                    json.dumps(
+                        {"type": "authenticated", "is_session_owner": is_session_owner}
+                    )
                 )
                 continue
 
@@ -474,56 +477,21 @@ async def websocket_unified_session_endpoint(
                             f"🛑 Host grace period expired for session {session_id} - terminating session"
                         )
 
-                        # Broadcast session_ended to all connected devices
-                        await manager.broadcast_to_room(
-                            session_room,
-                            {"type": "session_ended", "reason": "Host disconnected"},
-                        )
-
-                        # Give the broadcast a moment to be delivered
-                        await asyncio.sleep(0.2)
-
-                        # Delete the session from the database to recycle the session code
+                        # Deactivate rather than delete: the queue, playback state and
+                        # roster have to survive a host whose phone simply locked.
                         try:
                             with get_db_session() as db:
-                                from app.db.models import KaraokeSession
-
-                                session = (
-                                    db.query(KaraokeSession)
-                                    .filter(KaraokeSession.session_id == session_id)
-                                    .first()
-                                )
-                                if session:
-                                    db.delete(session)
-                                    db.commit()
-                                    logger.info(
-                                        "🗑️  Session %s deleted from database (code recycled)",
-                                        session_id,
-                                    )
+                                deactivate_session(db, session_id)
                         except Exception as e:
                             logger.error(
-                                "❌ Failed to delete session from database: %s", e
+                                "❌ Failed to deactivate session %s: %s", session_id, e
                             )
 
-                        # Force close all other connections in this session
-                        if session_room in manager.rooms:
-                            connections_to_close = list(manager.rooms[session_room])
-                            for conn in connections_to_close:
-                                try:
-                                    await conn.close(
-                                        code=1000, reason="Session ended by host"
-                                    )
-                                    logger.debug(
-                                        f"🔌 Force closed connection {id(conn)} for session {session_id}"
-                                    )
-                                except Exception as e:
-                                    logger.error(
-                                        f"❌ Failed to close connection {id(conn)}: {e}"
-                                    )
-                            manager.rooms[session_room] = []
-
-                        # Clean up performance state for this session
-                        cleanup_session_performance_state(session_id)
+                        # Broadcasts session_ended, closes every socket in the room and
+                        # clears this session's performance state.
+                        await manager.force_close_session_connections(
+                            session_id, reason="Host disconnected"
+                        )
 
                         # Remove the termination task entry
                         session_termination_tasks.pop(session_id, None)

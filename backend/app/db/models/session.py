@@ -58,7 +58,12 @@ class KaraokeSession(Base):
 
     @classmethod
     def generate_display_code(cls, db_session) -> str:
-        """Generate a unique 4-character display code using only capital letters, checking against active sessions."""
+        """Generate a 4-character display code unused by any session, active or retired.
+
+        Retired sessions keep their row, and display_code is UNIQUE, so a code is only free
+        once `purge_stale_sessions` has removed the row holding it - checking active
+        sessions alone would hand back a code that then fails on insert.
+        """
         # Use only uppercase letters for simplicity and readability
         chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -67,16 +72,7 @@ class KaraokeSession(Base):
         for _ in range(max_attempts):
             code = "".join(secrets.choice(chars) for _ in range(4))
 
-            # Check if this code is already in use by an active session
-            existing = (
-                db_session.query(cls)
-                .filter(
-                    cls.display_code == code,
-                    cls.is_active == True,
-                    cls.expires_at > datetime.utcnow(),
-                )
-                .first()
-            )
+            existing = db_session.query(cls).filter(cls.display_code == code).first()
 
             if not existing:
                 return code

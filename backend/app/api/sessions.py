@@ -11,14 +11,23 @@ This module provides REST API endpoints for session management:
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Generator, List, Optional
 
-from app.api.dependencies import get_current_user, require_host
+from app.api.dependencies import (
+    _resolve_user,
+    get_current_user,
+    optional_security,
+    require_host,
+    require_session_member,
+)
 from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionDevice, User
 from app.limiter import limiter
+from app.services.session_service import deactivate_session
+from app.ws.session_specific import session_termination_tasks
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -64,6 +73,10 @@ class SessionCreateRequest(BaseModel):
         default="stage", description="Type of device (stage, performer, audience)"
     )
     display_name: Optional[str] = Field(None, description="Display name for the host")
+    device_id: Optional[str] = Field(
+        None,
+        description="Existing device id to reuse, so remounting does not inflate the device count",
+    )
 
 
 class SessionJoinByCodeRequest(BaseModel):
@@ -150,6 +163,37 @@ def deactivate_expired_sessions(db: Session) -> int:
     return updated
 
 
+def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
+    """
+    Hard-delete long-dead sessions, releasing their display codes.
+
+    Sessions are retired by deactivation so their queue survives, but `session_id` doubles
+    as the unique 4-character `display_code`, so retained rows hold their code out of
+    circulation forever. Rows that have been inactive for `older_than_days` are past any
+    use and are deleted outright (cascading to their queue items and playback state).
+    Returns the number of sessions removed.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+
+    stale = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.is_active.is_(False),
+            KaraokeSession.created_at <= cutoff,
+        )
+        .all()
+    )
+
+    for session in stale:
+        db.delete(session)
+
+    if stale:
+        db.commit()
+        logger.info("Purged %d stale session(s), releasing their codes", len(stale))
+
+    return len(stale)
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -227,6 +271,10 @@ async def get_or_create_my_session(
     # stale row cannot be picked below and cause a duplicate session to be created.
     deactivate_expired_sessions(db)
 
+    # Retired sessions keep their row - and therefore their display code - so long-dead
+    # ones are cleared here to return those codes to circulation.
+    purge_stale_sessions(db)
+
     # Check for an existing live session. Expiry is filtered in SQL and the newest session
     # wins - an unordered .first() could otherwise return a stale row, fail the expiry check,
     # and orphan a live session that still has performers in it.
@@ -242,18 +290,39 @@ async def get_or_create_my_session(
     )
 
     if existing:
-        # Register this device in the existing session
-        device_id = f"rest_{uuid.uuid4().hex[:12]}"
         device_type = session_data.device_type
-        device = SessionDevice(
-            session_id=existing.session_id,
-            device_id=device_id,
-            device_type=device_type,
-            user_agent=user_agent,
-            display_name=session_data.display_name or current_user.display_name,
+        display_name = session_data.display_name or current_user.display_name
+
+        # Reuse the caller's device row if it is already in this session. Without this every
+        # remount inserts another row and inflates device_count and the device list.
+        device = (
+            db.query(SessionDevice)
+            .filter(
+                SessionDevice.session_id == existing.session_id,
+                SessionDevice.device_id == session_data.device_id,
+                SessionDevice.is_active.is_(True),
+            )
+            .first()
+            if session_data.device_id
+            else None
         )
-        db.add(device)
+
+        if device:
+            device.device_type = device_type
+            device.user_agent = user_agent
+            device.display_name = display_name
+        else:
+            device = SessionDevice(
+                session_id=existing.session_id,
+                device_id=f"rest_{uuid.uuid4().hex[:12]}",
+                device_type=device_type,
+                user_agent=user_agent,
+                display_name=display_name,
+            )
+            db.add(device)
+
         db.commit()
+        device_id = device.device_id
 
         active_devices = (
             db.query(SessionDevice)
@@ -639,14 +708,16 @@ async def get_session_info(
     session_id: str,
     request: Request,
     device_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: Session = Depends(get_db),
 ):
     """
     Get information about a specific session.
 
-    Pass `device_id` as a query parameter to correctly determine `is_host`
-    for REST-created sessions (where host_device_id is a 'rest_xxx' token,
-    not an IP address).
+    `is_host` comes from the bearer token when one is supplied, since ownership lives on
+    `host_user_id` - the same source the session WebSocket uses. Anonymous callers fall
+    back to comparing `host_device_id`, so pass `device_id` as a query parameter for that
+    path (host_device_id is a 'rest_xxx' token, not an IP address).
     """
     # Find session
     session = (
@@ -668,6 +739,12 @@ async def get_session_info(
     client_identity = device_id or (
         request.client.host if request.client else "unknown"
     )
+
+    # Ownership lives on host_user_id; the device comparison is only for anonymous callers.
+    if credentials is not None:
+        is_host = _resolve_user(credentials.credentials, db).id == session.host_user_id
+    else:
+        is_host = client_identity == session.host_device_id
 
     # Get all active devices in the session
     active_devices = (
@@ -693,7 +770,7 @@ async def get_session_info(
     return SessionResponse(
         session_id=session.session_id,
         display_code=session.display_code,
-        is_host=client_identity == session.host_device_id,
+        is_host=is_host,
         device_count=len(connected_devices),
         connected_devices=connected_devices,
         created_at=session.created_at.isoformat(),
@@ -739,42 +816,74 @@ async def validate_session(session_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{session_id}/leave", response_model=SessionLeaveResponse)
 async def leave_session(
-    session_id: str, request: Request, db: Session = Depends(get_db)
+    session_id: str,
+    device: SessionDevice = Depends(require_session_member),
+    db: Session = Depends(get_db),
 ):
     """
-    Leave a specific session.
+    Leave a specific session - this device only, never ending the session itself.
+
+    The device is resolved from the caller's X-Session-ID / X-Device-ID credential. An
+    earlier version looked it up by request IP, which could never match the `rest_<hex>`
+    device ids this API issues, so leaving always 404'd. Ending a session outright is
+    `DELETE /{session_id}`, which only the owning host may call.
     """
-    client_host = request.client.host if request.client else "unknown"
+    if device.session_id != session_id:
+        raise HTTPException(status_code=403, detail="Not a member of this session")
 
-    # Find the device in the session
-    device = (
-        db.query(SessionDevice)
-        .filter(
-            SessionDevice.session_id == session_id,
-            SessionDevice.device_id == client_host,
-            SessionDevice.is_active == True,
-        )
-        .first()
-    )
-
-    if not device:
-        raise HTTPException(status_code=404, detail="Not in this session")
-
-    # Mark device as inactive
-    device.is_active = False
+    # require_session_member resolves the row through app.api.dependencies.get_db, which is
+    # a different Session from this module's, so mutate the row this endpoint owns.
+    db.query(SessionDevice).filter(
+        SessionDevice.session_id == session_id,
+        SessionDevice.device_id == device.device_id,
+    ).update({SessionDevice.is_active: False}, synchronize_session=False)
     db.commit()
 
-    # Check if this was the host
+    logger.info("Device %s left session %s", device.device_id, session_id)
+
+    return SessionLeaveResponse(message="Left session successfully")
+
+
+@router.delete("/{session_id}", response_model=SessionLeaveResponse)
+async def end_session(
+    session_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    End a session: deactivate it and all of its devices, and close its WebSocket room.
+
+    The session row, its queue items and its playback state are all kept - a session is
+    retired, never deleted, so its history survives and a stale row cannot take the queue
+    down with it. `purge_stale_sessions` reclaims the row (and its code) later.
+    """
     session = (
         db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
     )
 
-    if session and client_host == session.host_device_id:
-        # If host is leaving, mark session as inactive
-        session.is_active = False
-        db.commit()
-        logger.info("Session %s ended - host left", session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
 
-    logger.info("Device %s left session %s", client_host, session_id)
+    if session.host_user_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail="Only the session's host can end it"
+        )
 
-    return SessionLeaveResponse(message="Left session successfully")
+    deactivate_session(db, session_id)
+
+    manager = getattr(request.app.state, "session_manager", None)
+    if manager is not None:
+        await manager.force_close_session_connections(
+            session_id, reason="Session ended by host"
+        )
+
+    # A host who ends the session explicitly should not also be terminated a second time
+    # when the grace timer for their now-closed socket fires.
+    pending = session_termination_tasks.pop(session_id, None)
+    if pending is not None:
+        pending.cancel()
+
+    logger.info("Host %s ended session %s", current_user.username, session_id)
+
+    return SessionLeaveResponse(message="Session ended")
