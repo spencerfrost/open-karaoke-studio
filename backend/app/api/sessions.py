@@ -22,9 +22,15 @@ from app.api.dependencies import (
     require_session_member,
 )
 from app.db.database import SessionLocal
-from app.db.models import KaraokeSession, SessionDevice, User
+from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
+from app.services.roster_service import (
+    resolve_or_create_performer,
+    resolve_or_create_performer_verbose,
+)
 from app.services.session_service import deactivate_session
+from app.ws.connection_manager import SessionConnectionManager
+from app.ws.queue import broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
@@ -115,6 +121,21 @@ class SessionLeaveResponse(BaseModel):
     message: str
 
 
+class PerformerResponse(BaseModel):
+    """Response model for a roster entry"""
+
+    id: int
+    name: str
+    seat: int
+    is_active: bool
+
+
+class PerformerCreateRequest(BaseModel):
+    """Request model for adding a name to the roster without queueing anything"""
+
+    name: str = Field(..., min_length=1, max_length=100, description="Performer name")
+
+
 # ============================================================================
 # Dependencies
 # ============================================================================
@@ -131,6 +152,11 @@ def get_db() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
+
+
+def get_session_manager(request: Request) -> SessionConnectionManager:
+    """Get the shared SessionConnectionManager from app state."""
+    return request.app.state.session_manager
 
 
 # ============================================================================
@@ -321,6 +347,11 @@ async def get_or_create_my_session(
             )
             db.add(device)
 
+        if display_name:
+            resolve_or_create_performer(
+                db, existing.session_id, display_name, device_id=device.device_id
+            )
+
         db.commit()
         device_id = device.device_id
 
@@ -383,6 +414,15 @@ async def get_or_create_my_session(
                 display_name=session_data.display_name or current_user.display_name,
             )
             db.add(host_device)
+
+            if host_device.display_name:
+                resolve_or_create_performer(
+                    db,
+                    session.session_id,
+                    host_device.display_name,
+                    device_id=host_device.device_id,
+                )
+
             db.commit()
 
             logger.info(
@@ -553,6 +593,12 @@ async def join_session_by_code(
         display_name=display_name,
     )
     db.add(device)
+
+    if display_name:
+        resolve_or_create_performer(
+            db, session.session_id, display_name, device_id=device_id
+        )
+
     db.commit()
 
     # Get all active devices in the session
@@ -660,6 +706,12 @@ async def join_session_by_id(
         display_name=display_name,
     )
     db.add(device)
+
+    if display_name:
+        resolve_or_create_performer(
+            db, session.session_id, display_name, device_id=client_host
+        )
+
     db.commit()
 
     # Get all active devices in the session
@@ -887,3 +939,68 @@ async def end_session(
     logger.info("Host %s ended session %s", current_user.username, session_id)
 
     return SessionLeaveResponse(message="Session ended")
+
+
+@router.get("/{session_id}/performers", response_model=List[PerformerResponse])
+async def list_performers(
+    session_id: str,
+    db: Session = Depends(get_db),
+):
+    """List the session's roster - everyone who has joined, been picked, or been
+    added by name, whether or not they have a device attached."""
+    performers = (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.session_id == session_id,
+            SessionPerformer.is_active.is_(True),
+        )
+        .order_by(SessionPerformer.seat)
+        .all()
+    )
+    return [
+        PerformerResponse(id=p.id, name=p.name, seat=p.seat, is_active=p.is_active)
+        for p in performers
+    ]
+
+
+@router.post(
+    "/{session_id}/performers", response_model=PerformerResponse, status_code=201
+)
+async def add_performer(
+    session_id: str,
+    performer_data: PerformerCreateRequest,
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Add a name to the roster without queueing anything - for pre-adding someone
+    who isn't touching a screen right now. Dedupes against an existing entry the
+    same way every other roster entry point does."""
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.session_id == session_id,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or inactive")
+
+    try:
+        performer, created = resolve_or_create_performer_verbose(
+            db, session_id, performer_data.name
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    db.commit()
+
+    if created:
+        await broadcast_roster_update(manager, session_id, performer.name)
+
+    return PerformerResponse(
+        id=performer.id,
+        name=performer.name,
+        seat=performer.seat,
+        is_active=performer.is_active,
+    )

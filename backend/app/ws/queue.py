@@ -67,10 +67,7 @@ async def get_current_queue_state(session_id: str):
                 start=1,
             ):
                 if item.song:  # Ensure song exists
-                    # Handle potential null timestamps gracefully
-                    added_at = None
-                    if hasattr(item, "created_at") and item.created_at:
-                        added_at = item.created_at.isoformat()
+                    added_at = item.created_at.isoformat() if item.created_at else None
 
                     upcoming_data.append(
                         {
@@ -104,9 +101,11 @@ async def get_current_queue_state(session_id: str):
 
             current_data = None
             if current_item and current_item.song:
-                added_at = None
-                if hasattr(current_item, "created_at") and current_item.created_at:
-                    added_at = current_item.created_at.isoformat()
+                added_at = (
+                    current_item.created_at.isoformat()
+                    if current_item.created_at
+                    else None
+                )
 
                 current_data = {
                     "id": current_item.id,
@@ -147,6 +146,17 @@ async def get_current_queue_state(session_id: str):
     except Exception as e:
         logger.error("Error getting queue state from PostgreSQL: %s", e)
         return {"current": None, "upcoming": [], "items": []}
+
+
+async def broadcast_roster_update(
+    manager: SessionConnectionManager, session_id: str, performer_name: str
+):
+    """Broadcast a new roster entry so a picker already on screen sees it live."""
+    session_room = manager.get_session_room_name(session_id)
+    await manager.broadcast_to_room(
+        session_room,
+        {"type": "roster_updated", "name": performer_name},
+    )
 
 
 # Queue broadcasting functions

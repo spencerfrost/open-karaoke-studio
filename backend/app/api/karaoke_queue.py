@@ -26,8 +26,9 @@ from app.db.models import (
     SessionPlaybackState,
     User,
 )
+from app.services.roster_service import resolve_or_create_performer_verbose
 from app.ws.connection_manager import SessionConnectionManager
-from app.ws.queue import broadcast_queue_update
+from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
@@ -206,11 +207,7 @@ def queue_item_to_response(
         songId=item.song_id,
         singer=item.singer_name,
         position=position_override if position_override is not None else item.position,
-        addedAt=(
-            item.created_at.isoformat()
-            if hasattr(item, "created_at") and item.created_at
-            else None
-        ),
+        addedAt=item.created_at.isoformat() if item.created_at else None,
         song=song_to_info(item.song),
     )
 
@@ -365,16 +362,27 @@ async def add_to_queue(
     max_position = max_position_query.order_by(KaraokeQueueItem.position.desc()).first()
     new_position = (max_position[0] + 1) if max_position else 1
 
+    try:
+        performer, performer_created = resolve_or_create_performer_verbose(
+            db, session_code, queue_data.singer
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     # Create new queue item
     new_item = KaraokeQueueItem(
         singer_name=queue_data.singer,
         song_id=queue_data.songId,
         session_id=session_code,
         position=new_position,
+        performer_id=performer.id,
     )
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    if performer_created:
+        await broadcast_roster_update(manager, session_code, performer.name)
 
     await broadcast_queue_update(manager, session_code)
 
@@ -383,11 +391,7 @@ async def add_to_queue(
         songId=new_item.song_id,
         singer=new_item.singer_name,
         position=new_item.position,
-        addedAt=(
-            new_item.created_at.isoformat()
-            if hasattr(new_item, "created_at") and new_item.created_at
-            else None
-        ),
+        addedAt=new_item.created_at.isoformat() if new_item.created_at else None,
         song=song_to_info(song),
     )
 
@@ -518,6 +522,12 @@ async def play_queue_item(
                 song_id=previous_current_item.song_id,
                 singer_name=previous_current_item.singer_name,
                 session_id=session_code,
+                performer_id=previous_current_item.performer_id,
+                user_id=(
+                    previous_current_item.performer.user_id
+                    if previous_current_item.performer
+                    else None
+                ),
             )
             db.add(history_entry)
             db.delete(previous_current_item)
