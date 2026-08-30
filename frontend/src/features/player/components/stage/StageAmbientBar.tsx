@@ -22,12 +22,12 @@ const StageAmbientBar: React.FC<StageAmbientBarProps> = ({ visible }) => {
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col transition-opacity duration-500",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 transition-opacity duration-500",
         visible ? "opacity-100" : "opacity-0",
       )}
     >
-      <AudioVisualizer height={56} className="px-8" />
-      <div className={cn("px-8 pb-2", visible && "pointer-events-auto")}>
+      <AudioVisualizer height={56} />
+      <div className={cn(visible && "pointer-events-auto")}>
         <ProgressBar
           currentTime={currentTime}
           duration={duration}
