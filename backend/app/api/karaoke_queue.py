@@ -12,7 +12,11 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import Generator, List, Optional
 
-from app.api.dependencies import get_current_user, require_host
+from app.api.dependencies import (
+    RequesterContext,
+    require_host,
+    require_host_or_session_member,
+)
 from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
@@ -25,7 +29,6 @@ from app.db.models import (
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -129,6 +132,43 @@ def get_session_code(
     if not code:
         raise HTTPException(status_code=400, detail="session_code is required")
     return code
+
+
+def require_queue_access(
+    session_code: str = Depends(get_session_code),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+) -> str:
+    """The session code this caller is allowed to touch.
+
+    An account holder may address any session - hosts run them, and the
+    planned performer tier is scoped by its own membership anyway. An
+    anonymous session guest is confined to the session their device
+    credential names.
+    """
+    if requester.user is None and requester.session_id != session_code:
+        raise HTTPException(status_code=403, detail="Not a member of that session")
+    return session_code
+
+
+def require_session_owner(
+    session_code: str = Depends(get_session_code),
+    current_user: User = Depends(require_host),
+    db: Session = Depends(get_db),
+) -> KaraokeSession:
+    """The session this caller may mutate - their own, or any if they're an admin."""
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.session_id == session_code,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found or inactive")
+    if session.host_user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not your session")
+    return session
 
 
 # ============================================================================
@@ -269,7 +309,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
 
 @router.get("", response_model=QueueStateResponse)
 async def get_queue(
-    session_code: str = Depends(get_session_code),
+    session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
 ):
     """
@@ -281,7 +321,7 @@ async def get_queue(
 @router.post("", response_model=QueueItemResponse, status_code=201)
 async def add_to_queue(
     queue_data: QueueAddRequest,
-    session_code: str = Depends(get_session_code),
+    session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
 ):
@@ -358,7 +398,7 @@ async def remove_from_queue(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Remove an item from the karaoke queue.
@@ -402,7 +442,7 @@ async def reorder_queue(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Reorder the karaoke queue.
@@ -437,7 +477,7 @@ async def play_queue_item(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Play a specific item from the queue (moves it to the player).
@@ -525,7 +565,7 @@ async def skip_current_song(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """Skip the currently playing song and advance to the next in queue."""
     playback_state = get_or_create_playback_state(db, session_code)
