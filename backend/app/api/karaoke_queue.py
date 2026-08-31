@@ -34,6 +34,7 @@ from app.services.queue_ordering import (
     get_ordered_queue_items,
 )
 from app.services.roster_service import resolve_or_create_performer_verbose
+from app.services.turn_service import compute_turn, serialize_turn
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -106,12 +107,35 @@ class QueuePlayResponse(BaseModel):
     singer: str
 
 
+class TurnPerformer(BaseModel):
+    """A performer as the turn payload names them."""
+
+    id: int
+    name: str
+
+
+class TurnResponse(BaseModel):
+    """Whose turn it is, as the handoff screen renders it.
+
+    `itemId` points into `upcoming` rather than repeating the item: the body is
+    already in the same payload, and a third copy of the song serializer is the
+    drift this unit exists to avoid.
+    """
+
+    kind: str
+    performerId: Optional[int] = None
+    performerName: Optional[str] = None
+    itemId: Optional[int] = None
+    circle: List[TurnPerformer] = Field(default_factory=list)
+
+
 class QueueStateResponse(BaseModel):
     """Response model for explicit queue state."""
 
     current: Optional[QueueItemResponse] = None
     upcoming: List[QueueItemResponse]
     items: List[QueueItemResponse]
+    turn: TurnResponse
 
 
 # ============================================================================
@@ -299,6 +323,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
         current=current_response,
         upcoming=upcoming_responses,
         items=items,
+        turn=TurnResponse(**serialize_turn(compute_turn(db, session_code))),
     )
 
 

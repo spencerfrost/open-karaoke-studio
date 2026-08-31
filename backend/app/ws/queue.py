@@ -10,6 +10,7 @@ import logging
 from app.db.database import get_db_session
 from app.db.models.session import SessionPlaybackState
 from app.services.queue_ordering import get_ordered_queue_items
+from app.services.turn_service import compute_turn, serialize_turn
 
 from .connection_manager import SessionConnectionManager
 
@@ -134,10 +135,24 @@ async def get_current_queue_state(session_id: str):
                 "current": current_data,
                 "upcoming": upcoming_data,
                 "items": items,
+                # Same service REST calls, so the handoff screen sees the same
+                # turn whichever path delivered the payload.
+                "turn": serialize_turn(compute_turn(session, session_id)),
             }
     except Exception as e:
         logger.error("Error getting queue state from PostgreSQL: %s", e)
-        return {"current": None, "upcoming": [], "items": []}
+        return {
+            "current": None,
+            "upcoming": [],
+            "items": [],
+            "turn": {
+                "kind": "open",
+                "performerId": None,
+                "performerName": None,
+                "itemId": None,
+                "circle": [],
+            },
+        }
 
 
 async def broadcast_roster_update(
@@ -163,6 +178,7 @@ async def broadcast_queue_update(manager: SessionConnectionManager, session_id: 
             "current": queue_data.get("current"),
             "upcoming": queue_data.get("upcoming", []),
             "items": queue_data.get("items", []),
+            "turn": queue_data.get("turn"),
         },
     )
 

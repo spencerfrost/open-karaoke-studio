@@ -22,13 +22,19 @@ export type StageScreen =
   | { name: "performance" }
   | { name: "select"; expandArtist?: string }
   | { name: "confirm"; song: Song }
-  | { name: "add"; query?: string; browseArtist?: boolean };
+  | { name: "add"; query?: string; browseArtist?: boolean }
+  /**
+   * Between songs. Entered from `songEnded` rather than a tap, and left when a
+   * song starts - the only screen the shell drives itself.
+   */
+  | { name: "handoff" };
 
 export interface StageShellApi {
   openPerformance: () => void;
   openSelect: (opts?: { expandArtist?: string }) => void;
   openConfirm: (song: Song) => void;
   openAdd: (opts?: { query?: string; browseArtist?: boolean }) => void;
+  openHandoff: () => void;
   /** One step back along the select-family screens; ends at the performance screen. */
   back: () => void;
 }

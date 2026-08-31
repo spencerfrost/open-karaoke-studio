@@ -34,7 +34,6 @@ interface StageLayoutProps {
   songId: string;
   current?: KaraokeQueueItemWithSong | null;
   upcoming: KaraokeQueueItemWithSong[];
-  queueItems?: KaraokeQueueItemWithSong[];
   onPlayFromQueue: (id: string) => void;
   onRemoveFromQueue: (id: string) => void;
   /**
@@ -51,7 +50,6 @@ const StageLayout: React.FC<StageLayoutProps> = ({
   songId,
   current,
   upcoming,
-  queueItems,
   onPlayFromQueue,
   onRemoveFromQueue,
   ui,
@@ -107,12 +105,7 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 
         {/* Centre — the player, with the transport under it */}
         <div className="flex min-h-0 flex-col items-center">
-          <KaraokePlayer
-            songId={songId}
-            queueItems={queueItems}
-            onPlayNext={onPlayFromQueue}
-            dimHeader={collapsed}
-          />
+          <KaraokePlayer songId={songId} dimHeader={collapsed} />
           <div
             className={cn(
               "w-full shrink-0 transition-opacity duration-500",

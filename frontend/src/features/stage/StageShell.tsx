@@ -1,8 +1,9 @@
 /**
  * StageShell - stage mode: a full-screen app with screens, not a page with a nav bar.
  *
- * Two resting states, song select and performance, plus a confirm step and an
- * add-song detour. They are component state rather than routes for one reason
+ * Two resting states, song select and performance, plus a confirm step, an
+ * add-song detour and the handoff screen between songs. They are component
+ * state rather than routes for one reason
  * that decides the whole design: **the performance screen never unmounts.**
  * Someone browsing mid-song must come back to the same audio, the same lyrics
  * timing, the same open dialogs — so the player is hidden while another screen
@@ -15,13 +16,17 @@
  * screen is inside it; anything mounted outside would vanish in full screen.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StageLayout } from "@/features/player/components/stage";
 import { usePlayerUI } from "@/features/player/hooks";
 import { useRoster } from "@/hooks/api/useRoster";
 import { useSessionStore } from "@/stores/sessionStore";
+import { usePlaybackStateStore } from "@/stores/usePlaybackStateStore";
 import { cn } from "@/lib/utils";
-import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
+import type {
+  KaraokeQueueItemWithSong,
+  SessionTurn,
+} from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
 import {
   StageShellContext,
@@ -33,23 +38,25 @@ import ExitStagePrompt from "./ExitStagePrompt";
 import SongSelectScreen from "./screens/SongSelectScreen";
 import SongConfirmScreen from "./screens/SongConfirmScreen";
 import AddSongScreen from "./screens/AddSongScreen";
+import HandoffScreen from "./screens/HandoffScreen";
 
 interface StageShellProps {
   songId: string;
   current?: KaraokeQueueItemWithSong | null;
   upcoming: KaraokeQueueItemWithSong[];
-  queueItems?: KaraokeQueueItemWithSong[];
   onPlayFromQueue: (id: string) => void;
   onRemoveFromQueue: (id: string) => void;
+  /** Whose turn it is, computed by the server. The handoff screen renders it. */
+  turn: SessionTurn;
 }
 
 const StageShell: React.FC<StageShellProps> = ({
   songId,
   current,
   upcoming,
-  queueItems,
   onPlayFromQueue,
   onRemoveFromQueue,
+  turn,
 }) => {
   const ui = usePlayerUI();
   const [screen, setScreen] = useState<StageScreen>({ name: "performance" });
@@ -80,6 +87,22 @@ const StageShell: React.FC<StageShellProps> = ({
       }),
     [],
   );
+  const openHandoff = useCallback(() => setScreen({ name: "handoff" }), []);
+
+  // The one screen the shell drives itself. A song ending is not a tap, and the
+  // gap it opens is the moment the whole rotation exists for - so the shell
+  // watches for it rather than waiting to be told.
+  //
+  // Only from the performance screen: someone browsing the library when a song
+  // runs out should not be yanked away mid-scroll.
+  const songEnded = usePlaybackStateStore((state) => state.songEnded);
+  useEffect(() => {
+    if (songEnded) {
+      setScreen((s) => (s.name === "performance" ? { name: "handoff" } : s));
+    } else {
+      setScreen((s) => (s.name === "handoff" ? { name: "performance" } : s));
+    }
+  }, [songEnded]);
 
   // Confirm and add are detours off song select; song select falls back to the
   // player. There is no deeper history to keep, which is the point.
@@ -94,8 +117,15 @@ const StageShell: React.FC<StageShellProps> = ({
   // rows consume this, so a new identity per screen change would re-render the
   // whole library on the way out of it.
   const shellApi = useMemo<StageShellApi>(
-    () => ({ openPerformance, openSelect, openConfirm, openAdd, back }),
-    [openPerformance, openSelect, openConfirm, openAdd, back],
+    () => ({
+      openPerformance,
+      openSelect,
+      openConfirm,
+      openAdd,
+      openHandoff,
+      back,
+    }),
+    [openPerformance, openSelect, openConfirm, openAdd, openHandoff, back],
   );
 
   const isPerforming = screen.name === "performance";
@@ -148,7 +178,6 @@ const StageShell: React.FC<StageShellProps> = ({
               songId={songId}
               current={current}
               upcoming={upcoming}
-              queueItems={queueItems}
               onPlayFromQueue={onPlayFromQueue}
               onRemoveFromQueue={onRemoveFromQueue}
               ui={ui}
@@ -176,6 +205,18 @@ const StageShell: React.FC<StageShellProps> = ({
           {screen.name === "confirm" && (
             <div className="absolute inset-0 z-20 overflow-hidden">
               <SongConfirmScreen song={screen.song} roster={roster} />
+            </div>
+          )}
+
+          {screen.name === "handoff" && (
+            <div className="absolute inset-0 z-20 overflow-hidden">
+              <HandoffScreen
+                current={current}
+                upcoming={upcoming}
+                turn={turn}
+                roster={roster}
+                onPlayFromQueue={onPlayFromQueue}
+              />
             </div>
           )}
 

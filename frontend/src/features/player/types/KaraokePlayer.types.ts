@@ -4,7 +4,6 @@
 
 import { ReactNode } from "react";
 import type { Song } from "@/types/Song";
-import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
 // Player control types
 export type PlayerControl = "play" | "volume" | "fullscreen";
@@ -13,9 +12,6 @@ export type PlayerControl = "play" | "volume" | "fullscreen";
 export interface KaraokePlayerProps {
   // Song to play
   songId: string;
-
-  // Queue data (optional) - used to show queue status when song ends
-  queueItems?: KaraokeQueueItemWithSong[];
 
   // Player configuration
   autoPlay?: boolean;
@@ -31,7 +27,6 @@ export interface KaraokePlayerProps {
   onPlay?: () => void;
   onPause?: () => void;
   onEnd?: () => void;
-  onPlayNext?: (queueItemId: string) => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
 

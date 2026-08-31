@@ -10,6 +10,7 @@ import {
   KaraokeQueueItemWithSong as KaraokeQueueItem,
   AddToKaraokeQueueRequest,
   KaraokeQueueStateResponse,
+  SessionTurn,
 } from "@/types/KaraokeQueue";
 import { createLogger } from "@/lib/logger";
 
@@ -39,6 +40,15 @@ type QueueQueryOptions = Omit<
   "queryKey" | "queryFn"
 >;
 
+/** What the turn looks like before the server has told us anything. */
+const NO_TURN: SessionTurn = {
+  kind: "open",
+  performerId: null,
+  performerName: null,
+  itemId: null,
+  circle: [],
+};
+
 function normalizeQueueState(
   data: QueueApiResponse,
 ): KaraokeQueueStateResponse {
@@ -49,6 +59,7 @@ function normalizeQueueState(
       current,
       upcoming,
       items: data,
+      turn: NO_TURN,
     };
   }
 
@@ -60,6 +71,7 @@ function normalizeQueueState(
     current,
     upcoming,
     items,
+    turn: data.turn ?? NO_TURN,
   };
 }
 

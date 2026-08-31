@@ -6,23 +6,21 @@
  * display name, so the queue ends up as a wall of one person. Asking once, here,
  * costs a tap and makes the queue mean something.
  *
- * The name grid comes from the session roster (unit 3a) rather than
- * deduplicated queue strings, so it includes everyone who has joined, been
- * picked, or been added by name - not just people who have already queued a
- * song. "Someone else…" is also this screen's second caller: unit 4's "That's
- * not me" reuses it verbatim.
+ * The name grid itself lives in RosterPicker, because unit 4's handoff screen
+ * asks the same question when someone taps "That's not me" - the second caller
+ * this screen was built expecting.
  */
 
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { ChevronLeft, ListPlus, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import type { Song } from "@/types/Song";
 import type { SessionPerformer } from "@/types/SessionPerformer";
+import RosterPicker from "../components/RosterPicker";
 import { useStageShell } from "../StageShellContext";
 
 interface SongConfirmScreenProps {
@@ -92,57 +90,13 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
         <div className="w-full max-w-xl space-y-4">
           <Label className="text-lg">Who's singing?</Label>
 
-          {!showOther && roster.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-3">
-              {roster.map((performer) => (
-                <Button
-                  key={performer.id}
-                  variant={singer === performer.name ? "primary" : "outline"}
-                  size="lg"
-                  onClick={() => setSinger(performer.name)}
-                  className="rounded-full text-lg"
-                >
-                  {performer.name}
-                </Button>
-              ))}
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={() => {
-                  setSinger("");
-                  setShowOther(true);
-                }}
-                className="rounded-full text-lg"
-              >
-                Someone else…
-              </Button>
-            </div>
-          )}
-
-          {showOther && (
-            <div className="space-y-2">
-              <Input
-                id="stage-singer"
-                value={singer}
-                onChange={(e) => setSinger(e.target.value)}
-                placeholder="Enter a name"
-                maxLength={50}
-                autoFocus
-                className="h-14 text-center text-2xl"
-              />
-              {roster.length > 0 && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setSinger(roster[0]?.name ?? "");
-                    setShowOther(false);
-                  }}
-                >
-                  Pick from the roster instead
-                </Button>
-              )}
-            </div>
-          )}
+          <RosterPicker
+            roster={roster}
+            value={singer}
+            onChange={setSinger}
+            showOther={showOther}
+            onShowOtherChange={setShowOther}
+          />
         </div>
 
         <div className="flex w-full max-w-xl gap-4">

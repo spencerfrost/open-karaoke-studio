@@ -2,19 +2,14 @@
  * KaraokePlayer - the stage's centre column.
  *
  * Since the page itself is now the player, this is only the song title, the
- * lyrics (or the end states) and the error state. All chrome — transport,
+ * lyrics and the error state. All chrome — transport,
  * settings popovers, hover overlays, the mouse-idle timer — lives in the
  * stage layout and the shared controls strip instead.
  */
 
 import React from "react";
 import { useKaraokePlayer } from "../hooks";
-import {
-  PlayerErrorBoundary,
-  SongEnded,
-  QueueEnded,
-  ChordCarousel,
-} from "./subcomponents";
+import { PlayerErrorBoundary, ChordCarousel } from "./subcomponents";
 import { LyricsDisplayWithCountIn } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import { Library } from "lucide-react";
@@ -25,12 +20,10 @@ import { cn } from "@/lib/utils";
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
-  queueItems,
   autoPlay = false,
   onPlay,
   onPause,
   onEnd,
-  onPlayNext,
   onTimeUpdate,
   onError,
   dimHeader = false,
@@ -85,9 +78,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   // TypeScript cannot keep `player.song` narrowed inside a callback.
   const song = player.song;
 
-  const nextQueueItem = queueItems?.find((item) => item.position === 1);
-  const hasNextSong = !!(onPlayNext && queueItems && queueItems.length > 1);
-
   if (player.error) {
     return (
       <div
@@ -141,24 +131,11 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           </div>
         )}
 
-        {/* Lyrics, or the end states */}
+        {/* Lyrics. What happens when a song ends belongs to the stage shell's
+            handoff screen - it is a whole screen about a person, not a branch
+            inside the lyrics column. */}
         <div className="relative flex min-h-0 w-full flex-1 flex-col">
-          {song && player.songEnded ? (
-            // Position 0 is the current song; anything beyond means more to come
-            hasNextSong ? (
-              <SongEnded
-                currentSong={song}
-                nextQueueItem={nextQueueItem}
-                onPlayNext={
-                  nextQueueItem && onPlayNext
-                    ? () => onPlayNext(String(nextQueueItem.id))
-                    : undefined
-                }
-              />
-            ) : (
-              <QueueEnded currentSong={song} />
-            )
-          ) : song ? (
+          {song ? (
             <>
               {player.showChords && (
                 <div className="shrink-0">

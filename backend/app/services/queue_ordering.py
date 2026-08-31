@@ -18,6 +18,7 @@ from app.db.models import (
     SessionPerformer,
     SessionPlaybackState,
 )
+from app.services import roster_service
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -70,6 +71,9 @@ def advance_to(session: KaraokeSession, item: KaraokeQueueItem) -> None:
     session.current_lap = max(session.current_lap, item.lap)
     if item.performer is not None:
         item.performer.laps_taken = max(item.performer.laps_taken, item.lap + 1)
+        # Singing is the loudest sign of life there is: it clears any auto-pass
+        # count the handoff screen ran up while this person was away from the TV.
+        roster_service.mark_active(item.performer)
 
 
 def enter_rotation(performer: SessionPerformer) -> None:

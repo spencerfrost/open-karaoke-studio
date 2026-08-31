@@ -35,6 +35,7 @@ Fix those two and the plans stop competing.
 | 3 | Roster + derived order | [2026-08-29-roster-and-rotation.md](2026-08-29-roster-and-rotation.md) | 1 | Backend |
 | 3c | Create Session screen | [2026-08-30-create-session-screen.md](2026-08-30-create-session-screen.md) | 3a | Frontend |
 | 4 | The handoff screen | [2026-08-29-handoff-screen.md](2026-08-29-handoff-screen.md) | 2 **and** 3 | Frontend |
+| 4b | Performer-seeded suggestions | [2026-08-31-performer-seeded-suggestions.md](2026-08-31-performer-seeded-suggestions.md) | 4 | Deferred |
 | 5 | Performer accounts | [2026-08-29-performer-accounts.md](2026-08-29-performer-accounts.md) | 4 | Deferred |
 
 **2 and 3 run in parallel.** That is the payoff of this ordering — after unit 1 lands there

@@ -22,8 +22,18 @@ import {
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
+import type { SessionTurn } from "@/types/KaraokeQueue";
 
 const logger = createLogger("page:stage");
+
+/** Before the first queue payload lands there is nothing to hand off to. */
+const NO_TURN: SessionTurn = {
+  kind: "open",
+  performerId: null,
+  performerName: null,
+  itemId: null,
+  circle: [],
+};
 
 const StageFrame: React.FC<{
   children: React.ReactNode;
@@ -218,7 +228,7 @@ const Stage: React.FC = () => {
         songId={currentSong?.id || ""}
         current={currentQueueItem}
         upcoming={queueQuery.data?.upcoming || []}
-        queueItems={queueQuery.data?.items}
+        turn={queueQuery.data?.turn ?? NO_TURN}
         onPlayFromQueue={handlePlayFromQueue}
         onRemoveFromQueue={handleRemoveFromQueue}
       />

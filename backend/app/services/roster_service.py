@@ -22,6 +22,19 @@ class ResolvedPerformer(NamedTuple):
     created: bool
 
 
+def mark_active(performer: SessionPerformer) -> None:
+    """Any sign of life restores a seat and clears its auto-pass count.
+
+    Unit 4's handoff screen deactivates a seat after two turns nobody stepped up
+    for; the counterpart rule is that it comes back the instant that person does
+    anything. Queueing, being resolved by name, claiming a turn and a song
+    starting all route through here so the rule lives in one place rather than
+    being remembered at four call sites.
+    """
+    performer.is_active = True
+    performer.consecutive_passes = 0
+
+
 def resolve_or_create_performer(
     db: Session,
     session_id: str,
@@ -60,7 +73,7 @@ def resolve_or_create_performer_verbose(
         .first()
     )
     if existing:
-        existing.is_active = True
+        mark_active(existing)
         if device_id and not existing.device_id:
             existing.device_id = device_id
         return ResolvedPerformer(existing, created=False)

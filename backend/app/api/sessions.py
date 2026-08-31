@@ -31,8 +31,9 @@ from app.services.roster_service import (
     resolve_or_create_performer_verbose,
 )
 from app.services.session_service import deactivate_session
+from app.services.turn_service import claim_turn, compute_turn, pass_turn
 from app.ws.connection_manager import SessionConnectionManager
-from app.ws.queue import broadcast_roster_update
+from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
@@ -150,6 +151,33 @@ class PerformerCreateRequest(BaseModel):
     """Request model for adding a name to the roster without queueing anything"""
 
     name: str = Field(..., min_length=1, max_length=100, description="Performer name")
+
+
+class TurnPassRequest(BaseModel):
+    """Request model for passing the current turn forward one lap.
+
+    `expected_performer_id` is the whole concurrency story for the handoff
+    screen: it is checked against the turn the server computes, and a mismatch
+    is a 409 that changes nothing. First write wins, so a phone and the TV
+    acting at the same moment settle instead of double-passing someone, and a
+    stale auto-pass timer is harmless.
+    """
+
+    expected_performer_id: Optional[int] = Field(
+        None, description="The performer the caller believes holds the turn"
+    )
+
+
+class TurnClaimRequest(TurnPassRequest):
+    """Request model for handing the turn to someone else.
+
+    Either an existing roster entry (`performer_id`) or a new name from the
+    picker's "Someone else…" field, which is resolved the same way every other
+    roster entry point resolves one.
+    """
+
+    performer_id: Optional[int] = None
+    name: Optional[str] = Field(None, max_length=100)
 
 
 class QueueOrderModeUpdateRequest(BaseModel):
@@ -1067,6 +1095,175 @@ async def add_performer(
     if created:
         await broadcast_roster_update(manager, session_id, performer.name)
 
+    return PerformerResponse(
+        id=performer.id,
+        name=performer.name,
+        seat=performer.seat,
+        is_active=performer.is_active,
+    )
+
+
+# ============================================================================
+# The turn - unit 4's handoff screen
+# ============================================================================
+#
+# All three run under require_roster_access rather than host auth. The handoff
+# screen is the part guests operate: someone walks up to the TV between songs
+# and says who they are or steps aside. Requiring the host to be standing there
+# would defeat the feature. Session-level *settings* stay host-only - see
+# set_queue_order_mode below.
+
+
+def _active_session_or_404(db: Session, session_id: str) -> KaraokeSession:
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.session_id == session_id,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or inactive")
+    return session
+
+
+def _check_expected(turn, expected_performer_id: Optional[int]) -> None:
+    """Reject an action aimed at a turn that has already moved on.
+
+    The loser of a race - two devices, or a timer that fired against a screen
+    someone had already acted on - gets a 409 and mutates nothing.
+    """
+    if expected_performer_id is None:
+        return
+    holder = turn.performer.id if turn.performer else None
+    if holder != expected_performer_id:
+        raise HTTPException(status_code=409, detail="The turn has already moved on")
+
+
+@router.post("/{session_id}/turn/pass", response_model=PerformerResponse)
+async def pass_current_turn(
+    body: TurnPassRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Move the current turn one lap forward.
+
+    Both the deliberate case (someone else stepped up) and the timeout case
+    (nobody did) land here. The person passed over keeps their seat and loses
+    nothing cumulative - they are up next lap, not next song.
+    """
+    session = _active_session_or_404(db, session_id)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+
+    if turn.performer is None:
+        raise HTTPException(status_code=409, detail="Nobody holds the turn")
+
+    passed = turn.performer
+    pass_turn(session, turn)
+    db.commit()
+
+    await broadcast_queue_update(manager, session_id)
+    return PerformerResponse(
+        id=passed.id, name=passed.name, seat=passed.seat, is_active=passed.is_active
+    )
+
+
+@router.post("/{session_id}/turn/claim", response_model=PerformerResponse)
+async def claim_current_turn(
+    body: TurnClaimRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Hand the turn to someone else - the screen's "That's not me".
+
+    Whoever held it is passed forward invisibly. The person stepping up only
+    says who they are; they never adjudicate somebody else's turn in front of
+    the room.
+    """
+    session = _active_session_or_404(db, session_id)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+
+    if body.performer_id is not None:
+        claimant = (
+            db.query(SessionPerformer)
+            .filter(
+                SessionPerformer.id == body.performer_id,
+                SessionPerformer.session_id == session_id,
+            )
+            .first()
+        )
+        if claimant is None:
+            raise HTTPException(status_code=404, detail="Performer not found")
+        created = False
+    elif body.name:
+        try:
+            claimant, created = resolve_or_create_performer_verbose(
+                db, session_id, body.name
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        raise HTTPException(status_code=400, detail="performer_id or name is required")
+
+    claim_turn(db, session, turn, claimant)
+    db.commit()
+
+    if created:
+        await broadcast_roster_update(manager, session_id, claimant.name)
+    await broadcast_queue_update(manager, session_id)
+
+    return PerformerResponse(
+        id=claimant.id,
+        name=claimant.name,
+        seat=claimant.seat,
+        is_active=claimant.is_active,
+    )
+
+
+@router.post(
+    "/{session_id}/performers/{performer_id}/deactivate",
+    response_model=PerformerResponse,
+)
+async def deactivate_performer(
+    performer_id: int,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Step out of the rotation - the screen's "Skip me for now".
+
+    Deliberate and self-service, unlike the automatic pass. The seat stops being
+    offered until this person queues something, claims a turn, or joins again -
+    any of which routes through `roster_service.mark_active`.
+
+    If they are holding the turn right now, pass it forward too, so the button
+    does something visible even for someone with songs already queued.
+    """
+    session = _active_session_or_404(db, session_id)
+    performer = (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.id == performer_id,
+            SessionPerformer.session_id == session_id,
+        )
+        .first()
+    )
+    if performer is None:
+        raise HTTPException(status_code=404, detail="Performer not found")
+
+    turn = compute_turn(db, session_id)
+    if turn.performer is not None and turn.performer.id == performer.id:
+        pass_turn(session, turn)
+
+    performer.is_active = False
+    db.commit()
+
+    await broadcast_queue_update(manager, session_id)
     return PerformerResponse(
         id=performer.id,
         name=performer.name,
