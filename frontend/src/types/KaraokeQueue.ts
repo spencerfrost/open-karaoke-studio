@@ -5,6 +5,7 @@ export interface KaraokeQueueItem {
   songId: string;
   singer: string;
   position: number;
+  lap: number;
   addedAt: string;
 }
 

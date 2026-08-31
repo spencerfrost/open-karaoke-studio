@@ -37,6 +37,12 @@ class SessionPerformer(Base):
     seat: Mapped[int] = mapped_column(Integer, nullable=False)
     laps_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # When this person first queued anything - their place in the circle.
+    # Null until they queue: being on the roster (joined, picked, added by the
+    # host) does not put you in the rotation, singing does. `seat` is join
+    # order and drives roster display; it deliberately does not decide play
+    # order, or the host would win every lap tie all night.
+    first_queued_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True

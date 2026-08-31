@@ -24,6 +24,10 @@ class KaraokeQueueItem(Base):
     performer_id = Column(
         Integer, ForeignKey("session_performers.id", ondelete="SET NULL"), nullable=True
     )
+    # Written once at insert by queue_ordering.compute_lap, never recomputed - the
+    # play order is a pure sort on this column. Ignored in append mode. A "Bump to
+    # next" is the one deliberate exception: a human rewrites this on one row.
+    lap = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     song = relationship("DbSong", back_populates="queue_items")
     session = relationship("KaraokeSession", back_populates="queue_items")

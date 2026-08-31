@@ -8,10 +8,8 @@ Queue management is handled through the unified session WebSocket endpoint.
 import logging
 
 from app.db.database import get_db_session
-from app.db.models.queue import KaraokeQueueItem
 from app.db.models.session import SessionPlaybackState
-from app.db.models.song import DbSong
-from sqlalchemy.orm import joinedload, subqueryload
+from app.services.queue_ordering import get_ordered_queue_items
 
 from .connection_manager import SessionConnectionManager
 
@@ -25,18 +23,10 @@ async def get_current_queue_state(session_id: str):
     """
     try:
         with get_db_session() as session:
-            # Get queue items with song data for the specific session
-            queue_items = (
-                session.query(KaraokeQueueItem)
-                .filter(KaraokeQueueItem.session_id == session_id)
-                .options(
-                    joinedload(KaraokeQueueItem.song).options(
-                        joinedload(DbSong.album_rel),
-                    )
-                )
-                .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
-                .all()
-            )
+            # Get queue items with song data for the specific session, ordered per
+            # the session's queue_order_mode - same sort REST uses, from the same
+            # queue_ordering service, so the two paths cannot drift again.
+            queue_items = get_ordered_queue_items(session, session_id)
 
             playback_state = (
                 session.query(SessionPlaybackState)
@@ -75,6 +65,7 @@ async def get_current_queue_state(session_id: str):
                             "songId": item.song_id,
                             "singer": item.singer_name,
                             "position": idx,
+                            "lap": item.lap,
                             "addedAt": added_at,
                             "song": {
                                 "id": item.song.id,
@@ -112,6 +103,7 @@ async def get_current_queue_state(session_id: str):
                     "songId": current_item.song_id,
                     "singer": current_item.singer_name,
                     "position": 0,
+                    "lap": current_item.lap,
                     "addedAt": added_at,
                     "song": {
                         "id": current_item.song.id,

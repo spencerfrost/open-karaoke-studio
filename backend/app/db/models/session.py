@@ -33,6 +33,16 @@ class KaraokeSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # "append" (today's insert-order behaviour) or "rotation" (strict round-robin
+    # by lap). Rotation is the default - append is the escape hatch. See
+    # docs/plans/2026-08-29-roster-and-rotation.md.
+    queue_order_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="rotation"
+    )
+    # The frontier lap reached so far - max(current_lap, newly computed lap) after
+    # every insert. Lets a late joiner enter at the point the circle has reached
+    # instead of being handed catch-up turns. See queue_ordering.compute_lap.
+    current_lap: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Relationship to session devices
     devices: Mapped[List["SessionDevice"]] = relationship(

@@ -26,6 +26,13 @@ from app.db.models import (
     SessionPlaybackState,
     User,
 )
+from app.services.queue_ordering import (
+    advance_to,
+    bump_to_next,
+    compute_lap,
+    enter_rotation,
+    get_ordered_queue_items,
+)
 from app.services.roster_service import resolve_or_create_performer_verbose
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
@@ -67,6 +74,7 @@ class QueueItemResponse(BaseModel):
     songId: str
     singer: str
     position: int
+    lap: int
     addedAt: Optional[str] = None
     song: SongInfo
 
@@ -207,6 +215,7 @@ def queue_item_to_response(
         songId=item.song_id,
         singer=item.singer_name,
         position=position_override if position_override is not None else item.position,
+        lap=item.lap,
         addedAt=item.created_at.isoformat() if item.created_at else None,
         song=song_to_info(item.song),
     )
@@ -257,13 +266,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
         .first()
     )
 
-    queue_items = (
-        db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
-        .filter(KaraokeQueueItem.session_id == session_code)
-        .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
-        .all()
-    )
+    queue_items = get_ordered_queue_items(db, session_code)
 
     queue_items_by_id = {item.id: item for item in queue_items}
 
@@ -369,6 +372,9 @@ async def add_to_queue(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    lap = compute_lap(db, karaoke_session, performer)
+    enter_rotation(performer)
+
     # Create new queue item
     new_item = KaraokeQueueItem(
         singer_name=queue_data.singer,
@@ -376,6 +382,7 @@ async def add_to_queue(
         session_id=session_code,
         position=new_position,
         performer_id=performer.id,
+        lap=lap,
     )
     db.add(new_item)
     db.commit()
@@ -391,6 +398,7 @@ async def add_to_queue(
         songId=new_item.song_id,
         singer=new_item.singer_name,
         position=new_item.position,
+        lap=new_item.lap,
         addedAt=new_item.created_at.isoformat() if new_item.created_at else None,
         song=song_to_info(song),
     )
@@ -450,7 +458,17 @@ async def reorder_queue(
 ):
     """
     Reorder the karaoke queue.
+
+    Free reordering only makes sense in append mode - in rotation mode the next
+    add would immediately undo a drag, so `Bump to next` is the only mutation
+    allowed there instead. See docs/plans/2026-08-29-roster-and-rotation.md.
     """
+    if session.queue_order_mode != "append":
+        raise HTTPException(
+            status_code=400,
+            detail="Free reorder is only available in append mode - use bump instead",
+        )
+
     playback_state = get_or_create_playback_state(db, session_code)
 
     for item in reorder_data.queue:
@@ -473,6 +491,37 @@ async def reorder_queue(
     await broadcast_queue_update(manager, session_code)
 
     return {"success": True}
+
+
+@router.post("/{item_id}/bump", response_model=QueueItemResponse)
+async def bump_queue_item(
+    item_id: int,
+    session_code: str = Depends(get_session_code),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+    session: KaraokeSession = Depends(require_session_owner),
+):
+    """
+    Move one queue item to the front of the rotation - "Grandma's leaving, let
+    her sing now." Rewrites `lap` on exactly this row; every other row is
+    untouched. Rotation mode only.
+    """
+    if session.queue_order_mode != "rotation":
+        raise HTTPException(
+            status_code=400,
+            detail="Bump is only available in rotation mode - reorder instead",
+        )
+
+    item = bump_to_next(db, session_code, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    db.commit()
+    db.refresh(item)
+
+    await broadcast_queue_update(manager, session_code)
+
+    return queue_item_to_response(item)
 
 
 @router.post("/{item_id}/play", response_model=QueuePlayResponse)
@@ -539,6 +588,10 @@ async def play_queue_item(
     playback_state.current_time = 0
     playback_state.duration = item.song.duration or 0
     playback_state.is_ready = False
+
+    # Starting a song is what moves the rotation - a walk-up now joins at this
+    # lap, and this singer's next add lands on the one after it.
+    advance_to(session, item)
 
     reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 
