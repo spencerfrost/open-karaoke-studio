@@ -357,6 +357,37 @@ def test_add_to_queue_writes_a_nonzero_lap_for_a_second_song(client, db):
     assert response.json()["lap"] == 1
 
 
+# ---------------------------------------------------------------------------
+# API: the queue-order-mode toggle
+# ---------------------------------------------------------------------------
+
+
+def test_set_queue_order_mode_updates_the_session(client, db):
+    _make_session(db)
+
+    response = client.patch(
+        "/api/sessions/AAAA/queue-order-mode", json={"mode": "append"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["queue_order_mode"] == "append"
+    db.expire_all()
+    assert (
+        db.query(KaraokeSession).filter_by(session_id="AAAA").one().queue_order_mode
+        == "append"
+    )
+
+
+def test_set_queue_order_mode_rejects_an_invalid_mode(client, db):
+    _make_session(db)
+
+    response = client.patch(
+        "/api/sessions/AAAA/queue-order-mode", json={"mode": "shuffle"}
+    )
+
+    assert response.status_code == 400
+
+
 def test_bump_endpoint_requires_rotation_mode(client, db):
     session = _make_session(db)
     _make_song(db)

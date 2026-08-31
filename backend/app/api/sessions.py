@@ -72,6 +72,7 @@ class SessionResponse(BaseModel):
     created_at: str
     expires_at: str
     is_active: bool
+    queue_order_mode: str
 
 
 class SessionCreateRequest(BaseModel):
@@ -136,6 +137,18 @@ class PerformerCreateRequest(BaseModel):
     """Request model for adding a name to the roster without queueing anything"""
 
     name: str = Field(..., min_length=1, max_length=100, description="Performer name")
+
+
+class QueueOrderModeUpdateRequest(BaseModel):
+    """Request model for switching a session's queue ordering mode"""
+
+    mode: str = Field(..., description="'append' or 'rotation'")
+
+
+class QueueOrderModeResponse(BaseModel):
+    """Response model for the current queue ordering mode"""
+
+    queue_order_mode: str
 
 
 # ============================================================================
@@ -293,6 +306,7 @@ async def get_my_session(
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
+        queue_order_mode=session.queue_order_mode,
     )
 
 
@@ -401,6 +415,7 @@ async def get_or_create_my_session(
             created_at=existing.created_at.isoformat(),
             expires_at=existing.expires_at.isoformat(),
             is_active=existing.is_active,
+            queue_order_mode=existing.queue_order_mode,
         )
 
     # Get host settings for session duration
@@ -467,6 +482,7 @@ async def get_or_create_my_session(
                 created_at=session.created_at.isoformat(),
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
+                queue_order_mode=session.queue_order_mode,
             )
 
         except IntegrityError:
@@ -548,6 +564,7 @@ async def create_session(
                 created_at=session.created_at.isoformat(),
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
+                queue_order_mode=session.queue_order_mode,
             )
 
         except IntegrityError:
@@ -657,6 +674,7 @@ async def join_session_by_code(
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
+        queue_order_mode=session.queue_order_mode,
     )
 
 
@@ -769,6 +787,7 @@ async def join_session_by_id(
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
+        queue_order_mode=session.queue_order_mode,
     )
 
 
@@ -845,6 +864,7 @@ async def get_session_info(
         created_at=session.created_at.isoformat(),
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
+        queue_order_mode=session.queue_order_mode,
     )
 
 
@@ -1021,3 +1041,40 @@ async def add_performer(
         seat=performer.seat,
         is_active=performer.is_active,
     )
+
+
+@router.patch("/{session_id}/queue-order-mode", response_model=QueueOrderModeResponse)
+async def set_queue_order_mode(
+    session_id: str,
+    mode_data: QueueOrderModeUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """Switch a session between append and rotation queue ordering.
+
+    Deliberately not exposed on the stage/TV screen - it's the Settings-page
+    control described in docs/plans/2026-08-29-roster-and-rotation.md's open
+    decisions, so a performer glancing at the TV never sees host controls.
+    """
+    if mode_data.mode not in ("append", "rotation"):
+        raise HTTPException(
+            status_code=400, detail="mode must be 'append' or 'rotation'"
+        )
+
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.session_id == session_id,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or inactive")
+    if session.host_user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    session.queue_order_mode = mode_data.mode
+    db.commit()
+
+    return QueueOrderModeResponse(queue_order_mode=session.queue_order_mode)
