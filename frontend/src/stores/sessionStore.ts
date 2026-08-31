@@ -25,6 +25,7 @@ interface SessionInfo {
   created_at: string;
   expires_at: string;
   is_active: boolean;
+  queue_order_mode: string;
 }
 
 interface SessionState {
