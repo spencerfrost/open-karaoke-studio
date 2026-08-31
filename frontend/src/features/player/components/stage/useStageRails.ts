@@ -18,10 +18,20 @@ const POINTER_IDLE_MS = 4000;
  */
 const PLAY_GRACE_MS = 600;
 
+/**
+ * Cumulative mouse travel (px) required to re-expand collapsed rails. Keeps a
+ * mic stand bump or a twitchy touchpad from triggering the expand transition
+ * — only deliberate movement should bring the rails back.
+ */
+const REVEAL_DISTANCE_PX = 120;
+
 export const useStageRails = (isPlaying: boolean) => {
   const [pointerActive, setPointerActive] = useState(true);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreActivityUntil = useRef(0);
+
+  const collapsedRef = useRef(false);
+  collapsedRef.current = isPlaying && !pointerActive;
 
   // Hitting play clears the stage immediately — no waiting out the idle timer.
   const wasPlaying = useRef(isPlaying);
@@ -45,13 +55,45 @@ export const useStageRails = (isPlaying: boolean) => {
       );
     };
 
-    window.addEventListener("mousemove", markActive);
+    let lastMouseX: number | null = null;
+    let lastMouseY: number | null = null;
+    let traveled = 0;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!collapsedRef.current) {
+        lastMouseX = null;
+        lastMouseY = null;
+        traveled = 0;
+        markActive();
+        return;
+      }
+
+      if (lastMouseX === null || lastMouseY === null) {
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+        return;
+      }
+
+      traveled += Math.hypot(
+        event.clientX - lastMouseX,
+        event.clientY - lastMouseY,
+      );
+      lastMouseX = event.clientX;
+      lastMouseY = event.clientY;
+
+      if (traveled >= REVEAL_DISTANCE_PX) {
+        traveled = 0;
+        markActive();
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("pointerdown", markActive);
     window.addEventListener("keydown", markActive);
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      window.removeEventListener("mousemove", markActive);
+      window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("pointerdown", markActive);
       window.removeEventListener("keydown", markActive);
     };
