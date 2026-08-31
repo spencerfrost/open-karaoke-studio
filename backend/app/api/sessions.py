@@ -12,7 +12,7 @@ This module provides REST API endpoints for session management:
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Generator, List, Optional
+from typing import Generator, List, Literal, Optional
 
 from app.api.dependencies import (
     RequesterContext,
@@ -85,6 +85,19 @@ class SessionCreateRequest(BaseModel):
     device_id: Optional[str] = Field(
         None,
         description="Existing device id to reuse, so remounting does not inflate the device count",
+    )
+    # Setup collected by the stage's create-session screen. All three are
+    # creation-time only: a request that resumes a live session ignores them.
+    # See docs/plans/2026-08-30-create-session-screen.md.
+    duration_hours: Optional[float] = Field(
+        None, description="Override tonight's session length"
+    )
+    performer_names: Optional[List[str]] = Field(
+        None, description="Pre-seed the roster"
+    )
+    queue_order_mode: Optional[Literal["append", "rotation"]] = Field(
+        None,
+        description="Override tonight's rotation mode; unset keeps the column default (rotation)",
     )
 
 
@@ -418,11 +431,19 @@ async def get_or_create_my_session(
             queue_order_mode=existing.queue_order_mode,
         )
 
-    # Get host settings for session duration
+    # Get host settings for session duration. A duration_hours in the request is a
+    # one-off override for tonight and deliberately does not touch the stored
+    # default. Checked with `is not None` rather than `or` so an explicit 0 is not
+    # silently swapped for the default.
     host_settings = (
         db.query(HostSettings).filter(HostSettings.user_id == current_user.id).first()
     )
-    duration_hours = host_settings.session_duration_hours if host_settings else 8
+    host_default_hours = host_settings.session_duration_hours if host_settings else 8
+    duration_hours = (
+        session_data.duration_hours
+        if session_data.duration_hours is not None
+        else host_default_hours
+    )
 
     # Create a new session
     device_id = f"rest_{uuid.uuid4().hex[:12]}"
@@ -432,7 +453,10 @@ async def get_or_create_my_session(
     for attempt in range(max_attempts):
         try:
             session = KaraokeSession.create_new_session(
-                db, host_device_id=device_id, duration_hours=duration_hours
+                db,
+                host_device_id=device_id,
+                duration_hours=duration_hours,
+                queue_order_mode=session_data.queue_order_mode,
             )
             session.host_user_id = current_user.id
             db.add(session)
@@ -454,6 +478,14 @@ async def get_or_create_my_session(
                     host_device.display_name,
                     device_id=host_device.device_id,
                 )
+
+            # Names the host pre-listed on the create screen. No device_id: these
+            # are anonymous roster rows, identical to a walk-up who never picks up
+            # a phone. resolve_or_create_performer dedupes by normalized name, so a
+            # repeat (or the host's own name) is a no-op.
+            for name in session_data.performer_names or []:
+                if name and name.strip():
+                    resolve_or_create_performer(db, session.session_id, name)
 
             db.commit()
 

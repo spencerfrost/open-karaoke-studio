@@ -28,6 +28,14 @@ interface SessionInfo {
   queue_order_mode: string;
 }
 
+/** Setup a host picks before the night starts. See CreateSessionScreen. */
+export interface HostSessionSetup {
+  queueOrderMode?: "append" | "rotation";
+  performerNames?: string[];
+  /** A one-off override for tonight; does not change the stored default. */
+  durationHours?: number;
+}
+
 interface SessionState {
   // Session data
   sessionId: string | null;
@@ -52,7 +60,12 @@ interface SessionState {
   recoveryError: string | null;
 
   // Actions
-  joinAsHost: () => Promise<void>;
+  /**
+   * Get-or-create this host's session. `options` is the setup collected by the
+   * stage's create-session screen and only applies when a session is actually
+   * created - resuming a live one ignores it, server-side.
+   */
+  joinAsHost: (options?: HostSessionSetup) => Promise<void>;
   createSession: (deviceType?: string, displayName?: string) => Promise<void>;
   joinSession: (
     codeOrId: string,
@@ -125,7 +138,7 @@ export const useSessionStore = create<SessionState>()(
       isRecovering: false,
       recoveryError: null,
 
-      joinAsHost: async () => {
+      joinAsHost: async (options) => {
         set({ isConnecting: true, connectionError: null });
 
         try {
@@ -144,9 +157,20 @@ export const useSessionStore = create<SessionState>()(
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            // Each setup key is omitted when unset, so an argument-less call
+            // sends exactly what it always has.
             body: JSON.stringify({
               device_type: "stage",
               ...(knownDeviceId ? { device_id: knownDeviceId } : {}),
+              ...(options?.queueOrderMode
+                ? { queue_order_mode: options.queueOrderMode }
+                : {}),
+              ...(options?.performerNames?.length
+                ? { performer_names: options.performerNames }
+                : {}),
+              ...(options?.durationHours !== undefined
+                ? { duration_hours: options.durationHours }
+                : {}),
             }),
           });
 

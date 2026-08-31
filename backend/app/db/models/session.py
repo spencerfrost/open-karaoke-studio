@@ -98,9 +98,17 @@ class KaraokeSession(Base):
 
     @classmethod
     def create_new_session(
-        cls, db_session, host_device_id: str, duration_hours: float = 24
+        cls,
+        db_session,
+        host_device_id: str,
+        duration_hours: float = 24,
+        queue_order_mode: Optional[str] = None,
     ) -> "KaraokeSession":
-        """Create a new karaoke session with unique display code."""
+        """Create a new karaoke session with unique display code.
+
+        `queue_order_mode` is only applied when given, so callers that don't care
+        keep the column's "rotation" default.
+        """
         display_code = cls.generate_display_code(db_session)
         session = cls(
             session_id=display_code,  # Use display_code as session_id for simplicity
@@ -108,6 +116,8 @@ class KaraokeSession(Base):
             host_device_id=host_device_id,
             expires_at=datetime.utcnow() + timedelta(hours=duration_hours),
         )
+        if queue_order_mode is not None:
+            session.queue_order_mode = queue_order_mode
         return session
 
     def is_expired(self) -> bool:

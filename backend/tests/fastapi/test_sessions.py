@@ -11,7 +11,13 @@ from datetime import datetime, timedelta
 import pytest
 from app.api.dependencies import get_current_user
 from app.api.sessions import purge_stale_sessions
-from app.db.models import KaraokeQueueItem, KaraokeSession, SessionDevice
+from app.db.models import (
+    HostSettings,
+    KaraokeQueueItem,
+    KaraokeSession,
+    SessionDevice,
+    SessionPerformer,
+)
 from app.services.session_service import deactivate_session
 from tests.fastapi.conftest import _get_mock_user, _TestingSessionLocal
 
@@ -178,6 +184,119 @@ def test_post_my_after_delete_yields_a_new_code(client):
     assert second["session_id"] != first["session_id"]
     assert second["display_code"] != first["display_code"]
     assert second["is_active"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /my - setup from the create-session screen
+# ---------------------------------------------------------------------------
+
+
+def _performers(db, session_id):
+    return (
+        db.query(SessionPerformer)
+        .filter(SessionPerformer.session_id == session_id)
+        .all()
+    )
+
+
+def test_post_my_seeds_the_roster_with_performer_names(client, db):
+    response = client.post(
+        "/api/sessions/my",
+        json={"device_type": "stage", "performer_names": ["Dan", "Sarah"]},
+    )
+
+    assert response.status_code == 201
+    performers = {p.name: p for p in _performers(db, response.json()["session_id"])}
+    # The host's own display_name already took a seat, so don't assert 0 and 1.
+    assert {"Dan", "Sarah"} <= set(performers)
+    assert performers["Dan"].seat < performers["Sarah"].seat
+
+
+def test_post_my_skips_blank_performer_names(client, db):
+    response = client.post(
+        "/api/sessions/my",
+        json={"device_type": "stage", "performer_names": ["", "   ", "Dan"]},
+    )
+
+    assert response.status_code == 201
+    names = [p.name for p in _performers(db, response.json()["session_id"])]
+    assert "Dan" in names
+    assert all(name.strip() for name in names)
+
+
+def test_post_my_duration_hours_overrides_the_host_default(client, db):
+    db.add(HostSettings(user_id=HOST_USER_ID, session_duration_hours=8))
+    db.commit()
+
+    response = client.post(
+        "/api/sessions/my", json={"device_type": "stage", "duration_hours": 2}
+    )
+
+    assert response.status_code == 201
+    session = (
+        db.query(KaraokeSession)
+        .filter(KaraokeSession.session_id == response.json()["session_id"])
+        .one()
+    )
+    span = (session.expires_at - session.created_at).total_seconds()
+    assert abs(span - 2 * 3600) < 60
+    # The override is for tonight only - the stored default is untouched.
+    settings = db.query(HostSettings).filter(HostSettings.user_id == HOST_USER_ID).one()
+    assert settings.session_duration_hours == 8
+
+
+def test_post_my_queue_order_mode_override(client, db):
+    response = client.post(
+        "/api/sessions/my", json={"device_type": "stage", "queue_order_mode": "append"}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["queue_order_mode"] == "append"
+    session = (
+        db.query(KaraokeSession)
+        .filter(KaraokeSession.session_id == response.json()["session_id"])
+        .one()
+    )
+    assert session.queue_order_mode == "append"
+
+
+def test_post_my_defaults_to_rotation_without_an_override(client):
+    """Guards the column default still applying to a no-setup call."""
+    response = client.post("/api/sessions/my", json={"device_type": "stage"})
+
+    assert response.status_code == 201
+    assert response.json()["queue_order_mode"] == "rotation"
+
+
+def test_post_my_ignores_setup_fields_for_an_existing_session(client, db):
+    first = client.post("/api/sessions/my", json={"device_type": "stage"}).json()
+    session = (
+        db.query(KaraokeSession)
+        .filter(KaraokeSession.session_id == first["session_id"])
+        .one()
+    )
+    expires_at, roster_size = session.expires_at, len(
+        _performers(db, session.session_id)
+    )
+
+    second = client.post(
+        "/api/sessions/my",
+        json={
+            "device_type": "stage",
+            "device_id": first["device_id"],
+            "performer_names": ["Dan", "Sarah"],
+            "duration_hours": 99,
+            "queue_order_mode": "append",
+        },
+    )
+
+    assert second.status_code == 201
+    assert second.json()["session_id"] == first["session_id"]
+    db.refresh(session)
+    # Starting a session does not reshape one that is already live.
+    assert session.queue_order_mode == "rotation"
+    assert session.expires_at == expires_at
+    assert len(_performers(db, session.session_id)) == roster_size
 
 
 # ---------------------------------------------------------------------------

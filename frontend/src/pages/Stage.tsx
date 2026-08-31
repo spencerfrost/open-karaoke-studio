@@ -9,8 +9,10 @@
 
 import React, { useEffect, useRef } from "react";
 import { StageShell } from "@/features/stage";
+import CreateSessionScreen from "@/features/stage/screens/CreateSessionScreen";
+import { cn } from "@/lib/utils";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore, type HostSessionSetup } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 import {
   useQueue,
@@ -23,14 +25,27 @@ import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("page:stage");
 
-const StageFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const StageFrame: React.FC<{
+  children: React.ReactNode;
+  /** Widened for the create screen's form; the loading states keep max-w-md. */
+  contentClassName?: string;
+}> = ({ children, contentClassName = "max-w-md" }) => (
   <div
     className="relative flex h-screen w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
     style={{ background: "var(--page-bg)" }}
   >
     <div className="vintage-sunburst-pattern" />
     <div className="vintage-texture-overlay" />
-    <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-6">
+    {/* The scrim that makes stage mode dark. StageShell paints the same one, and
+        without it these pre-session screens sit on the raw sunburst - blazing
+        orange, and light-on-dark text tokens land on a light ground. */}
+    <div className="absolute inset-0 z-[11] bg-overlay/85" />
+    <div
+      className={cn(
+        "relative z-20 flex w-full flex-col items-center gap-6",
+        contentClassName,
+      )}
+    >
       {children}
     </div>
   </div>
@@ -64,14 +79,13 @@ const Stage: React.FC = () => {
   const currentSongId = currentQueueItem?.song?.id;
   const { data: currentSong } = useSong(currentSongId ?? "");
 
-  // Entering stage mode is the one and only thing that starts a session, so
-  // this effect is the app's single creation path. `joinAsHost` hits the
-  // idempotent get-or-create endpoint, so a re-entry resumes the same night.
+  // Entering stage mode only *resumes* a night; starting one is a decision the
+  // host makes on CreateSessionScreen, which renders below when recovery comes
+  // back empty.
   //
-  // Once per mount, strictly: *entering* the stage starts a session, and ending
-  // one from the exit prompt clears `displayCode` while this page is still up.
-  // Without the guard that reads as "no session, better make one" and the night
-  // you just ended immediately comes back with a new code.
+  // Once per mount, strictly: ending a session from the exit prompt clears
+  // `displayCode` while this page is still up. Without the guard that reads as
+  // "no session, better go recover one" on every subsequent render.
   const hasBootstrapped = useRef(false);
   useEffect(() => {
     const initializeSession = async () => {
@@ -81,11 +95,6 @@ const Stage: React.FC = () => {
 
       try {
         await recoverSession();
-
-        const state = useSessionStore.getState();
-        if (!state.displayCode) {
-          await joinAsHost();
-        }
       } catch (error) {
         logger.error("Failed to initialize session:", error);
         toast.error("Failed to initialize session");
@@ -93,7 +102,7 @@ const Stage: React.FC = () => {
     };
 
     initializeSession();
-  }, [displayCode, isAuthenticated, recoverSession, joinAsHost]);
+  }, [displayCode, isAuthenticated, recoverSession]);
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
@@ -139,17 +148,24 @@ const Stage: React.FC = () => {
     };
   }, [queueQuery]);
 
-  // Show loading state during session recovery or creation
-  if (isRecovering || (isConnecting && !displayCode)) {
+  const handleStartSession = async (options: HostSessionSetup) => {
+    try {
+      await joinAsHost(options);
+    } catch (error) {
+      logger.error("Failed to start session:", error);
+      toast.error("Failed to start session");
+    }
+  };
+
+  // Show loading state while recovery decides whether there's a night to resume.
+  if (isRecovering) {
     return (
       <StageFrame>
         <h1 className="text-center text-4xl font-bold text-primary">
-          {isRecovering ? "Restoring Session" : "Creating Session"}
+          Restoring Session
         </h1>
         <p className="max-w-md text-center text-xl text-muted-foreground">
-          {isRecovering
-            ? "Reconnecting to your existing karaoke session..."
-            : "Setting up your karaoke session..."}
+          Reconnecting to your existing karaoke session...
         </p>
         {(recoveryError || connectionError) && (
           <div className="text-center text-destructive">
@@ -157,6 +173,21 @@ const Stage: React.FC = () => {
           </div>
         )}
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </StageFrame>
+    );
+  }
+
+  // Nothing to resume - ask before creating one. The screen owns the whole
+  // creating-a-session moment, spinner included: routing `isConnecting` through
+  // a branch up here instead would unmount it mid-request and throw away every
+  // name the host just typed if the create failed.
+  if (!displayCode) {
+    return (
+      <StageFrame contentClassName="max-w-2xl">
+        <CreateSessionScreen
+          onStart={handleStartSession}
+          isStarting={isConnecting}
+        />
       </StageFrame>
     );
   }
