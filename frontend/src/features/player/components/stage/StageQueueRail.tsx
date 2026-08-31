@@ -127,7 +127,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
           <QRCodeDisplay
             value={`${window.location.origin}/join/${displayCode}`}
             size={180}
-            className="shrink-0"
+            className="shrink-0 mb-2"
           />
         </div>
       )}
