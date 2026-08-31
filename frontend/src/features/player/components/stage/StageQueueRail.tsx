@@ -34,7 +34,10 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
   const openSongSelect = useOpenSongSelect();
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
+    // h-full so the rail is bounded by the stage row rather than by its own
+    // content — that is what lets "Up Next" scroll instead of growing and
+    // shoving the join code off the bottom of the screen.
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className={cn(cardClass, "shrink-0")}>
         <span className={railLabelClass}>Singing Now</span>
         <div className="flex items-center gap-3">
@@ -114,20 +117,18 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
       </div>
 
       {displayCode && (
-        <div className="flex shrink-0 items-center gap-4 rounded-md border border-glass-border/10 bg-glass/5 p-[18px]">
-          <QRCodeDisplay
-            value={`${window.location.origin}/join/${displayCode}`}
-            size={56}
-            className="shrink-0"
-          />
+        <div className="flex flex-col shrink-0 items-center gap-4 rounded-md border border-glass-border/10 bg-glass/5 p-2">
           <div>
-            <div className="text-[15px] uppercase tracking-[0.08em] text-foreground/60">
-              Scan to join
-            </div>
-            <div className="font-accent text-[40px] leading-tight text-primary">
-              {displayCode}
+            <div className="flex items-center gap-2">
+              <span className="text-lg uppercase tracking-[0.08em] text-foreground/60">Join Code:</span>
+              <span className="font-accent text-4xl leading-tight text-primary">{displayCode}</span>
             </div>
           </div>
+          <QRCodeDisplay
+            value={`${window.location.origin}/join/${displayCode}`}
+            size={180}
+            className="shrink-0"
+          />
         </div>
       )}
     </div>
