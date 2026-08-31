@@ -17,17 +17,15 @@ from time import perf_counter
 from typing import Literal, TypedDict
 
 import numpy as np
-
-from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.audio import load_vocals
+from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines
 from app.services.lyrics_timing import log_lyrics_event
 
 logger = logging.getLogger(__name__)
 
 
-_INSTR_INTRO_MIN_GAP_SECONDS = 2.5
-_INSTR_MID_SONG_MIN_GAP_SECONDS = 8.0
+_INSTR_MIN_GAP_SECONDS = 6.0
 _INSTR_LEAD_IN_SECONDS = 1.5
 
 
@@ -52,7 +50,9 @@ def _resolve_alignment_device(device: str | None = None) -> str:
 
         return "cuda" if torch.cuda.is_available() else "cpu"
     except Exception:
-        logger.warning("Falling back to CPU for lyrics alignment device resolution", exc_info=True)
+        logger.warning(
+            "Falling back to CPU for lyrics alignment device resolution", exc_info=True
+        )
         return "cpu"
 
 
@@ -138,18 +138,172 @@ def _lrc_lines_to_segments(
     return segments
 
 
-def _build_line_index_map(lrc_lines: list[LrcLine]) -> dict[int, int]:
+def _content_line_indices(lrc_lines: list[LrcLine]) -> list[int]:
     """
-    Build a mapping from content-line index (0-based among non-blank lines)
-    to the original lrc_lines index.
+    Positions within `lrc_lines` (which includes blank lines) of each
+    non-blank line, in order. This is the source-line index convention every
+    alignment path stores against.
     """
-    mapping: dict[int, int] = {}
-    content_idx = 0
-    for orig_idx, line in enumerate(lrc_lines):
-        if line["text"].strip():
-            mapping[content_idx] = orig_idx
-            content_idx += 1
-    return mapping
+    return [orig_idx for orig_idx, line in enumerate(lrc_lines) if line["text"].strip()]
+
+
+def _segments_to_input_tokens(
+    segments: list[dict], line_indices: list[int]
+) -> list[tuple[int, str]]:
+    """
+    Flatten segment text into (source_line_index, word) pairs in the same
+    order whisperx.align() concatenates its output word_segments — segment by
+    segment, left to right within each segment's text.
+    """
+    tokens: list[tuple[int, str]] = []
+    for line_index, segment in zip(line_indices, segments):
+        tokens.extend((line_index, word) for word in segment["text"].split())
+    return tokens
+
+
+def _flatten_output_words(result_segments: list[dict]) -> list[dict]:
+    words: list[dict] = []
+    for seg in result_segments:
+        words.extend(seg.get("words", []))
+    return words
+
+
+def _assign_line_indices(
+    result_segments: list[dict],
+    input_tokens: list[tuple[int, str]],
+) -> list[AlignedWord] | None:
+    """
+    Pair WhisperX's flattened output words with the flattened input tokens
+    positionally, taking the line index from the input side.
+
+    Forced alignment aligns known text: WhisperX never adds, drops, or
+    reorders words, it only re-groups them into different output segments
+    (splitting one input line into several sentences, or merging several back
+    together — see whisperx/alignment.py's sentence-split + groupby). That
+    makes position the only reliable key; `seg_idx` on the output side is
+    not, since a single split shifts every line index after it.
+
+    Compares word text while walking as a safety net. Returns None on the
+    first mismatch (word count or text divergence) so the caller can fall
+    back to the old segment-position behaviour rather than store a mapping
+    that is wrong in some new way.
+    """
+    output_words = _flatten_output_words(result_segments)
+    if len(output_words) != len(input_tokens):
+        logger.warning(
+            "Line-index token walk: %d output words vs %d input tokens, falling back",
+            len(output_words),
+            len(input_tokens),
+        )
+        return None
+
+    aligned_words: list[AlignedWord] = []
+    for position, (output_word, (line_index, input_token)) in enumerate(
+        zip(output_words, input_tokens)
+    ):
+        output_text = output_word.get("word", "").strip()
+        if output_text != input_token:
+            logger.warning(
+                "Line-index token walk: mismatch at position %d ('%s' vs '%s'), falling back",
+                position,
+                output_text,
+                input_token,
+            )
+            return None
+
+        word_start = output_word.get("start")
+        word_end = output_word.get("end")
+        if word_start is None or word_end is None:
+            continue
+
+        aligned_words.append(
+            AlignedWord(
+                word=output_text,
+                start=round(float(word_start), 3),
+                end=round(float(word_end), 3),
+                score=round(float(output_word.get("score", 0.0)), 3),
+                line_index=line_index,
+            )
+        )
+
+    return aligned_words
+
+
+def _assign_line_indices_by_segment_position(
+    result_segments: list[dict], line_indices: list[int]
+) -> list[AlignedWord]:
+    """
+    Legacy fallback: trust WhisperX's output segment position as the line
+    index. Wrong whenever WhisperX splits or merges a segment — kept only so
+    a token-walk mismatch cannot silently store a mapping worse than before
+    this fix existed.
+    """
+    aligned_words: list[AlignedWord] = []
+    for seg_idx, seg in enumerate(result_segments):
+        line_index = line_indices[seg_idx] if seg_idx < len(line_indices) else seg_idx
+        for w in seg.get("words", []):
+            word_start = w.get("start")
+            word_end = w.get("end")
+            if word_start is None or word_end is None:
+                continue
+            aligned_words.append(
+                AlignedWord(
+                    word=w.get("word", "").strip(),
+                    start=round(float(word_start), 3),
+                    end=round(float(word_end), 3),
+                    score=round(float(w.get("score", 0.0)), 3),
+                    line_index=line_index,
+                )
+            )
+    return aligned_words
+
+
+def recompute_alignment_line_indices(
+    words: list[AlignedWord],
+    *,
+    source_type: Literal["plain", "synced"],
+    content: str,
+) -> list[AlignedWord] | None:
+    """
+    Offline equivalent of _assign_line_indices for the backfill script: given
+    an already-aligned word list (correct timings, wrong line_index) and the
+    original lyrics text, re-derive line_index from word position alone — no
+    audio, no GPU, no re-running WhisperX.
+
+    Works because the stored `words` array is already in the positional order
+    WhisperX produced it in, which is the same order `_segments_to_input_tokens`
+    reconstructs from the source text. Returns None if the token walk diverges
+    (count or text mismatch) so the caller can skip the song rather than store
+    a worse mapping.
+    """
+    if source_type == "synced":
+        lrc_lines = parse_lrc_lines(content)
+        content_line_indices = _content_line_indices(lrc_lines)
+        segments = [
+            {"text": line["text"].strip()} for line in lrc_lines if line["text"].strip()
+        ]
+    else:
+        segments = _plain_lines_to_segments(content)
+        content_line_indices = list(range(len(segments)))
+
+    input_tokens = _segments_to_input_tokens(segments, content_line_indices)
+    if len(input_tokens) != len(words):
+        return None
+
+    recomputed: list[AlignedWord] = []
+    for (line_index, input_token), word in zip(input_tokens, words):
+        if word["word"].strip() != input_token:
+            return None
+        recomputed.append(
+            AlignedWord(
+                word=word["word"],
+                start=word["start"],
+                end=word["end"],
+                score=word["score"],
+                line_index=line_index,
+            )
+        )
+    return recomputed
 
 
 def _synced_lrc_to_plain_text(lrc_content: str) -> str:
@@ -158,35 +312,47 @@ def _synced_lrc_to_plain_text(lrc_content: str) -> str:
     return "\n".join(line["text"].strip() for line in lrc_lines if line["text"].strip())
 
 
-def _get_synced_alignment_mode_config(mode: SyncedAlignmentMode) -> dict[str, float | str]:
+def _get_synced_alignment_mode_config(
+    mode: SyncedAlignmentMode,
+) -> dict[str, float | str]:
     if mode == "synced_strict":
         return {"alignment_mode": "synced", "pad_before": 0.0, "pad_after": 0.0}
     if mode == "synced_padded_small":
-        return {"alignment_mode": "synced_padded_small", "pad_before": 3.0, "pad_after": 3.0}
+        return {
+            "alignment_mode": "synced_padded_small",
+            "pad_before": 3.0,
+            "pad_after": 3.0,
+        }
     if mode == "synced_padded_medium":
-        return {"alignment_mode": "synced_padded_medium", "pad_before": 8.0, "pad_after": 8.0}
+        return {
+            "alignment_mode": "synced_padded_medium",
+            "pad_before": 8.0,
+            "pad_after": 8.0,
+        }
     if mode == "synced_stripped_plain":
-        return {"alignment_mode": "synced_stripped_plain", "pad_before": 0.0, "pad_after": 0.0}
+        return {
+            "alignment_mode": "synced_stripped_plain",
+            "pad_before": 0.0,
+            "pad_after": 0.0,
+        }
     raise ValueError(f"Unsupported synced alignment mode: {mode}")
 
 
 def _build_instrumental_intervals(
     aligned_words: list[AlignedWord],
     *,
-    intro_min_gap_seconds: float = _INSTR_INTRO_MIN_GAP_SECONDS,
-    mid_song_min_gap_seconds: float = _INSTR_MID_SONG_MIN_GAP_SECONDS,
+    min_gap_seconds: float = _INSTR_MIN_GAP_SECONDS,
     lead_in_seconds: float = _INSTR_LEAD_IN_SECONDS,
 ) -> list[InstrumentalInterval]:
     """
     Derive instrumental windows from lyric-free gaps between aligned words.
 
-    We include:
-    - Intro gap from 0.0s to first aligned word start.
-    - Inter-word gaps only when the next lyric belongs to a different line.
-
-    This intentionally favors precision over recall: intro can be shorter, but
-    mid-song cues must be clearly long breaks so we avoid false positives from
-    repeated tails, ad-libs, and missed low-register words.
+    An intro is not a special case: the walk is seeded with a virtual word
+    ending at 0.0s, so the gap before the first real word is just another gap
+    judged by the same threshold as every gap between verses. This
+    intentionally favors precision over recall — cues must be clearly long
+    breaks so we avoid false positives from repeated tails, ad-libs, and
+    missed low-register words.
     """
     if not aligned_words:
         return []
@@ -194,33 +360,21 @@ def _build_instrumental_intervals(
     sorted_words = sorted(aligned_words, key=lambda w: (w["start"], w["end"]))
     intervals: list[InstrumentalInterval] = []
 
-    first_word = sorted_words[0]
-    intro_gap = first_word["start"]
-    if intro_gap >= intro_min_gap_seconds:
-        lead_in_start = max(0.0, first_word["start"] - lead_in_seconds)
-        intervals.append(
-            InstrumentalInterval(
-                start=0.0,
-                end=round(first_word["start"], 3),
-                duration=round(intro_gap, 3),
-                lead_in_start=round(lead_in_start, 3),
-                next_line_index=first_word["line_index"],
-                confidence=round(min(1.0, intro_gap / 8.0), 3),
-                source="whisperx_gap",
-            )
-        )
-
-    for idx in range(len(sorted_words) - 1):
-        current_word = sorted_words[idx]
-        next_word = sorted_words[idx + 1]
+    lead_word = AlignedWord(
+        word="", start=0.0, end=0.0, score=1.0, line_index=sorted_words[0]["line_index"]
+    )
+    for current_word, next_word in zip([lead_word, *sorted_words], sorted_words):
         gap_start = current_word["end"]
         gap_end = next_word["start"]
         gap_duration = gap_end - gap_start
 
         # Ignore micro-pauses and pauses that stay within a single lyric line.
-        if gap_duration < mid_song_min_gap_seconds:
+        if gap_duration < min_gap_seconds:
             continue
-        if next_word["line_index"] == current_word["line_index"]:
+        if (
+            current_word is not lead_word
+            and next_word["line_index"] == current_word["line_index"]
+        ):
             continue
 
         lead_in_start = max(gap_start, gap_end - lead_in_seconds)
@@ -262,8 +416,9 @@ def align_lyrics_to_vocals(
 
     Returns None if alignment fails or produces no words.
     """
-    import whisperx
     from datetime import datetime, timezone
+
+    import whisperx
 
     device = _resolve_alignment_device(device)
     lrc_lines = parse_lrc_lines(lrc_content)
@@ -304,12 +459,16 @@ def align_lyrics_to_vocals(
     )
 
     # Build segments and line mapping
-    segments = _lrc_lines_to_segments(lrc_lines, pad_before=pad_before, pad_after=pad_after)
-    line_index_map = _build_line_index_map(lrc_lines)
+    segments = _lrc_lines_to_segments(
+        lrc_lines, pad_before=pad_before, pad_after=pad_after
+    )
+    content_line_indices = _content_line_indices(lrc_lines)
 
     if not segments:
         logger.warning("align_lyrics_to_vocals: no segments constructed")
-        log_lyrics_event(song_id, "lyrics_segments_empty", alignment_mode=alignment_mode)
+        log_lyrics_event(
+            song_id, "lyrics_segments_empty", alignment_mode=alignment_mode
+        )
         return None
 
     logger.info(
@@ -354,35 +513,31 @@ def align_lyrics_to_vocals(
         )
     except Exception as e:
         logger.error("WhisperX alignment failed: %s", e, exc_info=True)
-        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode)
+        log_lyrics_event(
+            song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode
+        )
         return None
     finally:
         if activity_started:
             end_gpu_activity(f"lyrics-alignment:{language}")
 
-    # Flatten words from all segments, tagging each with its line index
-    aligned_words: list[AlignedWord] = []
-    for seg_idx, seg in enumerate(result.get("segments", [])):
-        orig_line_idx = line_index_map.get(seg_idx, seg_idx)
-        for w in seg.get("words", []):
-            # WhisperX may omit start/end if it couldn't align a word
-            word_start = w.get("start")
-            word_end = w.get("end")
-            if word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                AlignedWord(
-                    word=w.get("word", "").strip(),
-                    start=round(float(word_start), 3),
-                    end=round(float(word_end), 3),
-                    score=round(float(w.get("score", 0.0)), 3),
-                    line_index=orig_line_idx,
-                )
-            )
+    # Flatten words from all segments, tagging each with its line index by
+    # walking them positionally alongside the input tokens (see
+    # _assign_line_indices) rather than trusting the output segment position,
+    # which WhisperX's sentence-splitting can shift.
+    result_segments = result.get("segments", [])
+    input_tokens = _segments_to_input_tokens(segments, content_line_indices)
+    aligned_words = _assign_line_indices(result_segments, input_tokens)
+    if aligned_words is None:
+        aligned_words = _assign_line_indices_by_segment_position(
+            result_segments, content_line_indices
+        )
 
     if not aligned_words:
         logger.warning("align_lyrics_to_vocals: alignment produced no words")
-        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode)
+        log_lyrics_event(
+            song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode
+        )
         return None
 
     logger.info(
@@ -398,9 +553,7 @@ def align_lyrics_to_vocals(
         line_count=len(content_lines),
     )
 
-    mean_score = round(
-        sum(w["score"] for w in aligned_words) / len(aligned_words), 3
-    )
+    mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
     instrumental_intervals = _build_instrumental_intervals(aligned_words)
 
     return AlignmentResult(
@@ -425,55 +578,15 @@ def align_synced_lyrics_to_vocals(
     config = _get_synced_alignment_mode_config(mode)
     if mode == "synced_stripped_plain":
         lrc_lines = parse_lrc_lines(lrc_content)
-        line_index_map = _build_line_index_map(lrc_lines)
+        content_line_indices = _content_line_indices(lrc_lines)
         plain_text = _synced_lrc_to_plain_text(lrc_content)
-        result = align_plain_lyrics_to_vocals(
+        return align_plain_lyrics_to_vocals(
             plain_text,
             vocals_path,
             language=language,
             device=device,
             alignment_mode=str(config["alignment_mode"]),
-        )
-        if not result:
-            return None
-
-        remapped_words: list[AlignedWord] = []
-        remapped_intervals: list[InstrumentalInterval] = []
-        for word in result["words"]:
-            remapped_words.append(
-                AlignedWord(
-                    word=word["word"],
-                    start=word["start"],
-                    end=word["end"],
-                    score=word["score"],
-                    line_index=line_index_map.get(word["line_index"], word["line_index"]),
-                )
-            )
-
-        for interval in result.get("instrumental_intervals", []):
-            remapped_intervals.append(
-                InstrumentalInterval(
-                    start=interval["start"],
-                    end=interval["end"],
-                    duration=interval["duration"],
-                    lead_in_start=interval["lead_in_start"],
-                    next_line_index=line_index_map.get(
-                        interval["next_line_index"],
-                        interval["next_line_index"],
-                    ),
-                    confidence=interval["confidence"],
-                    source=interval["source"],
-                )
-            )
-
-        return AlignmentResult(
-            words=remapped_words,
-            instrumental_intervals=remapped_intervals,
-            language=result["language"],
-            aligned_at=result["aligned_at"],
-            word_count=result["word_count"],
-            line_count=result["line_count"],
-            mean_score=result["mean_score"],
+            line_indices=content_line_indices,
         )
 
     return align_lyrics_to_vocals(
@@ -526,6 +639,7 @@ def align_plain_lyrics_to_vocals(
     language: str = "en",
     device: str = "auto",
     alignment_mode: str = "plain",
+    line_indices: list[int] | None = None,
 ) -> AlignmentResult | None:
     """
     Align plain text lyrics to vocals using WhisperX forced alignment.
@@ -533,10 +647,14 @@ def align_plain_lyrics_to_vocals(
     Uses evenly-spaced dummy timestamps as segment scaffolding — the wav2vec2
     alignment model finds the actual timing. Returns the same AlignmentResult
     as align_lyrics_to_vocals; line_index in AlignedWord maps to the stripped
-    line list (section headers excluded).
+    line list (section headers excluded), unless `line_indices` is given —
+    used by align_synced_lyrics_to_vocals's synced_stripped_plain mode to tag
+    words with their original LRC line directly instead of remapping after
+    the fact.
     """
-    import whisperx
     from datetime import datetime, timezone
+
+    import whisperx
 
     device = _resolve_alignment_device(device)
     segments = _plain_lines_to_segments(plain_content)
@@ -545,6 +663,10 @@ def align_plain_lyrics_to_vocals(
         logger.warning("align_plain_lyrics_to_vocals: no usable lines found")
         log_lyrics_event(song_id, "lyrics_plain_segments_empty")
         return None
+
+    resolved_line_indices = (
+        line_indices if line_indices is not None else list(range(len(segments)))
+    )
 
     logger.info("Loading vocals from %s", vocals_path)
     audio_load_started_at = perf_counter()
@@ -610,37 +732,30 @@ def align_plain_lyrics_to_vocals(
         )
     except Exception as e:
         logger.error("WhisperX plain alignment failed: %s", e, exc_info=True)
-        log_lyrics_event(song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode)
+        log_lyrics_event(
+            song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode
+        )
         return None
     finally:
         if activity_started:
             end_gpu_activity(f"plain-lyrics-alignment:{language}")
 
-    aligned_words: list[AlignedWord] = []
-    for seg_idx, seg in enumerate(result.get("segments", [])):
-        for w in seg.get("words", []):
-            word_start = w.get("start")
-            word_end = w.get("end")
-            if word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                AlignedWord(
-                    word=w.get("word", "").strip(),
-                    start=round(float(word_start), 3),
-                    end=round(float(word_end), 3),
-                    score=round(float(w.get("score", 0.0)), 3),
-                    line_index=seg_idx,
-                )
-            )
+    result_segments = result.get("segments", [])
+    input_tokens = _segments_to_input_tokens(segments, resolved_line_indices)
+    aligned_words = _assign_line_indices(result_segments, input_tokens)
+    if aligned_words is None:
+        aligned_words = _assign_line_indices_by_segment_position(
+            result_segments, resolved_line_indices
+        )
 
     if not aligned_words:
         logger.warning("align_plain_lyrics_to_vocals: alignment produced no words")
-        log_lyrics_event(song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode)
+        log_lyrics_event(
+            song_id, "lyrics_alignment_empty", alignment_mode=alignment_mode
+        )
         return None
 
-    mean_score = round(
-        sum(w["score"] for w in aligned_words) / len(aligned_words), 3
-    )
+    mean_score = round(sum(w["score"] for w in aligned_words) / len(aligned_words), 3)
     instrumental_intervals = _build_instrumental_intervals(aligned_words)
 
     logger.info(
@@ -683,7 +798,9 @@ def load_alignment_model(language: str = "en", device: str = "auto"):
     import whisperx
 
     device = _resolve_alignment_device(device)
-    logger.info("Loading WhisperX alignment model (language=%s, device=%s)", language, device)
+    logger.info(
+        "Loading WhisperX alignment model (language=%s, device=%s)", language, device
+    )
     return whisperx.load_align_model(language_code=language, device=device)
 
 
@@ -701,8 +818,9 @@ def align_lyrics_to_vocals_with_model(
     Identical to align_lyrics_to_vocals() but accepts an already-loaded
     (model_a, metadata) pair so the model is not reloaded per song.
     """
-    import whisperx
     from datetime import datetime, timezone
+
+    import whisperx
 
     device = _resolve_alignment_device(device)
     lrc_lines = parse_lrc_lines(lrc_content)
@@ -719,7 +837,7 @@ def align_lyrics_to_vocals_with_model(
     y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
 
     segments = _lrc_lines_to_segments(lrc_lines)
-    line_index_map = _build_line_index_map(lrc_lines)
+    content_line_indices = _content_line_indices(lrc_lines)
 
     if not segments:
         return None
@@ -729,26 +847,18 @@ def align_lyrics_to_vocals_with_model(
             segments, model_a, metadata, y_16k, device, return_char_alignments=False
         )
     except Exception as e:
-        logger.error("WhisperX alignment failed for %s: %s", vocals_path, e, exc_info=True)
+        logger.error(
+            "WhisperX alignment failed for %s: %s", vocals_path, e, exc_info=True
+        )
         return None
 
-    aligned_words: list[AlignedWord] = []
-    for seg_idx, seg in enumerate(result.get("segments", [])):
-        orig_line_idx = line_index_map.get(seg_idx, seg_idx)
-        for w in seg.get("words", []):
-            word_start = w.get("start")
-            word_end = w.get("end")
-            if word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                AlignedWord(
-                    word=w.get("word", "").strip(),
-                    start=round(float(word_start), 3),
-                    end=round(float(word_end), 3),
-                    score=round(float(w.get("score", 0.0)), 3),
-                    line_index=orig_line_idx,
-                )
-            )
+    result_segments = result.get("segments", [])
+    input_tokens = _segments_to_input_tokens(segments, content_line_indices)
+    aligned_words = _assign_line_indices(result_segments, input_tokens)
+    if aligned_words is None:
+        aligned_words = _assign_line_indices_by_segment_position(
+            result_segments, content_line_indices
+        )
 
     if not aligned_words:
         return None
@@ -780,8 +890,9 @@ def align_plain_lyrics_to_vocals_with_model(
     Identical to align_plain_lyrics_to_vocals() but accepts an already-loaded
     (model_a, metadata) pair so the model is not reloaded per song.
     """
-    import whisperx
     from datetime import datetime, timezone
+
+    import whisperx
 
     device = _resolve_alignment_device(device)
     segments = _plain_lines_to_segments(plain_content)
@@ -798,25 +909,19 @@ def align_plain_lyrics_to_vocals_with_model(
             segments, model_a, metadata, y_16k, device, return_char_alignments=False
         )
     except Exception as e:
-        logger.error("WhisperX plain alignment failed for %s: %s", vocals_path, e, exc_info=True)
+        logger.error(
+            "WhisperX plain alignment failed for %s: %s", vocals_path, e, exc_info=True
+        )
         return None
 
-    aligned_words: list[AlignedWord] = []
-    for seg_idx, seg in enumerate(result.get("segments", [])):
-        for w in seg.get("words", []):
-            word_start = w.get("start")
-            word_end = w.get("end")
-            if word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                AlignedWord(
-                    word=w.get("word", "").strip(),
-                    start=round(float(word_start), 3),
-                    end=round(float(word_end), 3),
-                    score=round(float(w.get("score", 0.0)), 3),
-                    line_index=seg_idx,
-                )
-            )
+    line_indices = list(range(len(segments)))
+    result_segments = result.get("segments", [])
+    input_tokens = _segments_to_input_tokens(segments, line_indices)
+    aligned_words = _assign_line_indices(result_segments, input_tokens)
+    if aligned_words is None:
+        aligned_words = _assign_line_indices_by_segment_position(
+            result_segments, line_indices
+        )
 
     if not aligned_words:
         return None
