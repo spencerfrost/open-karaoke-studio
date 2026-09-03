@@ -280,7 +280,7 @@ const LyricContent: React.FC<LyricContentProps> = ({
   );
 };
 
-interface CountInStyleConfig {
+interface InstrumentalStyleConfig {
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -290,8 +290,7 @@ interface KaraokeLyricsRendererProps {
   currentTime: number; // seconds
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number; // milliseconds
-  bpm?: number;
-  countInStyle?: CountInStyleConfig;
+  instrumentalStyle?: InstrumentalStyleConfig;
   onSeek?: (timeSeconds: number) => void;
   className?: string;
 }
@@ -301,11 +300,12 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   currentTime,
   lyricsSize,
   lyricsOffset,
-  countInStyle = {},
+  instrumentalStyle = {},
   onSeek,
   className = "",
 }) => {
-  const { showProgressBar = false, showLeadInHighlight = false } = countInStyle;
+  const { showProgressBar = false, showLeadInHighlight = false } =
+    instrumentalStyle;
 
   const INSTRUMENTAL_PROGRESS_WIDTH_CLASS = "w-52 sm:w-72";
 
@@ -402,15 +402,6 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return idx;
   }, [parsedData.lines, currentLineIndex, currentTimeSec]);
 
-  // Find active count-in trigger
-  const activeCountInTrigger = useMemo(() => {
-    return parsedData.countInTriggers.find(
-      (trigger) =>
-        currentTimeMs >= trigger.countInStart &&
-        currentTimeMs < trigger.countInEnd,
-    );
-  }, [parsedData.countInTriggers, currentTimeMs]);
-
   const activeInstrumentalDisplay = useMemo(() => {
     const interval = parsedData.instrumentalIntervals?.find((candidate) => {
       const leadInStart = Math.min(candidate.lead_in_start, candidate.start);
@@ -464,49 +455,6 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
 
     return byLine;
   }, [parsedData.instrumentalIntervals, parsedData.lines]);
-
-  // Calculate count-in progress and beat index
-  const countInState = useMemo(() => {
-    if (activeInstrumentalDisplay) {
-      const intervalStart = activeInstrumentalDisplay.isLeadIn
-        ? Math.min(
-            activeInstrumentalDisplay.interval.lead_in_start,
-            activeInstrumentalDisplay.interval.start,
-          )
-        : activeInstrumentalDisplay.interval.start;
-      const intervalEnd = activeInstrumentalDisplay.isLeadIn
-        ? activeInstrumentalDisplay.interval.start
-        : activeInstrumentalDisplay.interval.end;
-      const elapsed = currentTimeSec - intervalStart;
-      const duration = Math.max(0.001, intervalEnd - intervalStart);
-      const progress = getProgress(elapsed, duration);
-
-      return {
-        progress,
-        currentBeatIndex: -1,
-      };
-    }
-
-    if (!activeCountInTrigger) return null;
-
-    const elapsed = currentTimeMs - activeCountInTrigger.countInStart;
-    const duration =
-      activeCountInTrigger.countInEnd - activeCountInTrigger.countInStart;
-    const progress = getProgress(elapsed, duration);
-    const currentBeatIndex = Math.floor(
-      elapsed / activeCountInTrigger.beatInterval,
-    );
-
-    return {
-      progress,
-      currentBeatIndex,
-    };
-  }, [
-    activeCountInTrigger,
-    activeInstrumentalDisplay,
-    currentTimeMs,
-    currentTimeSec,
-  ]);
 
   // Auto-scroll to center the active line
   useLayoutEffect(() => {
@@ -589,7 +537,6 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return parsedData.lines.flatMap((line, index) => {
       const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
-      const hasCountIn = activeCountInTrigger?.lineIndex === index;
       const lineInstrumentalIntervals =
         instrumentalSeparatorsByLine.get(index) ?? [];
 
@@ -657,25 +604,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
         >
-          {/* Vertical layout: count-in above text */}
           <div className="flex flex-col items-center justify-center gap-2 w-full">
-            {/* Top row: Count-in elements, rendered before the text so it appears as a separate line */}
-            {hasCountIn && countInState && (
-              <div
-                className={`flex items-center justify-center gap-3 ${opacity}`}
-              >
-                {showProgressBar && (
-                  <div className="w-32 h-1.5 bg-glass/20 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-orange-peel to-primary/80 rounded-full transition-all duration-100 ease-linear"
-                      style={{ width: `${countInState.progress * 100}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Bottom row: Lyrics text */}
             <div className="text-center">
               <LyricContent
                 line={line}

@@ -10,7 +10,7 @@
 import React from "react";
 import { useKaraokePlayer } from "../hooks";
 import { PlayerErrorBoundary, ChordCarousel } from "./subcomponents";
-import { LyricsDisplayWithCountIn } from "@/features/lyrics";
+import { ThrottledLyricsDisplay } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import { Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -148,7 +148,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               {/* min-h-0 so the chord carousel takes its space out of the
                   lyrics rather than pushing them past the transport */}
               <div className="min-h-0 w-full flex-1">
-                <LyricsDisplayWithCountIn
+                <ThrottledLyricsDisplay
                   lyrics={player.lyrics}
                   isSync={player.isLyricsSync}
                   currentTime={player.currentTime}

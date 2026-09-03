@@ -15,11 +15,11 @@ import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
 import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
-import { parseLrcWithCountIn, attachWordTimestamps } from "@/utils/lrcParser";
+import { parseLrcData, attachWordTimestamps } from "@/utils/lrcParser";
 import { useLyricsAlignment } from "@/hooks/api/useLyricsAlignment";
 import { useQueryClient } from "@tanstack/react-query";
 
-interface CountInStyleConfig {
+interface InstrumentalStyleConfig {
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -40,10 +40,8 @@ interface LyricsDisplayProps {
   songDuration?: number; // in seconds
   // Optional seek callback for clicking on lyrics
   onSeek?: (timeSeconds: number) => void;
-  // Optional BPM for count-in (only used for synced lyrics)
-  bpm?: number;
-  // Optional count-in style configuration
-  countInStyle?: CountInStyleConfig;
+  // Optional instrumental-interval style configuration
+  instrumentalStyle?: InstrumentalStyleConfig;
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
@@ -61,8 +59,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     songAlbum,
     songDuration,
     onSeek,
-    bpm,
-    countInStyle,
+    instrumentalStyle,
   }) => {
     const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
     const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] =
@@ -218,8 +215,8 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     // Parse lyrics data for synced display
     const parsedLrcData = useMemo(() => {
       if (!isSync || !lyrics) return null;
-      return parseLrcWithCountIn(lyrics, bpm);
-    }, [isSync, lyrics, bpm]);
+      return parseLrcData(lyrics);
+    }, [isSync, lyrics]);
 
     const { words: alignmentWords, instrumentalIntervals } = useLyricsAlignment(
       isSync ? songId : undefined,
@@ -283,8 +280,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             currentTime={currentTime}
             lyricsSize={lyricsSize}
             lyricsOffset={lyricsOffset}
-            bpm={bpm}
-            countInStyle={countInStyle}
+            instrumentalStyle={instrumentalStyle}
             onSeek={onSeek}
           />
         </div>

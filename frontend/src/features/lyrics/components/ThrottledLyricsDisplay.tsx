@@ -1,6 +1,8 @@
 /**
- * LyricsDisplayWithCountIn - Wrapper component for LyricsDisplay with count-in support
- * Now simplified - count-in is integrated into the KaraokeLyricsRenderer
+ * ThrottledLyricsDisplay - LyricsDisplay wrapped in a time-bucketed memo.
+ *
+ * The player drives currentTime at ~60Hz; this throttles re-renders to 10Hz,
+ * which keeps the karaoke animations smooth at a fraction of the React overhead.
  */
 
 import React from "react";
@@ -24,16 +26,14 @@ interface LyricsDisplayProps {
   onSeek?: (timeSeconds: number) => void;
 }
 
-interface LyricsDisplayWithCountInProps extends LyricsDisplayProps {
-  bpm?: number;
+interface ThrottledLyricsDisplayProps extends LyricsDisplayProps {
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
 
-const LyricsDisplayWithCountInComponent: React.FC<
-  LyricsDisplayWithCountInProps
+const ThrottledLyricsDisplayComponent: React.FC<
+  ThrottledLyricsDisplayProps
 > = ({
-  bpm,
   showProgressBar = false,
   showLeadInHighlight = false,
   ...lyricsDisplayProps
@@ -41,8 +41,7 @@ const LyricsDisplayWithCountInComponent: React.FC<
   return (
     <LyricsDisplay
       {...lyricsDisplayProps}
-      bpm={bpm}
-      countInStyle={{
+      instrumentalStyle={{
         showProgressBar,
         showLeadInHighlight,
       }}
@@ -53,8 +52,8 @@ const LyricsDisplayWithCountInComponent: React.FC<
 // Memoize component with custom comparison to prevent unnecessary re-renders
 // Only re-render when currentTime crosses a 100ms boundary (10Hz)
 // This balances smooth animations with reduced React overhead
-const LyricsDisplayWithCountIn = React.memo(
-  LyricsDisplayWithCountInComponent,
+const ThrottledLyricsDisplay = React.memo(
+  ThrottledLyricsDisplayComponent,
   (prevProps, nextProps) => {
     // Always re-render if non-time props changed
     // NOTE: onSeek is intentionally excluded - function reference changes don't affect rendering
@@ -63,7 +62,6 @@ const LyricsDisplayWithCountIn = React.memo(
       prevProps.isSync !== nextProps.isSync ||
       prevProps.lyricsSize !== nextProps.lyricsSize ||
       prevProps.lyricsOffset !== nextProps.lyricsOffset ||
-      prevProps.bpm !== nextProps.bpm ||
       prevProps.showProgressBar !== nextProps.showProgressBar ||
       prevProps.showLeadInHighlight !== nextProps.showLeadInHighlight ||
       prevProps.songId !== nextProps.songId
@@ -80,6 +78,6 @@ const LyricsDisplayWithCountIn = React.memo(
   },
 );
 
-LyricsDisplayWithCountIn.displayName = "LyricsDisplayWithCountIn";
+ThrottledLyricsDisplay.displayName = "ThrottledLyricsDisplay";
 
-export default LyricsDisplayWithCountIn;
+export default ThrottledLyricsDisplay;

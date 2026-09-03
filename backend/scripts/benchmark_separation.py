@@ -154,7 +154,7 @@ def benchmark_engine(
     start_time = time.time()
 
     try:
-        success, detected_bpm = engine_func(
+        success = engine_func(
             input_path=input_path,
             song_dir=output_dir,
             status_callback=status_callback,
@@ -181,7 +181,6 @@ def benchmark_engine(
             "duration_seconds": round(duration, 2),
             "duration_formatted": f"{int(duration // 60)}m {int(duration % 60)}s",
             "peak_vram_mb": round(peak_vram, 1),
-            "detected_bpm": detected_bpm,
             "vocals_size_mb": round(vocals_size_mb, 2),
             "instrumental_size_mb": round(instrumental_size_mb, 2),
             "total_output_size_mb": round(vocals_size_mb + instrumental_size_mb, 2),
@@ -193,9 +192,6 @@ def benchmark_engine(
         logger.info(f"  Duration: {result['duration_formatted']}")
         logger.info(f"  Peak VRAM: {peak_vram:.1f} MB")
         logger.info(f"  Output size: {result['total_output_size_mb']:.2f} MB")
-        if detected_bpm:
-            logger.info(f"  Detected BPM: {detected_bpm}")
-
         return result
 
     except Exception as e:
