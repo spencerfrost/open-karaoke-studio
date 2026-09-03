@@ -165,6 +165,9 @@ export function getInstrumentalProgressState(
   };
 }
 
+/** Length of the active-line size change. Matches the glow and opacity fades. */
+const SIZE_TRANSITION_MS = 300;
+
 function getCenteredScrollTop(
   container: HTMLDivElement,
   lineElement: HTMLDivElement,
@@ -250,13 +253,13 @@ const LyricContent: React.FC<LyricContentProps> = ({
 
     return (
       <span
-        className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
+        className={`${opacity} transition-opacity duration-300 ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
         {...seekProps}
       >
         {words.map((word, wIdx) => (
           <span
             key={wIdx}
-            className={`transition-all duration-100 ${
+            className={`transition-[color,opacity] duration-100 ${
               isActive && currentWordIndex !== null && wIdx <= currentWordIndex
                 ? "opacity-100 text-orange-peel"
                 : "opacity-60"
@@ -272,7 +275,7 @@ const LyricContent: React.FC<LyricContentProps> = ({
 
   return (
     <span
-      className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
+      className={`${opacity} transition-opacity duration-300 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
       {...seekProps}
     >
       {line.content}
@@ -456,22 +459,36 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return byLine;
   }, [parsedData.instrumentalIntervals, parsedData.lines]);
 
-  // Auto-scroll to center the active line
+  // Auto-scroll to center the active line. Line sizing is not transitioned,
+  // so by the time this runs the new active line is already at its final
+  // height and getCenteredScrollTop measures the position it will keep.
   useLayoutEffect(() => {
     scrollActiveLine("smooth");
   }, [scrollActiveLine]);
 
-  // Recalculate scroll positions on resize
+  const scrollActiveLineRef = useRef(scrollActiveLine);
   useLayoutEffect(() => {
-    if (!containerRef.current) return;
+    scrollActiveLineRef.current = scrollActiveLine;
+  }, [scrollActiveLine]);
+
+  // Recalculate scroll positions on resize.
+  //
+  // The observer is created once and reaches the current scroll callback
+  // through a ref. Re-creating it whenever the active line changed meant
+  // re-observing the container, and ResizeObserver delivers a callback as soon
+  // as observation begins — so every line change fired an "instant" scroll that
+  // cancelled the smooth one started microseconds earlier in the same commit.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      scrollActiveLine("instant");
+      scrollActiveLineRef.current("instant");
     });
 
-    resizeObserver.observe(containerRef.current);
+    resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
-  }, [scrollActiveLine]);
+  }, []);
 
   // Cleanup timeout on unmount
   useLayoutEffect(() => {
@@ -491,19 +508,66 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
         return {
           inactive: "text-2xl",
           active: "text-4xl",
+          inactivePx: 24,
+          activePx: 36,
         };
       case "large":
         return {
           inactive: "text-5xl",
           active: "text-8xl",
+          inactivePx: 48,
+          activePx: 96,
         };
       default: // medium
         return {
           inactive: "text-4xl",
           active: "text-6xl",
+          inactivePx: 36,
+          activePx: 60,
         };
     }
   }, [lyricsSize]);
+
+  // Play the size change back as a transform.
+  //
+  // font-size is set to its final value in the same commit as the class change
+  // — animating it would relayout the whole column on every frame — so the
+  // column geometry, and with it the scroll target, is settled before this
+  // runs. All that is left is to replay the growth visually: start the line at
+  // the scale its old type size represents and let a composited transform carry
+  // it to 1. offsetTop and clientHeight are layout values and ignore transforms,
+  // so the centering above stays correct throughout.
+  const previousActiveIndexRef = useRef(currentLineIndex);
+
+  useLayoutEffect(() => {
+    const previousIndex = previousActiveIndexRef.current;
+    previousActiveIndexRef.current = currentLineIndex;
+    if (previousIndex === currentLineIndex) return;
+
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const { inactivePx, activePx } = fontSizes;
+
+    const playScale = (index: number, fromScale: number) => {
+      const element = lineRefs.current[index];
+      if (!element) return;
+
+      element.style.transition = "none";
+      element.style.transform = `scale(${fromScale})`;
+      // Commit the start value before arming the transition, or the browser
+      // collapses both writes into one style change and nothing animates.
+      void element.offsetWidth;
+      element.style.transition = `transform ${SIZE_TRANSITION_MS}ms ease-out`;
+      element.style.transform = "scale(1)";
+    };
+
+    if (currentLineIndex !== -1) {
+      playScale(currentLineIndex, inactivePx / activePx);
+    }
+    if (previousIndex !== -1) {
+      playScale(previousIndex, activePx / inactivePx);
+    }
+  }, [currentLineIndex, fontSizes]);
 
   // Render all lyrics lines (including blanks)
   const renderAllLines = () => {
@@ -600,7 +664,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           ref={(el) => {
             lineRefs.current[index] = el;
           }}
-          className={`py-2 px-4 transition-all duration-500 ${fontSize} ${weight} ${shadow} text-foreground`}
+          className={`py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
         >
