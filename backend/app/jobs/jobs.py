@@ -30,7 +30,6 @@ from .enrichment_tasks import cleanup_old_jobs, post_process_song
 from .exceptions import AudioProcessingError
 from .lyrics_tasks import align_song_lyrics
 from .metadata_tasks import (
-    detect_song_chords,
     detect_song_loudness,
     detect_song_vocal_range,
     enrich_song_artist_credits,
@@ -177,7 +176,6 @@ __all__ = [
     "batch_backfill_duration",
     "batch_fingerprint_songs",
     "cleanup_old_jobs",
-    "detect_song_chords",
     "detect_song_loudness",
     "detect_song_vocal_range",
     "enrich_song_artist_credits",

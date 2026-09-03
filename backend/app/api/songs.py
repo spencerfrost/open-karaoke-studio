@@ -891,36 +891,6 @@ async def bulk_delete_ghost_records(
     return {"deleted": deleted, "skipped": skipped}
 
 
-@router.get("/{song_id}/chords")
-async def get_song_chords(song_id: str, db: Session = Depends(get_db)):
-    """
-    Get chord detection data for a song.
-
-    Returns timestamped chord progression as a JSON array.
-    """
-    try:
-        repo = SongRepository(db)
-        db_song = repo.fetch(song_id)
-
-        if not db_song:
-            raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
-
-        if db_song.chords_data is None:
-            raise HTTPException(
-                status_code=404, detail="No chord data available for this song"
-            )
-
-        return db_song.chords_data
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error fetching chords for song %s: %s", song_id, e, exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get chord data: {str(e)}"
-        )
-
-
 @router.get("/duplicates")
 async def get_duplicate_songs(
     db: Session = Depends(get_db),
@@ -1833,7 +1803,6 @@ async def replace_song_youtube(
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
-        chords_data=None,
         vocal_range_low=None,
         vocal_range_high=None,
         loudness_dbfs=None,
@@ -1901,7 +1870,6 @@ async def replace_song_upload(
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
-        chords_data=None,
         vocal_range_low=None,
         vocal_range_high=None,
         loudness_dbfs=None,

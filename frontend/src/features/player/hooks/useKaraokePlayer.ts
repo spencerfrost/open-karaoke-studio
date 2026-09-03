@@ -33,7 +33,6 @@ export const useKaraokePlayer = (
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
-    showChords,
     playbackSpeed,
     cleanup,
     seek: storeSeek,
@@ -43,7 +42,6 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
-    setShowChords,
     setPlaybackSpeed,
     userPlay,
     userPause,
@@ -254,10 +252,8 @@ export const useKaraokePlayer = (
     isLyricsSync,
     lyricsSize,
     lyricsOffset,
-    showChords,
     setLyricsSize,
     setLyricsOffset,
-    setShowChords,
 
     // Visualizer
     waveformData,

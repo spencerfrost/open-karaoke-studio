@@ -84,10 +84,8 @@ export interface KaraokePlayerHook {
   isLyricsSync: boolean;
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
-  showChords: boolean;
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
-  setShowChords: (enabled: boolean) => void;
 
   // Visualizer — the store copies the analyser's bytes into a plain array
   waveformData: number[] | null;

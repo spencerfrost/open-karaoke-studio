@@ -125,23 +125,6 @@ def test_search_songs_with_limit(client):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GET /api/songs/{song_id}/chords
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def test_get_chords_song_not_found(client):
-    response = client.get(f"/api/songs/{uuid.uuid4()}/chords")
-    assert response.status_code == 404
-
-
-def test_get_chords_no_chord_data(client):
-    song = _create_song(client, title="No Chords Song", artist="Chordless")
-    response = client.get(f"/api/songs/{song['id']}/chords")
-    # Song exists but has no chord data
-    assert response.status_code == 404
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # PATCH /api/songs/{song_id} — with lyrics update
 # ─────────────────────────────────────────────────────────────────────────────
 

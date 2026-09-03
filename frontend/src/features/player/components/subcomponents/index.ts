@@ -3,4 +3,3 @@
  */
 
 export { default as PlayerErrorBoundary } from "./PlayerErrorBoundary";
-export { default as ChordCarousel } from "./ChordCarousel";

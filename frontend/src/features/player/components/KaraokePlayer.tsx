@@ -9,12 +9,11 @@
 
 import React from "react";
 import { useKaraokePlayer } from "../hooks";
-import { PlayerErrorBoundary, ChordCarousel } from "./subcomponents";
+import { PlayerErrorBoundary } from "./subcomponents";
 import { ThrottledLyricsDisplay } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
 import { Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSongs } from "@/hooks/api/useSongs";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
 
@@ -31,12 +30,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
 }) => {
   const player = useKaraokePlayer(songId, { autoPlay });
   const openSongSelect = useOpenSongSelect();
-
-  // Song API hooks
-  const { useSongChords } = useSongs();
-  const { data: songChords = [] } = useSongChords(songId, {
-    enabled: !!songId,
-  });
 
   // Handle play/pause callbacks
   React.useEffect(() => {
@@ -137,16 +130,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
         <div className="relative flex min-h-0 w-full flex-1 flex-col">
           {song ? (
             <>
-              {player.showChords && (
-                <div className="shrink-0">
-                  <ChordCarousel
-                    chords={songChords}
-                    currentTime={player.currentTime}
-                  />
-                </div>
-              )}
-              {/* min-h-0 so the chord carousel takes its space out of the
-                  lyrics rather than pushing them past the transport */}
               <div className="min-h-0 w-full flex-1">
                 <ThrottledLyricsDisplay
                   lyrics={player.lyrics}

@@ -54,7 +54,6 @@ celery.conf.update(
         "detect_song_loudness": {"queue": "enrichment"},
         "detect_song_vocal_range": {"queue": "enrichment"},
         "align_song_lyrics": {"queue": "lyrics"},
-        "detect_song_chords": {"queue": "enrichment"},
         "fingerprint_single_song": {"queue": "enrichment"},
         "enrich_song_artist_credits": {"queue": "enrichment"},
         "batch_fingerprint_songs": {"queue": "enrichment"},

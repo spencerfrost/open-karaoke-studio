@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import relationship
 
 from .base import UNKNOWN_ARTIST, Base
@@ -52,7 +51,6 @@ class DbSong(Base):
     engine_type = Column(
         String, nullable=True
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
-    chords_data = Column(JSON, nullable=True)  # Chord detection data
     vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
     vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
     loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
@@ -137,7 +135,6 @@ class DbSong(Base):
             ),
             # Processing metadata
             "engineType": self.engine_type,
-            "chordsData": self.chords_data,
             "vocalRangeLow": self.vocal_range_low,
             "vocalRangeHigh": self.vocal_range_high,
             "loudnessDbfs": self.loudness_dbfs,

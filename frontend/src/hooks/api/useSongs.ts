@@ -6,7 +6,7 @@ import {
   uploadFile,
   handleUnauthorized,
 } from "./useApi";
-import { ChordEvent, Song, SongProcessingStatus } from "../../types/Song";
+import { Song, SongProcessingStatus } from "../../types/Song";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
@@ -19,7 +19,6 @@ const QUERY_KEYS = {
   song: (id: string) => ["songs", id] as const,
   songStatus: (id: string) => ["songs", id, "status"] as const,
   songLyrics: (id: string) => ["songs", id, "lyrics"] as const,
-  songChords: (id: string) => ["songs", id, "chords"] as const,
   metadata: ["metadata", "search"] as const,
 };
 
@@ -125,46 +124,6 @@ export function useSongs() {
           query.state.data.status === "queued")
           ? 2000
           : false,
-      ...options,
-    });
-  };
-
-  /**
-   * Get precomputed chord events for a song.
-   * Returns empty array when chord data is unavailable (404).
-   */
-  const useSongChords = (id: string, options = {}) => {
-    return useQuery<ChordEvent[], ReturnType<typeof QUERY_KEYS.songChords>>({
-      queryKey: QUERY_KEYS.songChords(id),
-      enabled: !!id,
-      queryFn: async () => {
-        const response = await fetch(`/api/songs/${id}/chords`, {
-          credentials: "include",
-        });
-
-        if (response.status === 404) {
-          return [];
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch song chords: ${response.status}`);
-        }
-
-        const data: unknown = await response.json();
-        if (!Array.isArray(data)) {
-          return [];
-        }
-
-        return data
-          .filter(
-            (item): item is ChordEvent =>
-              typeof item === "object" &&
-              item !== null &&
-              typeof (item as ChordEvent).time === "number" &&
-              typeof (item as ChordEvent).chord === "string",
-          )
-          .sort((a, b) => a.time - b.time);
-      },
       ...options,
     });
   };
@@ -775,7 +734,6 @@ export function useSongs() {
     useSongs,
     useSong,
     useSongStatus,
-    useSongChords,
     useRichSongMetadata,
 
     // Mutations

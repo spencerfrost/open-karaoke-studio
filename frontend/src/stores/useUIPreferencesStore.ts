@@ -7,7 +7,6 @@ export interface UIPreferencesState {
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
   autoScrollEnabled: boolean;
-  showChords: boolean;
 
   // Song metadata for display
   songTitle: string | null;
@@ -22,7 +21,6 @@ export interface UIPreferencesState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  setShowChords: (enabled: boolean) => void;
   setSongMetadata: (title: string | null, artist: string | null) => void;
   setMiniPlayerEnabled: (enabled: boolean) => void;
   setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
@@ -36,7 +34,6 @@ export const useUIPreferencesStore = create<UIPreferencesState>((set) => ({
   lyricsSize: useSettingsStore.getState().display.lyricsSize,
   lyricsOffset: 0,
   autoScrollEnabled: true,
-  showChords: false,
   songTitle: null,
   songArtist: null,
   miniPlayerEnabled: true,
@@ -53,10 +50,6 @@ export const useUIPreferencesStore = create<UIPreferencesState>((set) => ({
 
   setAutoScrollEnabled: (enabled: boolean) => {
     set({ autoScrollEnabled: enabled });
-  },
-
-  setShowChords: (enabled: boolean) => {
-    set({ showChords: enabled });
   },
 
   setSongMetadata: (title: string | null, artist: string | null) => {

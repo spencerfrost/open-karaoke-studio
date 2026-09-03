@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from app.services.audio import detect_loudness, detect_vocal_range
-from app.services.chord_detection_service import detect_chords
 from celery.utils.log import get_task_logger
 
 from .celery_app import celery
@@ -104,35 +103,6 @@ def detect_song_vocal_range(song_id: str) -> dict:
         with get_db_session() as session:
             SongRepository(session).update(song_id, vocal_range_low=result[0], vocal_range_high=result[1])
         logger.info("detect_song_vocal_range: %s-%s for song %s", result[0], result[1], song_id)
-
-    return {"status": "ok", "song_id": song_id}
-
-
-@celery.task(name="detect_song_chords")
-def detect_song_chords(song_id: str) -> dict:
-    """Detect chord progression from instrumental.mp3 and store beat-synced chord list."""
-    logger.info("[PIPELINE] detect_song_chords starting for song %s", song_id)
-    from app.config import get_config
-    from app.db.database import get_db_session
-    from app.repositories.song_repository import SongRepository
-
-    config = get_config()
-    instrumental_path = Path(config.BASE_LIBRARY_DIR) / song_id / "instrumental.mp3"
-
-    if not instrumental_path.exists():
-        logger.warning("detect_song_chords: instrumental.mp3 not found for song %s", song_id)
-        return {"status": "no_audio", "song_id": song_id}
-
-    try:
-        chord_data = detect_chords(str(instrumental_path))
-    except Exception:
-        logger.warning("detect_song_chords: failed for song %s", song_id, exc_info=True)
-        return {"status": "error", "song_id": song_id}
-
-    if chord_data:
-        with get_db_session() as session:
-            SongRepository(session).update(song_id, chords_data=chord_data)
-        logger.info("detect_song_chords: %d chords stored for song %s", len(chord_data), song_id)
 
     return {"status": "ok", "song_id": song_id}
 

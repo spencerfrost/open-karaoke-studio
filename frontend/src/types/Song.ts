@@ -1,10 +1,5 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
-export interface ChordEvent {
-  time: number;
-  chord: string;
-}
-
 export interface SongArtist {
   id: number;
   name: string;
@@ -63,7 +58,6 @@ export interface Song {
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
   // Audio analysis
-  chordsData?: ChordEvent[];
   vocalRangeLow?: string; // Lowest note detected, e.g. "G2"
   vocalRangeHigh?: string; // Highest note detected, e.g. "E5"
 

@@ -358,9 +358,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         _broadcast_job_event(job)
 
-        celery.send_task("detect_song_chords", args=[song_id])
-        logger.debug("[PIPELINE] ~100%% — dispatched detect_song_chords for song %s", song_id)
-
         return {"status": "success", "job_id": job_id, "song_id": song_id}
 
     except audio.StopProcessingError:

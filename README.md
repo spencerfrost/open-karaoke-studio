@@ -6,7 +6,7 @@
 
 **Turn any YouTube song into a karaoke track with AI vocal separation — then run the whole party from everyone's phones.**
 
-A self-hosted, full-stack karaoke platform. Songs are downloaded, split into isolated stems by a GPU-accelerated ML pipeline, and analyzed for chords, vocal range, and loudness. At showtime, one screen hosts the session while performers join by QR code to queue songs and control the mix — all synchronized in real time over WebSockets.
+A self-hosted, full-stack karaoke platform. Songs are downloaded, split into isolated stems by a GPU-accelerated ML pipeline, and analyzed for vocal range and loudness. At showtime, one screen hosts the session while performers join by QR code to queue songs and control the mix — all synchronized in real time over WebSockets.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -35,7 +35,7 @@ Built and maintained solo, end to end — frontend, backend, audio DSP, and infr
 - **YouTube → karaoke** — Search YouTube Music, download any track, and separate it automatically. No manual audio work.
 - **Three-track separation** — The default pipeline chains Demucs (`htdemucs_ft`) → Roformer → de-noise to produce *independent* lead vocal, backing vocal, and instrumental stems. Running Roformer on vocals-only audio eliminates instrumental bleed-through.
 - **Seven pluggable separation engines** — Interchangeable implementations behind a common interface, from fast 2-stem Demucs to multi-stage three-track variants built on different Roformer models (InstVoc Duality V2, Mel-Roformer-Viperx-1143). GPU-accelerated with CPU fallback.
-- **Automatic audio analysis** — beat-synced guitar chord detection, vocal range detection via librosa `pyin` (e.g. G2–E5), and RMS loudness measurement — all in the same background job.
+- **Automatic audio analysis** — vocal range detection via librosa `pyin` (e.g. G2–E5) and RMS loudness measurement — all in the same background job.
 - **Metadata enrichment** — MusicBrainz, iTunes, and AcoustID lookups for artwork, credits, and release data.
 
 ### Live Performance
@@ -44,7 +44,6 @@ Built and maintained solo, end to end — frontend, backend, audio DSP, and infr
 - **Web Audio mixing** — Separated stems play simultaneously through independent gain nodes, so singers can dial lead vocals, backing vocals, and instrumental separately, mid-song.
 - **Loudness normalization** — A dedicated normalization gain node applies the server-measured per-song correction (`10^(dB/20)`) at playback, so no one gets blasted between tracks.
 - **Synchronized lyrics** — LRC lyrics auto-fetched from multiple providers, displayed with auto-scroll, tap-to-seek, count-in cues, and per-song timing offset.
-- **Guitar chord carousel** — Upcoming chords displayed in-player for anyone playing along.
 - **Session resilience** — A 30-second grace period on host disconnect means a browser refresh doesn't end the party for everyone.
 - **JWT authentication** — Admin actions (deleting songs, reprocessing audio) gated behind auth.
 
@@ -91,7 +90,7 @@ YouTube URL
    ├─ Phase 1  Download          (0–30%)   yt-dlp → original.mp3
    ├─ Phase 2  Separation        (30–90%)  Demucs → Roformer → de-noise
    │                                       → vocals / backing_vocals / instrumental
-   └─ Phase 3  Analysis          (90–100%) chords · vocal range · loudness
+   └─ Phase 3  Analysis          (90–100%) vocal range · loudness
                                            → broadcast completion to all clients
 ```
 

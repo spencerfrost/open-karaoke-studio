@@ -58,7 +58,6 @@ class SongResponse(BaseModel):
 
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
-    chordsData: Optional[list] = None  # Chord detection data
     vocalRangeLow: Optional[str] = None  # Lowest sung note, e.g. "G2"
     vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
 

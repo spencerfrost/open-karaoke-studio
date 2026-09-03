@@ -1,5 +1,5 @@
 /**
- * MoreControlsSheet - the long tail: instrumental, speed, chords, auto-scroll,
+ * MoreControlsSheet - the long tail: instrumental, speed, auto-scroll,
  * session. Absorbs the old MoreOptionsSheet; lyrics size moved up into the
  * strip itself, so it is deliberately not repeated here.
  */
@@ -39,8 +39,6 @@ const MoreControlsSheet: React.FC<MoreControlsSheetProps> = ({
     setInstrumentalVolume,
     playbackSpeed,
     setPlaybackSpeed,
-    showChords,
-    setShowChords,
     autoScrollEnabled,
     setAutoScrollEnabled,
   } = useKaraokePlayerStore();
@@ -115,23 +113,6 @@ const MoreControlsSheet: React.FC<MoreControlsSheetProps> = ({
                     </Button>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Guitar chords toggle */}
-            <div className="rounded-md border border-glass-border/10 bg-glass/5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <Label
-                  htmlFor="show-guitar-chords"
-                  className="text-sm text-foreground"
-                >
-                  Show Guitar Chords
-                </Label>
-                <Switch
-                  id="show-guitar-chords"
-                  checked={showChords}
-                  onCheckedChange={setShowChords}
-                />
               </div>
             </div>
 
