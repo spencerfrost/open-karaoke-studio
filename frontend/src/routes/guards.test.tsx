@@ -31,7 +31,12 @@ vi.mock("../pages/AdminThreeTrackComparePage", () => ({
 interface Persona {
   auth: {
     isAuthenticated: boolean;
-    user: { id: string; isAdmin: boolean; isHost: boolean; displayName: string | null } | null;
+    user: {
+      id: string;
+      isAdmin: boolean;
+      isHost: boolean;
+      displayName: string | null;
+    } | null;
   };
   session: {
     sessionId: string | null;
@@ -143,7 +148,14 @@ describe("gate matrix", () => {
   };
 
   it("anon is redirected to the entry screen from every gated route", () => {
-    for (const path of ["/", "/add", "/settings", "/stage", "/controls", "/admin"]) {
+    for (const path of [
+      "/",
+      "/add",
+      "/settings",
+      "/stage",
+      "/controls",
+      "/admin",
+    ]) {
       expectFinalPage(path, ANON, "join-page");
     }
   });

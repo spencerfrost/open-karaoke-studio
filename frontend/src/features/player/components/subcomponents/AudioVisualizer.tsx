@@ -95,8 +95,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const minBin = 1; // skip the DC bin
       const maxBin = Math.max(minBin + 1, binCount - 1);
       const denom = Math.max(1, halfCount - 1);
-      const positions = Array.from({ length: halfCount }, (_, k) =>
-        minBin * Math.pow(maxBin / minBin, k / denom),
+      const positions = Array.from(
+        { length: halfCount },
+        (_, k) => minBin * Math.pow(maxBin / minBin, k / denom),
       );
       binPositionsRef.current = { binCount, halfCount, positions };
       return positions;
@@ -200,8 +201,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
             const i0 = Math.floor(pos);
             const i1 = Math.min(i0 + 1, frequencies.length - 1);
             const frac = pos - i0;
-            const avg =
-              frequencies[i0] * (1 - frac) + frequencies[i1] * frac;
+            const avg = frequencies[i0] * (1 - frac) + frequencies[i1] * frac;
             // Auto-level against this band's own recent peak (decaying
             // slowly so it doesn't pump) instead of a fixed 0-255 ceiling,
             // so both quiet songs and quiet bands still show real movement.

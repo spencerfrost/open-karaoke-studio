@@ -120,8 +120,12 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
         <div className="flex flex-col shrink-0 items-center gap-4 rounded-md border border-glass-border/10 bg-glass/5 p-2">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg uppercase tracking-[0.08em] text-foreground/60">Join Code:</span>
-              <span className="font-accent text-4xl leading-tight text-primary">{displayCode}</span>
+              <span className="text-lg uppercase tracking-[0.08em] text-foreground/60">
+                Join Code:
+              </span>
+              <span className="font-accent text-4xl leading-tight text-primary">
+                {displayCode}
+              </span>
             </div>
           </div>
           <QRCodeDisplay

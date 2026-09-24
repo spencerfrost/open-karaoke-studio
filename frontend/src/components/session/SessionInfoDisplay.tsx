@@ -195,7 +195,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-info-strong" />
               <span className="text-sm">
-                {participantCount} participant{participantCount !== 1 ? "s" : ""}
+                {participantCount} participant
+                {participantCount !== 1 ? "s" : ""}
               </span>
             </div>
 
@@ -231,7 +232,8 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
               <div className="flex items-center gap-2 text-xs text-muted-foreground border-t pt-2">
                 <Clock className="h-3 w-3" />
                 <span>
-                  Created: {new Date(sessionInfo.created_at).toLocaleTimeString()}
+                  Created:{" "}
+                  {new Date(sessionInfo.created_at).toLocaleTimeString()}
                 </span>
               </div>
             )}

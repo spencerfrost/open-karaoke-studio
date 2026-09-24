@@ -100,7 +100,10 @@ export const RequireCapability: React.FC<CapabilityRequirement> = (
 
   useEffect(() => {
     if (redirectMessage) {
-      logger.info("Capability redirect:", { to: redirectTo, message: redirectMessage });
+      logger.info("Capability redirect:", {
+        to: redirectTo,
+        message: redirectMessage,
+      });
       toast.error(redirectMessage);
     }
   }, [redirectTo, redirectMessage]);

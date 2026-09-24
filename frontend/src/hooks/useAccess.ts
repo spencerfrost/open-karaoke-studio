@@ -3,7 +3,11 @@ import { useSessionStore } from "@/stores/sessionStore";
 
 interface AuthSlice {
   isAuthenticated: boolean;
-  user: { isAdmin: boolean; isHost: boolean; displayName: string | null } | null;
+  user: {
+    isAdmin: boolean;
+    isHost: boolean;
+    displayName: string | null;
+  } | null;
 }
 
 interface SessionSlice {
