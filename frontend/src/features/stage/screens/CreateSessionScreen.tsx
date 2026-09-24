@@ -52,6 +52,9 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
   isStarting = false,
 }) => {
   const [isRotation, setIsRotation] = useState(true);
+  // Defaults to on because that is what creating a session has always done:
+  // the host's display name takes a seat. Hosts who only run the night turn it off.
+  const [includeSelf, setIncludeSelf] = useState(true);
   const [performerNames, setPerformerNames] = useState<string[]>([]);
   const [nameInput, setNameInput] = useState("");
   const [durationInput, setDurationInput] = useState("");
@@ -83,6 +86,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
       await onStart({
         queueOrderMode: isRotation ? "rotation" : "append",
         performerNames,
+        includeHostInRoster: includeSelf,
         durationHours:
           durationInput.trim() && Number.isFinite(parsedDuration)
             ? parsedDuration
@@ -116,7 +120,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
       </h1>
 
       {/* One panel, one surface. Rows are divided rather than floated apart, so
-          the three settings read as one form instead of three widgets. */}
+          the settings read as one form instead of separate widgets. */}
       <div className="divide-y divide-glass-border/10 rounded-md border border-glass-border/10 bg-glass/5">
         <div className="flex items-center justify-between gap-6 p-5">
           <div>
@@ -187,6 +191,23 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
               ))}
             </div>
           )}
+        </div>
+
+        <div className="flex items-center justify-between gap-6 p-5">
+          <div>
+            <div className="text-xl text-foreground">Am I singing?</div>
+            <p className="pt-1 text-base text-foreground/55">
+              {includeSelf
+                ? "Your name joins the roster and takes turns."
+                : "You run the night without taking a turn."}
+            </p>
+          </div>
+          <Switch
+            checked={includeSelf}
+            onCheckedChange={setIncludeSelf}
+            aria-label="Include myself in the roster"
+            className="shrink-0"
+          />
         </div>
 
         <Accordion type="single" collapsible>

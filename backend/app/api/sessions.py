@@ -100,6 +100,10 @@ class SessionCreateRequest(BaseModel):
         None,
         description="Override tonight's rotation mode; unset keeps the column default (rotation)",
     )
+    include_host_in_roster: bool = Field(
+        True,
+        description="Seat the host's own name on the roster; false means they run the night without taking turns",
+    )
 
 
 class SessionJoinByCodeRequest(BaseModel):
@@ -499,7 +503,11 @@ async def get_or_create_my_session(
             )
             db.add(host_device)
 
-            if host_device.display_name:
+            # The host is a singer by default, but a host who is only running
+            # the night can opt out on the create screen. Opting out skips the
+            # roster row entirely; nothing else keys off it, and joining by name
+            # later creates one the ordinary way.
+            if session_data.include_host_in_roster and host_device.display_name:
                 resolve_or_create_performer(
                     db,
                     session.session_id,

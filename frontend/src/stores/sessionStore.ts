@@ -34,6 +34,8 @@ export interface HostSessionSetup {
   performerNames?: string[];
   /** A one-off override for tonight; does not change the stored default. */
   durationHours?: number;
+  /** Seat the host on the roster. False means they run the night without singing. */
+  includeHostInRoster?: boolean;
 }
 
 interface SessionState {
@@ -170,6 +172,9 @@ export const useSessionStore = create<SessionState>()(
                 : {}),
               ...(options?.durationHours !== undefined
                 ? { duration_hours: options.durationHours }
+                : {}),
+              ...(options?.includeHostInRoster !== undefined
+                ? { include_host_in_roster: options.includeHostInRoster }
                 : {}),
             }),
           });

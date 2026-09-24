@@ -224,6 +224,31 @@ def test_post_my_skips_blank_performer_names(client, db):
     assert all(name.strip() for name in names)
 
 
+def test_post_my_seats_the_host_by_default(client, db):
+    response = client.post("/api/sessions/my", json={"device_type": "stage"})
+
+    assert response.status_code == 201
+    performers = _performers(db, response.json()["session_id"])
+    assert [p.device_id for p in performers] == [response.json()["device_id"]]
+
+
+def test_post_my_can_leave_the_host_off_the_roster(client, db):
+    response = client.post(
+        "/api/sessions/my",
+        json={
+            "device_type": "stage",
+            "include_host_in_roster": False,
+            "performer_names": ["Dan"],
+        },
+    )
+
+    assert response.status_code == 201
+    performers = _performers(db, response.json()["session_id"])
+    # Only the pre-listed name took a seat; the host is running the night.
+    assert [p.name for p in performers] == ["Dan"]
+    assert performers[0].seat == 0
+
+
 def test_post_my_duration_hours_overrides_the_host_default(client, db):
     db.add(HostSettings(user_id=HOST_USER_ID, session_duration_hours=8))
     db.commit()
