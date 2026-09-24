@@ -1,5 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useParams, useSearchParams } from "react-router-dom";
+import {
+  Navigate,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -28,7 +33,12 @@ const logger = createLogger("page:entry");
 
 /** Routes whose capability check is an account, not a session - the sign-in
  * disclosure defaults open when returning here from one of these. */
-const HOST_ROUTES = ["/stage", "/settings", "/admin", "/admin/compare-three-track"];
+const HOST_ROUTES = [
+  "/stage",
+  "/settings",
+  "/admin",
+  "/admin/compare-three-track",
+];
 
 /**
  * Entry - the app's one ungated screen (routed at /join and /join/:code).
@@ -71,6 +81,10 @@ const Entry: React.FC = () => {
 
   const hasAutoJoined = useRef(false);
 
+  // Set once a join completes on this screen, so the redirect below fires
+  // even while codeFromUrl is still truthy (see comment there).
+  const [justJoined, setJustJoined] = useState(false);
+
   // Auto-join when a code arrived via the URL (a QR scan) and this browser
   // already knows a display name from a prior session. The ref guard ensures
   // this fires at most once even if dependencies change.
@@ -85,9 +99,10 @@ const Entry: React.FC = () => {
       hasAutoJoined.current = true;
       logger.info("Auto-joining session from QR code", { code: codeFromUrl });
       joinSession(codeFromUrl, "performer", displayName.trim())
-        .then(() =>
-          localStorage.setItem("karaokeDisplayName", displayName.trim()),
-        )
+        .then(() => {
+          localStorage.setItem("karaokeDisplayName", displayName.trim());
+          setJustJoined(true);
+        })
         .catch((error) => {
           logger.error("Auto-join failed:", error);
           toast.error("Failed to join session. Please try manually.");
@@ -101,8 +116,11 @@ const Entry: React.FC = () => {
 
   // Once in, leave - unless a code is present in the URL, since that means
   // someone (possibly already signed in) is deliberately joining a session
-  // via a scanned QR and needs to see the form.
-  if ((isAuthenticated || sessionId) && !codeFromUrl) {
+  // via a scanned QR and needs to see the form. That only holds for a
+  // session/account they already had on arrival though - once they've
+  // actually joined from this screen, justJoined overrides it so they
+  // proceed like everyone else.
+  if ((isAuthenticated || sessionId) && (!codeFromUrl || justJoined)) {
     return <Navigate to={from} replace />;
   }
 
@@ -127,6 +145,7 @@ const Entry: React.FC = () => {
         displayName.trim(),
       );
       localStorage.setItem("karaokeDisplayName", displayName.trim());
+      setJustJoined(true);
     } catch (error) {
       logger.error("Failed to join session:", error);
       toast.error(
