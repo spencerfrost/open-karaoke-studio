@@ -168,14 +168,13 @@ class PerformerCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Performer name")
 
 
-class TurnPassRequest(BaseModel):
-    """Request model for passing the current turn forward one lap.
+class ExpectedTurnRequest(BaseModel):
+    """Base for requests that act on the current turn.
 
     `expected_performer_id` is the whole concurrency story for the handoff
     screen: it is checked against the turn the server computes, and a mismatch
     is a 409 that changes nothing. First write wins, so a phone and the TV
-    acting at the same moment settle instead of double-passing someone, and a
-    stale auto-pass timer is harmless.
+    acting at the same moment settle on one outcome instead of both landing.
     """
 
     expected_performer_id: Optional[int] = Field(
@@ -183,7 +182,7 @@ class TurnPassRequest(BaseModel):
     )
 
 
-class TurnClaimRequest(TurnPassRequest):
+class TurnClaimRequest(ExpectedTurnRequest):
     """Request model for handing the turn to someone else.
 
     Either an existing roster entry (`performer_id`) or a new name from the
@@ -1185,36 +1184,6 @@ def _check_expected(turn, expected_performer_id: Optional[int]) -> None:
     holder = turn.performer.id if turn.performer else None
     if holder != expected_performer_id:
         raise HTTPException(status_code=409, detail="The turn has already moved on")
-
-
-@router.post("/{session_id}/turn/pass", response_model=PerformerResponse)
-async def pass_current_turn(
-    body: TurnPassRequest,
-    session_id: str = Depends(require_roster_access),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-):
-    """Move the current turn one lap forward.
-
-    Both the deliberate case (someone else stepped up) and the timeout case
-    (nobody did) land here. The person passed over keeps their seat and loses
-    nothing cumulative - they are up next lap, not next song.
-    """
-    session = _active_session_or_404(db, session_id)
-    turn = compute_turn(db, session_id)
-    _check_expected(turn, body.expected_performer_id)
-
-    if turn.performer is None:
-        raise HTTPException(status_code=409, detail="Nobody holds the turn")
-
-    passed = turn.performer
-    pass_turn(session, turn)
-    db.commit()
-
-    await broadcast_queue_update(manager, session_id)
-    return PerformerResponse(
-        id=passed.id, name=passed.name, seat=passed.seat, is_active=passed.is_active
-    )
 
 
 @router.post("/{session_id}/turn/claim", response_model=PerformerResponse)

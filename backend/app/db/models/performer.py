@@ -37,13 +37,6 @@ class SessionPerformer(Base):
     seat: Mapped[int] = mapped_column(Integer, nullable=False)
     laps_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # Turns offered to this person that nobody stepped up for. Two in a row
-    # deactivates the seat, which is the only thing stopping a roster of people
-    # who have all gone home from auto-passing in a circle forever. Reset to 0
-    # by any sign of life - queueing, claiming a turn, or a song starting.
-    consecutive_passes: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
     # When this person first queued anything - their place in the circle.
     # Null until they queue: being on the roster (joined, picked, added by the
     # host) does not put you in the rotation, singing does. `seat` is join

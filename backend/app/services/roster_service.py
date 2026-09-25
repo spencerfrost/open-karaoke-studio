@@ -23,16 +23,15 @@ class ResolvedPerformer(NamedTuple):
 
 
 def mark_active(performer: SessionPerformer) -> None:
-    """Any sign of life restores a seat and clears its auto-pass count.
+    """Any sign of life restores a seat someone stepped out of.
 
-    Unit 4's handoff screen deactivates a seat after two turns nobody stepped up
-    for; the counterpart rule is that it comes back the instant that person does
-    anything. Queueing, being resolved by name, claiming a turn and a song
-    starting all route through here so the rule lives in one place rather than
-    being remembered at four call sites.
+    A seat only goes inactive when its person taps "Skip me for now" (or the
+    host removes them); the counterpart rule is that it comes back the instant
+    that person does anything. Queueing, being resolved by name, claiming a turn
+    and a song starting all route through here so the rule lives in one place
+    rather than being remembered at four call sites.
     """
     performer.is_active = True
-    performer.consecutive_passes = 0
 
 
 def resolve_or_create_performer(

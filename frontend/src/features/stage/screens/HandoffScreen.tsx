@@ -19,6 +19,10 @@
  *   2. What they're singing - the only slot whose content varies.
  *   3. How to change either - quiet, always present, never a modal.
  *
+ * No clock runs here. This is a living-room app: the screen waits until
+ * someone taps, rather than playing the next song or passing over a person who
+ * hasn't picked one yet.
+ *
  * See docs/plans/2026-08-29-handoff-screen.md.
  */
 
@@ -32,7 +36,6 @@ import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import {
   useClaimTurn,
   useDeactivatePerformer,
-  usePassTurn,
   TurnMovedOnError,
 } from "@/hooks/api/useTurn";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -49,20 +52,9 @@ import {
   getSuggestionReasonText,
 } from "@/features/player/hooks/useSongSuggestions";
 import RosterPicker from "../components/RosterPicker";
-import { useHandoffCountdown } from "../hooks/useHandoffCountdown";
 import { useStageShell } from "../StageShellContext";
 
 const logger = createLogger("component:handoff-screen");
-
-/** Someone has a song and is about to sing it - long enough to read, short enough to keep moving. */
-const AUTO_ADVANCE_SECONDS = 30;
-/**
- * Nobody has a song in this slot. Slower, because the person it is addressed to
- * has to notice the screen, pick something up and choose - and when it does
- * expire, the night carries on without anyone touching the host device. That
- * timeout *is* the feature.
- */
-const AUTO_PASS_SECONDS = 45;
 
 interface HandoffScreenProps {
   /** The song that just finished, or null if nothing was playing. */
@@ -85,7 +77,6 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const { getArtworkUrl } = useSongs();
   const { displayCode } = useSessionStore();
 
-  const passTurn = usePassTurn(displayCode || undefined);
   const claimTurn = useClaimTurn(displayCode || undefined);
   const deactivatePerformer = useDeactivatePerformer(displayCode || undefined);
   const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
@@ -111,24 +102,6 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const handleAdvance = useCallback(() => {
     if (nextItem) onPlayFromQueue(nextItem.id);
   }, [nextItem, onPlayFromQueue]);
-
-  const handlePass = useCallback(() => {
-    passTurn.mutate(
-      { expectedPerformerId: turn.performerId },
-      { onError: (e) => onTurnError(e, "pass the turn") },
-    );
-  }, [passTurn, turn.performerId, onTurnError]);
-
-  const { remaining, cancelled, cancel } = useHandoffCountdown({
-    seconds: hasSong
-      ? AUTO_ADVANCE_SECONDS
-      : turn.kind === "empty_seat"
-        ? AUTO_PASS_SECONDS
-        : null,
-    onExpire: hasSong ? handleAdvance : handlePass,
-    // A new handoff is a new person's turn. Nothing else restarts the clock.
-    resetKey: turn.performerId ?? turn.itemId,
-  });
 
   const handleClaim = useCallback(
     (opts: { performerId?: number; name?: string }) => {
@@ -188,20 +161,8 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   // An audience of one should not be told about a rotation.
   const showRibbon = turn.circle.length >= 2;
 
-  const timerProgress =
-    remaining !== null && hasSong ? remaining / AUTO_ADVANCE_SECONDS : 0;
-  const radius = 58;
-  const circumference = 2 * Math.PI * radius;
-
   return (
-    // Any tap anywhere kills the countdown for good - deciding who you are must
-    // not happen against a clock.
-    <div
-      className="flex h-full w-full flex-col items-center justify-center gap-10 overflow-auto p-10"
-      onPointerDown={cancel}
-      onKeyDown={cancel}
-      role="presentation"
-    >
+    <div className="flex h-full w-full flex-col items-center justify-center gap-10 overflow-auto p-10">
       {/* ---- Slot 1: who's up ------------------------------------------- */}
       <div className="text-center">
         {turn.performerName ? (
@@ -271,33 +232,6 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                 <Music size={64} className="text-foreground/20" />
               )}
               <div className="absolute inset-0 flex items-center justify-center bg-overlay/40 transition-colors group-hover:bg-overlay/50">
-                {!cancelled && remaining !== null && (
-                  <svg
-                    className="absolute size-32 -rotate-90"
-                    viewBox="0 0 128 128"
-                  >
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r={radius}
-                      fill="none"
-                      stroke="rgba(255,255,255,0.15)"
-                      strokeWidth="4"
-                    />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r={radius}
-                      fill="none"
-                      stroke="currentColor"
-                      className="text-primary transition-all duration-1000 ease-linear"
-                      strokeWidth="4"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={circumference * (1 - timerProgress)}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
                 <Play
                   size={48}
                   className="text-foreground drop-shadow-lg transition-transform group-hover:scale-110"
@@ -313,11 +247,6 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               <p className="pt-2 text-2xl text-foreground/55">
                 {nextItem.song.artist}
               </p>
-              {!cancelled && remaining !== null && (
-                <p className="pt-3 text-lg text-foreground/40">
-                  Playing in {remaining}s…
-                </p>
-              )}
             </div>
           </button>
         ) : turn.kind === "open" && roster.length === 0 && displayCode ? (
@@ -393,12 +322,6 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               <Library className="size-5" />
               Browse Library
             </Button>
-
-            {!cancelled && remaining !== null && (
-              <p className="text-base text-foreground/35">
-                Moving on in {remaining}s…
-              </p>
-            )}
           </div>
         )}
       </div>

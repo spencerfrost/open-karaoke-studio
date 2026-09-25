@@ -15,7 +15,6 @@ question: it is Sarah's turn with nothing in her slot.
 See docs/plans/2026-08-29-handoff-screen.md.
 """
 
-import logging
 from datetime import datetime
 from typing import List, NamedTuple, Optional
 
@@ -30,18 +29,12 @@ from app.services.roster_service import mark_active
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 # Nobody has a song queued, but the circle still knows who is up.
 KIND_EMPTY_SEAT = "empty_seat"
 # The turn belongs to a queued item.
 KIND_QUEUED = "queued"
 # Nobody is up: an empty roster, or append mode with an empty queue.
 KIND_OPEN = "open"
-
-# Two turns nobody stepped up for and the seat stops being offered. Any sign of
-# life restores it - see `SessionPerformer.consecutive_passes`.
-MAX_CONSECUTIVE_PASSES = 2
 
 
 class Turn(NamedTuple):
@@ -198,15 +191,6 @@ def pass_turn(session: KaraokeSession, turn: Turn) -> None:
         turn.item.lap = target
 
     performer.laps_taken = max(performer.laps_taken, target)
-    performer.consecutive_passes += 1
-    if performer.consecutive_passes >= MAX_CONSECUTIVE_PASSES:
-        performer.is_active = False
-        logger.info(
-            "Deactivated %r in session %s after %d consecutive passes",
-            performer.name,
-            session.session_id,
-            performer.consecutive_passes,
-        )
 
 
 def claim_turn(

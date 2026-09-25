@@ -89,9 +89,7 @@ def _add_item(db, session, performer, song_id, position=1):
 
 
 def _set_playing(db, session_id, item_id):
-    db.add(
-        SessionPlaybackState(session_id=session_id, current_queue_item_id=item_id)
-    )
+    db.add(SessionPlaybackState(session_id=session_id, current_queue_item_id=item_id))
     db.commit()
 
 
@@ -258,55 +256,33 @@ def test_pass_with_an_empty_seat_moves_laps_taken(db):
     assert compute_turn(db, "AAAA").performer.id == dan.id
 
 
-def test_two_consecutive_passes_deactivate_the_seat(db):
-    """Otherwise a roster of people who went home auto-passes forever."""
+def test_passing_never_takes_anyone_off_the_roster(db):
+    """Nobody is rushed: a seat nobody stepped up for keeps coming round."""
     session = _make_session(db)
     sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
+    dan = resolve_or_create_performer(db, "AAAA", "Dan")
     db.commit()
 
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
+    for _ in range(6):
+        pass_turn(session, compute_turn(db, "AAAA"))
+        db.commit()
+
     assert sarah.is_active is True
-    assert sarah.consecutive_passes == 1
-
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
-    assert sarah.is_active is False
-
-    assert compute_turn(db, "AAAA").kind == KIND_OPEN
+    assert dan.is_active is True
+    assert compute_turn(db, "AAAA").kind == KIND_EMPTY_SEAT
 
 
-def test_queueing_restores_a_deactivated_seat(db):
-    session = _make_session(db)
-    _make_song(db)
+def test_queueing_restores_a_seat_that_stepped_out(db):
+    _make_session(db)
     sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
+    # What "Skip me for now" does - the only way a seat goes inactive.
+    sarah.is_active = False
     db.commit()
-    pass_turn(session, compute_turn(db, "AAAA"))
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
-    assert sarah.is_active is False
 
     resolve_or_create_performer(db, "AAAA", "sarah")
     db.commit()
 
     assert sarah.is_active is True
-    assert sarah.consecutive_passes == 0
-
-
-def test_a_song_starting_clears_the_pass_count(db):
-    session = _make_session(db)
-    _make_song(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    db.commit()
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
-    assert sarah.consecutive_passes == 1
-
-    item = _add_item(db, session, sarah, "test-song")
-    advance_to(session, item)
-    db.commit()
-
-    assert sarah.consecutive_passes == 0
 
 
 # ---------------------------------------------------------------------------
@@ -382,45 +358,6 @@ def test_claim_reactivates_someone_who_stepped_out(db):
 # ---------------------------------------------------------------------------
 # The endpoints, including the race
 # ---------------------------------------------------------------------------
-
-
-def test_pass_endpoint_rejects_a_stale_expectation(db, client):
-    session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-    spencers = _add_item(db, session, spencer, "test-song")
-    _add_item(db, session, dan, "test-song", position=2)
-
-    stale = client.post(
-        "/api/sessions/AAAA/turn/pass",
-        json={"expected_performer_id": dan.id},
-    )
-    assert stale.status_code == 409
-
-    db.expire_all()
-    assert spencers.lap == 0
-
-
-def test_pass_endpoint_passes_the_expected_holder(db, client):
-    session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-    spencers = _add_item(db, session, spencer, "test-song")
-    _add_item(db, session, dan, "test-song", position=2)
-
-    response = client.post(
-        "/api/sessions/AAAA/turn/pass",
-        json={"expected_performer_id": spencer.id},
-    )
-    assert response.status_code == 200
-    assert response.json()["name"] == "Spencer"
-
-    db.expire_all()
-    assert spencers.lap == 1
 
 
 def test_claim_endpoint_accepts_a_new_name(db, client):

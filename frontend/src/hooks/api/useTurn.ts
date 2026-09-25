@@ -1,11 +1,10 @@
 /**
- * Turn-related API hooks - the three things the handoff screen can do.
+ * Turn-related API hooks - what the handoff screen can do to a turn.
  *
  * Every one of them sends `expected_performer_id`: the turn the screen was
  * rendering when someone tapped. The server compares it against the turn it
  * computes and answers 409 if it has already moved on, so a phone and the TV
  * acting at the same moment settle on one outcome instead of both landing.
- * That is also what makes a stale auto-pass timer harmless.
  */
 import { useMutation } from "@tanstack/react-query";
 import { getAuthHeaders } from "./useApi";
@@ -47,22 +46,6 @@ async function postTurn(
   return (await response.json()) as SessionPerformer;
 }
 
-/**
- * Hook: pass the current turn forward one lap.
- *
- * Both the deliberate case (someone else stepped up) and the timeout case
- * (nobody did) call this. The person passed over keeps their seat and is up
- * next lap, not next song.
- */
-export function usePassTurn(sessionCode?: string) {
-  return useMutation<SessionPerformer, Error, ExpectedTurn>({
-    mutationFn: ({ expectedPerformerId }) =>
-      postTurn(`/api/sessions/${sessionCode}/turn/pass`, {
-        expected_performer_id: expectedPerformerId,
-      }),
-  });
-}
-
 /** Hook: hand the turn to someone else - the screen's "That's not me". */
 export function useClaimTurn(sessionCode?: string) {
   return useMutation<SessionPerformer, Error, ClaimTurnVariables>({
@@ -78,8 +61,8 @@ export function useClaimTurn(sessionCode?: string) {
 /**
  * Hook: step someone out of the rotation - the screen's "Skip me for now".
  *
- * Deliberate and self-service, unlike the automatic pass. The seat comes back
- * the moment they queue something, claim a turn, or join again.
+ * Deliberate and self-service - the only way a seat leaves the rotation. The
+ * seat comes back the moment they queue something, claim a turn, or join again.
  */
 export function useDeactivatePerformer(sessionCode?: string) {
   return useMutation<SessionPerformer, Error, number>({
