@@ -12,7 +12,11 @@ import { StageShell } from "@/features/stage";
 import CreateSessionScreen from "@/features/stage/screens/CreateSessionScreen";
 import { cn } from "@/lib/utils";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useSessionStore, type HostSessionSetup } from "@/stores/sessionStore";
+import {
+  ExistingSessionError,
+  useSessionStore,
+  type HostSessionSetup,
+} from "@/stores/sessionStore";
 import { useAuthStore } from "@/stores/authStore";
 import {
   useQueue,
@@ -66,6 +70,7 @@ const Stage: React.FC = () => {
     displayCode,
     joinAsHost,
     recoverSession,
+    resumeAccountHostSession,
     isRecovering,
     recoveryError,
     isConnecting,
@@ -91,7 +96,8 @@ const Stage: React.FC = () => {
 
   // Entering stage mode only *resumes* a night; starting one is a decision the
   // host makes on CreateSessionScreen, which renders below when recovery comes
-  // back empty.
+  // back empty. Recovery asks the server as well as this browser's storage: a
+  // live session this browser has no record of is still tonight's session.
   //
   // Once per mount, strictly: ending a session from the exit prompt clears
   // `displayCode` while this page is still up. Without the guard that reads as
@@ -105,6 +111,9 @@ const Stage: React.FC = () => {
 
       try {
         await recoverSession();
+        if (!useSessionStore.getState().sessionId) {
+          await resumeAccountHostSession();
+        }
       } catch (error) {
         logger.error("Failed to initialize session:", error);
         toast.error("Failed to initialize session");
@@ -112,7 +121,7 @@ const Stage: React.FC = () => {
     };
 
     initializeSession();
-  }, [displayCode, isAuthenticated, recoverSession]);
+  }, [displayCode, isAuthenticated, recoverSession, resumeAccountHostSession]);
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
@@ -162,6 +171,8 @@ const Stage: React.FC = () => {
     try {
       await joinAsHost(options);
     } catch (error) {
+      // The create screen asks the host what to do about a live session.
+      if (error instanceof ExistingSessionError) throw error;
       logger.error("Failed to start session:", error);
       toast.error("Failed to start session");
     }

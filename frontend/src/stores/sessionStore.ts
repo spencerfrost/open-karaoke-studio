@@ -36,6 +36,31 @@ export interface HostSessionSetup {
   durationHours?: number;
   /** Seat the host on the roster. False means they run the night without singing. */
   includeHostInRoster?: boolean;
+  /**
+   * What the server does if this account already has a live session. Unset
+   * keeps the plain get-or-create ("resume"). The create screen sends "reject"
+   * so a session it didn't know about comes back as ExistingSessionError
+   * instead of silently swallowing the setup.
+   */
+  onExisting?: "resume" | "replace" | "reject";
+}
+
+/** A live session the host already has, reported instead of creating another. */
+export interface ExistingSessionDetails {
+  sessionId: string;
+  displayCode: string;
+  createdAt: string;
+}
+
+/** Thrown by joinAsHost when `onExisting: "reject"` meets a live session. */
+export class ExistingSessionError extends Error {
+  readonly existing: ExistingSessionDetails;
+
+  constructor(existing: ExistingSessionDetails) {
+    super("You already have a session running");
+    this.name = "ExistingSessionError";
+    this.existing = existing;
+  }
 }
 
 interface SessionState {
@@ -75,6 +100,12 @@ interface SessionState {
     displayName?: string,
   ) => Promise<void>;
   recoverHostSession: () => Promise<void>;
+  /**
+   * Stage only: resume this account's live session when this browser has no
+   * record of it (a different device, cleared storage, a stale device id).
+   * Resolves true if a session was resumed.
+   */
+  resumeAccountHostSession: () => Promise<boolean>;
   recoverPerformerSession: () => Promise<void>; // Add performer recovery method
   recoverSession: () => Promise<void>; // Add general recovery method
   leaveSession: () => Promise<void>;
@@ -176,8 +207,20 @@ export const useSessionStore = create<SessionState>()(
               ...(options?.includeHostInRoster !== undefined
                 ? { include_host_in_roster: options.includeHostInRoster }
                 : {}),
+              ...(options?.onExisting
+                ? { on_existing: options.onExisting }
+                : {}),
             }),
           });
+
+          if (response.status === 409) {
+            const { detail } = await response.json();
+            throw new ExistingSessionError({
+              sessionId: detail.session_id,
+              displayCode: detail.display_code,
+              createdAt: detail.created_at,
+            });
+          }
 
           if (!response.ok) {
             throw new Error(
@@ -214,6 +257,11 @@ export const useSessionStore = create<SessionState>()(
 
           logger.info("Host session joined/created:", sessionData);
         } catch (error) {
+          if (error instanceof ExistingSessionError) {
+            // Not a failure: the caller asked to be told, and decides next.
+            set({ isConnecting: false });
+            throw error;
+          }
           logger.error("Failed to join/create host session:", error);
           set({
             connectionError:
@@ -430,8 +478,16 @@ export const useSessionStore = create<SessionState>()(
 
           // Get full session info, passing device_id so is_host is computed correctly
           // (host_device_id is a 'rest_xxx' token, not an IP address)
+          // With a token the server derives is_host from the account. The
+          // device-id fallback alone wrongly says "not host" once any other
+          // stage has resumed the session, which cleared this record and sent
+          // the host back to the create screen.
+          const token = useAuthStore.getState().token;
           const response = await fetch(
             `/api/sessions/${sessionId}/info?device_id=${encodeURIComponent(deviceId)}`,
+            token
+              ? { headers: { Authorization: `Bearer ${token}` } }
+              : undefined,
           );
           if (!response.ok) {
             throw new Error(
@@ -476,6 +532,38 @@ export const useSessionStore = create<SessionState>()(
           });
           // Clear corrupted stored data
           localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+        }
+      },
+
+      resumeAccountHostSession: async () => {
+        const token = useAuthStore.getState().token;
+        if (!token) return false;
+
+        set({ isRecovering: true, recoveryError: null });
+
+        try {
+          const response = await fetch("/api/sessions/my", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) {
+            throw new Error(
+              `Failed to look up host session: ${response.statusText}`,
+            );
+          }
+
+          const live = await response.json();
+          if (!live) return false;
+
+          await get().joinAsHost({ onExisting: "resume" });
+          logger.info("Resumed account host session:", live.session_id);
+          return true;
+        } catch (error) {
+          // Falling through to the create screen is safe: its "reject" submit
+          // still catches a live session this lookup missed.
+          logger.error("Failed to resume account host session:", error);
+          return false;
+        } finally {
+          set({ isRecovering: false });
         }
       },
 

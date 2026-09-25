@@ -104,6 +104,17 @@ class SessionCreateRequest(BaseModel):
         True,
         description="Seat the host's own name on the roster; false means they run the night without taking turns",
     )
+    # The create screen sends "reject" so a live session it did not know about
+    # surfaces as a 409 instead of silently swallowing the setup above; the host
+    # then picks "resume" or "replace". Other callers keep the old get-or-create.
+    on_existing: Literal["resume", "replace", "reject"] = Field(
+        "resume",
+        description=(
+            "What to do if the host already has a live session: resume it (setup "
+            "fields ignored), replace it (end it and create a new one), or reject "
+            "with 409"
+        ),
+    )
 
 
 class SessionJoinByCodeRequest(BaseModel):
@@ -264,6 +275,26 @@ def deactivate_expired_sessions(db: Session) -> int:
     return updated
 
 
+async def _retire_session(request: Request, db: Session, session_id: str) -> None:
+    """End a session the way the host's End button does.
+
+    Deactivates the row and its devices, tells every connected device the session is
+    over, and cancels any pending grace-period termination so the session is not
+    ended a second time when the host's now-closed socket times out.
+    """
+    deactivate_session(db, session_id)
+
+    manager = getattr(request.app.state, "session_manager", None)
+    if manager is not None:
+        await manager.force_close_session_connections(
+            session_id, reason="Session ended by host"
+        )
+
+    pending = session_termination_tasks.pop(session_id, None)
+    if pending is not None:
+        pending.cancel()
+
+
 def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
     """
     Hard-delete long-dead sessions, releasing their display codes.
@@ -391,6 +422,26 @@ async def get_or_create_my_session(
         .first()
     )
 
+    if existing and session_data.on_existing == "reject":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "You already have a session running",
+                "session_id": existing.session_id,
+                "display_code": existing.display_code,
+                "created_at": existing.created_at.isoformat(),
+            },
+        )
+
+    if existing and session_data.on_existing == "replace":
+        await _retire_session(request, db, existing.session_id)
+        logger.info(
+            "Host %s replaced session %s with a new one",
+            current_user.username,
+            existing.session_id,
+        )
+        existing = None
+
     if existing:
         device_type = session_data.device_type
         display_name = session_data.display_name or current_user.display_name
@@ -423,10 +474,9 @@ async def get_or_create_my_session(
             )
             db.add(device)
 
-        if display_name:
-            resolve_or_create_performer(
-                db, existing.session_id, display_name, device_id=device.device_id
-            )
+        # No roster write here. Whether the host sings was decided when the
+        # session was created; seating them on every resume would undo an
+        # opt-out the moment the stage remounted or a second device joined.
 
         db.commit()
         device_id = device.device_id
@@ -1027,19 +1077,7 @@ async def end_session(
             status_code=403, detail="Only the session's host can end it"
         )
 
-    deactivate_session(db, session_id)
-
-    manager = getattr(request.app.state, "session_manager", None)
-    if manager is not None:
-        await manager.force_close_session_connections(
-            session_id, reason="Session ended by host"
-        )
-
-    # A host who ends the session explicitly should not also be terminated a second time
-    # when the grace timer for their now-closed socket fires.
-    pending = session_termination_tasks.pop(session_id, None)
-    if pending is not None:
-        pending.cancel()
+    await _retire_session(request, db, session_id)
 
     logger.info("Host %s ended session %s", current_user.username, session_id)
 

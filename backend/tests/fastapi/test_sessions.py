@@ -324,6 +324,84 @@ def test_post_my_ignores_setup_fields_for_an_existing_session(client, db):
     assert len(_performers(db, session.session_id)) == roster_size
 
 
+def test_post_my_resume_does_not_reseat_a_host_who_opted_out(client, db):
+    first = client.post(
+        "/api/sessions/my",
+        json={"device_type": "stage", "include_host_in_roster": False},
+    ).json()
+
+    # A second device (or a remount without a stored device id) resumes the session.
+    second = client.post("/api/sessions/my", json={"device_type": "stage"})
+
+    assert second.status_code == 201
+    assert second.json()["session_id"] == first["session_id"]
+    assert _performers(db, first["session_id"]) == []
+
+
+def test_post_my_reject_409s_with_the_live_session(client, db):
+    first = client.post("/api/sessions/my", json={"device_type": "stage"}).json()
+
+    response = client.post(
+        "/api/sessions/my",
+        json={
+            "device_type": "stage",
+            "on_existing": "reject",
+            "performer_names": ["Dan"],
+        },
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["session_id"] == first["session_id"]
+    assert detail["display_code"] == first["display_code"]
+    # Nothing was written to the live session.
+    assert "Dan" not in [p.name for p in _performers(db, first["session_id"])]
+
+
+def test_post_my_reject_creates_when_no_session_is_live(client, db):
+    response = client.post(
+        "/api/sessions/my",
+        json={
+            "device_type": "stage",
+            "on_existing": "reject",
+            "performer_names": ["Dan"],
+        },
+    )
+
+    assert response.status_code == 201
+    assert "Dan" in [p.name for p in _performers(db, response.json()["session_id"])]
+
+
+def test_post_my_replace_retires_the_live_session_and_applies_setup(client, db):
+    first = client.post("/api/sessions/my", json={"device_type": "stage"}).json()
+
+    response = client.post(
+        "/api/sessions/my",
+        json={
+            "device_type": "stage",
+            "on_existing": "replace",
+            "include_host_in_roster": False,
+            "performer_names": ["Dan", "Sarah", "Priya", "Tom"],
+            "queue_order_mode": "append",
+        },
+    )
+
+    assert response.status_code == 201
+    new_id = response.json()["session_id"]
+    assert new_id != first["session_id"]
+    assert response.json()["queue_order_mode"] == "append"
+    seated = sorted(_performers(db, new_id), key=lambda p: p.seat)
+    assert [p.name for p in seated] == ["Dan", "Sarah", "Priya", "Tom"]
+
+    old = (
+        db.query(KaraokeSession)
+        .filter(KaraokeSession.session_id == first["session_id"])
+        .one()
+    )
+    db.refresh(old)
+    assert old.is_active is False
+
+
 # ---------------------------------------------------------------------------
 # Retention helpers
 # ---------------------------------------------------------------------------

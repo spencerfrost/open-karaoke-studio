@@ -12,6 +12,10 @@
  * sunburst) so it reads as the same app, and only uses `--foreground` tints for
  * text: `--muted-foreground` is black, meant for cream cards, not this ground.
  *
+ * Submitting never lands on a session the host didn't choose: the request says
+ * "reject" if one is already live, and the screen then offers to resume it or
+ * end it and start this one, keeping everything typed so far.
+ *
  * The rotation toggle here is a deliberate, scoped exception to "the mode control
  * must not go on the TV" (docs/plans/2026-08-29-roster-and-rotation.md): there is
  * no performer yet to be confused by it. `RotationModeCard` in Settings remains
@@ -29,7 +33,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import type { HostSessionSetup } from "@/stores/sessionStore";
+import {
+  ExistingSessionError,
+  type ExistingSessionDetails,
+  type HostSessionSetup,
+} from "@/stores/sessionStore";
 
 /**
  * Text fields on the stage's dark ground. The base Input is built for cream
@@ -40,8 +48,21 @@ import type { HostSessionSetup } from "@/stores/sessionStore";
 const fieldClass =
   "h-12 border-glass-border/20 bg-glass/5 text-lg text-foreground placeholder:text-foreground/40";
 
+/**
+ * The backend serializes naive UTC datetimes with no offset, which `Date` would
+ * read as local time; mark them as UTC unless an offset is already present.
+ */
+const formatStartTime = (iso: string) =>
+  new Date(/(Z|[+-]\d\d:\d\d)$/.test(iso) ? iso : `${iso}Z`).toLocaleTimeString(
+    [],
+    { hour: "numeric", minute: "2-digit" },
+  );
+
 interface CreateSessionScreenProps {
-  /** Rejecting is the caller's job: it toasts and leaves this screen mounted. */
+  /**
+   * Failures are the caller's job: it toasts and leaves this screen mounted.
+   * The one exception it rethrows is ExistingSessionError, handled here.
+   */
   onStart: (options: HostSessionSetup) => void | Promise<void>;
   /** The create request is in flight. Drives the hand-off screen below. */
   isStarting?: boolean;
@@ -59,6 +80,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
   const [nameInput, setNameInput] = useState("");
   const [durationInput, setDurationInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existing, setExisting] = useState<ExistingSessionDetails | null>(null);
 
   const addName = () => {
     const trimmed = nameInput.trim();
@@ -78,26 +100,43 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
     setPerformerNames((names) => names.filter((name) => name !== target));
   };
 
-  const handleStart = async () => {
+  const buildSetup = (): HostSessionSetup => {
+    const parsedDuration = Number.parseFloat(durationInput);
+    return {
+      queueOrderMode: isRotation ? "rotation" : "append",
+      performerNames,
+      includeHostInRoster: includeSelf,
+      durationHours:
+        durationInput.trim() && Number.isFinite(parsedDuration)
+          ? parsedDuration
+          : undefined,
+    };
+  };
+
+  const submit = async (options: HostSessionSetup) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const parsedDuration = Number.parseFloat(durationInput);
-      await onStart({
-        queueOrderMode: isRotation ? "rotation" : "append",
-        performerNames,
-        includeHostInRoster: includeSelf,
-        durationHours:
-          durationInput.trim() && Number.isFinite(parsedDuration)
-            ? parsedDuration
-            : undefined,
-      });
+      await onStart(options);
+      setExisting(null);
+    } catch (error) {
+      if (error instanceof ExistingSessionError) {
+        setExisting(error.existing);
+      } else {
+        throw error;
+      }
     } finally {
       // Owned here, not by the parent: a failed start toasts without remounting
       // this screen, and the button must not stay dead afterwards.
       setIsSubmitting(false);
     }
   };
+
+  const handleStart = () => submit({ ...buildSetup(), onExisting: "reject" });
+  // Resuming means tonight's session as it stands; the setup above is dropped.
+  const handleResume = () => submit({ onExisting: "resume" });
+  const handleReplace = () =>
+    submit({ ...buildSetup(), onExisting: "replace" });
 
   // The hand-off moment. Rendered from inside this component rather than as a
   // branch in Stage.tsx so the form above stays mounted: if the request fails,
@@ -242,13 +281,47 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
         </Accordion>
       </div>
 
-      <Button
-        variant="primary"
-        onClick={handleStart}
-        className="h-16 w-full text-2xl"
-      >
-        Create Session
-      </Button>
+      {existing ? (
+        <div
+          role="alert"
+          className="space-y-4 rounded-md border border-glass-border/20 bg-glass/10 p-5"
+        >
+          <div>
+            <div className="text-xl text-foreground">
+              You already have a session running
+            </div>
+            <p className="pt-1 text-base text-foreground/55">
+              Code {existing.displayCode}, started{" "}
+              {formatStartTime(existing.createdAt)}. Starting this one ends it
+              for everyone connected.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleResume}
+              className="h-14 flex-1 text-lg"
+            >
+              Resume {existing.displayCode}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleReplace}
+              className="h-14 flex-1 text-lg"
+            >
+              End it and start this one
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="primary"
+          onClick={handleStart}
+          className="h-16 w-full text-2xl"
+        >
+          Create Session
+        </Button>
+      )}
     </div>
   );
 };
