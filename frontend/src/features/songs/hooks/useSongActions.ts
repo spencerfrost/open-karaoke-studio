@@ -125,11 +125,21 @@ export const useSongActions = (
     return deleteSongMutation.mutate({ id: song.id });
   };
 
-  const handleQueueClick = () => {
+  /**
+   * `pickSinger` opens the caller's QueueSingerDialog. A host's device - the
+   * stage browser, or any device on the account that owns the session - is
+   * shared, so it asks who is singing instead of crediting the host's name.
+   */
+  const handleQueueClick = (pickSinger: () => void) => {
     // On the stage, queueing goes through the confirm screen so the singer is a
     // person rather than whoever happens to own the session.
     if (shell) {
       shell.openConfirm(song);
+      return true;
+    }
+
+    if (access.inSession && (access.isStageDevice || access.isSessionOwner)) {
+      pickSinger();
       return true;
     }
 

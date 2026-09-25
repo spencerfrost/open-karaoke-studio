@@ -11,6 +11,7 @@ import { useSongDialogs } from "../../hooks/useSongDialogs";
 import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { SongManagementDialog } from "../song-details/SongManagementDialog";
+import { QueueSingerDialog } from "./QueueSingerDialog";
 import { SongCardProps } from "./SongCard.types";
 
 export const SongCard: React.FC<SongCardProps> = ({
@@ -40,7 +41,7 @@ export const SongCard: React.FC<SongCardProps> = ({
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (!songActions.handleQueueClick()) {
+    if (!songActions.handleQueueClick(() => dialogs.openDialog("singer"))) {
       toast.error("Start a session on the Stage to queue songs.");
     }
   };
@@ -100,6 +101,13 @@ export const SongCard: React.FC<SongCardProps> = ({
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
+      />
+
+      <QueueSingerDialog
+        song={song}
+        isOpen={dialogs.isDialogOpen("singer")}
+        onClose={dialogs.closeDialog}
+        onQueue={songActions.handleAddToQueue}
       />
     </Card>
   );

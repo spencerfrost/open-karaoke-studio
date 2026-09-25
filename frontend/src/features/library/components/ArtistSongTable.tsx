@@ -10,6 +10,7 @@ import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import { useSongDialogs } from "@/features/songs/hooks/useSongDialogs";
 import { SongManagementDialog } from "@/features/songs/components/song-details/SongManagementDialog";
 import { DeleteSongDialog } from "@/features/songs/components/DeleteSongDialog";
+import { QueueSingerDialog } from "@/features/songs/components/song-card/QueueSingerDialog";
 
 function formatDuration(seconds?: number): string {
   if (!seconds) return "";
@@ -39,7 +40,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
 
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!songActions.handleQueueClick()) {
+    if (!songActions.handleQueueClick(() => dialogs.openDialog("singer"))) {
       toast.error("Start a session on the Stage to queue songs.");
     }
   };
@@ -119,6 +120,13 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
+      />
+
+      <QueueSingerDialog
+        song={song}
+        isOpen={dialogs.isDialogOpen("singer")}
+        onClose={dialogs.closeDialog}
+        onQueue={songActions.handleAddToQueue}
       />
 
       <DeleteSongDialog
