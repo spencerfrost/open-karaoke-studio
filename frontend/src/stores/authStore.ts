@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("store:auth");
@@ -18,11 +19,16 @@ interface AuthState {
 
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  /**
+   * Log out because the server rejected the token (401), telling the user why.
+   * A no-op when already logged out, so a burst of 401s toasts once.
+   */
+  expireSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       user: null,
       isAuthenticated: false,
@@ -62,6 +68,12 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
         });
         logger.info("Logged out");
+      },
+
+      expireSession: () => {
+        if (!get().isAuthenticated) return;
+        get().logout();
+        toast.error("Session expired. Please log in again.");
       },
     }),
     {

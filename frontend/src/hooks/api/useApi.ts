@@ -7,7 +7,6 @@ import {
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
 import { useSessionStore } from "@/stores/sessionStore";
-import { toast } from "sonner";
 
 const logger = createLogger("hook:api");
 
@@ -28,9 +27,8 @@ export function getAuthHeaders(): Record<string, string> {
 
 /** Handle 401 responses by clearing stale auth state and prompting re-login. */
 export function handleUnauthorized(response: Response): void {
-  if (response.status === 401 && useAuthStore.getState().isAuthenticated) {
-    useAuthStore.getState().logout();
-    toast.error("Session expired. Please log in again.");
+  if (response.status === 401) {
+    useAuthStore.getState().expireSession();
   }
 }
 

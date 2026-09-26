@@ -94,7 +94,9 @@ export function useQueue(sessionCode?: string, options?: QueueQueryOptions) {
   const query = useApiQuery<QueueApiResponse, ["karaoke-queue", string]>(
     ["karaoke-queue", sessionCode || ""],
     `karaoke-queue${sessionCode ? `?session_code=${sessionCode}` : ""}`,
-    options,
+    // The endpoint 400s without a session code, so there is nothing to fetch
+    // until one exists.
+    { ...options, enabled: !!sessionCode && (options?.enabled ?? true) },
   );
 
   return {

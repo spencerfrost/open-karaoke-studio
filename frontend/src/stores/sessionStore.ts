@@ -85,6 +85,13 @@ interface SessionState {
   // Recovery state
   isRecovering: boolean;
   recoveryError: string | null;
+  /**
+   * The stage's server-side lookup for this account's live session. Kept apart
+   * from `isRecovering` on purpose: the route guards swap their outlet for a
+   * spinner on `isRecovering`, which would unmount the Stage page that started
+   * this lookup and have it start another on remount.
+   */
+  isResumingAccountSession: boolean;
 
   // Actions
   /**
@@ -170,6 +177,7 @@ export const useSessionStore = create<SessionState>()(
       connectionError: null,
       isRecovering: false,
       recoveryError: null,
+      isResumingAccountSession: false,
 
       joinAsHost: async (options) => {
         set({ isConnecting: true, connectionError: null });
@@ -539,12 +547,19 @@ export const useSessionStore = create<SessionState>()(
         const token = useAuthStore.getState().token;
         if (!token) return false;
 
-        set({ isRecovering: true, recoveryError: null });
+        set({ isResumingAccountSession: true, recoveryError: null });
 
         try {
           const response = await fetch("/api/sessions/my", {
             headers: { Authorization: `Bearer ${token}` },
           });
+          if (response.status === 401) {
+            // A stale token (expired, or signed with a different key) would
+            // otherwise leave a "logged in" host on the create screen, whose
+            // submit fails the same way.
+            useAuthStore.getState().expireSession();
+            return false;
+          }
           if (!response.ok) {
             throw new Error(
               `Failed to look up host session: ${response.statusText}`,
@@ -563,7 +578,7 @@ export const useSessionStore = create<SessionState>()(
           logger.error("Failed to resume account host session:", error);
           return false;
         } finally {
-          set({ isRecovering: false });
+          set({ isResumingAccountSession: false });
         }
       },
 
@@ -796,6 +811,7 @@ export const useSessionStore = create<SessionState>()(
           connectionError: null,
           isRecovering: false,
           recoveryError: null,
+          isResumingAccountSession: false,
         });
       },
     }),

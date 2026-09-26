@@ -72,6 +72,7 @@ const Stage: React.FC = () => {
     recoverSession,
     resumeAccountHostSession,
     isRecovering,
+    isResumingAccountSession,
     recoveryError,
     isConnecting,
     connectionError,
@@ -179,7 +180,7 @@ const Stage: React.FC = () => {
   };
 
   // Show loading state while recovery decides whether there's a night to resume.
-  if (isRecovering) {
+  if (isRecovering || isResumingAccountSession) {
     return (
       <StageFrame>
         <h1 className="text-center text-4xl font-bold text-primary">
