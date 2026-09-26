@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
 const cardClass =
-  "flex flex-col gap-2.5 rounded-md border border-glass-border/10 bg-glass/5 p-[18px]";
+  "flex flex-col gap-2.5 rounded-md border border-glass-border/10 bg-glass/5 p-3.5";
 const railLabelClass =
-  "text-[17px] font-semibold uppercase tracking-[0.08em] text-foreground/70";
+  "text-[0.9375rem] font-semibold uppercase tracking-[0.08em] text-foreground/70";
 
 interface StageQueueRailProps {
   current?: KaraokeQueueItemWithSong | null;
@@ -41,8 +41,8 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
       <div className={cn(cardClass, "shrink-0")}>
         <span className={railLabelClass}>Singing Now</span>
         <div className="flex items-center gap-3">
-          <Mic size={26} className="shrink-0 text-primary" />
-          <span className="min-w-0 truncate font-display text-[28px] font-bold text-foreground">
+          <Mic className="size-6 shrink-0 text-primary" />
+          <span className="min-w-0 truncate font-display text-2xl font-bold text-foreground">
             {current?.singer ?? "—"}
           </span>
         </div>
@@ -75,11 +75,11 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
             {upcoming.map((item, index) => (
               <div key={item.id} className="group flex items-center gap-3.5">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-accent text-2xl text-primary">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-accent text-xl text-primary">
                   {index + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[21px] font-semibold text-foreground">
+                  <div className="truncate text-lg font-semibold text-foreground">
                     {item.song.title}
                   </div>
                   <div className="truncate text-base text-foreground/50">
@@ -120,17 +120,17 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
         <div className="flex flex-col shrink-0 items-center gap-4 rounded-md border border-glass-border/10 bg-glass/5 p-2">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg uppercase tracking-[0.08em] text-foreground/60">
+              <span className="text-base uppercase tracking-[0.08em] text-foreground/60">
                 Join Code:
               </span>
-              <span className="font-accent text-4xl leading-tight text-primary">
+              <span className="font-accent text-3xl leading-tight text-primary">
                 {displayCode}
               </span>
             </div>
           </div>
           <QRCodeDisplay
             value={`${window.location.origin}/join/${displayCode}`}
-            size={180}
+            size="9.5rem"
             className="shrink-0 mb-2"
           />
         </div>

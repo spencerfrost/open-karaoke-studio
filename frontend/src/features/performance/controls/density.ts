@@ -15,7 +15,7 @@ export type Density = "tv" | "touch";
 export const cardClass = (density: Density, className?: string) =>
   cn(
     "flex flex-col rounded-md border border-glass-border/10 bg-glass/5",
-    density === "tv" ? "gap-4 p-[18px]" : "gap-2.5 p-4",
+    density === "tv" ? "gap-3 p-3.5" : "gap-2.5 p-4",
     className,
   );
 
@@ -23,8 +23,12 @@ export const cardClass = (density: Density, className?: string) =>
 export const cardLabelClass = (density: Density) =>
   cn(
     "font-semibold uppercase tracking-[0.08em] text-foreground/70",
-    density === "tv" ? "text-[17px]" : "text-xs",
+    density === "tv" ? "text-[0.9375rem]" : "text-xs",
   );
 
-/** Pixel size for the lucide icon that sits beside a card heading. */
-export const cardIconSize = (density: Density) => (density === "tv" ? 22 : 16);
+/**
+ * Size classes for the lucide icon that sits beside a card heading. Classes
+ * rather than a pixel prop so the TV icon scales with the stage's rem.
+ */
+export const cardIconClass = (density: Density) =>
+  density === "tv" ? "size-5" : "size-4";

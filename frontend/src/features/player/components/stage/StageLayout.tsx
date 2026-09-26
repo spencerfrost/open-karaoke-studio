@@ -25,10 +25,14 @@ import StageQueueRail from "./StageQueueRail";
 import StageRailIcons from "./StageRailIcons";
 import { useStageRails } from "./useStageRails";
 import { useStageKeyboard } from "./useStageKeyboard";
+import { useStageRootScale } from "./useStageRootScale";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
-const RAIL_OPEN_PX = 356;
-const RAIL_COLLAPSED_PX = 96;
+// rem, so the rails scale with the stage (see useStageRootScale). About 15% of
+// the width each: the lyrics are the show, the rails are for whoever walks up
+// to the mic.
+const RAIL_OPEN = "17rem";
+const RAIL_COLLAPSED = "6rem";
 
 interface StageLayoutProps {
   songId: string;
@@ -61,13 +65,15 @@ const StageLayout: React.FC<StageLayoutProps> = ({
     onToggleFullscreen: ui.toggleFullscreen,
     enabled: keyboardEnabled,
   });
+  // keyboardEnabled is false exactly while another stage screen covers this one.
+  useStageRootScale(keyboardEnabled);
 
   const nextItem = upcoming[0];
   const handleNext = useCallback(() => {
     if (nextItem) onPlayFromQueue(nextItem.id);
   }, [nextItem, onPlayFromQueue]);
 
-  const railWidth = collapsed ? RAIL_COLLAPSED_PX : RAIL_OPEN_PX;
+  const railWidth = collapsed ? RAIL_COLLAPSED : RAIL_OPEN;
   // Hidden, not unmounted: `hidden` keeps React state, dialogs and drag
   // listeners alive while the rail is showing its icon strip.
   const railClass = cn(
@@ -89,7 +95,7 @@ const StageLayout: React.FC<StageLayoutProps> = ({
       <div
         className="relative z-20 grid h-full gap-6 p-6 transition-[grid-template-columns] duration-500"
         style={{
-          gridTemplateColumns: `${railWidth}px minmax(0, 1fr) ${railWidth}px`,
+          gridTemplateColumns: `${railWidth} minmax(0, 1fr) ${railWidth}`,
         }}
       >
         {/* Left rail — the same channel strip as the phone */}

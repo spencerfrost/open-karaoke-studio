@@ -29,7 +29,7 @@ const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
       <span
         className={cn(
           "flex-1 uppercase tracking-[0.08em] text-foreground/55",
-          isTv ? "text-[15px]" : "text-xs",
+          isTv ? "text-sm" : "text-xs",
         )}
       >
         Size
@@ -46,7 +46,7 @@ const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
               aria-pressed={isSelected}
               className={cn(
                 "rounded-md border font-semibold",
-                isTv ? "size-12 text-base" : "size-11 text-sm",
+                isTv ? "size-10 text-base" : "size-11 text-sm",
                 isSelected
                   ? "border-glass-border/40 bg-glass/20 text-foreground"
                   : "border-glass-border/20 text-foreground/70",

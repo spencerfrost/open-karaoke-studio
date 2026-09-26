@@ -21,7 +21,7 @@ import LyricsOffsetRow from "./LyricsOffsetRow";
 import LyricsSizeRow from "./LyricsSizeRow";
 import {
   cardClass,
-  cardIconSize,
+  cardIconClass,
   cardLabelClass,
   type Density,
 } from "./density";
@@ -114,7 +114,7 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
   return (
     <div className={cardClass(density, cn("shrink-0", className))}>
       <div className="flex items-center gap-2.5">
-        <Captions size={cardIconSize(density)} className="text-primary" />
+        <Captions className={cn(cardIconClass(density), "text-primary")} />
         <span className={cardLabelClass(density)}>Lyrics</span>
       </div>
 
@@ -125,11 +125,12 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
           onClick={() => setIsLyricsDialogOpen(true)}
           className={cn(
             "flex-1 font-semibold",
-            isTv ? "h-17 text-xl" : "h-13 text-base",
+            isTv ? "h-13 text-lg" : "h-13 text-base",
           )}
         >
-          <Search className={cn("mr-1", isTv ? "size-6" : "size-4.5")} />
-          Search &amp; Replace
+          <Search className={cn("mr-1", isTv ? "size-5" : "size-4.5")} />
+          {/* The TV rail is too narrow for the long label */}
+          {isTv ? "Search" : <>Search &amp; Replace</>}
         </Button>
         <Button
           variant="outline"
@@ -137,9 +138,9 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
           onClick={() => setIsPasteLyricsDialogOpen(true)}
           aria-label="Paste lyrics"
           title="Paste lyrics"
-          className={cn("shrink-0", isTv ? "h-17 w-16" : "h-13 w-12")}
+          className={cn("shrink-0", isTv ? "h-13 w-13" : "h-13 w-12")}
         >
-          <FileText className={isTv ? "size-6" : "size-4.5"} />
+          <FileText className={isTv ? "size-5" : "size-4.5"} />
         </Button>
       </div>
 

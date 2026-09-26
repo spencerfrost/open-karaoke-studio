@@ -46,16 +46,19 @@ const VocalFader: React.FC<VocalFaderProps> = ({
       )}
     >
       {/* Name row — the mute lives here, not as a separate button */}
-      <div className="flex w-full items-center gap-1.5">
+      <div
+        className={cn("flex w-full items-center", isTv ? "gap-1" : "gap-1.5")}
+      >
         <span className="shrink-0 text-primary">
-          {React.cloneElement(icon as React.ReactElement<{ size?: number }>, {
-            size: isTv ? 20 : 16,
-          })}
+          {React.cloneElement(
+            icon as React.ReactElement<{ className?: string }>,
+            { className: isTv ? "size-4.5" : "size-4" },
+          )}
         </span>
         <span
           className={cn(
             "min-w-0 flex-1 truncate font-semibold",
-            isTv ? "text-[19px]" : "text-sm",
+            isTv ? "text-[0.9375rem]" : "text-sm",
           )}
         >
           {label}
@@ -68,13 +71,13 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           aria-label={isMuted ? `Unmute ${label}` : `Mute ${label}`}
           className={cn(
             "shrink-0 text-foreground/55 hover:text-foreground",
-            isTv ? "size-10" : "size-8",
+            "size-8",
           )}
         >
           {isMuted ? (
-            <VolumeX size={isTv ? 22 : 18} />
+            <VolumeX className={isTv ? "size-5" : "size-4.5"} />
           ) : (
-            <Volume2 size={isTv ? 22 : 18} />
+            <Volume2 className={isTv ? "size-5" : "size-4.5"} />
           )}
         </Button>
       </div>
@@ -82,7 +85,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
       <div
         className={cn(
           "font-accent leading-none text-primary",
-          isTv ? "text-[38px]" : "text-[30px]",
+          isTv ? "text-[2rem]" : "text-[30px]",
         )}
       >
         {Math.round(volume * 100)}%
@@ -98,7 +101,13 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           orientation="vertical"
           disabled={disabled}
           onValueChange={([v]) => onVolumeChange(v)}
-          className="h-full"
+          // On the TV the thumb is a mouse target, not a thumb target, and the
+          // fader may shrink well below the phone's floor on a short screen.
+          className={cn(
+            "h-full",
+            isTv && "data-[orientation=vertical]:min-h-20",
+          )}
+          thumbClassName={isTv ? "h-10 w-16" : undefined}
           aria-label={`${label} volume`}
         />
         {disabled && disabledHint && (

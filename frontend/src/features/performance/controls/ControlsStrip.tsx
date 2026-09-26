@@ -34,7 +34,7 @@ const ControlsStrip: React.FC<ControlsStripProps> = ({
     <div
       className={cn(
         "flex min-h-0 flex-col",
-        isTv ? "gap-4" : "gap-2.5",
+        isTv ? "gap-3" : "gap-2.5",
         className,
       )}
     >
@@ -46,10 +46,10 @@ const ControlsStrip: React.FC<ControlsStripProps> = ({
         onClick={() => setMoreOpen(true)}
         className={cn(
           "w-full shrink-0 text-foreground/55 hover:text-foreground",
-          isTv ? "h-14 text-[17px]" : "h-12 text-sm",
+          isTv ? "h-11 text-base" : "h-12 text-sm",
         )}
       >
-        <MoreHorizontal className={isTv ? "size-5.5" : "size-5"} />
+        <MoreHorizontal className="size-5" />
         More
       </Button>
 

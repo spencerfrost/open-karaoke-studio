@@ -51,10 +51,10 @@ const StageRailIcons: React.FC<StageRailIconsProps> = ({
     ) : (
       <>
         <div className={tileClass}>
-          <span className="font-accent text-[32px] leading-none text-primary">
+          <span className="font-accent text-[2rem] leading-none text-primary">
             {queueCount}
           </span>
-          <span className="text-[10px] uppercase tracking-[0.08em] text-foreground/60">
+          <span className="text-[0.625rem] uppercase tracking-[0.08em] text-foreground/60">
             Queue
           </span>
         </div>

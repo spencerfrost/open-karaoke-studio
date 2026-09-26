@@ -9,7 +9,7 @@ import { usePerformanceControlsLogic } from "../hooks/usePerformanceControlsLogi
 import VocalFader from "./VocalFader";
 import {
   cardClass,
-  cardIconSize,
+  cardIconClass,
   cardLabelClass,
   type Density,
 } from "./density";
@@ -37,11 +37,14 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
   const backingAvailable = !!backingVocalUrl;
 
   return (
-    <div className={cardClass(density, cn("min-h-0", className))}>
+    // overflow-hidden: the faders shrink with the card, but on a viewport too
+    // short even for that they must clip rather than draw over the lyrics card.
+    <div
+      className={cardClass(density, cn("min-h-0 overflow-hidden", className))}
+    >
       <div className="flex items-center gap-2.5">
         <SlidersHorizontal
-          size={cardIconSize(density)}
-          className="text-primary"
+          className={cn(cardIconClass(density), "text-primary")}
         />
         <span className={cardLabelClass(density)}>Mix</span>
       </div>
@@ -49,7 +52,7 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
       <div
         className={cn(
           "grid min-h-0 flex-1 grid-cols-2",
-          density === "tv" ? "gap-4" : "gap-3.5",
+          density === "tv" ? "gap-2" : "gap-3.5",
         )}
       >
         <VocalFader

@@ -45,7 +45,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
   return (
     <div className="flex w-full shrink-0 flex-col gap-4.5 pt-5">
       <div className="flex items-center gap-6">
-        <span className="w-21 font-accent text-[32px] leading-none text-foreground/70">
+        <span className="w-21 font-accent text-[2rem] leading-none text-foreground/70">
           {formatTime(currentTime)}
         </span>
         <ProgressBar
@@ -54,7 +54,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
           onSeek={seek}
           className="flex-1"
         />
-        <span className="w-21 text-right font-accent text-[32px] leading-none text-foreground/70">
+        <span className="w-21 text-right font-accent text-[2rem] leading-none text-foreground/70">
           {formatTime(duration)}
         </span>
       </div>

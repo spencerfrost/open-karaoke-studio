@@ -81,19 +81,19 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
 
   const flankClass = cn(
     "shrink-0 border border-primary text-primary rounded-md",
-    isTv ? "size-16" : "h-13 w-12",
+    isTv ? "size-11" : "h-13 w-12",
   );
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className={cn("flex items-center", isTv ? "gap-2.5" : "gap-2")}>
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           className={flankClass}
           onClick={() => setLyricsOffset(lyricsOffset - OFFSET_STEP_MS)}
           aria-label="Nudge lyrics earlier"
         >
-          <Minus className={isTv ? "size-6.5" : "size-5.5"} strokeWidth={2.5} />
+          <Minus className={isTv ? "size-5" : "size-5.5"} strokeWidth={2.5} />
         </Button>
 
         <div
@@ -113,30 +113,24 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
             }
           }}
           className={cn(
-            "flex flex-1 cursor-ns-resize select-none items-center justify-center gap-2 rounded-md",
+            "flex min-w-0 flex-1 cursor-ns-resize select-none items-center justify-center gap-1.5 rounded-md",
             "border border-glass-border/20 bg-glass/5 transition-colors",
             "hover:border-glass-border/40 hover:bg-glass/10",
-            isTv ? "h-16" : "h-13",
+            isTv ? "h-11" : "h-13",
             isDragging && "border-primary bg-glass/15 ring-1 ring-primary",
           )}
         >
           <span
             className={cn(
               "font-accent leading-none text-foreground",
-              isTv ? "text-[40px]" : "text-[34px]",
+              isTv ? "text-3xl" : "text-[34px]",
             )}
           >
             {formatLyricsOffset(lyricsOffset)}
           </span>
           <span className="flex flex-col gap-px text-foreground/40">
-            <ChevronUp
-              className={isTv ? "size-3.5" : "size-3"}
-              strokeWidth={3}
-            />
-            <ChevronDown
-              className={isTv ? "size-3.5" : "size-3"}
-              strokeWidth={3}
-            />
+            <ChevronUp className="size-3" strokeWidth={3} />
+            <ChevronDown className="size-3" strokeWidth={3} />
           </span>
         </div>
 
@@ -146,7 +140,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           onClick={() => setLyricsOffset(lyricsOffset + OFFSET_STEP_MS)}
           aria-label="Nudge lyrics later"
         >
-          <Plus className={isTv ? "size-6.5" : "size-5.5"} strokeWidth={2.5} />
+          <Plus className={isTv ? "size-5" : "size-5.5"} strokeWidth={2.5} />
         </Button>
 
         {/* Always rendered so clearing the offset never reflows the row */}
@@ -161,7 +155,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           onClick={() => setLyricsOffset(0)}
           aria-label="Reset lyrics offset"
         >
-          <RotateCcw className={isTv ? "size-6" : "size-5"} />
+          <RotateCcw className="size-5" />
         </Button>
       </div>
 
@@ -170,7 +164,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           variant="primary"
           onClick={handleSaveOffset}
           disabled={updateSongMutation.isPending}
-          className={cn("w-full", isTv ? "h-14 text-lg" : "h-11")}
+          className={cn("w-full", isTv ? "h-11 text-base" : "h-11")}
         >
           <Save className="mr-2 size-4" />
           Save timing to song

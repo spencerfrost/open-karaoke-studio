@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 interface SliderProps
   extends React.ComponentProps<typeof SliderPrimitive.Root> {
   variant?: "default" | "performance"
+  /** Extra thumb classes, e.g. a smaller performance thumb on the TV. */
+  thumbClassName?: string
 }
 
 function Slider({
@@ -17,6 +19,7 @@ function Slider({
   min = 0,
   max = 100,
   variant = "default",
+  thumbClassName,
   ...props
 }: SliderProps) {
   const _values = React.useMemo(
@@ -72,7 +75,8 @@ function Slider({
               "hover:shadow-[inset_0_2px_1px_rgba(255,200,100,0.35),inset_0_-2px_1px_rgba(0,0,0,0.5),0_4px_10px_rgba(0,0,0,0.5),0_0_12px_rgba(255,150,50,0.4)]",
               "focus-visible:outline-hidden",
               "after:content-[''] after:absolute after:left-3 after:right-3 after:top-1/2 after:-translate-y-1/2 after:h-px after:bg-foreground/75 after:rounded-full after:pointer-events-none",
-            ]
+            ],
+            thumbClassName
           )}
         />
       ))}
