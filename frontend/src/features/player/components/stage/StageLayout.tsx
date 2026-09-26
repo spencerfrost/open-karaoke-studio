@@ -105,7 +105,9 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 
         {/* Centre — the player, with the transport under it */}
         <div className="flex min-h-0 flex-col items-center">
-          <KaraokePlayer songId={songId} dimHeader={collapsed} />
+          {/* Autoplay: "Sing it now", the queue rail and the handoff screen
+            all mean "start this", so a newly loaded song plays by itself. */}
+          <KaraokePlayer songId={songId} autoPlay dimHeader={collapsed} />
           <div
             className={cn(
               "w-full shrink-0 transition-opacity duration-500",

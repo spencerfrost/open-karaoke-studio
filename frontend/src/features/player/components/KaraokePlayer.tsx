@@ -12,7 +12,7 @@ import { useKaraokePlayer } from "../hooks";
 import { PlayerErrorBoundary } from "./subcomponents";
 import { ThrottledLyricsDisplay } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
-import { Library } from "lucide-react";
+import { Library, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
@@ -128,7 +128,14 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             handoff screen - it is a whole screen about a person, not a branch
             inside the lyrics column. */}
         <div className="relative flex min-h-0 w-full flex-1 flex-col">
-          {song ? (
+          {song && !player.isReady ? (
+            // Until the stems are decoded there is nothing to sing along to,
+            // and with autoplay on the song starts by itself once they are.
+            <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground/60">
+              <Loader2 className="size-6 animate-spin" />
+              Getting the song ready…
+            </div>
+          ) : song ? (
             <>
               <div className="min-h-0 w-full flex-1">
                 <ThrottledLyricsDisplay
