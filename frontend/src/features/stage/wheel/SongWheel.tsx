@@ -160,7 +160,12 @@ const SongWheel: React.FC<SongWheelProps> = ({
     rowHeight: ROW_HEIGHTS[i],
     listTop: LIST_TOP[i],
     active: col === i,
-    brightness: columnBrightness(Math.abs(i - col)),
+    // The narrow letter column turns in behind the artists while songs are
+    // in front and would show through them, so it is hidden there.
+    brightness:
+      i === COLUMN.letter && col === COLUMN.song
+        ? 0
+        : columnBrightness(Math.abs(i - col)),
     transform: columnTransform(i),
     turnMs,
     scrollMs,

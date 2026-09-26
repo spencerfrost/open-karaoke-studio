@@ -159,6 +159,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
       className={cn(
         "absolute overflow-hidden",
         active ? "cursor-default" : "cursor-pointer",
+        brightness === 0 && "pointer-events-none",
       )}
       style={{
         top: -COLUMN_HEIGHT / 2,
