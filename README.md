@@ -1,70 +1,187 @@
+<div align="center">
+
+<img src="docs/images/logo.png" alt="Open Karaoke Studio" width="140" />
+
 # Open Karaoke Studio
 
-**Self-hosted AI-powered karaoke for small gatherings.**
+**Turn any YouTube song into a karaoke track with AI vocal separation — then run the whole party from everyone's phones.**
 
-Open Karaoke Studio lets you build a karaoke library from YouTube, separates vocals with AI, displays synchronized lyrics, and keeps multiple devices in sync in real time. Designed for 5–10 people at a party or event.
+A self-hosted, full-stack karaoke platform. Songs are downloaded, split into isolated stems by a GPU-accelerated ML pipeline, and analyzed for vocal range and loudness. At showtime, one screen hosts the session while performers join by QR code to queue songs and control the mix — all synchronized in real time over WebSockets.
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Demucs%20%2B%20Roformer-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org)
+[![Celery](https://img.shields.io/badge/Celery-Redis-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+</div>
+
+---
+
+## Why This Project
+
+Most songs never got an official karaoke version. This started as a fix for that and grew into a full distributed system: a background ML pipeline, a real-time multi-device sync layer, and a browser audio engine that mixes separated stems live.
+
+Built and maintained solo, end to end — frontend, backend, audio DSP, and infrastructure — including two significant mid-flight migrations: Flask → FastAPI, and Socket.IO → native WebSockets.
+
+**Deliberately not enterprise scale.** It targets 5–10 concurrent users in a living room, and the architecture makes that trade-off explicitly rather than reaching for patterns the use case doesn't justify.
+
+---
 
 ## Features
 
-- **YouTube to Karaoke:** Search YouTube Music, download any song, and automatically separate vocals from the instrumental using AI (Demucs, Roformer, or three-track separation)
-- **Synchronized Lyrics:** Auto-fetches LRC lyrics from multiple providers; displays them synchronized to music with auto-scroll, tap-to-seek, and timing offset adjustment
-- **Multi-Device Sessions:** Host on the main screen, performers join by session code or QR code from their phones to queue songs and control the performance
-- **Performance Controls:** Independent volume sliders for vocals, instrumental, and backing vocals; lyrics size; guitar chord display — all synchronized across devices in real time
-- **Chord & BPM Analysis:** Automatic chord detection and BPM analysis during processing; guitar chord carousel displays upcoming chords during playback
-- **Vocal Range Detection:** Detects the lowest and highest sung notes for each song (e.g. G2–E5); displayed on song cards and in song details
-- **Loudness Normalization:** Measures RMS loudness and applies per-song gain correction at playback time so every song plays at a consistent volume
-- **Session Resilience:** 30-second grace period on host disconnect so a browser refresh doesn't end the session for everyone
-- **Authentication:** JWT-based login; admin actions (delete songs, reprocess audio) are gated behind authentication
-- **Queue Management:** Add songs with singer names, reorder, and skip — all reflected instantly on all connected devices
-- **Background Processing:** Celery worker handles downloads and separation without blocking the UI; live progress via WebSocket
+### Library & Processing
+- **YouTube → karaoke** — Search YouTube Music, download any track, and separate it automatically. No manual audio work.
+- **Three-track separation** — The default pipeline chains Demucs (`htdemucs_ft`) → Roformer → de-noise to produce *independent* lead vocal, backing vocal, and instrumental stems. Running Roformer on vocals-only audio eliminates instrumental bleed-through.
+- **Seven pluggable separation engines** — Interchangeable implementations behind a common interface, from fast 2-stem Demucs to multi-stage three-track variants built on different Roformer models (InstVoc Duality V2, Mel-Roformer-Viperx-1143). GPU-accelerated with CPU fallback.
+- **Automatic audio analysis** — vocal range detection via librosa `pyin` (e.g. G2–E5) and RMS loudness measurement — all in the same background job.
+- **Metadata enrichment** — MusicBrainz, iTunes, and AcoustID lookups for artwork, credits, and release data.
+
+### Live Performance
+- **Multi-device sessions** — One host on the big screen; performers join by session code or QR from their phones. Queue songs, reorder, skip.
+- **Real-time sync** — Player state, queue, and performance controls propagate to every connected device instantly over WebSocket.
+- **Web Audio mixing** — Separated stems play simultaneously through independent gain nodes, so singers can dial lead vocals, backing vocals, and instrumental separately, mid-song.
+- **Loudness normalization** — A dedicated normalization gain node applies the server-measured per-song correction (`10^(dB/20)`) at playback, so no one gets blasted between tracks.
+- **Synchronized lyrics** — LRC lyrics auto-fetched from multiple providers, displayed with auto-scroll, tap-to-seek, count-in cues, and per-song timing offset.
+- **Session resilience** — A 30-second grace period on host disconnect means a browser refresh doesn't end the party for everyone.
+- **JWT authentication** — Admin actions (deleting songs, reprocessing audio) gated behind auth.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Frontend — React 19 · TypeScript · Vite · Tailwind v4      │
+│  TanStack Query (server state) · Zustand (client state)     │
+│  Web Audio API multi-stem playback engine                   │
+└────────────────────────┬────────────────────────────────────┘
+                         │  REST + WebSocket
+┌────────────────────────▼────────────────────────────────────┐
+│  Backend — FastAPI · Uvicorn · SQLAlchemy · JWT auth        │
+└──────────┬──────────────────┬───────────────────┬───────────┘
+           │                  │                   │
+    ┌──────▼──────┐   ┌───────▼──────┐   ┌────────▼────────┐
+    │ PostgreSQL  │   │    Redis     │   │  Celery Worker  │
+    │  (SQLite    │   │   (broker)   │   │                 │
+    │   in dev)   │   └──────────────┘   └────────┬────────┘
+    └─────────────┘                               │
+                              ┌───────────────────▼──────────────────┐
+                              │ yt-dlp → Demucs/Roformer (PyTorch)   │
+                              │        → librosa analysis            │
+                              └──────────────────────────────────────┘
+```
+
+### Design decisions worth calling out
+
+**Exactly two WebSocket endpoints.** `/ws/jobs` carries global job progress; `/ws/session/{session_id}` carries *all* karaoke functionality for one session. Resisting the urge to add an endpoint per feature is what keeps session isolation tractable.
+
+**Every piece of session state is keyed by `session_id`.** No global state dictionaries anywhere. This is the project's hard invariant — it's what lets multiple independent karaoke sessions share one server without leaking state into each other.
+
+**The ML pipeline never blocks a request.** Downloads, GPU separation, and analysis all run as Celery tasks with progress streamed back over WebSocket, so a 5-minute separation job is a progress bar, not a hung UI.
+
+**Separation quality is an interface problem.** Rather than hardcoding one model, engines implement a shared interface and are selected per job — which made it possible to evaluate seven approaches against real audio and change the default without touching the pipeline.
+
+### Processing pipeline
+
+```
+YouTube URL
+   ├─ Phase 1  Download          (0–30%)   yt-dlp → original.mp3
+   ├─ Phase 2  Separation        (30–90%)  Demucs → Roformer → de-noise
+   │                                       → vocals / backing_vocals / instrumental
+   └─ Phase 3  Analysis          (90–100%) vocal range · loudness
+                                           → broadcast completion to all clients
+```
+
+Roughly 2–5 minutes per song on GPU, 10–20 on CPU.
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19 + TypeScript + Vite + Tailwind CSS v4 |
-| UI Components | Shadcn/UI + React Hook Form + Zod |
-| State | TanStack Query (server state) + Zustand (client state) |
-| Backend | FastAPI + Uvicorn + SQLAlchemy + Alembic |
-| Database | PostgreSQL (production) / SQLite (dev) |
-| Queue | Celery + Redis |
-| Audio AI | Demucs + Audio-Sep Roformer + librosa + pydub |
-| Downloader | yt-dlp |
+| **Frontend** | React 19, TypeScript (strict), Vite, Tailwind CSS v4, Shadcn/UI |
+| **Client state** | TanStack Query (server state), Zustand (client state), React Hook Form + Zod |
+| **Audio (browser)** | Web Audio API — multi-stem playback with per-track gain |
+| **Backend** | FastAPI, Uvicorn, SQLAlchemy, Alembic, JWT (python-jose) |
+| **Database** | PostgreSQL (production) · SQLite (development) |
+| **Jobs & realtime** | Celery, Redis, native WebSockets |
+| **Audio ML/DSP** | Demucs, Roformer (PyTorch), librosa, pydub |
+| **Ingestion** | yt-dlp, YouTube Music, MusicBrainz, iTunes, AcoustID |
+
+**At a glance:** 117 backend modules · 269 frontend modules · 788 backend tests · 37 database migrations · 17 API routers.
+
+---
 
 ## Getting Started
 
+**Prerequisites:** Python 3.13+, Node.js 20+ with pnpm, Redis, and FFmpeg. A CUDA-capable GPU is optional but cuts separation time by ~4x.
+
 ```bash
-# 1. Clone the repo
-git clone https://github.com/your-org/open-karaoke-studio.git
+git clone https://github.com/spencerfrost/open-karaoke-studio.git
 cd open-karaoke-studio
 
-# 2. Run initial setup (creates venvs, installs deps, sets up DB)
-./setup.sh
-
-# 3. Start all services in a tmux session
-./scripts/dev-tmux.sh
+./setup.sh              # creates venvs, installs deps, runs migrations
+./scripts/dev-tmux.sh   # starts API, frontend, and Celery worker
 ```
 
-Services run at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:5123
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:5123 |
+| API docs (Swagger) | http://localhost:5123/docs |
 
-See [ARCHITECTURE.md](docs/architecture.md) for a full technical overview and [FEATURES.md](docs/features.md) for a complete feature inventory.
+A `docker-compose.yml` is included for Postgres and Redis.
+
+### Development
+
+```bash
+# Backend (from backend/, with venv active)
+pytest                        # run the test suite
+alembic upgrade head          # apply migrations
+
+# Frontend (from frontend/)
+pnpm run type-check           # TypeScript
+pnpm run lint:check           # ESLint
+pnpm build                    # production build
+```
+
+### Repository layout
+
+```
+backend/
+  app/
+    api/                 17 routers (songs, sessions, queue, lyrics, jobs, …)
+    services/            business logic, incl. separation_engines/
+    ws/                  WebSocket endpoints + connection manager
+    jobs/                Celery tasks
+  alembic/versions/      37 migrations
+  tests/                 788 tests
+frontend/
+  src/
+    components/          library, player, queue, lyrics
+    features/            feature-scoped modules
+    hooks/               API + domain hooks
+    stores/              Zustand state
+    services/            REST + WebSocket clients
+docs/                    architecture, features, API reference, roadmap
+```
+
+---
 
 ## Documentation
 
-- [FEATURES.md](docs/features.md) — Complete feature inventory with user stories
-- [ARCHITECTURE.md](docs/architecture.md) — Technical deep-dive: WebSocket design, processing pipeline, database schema
-- [TECH-DEBT.md](docs/tech-debt.md) — Known issues prioritized by severity
-- [ROADMAP.md](ROADMAP.md) — Future improvements
+- **[Architecture](docs/architecture.md)** — WebSocket design, processing pipeline, database schema, state management
+- **[Features](docs/features.md)** — Full feature inventory with user stories
+- **[WebSocket Protocol](docs/websocket-protocol.md)** — Message types and session isolation rules
+- **[API Reference](docs/api-reference.md)** — REST endpoints
+- **[Tech Debt](docs/tech-debt.md)** — Known issues, prioritized and tracked openly
+- **[Roadmap](docs/roadmap.md)** — What's next
 
-## Contributing
-
-1. Fork the repository
-2. Create a branch off `develop`
-3. Implement your change
-4. Submit a pull request targeting `develop`
+---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) for details.
+MIT — see [LICENSE](./LICENSE).

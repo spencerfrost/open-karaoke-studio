@@ -1,7 +1,7 @@
 # Backend Dockerfile for Open Karaoke Studio
-# Supports Flask API, FastAPI Sessions, and Celery Worker
+# Supports FastAPI Backend and Celery Worker
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install system dependencies for audio processing and PyTorch
 RUN apt-get update && apt-get install -y \
@@ -47,5 +47,5 @@ RUN chmod +x /app/backend/entrypoint.sh
 
 ENTRYPOINT ["/app/backend/entrypoint.sh"]
 
-# Default to Flask API, but can be overridden
+# Run the FastAPI server by default
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5123"]

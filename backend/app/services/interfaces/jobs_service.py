@@ -23,6 +23,15 @@ class JobsServiceInterface(Protocol):
         """
         ...
 
+    def get_in_flight_jobs(self) -> list[Job]:
+        """
+        Get jobs that are actively being processed (pending, downloading, processing).
+
+        Returns:
+            List of in-flight Job objects
+        """
+        ...
+
     def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
         """
         Get all jobs with a specific status.
@@ -71,33 +80,15 @@ class JobsServiceInterface(Protocol):
         """
         ...
 
-    def dismiss_job(self, job_id: str) -> bool:
+    def delete_job(self, job_id: str) -> bool:
         """
-        Dismiss a completed, failed, or cancelled job from the UI.
+        Delete a job record from the database.
 
         Args:
-            job_id: The unique identifier for the job to dismiss
+            job_id: The unique identifier for the job to delete
 
         Returns:
-            True if job was successfully dismissed, False otherwise
-        """
-        ...
-
-    def get_active_jobs(self) -> list[Job]:
-        """
-        Get all non-dismissed jobs (for main queue display).
-
-        Returns:
-            List of non-dismissed jobs
-        """
-        ...
-
-    def get_dismissed_jobs(self) -> list[Job]:
-        """
-        Get all dismissed jobs.
-
-        Returns:
-            List of dismissed jobs
+            True if job was successfully deleted, False otherwise
         """
         ...
 

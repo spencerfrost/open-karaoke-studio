@@ -1,4 +1,5 @@
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("service:api");
 
@@ -108,6 +109,37 @@ export async function uploadFile<T>(
   }
 }
 
+// --- Session Playlist ---
+
+export type PlaylistStatus = "pending" | "processing" | "ready" | "failed";
+
+export interface SessionPlaylistStatus {
+  status: PlaylistStatus;
+  youtube_music_url?: string;
+  youtube_music_playlist_id?: string;
+  song_count: number;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+export async function generateSessionPlaylist(
+  sessionId: string,
+): Promise<ApiResponse<SessionPlaylistStatus>> {
+  return apiRequest<SessionPlaylistStatus>(
+    `/api/sessions/${sessionId}/playlist`,
+    { method: "POST" },
+  );
+}
+
+export async function getSessionPlaylist(
+  sessionId: string,
+): Promise<ApiResponse<SessionPlaylistStatus>> {
+  return apiRequest<SessionPlaylistStatus>(
+    `/api/sessions/${sessionId}/playlist`,
+  );
+}
+
 /**
  * Download file function
  */
@@ -116,9 +148,13 @@ export async function downloadFile(
   filename: string,
 ): Promise<void> {
   try {
+    // Track downloads require a bearer token; without it the request 401s and the
+    // global 401 handler logs the user out.
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${endpoint}`, {
       method: "GET",
       credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
     if (!response.ok) {

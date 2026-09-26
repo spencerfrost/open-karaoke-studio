@@ -3,10 +3,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface NavItem {
+export interface NavItem {
   name: string;
   path: string;
   icon: LucideIcon;
+  /** Draw attention to this tab - used for "get back into stage mode". */
+  highlight?: boolean;
 }
 
 interface NavBarProps {
@@ -23,7 +25,7 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
 
   return (
     <nav
-      className="flex h-18 bg-russet border-t-1 border-border/80 sticky bottom-0 z-20 gap-4 pt-2 md:py-1"
+      className="flex h-18 bg-surface border-t-1 border-border/80 sticky bottom-0 z-20 gap-4 pt-2 md:py-1"
       style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
     >
       {items.map((item) => {
@@ -35,9 +37,9 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
             key={item.name}
             variant="ghost"
             onClick={() => navigate(item.path)}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 text-background h-full rounded-none ${
+            className={`flex-1 flex flex-col items-center justify-center gap-1 h-full rounded-none ${
               active ? "opacity-100" : "opacity-50"
-            }`}
+            } ${item.highlight && !active ? "text-primary opacity-90" : "text-foreground"}`}
             aria-current={active ? "page" : undefined}
           >
             <Icon size={20} />

@@ -250,4 +250,4 @@ async def websocket_session_endpoint(
                 )
 
         manager.disconnect(websocket)
-        logger.info(f"Device {device_id} disconnected from session WebSocket")
+        logger.info("Device %s disconnected from session WebSocket", device_id)

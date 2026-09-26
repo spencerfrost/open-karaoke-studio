@@ -5,7 +5,7 @@
 
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import type { PlayerError } from "../KaraokePlayer.types";
+import type { PlayerError } from "../../types/KaraokePlayer.types";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("component:player-error-boundary");
@@ -57,10 +57,10 @@ class PlayerErrorBoundary extends Component<Props, State> {
       // Default error UI
       return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-          <div className="text-red-500 text-lg font-semibold mb-4">
+          <div className="text-destructive text-lg font-semibold mb-4">
             Karaoke Player Error
           </div>
-          <div className="text-background/70 mb-6 max-w-md">
+          <div className="text-foreground/70 mb-6 max-w-md">
             {this.state.error?.message ||
               "Something went wrong with the player."}
           </div>

@@ -8,8 +8,6 @@ Replaces Flask-SocketIO with native FastAPI WebSocket support.
 import asyncio
 import json
 import logging
-from datetime import datetime
-from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -22,28 +20,14 @@ logger = logging.getLogger(__name__)
 
 
 async def get_current_jobs_list():
-    """
-    Get current jobs list using the real JobsService.
-    Updated for PostgreSQL compatibility.
-    """
+    """Get currently in-flight jobs (pending, downloading, processing)."""
     try:
-        # Use the existing JobsService which handles PostgreSQL properly
         jobs_service = JobsService()
-        jobs = await asyncio.to_thread(jobs_service.get_all_jobs)
+        jobs = await asyncio.to_thread(jobs_service.get_in_flight_jobs)
         return [job.to_dict() for job in jobs]
     except Exception as e:
-        logger.error(f"Error getting jobs list from PostgreSQL: {e}")
-        # Fallback to mock data if service fails
-        return [
-            {
-                "id": "demo-job-1",
-                "status": "processing",
-                "progress": 45,
-                "filename": "demo-song.mp3",
-                "task_id": "demo-task-123",
-                "created_at": datetime.now().isoformat(),
-            }
-        ]
+        logger.error("Error getting in-flight jobs list: %s", e)
+        return []
 
 
 async def websocket_jobs_endpoint(
@@ -58,7 +42,7 @@ async def websocket_jobs_endpoint(
     jobs_room = "jobs_updates"
     await manager.join_room(websocket, jobs_room)
 
-    logger.info(f"Jobs client connected: {id(websocket)}")
+    logger.debug("Jobs client connected: %d", id(websocket))
 
     try:
         # Send connection confirmation
@@ -87,7 +71,7 @@ async def websocket_jobs_endpoint(
                     )
                 )
 
-                logger.info(f"Client {id(websocket)} subscribed to job updates")
+                logger.debug("Client %d subscribed to job updates", id(websocket))
 
             elif message_type == "unsubscribe_from_jobs":
                 # Client unsubscribed from job updates
@@ -101,7 +85,7 @@ async def websocket_jobs_endpoint(
                     )
                 )
 
-                logger.info(f"Client {id(websocket)} unsubscribed from job updates")
+                logger.debug("Client %d unsubscribed from job updates", id(websocket))
 
             elif message_type == "request_jobs_list":
                 # Send current jobs list on demand
@@ -123,7 +107,7 @@ async def websocket_jobs_endpoint(
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        logger.info(f"Jobs client disconnected: {id(websocket)}")
+        logger.debug("Jobs client disconnected: %d", id(websocket))
 
 
 # Job broadcasting functions for Celery integration
@@ -149,7 +133,14 @@ async def broadcast_job_completed(manager: SessionConnectionManager, job_data: d
 
 
 async def broadcast_job_failed(manager: SessionConnectionManager, job_data: dict):
-    """Broadcast job failure to all subscribed clients."""
+    """Broadcast job failure to all subscribed clients.
+
+    NOTE: this has no production callers. Job failures happen inside the
+    Celery worker process, which cannot reach this API-process-only
+    `manager`. Failure state instead reaches clients via the periodic
+    in-flight jobs list (see `get_current_jobs_list`) dropping the job and
+    the frontend's `useJobsWebSocket` invalidating the song query.
+    """
     await manager.broadcast_to_room(
         "jobs_updates", {"type": "job_failed", "job": job_data}
     )

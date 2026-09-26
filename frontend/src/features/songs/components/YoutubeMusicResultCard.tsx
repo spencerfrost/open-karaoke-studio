@@ -8,6 +8,7 @@ import { YouTubeAudioPreview } from "./shared/YouTubeAudioPreview";
 interface YoutubeMusicResultCardProps {
   result: YoutubeMusicSearchResult;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: (result: YoutubeMusicSearchResult) => void;
   onArtistClick?: (artistId: string, artistName: string) => void;
 }
@@ -15,6 +16,7 @@ interface YoutubeMusicResultCardProps {
 export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
   result,
   isLoading,
+  isSubmitted = false,
   onSelect,
   onArtistClick,
 }) => {
@@ -56,7 +58,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <h3
-                className="font-medium text-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
+                className="font-medium text-card-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
                 title={result.title}
               >
                 {result.title}
@@ -86,7 +88,10 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                 </p>
               )}
               {result.videoId && (
-                <YouTubeAudioPreview videoId={result.videoId} className="mt-2" />
+                <YouTubeAudioPreview
+                  videoId={result.videoId}
+                  className="mt-2"
+                />
               )}
             </div>
           </div>
@@ -95,7 +100,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
           <div className="flex-shrink-0 flex items-center justify-center w-full sm:w-auto">
             <Button
               onClick={handleSelect}
-              disabled={isLoading || result.existsInLibrary}
+              disabled={isLoading || isSubmitted || result.existsInLibrary}
               variant="default"
               size="sm"
               className="w-full sm:w-auto"
@@ -105,6 +110,8 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Adding...
                 </>
+              ) : isSubmitted ? (
+                "Queued"
               ) : result.existsInLibrary ? (
                 "Already Added"
               ) : (

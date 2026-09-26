@@ -7,6 +7,7 @@ CAMEL_TO_SNAKE_CASE = {
     "syncedLyrics": "synced_lyrics",
     "plainLyrics": "plain_lyrics",
     "releaseDate": "release_date",
+    "showName": "show_name",
     "itunesTrackId": "itunes_track_id",
     "itunesExplicit": "itunes_explicit",
     "itunesPreviewUrl": "itunes_preview_url",
@@ -39,7 +40,7 @@ def validate_direction(
     return normalized
 
 
-LYRICS_FIELDS = {"plainLyrics", "syncedLyrics"}
+LYRICS_FIELDS = {"plainLyrics", "syncedLyrics", "wordSyncedLyrics"}
 
 
 def extract_lyrics_fields(data: dict) -> dict:

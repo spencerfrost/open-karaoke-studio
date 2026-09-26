@@ -34,19 +34,12 @@ from .models import Base, DbSong
 # Get configuration and create database engine
 config = get_config()
 DATABASE_URL = config.DATABASE_URL
-logger.info(f"Database URL: {DATABASE_URL}")
+logger.debug("Database URL: %s", DATABASE_URL)
 
 # Log the actual database file path for SQLite debugging
 if DATABASE_URL.startswith("sqlite:"):
     db_file_path = DATABASE_URL.replace("sqlite:///", "")
-    logger.info(f"SQLite database file path: {db_file_path}")
-    logger.info(f"Database file exists: {Path(db_file_path).exists()}")
-
-    # Log current working directory for debugging path resolution
-    import os
-
-    logger.info(f"Current working directory: {os.getcwd()}")
-    logger.info(f"Absolute database path: {Path(db_file_path).resolve()}")
+    logger.debug("SQLite database file: %s (exists=%s)", db_file_path, Path(db_file_path).exists())
 
 # Configure SQLite engine for better concurrency and cross-process reliability
 if DATABASE_URL.startswith("sqlite:"):
@@ -97,7 +90,7 @@ def init_db():
                 connection.commit()
                 logger.info("SQLite configured with WAL mode for better concurrency")
         except Exception as e:
-            logger.warning(f"Failed to configure SQLite pragmas: {e}")
+            logger.warning("Failed to configure SQLite pragmas: %s", e)
 
 
 def force_db_sync():
@@ -109,11 +102,10 @@ def force_db_sync():
 
                 # Force WAL checkpoint to flush all pending transactions
                 result = connection.execute(text("PRAGMA wal_checkpoint(FULL);"))
-                # Only log checkpoint results at debug level - this is internal housekeeping
-                logging.debug(f"WAL checkpoint result: {result.fetchone()}")
+                logger.debug("WAL checkpoint result: %s", result.fetchone())
                 connection.commit()
         except Exception as e:
-            logger.warning(f"Failed to execute WAL checkpoint: {e}")
+            logger.warning("Failed to execute WAL checkpoint: %s", e)
 
 
 # SQLAlchemy session middleware for route handlers (placeholder, can be implemented if needed)

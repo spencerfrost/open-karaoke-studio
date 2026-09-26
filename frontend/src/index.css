@@ -7,9 +7,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Vintage theme color palette */
+/*
+ * Legacy (vintage) theme. Semantic tokens describe roles, not colors:
+ * --background/--foreground are the page itself (dark gradient base, light text);
+ * --card is the raised opaque surface (cream, dark text). Components must only
+ * reference roles — raw palette vars below are slated for removal (see
+ * docs/plans/2026-07-19-theme-token-migration.md).
+ */
 :root {
-  /* Base colors */
+  /* Raw palette (legacy theme internals — do not use directly in components) */
   --black: #080705;
   --rust: #b44819;
   --russet: #774320;
@@ -20,13 +26,18 @@
 
   /* UI Elements */
   --radius: 0.5rem;
-  --background: var(--lemon-chiffon);
-  --foreground: var(--black);
+  --background: color-mix(in srgb, var(--russet), var(--black) 50%);
+  --foreground: var(--lemon-chiffon);
 
   --card: var(--lemon-chiffon);
   --card-foreground: var(--black);
   --popover: var(--lemon-chiffon);
   --popover-foreground: var(--black);
+
+  /* Raised neutral surface (nav bars, recessed grooves) — distinct from
+     card (opaque cream) and background (the page gradient's dark mix) */
+  --surface: var(--russet);
+  --surface-foreground: var(--lemon-chiffon);
 
   --primary: var(--orange-peel);
   --primary-foreground: var(--lemon-chiffon);
@@ -34,14 +45,59 @@
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
   --accent-foreground: var(--lemon-chiffon);
-  --destructive: var(--color-red-800);
-  --destructive-foreground: var(--lemon-chiffon);
   --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
+
+  /*
+   * Status roles. Each status has three parts:
+   *   --x            the color itself — fills (bg-x) and text on the dark page
+   *   --x-foreground text/icons placed ON an --x fill
+   *   --x-strong     darker variant for text/icons on LIGHT surfaces
+   *                  (card, popover, muted), where the mid tone lacks contrast
+   * Themes only need to set the base; -strong derives unless overridden.
+   */
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--lemon-chiffon);
+  --destructive-strong: color-mix(
+    in oklab,
+    var(--destructive),
+    var(--black) 35%
+  );
+  --success: var(--color-green-500);
+  --success-foreground: var(--black);
+  --success-strong: color-mix(in oklab, var(--success), var(--black) 35%);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--black);
+  --warning-strong: color-mix(in oklab, var(--warning), var(--black) 35%);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--lemon-chiffon);
+  --info-strong: color-mix(in oklab, var(--info), var(--black) 35%);
 
   --border: var(--orange-peel);
   --input: color-mix(in srgb, var(--black), transparent 20%);
   --ring: var(--dark-cyan);
+
+  /*
+   * Translucent panels sitting on the page background. These are tint bases,
+   * not finished colors — always consume them with an opacity modifier
+   * (bg-glass/10, border-glass-border/20), same as --overlay below.
+   */
+  --glass: var(--lemon-chiffon);
+  --glass-border: var(--lemon-chiffon);
+  /* Scrims behind modals/covers; consumed with opacity modifiers (bg-overlay/60) */
+  --overlay: var(--black);
+
+  /* Full body background value — themes may use a gradient or a flat color */
+  --page-bg: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
+
+  /* Glow effects — legacy is subtle/warm; neon themes redefine these */
+  --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
+  --glow-accent: none;
+
+  /* Typography roles */
+  --display-font: "Syne", system-ui, sans-serif;
+  --body-font: "Manrope", system-ui, sans-serif;
+  --accent-font: "VT323", monospace;
 }
 
 @theme inline {
@@ -53,6 +109,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -64,9 +122,28 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-strong: var(--destructive-strong);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-strong: var(--success-strong);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-strong: var(--warning-strong);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-strong: var(--info-strong);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --shadow-glow-primary: var(--glow-primary);
+  --shadow-glow-accent: var(--glow-accent);
+  --font-display: var(--display-font);
+  --font-body: var(--body-font);
+  --font-accent: var(--accent-font);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -92,13 +169,10 @@
 
 @layer base {
   body {
-    font-family: "Manrope", system-ui, sans-serif;
-    @apply bg-background text-foreground;
-    background-image: linear-gradient(
-      135deg,
-      var(--russet) 0%,
-      var(--rust) 100%
-    );
+    font-family: var(--body-font);
+    @apply text-foreground;
+    /* Shorthand, not background-image: --page-bg may be a flat color */
+    background: var(--page-bg);
   }
 
   h1,
@@ -107,24 +181,15 @@
   h4,
   h5,
   h6 {
-    font-family: "Syne", system-ui, sans-serif;
+    font-family: var(--display-font);
     font-weight: 700;
   }
 
-  .font-heading {
-    font-family: "Syne", system-ui, sans-serif;
-    font-weight: 700;
-  }
-  .font-body {
-    font-family: "Manrope", system-ui, sans-serif;
-    font-weight: 400;
-  }
-
-  /* Retro-style font for vintage flair */
-  .font-retro {
-    font-family: "VT323", monospace;
-    letter-spacing: 0.05em;
-  }
+  /*
+   * font-display / font-body / font-accent come from @theme above. The old
+   * .font-heading / .font-body / .font-retro base classes are gone —
+   * .font-body in particular collided with the generated utility.
+   */
 
   /* Custom scrollbar */
   ::-webkit-scrollbar {
@@ -133,17 +198,17 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
+    background: color-mix(in oklab, var(--overlay) 10%, transparent);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--dark-cyan);
+    background: var(--accent);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--dark-cyan), white 10%);
+    background: color-mix(in oklab, var(--accent), var(--foreground) 10%);
   }
 }
 
@@ -178,6 +243,24 @@
     @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
 
+  /* Lyrics fade — both ends, so scrolling text never ends on a hard edge */
+  .mask-image-fade-y {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 14%,
+      black 80%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 14%,
+      black 80%,
+      transparent 100%
+    );
+  }
+
   /* Lyrics fade-out effect */
   .mask-image-fade-bottom {
     -webkit-mask-image: linear-gradient(to bottom, black 66%, transparent 100%);
@@ -191,6 +274,18 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  .text-shadow {
+    text-shadow: var(--glow-primary);
+  }
+
+  .instrumental-progress-fill {
+    transition: width 120ms ease-out;
+  }
+
+  .instrumental-progress-leadin {
+    animation: instrumentalLeadInPulse 900ms ease-in-out infinite;
   }
 }
 
@@ -224,5 +319,113 @@
 
   .pulse {
     animation: pulse 2s infinite ease-in-out;
+  }
+
+  @keyframes instrumentalLeadInPulse {
+    0% {
+      filter: brightness(1);
+    }
+    50% {
+      filter: brightness(1.2);
+    }
+    100% {
+      filter: brightness(1);
+    }
+  }
+
+  /* Song-card hover-preview equalizer. Plain CSS rather than per-bar JS
+     animation, since a library grid can show dozens of cards at once. */
+  @keyframes eqBar {
+    0%,
+    100% {
+      transform: scaleY(0.35);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .eq-bar {
+    transform-origin: bottom;
+    animation: eqBar 900ms ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .eq-bar {
+      animation: none;
+    }
+  }
+}
+
+/* Stage song wheel. Theme colors only, so a preset re-skins it. */
+
+/* Registered so the list's edge fades can animate in and out. */
+@property --wheel-fade-top {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --wheel-fade-bottom {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@layer utilities {
+  /* A wheel column's list fades out at an end only while there is more list
+     past it; WheelColumn sets the two fade lengths. */
+  .wheel-list-mask {
+    --wheel-list-mask: linear-gradient(
+      180deg,
+      transparent 0%,
+      #000 var(--wheel-fade-top),
+      #000 calc(100% - var(--wheel-fade-bottom)),
+      transparent 100%
+    );
+    mask-image: var(--wheel-list-mask);
+    -webkit-mask-image: var(--wheel-list-mask);
+  }
+
+  /* A soft glow behind the selected row of the column at the front. No edges:
+     the columns have no surfaces, so a box here would be the only one. */
+  .wheel-band {
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      color-mix(in oklab, var(--primary) 28%, transparent),
+      color-mix(in oklab, var(--accent) 8%, transparent) 60%,
+      transparent 75%
+    );
+  }
+
+  .wheel-row-glow {
+    text-shadow:
+      0 0 18px color-mix(in oklab, var(--primary) 70%, transparent),
+      0 0 42px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+
+  /* Over the blurred backdrop: light at the edges, dark behind the wheel. */
+  .wheel-backdrop-shade {
+    background: radial-gradient(
+      ellipse 70% 70% at 50% 50%,
+      color-mix(in oklab, var(--background) 45%, transparent),
+      color-mix(in oklab, var(--background) 90%, transparent)
+    );
+  }
+
+  /* WheelArtwork's layers. CSS rather than framer-motion: framer hands a
+     finished animation back to the element one frame late, and a layer showed
+     its starting opacity for that frame - a flash at the end of every fade.
+     Durations and delays are set inline; `both` holds the end values. */
+  @keyframes wheel-art-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes wheel-art-out {
+    to {
+      opacity: 0;
+    }
   }
 }

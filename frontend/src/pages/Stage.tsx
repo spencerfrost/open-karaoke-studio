@@ -1,10 +1,23 @@
-import React, { useEffect } from "react";
-import AppLayout from "@/components/layout/AppLayout";
-import { KaraokeQueueList } from "@/features/queue";
-import { KaraokePlayer } from "@/features/player";
+/**
+ * Stage - the TV, and the only place a session is born.
+ *
+ * The page owns the session and the queue; `StageShell` owns everything the
+ * screen does with them. Deliberately no `AppLayout`: stage mode is a
+ * full-screen app, not a page with a phone-sized nav bar pinned to the bottom
+ * of a screen someone is looking at from across the room.
+ */
 
+import React, { useEffect, useRef } from "react";
+import { StageShell } from "@/features/stage";
+import CreateSessionScreen from "@/features/stage/screens/CreateSessionScreen";
+import { cn } from "@/lib/utils";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useSessionStore } from "@/stores/sessionStore";
+import {
+  ExistingSessionError,
+  useSessionStore,
+  type HostSessionSetup,
+} from "@/stores/sessionStore";
+import { useAuthStore } from "@/stores/authStore";
 import {
   useQueue,
   useRemoveFromKaraokeQueue,
@@ -12,21 +25,59 @@ import {
 } from "@/hooks/api/useKaraokeQueue";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { createLogger } from "@/lib/logger";
+import type { SessionTurn } from "@/types/KaraokeQueue";
 
 const logger = createLogger("page:stage");
+
+/** Before the first queue payload lands there is nothing to hand off to. */
+const NO_TURN: SessionTurn = {
+  kind: "open",
+  performerId: null,
+  performerName: null,
+  itemId: null,
+  circle: [],
+};
+
+const StageFrame: React.FC<{
+  children: React.ReactNode;
+  /** Widened for the create screen's form; the loading states keep max-w-md. */
+  contentClassName?: string;
+}> = ({ children, contentClassName = "max-w-md" }) => (
+  <div
+    className="relative flex h-screen w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
+    style={{ background: "var(--page-bg)" }}
+  >
+    <div className="vintage-sunburst-pattern" />
+    <div className="vintage-texture-overlay" />
+    {/* The scrim that makes stage mode dark. StageShell paints the same one, and
+        without it these pre-session screens sit on the raw sunburst - blazing
+        orange, and light-on-dark text tokens land on a light ground. */}
+    <div className="absolute inset-0 z-[11] bg-overlay/85" />
+    <div
+      className={cn(
+        "relative z-20 flex w-full flex-col items-center gap-6",
+        contentClassName,
+      )}
+    >
+      {children}
+    </div>
+  </div>
+);
 
 const Stage: React.FC = () => {
   const {
     displayCode,
-    createSession,
-    recoverSession, // Changed from recoverHostSession
+    joinAsHost,
+    recoverSession,
+    resumeAccountHostSession,
     isRecovering,
+    isResumingAccountSession,
     recoveryError,
     isConnecting,
     connectionError,
   } = useSessionStore();
+  const { isAuthenticated } = useAuthStore();
 
   const { useSong } = useSongs();
 
@@ -44,28 +95,34 @@ const Stage: React.FC = () => {
   const currentSongId = currentQueueItem?.song?.id;
   const { data: currentSong } = useSong(currentSongId ?? "");
 
-  // Recover existing host session or create new one on mount
+  // Entering stage mode only *resumes* a night; starting one is a decision the
+  // host makes on CreateSessionScreen, which renders below when recovery comes
+  // back empty. Recovery asks the server as well as this browser's storage: a
+  // live session this browser has no record of is still tonight's session.
+  //
+  // Once per mount, strictly: ending a session from the exit prompt clears
+  // `displayCode` while this page is still up. Without the guard that reads as
+  // "no session, better go recover one" on every subsequent render.
+  const hasBootstrapped = useRef(false);
   useEffect(() => {
     const initializeSession = async () => {
-      if (!displayCode) {
-        try {
-          // First try to recover existing session (host or performer)
-          await recoverSession();
+      if (hasBootstrapped.current || !isAuthenticated) return;
+      hasBootstrapped.current = true;
+      if (displayCode) return;
 
-          // If recovery didn't work (no stored session), create new host session
-          const state = useSessionStore.getState();
-          if (!state.displayCode) {
-            await createSession("stage");
-          }
-        } catch (error) {
-          logger.error("Failed to initialize session:", error);
-          toast.error("Failed to initialize session");
+      try {
+        await recoverSession();
+        if (!useSessionStore.getState().sessionId) {
+          await resumeAccountHostSession();
         }
+      } catch (error) {
+        logger.error("Failed to initialize session:", error);
+        toast.error("Failed to initialize session");
       }
     };
 
     initializeSession();
-  }, [displayCode, recoverSession, createSession]);
+  }, [displayCode, isAuthenticated, recoverSession, resumeAccountHostSession]);
 
   // WebSocket effect for queue updates using unified session WebSocket
   useEffect(() => {
@@ -111,29 +168,49 @@ const Stage: React.FC = () => {
     };
   }, [queueQuery]);
 
-  // Show loading state during session recovery or creation
-  if (isRecovering || (isConnecting && !displayCode)) {
+  const handleStartSession = async (options: HostSessionSetup) => {
+    try {
+      await joinAsHost(options);
+    } catch (error) {
+      // The create screen asks the host what to do about a live session.
+      if (error instanceof ExistingSessionError) throw error;
+      logger.error("Failed to start session:", error);
+      toast.error("Failed to start session");
+    }
+  };
+
+  // Show loading state while recovery decides whether there's a night to resume.
+  if (isRecovering || isResumingAccountSession) {
     return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center h-full gap-6">
-          <h1 className="text-4xl font-bold text-orange-peel text-center">
-            {isRecovering ? "Restoring Session" : "Creating Session"}
-          </h1>
-          <p className="text-xl text-center text-muted-foreground max-w-md">
-            {isRecovering
-              ? "Reconnecting to your existing karaoke session..."
-              : "Setting up your karaoke session..."}
-          </p>
-          {(recoveryError || connectionError) && (
-            <div className="text-center text-destructive">
-              {recoveryError || connectionError}
-            </div>
-          )}
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-peel"></div>
+      <StageFrame>
+        <h1 className="text-center text-4xl font-bold text-primary">
+          Restoring Session
+        </h1>
+        <p className="max-w-md text-center text-xl text-muted-foreground">
+          Reconnecting to your existing karaoke session...
+        </p>
+        {(recoveryError || connectionError) && (
+          <div className="text-center text-destructive">
+            {recoveryError || connectionError}
           </div>
-        </div>
-      </AppLayout>
+        )}
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </StageFrame>
+    );
+  }
+
+  // Nothing to resume - ask before creating one. The screen owns the whole
+  // creating-a-session moment, spinner included: routing `isConnecting` through
+  // a branch up here instead would unmount it mid-request and throw away every
+  // name the host just typed if the create failed.
+  if (!displayCode) {
+    return (
+      <StageFrame contentClassName="max-w-2xl">
+        <CreateSessionScreen
+          onStart={handleStartSession}
+          isStarting={isConnecting}
+        />
+      </StageFrame>
     );
   }
 
@@ -158,49 +235,16 @@ const Stage: React.FC = () => {
   };
 
   return (
-    <AppLayout>
-      <div className="flex flex-col gap-4 min-h-full p-6 relative items-center z-20">
-        {/* Back button (to libary) */}
-        <Button
-          onClick={() => window.history.back()}
-          className="absolute *:top-2 left-6"
-          variant="ghost"
-          aria-label="Back to library"
-        >
-          <svg
-            className="w-6 h-6 text-orange-peel"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </Button>
-
-        <KaraokePlayer
-          songId={currentSong?.id || ""}
-          queueItems={queueQuery.data?.items}
-          onPlayNext={handlePlayFromQueue}
-        />
-        <h2 className="text-2xl font-semibold text-center my-4 text-orange-peel">
-          Up Next
-        </h2>
-
-        <div className="max-w-2xl mx-auto w-full rounded-xl overflow-hidden text-background border border-orange-peel">
-          <KaraokeQueueList
-            items={queueQuery.data?.upcoming || []}
-            emptyMessage="No upcoming songs in the queue"
-            onRemove={handleRemoveFromQueue}
-            onPlay={handlePlayFromQueue}
-          />
-        </div>
-      </div>
-    </AppLayout>
+    <div className="h-screen w-full overflow-hidden">
+      <StageShell
+        songId={currentSong?.id || ""}
+        current={currentQueueItem}
+        upcoming={queueQuery.data?.upcoming || []}
+        turn={queueQuery.data?.turn ?? NO_TURN}
+        onPlayFromQueue={handlePlayFromQueue}
+        onRemoveFromQueue={handleRemoveFromQueue}
+      />
+    </div>
   );
 };
 

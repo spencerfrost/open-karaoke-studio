@@ -360,7 +360,7 @@ describe("useKaraokePlayerStore", () => {
         emitMockEvent("session_connected", {
           session_id: "test-session",
           device_id: "test-device",
-          is_host: true,
+          is_session_owner: true,
           performance_state: {},
         });
       });

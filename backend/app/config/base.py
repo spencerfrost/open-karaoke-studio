@@ -9,7 +9,7 @@ from pathlib import Path
 class BaseConfig:
     """Base configuration class containing common settings for all environments."""
 
-    # Flask Core Settings
+    # Application Settings
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
         # For development, provide a default; for production, this will raise an error
@@ -55,6 +55,19 @@ class BaseConfig:
     DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
     ACOUSTID_API_KEY = os.environ.get("ACOUSTID_API_KEY", "")
 
+    # Netscape-format cookie file for yt-dlp (age-restricted / login-gated
+    # videos). Disabled when unset.
+    # NOTE: app.services.youtube_service reads this from os.environ at call
+    # time so tests can monkeypatch it; this attr exists for documentation
+    # parity.
+    YTDLP_COOKIES_FILE = os.environ.get("YTDLP_COOKIES_FILE", "")
+
+    # Public demo alias credentials (feature disabled when unset).
+    # NOTE: app.services.demo_service reads these from os.environ at call time
+    # so tests can monkeypatch them; these attrs exist for documentation parity.
+    DEMO_LOGIN_USERNAME = os.environ.get("DEMO_LOGIN_USERNAME")
+    DEMO_LOGIN_PASSWORD = os.environ.get("DEMO_LOGIN_PASSWORD")
+
     # Upload Configuration
     MAX_CONTENT_LENGTH = int(
         os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024)
@@ -92,7 +105,7 @@ class BaseConfig:
         """Default CORS origins for this environment. Override in subclasses."""
         return ["*"]  # Will be overridden in specific environments
 
-    # Flask-specific settings
+    # Compatibility settings
     TESTING = False
     DEBUG = False
 
@@ -120,7 +133,8 @@ class BaseConfig:
         required_vars = []
 
         # Check for production-critical environment variables
-        if os.getenv("FLASK_ENV") == "production":
+        env = os.getenv("ENVIRONMENT", os.getenv("FLASK_ENV", "development")).lower()
+        if env == "production":
             if not os.environ.get("SECRET_KEY"):
                 required_vars.append("SECRET_KEY")
 

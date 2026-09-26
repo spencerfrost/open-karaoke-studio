@@ -24,8 +24,8 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
   displayPage,
   sessionId,
 }) => {
-  const { isHost } = useSessionStore();
-  const CardComponent = isHost ? SongCard : PerformerSongCard;
+  const { isStageDevice } = useSessionStore();
+  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
 
   return (
     <div className="relative overflow-hidden">

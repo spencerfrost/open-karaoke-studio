@@ -1,59 +1,81 @@
 import React, { ReactNode } from "react";
-import NavBar from "./NavBar";
-import { Music, Upload, List, Sliders, Mic2, ShieldCheck } from "lucide-react";
-import { useSessionStore } from "@/stores/sessionStore";
-import { useAuthStore } from "@/stores/authStore";
+import NavBar, { type NavItem } from "./NavBar";
+import {
+  Music,
+  Upload,
+  List,
+  Sliders,
+  ShieldCheck,
+  Waves,
+  Settings,
+} from "lucide-react";
+import { useAccess } from "@/hooks/useAccess";
 
 interface AppLayoutProps {
   children: ReactNode;
+  /**
+   * Padding for the content area. Pages that are edge-to-edge (the stage)
+   * pass "" so nothing frames them with page background.
+   */
+  contentClassName?: string;
 }
 
-const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const { isHost, sessionId } = useSessionStore();
-  const { user } = useAuthStore();
+const AppLayout: React.FC<AppLayoutProps> = ({
+  children,
+  contentClassName = "p-2 sm:p-4",
+}) => {
+  const access = useAccess();
 
-  // Filter navigation items based on user's device type
+  // Tabs mirror routes/guards.tsx's capability checks exactly, so nothing
+  // shown here is a dead end.
   const getNavigationItems = () => {
-    const baseItems = [
+    const items: NavItem[] = [
       { name: "Library", path: "/", icon: Music },
       { name: "Add", path: "/add", icon: Upload },
     ];
 
-    const hostItems = [];
-    if (user?.isHost || user?.isAdmin) {
-      hostItems.push({ name: "KJ", path: "/host", icon: Mic2 });
-    }
-    if (user?.isAdmin) {
-      hostItems.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
-    }
-
-    // Only show session-specific navigation if user is in a session
-    if (!sessionId) {
-      return [...baseItems, ...hostItems];
-    }
-
-    // Host devices see "Stage" tab
-    if (isHost) {
-      return [
-        ...baseItems,
-        { name: "Stage", path: "/stage", icon: List },
-        ...hostItems,
-      ];
+    // A host account can always reach /stage - it's what creates a session,
+    // so it isn't gated on having one. Highlighted once this device is the
+    // one actually running the night.
+    if (access.isHost) {
+      items.push({
+        name: "Stage",
+        path: "/stage",
+        icon: List,
+        highlight: access.inSession && access.isStageDevice,
+      });
     }
 
-    // Performer devices see "Controls" tab
-    return [
-      ...baseItems,
-      { name: "Controls", path: "/controls", icon: Sliders },
-      ...hostItems,
-    ];
+    // Any non-stage device in a live session can reach /controls, host or not.
+    if (access.inSession && !access.isStageDevice) {
+      items.push({ name: "Controls", path: "/controls", icon: Sliders });
+    }
+
+    // Settings is where the account lives - so any account holder needs it
+    // reachable, not just a host.
+    if (access.isAuthenticated) {
+      items.push({ name: "Settings", path: "/settings", icon: Settings });
+    }
+
+    if (access.isAdmin) {
+      items.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
+      items.push({
+        name: "Compare",
+        path: "/admin/compare-three-track",
+        icon: Waves,
+      });
+    }
+
+    return items;
   };
 
   return (
     <div className="flex flex-col h-screen">
       <div className="vintage-texture-overlay" />
       <div className="vintage-sunburst-pattern" />
-      <main className="flex-1 overflow-auto p-2 sm:p-4 relative z-10">
+      <main
+        className={`flex-1 overflow-auto relative z-10 ${contentClassName}`}
+      >
         {children}
       </main>
       <NavBar items={getNavigationItems()} />

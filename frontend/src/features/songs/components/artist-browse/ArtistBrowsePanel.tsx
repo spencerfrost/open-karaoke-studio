@@ -8,6 +8,7 @@ import {
   useYoutubeMusicArtistReleases,
 } from "@/hooks/api/useYoutubeMusic";
 import { YoutubeMusicSearchResult } from "@/types/Youtube";
+import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
 import { AlbumTracksExpander } from "./AlbumTracksExpander";
 
 const INITIAL_SONGS_COUNT = 5;
@@ -18,7 +19,7 @@ interface ArtistBrowsePanelProps {
   artistName: string;
   onBack: () => void;
   onSelectSong: (song: YoutubeMusicSearchResult) => void;
-  loadingStates: Record<string, boolean>;
+  getSubmissionStatus: (videoId: string) => SongSubmissionStatus;
 }
 
 export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
@@ -26,7 +27,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   artistName,
   onBack,
   onSelectSong,
-  loadingStates,
+  getSubmissionStatus,
 }) => {
   const [visibleSongsCount, setVisibleSongsCount] =
     useState(INITIAL_SONGS_COUNT);
@@ -136,7 +137,8 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   <TopSongCard
                     key={song.videoId}
                     song={song}
-                    isLoading={loadingStates[song.videoId] || false}
+                    isLoading={getSubmissionStatus(song.videoId) === "pending"}
+                    isSubmitted={getSubmissionStatus(song.videoId) === "queued"}
                     onSelect={() => onSelectSong(song)}
                   />
                 ))}
@@ -146,7 +148,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={handleLoadMore}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   Load more
                 </Button>
@@ -164,7 +166,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     key={album.browseId}
                     album={album}
                     onSelectTrack={onSelectSong}
-                    loadingStates={loadingStates}
+                    getSubmissionStatus={getSubmissionStatus}
                   />
                 ))}
               </div>
@@ -174,7 +176,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   size="sm"
                   onClick={() => setLoadMoreAlbums(true)}
                   disabled={isLoadingMoreAlbums}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   {isLoadingMoreAlbums ? (
                     <>
@@ -199,7 +201,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     key={album.browseId}
                     album={album}
                     onSelectTrack={onSelectSong}
-                    loadingStates={loadingStates}
+                    getSubmissionStatus={getSubmissionStatus}
                   />
                 ))}
               </div>
@@ -209,7 +211,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                   size="sm"
                   onClick={() => setLoadMoreSingles(true)}
                   disabled={isLoadingMoreSingles}
-                  className="w-full mt-2 text-muted-foreground hover:text-foreground"
+                  className="w-full mt-2 text-muted-foreground hover:text-card-foreground"
                 >
                   {isLoadingMoreSingles ? (
                     <>
@@ -278,12 +280,14 @@ const ArtistHeader: React.FC<ArtistHeaderProps> = ({
 interface TopSongCardProps {
   song: YoutubeMusicSearchResult;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: () => void;
 }
 
 const TopSongCard: React.FC<TopSongCardProps> = ({
   song,
   isLoading,
+  isSubmitted = false,
   onSelect,
 }) => {
   const thumbnail = song.thumbnails?.[0]?.url || "";
@@ -322,7 +326,7 @@ const TopSongCard: React.FC<TopSongCardProps> = ({
           <Button
             size="sm"
             onClick={onSelect}
-            disabled={isDisabled || isLoading}
+            disabled={isDisabled || isLoading || isSubmitted}
             className="flex-shrink-0"
           >
             {isLoading ? (
@@ -330,6 +334,8 @@ const TopSongCard: React.FC<TopSongCardProps> = ({
                 <Loader2 className="w-4 h-4 animate-spin mr-1" />
                 Adding...
               </>
+            ) : isSubmitted ? (
+              "Queued"
             ) : song.existsInLibrary ? (
               "Added"
             ) : (

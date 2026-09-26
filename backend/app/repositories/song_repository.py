@@ -97,7 +97,7 @@ class SongRepository:
         """
         return (
             self.db.query(DbSong)
-            .options(joinedload(DbSong.lyrics), joinedload(DbSong.album_rel))
+            .options(joinedload(DbSong.album_rel))
             .filter(DbSong.id == song_id)
             .first()
         )
@@ -114,7 +114,7 @@ class SongRepository:
         :param offset: number of results to skip (default None)
         """
         query = self.db.query(DbSong).options(
-            subqueryload(DbSong.lyrics), subqueryload(DbSong.album_rel)
+            subqueryload(DbSong.album_rel)
         )
         if filters:
             for attr, value in filters.items():
@@ -156,7 +156,7 @@ class SongRepository:
         
         song = self.fetch(song_id)
         if not song:
-            logger.warning(f"Song {song_id} not found for update")
+            logger.warning("Song %s not found for update", song_id)
             return None
             
         for key, value in fields.items():
@@ -164,7 +164,7 @@ class SongRepository:
         self.db.commit()
         self.db.refresh(song)
         
-        logger.debug(f"Successfully updated song {song_id}")
+        logger.debug("Successfully updated song %s", song_id)
         return song
 
     def find_duplicates(self) -> list[list[DbSong]]:

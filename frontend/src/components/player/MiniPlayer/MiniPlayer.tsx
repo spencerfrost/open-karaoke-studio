@@ -57,7 +57,7 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = "" }) => {
 
   const miniPlayerContent = (
     <div
-      className={`fixed z-50 shadow-2xl rounded-lg overflow-hidden bg-gradient-to-br from-gray-900 to-gray-950 border border-white/10 transition-all duration-300 ease-out ${className}`}
+      className={`fixed z-50 shadow-2xl rounded-lg overflow-hidden bg-gradient-to-br from-overlay/90 to-overlay border border-glass-border/10 transition-all duration-300 ease-out ${className}`}
       style={{
         bottom: position.y,
         right: position.x,
@@ -73,30 +73,30 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = "" }) => {
       {/* Main content area */}
       <div className="relative">
         {/* Background gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-overlay/60 to-transparent pointer-events-none" />
 
         {/* Content */}
         <div className="relative p-3">
           {/* Song info and icon */}
           <div className="flex items-center gap-3 mb-2">
             {/* Music icon / album art placeholder */}
-            <div className="flex-shrink-0 w-10 h-10 rounded bg-gradient-to-br from-dark-cyan/30 to-orange-peel/30 flex items-center justify-center">
-              <Music size={20} className="text-orange-peel" />
+            <div className="flex-shrink-0 w-10 h-10 rounded bg-gradient-to-br from-accent/30 to-primary/30 flex items-center justify-center">
+              <Music size={20} className="text-primary" />
             </div>
 
             {/* Song title and artist */}
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">
+              <div className="text-sm font-medium text-foreground truncate">
                 {songTitle || "Unknown Title"}
               </div>
-              <div className="text-xs text-white/60 truncate">
+              <div className="text-xs text-foreground/60 truncate">
                 {songArtist || "Unknown Artist"}
               </div>
             </div>
           </div>
 
           {/* Progress info */}
-          <div className="flex items-center justify-between text-xs text-white/50 mb-1">
+          <div className="flex items-center justify-between text-xs text-foreground/50 mb-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>

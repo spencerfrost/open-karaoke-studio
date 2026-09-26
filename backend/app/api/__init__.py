@@ -11,8 +11,8 @@ from .host_settings import router as host_settings_router
 from .jobs import router as jobs_router
 from .karaoke_queue import router as queue_router
 from .lyrics import router as lyrics_router
-from .metadata import router as metadata_router
 from .performance_history import router as performance_history_router
+from .session_playlist import router as session_playlist_router
 from .sessions import router as sessions_router
 from .songs import router as songs_router
 from .users import router as users_router
@@ -31,9 +31,9 @@ __all__ = [
     "queue_router",
     "youtube_router",
     "youtube_music_router",
-    "metadata_router",
     "lyrics_router",
     "users_router",
     "musicbrainz_router",
     "performance_history_router",
+    "session_playlist_router",
 ]

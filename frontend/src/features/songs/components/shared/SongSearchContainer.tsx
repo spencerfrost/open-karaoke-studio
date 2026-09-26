@@ -18,19 +18,31 @@ import { createLogger } from "@/lib/logger";
 const logger = createLogger("component:song-search");
 import { YouTubeResultCard } from "../YoutubeVideoResultCard";
 import { ArtistResultCard } from "../ArtistResultCard";
-import { AddSongDialog } from "../AddSongDialog";
 import { ArtistBrowsePanel } from "../artist-browse";
 
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";
 import { useYoutubeVideoSearch } from "@/hooks/useYoutubeVideoSearch";
 import { useSongCreation, SongInput } from "../../hooks/useSongCreation";
-import { useAddSongDialog } from "../../hooks/useAddSongDialog";
 
 import { SongSearchContainerProps, SearchSource } from "./types";
 import {
   YoutubeMusicSearchResult,
   YoutubeVideoSearchResult,
 } from "@/types/Youtube";
+import { parseDurationToSeconds } from "@/utils/formatters";
+
+// Surface the backend's message (e.g. demo download limits, "demo is busy")
+// when it's a real user-facing string; fall back for opaque server errors.
+const addSongErrorMessage = (error: unknown): string => {
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.startsWith("HTTP error!")
+  ) {
+    return error.message;
+  }
+  return "Failed to add song";
+};
 
 // Data mappers to convert search results to unified SongInput
 const mapYoutubeMusicToSongInput = (
@@ -42,7 +54,7 @@ const mapYoutubeMusicToSongInput = (
   videoId: result.videoId,
   source: "youtube_music",
   url: `https://www.youtube.com/watch?v=${result.videoId}`,
-  duration: result.duration,
+  duration: parseDurationToSeconds(result.duration),
   thumbnail: result.thumbnails[0]?.url || "",
 });
 
@@ -55,7 +67,7 @@ const mapYouTubeToSongInput = (
   videoId: result.id,
   source: "youtube",
   url: result.url,
-  duration: result.duration.toString(),
+  duration: result.duration,
   thumbnail: result.thumbnail,
 });
 
@@ -73,6 +85,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   className = "",
   initialQuery = "",
   autoBrowseArtist = false,
+  onSubmitted,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [activeSource, setActiveSource] =
@@ -124,27 +137,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
   // Single song creation hook for both flows
   const songCreation = useSongCreation();
 
-  // Dialog management
-  const dialog = useAddSongDialog();
-
-  // Loading states for both result types
-  const youtubeMusicLoadingStates: Record<string, boolean> = Object.fromEntries(
-    (youtubeMusicSearch.data?.songs || []).map(
-      (result: YoutubeMusicSearchResult) => [
-        result.videoId,
-        songCreation.isAdding &&
-          songCreation.currentSong?.videoId === result.videoId,
-      ],
-    ),
-  );
-
-  const youtubeLoadingStates: Record<string, boolean> = Object.fromEntries(
-    (youtubeSearch.data || []).map((result: YoutubeVideoSearchResult) => [
-      result.id,
-      songCreation.isAdding && songCreation.currentSong?.videoId === result.id,
-    ]),
-  );
-
   const handleSearch = (searchQuery: string) => {
     setQuery(searchQuery);
     // Clear artist browse when searching
@@ -161,23 +153,34 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
 
   const handleYoutubeMusicSelect = async (result: YoutubeMusicSearchResult) => {
     try {
+      logger.debug("YouTube Music result selected", {
+        videoId: result.videoId,
+        title: result.title,
+        existsInLibrary: result.existsInLibrary,
+        status: songCreation.getSubmissionStatus(result.videoId),
+      });
       const songInput = mapYoutubeMusicToSongInput(result);
       await songCreation.createSong(songInput);
-      dialog.openDialog();
+      onSubmitted?.();
     } catch (error) {
       logger.error("Failed to create YouTube Music song:", error);
-      toast.error("Failed to add song");
+      toast.error(addSongErrorMessage(error));
     }
   };
 
   const handleYouTubeSelect = async (result: YoutubeVideoSearchResult) => {
     try {
+      logger.debug("YouTube result selected", {
+        videoId: result.id,
+        title: result.title,
+        status: songCreation.getSubmissionStatus(result.id),
+      });
       const songInput = mapYouTubeToSongInput(result);
       await songCreation.createSong(songInput);
-      dialog.openDialog();
+      onSubmitted?.();
     } catch (error) {
       logger.error("Failed to create YouTube song:", error);
-      toast.error("Failed to add song");
+      toast.error(addSongErrorMessage(error));
     }
   };
 
@@ -208,12 +211,10 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               artistName={browsingArtist.name}
               onBack={handleBackFromArtist}
               onSelectSong={handleYoutubeMusicSelect}
-              loadingStates={youtubeMusicLoadingStates}
+              getSubmissionStatus={songCreation.getSubmissionStatus}
             />
           </CardContent>
         </Card>
-
-        <AddSongDialog songCreation={songCreation} dialog={dialog} />
       </div>
     );
   }
@@ -271,7 +272,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
                     isLoading={youtubeMusicSearch.isLoading}
                     error={youtubeMusicSearch.error}
                     onSelect={handleYoutubeMusicSelect}
-                    loadingStates={youtubeMusicLoadingStates}
+                    getSubmissionStatus={songCreation.getSubmissionStatus}
                     resultCardComponent={YoutubeMusicResultCard}
                     keyExtractor={(result) => result.videoId}
                     emptyMessage="Search YouTube Music"
@@ -302,7 +303,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               isLoading={youtubeSearch.isLoading}
               error={youtubeSearch.error}
               onSelect={handleYouTubeSelect}
-              loadingStates={youtubeLoadingStates}
+              getSubmissionStatus={songCreation.getSubmissionStatus}
               resultCardComponent={YouTubeResultCard}
               keyExtractor={(result) => result.id}
               emptyMessage="Search YouTube"
@@ -311,8 +312,6 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
           )}
         </CardContent>
       </Card>
-
-      <AddSongDialog songCreation={songCreation} dialog={dialog} />
     </div>
   );
 };

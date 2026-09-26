@@ -39,4 +39,9 @@ async def get_album_cover(album_id: int, db: Session = Depends(get_db)):
         logger.warning("Album cover file missing on disk: %s", cover_file)
         raise HTTPException(status_code=404, detail="Album cover file not found")
 
-    return FileResponse(str(cover_file), media_type="image/jpeg")
+    # Without Cache-Control every view revalidates; see get_artist_image.
+    return FileResponse(
+        str(cover_file),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )

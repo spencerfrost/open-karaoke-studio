@@ -1,17 +1,18 @@
 /**
- * Custom hook for karaoke player UI state management
- * Handles fullscreen, volume slider visibility, keyboard shortcuts, etc.
+ * usePlayerUI - fullscreen for the stage, and nothing else.
+ *
+ * Now that the page IS the player, fullscreen's only job is hiding browser
+ * chrome. Keys are bound in useStageKeyboard (the one place with a guard for
+ * inputs and dialogs), so this hook deliberately registers no listeners of its
+ * own beyond tracking the browser's own fullscreen state.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { PlayerUIHook } from "../KaraokePlayer.types";
-import { sessionWebSocketService } from "@/services/sessionWebSocketService";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { PlayerUIHook } from "../types/KaraokePlayer.types";
 
 export const usePlayerUI = (): PlayerUIHook => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
   const [fsError, setFsError] = useState<string | null>(null);
 
   // Fullscreen event listeners
@@ -84,113 +85,9 @@ export const usePlayerUI = (): PlayerUIHook => {
     }
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
 
-  // Keyboard shortcuts
-  const keyboardShortcuts = useMemo(
-    () => ({
-      Escape: () => {
-        if (isFullscreen) {
-          exitFullscreen();
-        }
-      },
-      " ": () => {
-        // Space bar for play/pause - will be handled by parent component
-        // This is just the mapping, actual implementation in parent
-      },
-      f: () => {
-        toggleFullscreen();
-      },
-      F: () => {
-        toggleFullscreen();
-      },
-    }),
-    [isFullscreen, exitFullscreen, toggleFullscreen],
-  );
-
-  // Keyboard event handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const handler =
-        keyboardShortcuts[e.key as keyof typeof keyboardShortcuts];
-      if (handler) {
-        e.preventDefault();
-        handler();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [keyboardShortcuts]);
-
-  // Auto-hide controls in fullscreen (optional enhancement)
-  useEffect(() => {
-    if (!isFullscreen) {
-      setIsControlsVisible(true);
-      return;
-    }
-
-    let hideTimer: NodeJS.Timeout;
-
-    const showControls = () => {
-      setIsControlsVisible(true);
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => {
-        setIsControlsVisible(false);
-      }, 3000); // Hide after 3 seconds of inactivity
-    };
-
-    const handleMouseMove = () => showControls();
-    const handleKeyDown = () => showControls();
-
-    // Show controls initially
-    showControls();
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      clearTimeout(hideTimer);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isFullscreen]);
-
-  // Listen for remote fullscreen commands from performer devices
-  useEffect(() => {
-    const cleanup = sessionWebSocketService.on("toggle_fullscreen", () => {
-      toggleFullscreen();
-    });
-    return cleanup;
-  }, [toggleFullscreen]);
-
-  // Focus management
-  const focusPlayer = useCallback(() => {
-    if (containerRef.current) {
-      containerRef.current.focus();
-    }
-  }, []);
-
-  // Volume slider management
-  const handleSetShowVolumeSlider = useCallback((show: boolean) => {
-    setShowVolumeSlider(show);
-  }, []);
-
   return {
-    // UI state
     isFullscreen,
-    showVolumeSlider,
-    isControlsVisible,
-
-    // UI actions
     toggleFullscreen,
-    setShowVolumeSlider: handleSetShowVolumeSlider,
-
-    // Keyboard shortcuts
-    keyboardShortcuts,
-
-    // Focus management
-    focusPlayer,
-
-    // Internal refs and error state
     containerRef,
     fsError,
   };

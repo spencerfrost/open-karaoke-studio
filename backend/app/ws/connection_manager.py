@@ -64,17 +64,21 @@ class SessionConnectionManager:
     ):
         if room in self.rooms:
             room_size = len(self.rooms[room])
-            logger.debug(f"🔊 Broadcasting to room '{room}' with {room_size} clients")
+            logger.debug(
+                "🔊 Broadcasting to room '%s' with %d clients", room, room_size
+            )
             disconnected = []
             for connection in self.rooms[room]:
                 if connection == exclude:
-                    logger.debug(f"  ⏭️ Skipping sender {id(connection)}")
+                    logger.debug("  ⏭️ Skipping sender %d", id(connection))
                     continue  # Skip the excluded connection
                 try:
                     await connection.send_text(json.dumps(message))
-                    logger.debug(f"  ✅ Sent to client {id(connection)}")
+                    logger.debug("  ✅ Sent to client %d", id(connection))
                 except Exception as e:
-                    logger.error(f"  ❌ Failed to send to client {id(connection)}: {e}")
+                    logger.error(
+                        "  ❌ Failed to send to client %d: %s", id(connection), e
+                    )
                     # Handle disconnected clients
                     disconnected.append(connection)
 
@@ -82,7 +86,7 @@ class SessionConnectionManager:
             for conn in disconnected:
                 self.disconnect(conn)  # Properly removes from all data structures
         else:
-            logger.debug(f"🚫 Room '{room}' not found!")
+            logger.debug("🚫 Room '%s' not found!", room)
 
     async def join_room(self, websocket: WebSocket, room: str):
         if room not in self.rooms:
@@ -90,10 +94,13 @@ class SessionConnectionManager:
         if websocket not in self.rooms[room]:
             self.rooms[room].append(websocket)
             logger.debug(
-                f"🏠 Client {id(websocket)} joined room '{room}' (now {len(self.rooms[room])} clients)"
+                "🏠 Client %d joined room '%s' (now %d clients)",
+                id(websocket),
+                room,
+                len(self.rooms[room]),
             )
         else:
-            logger.debug(f"🔄 Client {id(websocket)} already in room '{room}'")
+            logger.debug("🔄 Client %d already in room '%s'", id(websocket), room)
 
     async def leave_room(self, websocket: WebSocket, room: str):
         if room in self.rooms and websocket in self.rooms[room]:
@@ -198,46 +205,56 @@ class SessionConnectionManager:
             return f"session_{session_id}"
         return f"session_{session_id}_{room_type}"
 
-    async def force_close_session_connections(self, session_id: str, reason: str = "Session ended"):
+    async def force_close_session_connections(
+        self, session_id: str, reason: str = "Session ended"
+    ):
         """
         Force close all WebSocket connections for a specific session.
         Used when host leaves and session should be terminated.
-        """
-        if session_id not in self.sessions:
-            return
 
-        session = self.sessions[session_id]
+        Keyed off the session's room rather than `self.sessions`, which only the legacy
+        `/ws/session` endpoint populates - sessions created through the REST API and joined
+        over `/ws/session/{session_id}` never appear there.
+        """
         session_room = self.get_session_room_name(session_id)
-        
+
         # Get all connections in the session room
         if session_room in self.rooms:
             connections_to_close = list(self.rooms[session_room])
-            
+
             # Send final message before closing
             await self.broadcast_to_room(
-                session_room,
-                {"type": "session_ended", "reason": reason}
+                session_room, {"type": "session_ended", "reason": reason}
             )
-            
+
             # Force close all connections
             for websocket in connections_to_close:
                 try:
                     await websocket.close(code=1000, reason=reason)
-                    logger.debug(f"🔌 Force closed WebSocket {id(websocket)} for session {session_id}")
+                    logger.debug(
+                        "🔌 Force closed WebSocket %d for session %s",
+                        id(websocket),
+                        session_id,
+                    )
                 except Exception as e:
-                    logger.error(f"❌ Failed to close WebSocket {id(websocket)}: {e}")
-            
+                    logger.error(
+                        "❌ Failed to close WebSocket %d: %s", id(websocket), e
+                    )
+
             # Clean up the room
             self.rooms[session_room] = []
-        
-        # Mark session as inactive and clean up session data
-        session["is_active"] = False
-        for device_id in session["connected_devices"]:
-            session["connected_devices"][device_id]["is_active"] = False
-        
+
+        # Mark the in-memory session inactive, if this is one the legacy endpoint tracks
+        session = self.sessions.get(session_id)
+        if session is not None:
+            session["is_active"] = False
+            for device_id in session["connected_devices"]:
+                session["connected_devices"][device_id]["is_active"] = False
+
         # Clean up session performance state if available
         try:
             from .session_specific import cleanup_session_performance_state
+
             cleanup_session_performance_state(session_id)
         except ImportError:
             pass  # Function not available, skip cleanup

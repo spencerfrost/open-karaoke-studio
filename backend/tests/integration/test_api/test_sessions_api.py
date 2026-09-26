@@ -1,6 +1,6 @@
 """Integration tests for /api/sessions REST endpoints."""
-import uuid
 
+import uuid
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper
@@ -192,11 +192,25 @@ def test_validate_session_not_found(client):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_leave_session_not_in_session(client):
+def test_leave_session_requires_a_membership_credential(client):
     session = _create_session(client)
     resp = client.post(f"/api/sessions/{session['session_id']}/leave")
-    # TestClient IP is "testclient" — not in the session
-    assert resp.status_code == 404
+    # Leaving identifies the device by its X-Session-ID / X-Device-ID credential; without
+    # one there is no device to leave. (This used to be matched against the request IP,
+    # which no device id could ever equal, so leaving always 404'd.)
+    assert resp.status_code == 422
+
+
+def test_leave_session_rejects_an_unknown_device(client):
+    session = _create_session(client)
+    resp = client.post(
+        f"/api/sessions/{session['session_id']}/leave",
+        headers={
+            "X-Session-ID": session["session_id"],
+            "X-Device-ID": "rest_not_a_real_device",
+        },
+    )
+    assert resp.status_code == 403
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -232,3 +246,80 @@ def test_post_my_session_returns_existing_if_active(client):
     session_id_2 = resp2.json()["session_id"]
 
     assert session_id_1 == session_id_2
+
+
+def test_post_my_session_ignores_stale_active_sessions(client):
+    """
+    A stale expired-but-active row must not shadow the host's live session.
+
+    Regression: the lookup had no ORDER BY and checked expiry only after the query, so an
+    unordered .first() could return an expired row, fail the expiry check, and mint a
+    brand new session - orphaning a live one that still had performers in it. This is what
+    produced two simultaneously active production sessions (MEBD and HPVT) for one host.
+    """
+    from datetime import datetime, timedelta
+
+    from app.db.models import KaraokeSession
+    from tests.integration.conftest import _TestingSessionLocal
+
+    payload = {"device_type": "stage", "display_name": "Host"}
+
+    live_session_id = client.post("/api/sessions/my", json=payload).json()["session_id"]
+
+    # Insert an older, already-expired session still flagged active for the same host.
+    db = _TestingSessionLocal()
+    try:
+        db.add(
+            KaraokeSession(
+                session_id="STLE",
+                display_code="STLE",
+                host_device_id="rest_stale000000",
+                host_user_id=1,
+                is_active=True,
+                created_at=datetime.utcnow() - timedelta(days=3),
+                expires_at=datetime.utcnow() - timedelta(days=2),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.post("/api/sessions/my", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["session_id"] == live_session_id
+
+    # The stale row should also have been reconciled rather than left active.
+    db = _TestingSessionLocal()
+    try:
+        stale = (
+            db.query(KaraokeSession).filter(KaraokeSession.session_id == "STLE").first()
+        )
+        assert stale is not None
+        assert stale.is_active is False
+    finally:
+        db.close()
+
+
+def test_create_session_records_owning_user(client):
+    """
+    POST /api/sessions must persist host_user_id.
+
+    Without it, host authority on the WebSocket - which derives from host_user_id - can
+    never be granted for sessions created through this path.
+    """
+    from app.db.models import KaraokeSession
+    from tests.integration.conftest import _TestingSessionLocal
+
+    session_id = _create_session(client)["session_id"]
+
+    db = _TestingSessionLocal()
+    try:
+        session = (
+            db.query(KaraokeSession)
+            .filter(KaraokeSession.session_id == session_id)
+            .first()
+        )
+        assert session is not None
+        assert session.host_user_id == 1
+    finally:
+        db.close()

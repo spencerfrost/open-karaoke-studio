@@ -14,6 +14,10 @@ _TIMEOUT = 10.0
 
 _FEAT_JOINPHRASE = re.compile(r"\bfeat\.?\b|\bfeaturing\b|\bft\.?\b", re.IGNORECASE)
 
+# Strips trailing/inline parenthetical boilerplate from soundtrack titles,
+# e.g. "Wicked (Original Broadway Cast Recording)" -> "Wicked".
+_BOILERPLATE_PAREN = re.compile(r"\s*\([^)]*\)")
+
 
 def _parse_artist_credits(
     artist_credit_list: list,
@@ -103,16 +107,16 @@ def search_recordings(query: str, limit: int = 10) -> list[dict]:
     return results
 
 
-def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:
-    """Fetch artist credits for a specific MusicBrainz recording.
+def get_recording_release_info(recording_id: str) -> dict:
+    """Fetch album/year for a specific MusicBrainz recording.
 
-    Returns [(name, role), ...] or None on failure.
     Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
+    Returns {"album": str|None, "year": int|None}.
     """
     time.sleep(1)
 
     headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
-    params = {"inc": "artist-credits", "fmt": "json"}
+    params = {"inc": "releases release-groups", "fmt": "json"}
 
     try:
         with httpx.Client(timeout=_TIMEOUT) as client:
@@ -123,12 +127,85 @@ def get_recording_credits(recording_id: str) -> list[tuple[str, str]] | None:
             )
             resp.raise_for_status()
     except httpx.HTTPError as e:
-        logger.warning("MusicBrainz recording lookup failed for %s: %s", recording_id, e)
-        return None
+        logger.warning("MusicBrainz release lookup failed for %s: %s", recording_id, e)
+        return {"album": None, "year": None}
 
     data = resp.json()
-    credits = data.get("artist-credit", [])
-    if not credits:
-        return None
+    releases = data.get("releases", [])
+    if not releases:
+        return {"album": None, "year": None}
 
-    return _parse_artist_credits(credits)
+    def release_sort_key(r: dict) -> tuple:
+        rg = r.get("release-group") or {}
+        is_album = 0 if rg.get("primary-type") == "Album" else 1
+        date = r.get("date", "") or ""
+        year = int(date[:4]) if date and len(date) >= 4 and date[:4].isdigit() else 9999
+        return (is_album, year)
+
+    best = sorted(releases, key=release_sort_key)[0]
+    album = best.get("title") or None
+    date = best.get("date", "") or ""
+    year = int(date[:4]) if date and len(date) >= 4 and date[:4].isdigit() else None
+
+    return {"album": album, "year": year}
+
+
+def _strip_show_name_boilerplate(title: str) -> str:
+    """Remove parenthetical boilerplate from a soundtrack/show title."""
+    return _BOILERPLATE_PAREN.sub("", title).strip()
+
+
+def _extract_show_name(data: dict) -> str | None:
+    """Pull a show/soundtrack name out of a recording's releases, if any.
+
+    If any release-group carries a "Soundtrack" secondary type, returns its
+    title with boilerplate parentheticals stripped (e.g. "Wicked").
+    """
+    for release in data.get("releases", []):
+        rg = release.get("release-group") or {}
+        secondary_types = rg.get("secondary-types") or []
+        if "Soundtrack" in secondary_types:
+            title = rg.get("title") or release.get("title") or ""
+            show_name = _strip_show_name_boilerplate(title)
+            if show_name:
+                return show_name
+
+    return None
+
+
+def get_recording_details(
+    recording_id: str,
+) -> tuple[str | None, list[tuple[str, str]] | None]:
+    """Return (show_name, artist_credits) for a recording in a single request.
+
+    Both values come off the same /recording resource, so they are fetched
+    together — asking twice would double both the round trips and the
+    rate-limit sleep below for no benefit. Either element is None when absent
+    from the response; both are None if the lookup fails.
+
+    Rate-limited to ~1 request/sec to respect MusicBrainz guidelines.
+    """
+    time.sleep(1)
+
+    headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
+    params = {"inc": "releases release-groups artist-credits", "fmt": "json"}
+
+    try:
+        with httpx.Client(timeout=_TIMEOUT, follow_redirects=True) as client:
+            resp = client.get(
+                f"{_MB_BASE}/recording/{recording_id}",
+                params=params,
+                headers=headers,
+            )
+            resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning(
+            "MusicBrainz recording lookup failed for %s: %s", recording_id, e
+        )
+        return None, None
+
+    data = resp.json()
+    raw_credits = data.get("artist-credit", [])
+    credits = _parse_artist_credits(raw_credits) if raw_credits else None
+
+    return _extract_show_name(data), credits

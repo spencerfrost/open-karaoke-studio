@@ -109,7 +109,7 @@ From our test results, Faster Whisper provides:
 
 ### Phase 1: Core Conversion Script
 
-**Location:** `/backend/scripts/ai_lyrics/whisper_to_lrc.py`
+**Location:** `/backend/scripts/experiments/ai_lyrics/whisper_to_lrc.py`
 
 **Key Functions:**
 
@@ -135,7 +135,7 @@ From our test results, Faster Whisper provides:
 
 ### Phase 2: Database Integration
 
-**Location:** `/backend/scripts/ai_lyrics/generate_synced_lyrics.py`
+**Location:** `/backend/scripts/experiments/ai_lyrics/generate_synced_lyrics.py`
 
 **Key Functions:**
 
@@ -317,10 +317,10 @@ ALTER TABLE songs ADD COLUMN word_level_timing TEXT;    -- JSON for future word-
 
 ## Related Documentation
 
-- [AI Lyrics Generation Guide](../ai_lyrics_generation.md)
-- [ASR Experiments Results](../backend/scripts/ai_lyrics/asr_experiments/README.md)
-- [Lyric Timing Solutions](../LYRIC_TIMING_SOLUTIONS.md)
-- [Database Schema](../backend/app/db/models/song.py)
+- [AI Lyrics Generation Guide](./ai_lyrics_generation.md)
+- [ASR Experiments Results](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/experiments/ai_lyrics/asr_experiments/README.md)
+- [Lyric Timing Solutions](./LYRIC_TIMING_SOLUTIONS.md)
+- [Database Schema](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/song.py)
 
 ---
 

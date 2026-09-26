@@ -1,6 +1,5 @@
 import React, { createContext, useEffect, useState, useCallback } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useAuthStore } from "@/stores/authStore";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("context:session");
@@ -26,8 +25,15 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   sessionRequired = true,
 }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { isRecovering, recoverSession, joinAsHost } = useSessionStore();
+  const { isRecovering, recoverSession } = useSessionStore();
 
+  /**
+   * Recover a session this browser was already in - and nothing more.
+   *
+   * This used to auto-create a session for any logged-in host, which is why
+   * one appeared every time an admin opened the app. Sessions are now started
+   * in exactly one place: entering stage mode.
+   */
   const initializeSession = useCallback(async () => {
     if (isInitialized) return;
 
@@ -35,22 +41,13 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
 
     try {
       await recoverSession();
-
-      // If recovery didn't find a session and the user is a host, auto-create one
-      const { sessionId } = useSessionStore.getState();
-      const { user } = useAuthStore.getState();
-      if (!sessionId && (user?.isHost || user?.isAdmin)) {
-        logger.debug("🎤 SessionProvider: Host logged in, auto-creating session...");
-        await joinAsHost();
-      }
-
       logger.debug("✅ SessionProvider: Session initialization completed");
     } catch (error) {
       logger.error("❌ SessionProvider: Session initialization failed:", error);
     } finally {
       setIsInitialized(true);
     }
-  }, [isInitialized, recoverSession, joinAsHost]);
+  }, [isInitialized, recoverSession]);
 
   useEffect(() => {
     initializeSession();
@@ -66,7 +63,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   // Don't render children until session initialization is complete
   if (!isInitialized) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+      <div className="min-h-screen bg-card text-card-foreground flex items-center justify-center">
         <div className="vintage-texture-overlay" />
         <div className="text-center space-y-4 relative z-10">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>

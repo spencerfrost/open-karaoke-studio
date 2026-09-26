@@ -20,7 +20,7 @@ def separate_with_demucs(
     song_dir: Path,
     status_callback: Callable[[str], None],
     stop_event: Optional[threading.Event] = None,
-) -> Tuple[bool, Optional[float]]:
+) -> bool:
     """
     Baseline separation using standard Demucs approach.
 
@@ -35,13 +35,13 @@ def separate_with_demucs(
         stop_event: A threading.Event to check for stop requests
 
     Returns:
-        Tuple of (success: bool, bpm: Optional[float])
+        True if separation succeeded, False otherwise.
     """
     logger.info("Starting Demucs Standard separation for: %s", input_path.name)
     status_callback("Engine: Demucs Standard (Baseline)")
 
     # Delegate to the existing separate_audio implementation
-    success, detected_bpm = demucs_separate_audio(
+    success = demucs_separate_audio(
         input_path=input_path,
         song_dir=song_dir,
         status_callback=status_callback,
@@ -53,4 +53,4 @@ def separate_with_demucs(
     else:
         logger.error("Demucs Standard separation failed")
 
-    return success, detected_bpm
+    return success

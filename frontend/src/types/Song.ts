@@ -1,14 +1,9 @@
 export type SongStatus = "processing" | "queued" | "processed" | "error";
 
-export interface ChordEvent {
-  time: number;
-  chord: string;
-}
-
 export interface SongArtist {
   id: number;
   name: string;
-  role: 'primary' | 'featured';
+  role: "primary" | "featured";
 }
 
 export interface Song {
@@ -31,10 +26,12 @@ export interface Song {
   album?: string;
   releaseDate?: string;
   year?: number;
+  showName?: string; // Musical/soundtrack, e.g. "Wicked"
 
   // Lyrics
   plainLyrics?: string;
   syncedLyrics?: string;
+  wordSyncedLyrics?: string | null;
 
   // iTunes metadata
   itunesTrackId?: number;
@@ -47,7 +44,13 @@ export interface Song {
   albumCoverUrl?: string; // Computed by backend — points to /api/albums/{id}/cover
 
   // AcoustID fingerprinting
-  acoustidFingerprintStatus?: "not_checked" | "matched" | "no_match" | "failed";
+  acoustidFingerprintStatus?:
+    | "not_checked"
+    | "matched"
+    | "no_match"
+    | "ambiguous"
+    | "skipped"
+    | "failed";
   acoustidScore?: number;
   musicbrainzRecordingId?: string;
 
@@ -55,8 +58,6 @@ export interface Song {
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)
 
   // Audio analysis
-  bpm?: number; // Beats per minute for count-in timing
-  chordsData?: ChordEvent[];
   vocalRangeLow?: string; // Lowest note detected, e.g. "G2"
   vocalRangeHigh?: string; // Highest note detected, e.g. "E5"
 
@@ -65,6 +66,7 @@ export interface Song {
   gainDb?: number; // Gain correction to reach -14 dBFS target
 
   status: SongStatus;
+  errorMessage?: string; // Failure reason when status="error"
 }
 
 export interface SongProcessingRequest {
@@ -78,9 +80,12 @@ export interface SongProcessingStatus {
   song_id?: string; // Links to the songs table
   progress: number; // 0-100
   status: SongStatus;
+  rawStatus?: string; // Backend job status before mapping to SongStatus
   message?: string;
   artist?: string;
   title?: string;
+  engineType?: string; // Separation engine running the job (demucs, lyrics_alignment, ...)
+  engine_type?: string; // Snake-case variant as delivered by some websocket payloads
 }
 
 export interface LyricsResult {

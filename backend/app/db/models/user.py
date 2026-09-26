@@ -21,6 +21,7 @@ class User(Base):
     color = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
     is_host = Column(Boolean, default=False)
+    is_demo = Column(Boolean, default=False)
 
     def set_password(self, password):
         """Set the user's password by hashing it."""

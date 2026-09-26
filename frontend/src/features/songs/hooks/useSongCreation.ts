@@ -1,10 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useLyricsSearch } from "@/hooks/api/useLyrics";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
-import { Song } from "@/types/Song";
-import type { LyricsOption } from "@/hooks/api/useLyrics";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:song-creation");
@@ -17,35 +14,39 @@ export interface SongInput {
   videoId: string;
   source: "youtube" | "youtube_music";
   url: string;
-  duration?: string;
+  duration?: number; // seconds
   thumbnail: string;
   startTime?: number;
   endTime?: number;
   lyrics?: string;
 }
 
+export type SongSubmissionStatus = "idle" | "pending" | "queued";
+
 export const useSongCreation = () => {
-  const [isAdding, setIsAdding] = useState(false);
-  const [currentSong, setCurrentSong] = useState<SongInput | null>(null);
-  const [createdSong, setCreatedSong] = useState<Song | null>(null);
+  const [submissionStates, setSubmissionStates] = useState<
+    Record<string, "pending" | "queued">
+  >({});
+  const inFlightVideoIdRef = useRef<string | null>(null);
 
-  const { useCreateSong, useUpdateSong } = useSongs();
+  const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
-  const updateSongMutation = useUpdateSong();
-
-  const lyricsSearch = useLyricsSearch();
 
   const youtubeDownloadMutation = useYoutubeDownloadMutation({
-    onSuccess: () => {
-      // Download started successfully
-    },
     onError: (error) => {
-      toast.error(`Failed to start download: ${error.message}`);
+      logger.error("Error queueing song download:", error);
     },
   });
 
   const downloadFromYouTube = (songId: string, song: SongInput) => {
-    youtubeDownloadMutation.mutate({
+    logger.debug("Queueing backend processing request", {
+      songId,
+      videoId: song.videoId,
+      title: song.title,
+      source: song.source,
+    });
+
+    return youtubeDownloadMutation.mutateAsync({
       song_id: songId,
       video_id: song.videoId,
       title: song.title,
@@ -55,123 +56,109 @@ export const useSongCreation = () => {
     });
   };
 
-  const getMetadata = (songId: string, song: SongInput) => {
-    const metadataPromise = Promise.all([
-      downloadFromYouTube(songId, song),
-      lyricsSearch.search({
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        provider: "syncedlyrics",
-      }),
-    ]);
-
-    metadataPromise.then(() => {
-      logger.debug("All download and lyrics search operations started");
-    });
-  };
-
   const createSong = (song: SongInput) => {
-    setIsAdding(true);
-    setCurrentSong(song);
+    const existingState = submissionStates[song.videoId];
+    logger.debug("createSong invoked", {
+      videoId: song.videoId,
+      title: song.title,
+      source: song.source,
+      existingState,
+      inFlightVideoId: inFlightVideoIdRef.current,
+    });
 
-    // Convert duration to seconds if it's provided
-    let duration: number | undefined;
-    if (song.duration) {
-      const durationValue =
-        typeof song.duration === "string"
-          ? parseFloat(song.duration)
-          : song.duration;
-      // Assume duration is already in seconds (no conversion needed)
-      duration = durationValue;
+    if (existingState === "queued") {
+      logger.debug("Ignoring duplicate song submission after song was queued", {
+        videoId: song.videoId,
+      });
+      return Promise.resolve(null);
     }
+
+    if (
+      inFlightVideoIdRef.current === song.videoId ||
+      existingState === "pending"
+    ) {
+      logger.debug(
+        "Ignoring duplicate song submission while request is in flight",
+        {
+          videoId: song.videoId,
+        },
+      );
+      return Promise.resolve(null);
+    }
+
+    inFlightVideoIdRef.current = song.videoId;
+    setSubmissionStates((current) => ({
+      ...current,
+      [song.videoId]: "pending",
+    }));
+    logger.debug("Marked song as pending in local submission state", {
+      videoId: song.videoId,
+    });
 
     const songData = {
       title: song.title,
       artist: song.artist,
       album: song.album || "",
-      duration,
+      duration: song.duration,
       source: song.source,
       video_id: song.videoId,
     };
 
     return createSongMutation
       .mutateAsync(songData)
-      .then((createdSong) => {
-        setCreatedSong(createdSong);
+      .then(async (createdSong) => {
         logger.debug("Song created successfully:", createdSong);
 
-        // Start parallel processes for lyrics and download
-        getMetadata(createdSong.id, song);
+        await downloadFromYouTube(createdSong.id, song);
+        setSubmissionStates((current) => ({
+          ...current,
+          [song.videoId]: "queued",
+        }));
+        logger.debug("Marked song as queued in local submission state", {
+          videoId: song.videoId,
+          songId: createdSong.id,
+        });
+        toast.success("Added to library and queued for processing");
 
         return createdSong;
       })
       .catch((error) => {
         logger.error("Error creating song:", error);
+        setSubmissionStates((current) => {
+          const nextState = { ...current };
+          delete nextState[song.videoId];
+          return nextState;
+        });
+        logger.debug("Cleared local submission state after failure", {
+          videoId: song.videoId,
+        });
         throw error;
       })
       .finally(() => {
-        setIsAdding(false);
+        inFlightVideoIdRef.current = null;
+        logger.debug("Reset transient add-song state", {
+          videoId: song.videoId,
+        });
       });
   };
 
-  const saveLyrics = (lyrics: LyricsOption) => {
-    if (!createdSong) return Promise.reject("No created song");
-
-    return updateSongMutation.mutateAsync({
-      id: createdSong.id,
-      plainLyrics: lyrics.plainLyrics,
-      syncedLyrics: lyrics.syncedLyrics,
-    });
-  };
-
-  const searchLyrics = (
-    customTitle?: string,
-    customArtist?: string,
-    customAlbum?: string,
-  ) => {
-    if (!currentSong) return Promise.reject("No current song");
-
-    return lyricsSearch.search({
-      title: customTitle || currentSong.title,
-      artist: customArtist || currentSong.artist,
-      album: customAlbum || currentSong.album || "",
-      provider: "syncedlyrics",
-    });
-  };
-
-  const resetState = () => {
-    setCurrentSong(null);
-    setCreatedSong(null);
-    setIsAdding(false);
-  };
-
-  const setCurrentSongState = (song: SongInput | null) => {
-    setCurrentSong(song);
-  };
-
-  const setCreatedSongState = (song: Song | null) => {
-    setCreatedSong(song);
+  const getSubmissionStatus = (videoId: string): SongSubmissionStatus => {
+    const state = submissionStates[videoId];
+    if (state === "pending" || state === "queued") {
+      return state;
+    }
+    return "idle";
   };
 
   return {
     // State
-    isAdding,
-    currentSong,
-    createdSong,
-    lyricsOptions: lyricsSearch.data || [],
-    isLoadingLyrics: lyricsSearch.loading,
+    submissionStates,
+    getSubmissionStatus,
 
     // Actions
     createSong,
-    saveLyrics,
-    searchLyrics,
-    resetState,
-    setCurrentSong: setCurrentSongState,
-    setCreatedSong: setCreatedSongState,
 
     // Mutations
     createSongMutation,
-    updateSongMutation,
   };
 };

@@ -6,19 +6,20 @@
 
 import React, { memo, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, FileText } from "lucide-react";
+import { Search, FileText, Mic2, Loader2 } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useApiMutation } from "@/hooks/api/useApi";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
 import KaraokeLyricsRenderer from "./KaraokeLyricsRenderer";
-import { parseLrcWithCountIn } from "@/utils/lrcParser";
+import { parseLrcData, attachWordTimestamps } from "@/utils/lrcParser";
+import { useLyricsAlignment } from "@/hooks/api/useLyricsAlignment";
+import { useQueryClient } from "@tanstack/react-query";
 
-interface CountInStyleConfig {
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
+interface InstrumentalStyleConfig {
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -39,10 +40,8 @@ interface LyricsDisplayProps {
   songDuration?: number; // in seconds
   // Optional seek callback for clicking on lyrics
   onSeek?: (timeSeconds: number) => void;
-  // Optional BPM for count-in (only used for synced lyrics)
-  bpm?: number;
-  // Optional count-in style configuration
-  countInStyle?: CountInStyleConfig;
+  // Optional instrumental-interval style configuration
+  instrumentalStyle?: InstrumentalStyleConfig;
 }
 
 const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
@@ -60,14 +59,72 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     songAlbum,
     songDuration,
     onSeek,
-    bpm,
-    countInStyle,
+    instrumentalStyle,
   }) => {
     const [isLyricsDialogOpen, setIsLyricsDialogOpen] = useState(false);
     const [isPasteLyricsDialogOpen, setIsPasteLyricsDialogOpen] =
       useState(false);
+    const queryClient = useQueryClient();
     const { useUpdateSong } = useSongs();
     const updateSongMutation = useUpdateSong();
+
+    const transcribeLyricsMutation = useApiMutation<
+      { job_id?: string; status?: string },
+      void
+    >("lyrics/songs/transcribe-placeholder/align", "post", {
+      mutationFn: async () => {
+        if (!songId) {
+          throw new Error("Missing song ID");
+        }
+
+        const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          let errorMessage = `Failed to start transcription (${response.status})`;
+          try {
+            const contentType = response.headers.get("Content-Type") || "";
+            if (contentType.includes("application/json")) {
+              const errorData = await response.json();
+              errorMessage =
+                errorData?.detail ||
+                errorData?.error ||
+                errorData?.message ||
+                errorMessage;
+            }
+          } catch {
+            // Keep fallback error message when response parsing fails.
+          }
+          throw new Error(errorMessage);
+        }
+
+        return response.json();
+      },
+      onSuccess: () => {
+        toast.success(
+          "Transcription started. Lyrics will appear when processing completes.",
+        );
+        if (songId) {
+          queryClient.invalidateQueries({ queryKey: ["songs", songId] });
+          queryClient.invalidateQueries({
+            queryKey: ["lyrics", songId, "alignment"],
+          });
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to start transcription: ${error.message}`);
+      },
+    });
+
+    const handleTranscribeLyrics = () => {
+      if (!songId) {
+        toast.error("Missing song information");
+        return;
+      }
+      transcribeLyricsMutation.mutate();
+    };
 
     const handleLyricsSearch = () => {
       if (!songId || !songTitle || !songArtist) {
@@ -131,12 +188,13 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       );
     };
 
+    // Matches the synced renderer's 10-foot scale
     const lyricsSizeClass =
       lyricsSize === "small"
-        ? "text-base"
+        ? "text-2xl"
         : lyricsSize === "large"
-          ? "text-3xl"
-          : "text-xl";
+          ? "text-5xl"
+          : "text-4xl";
 
     // Stable song object for LyricsFetchDialog — prevents re-triggering the
     // dialog's search useEffect on every currentTime re-render (every 100ms)
@@ -157,38 +215,74 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
     // Parse lyrics data for synced display
     const parsedLrcData = useMemo(() => {
       if (!isSync || !lyrics) return null;
-      return parseLrcWithCountIn(lyrics, bpm);
-    }, [isSync, lyrics, bpm]);
+      return parseLrcData(lyrics);
+    }, [isSync, lyrics]);
+
+    const { words: alignmentWords, instrumentalIntervals } = useLyricsAlignment(
+      isSync ? songId : undefined,
+    );
+
+    const parsedLrcDataWithWords = useMemo(() => {
+      if (!parsedLrcData) return null;
+      if (!alignmentWords || alignmentWords.length === 0) {
+        return {
+          ...parsedLrcData,
+          ...(instrumentalIntervals ? { instrumentalIntervals } : {}),
+        };
+      }
+      return {
+        ...parsedLrcData,
+        lines: attachWordTimestamps(parsedLrcData.lines, alignmentWords),
+        ...(instrumentalIntervals ? { instrumentalIntervals } : {}),
+      };
+    }, [parsedLrcData, alignmentWords, instrumentalIntervals]);
 
     if (isSync) {
-      if (!lyrics || !parsedLrcData) {
+      if (!lyrics || !parsedLrcDataWithWords) {
         return (
           <div
             className={`flex items-center justify-center h-full w-full ${className}`}
             role="region"
             aria-label={ariaLabel}
           >
-            <div className="text-background/50 text-lg">
-              No synced lyrics available
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-foreground/50 text-lg">
+                No synced lyrics available
+              </div>
+              {songId && (
+                <Button
+                  onClick={handleTranscribeLyrics}
+                  variant="outline"
+                  size="sm"
+                  disabled={transcribeLyricsMutation.isPending}
+                >
+                  {transcribeLyricsMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Mic2 className="w-4 h-4 mr-2" />
+                  )}
+                  Transcribe Lyrics
+                </Button>
+              )}
             </div>
           </div>
         );
       }
 
       return (
-        <div className={`relative h-full w-full ${className}`}>
+        // Faded with a mask rather than a painted scrim: a gradient overlay
+        // has to guess the backdrop, and its edges show wherever it guesses wrong.
+        <div
+          className={`relative h-full w-full mask-image-fade-y ${className}`}
+        >
           <KaraokeLyricsRenderer
-            parsedData={parsedLrcData}
+            parsedData={parsedLrcDataWithWords}
             currentTime={currentTime}
             lyricsSize={lyricsSize}
             lyricsOffset={lyricsOffset}
-            bpm={bpm}
-            countInStyle={countInStyle}
+            instrumentalStyle={instrumentalStyle}
             onSeek={onSeek}
           />
-
-          {/* Bottom vignette fade */}
-          <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-b from-transparent to-black/100 pointer-events-none" />
         </div>
       );
     }
@@ -201,7 +295,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
       >
         {lyrics ? (
           <div
-            className={`text-2xl font-semibold text-background whitespace-pre-line text-center ${lyricsSizeClass}`}
+            className={`font-semibold text-foreground whitespace-pre-line text-center ${lyricsSizeClass}`}
             role="document"
           >
             {lyrics}
@@ -211,32 +305,52 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             className="flex flex-col items-center justify-center h-full text-center p-8"
             role="status"
           >
-            <div className="text-gray-400 text-lg mb-2">
+            <div className="text-foreground/60 text-lg mb-2">
               🎵 No lyrics available
             </div>
-            <div className="text-gray-500 text-sm mb-4">
+            <div className="text-foreground/40 text-sm mb-4">
               Enjoy the music and sing along if you know the words!
             </div>
-            {songForDialog && (
+            {(songForDialog || songId) && (
               <div className="flex gap-2">
-                <Button
-                  onClick={handleLyricsSearch}
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Search for Lyrics
-                </Button>
-                <Button
-                  onClick={handlePasteLyrics}
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Paste Lyrics
-                </Button>
+                {songForDialog && (
+                  <Button
+                    onClick={handleLyricsSearch}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Search for Lyrics
+                  </Button>
+                )}
+                {songForDialog && (
+                  <Button
+                    onClick={handlePasteLyrics}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Paste Lyrics
+                  </Button>
+                )}
+                {songId && (
+                  <Button
+                    onClick={handleTranscribeLyrics}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    disabled={transcribeLyricsMutation.isPending}
+                  >
+                    {transcribeLyricsMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mic2 className="w-4 h-4 mr-2" />
+                    )}
+                    Transcribe Lyrics
+                  </Button>
+                )}
               </div>
             )}
           </div>

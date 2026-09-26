@@ -8,8 +8,32 @@ interface AlphabeticalIndexBarProps {
 
 const ALL_LETTERS = [
   "#",
-  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Y",
+  "Z",
 ];
 
 function clamp(value: number, min: number, max: number) {
@@ -98,7 +122,7 @@ const AlphabeticalIndexBar: React.FC<AlphabeticalIndexBarProps> = ({
   return (
     <div className={`relative flex items-center h-full ${className}`}>
       {activeLetter && (
-        <div className="absolute right-full mr-3 w-12 h-12 rounded-full bg-orange-peel flex items-center justify-center text-white text-xl font-bold shadow-lg pointer-events-none select-none">
+        <div className="absolute right-full mr-3 w-12 h-12 rounded-full bg-orange-peel flex items-center justify-center text-foreground text-xl font-bold shadow-lg pointer-events-none select-none">
           {activeLetter}
         </div>
       )}
@@ -123,7 +147,7 @@ const AlphabeticalIndexBar: React.FC<AlphabeticalIndexBarProps> = ({
                   ? "text-orange-peel font-bold"
                   : available
                     ? "text-orange-peel/80"
-                    : "text-white/20"
+                    : "text-foreground/20"
               }`}
             >
               {letter}

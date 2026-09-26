@@ -4,6 +4,7 @@
  */
 
 // Component exports
+export { default as LibraryScreen } from "./components/LibraryScreen";
 export { default as LibrarySearchInput } from "./components/LibrarySearchInput";
 export { default as SongResultsSection } from "./components/SongResultsSection";
 export { default as ArtistResultsSection } from "./components/ArtistResultsSection";

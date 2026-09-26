@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mislabel Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --text: #e6e8ee; --muted: #8a92a6;
+    --fix: #3ecf8e; --keep: #7aa2f7; --warn: #f5a524; --bad: #f7768e; --accent: #c084fc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .progress { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--fix); transition: width .2s; }
+  .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  audio { width: 100%; margin-top: 12px; }
+  .yt { color: var(--muted); font-size: 13px; }
+  .yt a { color: var(--keep); }
+  .meta { font-size: 13px; color: var(--muted); margin-top: 12px; display: grid; gap: 4px; }
+  .meta b { color: var(--text); font-weight: 500; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.good { color: var(--fix); border-color: color-mix(in srgb, var(--fix) 40%, transparent); }
+  .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .badge.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+  .badge.done-fix { color: var(--bg); background: var(--fix); border-color: var(--fix); }
+  .badge.done-keep { color: var(--bg); background: var(--keep); border-color: var(--keep); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .side { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .side h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .side.current h2 { color: var(--keep); }
+  .side.proposed h2 { color: var(--fix); }
+  .title { font-size: 20px; font-weight: 600; }
+  .artist { color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: inherit; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .src { font-size: 12px; color: var(--muted); margin-top: 10px; word-break: break-word; }
+  .lyrics { margin-top: 16px; max-height: 300px; overflow: auto; white-space: pre-wrap; font-size: 13px; color: var(--muted); }
+  .lyrics mark.new { background: color-mix(in srgb, var(--fix) 30%, transparent); color: var(--text); }
+  .lyrics mark.cur { background: color-mix(in srgb, var(--keep) 30%, transparent); color: var(--text); }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 12px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; position: sticky; bottom: 0; background: var(--bg); }
+  kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--text); }
+  .toast { position: fixed; top: 60px; right: 20px; padding: 8px 14px; border-radius: 6px; font-weight: 600; opacity: 0; transition: opacity .15s; color: var(--bg); }
+  .toast.show { opacity: 1; }
+  .empty { text-align: center; padding: 80px 20px; color: var(--muted); grid-column: 1 / -1; }
+  .empty h2 { color: var(--text); }
+  code { background: var(--panel); padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mislabel review</h1>
+  <div class="progress"><div id="bar"></div></div>
+  <span class="count" id="count"></span>
+  <span class="badge" id="filter"></span>
+</header>
+<main id="main"></main>
+<div class="keys">
+  <span><kbd>F</kbd> fix (rename)</span>
+  <span><kbd>K</kbd> keep as is</span>
+  <span><kbd>E</kbd> edit proposal, <kbd>Enter</kbd> save as fix, <kbd>Esc</kbd> cancel</span>
+  <span><kbd>Space</kbd> play/pause</span>
+  <span><kbd>←</kbd><kbd>→</kbd> seek 10s</span>
+  <span><kbd>V</kbd> vocals only</span>
+  <span><kbd>↑</kbd><kbd>↓</kbd> prev/next</span>
+  <span><kbd>Y</kbd> open on YouTube</span>
+  <span><kbd>A</kbd> show all / needs review</span>
+  <span><kbd>P</kbd> autoplay <b id="ap"></b></span>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let rows = [];
+let queue = [];
+let pos = 0;
+let showAll = false;
+let autoplay = true;
+let vocals = false;
+let editing = false;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// Rows worth a human look: anything the scan would change, plus anything that isn't just "feat." formatting
+const needsReview = (r) => r.action === "fix" || r.kind !== "formatting only";
+
+async function load() {
+  rows = await (await fetch("/api/rows")).json();
+  rebuildQueue();
+  const firstOpen = queue.findIndex((r) => !r.reviewed);
+  pos = firstOpen === -1 ? queue.length : firstOpen;
+  render();
+}
+
+function rebuildQueue() {
+  const current = queue[pos]?.id;
+  queue = showAll ? rows : rows.filter(needsReview);
+  const i = queue.findIndex((r) => r.id === current);
+  pos = i === -1 ? 0 : i;
+}
+
+function titleRegex(title) {
+  const words = String(title).replace(/\(.*?\)|\[.*?\]/g, "").match(/[\p{L}\p{N}]+/gu);
+  if (!words || !words.length) return null;
+  return new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^\\p{L}\\p{N}]+"), "giu");
+}
+
+function highlightLyrics(r) {
+  let html = esc(r.lyrics || "");
+  if (!html) return "<em>No saved lyrics</em>";
+  const mark = (re, cls) => { if (re) html = html.replace(re, (m) => `<mark class="${cls}">${m}</mark>`); };
+  mark(titleRegex(r.new_title), "new");
+  if (r.current_title !== r.new_title) mark(titleRegex(r.current_title), "cur");
+  return html;
+}
+
+function evidenceBadges(r) {
+  const out = [`<span class="badge">${esc(r.kind)}</span>`];
+  if (r.lyricsMatchNew === null) out.push(`<span class="badge">no lyrics saved</span>`);
+  else {
+    if (r.lyricsMatchNew) out.push(`<span class="badge good">lyrics mention proposed title</span>`);
+    if (r.lyricsMatchCurrent) out.push(`<span class="badge warn">lyrics mention current title</span>`);
+    if (!r.lyricsMatchNew && !r.lyricsMatchCurrent) out.push(`<span class="badge">lyrics mention neither title</span>`);
+  }
+  if (r.source === "parsed-title" || r.source === "channel-name")
+    out.push(`<span class="badge warn">proposal guessed from video title</span>`);
+  if (/\bfeat\./.test(r.new_artist) && r.kind !== "formatting only")
+    out.push(`<span class="badge warn">featured artists: may change with the feat. rework</span>`);
+  if (r.reviewed) out.push(`<span class="badge done-${r.action}">decided: ${r.action}</span>`);
+  else out.push(`<span class="badge">default: ${esc(r.action)}</span>`);
+  return out.join("");
+}
+
+function render() {
+  const done = queue.filter((r) => r.reviewed).length;
+  $("bar").style.width = queue.length ? `${(100 * done) / queue.length}%` : "0";
+  $("count").textContent = `${done} / ${queue.length} decided`;
+  $("filter").textContent = showAll ? `showing all ${rows.length}` : "needs review only";
+  $("ap").textContent = autoplay ? "on" : "off";
+
+  const r = queue[pos];
+  if (!r) {
+    const fixes = rows.filter((x) => x.action === "fix").length;
+    $("main").innerHTML = `<div class="empty"><h2>All done</h2>
+      <p>${fixes} songs will be renamed. From <code>backend/</code> with the venv active:</p>
+      <p><code>python scripts/repair_acoustid_mislabels.py apply ../mislabels.csv</code> (preview)<br><br>
+      <code>python scripts/repair_acoustid_mislabels.py apply ../mislabels.csv --commit</code></p>
+      <p>Press <kbd>↑</kbd> to go back.</p></div>`;
+    $("audio")?.pause();
+    return;
+  }
+
+  $("main").innerHTML = `
+    <section class="panel">
+      <img class="thumb" src="/media/${r.id}/thumbnail.webp" alt="" onerror="this.style.visibility='hidden'">
+      <audio id="audio" controls preload="metadata" src="/media/${r.id}/${vocals ? "vocals" : "original"}.mp3"></audio>
+      <div class="yt">${vocals ? "Vocals only" : "Original mix"} · ${r.videoId ? `<a href="https://youtu.be/${esc(r.videoId)}" target="_blank" rel="noopener">YouTube ↗</a>` : "no video id"}</div>
+      <div class="meta">
+        <div>YouTube title: <b>${esc(r.youtube_title)}</b></div>
+        <div>Channel: <b>${esc(r.youtube_channel)}</b></div>
+        <div>Album: <b>${esc(r.album || "—")}</b></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="badges">${evidenceBadges(r)}</div>
+      <div class="compare">
+        <div class="side current">
+          <h2>Current <kbd>K</kbd></h2>
+          <div class="title">${esc(r.current_title)}</div>
+          <div class="artist">${esc(r.current_artist)}</div>
+        </div>
+        <div class="side proposed">
+          <h2>Proposed <kbd>F</kbd></h2>
+          <label for="t">Title</label><input id="t" value="${esc(r.new_title)}" tabindex="-1">
+          <label for="a">Artist</label><input id="a" value="${esc(r.new_artist)}" tabindex="-1">
+          <div class="src">from ${esc(r.source)}</div>
+        </div>
+      </div>
+      <div class="lyrics">${highlightLyrics(r)}</div>
+    </section>`;
+
+  const audio = $("audio");
+  audio.addEventListener("loadedmetadata", () => {
+    // Skip intros: most songs are recognisable a third of the way in
+    if (audio.currentTime === 0 && isFinite(audio.duration)) audio.currentTime = audio.duration * 0.33;
+    if (autoplay) audio.play().catch(() => {});
+  }, { once: true });
+  for (const el of [$("t"), $("a")]) {
+    el.addEventListener("focus", () => (editing = true));
+    el.addEventListener("blur", () => (editing = false));
+  }
+}
+
+function toast(text, color) {
+  const t = $("toast");
+  t.textContent = text;
+  t.style.background = color;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 700);
+}
+
+async function decide(action) {
+  const r = queue[pos];
+  if (!r) return;
+  const new_title = $("t").value.trim();
+  const new_artist = $("a").value.trim();
+  if (action === "fix" && (!new_title || !new_artist)) return toast("Title and artist can't be empty", "var(--bad)");
+  const res = await fetch("/api/decide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: r.id, action, new_title, new_artist }),
+  });
+  if (!res.ok) return toast("Save failed", "var(--bad)");
+  Object.assign(r, { action, new_title, new_artist, reviewed: "yes" });
+  toast(action === "fix" ? "Fix" : "Keep", action === "fix" ? "var(--fix)" : "var(--keep)");
+  document.activeElement?.blur();
+  const next = queue.findIndex((x, i) => i > pos && !x.reviewed);
+  pos = next === -1 ? queue.length : next;
+  render();
+}
+
+function move(delta) {
+  pos = Math.max(0, Math.min(queue.length, pos + delta));
+  render();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (editing) {
+    if (e.key === "Enter") { e.preventDefault(); decide("fix"); }
+    if (e.key === "Escape") {
+      const r = queue[pos];
+      $("t").value = r.new_title;
+      $("a").value = r.new_artist;
+      document.activeElement.blur();
+    }
+    return;
+  }
+  const audio = $("audio");
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const actions = {
+    f: () => decide("fix"),
+    k: () => decide("keep"),
+    e: () => { const t = $("t"); if (t) { t.focus(); t.select(); } },
+    " ": () => audio && (audio.paused ? audio.play() : audio.pause()),
+    ArrowLeft: () => audio && (audio.currentTime -= 10),
+    ArrowRight: () => audio && (audio.currentTime += 10),
+    ArrowUp: () => move(-1),
+    ArrowDown: () => move(1),
+    v: () => {
+      if (!audio) return;
+      const t = audio.currentTime;
+      vocals = !vocals;
+      render();
+      const a = $("audio");
+      a.addEventListener("loadedmetadata", () => (a.currentTime = t), { once: true });
+    },
+    y: () => { const r = queue[pos]; if (r?.videoId) window.open(`https://youtu.be/${r.videoId}`, "_blank"); },
+    a: () => { showAll = !showAll; rebuildQueue(); render(); },
+    p: () => { autoplay = !autoplay; render(); },
+  };
+  if (actions[key]) { e.preventDefault(); actions[key](); }
+});
+
+load();
+</script>
+</body>
+</html>

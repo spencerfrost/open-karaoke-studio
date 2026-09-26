@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "./authStore";
+import { generateSessionPlaylist } from "@/services/api";
 
 const logger = createLogger("store:session");
 
@@ -24,6 +25,42 @@ interface SessionInfo {
   created_at: string;
   expires_at: string;
   is_active: boolean;
+  queue_order_mode: string;
+}
+
+/** Setup a host picks before the night starts. See CreateSessionScreen. */
+export interface HostSessionSetup {
+  queueOrderMode?: "append" | "rotation";
+  performerNames?: string[];
+  /** A one-off override for tonight; does not change the stored default. */
+  durationHours?: number;
+  /** Seat the host on the roster. False means they run the night without singing. */
+  includeHostInRoster?: boolean;
+  /**
+   * What the server does if this account already has a live session. Unset
+   * keeps the plain get-or-create ("resume"). The create screen sends "reject"
+   * so a session it didn't know about comes back as ExistingSessionError
+   * instead of silently swallowing the setup.
+   */
+  onExisting?: "resume" | "replace" | "reject";
+}
+
+/** A live session the host already has, reported instead of creating another. */
+export interface ExistingSessionDetails {
+  sessionId: string;
+  displayCode: string;
+  createdAt: string;
+}
+
+/** Thrown by joinAsHost when `onExisting: "reject"` meets a live session. */
+export class ExistingSessionError extends Error {
+  readonly existing: ExistingSessionDetails;
+
+  constructor(existing: ExistingSessionDetails) {
+    super("You already have a session running");
+    this.name = "ExistingSessionError";
+    this.existing = existing;
+  }
 }
 
 interface SessionState {
@@ -32,7 +69,10 @@ interface SessionState {
   displayCode: string | null;
   deviceId: string | null;
   displayName: string | null; // Add display name for the current user
-  isHost: boolean;
+  /** This browser is the stage/TV, as opposed to a performer's phone. */
+  isStageDevice: boolean;
+  /** This user owns the session (server-derived from host_user_id). */
+  isSessionOwner: boolean;
   deviceType: string;
   connectedDevices: ConnectedDevice[];
   sessionInfo: SessionInfo | null;
@@ -45,9 +85,21 @@ interface SessionState {
   // Recovery state
   isRecovering: boolean;
   recoveryError: string | null;
+  /**
+   * The stage's server-side lookup for this account's live session. Kept apart
+   * from `isRecovering` on purpose: the route guards swap their outlet for a
+   * spinner on `isRecovering`, which would unmount the Stage page that started
+   * this lookup and have it start another on remount.
+   */
+  isResumingAccountSession: boolean;
 
   // Actions
-  joinAsHost: () => Promise<void>;
+  /**
+   * Get-or-create this host's session. `options` is the setup collected by the
+   * stage's create-session screen and only applies when a session is actually
+   * created - resuming a live one ignores it, server-side.
+   */
+  joinAsHost: (options?: HostSessionSetup) => Promise<void>;
   createSession: (deviceType?: string, displayName?: string) => Promise<void>;
   joinSession: (
     codeOrId: string,
@@ -55,9 +107,16 @@ interface SessionState {
     displayName?: string,
   ) => Promise<void>;
   recoverHostSession: () => Promise<void>;
+  /**
+   * Stage only: resume this account's live session when this browser has no
+   * record of it (a different device, cleared storage, a stale device id).
+   * Resolves true if a session was resumed.
+   */
+  resumeAccountHostSession: () => Promise<boolean>;
   recoverPerformerSession: () => Promise<void>; // Add performer recovery method
   recoverSession: () => Promise<void>; // Add general recovery method
   leaveSession: () => Promise<void>;
+  endSession: () => Promise<void>;
   refreshSessionInfo: () => Promise<void>;
   clearSession: () => void;
 }
@@ -67,10 +126,38 @@ const HOST_SESSION_STORAGE_KEY = "karaoke-host-session";
 // Storage key for performer sessions
 const PERFORMER_SESSION_STORAGE_KEY = "karaoke-performer-session";
 
+/** The device id this browser last held as the stage, if any. */
+function readStoredHostDeviceId(): string | null {
+  try {
+    const stored = localStorage.getItem(HOST_SESSION_STORAGE_KEY);
+    return stored ? (JSON.parse(stored).deviceId ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Module-level reference to the active session_ended listener cleanup function.
 // Ensures only one listener is registered at a time regardless of how many times
 // createSession/joinSession/recoverSession is called.
 let sessionEndedCleanup: (() => void) | null = null;
+
+/**
+ * (Re)registers the sole session_ended listener, dropping any previous one.
+ *
+ * Every path that establishes a session — create, join, and both recover
+ * flows — needs this, and they must not stack listeners, so registration is
+ * centralized here rather than repeated per action.
+ */
+function registerSessionEndedHandler(getState: () => SessionState): void {
+  sessionEndedCleanup?.();
+  sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
+    logger.info("Session ended by host:", data?.reason);
+    getState().clearSession();
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
+  });
+}
 
 export const useSessionStore = create<SessionState>()(
   persist(
@@ -80,7 +167,8 @@ export const useSessionStore = create<SessionState>()(
       displayCode: null,
       deviceId: null,
       displayName: null, // Initialize display name
-      isHost: false,
+      isStageDevice: false,
+      isSessionOwner: false,
       deviceType: "performer",
       connectedDevices: [],
       sessionInfo: null,
@@ -89,8 +177,9 @@ export const useSessionStore = create<SessionState>()(
       connectionError: null,
       isRecovering: false,
       recoveryError: null,
+      isResumingAccountSession: false,
 
-      joinAsHost: async () => {
+      joinAsHost: async (options) => {
         set({ isConnecting: true, connectionError: null });
 
         try {
@@ -99,13 +188,47 @@ export const useSessionStore = create<SessionState>()(
             throw new Error("Not authenticated");
           }
 
+          // Reuse this browser's device row when we already have one. Without
+          // it every mount inserts another row and inflates device_count.
+          const knownDeviceId = get().deviceId ?? readStoredHostDeviceId();
+
           const response = await fetch("/api/sessions/my", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            // Each setup key is omitted when unset, so an argument-less call
+            // sends exactly what it always has.
+            body: JSON.stringify({
+              device_type: "stage",
+              ...(knownDeviceId ? { device_id: knownDeviceId } : {}),
+              ...(options?.queueOrderMode
+                ? { queue_order_mode: options.queueOrderMode }
+                : {}),
+              ...(options?.performerNames?.length
+                ? { performer_names: options.performerNames }
+                : {}),
+              ...(options?.durationHours !== undefined
+                ? { duration_hours: options.durationHours }
+                : {}),
+              ...(options?.includeHostInRoster !== undefined
+                ? { include_host_in_roster: options.includeHostInRoster }
+                : {}),
+              ...(options?.onExisting
+                ? { on_existing: options.onExisting }
+                : {}),
+            }),
           });
+
+          if (response.status === 409) {
+            const { detail } = await response.json();
+            throw new ExistingSessionError({
+              sessionId: detail.session_id,
+              displayCode: detail.display_code,
+              createdAt: detail.created_at,
+            });
+          }
 
           if (!response.ok) {
             throw new Error(
@@ -119,7 +242,7 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
-            isHost: true,
+            isStageDevice: true,
             deviceType: "stage",
             isConnected: true,
             isConnecting: false,
@@ -127,25 +250,9 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null,
           });
 
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            sessionData.device_id,
-          );
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on(
-            "session_ended",
-            (data) => {
-              logger.info("Session ended by host:", data?.reason);
-              get().clearSession();
-              if (
-                typeof window !== "undefined" &&
-                window.location.pathname !== "/"
-              ) {
-                window.location.href = "/";
-              }
-            },
-          );
+          registerSessionEndedHandler(get);
 
           localStorage.setItem(
             HOST_SESSION_STORAGE_KEY,
@@ -158,6 +265,11 @@ export const useSessionStore = create<SessionState>()(
 
           logger.info("Host session joined/created:", sessionData);
         } catch (error) {
+          if (error instanceof ExistingSessionError) {
+            // Not a failure: the caller asked to be told, and decides next.
+            set({ isConnecting: false });
+            throw error;
+          }
           logger.error("Failed to join/create host session:", error);
           set({
             connectionError:
@@ -203,7 +315,11 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
-            isHost: true,
+            // The device role has to follow what was actually asked for:
+            // RequireCapability's device="performer" check routes on this
+            // flag, so forcing it true here sent performers who created a
+            // session to the stage screen.
+            isStageDevice: deviceType === "stage",
             deviceType,
             isConnected: true,
             isConnecting: false,
@@ -211,24 +327,10 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null, // Clear any recovery errors
           });
 
-          // Update WebSocket services for new session - pass device_id for host registration
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            sessionData.device_id,
-          );
+          // Update WebSocket services for new session
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          registerSessionEndedHandler(get);
 
           // Store host session data in localStorage for recovery
           localStorage.setItem(
@@ -286,7 +388,7 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId: sessionData.device_id,
             displayName: displayName || null, // Store the display name
-            isHost: sessionData.is_host,
+            isStageDevice: sessionData.is_host,
             deviceType,
             isConnected: true,
             isConnecting: false,
@@ -296,18 +398,7 @@ export const useSessionStore = create<SessionState>()(
           // Update WebSocket services for new session
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          registerSessionEndedHandler(get);
 
           // Store session data in localStorage for recovery
           if (sessionData.is_host) {
@@ -395,8 +486,16 @@ export const useSessionStore = create<SessionState>()(
 
           // Get full session info, passing device_id so is_host is computed correctly
           // (host_device_id is a 'rest_xxx' token, not an IP address)
+          // With a token the server derives is_host from the account. The
+          // device-id fallback alone wrongly says "not host" once any other
+          // stage has resumed the session, which cleared this record and sent
+          // the host back to the create screen.
+          const token = useAuthStore.getState().token;
           const response = await fetch(
             `/api/sessions/${sessionId}/info?device_id=${encodeURIComponent(deviceId)}`,
+            token
+              ? { headers: { Authorization: `Bearer ${token}` } }
+              : undefined,
           );
           if (!response.ok) {
             throw new Error(
@@ -417,31 +516,17 @@ export const useSessionStore = create<SessionState>()(
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
             deviceId,
-            isHost: true,
+            isStageDevice: true,
             deviceType: "stage",
             isConnected: true,
             isRecovering: false,
             sessionInfo: sessionData,
           });
 
-          // Reconnect WebSocket - pass device_id for host registration
-          sessionWebSocketService.connectToSession(
-            sessionData.session_id,
-            deviceId,
-          );
+          // Reconnect WebSocket
+          sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          registerSessionEndedHandler(get);
 
           logger.info("Host session recovered:", sessionData);
         } catch (error) {
@@ -455,6 +540,45 @@ export const useSessionStore = create<SessionState>()(
           });
           // Clear corrupted stored data
           localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+        }
+      },
+
+      resumeAccountHostSession: async () => {
+        const token = useAuthStore.getState().token;
+        if (!token) return false;
+
+        set({ isResumingAccountSession: true, recoveryError: null });
+
+        try {
+          const response = await fetch("/api/sessions/my", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.status === 401) {
+            // A stale token (expired, or signed with a different key) would
+            // otherwise leave a "logged in" host on the create screen, whose
+            // submit fails the same way.
+            useAuthStore.getState().expireSession();
+            return false;
+          }
+          if (!response.ok) {
+            throw new Error(
+              `Failed to look up host session: ${response.statusText}`,
+            );
+          }
+
+          const live = await response.json();
+          if (!live) return false;
+
+          await get().joinAsHost({ onExisting: "resume" });
+          logger.info("Resumed account host session:", live.session_id);
+          return true;
+        } catch (error) {
+          // Falling through to the create screen is safe: its "reject" submit
+          // still catches a live session this lookup missed.
+          logger.error("Failed to resume account host session:", error);
+          return false;
+        } finally {
+          set({ isResumingAccountSession: false });
         }
       },
 
@@ -535,7 +659,7 @@ export const useSessionStore = create<SessionState>()(
             displayCode: sessionData.display_code,
             deviceId,
             displayName,
-            isHost: false,
+            isStageDevice: false,
             deviceType: "performer",
             isConnected: true,
             isRecovering: false,
@@ -545,18 +669,7 @@ export const useSessionStore = create<SessionState>()(
           // Reconnect WebSocket
           sessionWebSocketService.connectToSession(sessionData.session_id);
 
-          // Register session_ended handler (replacing any previous registration)
-          sessionEndedCleanup?.();
-          sessionEndedCleanup = sessionWebSocketService.on("session_ended", (data) => {
-            logger.info("Session ended by host:", data?.reason);
-            get().clearSession();
-            if (
-              typeof window !== "undefined" &&
-              window.location.pathname !== "/"
-            ) {
-              window.location.href = "/";
-            }
-          });
+          registerSessionEndedHandler(get);
 
           logger.info("Performer session recovered:", sessionData);
         } catch (error) {
@@ -574,12 +687,22 @@ export const useSessionStore = create<SessionState>()(
       },
 
       leaveSession: async () => {
-        const { sessionId, isHost } = get();
+        const { sessionId, isStageDevice } = get();
         if (!sessionId) return;
 
         try {
+          // /leave identifies the device by its session credential; without these
+          // headers the request is rejected and this device stays listed as connected.
+          const { deviceId } = get();
+          const token = useAuthStore.getState().token;
           const response = await fetch(`/api/sessions/${sessionId}/leave`, {
             method: "POST",
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(deviceId
+                ? { "X-Session-ID": sessionId, "X-Device-ID": deviceId }
+                : {}),
+            },
           });
 
           if (!response.ok) {
@@ -593,7 +716,7 @@ export const useSessionStore = create<SessionState>()(
         }
 
         // Clear stored session data for hosts and performers
-        if (isHost) {
+        if (isStageDevice) {
           localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
         } else {
           localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
@@ -601,6 +724,45 @@ export const useSessionStore = create<SessionState>()(
 
         // Clear local state regardless of server response
         get().clearSession();
+      },
+
+      /**
+       * End the night: retire the session for everyone, not just this device.
+       *
+       * The server keeps the row, its queue and its playback state - a session
+       * is retired, never deleted - so the recap and the history survive. Only
+       * the owning host may do this; `leaveSession` is the per-device verb.
+       */
+      endSession: async () => {
+        const { sessionId } = get();
+        if (!sessionId) return;
+
+        // Drop the session_ended listener first. The server broadcasts it to
+        // the whole room, this socket included, and its handler hard-navigates
+        // to "/" - which would tear down the recap before it renders. Ending
+        // the session deliberately is not the same as being told it ended.
+        sessionEndedCleanup?.();
+        sessionEndedCleanup = null;
+
+        try {
+          const token = useAuthStore.getState().token;
+          const response = await fetch(`/api/sessions/${sessionId}`, {
+            method: "DELETE",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to end session: ${response.statusText}`);
+          }
+
+          logger.info("Session ended:", sessionId);
+        } finally {
+          // Fire and forget - the recap modal polls for the result itself.
+          generateSessionPlaylist(sessionId).catch((error) =>
+            logger.warn("Failed to trigger playlist generation:", error),
+          );
+          get().clearSession();
+        }
       },
 
       refreshSessionInfo: async () => {
@@ -639,7 +801,8 @@ export const useSessionStore = create<SessionState>()(
           displayCode: null,
           deviceId: null,
           displayName: null, // Clear display name
-          isHost: false,
+          isStageDevice: false,
+          isSessionOwner: false,
           deviceType: "performer",
           connectedDevices: [],
           sessionInfo: null,
@@ -648,6 +811,7 @@ export const useSessionStore = create<SessionState>()(
           connectionError: null,
           isRecovering: false,
           recoveryError: null,
+          isResumingAccountSession: false,
         });
       },
     }),
@@ -659,3 +823,15 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+// The server is the authority on session ownership - it compares the token against
+// host_user_id. It answers the `authenticate` message sent on every WebSocket open, so this
+// also corrects ownership after a reconnect. It says nothing about the device role, which
+// this client decides for itself. Registered once at module scope against the singleton.
+sessionWebSocketService.on("authenticated", (data) => {
+  const isSessionOwner = Boolean(
+    (data as { is_session_owner?: boolean })?.is_session_owner,
+  );
+  logger.info("Session ownership resolved by server:", isSessionOwner);
+  useSessionStore.setState({ isSessionOwner });
+});

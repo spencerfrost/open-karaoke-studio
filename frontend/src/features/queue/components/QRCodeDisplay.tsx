@@ -3,7 +3,8 @@ import { QRCodeSVG } from "qrcode.react";
 
 interface QRCodeDisplayProps {
   value: string;
-  size?: number;
+  /** Pixels, or any CSS length (e.g. "9rem") for a code that scales with the page. */
+  size?: number | string;
   title?: string;
   description?: string;
   className?: string;
@@ -12,33 +13,26 @@ interface QRCodeDisplayProps {
 const QRCodeDisplay: React.FC<QRCodeDisplayProps> = ({
   value,
   size = 256,
-  title = "Scan to Add Songs",
-  description = "Use your phone to add songs to the queue",
   className = "",
 }) => {
+  const codeSize = typeof size === "number" ? `${size}px` : size;
+  const frameSize = `calc(${codeSize} + 2rem)`;
+
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      {title && (
-        <h2 className="text-2xl font-semibold text-center mb-2 text-orange-peel">
-          {title}
-        </h2>
-      )}
-
-      {description && (
-        <p className="text-center mb-6 opacity-80 text-lemon-chiffon">
-          {description}
-        </p>
-      )}
-
       <div
-        className="p-4 rounded-lg flex items-center justify-center bg-lemon-chiffon"
+        className="p-2 rounded-lg flex items-center justify-center bg-card"
         style={{
           boxShadow: `0 0 0 2px #fd9a02, 0 6px 12px rgba(0, 0, 0, 0.3)`,
-          width: `${size + 32}px`,
-          height: `${size + 32}px`,
+          width: frameSize,
+          height: frameSize,
         }}
       >
-        <QRCodeSVG value={value} size={size} level="M" />
+        <QRCodeSVG
+          value={value}
+          level="M"
+          style={{ width: codeSize, height: codeSize }}
+        />
       </div>
     </div>
   );

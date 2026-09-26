@@ -16,7 +16,7 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
 
   const { artists, isLoading } = useArtists({ search: effectiveSearchTerm });
 
-  const sectionTitle = searchTerm.trim() ? "Artists" : "Browse All Artists";
+  const sectionTitle = searchTerm.trim() ? "Artists" : "Browse By Artist";
 
   return (
     <div>

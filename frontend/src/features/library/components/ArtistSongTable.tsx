@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Music, ListPlus, MoreVertical, Trash, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Song } from "@/types/Song";
 import { Button } from "@/components/ui/button";
 import { useSongs } from "@/hooks/api/useSongs";
@@ -7,9 +8,9 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useProcessingIndicators } from "@/stores/processingIndicatorsStore";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import { useSongDialogs } from "@/features/songs/hooks/useSongDialogs";
-import { SongDetailsDialog } from "@/features/songs/components/song-details/SongDetailsDialog";
-import { JoinSessionDialog } from "@/features/songs/components/JoinSessionDialog";
+import { SongManagementDialog } from "@/features/songs/components/song-details/SongManagementDialog";
 import { DeleteSongDialog } from "@/features/songs/components/DeleteSongDialog";
+import { QueueSingerDialog } from "@/features/songs/components/song-card/QueueSingerDialog";
 
 function formatDuration(seconds?: number): string {
   if (!seconds) return "";
@@ -24,12 +25,13 @@ interface SongTableRowProps {
 
 const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   const { getArtworkUrl } = useSongs();
-  const { isHost } = useSessionStore();
-  const isProcessing = useProcessingIndicators((state) =>
-    state.isProcessing(song.id),
+  const { isStageDevice } = useSessionStore();
+  const processingStatus = useProcessingIndicators((state) =>
+    state.getStatus(song.id),
   );
+  const isBlockingProcessing =
+    !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
   const [imgError, setImgError] = useState(false);
-  const [showJoinDialog, setShowJoinDialog] = useState(false);
 
   const songActions = useSongActions(song);
   const dialogs = useSongDialogs();
@@ -38,16 +40,9 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
 
   const handleQueueClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (songActions.handleQueueClick()) {
-      // added directly
-    } else {
-      setShowJoinDialog(true);
+    if (!songActions.handleQueueClick(() => dialogs.openDialog("singer"))) {
+      toast.error("Start a session on the Stage to queue songs.");
     }
-  };
-
-  const handleJoinSuccess = (singerName: string) => {
-    songActions.handleAddToQueue(singerName);
-    setShowJoinDialog(false);
   };
 
   return (
@@ -72,11 +67,6 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         {song.title}
       </span>
 
-      {/* Genre */}
-      <span className="hidden sm:block w-28 text-xs text-lemon-chiffon/40 truncate shrink-0">
-        {song.primaryGenre ?? ""}
-      </span>
-
       {/* Duration */}
       <span className="w-10 text-xs text-lemon-chiffon/50 text-right shrink-0 tabular-nums">
         {formatDuration(song.duration)}
@@ -90,7 +80,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
           className="size-7 text-accent"
           aria-label="Add to karaoke queue"
           onClick={handleQueueClick}
-          disabled={isProcessing}
+          disabled={isBlockingProcessing}
         >
           <ListPlus className="size-4" />
         </Button>
@@ -98,18 +88,18 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 text-foreground"
+          className="size-7 text-card-foreground"
           aria-label="Song details"
           onClick={(e) => {
             e.stopPropagation();
             dialogs.openDialog("details");
           }}
-          disabled={isProcessing}
+          disabled={isBlockingProcessing}
         >
           <MoreVertical className="size-4" />
         </Button>
 
-        {isHost && (
+        {isStageDevice && (
           <Button
             variant="ghost"
             size="icon"
@@ -119,24 +109,24 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
               e.stopPropagation();
               dialogs.openDialog("delete");
             }}
-            disabled={isProcessing}
+            disabled={isBlockingProcessing}
           >
             <Trash className="size-4" />
           </Button>
         )}
       </div>
 
-      <SongDetailsDialog
+      <SongManagementDialog
         song={song}
         isOpen={dialogs.isDialogOpen("details")}
         onClose={dialogs.closeDialog}
       />
 
-      <JoinSessionDialog
-        isOpen={showJoinDialog}
-        onClose={() => setShowJoinDialog(false)}
-        onJoinSuccess={handleJoinSuccess}
-        context={`add "${song.title}" to the karaoke queue`}
+      <QueueSingerDialog
+        song={song}
+        isOpen={dialogs.isDialogOpen("singer")}
+        onClose={dialogs.closeDialog}
+        onQueue={songActions.handleAddToQueue}
       />
 
       <DeleteSongDialog
@@ -159,61 +149,55 @@ interface ArtistSongTableProps {
   fetchNextPage?: () => void;
 }
 
-const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(({
-  songs,
-  hasNextPage,
-  isFetchingNextPage,
-  fetchNextPage,
-}) => {
-  if (songs.length === 0) return null;
+const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(
+  ({ songs, hasNextPage, isFetchingNextPage, fetchNextPage }) => {
+    if (songs.length === 0) return null;
 
-  return (
-    <div className="space-y-4">
-      {/* Column headers */}
-      <div className="flex items-center gap-3 px-3 pb-1 border-b border-lemon-chiffon/10">
-        <div className="w-9 shrink-0" />
-        <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
-          Title
-        </span>
-        <span className="hidden sm:block w-28 text-xs text-lemon-chiffon/40 uppercase tracking-wide shrink-0">
-          Genre
-        </span>
-        <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
-          Time
-        </span>
-        <div className="w-[76px] shrink-0" />
-      </div>
-
-      {/* Rows */}
-      <div>
-        {songs.filter(Boolean).map((song) => (
-          <SongTableRow key={song.id} song={song} />
-        ))}
-      </div>
-
-      {/* Load More */}
-      {hasNextPage && (
-        <div className="flex justify-center mt-4">
-          <Button
-            onClick={fetchNextPage}
-            disabled={isFetchingNextPage}
-            variant="outline"
-            className="px-8"
-          >
-            {isFetchingNextPage ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load More Songs"
-            )}
-          </Button>
+    return (
+      <div className="space-y-4">
+        {/* Column headers */}
+        <div className="flex items-center gap-3 px-3 pb-1 border-b border-lemon-chiffon/10">
+          <div className="w-9 shrink-0" />
+          <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
+            Title
+          </span>
+          <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
+            Time
+          </span>
+          <div className="w-[76px] shrink-0" />
         </div>
-      )}
-    </div>
-  );
-});
+
+        {/* Rows */}
+        <div>
+          {songs.filter(Boolean).map((song) => (
+            <SongTableRow key={song.id} song={song} />
+          ))}
+        </div>
+
+        {/* Load More */}
+        {hasNextPage && (
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={fetchNextPage}
+              disabled={isFetchingNextPage}
+              variant="outline"
+              className="px-8"
+            >
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Load More Songs"
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  },
+);
 
 ArtistSongTable.displayName = "ArtistSongTable";
 

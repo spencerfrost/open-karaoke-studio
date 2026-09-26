@@ -28,7 +28,6 @@ Cons: Longest processing time (3 model passes)
 import logging
 import shutil
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
@@ -45,7 +44,6 @@ from app.services import file_management
 from app.services.audio import (
     create_audio_progress_mapper,
     StopProcessingError,
-    detect_bpm,
     make_progress_callback,
     select_device_and_log,
 )
@@ -62,7 +60,7 @@ def separate_with_clean_backing(
     song_dir: Path,
     status_callback: Callable[[str], None],
     stop_event: Optional[threading.Event] = None,
-) -> Tuple[bool, Optional[float]]:
+) -> bool:
     """
     Multi-pass separation with de-noised backing vocals.
 
@@ -77,7 +75,7 @@ def separate_with_clean_backing(
         stop_event: A threading.Event to check for stop requests
 
     Returns:
-        Tuple of (success: bool, bpm: Optional[float])
+        True if separation succeeded, False otherwise.
     """
     logger.info("Starting Clean Backing separation for: %s", input_path.name)
     status_callback("Engine: Clean Backing (Demucs + Roformer + De-Noise)")
@@ -331,12 +329,6 @@ def separate_with_clean_backing(
             song_dir
         ).with_suffix(".mp3")
 
-        # Start BPM detection in background — runs while MP3 conversions execute
-        _bpm_log = lambda msg: logger.debug("BPM: %s", msg)
-        bpm_executor = ThreadPoolExecutor(max_workers=1)
-        bpm_future = bpm_executor.submit(detect_bpm, input_path, _bpm_log)
-        logger.info("BPM detection started in background thread")
-
         # Convert lead vocals (from Roformer)
         status_callback("Progress: 80% - Converting vocals to MP3...")
         lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
@@ -358,18 +350,6 @@ def separate_with_clean_backing(
         logger.info("Final instrumental saved to: %s", instrumental_final)
         status_callback("Progress: 85% - Step 5/5 complete")
 
-        # Collect BPM result (started before MP3 conversion, should already be done)
-        try:
-            detected_bpm = bpm_future.result(timeout=30)
-            logger.info("BPM detection complete: %s BPM", detected_bpm)
-            if detected_bpm:
-                status_callback(f"BPM detected: {detected_bpm}")
-        except Exception as e:
-            logger.warning("BPM detection failed or timed out: %s", e)
-            detected_bpm = None
-        finally:
-            bpm_executor.shutdown(wait=False)
-
         # Clean up temp directory
         status_callback("Cleaning up temporary files...")
         shutil.rmtree(temp_dir)
@@ -378,7 +358,7 @@ def separate_with_clean_backing(
         status_callback(f"Clean backing separation complete for {input_path.name}!")
         logger.info("Clean Backing separation completed successfully")
 
-        return True, detected_bpm
+        return True
 
     except StopProcessingError:
         # User cancelled - clean up and re-raise
@@ -394,4 +374,4 @@ def separate_with_clean_backing(
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
 
-        return False, None
+        return False

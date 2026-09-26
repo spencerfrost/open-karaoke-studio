@@ -5,16 +5,17 @@ export default defineConfig({
   title: 'Open Karaoke Studio',
   description: 'Self-hosted AI-powered karaoke application',
   lang: 'en-US',
-  
+
+  // Internal working docs — keep in the repo, out of the published site
+  srcExclude: ['plans/**', 'superpowers/**', 'research/**'],
+
   themeConfig: {
-    logo: '/logo.svg',
-    
     nav: [
       { text: 'Guide', link: '/guide' },
-      { text: 'Features', link: '/FEATURES' },
-      { text: 'Architecture', link: '/ARCHITECTURE' },
+      { text: 'Features', link: '/features' },
+      { text: 'Architecture', link: '/architecture' },
       { text: 'API Reference', link: '/api-reference' },
-      { text: 'Roadmap', link: '/ROADMAP' },
+      { text: 'Roadmap', link: '/roadmap' },
     ],
 
     sidebar: {
@@ -24,7 +25,7 @@ export default defineConfig({
           items: [
             { text: 'Introduction', link: '/' },
             { text: 'User Guide', link: '/guide' },
-            { text: 'Architecture Overview', link: '/ARCHITECTURE' },
+            { text: 'Architecture Overview', link: '/architecture' },
           ]
         },
         {
@@ -35,17 +36,31 @@ export default defineConfig({
             { text: 'Songs API', link: '/api/songs' },
             { text: 'Jobs API', link: '/api/jobs' },
             { text: 'Queue API', link: '/api/queue' },
-            { text: 'Metadata API', link: '/api/metadata' },
+            { text: 'Sessions API', link: '/api/sessions' },
+            { text: 'Lyrics API', link: '/api/lyrics' },
+            { text: 'Library API', link: '/api/library' },
+            { text: 'YouTube & Metadata Search', link: '/api/youtube' },
             { text: 'Authentication', link: '/api/authentication' },
             { text: 'Error Handling', link: '/api/error-handling' },
+            { text: 'Usage Examples', link: '/api/examples/README' },
+          ]
+        },
+        {
+          text: 'Internals',
+          collapsed: false,
+          items: [
+            { text: 'WebSocket Protocol', link: '/websocket-protocol' },
+            { text: 'Lyrics Analysis System', link: '/lyrics-analysis-system' },
+            { text: 'Instrumental Intervals (Frontend)', link: '/instrumental-intervals-frontend' },
           ]
         },
         {
           text: 'Documentation',
           items: [
-            { text: 'Features', link: '/FEATURES' },
-            { text: 'Roadmap', link: '/ROADMAP' },
-            { text: 'Tech Debt', link: '/TECH-DEBT' },
+            { text: 'Features', link: '/features' },
+            { text: 'Demo Accounts', link: '/demo-accounts' },
+            { text: 'Roadmap', link: '/roadmap' },
+            { text: 'Tech Debt', link: '/tech-debt' },
           ]
         },
         {
@@ -74,8 +89,6 @@ export default defineConfig({
   markdown: {
     lineNumbers: true
   },
-
-  ignoreDeadLinks: true,
 
   vite: {
     build: {

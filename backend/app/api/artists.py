@@ -78,15 +78,23 @@ async def get_artist_image(name: str = Query(...)):
     path = await service.get_or_fetch_artist_image(name)
     if path is None:
         raise HTTPException(status_code=404, detail="Artist image not found")
-    return FileResponse(str(path), media_type="image/jpeg")
+    # Cached for an hour so the stage wheel can scroll back over an artist
+    # without asking again. Short enough that a replaced photo shows up the
+    # same evening; the edit dialog busts it at once with ?v=.
+    return FileResponse(
+        str(path),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.post("/images/backfill")
-async def backfill_artist_images():
+async def backfill_artist_images(current_user: User = Depends(require_admin)):
     """
     Fetch images for all artists that haven't been checked yet.
     Runs sequentially to respect Discogs rate limits (60 req/min authenticated).
     Returns counts of fetched, not_found, and errors.
+    Requires admin.
     """
     db = SessionLocal()
     try:

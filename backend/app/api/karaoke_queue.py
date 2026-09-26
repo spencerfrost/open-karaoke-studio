@@ -12,21 +12,32 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import Generator, List, Optional
 
-from app.api.dependencies import get_current_user, require_host
+from app.api.dependencies import (
+    RequesterContext,
+    require_host,
+    require_host_or_session_member,
+)
 from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
-    HostSettings,
     KaraokeQueueItem,
     KaraokeSession,
     PerformanceHistory,
     SessionPlaybackState,
     User,
 )
+from app.services.queue_ordering import (
+    advance_to,
+    bump_to_next,
+    compute_lap,
+    enter_rotation,
+    get_ordered_queue_items,
+)
+from app.services.roster_service import resolve_or_create_performer_verbose
+from app.services.turn_service import compute_turn, serialize_turn
 from app.ws.connection_manager import SessionConnectionManager
-from app.ws.queue import broadcast_queue_update, broadcast_pending_update
+from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -64,7 +75,7 @@ class QueueItemResponse(BaseModel):
     songId: str
     singer: str
     position: int
-    status: str = "active"
+    lap: int
     addedAt: Optional[str] = None
     song: SongInfo
 
@@ -96,13 +107,35 @@ class QueuePlayResponse(BaseModel):
     singer: str
 
 
+class TurnPerformer(BaseModel):
+    """A performer as the turn payload names them."""
+
+    id: int
+    name: str
+
+
+class TurnResponse(BaseModel):
+    """Whose turn it is, as the handoff screen renders it.
+
+    `itemId` points into `upcoming` rather than repeating the item: the body is
+    already in the same payload, and a third copy of the song serializer is the
+    drift this unit exists to avoid.
+    """
+
+    kind: str
+    performerId: Optional[int] = None
+    performerName: Optional[str] = None
+    itemId: Optional[int] = None
+    circle: List[TurnPerformer] = Field(default_factory=list)
+
+
 class QueueStateResponse(BaseModel):
     """Response model for explicit queue state."""
 
     current: Optional[QueueItemResponse] = None
     upcoming: List[QueueItemResponse]
     items: List[QueueItemResponse]
-    pending: List[QueueItemResponse] = []
+    turn: TurnResponse
 
 
 # ============================================================================
@@ -116,7 +149,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error("Database session error: %s", e)
         db.rollback()
         raise
     finally:
@@ -132,6 +165,43 @@ def get_session_code(
     if not code:
         raise HTTPException(status_code=400, detail="session_code is required")
     return code
+
+
+def require_queue_access(
+    session_code: str = Depends(get_session_code),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+) -> str:
+    """The session code this caller is allowed to touch.
+
+    An account holder may address any session - hosts run them, and the
+    planned performer tier is scoped by its own membership anyway. An
+    anonymous session guest is confined to the session their device
+    credential names.
+    """
+    if requester.user is None and requester.session_id != session_code:
+        raise HTTPException(status_code=403, detail="Not a member of that session")
+    return session_code
+
+
+def require_session_owner(
+    session_code: str = Depends(get_session_code),
+    current_user: User = Depends(require_host),
+    db: Session = Depends(get_db),
+) -> KaraokeSession:
+    """The session this caller may mutate - their own, or any if they're an admin."""
+    session = (
+        db.query(KaraokeSession)
+        .filter(
+            KaraokeSession.session_id == session_code,
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found or inactive")
+    if session.host_user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not your session")
+    return session
 
 
 # ============================================================================
@@ -154,8 +224,8 @@ def song_to_info(song: DbSong) -> SongInfo:
         album=song.album,
         duration=song.duration,
         coverArt=cover_art,
-        syncedLyrics=song._get_active_lyrics_content("synced"),
-        plainLyrics=song._get_active_lyrics_content("plain"),
+        syncedLyrics=song.synced_lyrics,
+        plainLyrics=song.plain_lyrics,
     )
 
 
@@ -169,12 +239,8 @@ def queue_item_to_response(
         songId=item.song_id,
         singer=item.singer_name,
         position=position_override if position_override is not None else item.position,
-        status=item.status,
-        addedAt=(
-            item.created_at.isoformat()
-            if hasattr(item, "created_at") and item.created_at
-            else None
-        ),
+        lap=item.lap,
+        addedAt=item.created_at.isoformat() if item.created_at else None,
         song=song_to_info(item.song),
     )
 
@@ -224,17 +290,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
         .first()
     )
 
-    all_queue_items = (
-        db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
-        .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
-        .filter(KaraokeQueueItem.session_id == session_code)
-        .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
-        .all()
-    )
-
-    pending_items = [item for item in all_queue_items if item.status == "pending" and item.song]
-    queue_items = [item for item in all_queue_items if item.status != "pending"]
+    queue_items = get_ordered_queue_items(db, session_code)
 
     queue_items_by_id = {item.id: item for item in queue_items}
 
@@ -263,13 +319,11 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
     items = [current_response] if current_response else []
     items.extend(upcoming_responses)
 
-    pending_responses = [queue_item_to_response(item) for item in pending_items]
-
     return QueueStateResponse(
         current=current_response,
         upcoming=upcoming_responses,
         items=items,
-        pending=pending_responses,
+        turn=TurnResponse(**serialize_turn(compute_turn(db, session_code))),
     )
 
 
@@ -280,7 +334,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
 
 @router.get("", response_model=QueueStateResponse)
 async def get_queue(
-    session_code: str = Depends(get_session_code),
+    session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
 ):
     """
@@ -292,14 +346,12 @@ async def get_queue(
 @router.post("", response_model=QueueItemResponse, status_code=201)
 async def add_to_queue(
     queue_data: QueueAddRequest,
-    request: Request,
-    session_code: str = Depends(get_session_code),
+    session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
 ):
     """
     Add a new item to the karaoke queue.
-    Respects host settings: queue_open and queue_submission_mode.
     """
     # Verify session exists and is active
     karaoke_session = (
@@ -314,45 +366,6 @@ async def add_to_queue(
     if not karaoke_session:
         raise HTTPException(status_code=404, detail="Session not found or inactive")
 
-    # Determine if the requester is the host (optional auth)
-    requester_is_host = False
-    try:
-        from app.services.auth_service import verify_token
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            payload = verify_token(auth_header[7:])
-            if payload and (payload.get("is_host") or payload.get("is_admin")):
-                requester_is_host = True
-    except Exception:
-        pass
-
-    # Enforce host settings if session has a host user
-    if karaoke_session.host_user_id:
-        host_settings = (
-            db.query(HostSettings)
-            .filter(HostSettings.user_id == karaoke_session.host_user_id)
-            .first()
-        )
-        if host_settings and not requester_is_host:
-            if not host_settings.queue_open:
-                raise HTTPException(status_code=403, detail="Queue is currently closed")
-
-            if host_settings.max_songs_per_singer > 0:
-                singer_count = (
-                    db.query(KaraokeQueueItem)
-                    .filter(
-                        KaraokeQueueItem.session_id == session_code,
-                        KaraokeQueueItem.singer_name == queue_data.singer,
-                        KaraokeQueueItem.status == "active",
-                    )
-                    .count()
-                )
-                if singer_count >= host_settings.max_songs_per_singer:
-                    raise HTTPException(
-                        status_code=429,
-                        detail=f"Singer already has {host_settings.max_songs_per_singer} song(s) in the queue",
-                    )
-
     # Check if song exists
     song = (
         db.query(DbSong)
@@ -365,21 +378,9 @@ async def add_to_queue(
 
     playback_state = get_or_create_playback_state(db, session_code)
 
-    # Determine status (pending if approval mode and not host)
-    item_status = "active"
-    if karaoke_session.host_user_id and not requester_is_host:
-        host_settings = (
-            db.query(HostSettings)
-            .filter(HostSettings.user_id == karaoke_session.host_user_id)
-            .first()
-        )
-        if host_settings and host_settings.queue_submission_mode == "approval":
-            item_status = "pending"
-
-    # Get max upcoming position (exclude current loaded item and pending items)
+    # Get max upcoming position (exclude the current loaded item)
     max_position_query = db.query(KaraokeQueueItem.position).filter(
         KaraokeQueueItem.session_id == session_code,
-        KaraokeQueueItem.status == "active",
     )
     if playback_state.current_queue_item_id is not None:
         max_position_query = max_position_query.filter(
@@ -389,35 +390,41 @@ async def add_to_queue(
     max_position = max_position_query.order_by(KaraokeQueueItem.position.desc()).first()
     new_position = (max_position[0] + 1) if max_position else 1
 
+    try:
+        performer, performer_created = resolve_or_create_performer_verbose(
+            db, session_code, queue_data.singer
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    lap = compute_lap(db, karaoke_session, performer)
+    enter_rotation(performer)
+
     # Create new queue item
     new_item = KaraokeQueueItem(
         singer_name=queue_data.singer,
         song_id=queue_data.songId,
         session_id=session_code,
         position=new_position,
-        status=item_status,
+        performer_id=performer.id,
+        lap=lap,
     )
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
 
-    # Broadcast appropriate update
-    if item_status == "pending":
-        await broadcast_pending_update(manager, session_code)
-    else:
-        await broadcast_queue_update(manager, session_code)
+    if performer_created:
+        await broadcast_roster_update(manager, session_code, performer.name)
+
+    await broadcast_queue_update(manager, session_code)
 
     return QueueItemResponse(
         id=new_item.id,
         songId=new_item.song_id,
         singer=new_item.singer_name,
         position=new_item.position,
-        status=new_item.status,
-        addedAt=(
-            new_item.created_at.isoformat()
-            if hasattr(new_item, "created_at") and new_item.created_at
-            else None
-        ),
+        lap=new_item.lap,
+        addedAt=new_item.created_at.isoformat() if new_item.created_at else None,
         song=song_to_info(song),
     )
 
@@ -428,7 +435,7 @@ async def remove_from_queue(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Remove an item from the karaoke queue.
@@ -472,11 +479,21 @@ async def reorder_queue(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Reorder the karaoke queue.
+
+    Free reordering only makes sense in append mode - in rotation mode the next
+    add would immediately undo a drag, so `Bump to next` is the only mutation
+    allowed there instead. See docs/plans/archive/2026-08-29-roster-and-rotation.md.
     """
+    if session.queue_order_mode != "append":
+        raise HTTPException(
+            status_code=400,
+            detail="Free reorder is only available in append mode - use bump instead",
+        )
+
     playback_state = get_or_create_playback_state(db, session_code)
 
     for item in reorder_data.queue:
@@ -501,20 +518,50 @@ async def reorder_queue(
     return {"success": True}
 
 
+@router.post("/{item_id}/bump", response_model=QueueItemResponse)
+async def bump_queue_item(
+    item_id: int,
+    session_code: str = Depends(get_session_code),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+    session: KaraokeSession = Depends(require_session_owner),
+):
+    """
+    Move one queue item to the front of the rotation - "Grandma's leaving, let
+    her sing now." Rewrites `lap` on exactly this row; every other row is
+    untouched. Rotation mode only.
+    """
+    if session.queue_order_mode != "rotation":
+        raise HTTPException(
+            status_code=400,
+            detail="Bump is only available in rotation mode - reorder instead",
+        )
+
+    item = bump_to_next(db, session_code, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    db.commit()
+    db.refresh(item)
+
+    await broadcast_queue_update(manager, session_code)
+
+    return queue_item_to_response(item)
+
+
 @router.post("/{item_id}/play", response_model=QueuePlayResponse)
 async def play_queue_item(
     item_id: int,
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """
     Play a specific item from the queue (moves it to the player).
     """
     item = (
         db.query(KaraokeQueueItem)
-        .options(joinedload(KaraokeQueueItem.song).subqueryload(DbSong.lyrics))
         .options(joinedload(KaraokeQueueItem.song).joinedload(DbSong.album_rel))
         .filter(
             KaraokeQueueItem.id == item_id,
@@ -549,6 +596,12 @@ async def play_queue_item(
                 song_id=previous_current_item.song_id,
                 singer_name=previous_current_item.singer_name,
                 session_id=session_code,
+                performer_id=previous_current_item.performer_id,
+                user_id=(
+                    previous_current_item.performer.user_id
+                    if previous_current_item.performer
+                    else None
+                ),
             )
             db.add(history_entry)
             db.delete(previous_current_item)
@@ -560,6 +613,10 @@ async def play_queue_item(
     playback_state.current_time = 0
     playback_state.duration = item.song.duration or 0
     playback_state.is_ready = False
+
+    # Starting a song is what moves the rotation - a walk-up now joins at this
+    # lap, and this singer's next add lands on the one after it.
+    advance_to(session, item)
 
     reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 
@@ -576,74 +633,19 @@ async def play_queue_item(
         duration=item.song.duration,
         coverArt=(
             f"/api/albums/{item.song.album_id}/cover"
-            if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
-            else f"/api/songs/{item.song.id}/thumbnail"
-            if item.song.thumbnail_path
-            else None
+            if item.song.album_id
+            and item.song.album_rel
+            and item.song.album_rel.cover_path
+            else (
+                f"/api/songs/{item.song.id}/thumbnail"
+                if item.song.thumbnail_path
+                else None
+            )
         ),
-        syncedLyrics=item.song._get_active_lyrics_content("synced"),
-        plainLyrics=item.song._get_active_lyrics_content("plain"),
+        syncedLyrics=item.song.synced_lyrics,
+        plainLyrics=item.song.plain_lyrics,
         singer=item.singer_name,
     )
-
-
-@router.post("/{item_id}/approve")
-async def approve_queue_item(
-    item_id: int,
-    session_code: str = Depends(get_session_code),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
-):
-    """Move a pending queue item to active status."""
-    item = (
-        db.query(KaraokeQueueItem)
-        .filter(
-            KaraokeQueueItem.id == item_id,
-            KaraokeQueueItem.session_id == session_code,
-            KaraokeQueueItem.status == "pending",
-        )
-        .first()
-    )
-    if not item:
-        raise HTTPException(status_code=404, detail="Pending item not found")
-
-    item.status = "active"
-    db.commit()
-
-    await broadcast_queue_update(manager, session_code)
-    await broadcast_pending_update(manager, session_code)
-
-    return {"success": True}
-
-
-@router.delete("/{item_id}/reject")
-async def reject_queue_item(
-    item_id: int,
-    session_code: str = Depends(get_session_code),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
-):
-    """Remove a pending queue item without adding it to the active queue."""
-    item = (
-        db.query(KaraokeQueueItem)
-        .filter(
-            KaraokeQueueItem.id == item_id,
-            KaraokeQueueItem.session_id == session_code,
-            KaraokeQueueItem.status == "pending",
-        )
-        .first()
-    )
-    if not item:
-        raise HTTPException(status_code=404, detail="Pending item not found")
-
-    db.delete(item)
-    db.commit()
-
-    await broadcast_pending_update(manager, session_code)
-
-    return {"success": True}
 
 
 @router.post("/skip")
@@ -651,7 +653,7 @@ async def skip_current_song(
     session_code: str = Depends(get_session_code),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
-    current_user: User = Depends(require_host),
+    session: KaraokeSession = Depends(require_session_owner),
 ):
     """Skip the currently playing song and advance to the next in queue."""
     playback_state = get_or_create_playback_state(db, session_code)

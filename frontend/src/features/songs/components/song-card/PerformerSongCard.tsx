@@ -1,17 +1,24 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSongs } from "@/hooks/api/useSongs";
+import { useSongPreviewStore } from "@/stores/useSongPreviewStore";
 import { SongArtwork } from "./SongArtwork";
 import { SongInfo } from "./SongInfo";
 import { PerformerSongDrawer } from "./PerformerSongDrawer";
 import { SongCardProps } from "./SongCard.types";
 
-export const PerformerSongCard: React.FC<SongCardProps> = ({ song, showArtist = true }) => {
+export const PerformerSongCard: React.FC<SongCardProps> = ({
+  song,
+  showArtist = true,
+}) => {
   const { getArtworkUrl } = useSongs();
   const artworkUrl = getArtworkUrl(song, "medium");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const stopPreview = useSongPreviewStore((state) => state.stop);
 
   const handleCardClick = () => {
+    // The drawer has its own audio preview — don't let the two overlap.
+    stopPreview(song.id);
     setDrawerOpen(true);
   };
 
@@ -35,6 +42,7 @@ export const PerformerSongCard: React.FC<SongCardProps> = ({ song, showArtist = 
               showSyncedBadge={true}
               onPlay={handleArtworkClick}
               showPlayButton={false}
+              showPreviewButton
             />
             <SongInfo song={song} showArtist={showArtist} />
           </div>

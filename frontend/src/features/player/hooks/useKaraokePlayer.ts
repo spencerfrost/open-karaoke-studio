@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { useSongs } from "@/hooks/api/useSongs";
 import { getSongDuration } from "@/utils/songUtils";
@@ -6,7 +6,7 @@ import type {
   KaraokePlayerHook,
   PlayerOptions,
   PlayerError,
-} from "../KaraokePlayer.types";
+} from "../types/KaraokePlayer.types";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("hook:karaoke-player");
@@ -21,7 +21,6 @@ export const useKaraokePlayer = (
   const {
     songId: currentSongId,
     connect,
-    disconnect,
     connected,
     currentTime,
     isReady,
@@ -34,7 +33,6 @@ export const useKaraokePlayer = (
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
-    showChords,
     playbackSpeed,
     cleanup,
     seek: storeSeek,
@@ -44,7 +42,6 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
-    setShowChords,
     setPlaybackSpeed,
     userPlay,
     userPause,
@@ -103,12 +100,23 @@ export const useKaraokePlayer = (
     load,
   ]);
 
-  // Auto-play functionality
+  // Auto-play: once per song, the first time it becomes ready. Keyed by song
+  // rather than re-checked on every `!isPlaying`, or pausing would be undone
+  // straight away. The song already loaded when this mounted is skipped too
+  // (seeded below): that is a page reload resuming the night, not someone
+  // asking to sing, and the browser would block audio before any click anyway.
+  const autoPlayedFor = useRef<string | null>(currentSongId);
   useEffect(() => {
-    if (autoPlay && isReady && !isPlaying && song) {
-      userPlay();
+    if (!autoPlay || !isReady || !song || currentSongId !== song.id) return;
+    if (autoPlayedFor.current === song.id) return;
+    autoPlayedFor.current = song.id;
+    // Same reason: a song that finishes loading before anyone has touched
+    // the page is a reload, and an AudioContext started now stays silent.
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+      return;
     }
-  }, [autoPlay, isReady, isPlaying, song, userPlay]);
+    if (!isPlaying) userPlay();
+  }, [autoPlay, isReady, isPlaying, song, currentSongId, userPlay]);
 
   // Preload functionality
   const preloadSong = useCallback(async (preloadSongId: string) => {
@@ -255,10 +263,8 @@ export const useKaraokePlayer = (
     isLyricsSync,
     lyricsSize,
     lyricsOffset,
-    showChords,
     setLyricsSize,
     setLyricsOffset,
-    setShowChords,
 
     // Visualizer
     waveformData,

@@ -1,8 +1,7 @@
 /**
  * Queue-related API services
  */
-import { useApiQuery, useApiMutation } from "./useApi";
-import { useAuthStore } from "@/stores/authStore";
+import { useApiQuery, useApiMutation, getAuthHeaders } from "./useApi";
 import type {
   UseQueryOptions,
   UseMutationOptions,
@@ -11,6 +10,7 @@ import {
   KaraokeQueueItemWithSong as KaraokeQueueItem,
   AddToKaraokeQueueRequest,
   KaraokeQueueStateResponse,
+  SessionTurn,
 } from "@/types/KaraokeQueue";
 import { createLogger } from "@/lib/logger";
 
@@ -40,15 +40,14 @@ type QueueQueryOptions = Omit<
   "queryKey" | "queryFn"
 >;
 
-type CurrentSongQueryOptions = Omit<
-  UseQueryOptions<
-    QueueApiResponse,
-    Error,
-    QueueApiResponse,
-    ["karaoke-queue", string]
-  >,
-  "queryKey" | "queryFn"
->;
+/** What the turn looks like before the server has told us anything. */
+const NO_TURN: SessionTurn = {
+  kind: "open",
+  performerId: null,
+  performerName: null,
+  itemId: null,
+  circle: [],
+};
 
 function normalizeQueueState(
   data: QueueApiResponse,
@@ -60,19 +59,19 @@ function normalizeQueueState(
       current,
       upcoming,
       items: data,
+      turn: NO_TURN,
     };
   }
 
   const current = data.current ?? null;
   const upcoming = data.upcoming ?? [];
   const items = data.items ?? [...(current ? [current] : []), ...upcoming];
-  const pending = data.pending;
 
   return {
     current,
     upcoming,
     items,
-    ...(pending !== undefined && { pending }),
+    turn: data.turn ?? NO_TURN,
   };
 }
 
@@ -95,26 +94,14 @@ export function useQueue(sessionCode?: string, options?: QueueQueryOptions) {
   const query = useApiQuery<QueueApiResponse, ["karaoke-queue", string]>(
     ["karaoke-queue", sessionCode || ""],
     `karaoke-queue${sessionCode ? `?session_code=${sessionCode}` : ""}`,
-    options,
+    // The endpoint 400s without a session code, so there is nothing to fetch
+    // until one exists.
+    { ...options, enabled: !!sessionCode && (options?.enabled ?? true) },
   );
 
   return {
     ...query,
     data: query.data ? normalizeQueueState(query.data) : undefined,
-  };
-}
-
-/**
- * Hook: Get the current playing item
- */
-export function useCurrentSong(
-  sessionCode?: string,
-  options?: CurrentSongQueryOptions,
-) {
-  const queue = useQueue(sessionCode, options);
-  return {
-    ...queue,
-    data: queue.data?.current ?? null,
   };
 }
 
@@ -155,10 +142,9 @@ export function useRemoveFromKaraokeQueue(
   return useMutation<{ success: boolean }, Error, string, unknown>({
     mutationFn: async (id: string) => {
       const url = `/api/karaoke-queue/${id}${sessionCode ? `?session_code=${sessionCode}` : ""}`;
-      const token = useAuthStore.getState().token;
       const response = await fetch(url, {
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -189,10 +175,9 @@ export function usePlayFromKaraokeQueue(
   return useMutation<QueuePlayResponse, Error, string, unknown>({
     mutationFn: async (id: string) => {
       const url = `/api/karaoke-queue/${id}/play${sessionCode ? `?session_code=${sessionCode}` : ""}`;
-      const token = useAuthStore.getState().token;
       const response = await fetch(url, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) {
         let errorMessage = `HTTP error! Status: ${response.status}`;
@@ -208,41 +193,4 @@ export function usePlayFromKaraokeQueue(
     },
     ...options,
   });
-}
-
-/**
- * Hook: Skip to the next item in the queue
- */
-export function useSkipToNext(
-  options?: Omit<
-    UseMutationOptions<KaraokeQueueItem | null, Error, void, unknown>,
-    "mutationFn"
-  >,
-) {
-  return useApiMutation<KaraokeQueueItem | null, void>(
-    "queue/next",
-    "post",
-    options,
-  );
-}
-
-/**
- * Hook: Get QR code data for joining the queue
- */
-export function useKaraokeQueueQrCode(
-  options?: Omit<
-    UseQueryOptions<
-      { qrCodeUrl: string },
-      Error,
-      { qrCodeUrl: string },
-      ["queue", "qr-code"]
-    >,
-    "queryKey" | "queryFn"
-  >,
-) {
-  return useApiQuery<{ qrCodeUrl: string }, ["queue", "qr-code"]>(
-    ["queue", "qr-code"],
-    "queue/qr-code",
-    options,
-  );
 }

@@ -9,6 +9,7 @@ interface BaseResultCardProps {
   subtitle: string;
   duration?: string;
   isLoading?: boolean;
+  isSubmitted?: boolean;
   onSelect: () => void;
   existsInLibrary?: boolean;
   children?: React.ReactNode;
@@ -21,6 +22,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
   subtitle,
   duration,
   isLoading = false,
+  isSubmitted = false,
   onSelect,
   existsInLibrary = false,
   children,
@@ -44,7 +46,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
             </div>
             <div>
               <h3
-                className="font-medium text-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
+                className="font-medium text-card-foreground line-clamp-2 mb-0.5 sm:mb-1 text-sm sm:text-base"
                 title={title}
               >
                 {title}
@@ -78,6 +80,8 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Adding...
                 </>
+              ) : isSubmitted ? (
+                "Queued"
               ) : existsInLibrary ? (
                 "Already Added"
               ) : (

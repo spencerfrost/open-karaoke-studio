@@ -28,7 +28,15 @@ class PerformanceHistory(Base):
         ForeignKey("karaoke_sessions.session_id", ondelete="SET NULL"),
         nullable=True,
     )
+    performer_id = Column(
+        Integer, ForeignKey("session_performers.id", ondelete="SET NULL"), nullable=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     performed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     song = relationship("DbSong")
     session = relationship("KaraokeSession")
+    performer = relationship("SessionPerformer")
+    user = relationship("User")

@@ -1,6 +1,17 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, LayoutGrid, List, MoreHorizontal, Users } from "lucide-react";
-import { useInfiniteArtistSongs } from "@/hooks/api/useArtistSongs";
+import {
+  ChevronDown,
+  ChevronRight,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Theater,
+  Users,
+} from "lucide-react";
+import {
+  useInfiniteArtistSongs,
+  useInfiniteShowSongs,
+} from "@/hooks/api/useArtistSongs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,11 +27,56 @@ import { Artist } from "@/hooks/api/useArtists";
 interface ArtistSectionProps {
   artist: Artist;
   isExpanded: boolean;
-  onToggle: () => void;
+  /** Takes the artist name so the parent can pass one stable callback for every
+      row - a per-row closure would defeat the memo below. */
+  onToggle: (artistName: string) => void;
   isAdmin?: boolean;
 }
 
 type ViewMode = "grid" | "table";
+
+/**
+ * Holds the two useInfiniteQuery hooks and only mounts once a row is
+ * expanded, so collapsed rows carry no React Query observer at all.
+ */
+const ArtistSectionBody: React.FC<{ artist: Artist; viewMode: ViewMode }> = ({
+  artist,
+  viewMode,
+}) => {
+  // A show isn't a real artist row, so it has no artist image and no admin
+  // edit/collab actions — but it reuses this same accordion row and the same
+  // infinite-songs shape, just sourced from a different endpoint.
+  const artistSongs = useInfiniteArtistSongs(artist.name, 200, {
+    enabled: !artist.isShow,
+  });
+  const showSongs = useInfiniteShowSongs(artist.name, 200, {
+    enabled: !!artist.isShow,
+  });
+  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    artist.isShow ? showSongs : artistSongs;
+
+  return (
+    <div className="mb-8 px-4 mt-4">
+      {viewMode === "grid" ? (
+        <ArtistSongGrid
+          songs={songs}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          artistName={artist.name}
+          showArtist={false}
+        />
+      ) : (
+        <ArtistSongTable
+          songs={songs}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+        />
+      )}
+    </div>
+  );
+};
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
   artist,
@@ -34,11 +90,6 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
 
-  const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteArtistSongs(artist.name, 200, {
-      enabled: isExpanded,
-    });
-
   return (
     <div
       className="border border-orange-peel rounded-lg overflow-hidden"
@@ -47,7 +98,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       {/* Artist Header */}
       <div className="flex items-center bg-lemon-chiffon/10 text-lemon-chiffon">
         <button
-          onClick={onToggle}
+          onClick={() => onToggle(artist.name)}
           className="flex-1 px-4 py-3 flex items-center text-left hover:bg-lemon-chiffon/5 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -57,7 +108,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
               <ChevronRight size={20} className="text-orange-peel" />
             )}
             <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-orange-peel/20 flex items-center justify-center">
-              {imageError ? (
+              {artist.isShow ? (
+                <Theater size={18} className="text-orange-peel" />
+              ) : imageError ? (
                 <Users size={18} className="text-orange-peel" />
               ) : (
                 <img
@@ -103,7 +156,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           </div>
         )}
 
-        {isAdmin && (
+        {isAdmin && !artist.isShow && (
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
@@ -112,7 +165,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             >
               <MoreHorizontal size={18} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-zinc-900 border-orange-peel/20">
+            <DropdownMenuContent
+              align="end"
+              className="bg-overlay/95 border-orange-peel/20"
+            >
               <DropdownMenuItem
                 onClick={() => setEditOpen(true)}
                 className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"
@@ -131,29 +187,9 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       </div>
 
       {/* Expanded Songs */}
-      {isExpanded && (
-        <div className="mb-8 px-4 mt-4">
-          {viewMode === "grid" ? (
-            <ArtistSongGrid
-              songs={songs}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              fetchNextPage={fetchNextPage}
-              artistName={artist.name}
-              showArtist={false}
-            />
-          ) : (
-            <ArtistSongTable
-              songs={songs}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              fetchNextPage={fetchNextPage}
-            />
-          )}
-        </div>
-      )}
+      {isExpanded && <ArtistSectionBody artist={artist} viewMode={viewMode} />}
 
-      {isAdmin && (
+      {isAdmin && !artist.isShow && (
         <>
           <EditArtistDialog
             artist={artist}
@@ -171,4 +207,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   );
 };
 
-export default ArtistSection;
+/**
+ * Memoized because the library renders ~600 of these at once, and each one
+ * holds two React Query observers plus (for admins) a Radix dropdown. Without
+ * this, expanding a single row re-rendered every other row in the list, which
+ * is what made the accordion feel like it was thinking about it.
+ */
+export default React.memo(ArtistSection);

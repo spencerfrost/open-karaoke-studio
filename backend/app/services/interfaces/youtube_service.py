@@ -46,6 +46,9 @@ class YouTubeServiceInterface(Protocol):
         artist: Optional[str] = None,
         title: Optional[str] = None,
         song_id: Optional[str] = None,
+        engine_type: str = "three_track",
+        session_id: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> str:
         """Download video and queue for audio processing, return job/song ID"""
         ...

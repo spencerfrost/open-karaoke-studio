@@ -64,11 +64,12 @@ export function hasLrcTimestamps(content: string): boolean {
   return timestampRegex.test(content);
 }
 
-// Export LRC parser for count-in system
+// Export LRC parser for the synced lyrics renderer
 export {
-  parseLrcWithCountIn,
+  parseLrcData,
+  attachWordTimestamps,
   type ParsedLrcData,
-  type CountInTrigger,
   type LrcLine,
-  type InstrumentalGap,
+  type InstrumentalInterval,
+  type WordTimestamp,
 } from "./lrcParser";

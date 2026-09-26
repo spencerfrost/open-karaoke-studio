@@ -24,6 +24,12 @@ export interface SongSearchContainerProps {
   className?: string;
   initialQuery?: string;
   autoBrowseArtist?: boolean;
+  /**
+   * Fired once a song has been handed to the backend - on submit, not on
+   * completion. Download plus separation runs for minutes, so the stage uses
+   * this to return to song select immediately rather than sit on a spinner.
+   */
+  onSubmitted?: () => void;
 }
 
 export interface SearchInputProps {
@@ -59,6 +65,7 @@ export interface YouTubeResultsProps {
 export interface YouTubeResultCardProps {
   result: YoutubeVideoSearchResult;
   isLoading: boolean;
+  isSubmitted?: boolean;
   onSelect: (result: YoutubeVideoSearchResult) => void;
 }
 
@@ -75,11 +82,4 @@ export interface SongCreationData {
   result: SearchResult;
   source: SearchSource;
   originalQuery?: string;
-}
-
-export interface AddSongDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  selectedSong: YoutubeMusicSearchResult | null;
-  onConfirm: () => void;
 }

@@ -40,9 +40,11 @@ class SongResponse(BaseModel):
     album: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
+    showName: Optional[str] = None  # Musical/soundtrack, e.g. "Wicked"
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    wordSyncedLyrics: Optional[str] = None
 
     # iTunes metadata
     itunesTrackId: Optional[int] = None
@@ -56,8 +58,6 @@ class SongResponse(BaseModel):
 
     # Processing metadata
     engineType: Optional[str] = None  # Separation engine used
-    bpm: Optional[float] = None  # Beats per minute for count-in timing
-    chordsData: Optional[list] = None  # Chord detection data
     vocalRangeLow: Optional[str] = None  # Lowest sung note, e.g. "G2"
     vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
 
@@ -74,6 +74,7 @@ class SongResponse(BaseModel):
     artists: List[SongArtistRef] = []
 
     status: str = "processed"
+    errorMessage: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -88,6 +89,9 @@ class SongCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Song title")
     artist: str = Field(..., min_length=1, max_length=200, description="Artist name")
     album: Optional[str] = Field(None, max_length=200, description="Album name")
+    show_name: Optional[str] = Field(
+        None, max_length=200, description="Musical/soundtrack name, e.g. 'Wicked'"
+    )
     duration: Optional[float] = Field(
         None, ge=0, description="Song duration in seconds"
     )
@@ -113,14 +117,18 @@ class SongUpdateRequest(BaseModel):
     duration: Optional[float] = Field(None, ge=0)
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
+    showName: Optional[str] = Field(None, max_length=200)
 
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
+    wordSyncedLyrics: Optional[str] = None
 
     # iTunes metadata
     itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
-    itunesCollectionId: Optional[int] = Field(None, description="iTunes collection/album ID")
+    itunesCollectionId: Optional[int] = Field(
+        None, description="iTunes collection/album ID"
+    )
     itunesArtworkUrls: Optional[List[str]] = Field(
         None, description="iTunes artwork URLs"
     )
@@ -132,9 +140,10 @@ class SongUpdateRequest(BaseModel):
     )
 
     # Audio analysis
-    bpm: Optional[float] = Field(None, ge=30, le=300, description="Beats per minute")
     loudnessDbfs: Optional[float] = Field(None, description="RMS loudness in dBFS")
-    gainDb: Optional[float] = Field(None, ge=-20, le=20, description="Gain correction in dB")
+    gainDb: Optional[float] = Field(
+        None, ge=-20, le=20, description="Gain correction in dB"
+    )
 
     @field_validator("title", "artist")
     def validate_non_empty_strings(cls, v):
@@ -148,13 +157,25 @@ class SongReprocessRequest(BaseModel):
 
     engine_type: str = Field(
         default="three_track",
-        description="Separation engine to use (three_track, demucs, roformer, hybrid, clean_backing)",
+        description=(
+            "Separation engine to use "
+            "(three_track, three_track_duality_v2, three_track_mel1143, "
+            "demucs, roformer, hybrid, clean_backing)"
+        ),
     )
 
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        valid_engines = {
+            "demucs",
+            "roformer",
+            "hybrid",
+            "clean_backing",
+            "three_track",
+            "three_track_duality_v2",
+            "three_track_mel1143",
+        }
         if v not in valid_engines:
             raise ValueError(
                 f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"
@@ -173,7 +194,15 @@ class SongReplaceYouTubeRequest(BaseModel):
     @field_validator("engine_type")
     @classmethod
     def validate_engine_type(cls, v: str) -> str:
-        valid_engines = {"demucs", "roformer", "hybrid", "clean_backing", "three_track"}
+        valid_engines = {
+            "demucs",
+            "roformer",
+            "hybrid",
+            "clean_backing",
+            "three_track",
+            "three_track_duality_v2",
+            "three_track_mel1143",
+        }
         if v not in valid_engines:
             raise ValueError(
                 f"Invalid engine_type. Must be one of: {', '.join(sorted(valid_engines))}"

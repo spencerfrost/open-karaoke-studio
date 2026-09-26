@@ -27,7 +27,10 @@ export interface PerformanceHistoryResponse {
 
 export function usePerformanceHistory(limit = 50, offset = 0) {
   logger.debug("Fetching performance history", { limit, offset });
-  return useApiQuery<PerformanceHistoryResponse, readonly [string, number, number]>(
+  return useApiQuery<
+    PerformanceHistoryResponse,
+    readonly [string, number, number]
+  >(
     QUERY_KEYS.performanceHistory(limit, offset),
     `performance-history?limit=${limit}&offset=${offset}`,
   );

@@ -25,7 +25,9 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
   const { user } = useAuthStore();
   const isAdmin = !!user?.isAdmin;
 
-  const toggleArtist = (artistName: string) => {
+  // Stable identity: it is handed to every row, and a new function per render
+  // would make React.memo on ArtistSection useless.
+  const toggleArtist = React.useCallback((artistName: string) => {
     setExpandedArtists((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(artistName)) {
@@ -35,13 +37,15 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
       }
       return newSet;
     });
-  };
+  }, []);
 
   // Group artists alphabetically
   const groupedArtists = React.useMemo(() => {
     return artists.reduce(
       (groups, artist) => {
-        const letter = /^\d/.test(artist.firstLetter) ? "#" : artist.firstLetter;
+        const letter = /^\d/.test(artist.firstLetter)
+          ? "#"
+          : artist.firstLetter;
         if (!groups[letter]) {
           groups[letter] = [];
         }
@@ -107,7 +111,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
 
   if (!artists.length) {
     return (
-      <div className={`text-center py-8 text-gray-500 ${className}`}>
+      <div className={`text-center py-8 text-muted-foreground ${className}`}>
         No artists found.
       </div>
     );
@@ -123,7 +127,13 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             const letterArtists = groupedArtists[letter];
             return (
               <div key={letter} id={`artist-section-${letter}`}>
-                <div className="sticky top-0 px-3 py-2 mb-3 font-bold text-lg border-b bg-dark-cyan text-orange-peel border-orange-peel z-10">
+                <div
+                  className={`sticky top-0 px-3 py-2 mb-3 z-10
+                  flex items-center justify-center
+                  rounded-full w-12 h-12
+                  font-bold text-lg bg-dark-cyan/50 text-orange-peel
+                  `}
+                >
                   {letter}
                 </div>
 
@@ -133,7 +143,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                       key={artist.name}
                       artist={artist}
                       isExpanded={expandedArtists.has(artist.name)}
-                      onToggle={() => toggleArtist(artist.name)}
+                      onToggle={toggleArtist}
                       isAdmin={isAdmin}
                     />
                   ))}
@@ -141,7 +151,6 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
               </div>
             );
           })}
-
         </div>
 
         {/* Mobile: full-height touch index bar */}

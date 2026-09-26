@@ -78,16 +78,14 @@ new_song = song_service.create_song({
     "title": "Bohemian Rhapsody",
     "artist": "Queen",
     "album": "A Night at the Opera",
-    "year": "1975",
     "source": "youtube",
-    "sourceUrl": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
-    "videoId": "fJ9rUzIMcZQ"
+    "video_id": "fJ9rUzIMcZQ"
 })
 
 # Update song metadata
 updated_song = song_service.update_song(new_song["id"], {
-    "genre": "Rock",
-    "language": "English",
+    "title": "Bohemian Rhapsody (Remastered)",
+    "year": 1975,
 })
 ```
 
@@ -341,12 +339,6 @@ class JobsService:
     def cancel_job(self, job_id: str) -> Dict[str, Any]:
         """Cancel a running or pending job."""
         response = self.session.post(f"{self.base_url}/jobs/{job_id}/cancel")
-        response.raise_for_status()
-        return response.json()
-
-    def dismiss_job(self, job_id: str) -> Dict[str, Any]:
-        """Remove a completed job from the UI."""
-        response = self.session.post(f"{self.base_url}/jobs/{job_id}/dismiss")
         response.raise_for_status()
         return response.json()
 

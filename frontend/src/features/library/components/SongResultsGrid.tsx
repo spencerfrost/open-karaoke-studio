@@ -1,5 +1,4 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { Song } from "@/types/Song";
 import {
   SongCard,
@@ -8,6 +7,7 @@ import {
 import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { Loader2, Youtube } from "lucide-react";
+import { useOpenAddSong } from "@/hooks/useOpenAddSong";
 import { BrowseArtistCard } from "./BrowseArtistCard";
 
 interface SongResultsGridProps {
@@ -29,9 +29,9 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   artistName,
   showArtist = true,
 }) => {
-  const navigate = useNavigate();
-  const { isHost } = useSessionStore();
-  const CardComponent = isHost ? SongCard : PerformerSongCard;
+  const openAddSong = useOpenAddSong();
+  const { isStageDevice } = useSessionStore();
+  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
 
   if (songs.length === 0 && searchTerm) {
     return (
@@ -41,7 +41,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
             No songs found in your library for "{searchTerm}"
           </p>
           <Button
-            onClick={() => navigate(`/add?q=${encodeURIComponent(searchTerm)}`)}
+            onClick={() => openAddSong({ query: searchTerm })}
             className="gap-2"
           >
             <Youtube className="h-4 w-4" />

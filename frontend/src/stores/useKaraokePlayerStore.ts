@@ -16,6 +16,7 @@ import { createLogger } from "@/lib/logger";
 import { useAudioControlsStore } from "./useAudioControlsStore";
 import { usePlaybackStateStore } from "./usePlaybackStateStore";
 import { useUIPreferencesStore } from "./useUIPreferencesStore";
+import { useSettingsStore } from "./useSettingsStore";
 import {
   PerformanceState,
   MiniPlayerPosition,
@@ -68,7 +69,6 @@ interface KaraokePlayerState {
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
   autoScrollEnabled: boolean;
-  showChords: boolean;
 
   // Connection state
   connected: boolean;
@@ -102,10 +102,10 @@ interface KaraokePlayerState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  setShowChords: (enabled: boolean) => void;
   setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  getFrequencyData: () => number[] | null;
   setMiniPlayerEnabled: (enabled: boolean) => void;
   setMiniPlayerPosition: (position: MiniPlayerPosition) => void;
   dismissMiniPlayer: () => void;
@@ -205,7 +205,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       lyricsSize: state.lyricsSize,
       lyricsOffset: state.lyricsOffset,
       autoScrollEnabled: state.autoScrollEnabled,
-      showChords: state.showChords,
       songTitle: state.songTitle,
       songArtist: state.songArtist,
       miniPlayerEnabled: state.miniPlayerEnabled,
@@ -236,7 +235,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     lyricsSize: "medium",
     lyricsOffset: 0,
     autoScrollEnabled: true,
-    showChords: false,
     connected: false,
     miniPlayerEnabled: true,
     miniPlayerPosition: { x: 24, y: 24 },
@@ -472,6 +470,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     setLyricsSize: (size: "small" | "medium" | "large") => {
       useUIPreferencesStore.getState().setLyricsSize(size);
+      useSettingsStore.getState().setDisplaySettings({ lyricsSize: size });
       updatePerformanceControl("lyricsSize", size);
     },
 
@@ -482,10 +481,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     setAutoScrollEnabled: (enabled: boolean) => {
       useUIPreferencesStore.getState().setAutoScrollEnabled(enabled);
-    },
-
-    setShowChords: (enabled: boolean) => {
-      useUIPreferencesStore.getState().setShowChords(enabled);
     },
 
     setPlaybackSpeed: (speed: number) => {
@@ -505,6 +500,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     getWaveformData: () => {
       return usePlaybackStateStore.getState().getWaveformData();
+    },
+
+    getFrequencyData: () => {
+      return usePlaybackStateStore.getState().getFrequencyData();
     },
 
     setMiniPlayerEnabled: (enabled: boolean) => {

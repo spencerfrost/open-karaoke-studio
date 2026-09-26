@@ -9,15 +9,17 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
-from fastapi import Query, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
 
 from app.db.database import get_db_session
-from app.db.models import SessionPlaybackState
+from app.db.models import KaraokeSession, SessionPlaybackState, User
+from app.services.auth_service import verify_token
+from app.services.session_service import deactivate_session
 
 from .connection_manager import SessionConnectionManager
 from .queue import get_current_queue_state
@@ -39,6 +41,50 @@ def get_session_cleanup_lock(session_id: str) -> asyncio.Lock:
     if session_id not in session_cleanup_locks:
         session_cleanup_locks[session_id] = asyncio.Lock()
     return session_cleanup_locks[session_id]
+
+
+def resolve_host_claim(token: str, session_id: str) -> Tuple[bool, Optional[str]]:
+    """
+    Resolve a JWT against the owner of a session.
+
+    Host authority comes from the authenticated user (KaraokeSession.host_user_id), never
+    from a device token - device ids are handed out by unauthenticated endpoints and cannot
+    be trusted as credentials.
+
+    Returns (is_session_owner, error). `error` is None when the token itself is valid;
+    `is_session_owner` is False for a valid token belonging to someone who does not own
+    this session.
+    """
+    payload = verify_token(token)
+    if payload is None:
+        return False, "invalid_token"
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        return False, "invalid_token_payload"
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return False, "invalid_token_payload"
+
+    with get_db_session() as db:
+        # A signed token is not enough - the account must still exist, so a deleted
+        # user's unexpired token cannot retain host authority.
+        if db.query(User).filter(User.id == user_id).first() is None:
+            return False, "user_not_found"
+
+        session = (
+            db.query(KaraokeSession)
+            .filter(KaraokeSession.session_id == session_id)
+            .first()
+        )
+        if session is None:
+            return False, "session_not_found"
+        if session.host_user_id is None:
+            return False, "session_has_no_host"
+
+        return user_id == session.host_user_id, None
 
 
 def get_session_performance_state(session_id: str):
@@ -120,29 +166,29 @@ def cleanup_session_performance_state(session_id: str):
     """Clean up performance state for a specific session when it ends."""
     if session_id in session_performance_states:
         del session_performance_states[session_id]
-        logger.info(f"🧹 Cleaned up performance state for session {session_id}")
+        logger.debug("🧹 Cleaned up performance state for session %s", session_id)
 
     # Also clean up the lock
     if session_id in session_cleanup_locks:
         del session_cleanup_locks[session_id]
-        logger.info(f"🔓 Cleaned up lock for session {session_id}")
+        logger.debug("🔓 Cleaned up lock for session %s", session_id)
 
 
 async def websocket_unified_session_endpoint(
     websocket: WebSocket,
     session_id: str,
     manager: SessionConnectionManager,
-    device_id: Optional[str] = Query(None),
 ):
     """
     Unified session WebSocket endpoint.
     Handles all session-related communication: performance controls, player state, and queue management.
     Only devices in the specified session can access this endpoint.
-    """
-    # Verify session exists in database and check if this is the host
-    with get_db_session() as db:
-        from app.db.models import KaraokeSession
 
+    Connections start unprivileged. A client becomes the host only by sending an
+    `authenticate` message carrying the host user's JWT - see resolve_host_claim.
+    """
+    # Verify session exists in database
+    with get_db_session() as db:
         db_session = (
             db.query(KaraokeSession)
             .filter(
@@ -160,10 +206,8 @@ async def websocket_unified_session_endpoint(
             await websocket.close(code=1008, reason="Session has expired")
             return
 
-        host_device_id = db_session.host_device_id
-
-        # Determine if this connection is the host based on device_id query param
-        is_host = device_id is not None and device_id == host_device_id
+    # Session ownership is granted only via the `authenticate` message below.
+    is_session_owner = False
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -177,16 +221,8 @@ async def websocket_unified_session_endpoint(
     await manager.join_room(websocket, session_room)
 
     logger.info(
-        f"Session {session_id} unified client connected: {ws_connection_id} (is_host: {is_host})"
+        f"Session {session_id} unified client connected: {ws_connection_id} (unauthenticated)"
     )
-
-    # If this is the host reconnecting within the grace period, cancel pending termination
-    if is_host and session_id in session_termination_tasks:
-        pending_task = session_termination_tasks.pop(session_id)
-        pending_task.cancel()
-        logger.info(
-            f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
-        )
 
     try:
         # Hydrate in-memory state from persisted playback state before greeting client
@@ -200,7 +236,7 @@ async def websocket_unified_session_endpoint(
                     "type": "session_connected",
                     "session_id": session_id,
                     "device_id": ws_connection_id,
-                    "is_host": is_host,
+                    "is_session_owner": is_session_owner,
                     "performance_state": session_state,
                 }
             )
@@ -210,6 +246,52 @@ async def websocket_unified_session_endpoint(
             data = await websocket.receive_text()
             message = json.loads(data)
             message_type = message.get("type")
+
+            # === AUTHENTICATION ===
+            # The only way a connection gains host authority. Performers never send this.
+            if message_type == "authenticate":
+                token = message.get("token")
+                if not token:
+                    await websocket.send_text(
+                        json.dumps({"type": "auth_failed", "reason": "missing_token"})
+                    )
+                    continue
+
+                claimed_host, error = resolve_host_claim(token, session_id)
+                if error:
+                    logger.warning(
+                        "Session %s auth failed for %s: %s",
+                        session_id,
+                        ws_connection_id,
+                        error,
+                    )
+                    await websocket.send_text(
+                        json.dumps({"type": "auth_failed", "reason": error})
+                    )
+                    continue
+
+                is_session_owner = claimed_host
+                logger.info(
+                    "Session %s client %s authenticated (is_session_owner: %s)",
+                    session_id,
+                    ws_connection_id,
+                    is_session_owner,
+                )
+
+                # Host reconnecting within the grace period - cancel pending termination
+                if is_session_owner and session_id in session_termination_tasks:
+                    pending_task = session_termination_tasks.pop(session_id)
+                    pending_task.cancel()
+                    logger.info(
+                        f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
+                    )
+
+                await websocket.send_text(
+                    json.dumps(
+                        {"type": "authenticated", "is_session_owner": is_session_owner}
+                    )
+                )
+                continue
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
             if message_type == "join_performance":
@@ -242,9 +324,15 @@ async def websocket_unified_session_endpoint(
                     )
 
             elif message_type == "update_player_state":
-                if not is_host:
+                if not is_session_owner:
                     await websocket.send_text(
-                        json.dumps({"type": "permission_denied", "action": message_type, "reason": "Host-only action"})
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Host-only action",
+                            }
+                        )
                     )
                     continue
 
@@ -281,9 +369,15 @@ async def websocket_unified_session_endpoint(
                 "song_loaded",
                 "song_ready",
             ]:
-                if not is_host:
+                if not is_session_owner:
                     await websocket.send_text(
-                        json.dumps({"type": "permission_denied", "action": message_type, "reason": "Host-only action"})
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Host-only action",
+                            }
+                        )
                     )
                     continue
 
@@ -351,14 +445,6 @@ async def websocket_unified_session_endpoint(
                     )
                 )
 
-            elif message_type == "toggle_fullscreen":
-                # Broadcast fullscreen toggle to all other devices in session (host will act on it)
-                await manager.broadcast_to_room(
-                    session_room,
-                    {"type": "toggle_fullscreen"},
-                    exclude=websocket,
-                )
-
             elif message_type == "queue_changed":
                 # Broadcast queue changes to all devices in session
                 await manager.broadcast_to_room(
@@ -369,7 +455,7 @@ async def websocket_unified_session_endpoint(
 
     except WebSocketDisconnect:
         logger.info(
-            f"Session {session_id} unified client disconnected: {ws_connection_id} (is_host: {is_host})"
+            f"Session {session_id} unified client disconnected: {ws_connection_id} (is_session_owner: {is_session_owner})"
         )
 
         manager.disconnect(websocket)
@@ -378,7 +464,8 @@ async def websocket_unified_session_endpoint(
         # If host disconnected, start a grace period before terminating the session.
         # This allows the host to survive a page refresh or brief network interruption
         # without destroying the session for all connected performers.
-        if is_host:
+        if is_session_owner:
+
             async def terminate_session_after_grace():
                 try:
                     await asyncio.sleep(HOST_DISCONNECT_GRACE_SECONDS)
@@ -390,51 +477,21 @@ async def websocket_unified_session_endpoint(
                             f"🛑 Host grace period expired for session {session_id} - terminating session"
                         )
 
-                        # Broadcast session_ended to all connected devices
-                        await manager.broadcast_to_room(
-                            session_room,
-                            {"type": "session_ended", "reason": "Host disconnected"},
-                        )
-
-                        # Give the broadcast a moment to be delivered
-                        await asyncio.sleep(0.2)
-
-                        # Delete the session from the database to recycle the session code
+                        # Deactivate rather than delete: the queue, playback state and
+                        # roster have to survive a host whose phone simply locked.
                         try:
                             with get_db_session() as db:
-                                from app.db.models import KaraokeSession
-
-                                session = (
-                                    db.query(KaraokeSession)
-                                    .filter(KaraokeSession.session_id == session_id)
-                                    .first()
-                                )
-                                if session:
-                                    db.delete(session)
-                                    db.commit()
-                                    logger.info(
-                                        f"🗑️  Session {session_id} deleted from database (code recycled)"
-                                    )
+                                deactivate_session(db, session_id)
                         except Exception as e:
-                            logger.error(f"❌ Failed to delete session from database: {e}")
+                            logger.error(
+                                "❌ Failed to deactivate session %s: %s", session_id, e
+                            )
 
-                        # Force close all other connections in this session
-                        if session_room in manager.rooms:
-                            connections_to_close = list(manager.rooms[session_room])
-                            for conn in connections_to_close:
-                                try:
-                                    await conn.close(code=1000, reason="Session ended by host")
-                                    logger.debug(
-                                        f"🔌 Force closed connection {id(conn)} for session {session_id}"
-                                    )
-                                except Exception as e:
-                                    logger.error(
-                                        f"❌ Failed to close connection {id(conn)}: {e}"
-                                    )
-                            manager.rooms[session_room] = []
-
-                        # Clean up performance state for this session
-                        cleanup_session_performance_state(session_id)
+                        # Broadcasts session_ended, closes every socket in the room and
+                        # clears this session's performance state.
+                        await manager.force_close_session_connections(
+                            session_id, reason="Host disconnected"
+                        )
 
                         # Remove the termination task entry
                         session_termination_tasks.pop(session_id, None)
@@ -451,5 +508,3 @@ async def websocket_unified_session_endpoint(
             )
             task = asyncio.create_task(terminate_session_after_grace())
             session_termination_tasks[session_id] = task
-
-

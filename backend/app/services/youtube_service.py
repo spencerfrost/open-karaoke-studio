@@ -1,8 +1,12 @@
 # backend/app/services/youtube_service.py
 import logging
+import os
 import re
+import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 import yt_dlp
@@ -20,6 +24,38 @@ class YouTubeService(YouTubeServiceInterface):
 
     def __init__(self, file_service: FileServiceInterface = FileService()):
         self.file_service = file_service
+
+    def _cookie_opts(self) -> "tuple[dict[str, str], Optional[str]]":
+        """Return yt-dlp opts for a configured cookie file, plus the temp
+        copy's path (to be unlinked by the caller) if one was made.
+
+        We copy the configured cookie file to a fresh temp file per call
+        rather than pointing yt-dlp at it directly: yt-dlp writes the
+        cookiejar back to `cookiefile` on `__exit__` from every call, so a
+        shared file would be a concurrent-write hazard across the API and
+        Celery worker processes (and would fail outright if the source is
+        mounted read-only). The trade-off is that cookies never auto-refresh
+        — re-export the source file when it expires.
+        """
+        cookie_path = os.environ.get("YTDLP_COOKIES_FILE")
+        if not cookie_path:
+            return {}, None
+        source = Path(cookie_path)
+        if not source.is_file() or not os.access(source, os.R_OK):
+            logger.warning(
+                "YTDLP_COOKIES_FILE is set but not a readable file; "
+                "continuing without cookies."
+            )
+            return {}, None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+                tmp_path = tmp.name
+            shutil.copy2(source, tmp_path)
+        except OSError as e:
+            logger.warning("Failed to stage cookie file, continuing without: %s", e)
+            return {}, None
+        logger.debug("Using configured cookie file for yt-dlp request")
+        return {"cookiefile": tmp_path}, tmp_path
 
     def search_videos(self, query: str, max_results: int = 10) -> list[dict[str, Any]]:
         """Search YouTube for videos matching the query"""
@@ -58,7 +94,7 @@ class YouTubeService(YouTubeServiceInterface):
         except Exception as e:
             logger.error("YouTube search failed: %s", e)
             raise ServiceError(f"Failed to search YouTube: {e}")
-        
+
     def _build_search_result_entry(self, entry: dict) -> dict:
         """Helper to build a search result entry dict from yt-dlp entry"""
         thumbnails = entry.get("thumbnails")
@@ -69,9 +105,7 @@ class YouTubeService(YouTubeServiceInterface):
             "channel": entry.get("channel") or entry.get("uploader"),
             "channelId": entry.get("channel_id") or entry.get("uploader_id"),
             "thumbnail": (
-                thumbnails[0]["url"]
-                if thumbnails and len(thumbnails) > 0
-                else None
+                thumbnails[0]["url"] if thumbnails and len(thumbnails) > 0 else None
             ),
             "duration": entry.get("duration"),
         }
@@ -106,6 +140,7 @@ class YouTubeService(YouTubeServiceInterface):
             song_dir = self.file_service.get_song_directory(song_id)
             outtmpl = str(song_dir / "original.%(ext)s")
 
+            cookie_opts, cookie_tmp_path = self._cookie_opts()
             ydl_opts = {
                 "format": "best",
                 "outtmpl": outtmpl,
@@ -126,15 +161,20 @@ class YouTubeService(YouTubeServiceInterface):
                         "player_skip": ["js"],
                     }
                 },
+                **cookie_opts,
             }
 
             # Download video
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                logger.info(f"[YTDLP DEBUG] yt_dlp.YoutubeDL options: {ydl_opts}")
-                logger.info(f"[YTDLP DEBUG] Downloading URL: {url}")
-                info = ydl.extract_info(url, download=True)
-                if info is None:
-                    raise ServiceError(f"Could not download video info from {url}")
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    logger.debug("yt_dlp options: %s", ydl_opts)
+                    logger.debug("Downloading URL: %s", url)
+                    info = ydl.extract_info(url, download=True)
+                    if info is None:
+                        raise ServiceError(f"Could not download video info from {url}")
+            finally:
+                if cookie_tmp_path:
+                    Path(cookie_tmp_path).unlink(missing_ok=True)
 
             # Verify download completed
             # Check for the actual file path created by yt-dlp first
@@ -193,9 +233,7 @@ class YouTubeService(YouTubeServiceInterface):
                         repo = SongRepository(session)
                         repo.update(song_id, duration=metadata_dict["duration"])
             except Exception as e:
-                logger.warning(
-                    "Failed to update duration for song %s: %s", song_id, e
-                )
+                logger.warning("Failed to update duration for song %s: %s", song_id, e)
             return song_id, metadata_dict
 
         except Exception as e:
@@ -213,14 +251,20 @@ class YouTubeService(YouTubeServiceInterface):
             else:
                 url = video_id_or_url
 
+            cookie_opts, cookie_tmp_path = self._cookie_opts()
             ydl_opts = {
                 "quiet": True,
                 "no_warnings": True,
+                **cookie_opts,
             }
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                return info
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    return info
+            finally:
+                if cookie_tmp_path:
+                    Path(cookie_tmp_path).unlink(missing_ok=True)
 
         except Exception as e:
             logger.error("Failed to extract video info for %s: %s", video_id_or_url, e)
@@ -245,7 +289,9 @@ class YouTubeService(YouTubeServiceInterface):
                 info = ydl.extract_info(url, download=False)
                 stream_url = info.get("url")
                 if not stream_url:
-                    raise ServiceError(f"No audio stream URL found for video {video_id}")
+                    raise ServiceError(
+                        f"No audio stream URL found for video {video_id}"
+                    )
                 return stream_url
         except ServiceError:
             raise
@@ -283,6 +329,8 @@ class YouTubeService(YouTubeServiceInterface):
         title: str = None,
         song_id: str = None,
         engine_type: str = "three_track",
+        session_id: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> str:
         """Download video and queue for unified YouTube processing, return job ID"""
         try:
@@ -329,13 +377,8 @@ class YouTubeService(YouTubeServiceInterface):
             job_id = str(uuid.uuid4())
 
             # Create and save job to database FIRST, before queuing Celery task
-            import json
-
             from app.db.models import Job, JobStatus
             from app.repositories import JobRepository
-
-            # Store video_id in notes for reference
-            job_notes = json.dumps({"video_id": video_id})
 
             job = Job(
                 id=job_id,
@@ -346,8 +389,9 @@ class YouTubeService(YouTubeServiceInterface):
                 song_id=song_id,
                 title=title or "Unknown Title",
                 artist=artist or "Unknown Artist",
-                notes=job_notes,
                 created_at=datetime.now(timezone.utc),
+                session_id=session_id,
+                user_id=user_id,
             )
 
             # Save job to database using repository

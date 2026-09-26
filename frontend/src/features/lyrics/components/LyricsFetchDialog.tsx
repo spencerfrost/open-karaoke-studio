@@ -92,7 +92,7 @@ export const LyricsFetchDialog: React.FC<LyricsFetchDialogProps> = ({
         });
       }, 100);
     }
-  }, [isOpen, song]);
+  }, [isOpen, song?.id]);
 
   // Handle manual provider change - triggered directly by button click, not via useEffect
   const handleProviderChange = (provider: LyricsProvider) => {

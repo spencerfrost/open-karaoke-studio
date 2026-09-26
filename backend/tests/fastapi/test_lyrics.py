@@ -1,8 +1,6 @@
-"""
-Tests for FastAPI lyrics endpoint.
-"""
+"""Tests for FastAPI lyrics endpoint."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -135,9 +133,84 @@ class TestSearchLyricsSynced:
         assert response.status_code == 500
 
     def test_search_synced_unexpected_error(self, client):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock
         mock_svc = MagicMock()
         mock_svc.search_lyrics_structured.side_effect = RuntimeError("boom")
         with patch("app.api.lyrics.SyncedLyricsService", return_value=mock_svc):
             response = client.get("/api/lyrics/search-synced?track_name=Test&artist_name=Me")
         assert response.status_code == 500
+
+
+class TestManualAlignmentSelection:
+    """The /align endpoint now enqueues a background job; source selection is
+    validated at the API and forwarded to the worker as a kwarg."""
+
+    def _make_song_with_vocals(self, client, temp_library_dir):
+        song = client.post(
+            "/api/songs",
+            json={"title": "Test Song", "artist": "Test Artist"},
+        ).json()
+        song_id = song["id"]
+
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=plain",
+            json={"content": "plain words"},
+        )
+        client.post(
+            f"/api/lyrics/songs/{song_id}?type=synced",
+            json={"content": "[00:00.00]synced words"},
+        )
+
+        vocals_path = temp_library_dir / song_id / "vocals.mp3"
+        vocals_path.parent.mkdir(parents=True, exist_ok=True)
+        vocals_path.write_bytes(b"fake")
+        return song_id, vocals_path
+
+    def test_align_defaults_source_to_none(self, client, temp_library_dir):
+        song_id, vocals_path = self._make_song_with_vocals(client, temp_library_dir)
+
+        with patch(
+            "app.api.lyrics.FileService.get_vocals_path",
+            return_value=vocals_path,
+        ), patch(
+            "app.api.lyrics._enqueue_song_alignment",
+            return_value={"status": "pending", "dispatched": True},
+        ) as mock_enqueue:
+            response = client.post(f"/api/lyrics/songs/{song_id}/align")
+
+        assert response.status_code == 200
+        mock_enqueue.assert_called_once()
+        # Default (no source query param) forwards source=None to the worker.
+        assert mock_enqueue.call_args.kwargs["source"] is None
+        assert mock_enqueue.call_args.kwargs["include_remote"] is True
+
+    def test_align_respects_explicit_synced_source(self, client, temp_library_dir):
+        song_id, vocals_path = self._make_song_with_vocals(client, temp_library_dir)
+
+        with patch(
+            "app.api.lyrics.FileService.get_vocals_path",
+            return_value=vocals_path,
+        ), patch(
+            "app.api.lyrics._enqueue_song_alignment",
+            return_value={"status": "pending", "dispatched": True},
+        ) as mock_enqueue:
+            response = client.post(
+                f"/api/lyrics/songs/{song_id}/align?source=synced"
+            )
+
+        assert response.status_code == 200
+        mock_enqueue.assert_called_once()
+        assert mock_enqueue.call_args.kwargs["source"] == "synced"
+
+    def test_align_rejects_invalid_source(self, client, temp_library_dir):
+        song_id, vocals_path = self._make_song_with_vocals(client, temp_library_dir)
+
+        with patch(
+            "app.api.lyrics.FileService.get_vocals_path",
+            return_value=vocals_path,
+        ):
+            response = client.post(
+                f"/api/lyrics/songs/{song_id}/align?source=bogus"
+            )
+
+        assert response.status_code == 400

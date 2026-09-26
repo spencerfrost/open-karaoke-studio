@@ -10,28 +10,25 @@ logger = logging.getLogger(__name__)
 def resolve_artist_credits(
     title: str,
     artist_str: str,
-    recording_id: str | None = None,
+    recording_credits: list[tuple[str, str]] | None = None,
 ) -> list[tuple[str, str]]:
     """Return [(name, role), ...] using the best available source.
 
     Resolution order:
-    1. MusicBrainz recording lookup (if recording_id is set)
+    1. Credits already fetched from the song's MusicBrainz recording
     2. MusicBrainz search by title + artist (if score >= 0.90)
     3. Regex parsing of the raw artist_str
+
+    The caller passes step 1's credits in rather than having this fetch them,
+    because the same recording lookup also yields the show name — doing it here
+    would mean requesting the same resource twice.
     """
     from app.services import musicbrainz_service
 
-    # 1. Direct recording lookup
-    if recording_id:
-        try:
-            result = musicbrainz_service.get_recording_credits(recording_id)
-            if result:
-                logger.info("Resolved credits via MB recording %s", recording_id)
-                return result
-        except Exception:
-            logger.warning(
-                "MB recording lookup failed for %s", recording_id, exc_info=True
-            )
+    # 1. Credits from the recording lookup the caller already performed
+    if recording_credits:
+        logger.info("Resolved credits via MB recording")
+        return recording_credits
 
     # 2. Search MusicBrainz
     primary_from_regex, _ = parse_song_artists(artist_str)

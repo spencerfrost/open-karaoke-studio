@@ -17,10 +17,273 @@ import React, {
   useCallback,
 } from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
+import { getActiveLineIndex, lineHasWordTiming } from "./activeLineTiming";
 
-interface CountInStyleConfig {
-  showCountdownNumbers?: boolean;
-  showCountdownIcons?: boolean;
+type ParsedLine = ParsedLrcData["lines"][number];
+type InstrumentalInterval = NonNullable<
+  ParsedLrcData["instrumentalIntervals"]
+>[number];
+
+interface SeekableSpanProps {
+  onClick?: () => void;
+  role?: "button";
+  tabIndex?: number;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLSpanElement>) => void;
+}
+
+export function getInstrumentalSeparatorLineIndex(
+  lines: ParsedLine[],
+  targetLineIndex: number | null,
+): number | null {
+  if (
+    targetLineIndex === null ||
+    targetLineIndex < 0 ||
+    targetLineIndex >= lines.length
+  ) {
+    return null;
+  }
+
+  let separatorLineIndex = targetLineIndex;
+
+  while (separatorLineIndex > 0 && lines[separatorLineIndex - 1]?.isBlank) {
+    separatorLineIndex -= 1;
+  }
+
+  return separatorLineIndex;
+}
+
+export function getInstrumentalTargetLineIndex(
+  lines: ParsedLine[],
+  interval: InstrumentalInterval,
+): number | null {
+  if (lines.length === 0) return null;
+
+  const intervalEndMs = interval.end * 1000;
+  const TIMESTAMP_EPSILON_MS = 25;
+  const intervalEndSec = interval.end;
+  const WORD_EPSILON_SEC = 0.03;
+
+  // Primary strategy: use attached alignment words when available.
+  // This keeps instrumental placement tied to the same timing source as the
+  // interval itself, even if LRC timestamps/indexes drift.
+  let wordMatchedIndex: number | null = null;
+  let earliestStartAtOrAfterEnd = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < lines.length; i++) {
+    const words = lines[i].words;
+    if (!words || words.length === 0) continue;
+
+    const firstWordStart = words.reduce(
+      (minStart, word) => Math.min(minStart, word.start),
+      Number.POSITIVE_INFINITY,
+    );
+
+    if (firstWordStart >= intervalEndSec - WORD_EPSILON_SEC) {
+      if (firstWordStart < earliestStartAtOrAfterEnd) {
+        earliestStartAtOrAfterEnd = firstWordStart;
+        wordMatchedIndex = i;
+      }
+    }
+  }
+
+  if (wordMatchedIndex !== null) {
+    return wordMatchedIndex;
+  }
+
+  // Prefer timestamp matching first because it is stable even when backend
+  // line indexes use a different namespace (content-only vs raw source lines).
+  const exactOrAfterByTime = lines.findIndex(
+    (line) => line.timestamp >= intervalEndMs - TIMESTAMP_EPSILON_MS,
+  );
+  if (exactOrAfterByTime !== -1) {
+    return exactOrAfterByTime;
+  }
+
+  const sourceLineMatchIndex = lines.findIndex(
+    (line) => line.sourceLineIndex === interval.next_line_index,
+  );
+  if (sourceLineMatchIndex !== -1) {
+    return sourceLineMatchIndex;
+  }
+
+  if (
+    interval.next_line_index >= 0 &&
+    interval.next_line_index < lines.length
+  ) {
+    return interval.next_line_index;
+  }
+
+  return null;
+}
+
+interface InstrumentalProgressState {
+  progress: number;
+  isLeadIn: boolean;
+  isActiveWindow: boolean;
+}
+
+export function getInstrumentalProgressState(
+  interval: InstrumentalInterval,
+  currentTimeSec: number,
+): InstrumentalProgressState {
+  const leadInStart = Math.min(interval.lead_in_start, interval.start);
+
+  if (currentTimeSec <= leadInStart) {
+    return {
+      progress: 0,
+      isLeadIn: true,
+      isActiveWindow: false,
+    };
+  }
+
+  if (currentTimeSec >= interval.end) {
+    return {
+      progress: 1,
+      isLeadIn: false,
+      isActiveWindow: false,
+    };
+  }
+
+  if (currentTimeSec < interval.start) {
+    return {
+      progress: getProgress(
+        currentTimeSec - leadInStart,
+        Math.max(0.001, interval.start - leadInStart),
+      ),
+      isLeadIn: true,
+      isActiveWindow: true,
+    };
+  }
+
+  return {
+    progress: getProgress(
+      currentTimeSec - interval.start,
+      Math.max(0.001, interval.end - interval.start),
+    ),
+    isLeadIn: false,
+    isActiveWindow: true,
+  };
+}
+
+/** Length of the active-line size change. Matches the glow and opacity fades. */
+const SIZE_TRANSITION_MS = 300;
+
+function getCenteredScrollTop(
+  container: HTMLDivElement,
+  lineElement: HTMLDivElement,
+): number {
+  return (
+    lineElement.offsetTop -
+    container.clientHeight / 2 +
+    lineElement.clientHeight / 2
+  );
+}
+
+function getProgress(elapsed: number, duration: number): number {
+  return Math.max(0, Math.min(1, elapsed / duration));
+}
+
+interface InstrumentalSeparatorProps {
+  isLeadIn: boolean;
+  progress: number;
+  showLeadInHighlight: boolean;
+  widthClass: string;
+}
+
+const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
+  isLeadIn,
+  progress,
+  showLeadInHighlight,
+  widthClass,
+}) => {
+  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-orange-peel/15";
+  const progressFillClass = isLeadIn
+    ? "from-foreground to-primary"
+    : "from-orange-peel to-primary/80";
+  const progressAriaLabel = isLeadIn
+    ? "Lead-in progress"
+    : "Instrumental progress";
+
+  return (
+    <div className="py-2 px-4">
+      <div className="w-full flex justify-center">
+        <div
+          className={`h-2 rounded-full overflow-hidden backdrop-blur-sm ${widthClass} ${separatorStateClass}`}
+          role="progressbar"
+          aria-label={progressAriaLabel}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+        >
+          <div
+            className={`h-full rounded-full instrumental-progress-fill bg-gradient-to-r ${progressFillClass} ${
+              isLeadIn && showLeadInHighlight
+                ? "instrumental-progress-leadin"
+                : ""
+            }`}
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface LyricContentProps {
+  line: ParsedLine;
+  renderMode: "content" | "words";
+  isActive: boolean;
+  opacity: string;
+  isClickable: boolean;
+  seekProps: SeekableSpanProps;
+  currentWordIndex: number | null;
+}
+
+const LyricContent: React.FC<LyricContentProps> = ({
+  line,
+  renderMode,
+  isActive,
+  opacity,
+  isClickable,
+  seekProps,
+  currentWordIndex,
+}) => {
+  if (renderMode === "words" && line.words && line.words.length > 0) {
+    const words = line.words.map((w) => w.word);
+
+    return (
+      <span
+        className={`${opacity} transition-opacity duration-300 ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
+        {...seekProps}
+      >
+        {words.map((word, wIdx) => (
+          <span
+            key={wIdx}
+            className={`transition-[color,opacity] duration-100 ${
+              isActive && currentWordIndex !== null && wIdx <= currentWordIndex
+                ? "opacity-100 text-orange-peel"
+                : "opacity-60"
+            }`}
+          >
+            {word}
+            {wIdx < words.length - 1 ? " " : ""}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`${opacity} transition-opacity duration-300 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
+      {...seekProps}
+    >
+      {line.content}
+    </span>
+  );
+};
+
+interface InstrumentalStyleConfig {
   showProgressBar?: boolean;
   showLeadInHighlight?: boolean;
 }
@@ -30,8 +293,7 @@ interface KaraokeLyricsRendererProps {
   currentTime: number; // seconds
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number; // milliseconds
-  bpm?: number;
-  countInStyle?: CountInStyleConfig;
+  instrumentalStyle?: InstrumentalStyleConfig;
   onSeek?: (timeSeconds: number) => void;
   className?: string;
 }
@@ -41,17 +303,17 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   currentTime,
   lyricsSize,
   lyricsOffset,
-  countInStyle = {},
+  instrumentalStyle = {},
   onSeek,
   className = "",
 }) => {
-  const {
-    showCountdownNumbers = false,
-    showCountdownIcons = false,
-    showProgressBar = false,
-  } = countInStyle;
+  const { showProgressBar = false, showLeadInHighlight = false } =
+    instrumentalStyle;
+
+  const INSTRUMENTAL_PROGRESS_WIDTH_CLASS = "w-52 sm:w-72";
 
   const currentTimeMs = currentTime * 1000 + lyricsOffset;
+  const currentTimeSec = currentTimeMs / 1000;
 
   // Refs for scrolling
   const containerRef = useRef<HTMLDivElement>(null);
@@ -106,115 +368,127 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
 
   // Find current line index (across ALL lines, including blanks)
   const currentLineIndex = useMemo(() => {
-    let idx = parsedData.lines.findIndex((line, i) => {
-      const nextLine = parsedData.lines[i + 1];
-      return (
-        currentTimeMs >= line.timestamp &&
-        (!nextLine || currentTimeMs < nextLine.timestamp)
-      );
-    });
-
-    // If no current line found, check if we're before first line
-    if (idx === -1) {
-      idx =
-        currentTimeMs < parsedData.lines[0]?.timestamp
-          ? -1
-          : parsedData.lines.length - 1;
-    }
-
-    return idx;
+    return getActiveLineIndex(parsedData.lines, currentTimeMs);
   }, [parsedData.lines, currentTimeMs]);
 
-  // Find active count-in trigger
-  const activeCountInTrigger = useMemo(() => {
-    return parsedData.countInTriggers.find(
-      (trigger) =>
-        currentTimeMs >= trigger.countInStart &&
-        currentTimeMs < trigger.countInEnd,
-    );
-  }, [parsedData.countInTriggers, currentTimeMs]);
+  const scrollActiveLine = useCallback(
+    (behavior: ScrollBehavior) => {
+      if (isUserScrolling || currentLineIndex === -1 || !containerRef.current)
+        return;
 
-  // Calculate count-in progress and beat index
-  const countInState = useMemo(() => {
-    if (!activeCountInTrigger) return null;
+      const lineElement = lineRefs.current[currentLineIndex];
+      if (!lineElement) return;
 
-    const elapsed = currentTimeMs - activeCountInTrigger.countInStart;
-    const duration =
-      activeCountInTrigger.countInEnd - activeCountInTrigger.countInStart;
-    const progress = Math.max(0, Math.min(1, elapsed / duration));
-    const currentBeatIndex = Math.floor(
-      elapsed / activeCountInTrigger.beatInterval,
-    );
+      lastAutoScrollTimeRef.current = Date.now();
+      containerRef.current.scrollTo({
+        top: getCenteredScrollTop(containerRef.current, lineElement),
+        behavior,
+      });
+    },
+    [currentLineIndex, isUserScrolling],
+  );
 
-    return {
-      progress,
-      currentBeatIndex,
-      trigger: activeCountInTrigger,
-    };
-  }, [activeCountInTrigger, currentTimeMs]);
+  // Find current word index within the active line (null when no alignment data)
+  const currentWordIndex = useMemo(() => {
+    if (currentLineIndex === -1) return null;
+    const activeLine = parsedData.lines[currentLineIndex];
+    if (!activeLine?.words || activeLine.words.length === 0) return null;
 
-  // Auto-scroll to center the active line
-  useLayoutEffect(() => {
-    // Skip auto-scroll if user is manually scrolling
-    if (isUserScrolling) return;
-    if (currentLineIndex === -1 || !containerRef.current) return;
+    let idx = -1;
+    for (let i = 0; i < activeLine.words.length; i++) {
+      if (currentTimeSec >= activeLine.words[i].start) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    return idx;
+  }, [parsedData.lines, currentLineIndex, currentTimeSec]);
 
-    const lineElement = lineRefs.current[currentLineIndex];
-    if (!lineElement) return;
-
-    const container = containerRef.current;
-    const lineOffsetTop = lineElement.offsetTop;
-    const lineHeight = lineElement.clientHeight;
-    const containerHeight = container.clientHeight;
-
-    // Scroll to center the line: lineTop - containerHeight/2 + lineHeight/2
-    const targetScrollTop =
-      lineOffsetTop - containerHeight / 2 + lineHeight / 2;
-
-    // Mark this as an auto-scroll to avoid triggering user scroll detection
-    lastAutoScrollTimeRef.current = Date.now();
-
-    // Use scrollTo with smooth behavior for smooth scrolling
-    container.scrollTo({
-      top: targetScrollTop,
-      behavior: "smooth",
+  const activeInstrumentalDisplay = useMemo(() => {
+    const interval = parsedData.instrumentalIntervals?.find((candidate) => {
+      const leadInStart = Math.min(candidate.lead_in_start, candidate.start);
+      return currentTimeSec >= leadInStart && currentTimeSec < candidate.end;
     });
-  }, [currentLineIndex, isUserScrolling]);
 
-  // Recalculate scroll positions on resize
+    if (!interval) return null;
+
+    const isLeadIn = currentTimeSec < interval.start;
+    return {
+      interval,
+      isLeadIn,
+    };
+  }, [parsedData.instrumentalIntervals, currentTimeSec]);
+
+  const activeInstrumentalTargetLineIndex = useMemo(() => {
+    if (!activeInstrumentalDisplay) return null;
+
+    return getInstrumentalTargetLineIndex(
+      parsedData.lines,
+      activeInstrumentalDisplay.interval,
+    );
+  }, [activeInstrumentalDisplay, parsedData.lines]);
+
+  const activeInstrumentalSeparatorLineIndex = useMemo(() => {
+    return getInstrumentalSeparatorLineIndex(
+      parsedData.lines,
+      activeInstrumentalTargetLineIndex,
+    );
+  }, [activeInstrumentalTargetLineIndex, parsedData.lines]);
+
+  const instrumentalSeparatorsByLine = useMemo(() => {
+    const byLine = new Map<number, InstrumentalInterval[]>();
+
+    for (const interval of parsedData.instrumentalIntervals ?? []) {
+      const targetLineIndex = getInstrumentalTargetLineIndex(
+        parsedData.lines,
+        interval,
+      );
+      const separatorLineIndex = getInstrumentalSeparatorLineIndex(
+        parsedData.lines,
+        targetLineIndex,
+      );
+
+      if (separatorLineIndex === null) continue;
+
+      const existing = byLine.get(separatorLineIndex) ?? [];
+      existing.push(interval);
+      byLine.set(separatorLineIndex, existing);
+    }
+
+    return byLine;
+  }, [parsedData.instrumentalIntervals, parsedData.lines]);
+
+  // Auto-scroll to center the active line. Line sizing is not transitioned,
+  // so by the time this runs the new active line is already at its final
+  // height and getCenteredScrollTop measures the position it will keep.
   useLayoutEffect(() => {
-    if (!containerRef.current) return;
+    scrollActiveLine("smooth");
+  }, [scrollActiveLine]);
+
+  const scrollActiveLineRef = useRef(scrollActiveLine);
+  useLayoutEffect(() => {
+    scrollActiveLineRef.current = scrollActiveLine;
+  }, [scrollActiveLine]);
+
+  // Recalculate scroll positions on resize.
+  //
+  // The observer is created once and reaches the current scroll callback
+  // through a ref. Re-creating it whenever the active line changed meant
+  // re-observing the container, and ResizeObserver delivers a callback as soon
+  // as observation begins — so every line change fired an "instant" scroll that
+  // cancelled the smooth one started microseconds earlier in the same commit.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      // Skip if user is scrolling
-      if (isUserScrolling) return;
-
-      // Trigger re-scroll by forcing the scroll effect to run
-      if (currentLineIndex !== -1 && containerRef.current) {
-        const lineElement = lineRefs.current[currentLineIndex];
-        if (lineElement) {
-          const container = containerRef.current;
-          const lineOffsetTop = lineElement.offsetTop;
-          const lineHeight = lineElement.clientHeight;
-          const containerHeight = container.clientHeight;
-          const targetScrollTop =
-            lineOffsetTop - containerHeight / 2 + lineHeight / 2;
-
-          // Mark as auto-scroll
-          lastAutoScrollTimeRef.current = Date.now();
-
-          // Use instant scroll on resize to avoid jarring animation
-          container.scrollTo({
-            top: targetScrollTop,
-            behavior: "instant",
-          });
-        }
-      }
+      scrollActiveLineRef.current("instant");
     });
 
-    resizeObserver.observe(containerRef.current);
+    resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
-  }, [currentLineIndex, isUserScrolling]);
+  }, []);
 
   // Cleanup timeout on unmount
   useLayoutEffect(() => {
@@ -226,162 +500,191 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   }, []);
 
   // Font size configurations
+  // Scaled for a 10-foot read: the stage is now the full viewport rather than
+  // a letterboxed box, so these are roughly double the old box-sized values.
   const fontSizes = useMemo(() => {
     switch (lyricsSize) {
       case "small":
         return {
-          inactive: "text-base",
-          active: "text-lg",
-          countdown: "text-lg",
-          icon: "w-2 h-2",
+          inactive: "text-2xl",
+          active: "text-4xl",
+          inactivePx: 24,
+          activePx: 36,
         };
       case "large":
         return {
-          inactive: "text-2xl",
-          active: "text-4xl",
-          countdown: "text-3xl",
-          icon: "w-4 h-4",
+          inactive: "text-5xl",
+          active: "text-8xl",
+          inactivePx: 48,
+          activePx: 96,
         };
       default: // medium
         return {
-          inactive: "text-xl",
-          active: "text-2xl",
-          countdown: "text-2xl",
-          icon: "w-3 h-3",
+          inactive: "text-4xl",
+          active: "text-6xl",
+          inactivePx: 36,
+          activePx: 60,
         };
     }
   }, [lyricsSize]);
+
+  // Play the size change back as a transform.
+  //
+  // font-size is set to its final value in the same commit as the class change
+  // — animating it would relayout the whole column on every frame — so the
+  // column geometry, and with it the scroll target, is settled before this
+  // runs. All that is left is to replay the growth visually: start the line at
+  // the scale its old type size represents and let a composited transform carry
+  // it to 1. offsetTop and clientHeight are layout values and ignore transforms,
+  // so the centering above stays correct throughout.
+  const previousActiveIndexRef = useRef(currentLineIndex);
+
+  useLayoutEffect(() => {
+    const previousIndex = previousActiveIndexRef.current;
+    previousActiveIndexRef.current = currentLineIndex;
+    if (previousIndex === currentLineIndex) return;
+
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const { inactivePx, activePx } = fontSizes;
+
+    const playScale = (index: number, fromScale: number) => {
+      const element = lineRefs.current[index];
+      if (!element) return;
+
+      element.style.transition = "none";
+      element.style.transform = `scale(${fromScale})`;
+      // Commit the start value before arming the transition, or the browser
+      // collapses both writes into one style change and nothing animates.
+      void element.offsetWidth;
+      element.style.transition = `transform ${SIZE_TRANSITION_MS}ms ease-out`;
+      element.style.transform = "scale(1)";
+    };
+
+    if (currentLineIndex !== -1) {
+      playScale(currentLineIndex, inactivePx / activePx);
+    }
+    if (previousIndex !== -1) {
+      playScale(previousIndex, activePx / inactivePx);
+    }
+  }, [currentLineIndex, fontSizes]);
 
   // Render all lyrics lines (including blanks)
   const renderAllLines = () => {
     const isClickable = !!onSeek;
 
-    return parsedData.lines.map((line, index) => {
+    const getSeekProps = (lineTimestampMs: number): SeekableSpanProps => {
+      if (!isClickable) {
+        return {
+          onClick: undefined,
+          role: undefined,
+          tabIndex: undefined,
+          onKeyDown: undefined,
+        };
+      }
+
+      const seekTo = lineTimestampMs / 1000;
+
+      return {
+        onClick: () => onSeek?.(seekTo),
+        role: "button" as const,
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent<HTMLSpanElement>) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSeek?.(seekTo);
+          }
+        },
+      };
+    };
+
+    return parsedData.lines.flatMap((line, index) => {
+      const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
-      const hasCountIn = activeCountInTrigger?.lineIndex === index;
+      const lineInstrumentalIntervals =
+        instrumentalSeparatorsByLine.get(index) ?? [];
+
+      if (showProgressBar && lineInstrumentalIntervals.length > 0) {
+        for (const interval of lineInstrumentalIntervals) {
+          const progressState = getInstrumentalProgressState(
+            interval,
+            currentTimeSec,
+          );
+          const isResolvedActiveInterval =
+            !!activeInstrumentalDisplay &&
+            activeInstrumentalDisplay.interval.start === interval.start &&
+            activeInstrumentalDisplay.interval.end === interval.end &&
+            activeInstrumentalSeparatorLineIndex === index;
+
+          renderedElements.push(
+            <InstrumentalSeparator
+              key={`instrumental-separator-${interval.start}-${interval.end}-${index}`}
+              isLeadIn={progressState.isLeadIn}
+              progress={progressState.progress}
+              showLeadInHighlight={
+                showLeadInHighlight &&
+                progressState.isActiveWindow &&
+                isResolvedActiveInterval
+              }
+              widthClass={INSTRUMENTAL_PROGRESS_WIDTH_CLASS}
+            />,
+          );
+        }
+      }
 
       // Check if this line is blank
       if (line.isBlank) {
-        return (
+        renderedElements.push(
           <div
-            key={line.timestamp}
+            key={`line-${line.timestamp}-${index}`}
             ref={(el) => {
               lineRefs.current[index] = el;
             }}
             className="py-2 px-4 text-center min-h-[1em]"
           >
             {/* Empty blank line */}
-          </div>
+          </div>,
         );
+
+        return renderedElements;
       }
 
       const fontSize = isActive ? fontSizes.active : fontSizes.inactive;
       const opacity = isActive ? "opacity-100" : "opacity-50";
       const weight = isActive ? "font-bold" : "font-normal";
       const shadow = isActive ? "text-shadow" : "";
+      const seekProps = getSeekProps(line.timestamp);
+      const lineRenderMode: "content" | "words" = lineHasWordTiming(line)
+        ? "words"
+        : "content";
 
-      return (
+      renderedElements.push(
         <div
-          key={line.timestamp}
+          key={`line-${line.timestamp}-${index}`}
           ref={(el) => {
             lineRefs.current[index] = el;
           }}
-          className={`py-2 px-4 transition-all duration-500 ${fontSize} ${weight} ${shadow} text-background`}
+          className={`py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
           role={isActive ? "status" : undefined}
           aria-live={isActive ? "polite" : undefined}
         >
-          {/* 3-column grid: left for count-in, center for text, right for balance */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 w-full">
-            {/* Left column: Count-in elements */}
-            <div className={`flex items-center justify-end gap-3 ${opacity}`}>
-              {hasCountIn && countInState && (
-                <>
-                  {/* Progress bar */}
-                  {showProgressBar && (
-                    <div className="w-32 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-orange-peel to-amber-500 rounded-full transition-all duration-100 ease-linear"
-                        style={{ width: `${countInState.progress * 100}%` }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Countdown numbers */}
-                  {showCountdownNumbers && (
-                    <div className="flex gap-2">
-                      {[4, 3, 2, 1].map((num, idx) => (
-                        <span
-                          key={num}
-                          className={`
-                            font-bold transition-all duration-150
-                            ${fontSizes.countdown}
-                            ${
-                              idx === countInState.currentBeatIndex
-                                ? "text-orange-peel scale-110 opacity-100"
-                                : "text-white/30 scale-100 opacity-50"
-                            }
-                          `}
-                        >
-                          {num}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Countdown icons */}
-                  {showCountdownIcons && (
-                    <div className="flex gap-2 items-center">
-                      {[0, 1, 2, 3].map((idx) => (
-                        <div
-                          key={idx}
-                          className={`
-                            rounded-full transition-all duration-100
-                            ${fontSizes.icon}
-                            ${
-                              idx <= countInState.currentBeatIndex
-                                ? "bg-transparent border-2 border-white/30"
-                                : "bg-orange-peel"
-                            }
-                          `}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Center column: Centered text */}
+          <div className="flex flex-col items-center justify-center gap-2 w-full">
             <div className="text-center">
-              <span
-                className={`${opacity} transition-all duration-500 ${isClickable ? "cursor-pointer hover:opacity-100 inline-block" : ""}`}
-                onClick={
-                  isClickable
-                    ? () => onSeek?.(line.timestamp / 1000)
-                    : undefined
-                }
-                role={isClickable ? "button" : undefined}
-                tabIndex={isClickable ? 0 : undefined}
-                onKeyDown={
-                  isClickable
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onSeek?.(line.timestamp / 1000);
-                        }
-                      }
-                    : undefined
-                }
-              >
-                {line.content}
-              </span>
+              <LyricContent
+                line={line}
+                renderMode={lineRenderMode}
+                isActive={isActive}
+                opacity={opacity}
+                isClickable={isClickable}
+                seekProps={seekProps}
+                currentWordIndex={currentWordIndex}
+              />
             </div>
-
-            {/* Right column: Empty for balance */}
-            <div />
           </div>
-        </div>
+        </div>,
       );
+
+      return renderedElements;
     });
   };
 

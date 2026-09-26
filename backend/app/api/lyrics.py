@@ -1,21 +1,27 @@
 """
-FastAPI router for lyrics search endpoints.
+FastAPI router for lyrics endpoints.
 """
 
+import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
+from app.api.dependencies import get_current_user
+from app.db.database import SessionLocal
+from app.db.models import JobStatus, User
+from app.exceptions import ServiceError
+from app.jobs.celery_app import celery
+from app.jobs.jobs import _create_lyrics_alignment_job, _get_lyrics_job_id
+from app.repositories import JobRepository
+from app.repositories.song_repository import SongRepository
+from app.services.file_service import FileService
+from app.services.lyrics_analysis import analyze_lyrics
+from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
+from app.services.lyrics_service import LyricsService
+from app.services.syncedlyrics_service import SyncedLyricsService
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
-from app.db.database import SessionLocal
-from app.exceptions import NetworkError, ServiceError, ValidationError
-from app.repositories.lyrics_repository import LyricsRepository
-from app.repositories.song_repository import SongRepository
-from app.schemas.lyrics import LyricsCreateRequest, LyricsResponse
-from app.services.lyrics_service import LyricsService
-from app.services.syncedlyrics_service import SyncedLyricsService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +30,7 @@ router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
 
 class LyricsResult(BaseModel):
     """Individual lyrics result from LRCLIB."""
+
     id: Optional[int] = None
     name: Optional[str] = None
     trackName: Optional[str] = None
@@ -33,111 +40,9 @@ class LyricsResult(BaseModel):
     instrumental: Optional[bool] = None
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
-    
+
     class Config:
         extra = "allow"
-
-
-@router.get("/search", response_model=List[dict])
-async def search_lyrics(
-    track_name: str = Query(..., min_length=1, description="Song title (required)"),
-    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
-    album_name: Optional[str] = Query(None, description="Album name (optional, can improve results)")
-):
-    """
-    Search for lyrics via LRCLIB.
-    
-    Parameters:
-    - track_name: Song title (required)
-    - artist_name: Artist name (required)
-    - album_name: Album name (optional) - can improve search results
-
-    Returns:
-    - A JSON array with lyrics results from LRCLIB
-    """
-    try:
-        lyrics_service = LyricsService()
-
-        # Build query string from parameters
-        query_parts = [artist_name, track_name]
-        if album_name:
-            query_parts.append(album_name)
-
-        query = " ".join(query_parts)
-        results = lyrics_service.search_lyrics(query)
-
-        logger.info("Found %s lyrics results for query: %s", len(results), query)
-        return results
-
-    except ServiceError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except ConnectionError as e:
-        logger.error("Lyrics connection error: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail=f"Failed to connect to lyrics service: {str(e)}"
-        )
-    except TimeoutError as e:
-        logger.error("Lyrics timeout error: %s", e)
-        raise HTTPException(
-            status_code=504,
-            detail=f"Lyrics service request timed out: {str(e)}"
-        )
-    except Exception as e:
-        logger.error("Unexpected lyrics search error: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during lyrics search: {str(e)}"
-        )
-
-
-@router.get("/search-synced", response_model=List[dict])
-async def search_lyrics_synced(
-    track_name: str = Query(..., min_length=1, description="Song title (required)"),
-    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
-    album_name: Optional[str] = Query(None, description="Album name (optional)")
-):
-    """
-    Search for lyrics via syncedlyrics library (testing).
-
-    Parameters:
-    - track_name: Song title (required)
-    - artist_name: Artist name (required)
-    - album_name: Album name (optional) - may improve results
-
-    Returns:
-    - A JSON array with lyrics results from syncedlyrics
-    """
-    try:
-        service = SyncedLyricsService()
-
-        # Build params dict
-        params = {
-            "track_name": track_name,
-            "artist_name": artist_name,
-        }
-        if album_name:
-            params["album_name"] = album_name
-
-        results = service.search_lyrics_structured(params)
-
-        logger.info("Found %s syncedlyrics results for: %s - %s",
-                   len(results), artist_name, track_name)
-        return results
-
-    except ServiceError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        logger.error("Unexpected syncedlyrics search error: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during syncedlyrics search: {str(e)}"
-        )
-
-
-# ============================================================================
-# Lyrics version management endpoints
-# ============================================================================
 
 
 def get_db():
@@ -148,68 +53,477 @@ def get_db():
         db.close()
 
 
-def _lyrics_to_response(lyrics) -> dict:
-    """Convert a DbLyrics record to a response dict."""
+def _validate_alignment_source(source: Optional[str]) -> Optional[str]:
+    if source not in (None, "plain", "synced"):
+        raise HTTPException(status_code=400, detail="source must be 'plain' or 'synced'")
+    return source
+
+
+def _validate_song_and_vocals(song_id: str, db: Session):
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    return song
+
+
+def _validate_db_alignment_request(song, source: Optional[str]) -> None:
+    if source == "plain" and not song.plain_lyrics:
+        raise HTTPException(status_code=404, detail=f"No plain lyrics for song: {song.id}")
+    if source == "synced" and not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song.id}")
+    if source is None and not (song.plain_lyrics or song.synced_lyrics):
+        raise HTTPException(status_code=404, detail=f"No synced or plain lyrics for song: {song.id}")
+
+
+def _enqueue_song_alignment(
+    song,
+    *,
+    include_remote: bool,
+    source: Optional[str],
+    language: str,
+) -> dict:
+    job_repository = JobRepository()
+    job_id = _get_lyrics_job_id(song.id)
+    existing_job = job_repository.get_by_id(job_id)
+    in_flight_statuses = {JobStatus.PENDING, JobStatus.DOWNLOADING, JobStatus.PROCESSING}
+
+    if existing_job and existing_job.status in in_flight_statuses:
+        return {
+            "jobId": existing_job.id,
+            "taskId": existing_job.task_id,
+            "songId": song.id,
+            "status": existing_job.status.value,
+            "dispatched": False,
+            "includeRemote": include_remote,
+            "source": source,
+            "language": language,
+            "message": "Lyrics alignment already in progress.",
+        }
+
+    task = celery.send_task(
+        "align_song_lyrics",
+        args=[song.id],
+        kwargs={
+            "include_remote": include_remote,
+            "source": source,
+            "language": language,
+        },
+    )
+    _create_lyrics_alignment_job(
+        song.id,
+        title=song.title,
+        artist=song.artist,
+        task_id=task.id,
+        status_message="Queued lyrics alignment",
+    )
+
     return {
-        "id": lyrics.id,
-        "songId": lyrics.song_id,
-        "type": lyrics.type,
-        "content": lyrics.content,
-        "source": lyrics.source,
-        "metadata": lyrics.metadata_,
-        "isActive": lyrics.is_active,
-        "createdAt": lyrics.created_at.isoformat() if lyrics.created_at else None,
-        "updatedAt": lyrics.updated_at.isoformat() if lyrics.updated_at else None,
+        "jobId": job_id,
+        "taskId": task.id,
+        "songId": song.id,
+        "status": JobStatus.PENDING.value,
+        "dispatched": True,
+        "includeRemote": include_remote,
+        "source": source,
+        "language": language,
+        "message": "Lyrics alignment queued.",
     }
 
 
-@router.get("/songs/{song_id}", response_model=List[dict])
-async def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
-    """Get all lyrics versions for a song."""
-    repo = SongRepository(db)
-    if not repo.fetch(song_id):
-        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
-
-    lyrics_repo = LyricsRepository(db)
-    all_lyrics = lyrics_repo.get_all_lyrics(song_id)
-    return [_lyrics_to_response(l) for l in all_lyrics]
+# ============================================================================
+# Lyrics search endpoints (external providers — no DB writes)
+# ============================================================================
 
 
-@router.post("/songs/{song_id}", response_model=dict, status_code=201)
-async def create_song_lyrics(
-    song_id: str, request: LyricsCreateRequest, db: Session = Depends(get_db)
+@router.get("/search", response_model=List[dict])
+async def search_lyrics(
+    track_name: str = Query(..., min_length=1, description="Song title (required)"),
+    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
+    album_name: Optional[str] = Query(None, description="Album name (optional)"),
 ):
-    """Add a new lyrics version for a song."""
-    repo = SongRepository(db)
-    if not repo.fetch(song_id):
+    """Search for lyrics via LRCLIB."""
+    try:
+        lyrics_service = LyricsService()
+        query_parts = [artist_name, track_name]
+        if album_name:
+            query_parts.append(album_name)
+        query = " ".join(query_parts)
+        results = lyrics_service.search_lyrics(query)
+        logger.info("Found %s lyrics results for query: %s", len(results), query)
+        return results
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except ConnectionError as e:
+        logger.error("Lyrics connection error: %s", e)
+        raise HTTPException(status_code=503, detail=f"Failed to connect to lyrics service: {e}")
+    except TimeoutError as e:
+        logger.error("Lyrics timeout error: %s", e)
+        raise HTTPException(status_code=504, detail=f"Lyrics service request timed out: {e}")
+    except Exception as e:
+        logger.error("Unexpected lyrics search error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Unexpected error during lyrics search: {e}")
+
+
+@router.get("/search-synced", response_model=List[dict])
+async def search_lyrics_synced(
+    track_name: str = Query(..., min_length=1, description="Song title (required)"),
+    artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
+    album_name: Optional[str] = Query(None, description="Album name (optional)"),
+):
+    """Search for lyrics via syncedlyrics library."""
+    try:
+        service = SyncedLyricsService()
+        params = {"track_name": track_name, "artist_name": artist_name}
+        if album_name:
+            params["album_name"] = album_name
+        results = service.search_lyrics_structured(params)
+        logger.info("Found %s syncedlyrics results for: %s - %s", len(results), artist_name, track_name)
+        return results
+    except ServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected syncedlyrics search error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Unexpected error during syncedlyrics search: {e}")
+
+
+# ============================================================================
+# Song lyrics CRUD
+# ============================================================================
+
+
+@router.get("/songs/{song_id}", response_model=dict)
+async def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
+    """Get the current lyrics for a song (plain, synced, and whether alignment exists)."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    return {
+        "plainLyrics": song.plain_lyrics,
+        "syncedLyrics": song.synced_lyrics,
+        "hasAlignment": song.word_synced_lyrics is not None,
+    }
+
+
+@router.post("/songs/{song_id}", response_model=dict, status_code=200)
+async def update_song_lyrics(
+    song_id: str,
+    type: str = Query(..., description="Lyrics type: 'plain' or 'synced'"),
+    db: Session = Depends(get_db),
+    body: dict = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Update plain or synced lyrics for a song."""
+    if type not in ("plain", "synced"):
+        raise HTTPException(status_code=400, detail="type must be 'plain' or 'synced'")
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if body is None:
+        raise HTTPException(status_code=422, detail="Request body required with 'content' field")
+    content = body.get("content")
+    if type == "plain":
+        song.plain_lyrics = content or None
+    else:
+        song.synced_lyrics = content or None
+    song.word_synced_lyrics = None
+    db.commit()
+    return {"plainLyrics": song.plain_lyrics, "syncedLyrics": song.synced_lyrics}
+
+
+@router.delete("/songs/{song_id}/{type}", status_code=204)
+async def clear_song_lyrics(
+    song_id: str,
+    type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Clear plain, synced, or word_synced lyrics for a song."""
+    if type not in ("plain", "synced", "word_synced"):
+        raise HTTPException(status_code=400, detail="type must be 'plain', 'synced', or 'word_synced'")
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if type == "plain":
+        song.plain_lyrics = None
+        song.word_synced_lyrics = None
+    elif type == "synced":
+        song.synced_lyrics = None
+        song.word_synced_lyrics = None
+    else:
+        song.word_synced_lyrics = None
+    db.commit()
+
+
+# ============================================================================
+# Lyrics analysis endpoints
+# ============================================================================
+
+
+@router.get("/songs/{song_id}/analyze", response_model=dict)
+async def analyze_song_lyrics(
+    song_id: str,
+    min_confidence: float = Query(0.3, ge=0.0, le=1.0),
+    db: Session = Depends(get_db),
+):
+    """Analyze synced lyrics for section breaks. Read-only — no side effects."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song_id}")
+    return analyze_lyrics(song.synced_lyrics, min_confidence=min_confidence)
+
+
+@router.post("/songs/{song_id}/analyze/apply", response_model=dict, status_code=200)
+async def apply_analysis(
+    song_id: str,
+    min_confidence: float = Query(0.3, ge=0.0, le=1.0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run section-break analysis and apply the result directly to synced_lyrics."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song_id}")
+
+    result = analyze_lyrics(song.synced_lyrics, min_confidence=min_confidence)
+    if not result["candidates"]:
+        return {"analysis": result, "message": "No candidates found — lyrics unchanged"}
+
+    song.synced_lyrics = result["modified_lrc"]
+    song.word_synced_lyrics = None
+    db.commit()
+    return {"analysis": result, "message": f"Applied {len(result['candidates'])} section breaks to synced lyrics"}
+
+
+# ============================================================================
+# Lyrics offset analysis endpoints
+# ============================================================================
+
+
+@router.get("/songs/{song_id}/analyze/offset", response_model=dict)
+async def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
+    """Analyze global LRC timestamp offset against the vocals audio. Read-only."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song_id}")
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+    return analyze_global_offset(song.synced_lyrics, vocals_path)
+
+
+@router.post("/songs/{song_id}/analyze/offset/apply", response_model=dict, status_code=200)
+async def apply_offset_correction(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Compute global offset and apply the corrected timestamps directly to synced_lyrics."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    if not song.synced_lyrics:
+        raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song_id}")
+
+    file_service = FileService()
+    vocals_path = file_service.get_vocals_path(song_id, ".mp3")
+    if not vocals_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"No vocals.mp3 found for song {song_id}. Run audio separation first.",
+        )
+
+    result = analyze_global_offset(song.synced_lyrics, vocals_path)
+    if result["estimated_offset"] is None:
+        return {"analysis": result, "message": "Could not estimate offset — insufficient anchor measurements. Lyrics unchanged."}
+
+    song.synced_lyrics = shift_lrc_timestamps(song.synced_lyrics, -result["estimated_offset"])
+    song.word_synced_lyrics = None
+    db.commit()
+    return {
+        "analysis": result,
+        "message": f"Offset {result['estimated_offset']:+.3f}s applied (confidence={result['confidence']}). Synced lyrics updated.",
+    }
+
+
+# ============================================================================
+# Word-level alignment endpoints
+# ============================================================================
+
+
+@router.get("/songs/{song_id}/alignment", response_model=dict)
+async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
+    """Return stored word-level alignment data for this song."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
         raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
 
-    lyrics_repo = LyricsRepository(db)
-    lyrics = lyrics_repo.save_lyrics(
-        song_id=song_id,
-        lyrics_type=request.type,
-        content=request.content,
-        source=request.source,
-        metadata=request.metadata,
-        is_active=request.isActive,
+    if not song.word_synced_lyrics:
+        return {"alignment": None}
+
+    try:
+        alignment = json.loads(song.word_synced_lyrics)
+    except Exception:
+        return {"alignment": None}
+
+    if isinstance(alignment, dict):
+        alignment.setdefault("instrumental_intervals", [])
+
+    return {"alignment": alignment}
+
+
+@router.post("/songs/{song_id}/align", response_model=dict, status_code=200)
+async def align_song_lyrics(
+    song_id: str,
+    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Enqueue background lyrics alignment using stored and remote lyric candidates.
+
+    This is the general alignment entry point. It may fetch remote lyrics candidates
+    and uses the full background alignment pipeline, including offset correction for
+    low-confidence synced lyrics.
+    """
+    source = _validate_alignment_source(source)
+    song = _validate_song_and_vocals(song_id, db)
+    return _enqueue_song_alignment(
+        song,
+        include_remote=True,
+        source=source,
+        language=language,
     )
-    return _lyrics_to_response(lyrics)
 
 
-@router.patch("/{lyrics_id}/activate", response_model=dict)
-async def activate_lyrics(lyrics_id: int, db: Session = Depends(get_db)):
-    """Set a specific lyrics version as active."""
-    lyrics_repo = LyricsRepository(db)
-    lyrics = lyrics_repo.set_active(lyrics_id)
-    if not lyrics:
-        raise HTTPException(status_code=404, detail=f"Lyrics not found: {lyrics_id}")
-    return _lyrics_to_response(lyrics)
+@router.post("/songs/{song_id}/align-db", response_model=dict, status_code=200)
+async def align_song_lyrics_from_database(
+    song_id: str,
+    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Enqueue background lyrics alignment using only the lyrics currently stored in the database.
+
+    This path is intended for user-pasted or manually edited lyrics and never fetches
+    remote lyric candidates.
+    """
+    source = _validate_alignment_source(source)
+    song = _validate_song_and_vocals(song_id, db)
+    _validate_db_alignment_request(song, source)
+    return _enqueue_song_alignment(
+        song,
+        include_remote=False,
+        source=source,
+        language=language,
+    )
 
 
-@router.delete("/{lyrics_id}", status_code=204)
-async def delete_lyrics(lyrics_id: int, db: Session = Depends(get_db)):
-    """Delete a specific lyrics version."""
-    lyrics_repo = LyricsRepository(db)
-    if not lyrics_repo.delete_lyrics(lyrics_id):
-        raise HTTPException(status_code=404, detail=f"Lyrics not found: {lyrics_id}")
+# ============================================================================
+# Batch alignment endpoints
+# ============================================================================
 
+
+@router.get("/batch/align", response_model=dict)
+async def batch_align_status(db: Session = Depends(get_db)):
+    """
+    Return library-wide alignment statistics without running any processing.
+    """
+    file_service = FileService()
+    all_songs = SongRepository(db).fetch_all()
+
+    total = len(all_songs)
+    with_vocals = 0
+    aligned = 0
+    needs_alignment = 0
+    no_lyrics = 0
+
+    for song in all_songs:
+        vocals_path = file_service.get_vocals_path(song.id, ".mp3")
+        if not vocals_path.exists():
+            continue
+        with_vocals += 1
+
+        if song.word_synced_lyrics:
+            aligned += 1
+        elif song.synced_lyrics or song.plain_lyrics:
+            needs_alignment += 1
+        else:
+            no_lyrics += 1
+
+    return {
+        "total": total,
+        "withVocals": with_vocals,
+        "aligned": aligned,
+        "needsAlignment": needs_alignment,
+        "noLyrics": no_lyrics,
+    }
+
+
+@router.post("/batch/align", status_code=202, response_model=dict)
+async def batch_align_songs(
+    mode: str = Query("missing", description="'missing' = only unaligned songs, 'all' = re-run everyone"),
+    language: str = Query("en", description="BCP-47 language code"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Dispatch a Celery task to run forced alignment across the library.
+
+    Returns immediately with a taskId. Poll GET /batch/align/status/{taskId}
+    to check progress and retrieve results when the task completes.
+    """
+    from app.jobs.jobs import batch_align_lyrics
+
+    if mode not in ("missing", "all"):
+        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
+
+    task = batch_align_lyrics.delay(mode=mode, language=language)
+    logger.info("Dispatched batch_align_lyrics task %s (mode=%s)", task.id, mode)
+    return {"taskId": task.id, "status": "dispatched", "mode": mode, "language": language}
+
+
+@router.get("/batch/align/status/{task_id}", response_model=dict)
+async def batch_align_task_status(task_id: str):
+    """
+    Poll the status of a dispatched batch alignment task.
+
+    States: PENDING, STARTED, SUCCESS, FAILURE
+    """
+    from celery.result import AsyncResult
+
+    from app.jobs.celery_app import celery
+
+    result = AsyncResult(task_id, app=celery)
+    state = result.state
+
+    if state == "PENDING":
+        return {"taskId": task_id, "state": "PENDING"}
+    if state == "STARTED":
+        return {"taskId": task_id, "state": "STARTED"}
+    if state == "SUCCESS":
+        return {"taskId": task_id, "state": "SUCCESS", "result": result.result}
+    if state == "FAILURE":
+        return {"taskId": task_id, "state": "FAILURE", "error": str(result.result)}
+    return {"taskId": task_id, "state": state}

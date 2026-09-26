@@ -13,6 +13,7 @@ import app.api.karaoke_queue as _queue_api
 import app.api.sessions as _sessions_api
 from app.api.dependencies import get_current_user, get_db
 from app.db.models import Base
+from app.services.auth_service import create_access_token
 from tests.conftest import create_test_app
 
 from unittest.mock import MagicMock
@@ -56,14 +57,24 @@ def test_setup():
     setup_session = TestingSession()
     # Patch SessionLocal globally so WebSocket handlers (which bypass DI) use SQLite
     import app.db.database as _db_module
+
     original_SessionLocal = _db_module.SessionLocal
     _db_module.SessionLocal = TestingSession
 
-    def session_factory(session_id: str, host_device_id: str):
+    def user_factory(username: str):
+        user = models.User(username=username, is_host=True, is_admin=False)
+        user.set_password("irrelevant-for-these-tests")
+        setup_session.add(user)
+        setup_session.commit()
+        setup_session.refresh(user)
+        return user
+
+    def session_factory(session_id: str, host_device_id: str, host_user_id=None):
         session = models.KaraokeSession(
             session_id=session_id,
             display_code=str(uuid.uuid4())[:4].upper(),
             host_device_id=host_device_id,
+            host_user_id=host_user_id,
             is_active=True,
             expires_at=datetime.utcnow() + timedelta(hours=1),
         )
@@ -86,7 +97,7 @@ def test_setup():
 
     try:
         with TestClient(app) as client:
-            yield client, session_factory, song_factory
+            yield client, session_factory, song_factory, user_factory
     finally:
         setup_session.close()
         _db_module.SessionLocal = original_SessionLocal
@@ -102,7 +113,7 @@ def test_websocket_queue_update_is_session_specific(test_setup):
     Verify that queue data is isolated per session.
     Each session's WebSocket only returns that session's queue items.
     """
-    client, session_factory, song_factory = test_setup
+    client, session_factory, song_factory, _ = test_setup
 
     session_id_1 = f"session_{uuid.uuid4()}"
     session_id_2 = f"session_{uuid.uuid4()}"
@@ -165,7 +176,7 @@ def test_websocket_queue_update_is_session_specific(test_setup):
 
 def test_queue_rest_state_exposes_current_and_upcoming(test_setup):
     """Verify REST queue endpoint returns explicit current/upcoming state."""
-    client, session_factory, song_factory = test_setup
+    client, session_factory, song_factory, _ = test_setup
 
     session_id = f"session_{uuid.uuid4()}"
     host_device_id = f"host_{uuid.uuid4()}"
@@ -229,11 +240,12 @@ def test_queue_rest_state_exposes_current_and_upcoming(test_setup):
 
 def test_playback_state_persists_across_websocket_reconnect(test_setup):
     """Verify persisted playback state is restored when reconnecting to unified session websocket."""
-    client, session_factory, song_factory = test_setup
+    client, session_factory, song_factory, user_factory = test_setup
 
     session_id = f"session_{uuid.uuid4()}"
     host_device_id = f"host_{uuid.uuid4()}"
-    session_factory(session_id, host_device_id)
+    host = user_factory("reconnect-host")
+    session_factory(session_id, host_device_id, host_user_id=host.id)
 
     song = song_factory()
 
@@ -249,12 +261,18 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
     )
     assert load_response.status_code == 200
 
-    # Connect as host so player state commands are accepted
-    ws_url = f"/ws/session/{session_id}?device_id={host_device_id}"
+    host_token = create_access_token(host)
+    ws_url = f"/ws/session/{session_id}"
     with client.websocket_connect(ws_url) as websocket:
         connected_message = websocket.receive_json()
         assert connected_message["type"] == "session_connected"
         assert connected_message["performance_state"]["current_song_id"] == song.id
+
+        # Authenticate so player state commands are accepted
+        websocket.send_json({"type": "authenticate", "token": host_token})
+        auth_reply = websocket.receive_json()
+        assert auth_reply["type"] == "authenticated"
+        assert auth_reply["is_session_owner"] is True
 
         websocket.send_json(
             {

@@ -14,6 +14,7 @@ import asyncio
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -28,10 +29,10 @@ from app.api import (
     host_settings_router,
     jobs_router,
     lyrics_router,
-    metadata_router,
     musicbrainz_router,
     performance_history_router,
     queue_router,
+    session_playlist_router,
     sessions_router,
     songs_router,
     users_router,
@@ -52,18 +53,31 @@ from app.ws import (
     websocket_jobs_endpoint,
     websocket_unified_session_endpoint,
 )
+from app.limiter import limiter
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Get configuration and setup logging
 config = get_config()
 logging_config = setup_logging(config)
 logger = logging.getLogger(__name__)
 
-# Clean up stuck jobs on startup
-logger.info("Open Karaoke Studio backend starting")
-cleanup_stuck_jobs()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown."""
+    logger.info("Open Karaoke Studio backend starting")
+    cleanup_stuck_jobs()
+    if not os.environ.get("JWT_SECRET_KEY"):
+        logger.error(
+            "JWT_SECRET_KEY is not set — a random key was generated. "
+            "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
+        )
+    yield
+
 
 # Create FastAPI app with metadata
 app = FastAPI(
@@ -72,6 +86,7 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend integration
@@ -82,6 +97,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Initialize the WebSocket connection manager
 manager = SessionConnectionManager()
@@ -97,12 +116,12 @@ app.include_router(sessions_router)
 app.include_router(queue_router)
 app.include_router(youtube_router)
 app.include_router(youtube_music_router)
-app.include_router(metadata_router)
 app.include_router(lyrics_router)
 app.include_router(users_router)
 app.include_router(host_settings_router)
 app.include_router(musicbrainz_router)
 app.include_router(performance_history_router)
+app.include_router(session_playlist_router)
 
 
 # Root endpoint
@@ -120,7 +139,6 @@ async def root():
             "queue": "/api/karaoke-queue",
             "youtube": "/api/youtube",
             "youtube_music": "/api/youtube-music",
-            "metadata": "/api/metadata",
             "lyrics": "/api/lyrics",
             "users": "/api/users",
         },

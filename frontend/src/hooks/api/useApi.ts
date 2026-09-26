@@ -6,21 +6,29 @@ import {
 } from "@tanstack/react-query";
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
-import { toast } from "sonner";
+import { useSessionStore } from "@/stores/sessionStore";
 
 const logger = createLogger("hook:api");
 
-/** Get Authorization header if a token is available. */
-function getAuthHeaders(): Record<string, string> {
+/** Get Authorization header if a token is available, plus session-membership headers. */
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const token = useAuthStore.getState().token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const { sessionId, deviceId } = useSessionStore.getState();
+  if (sessionId && deviceId) {
+    headers["X-Session-ID"] = sessionId;
+    headers["X-Device-ID"] = deviceId;
+  }
+  return headers;
 }
 
 /** Handle 401 responses by clearing stale auth state and prompting re-login. */
 export function handleUnauthorized(response: Response): void {
-  if (response.status === 401 && useAuthStore.getState().isAuthenticated) {
-    useAuthStore.getState().logout();
-    toast.error("Session expired. Please log in again.");
+  if (response.status === 401) {
+    useAuthStore.getState().expireSession();
   }
 }
 
@@ -34,10 +42,8 @@ const apiGet = async <T>(url: string): Promise<T> => {
     handleUnauthorized(response);
     let errorMessage = `HTTP error! Status: ${response.status}`;
     try {
-      const errorData: any = await response.json();
-      errorMessage =
-        errorData?.detail || errorData?.message || errorMessage;
-    } catch (jsonError: any) {
+      errorMessage = extractErrorMessage(await response.json(), errorMessage);
+    } catch (jsonError: unknown) {
       logger.error("Error parsing error response:", jsonError);
     }
     throw new Error(errorMessage);
@@ -56,7 +62,38 @@ const apiGet = async <T>(url: string): Promise<T> => {
  * @returns {Promise<T>} - A promise resolving to the response data.
  * @throws {Error} - Throws an error if the response is not ok.
  */
-const apiSend = async <T, V>(
+/**
+ * Pulls a human-readable message out of an API error body.
+ *
+ * FastAPI sends `detail` as a string for a raised HTTPException, but as an
+ * array of {loc, msg, type} objects for 422 validation failures — surfacing
+ * that array as-is shows the user "[object Object]".
+ */
+export function extractErrorMessage(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object") return fallback;
+  const { detail, error, message } = body as Record<string, unknown>;
+
+  if (Array.isArray(detail)) {
+    const joined = detail
+      .map((item) =>
+        item && typeof item === "object" && "msg" in item
+          ? String((item as { msg: unknown }).msg)
+          : null,
+      )
+      .filter(Boolean)
+      .join("; ");
+    return joined || fallback;
+  }
+
+  return (
+    (typeof detail === "string" && detail) ||
+    (typeof error === "string" && error) ||
+    (typeof message === "string" && message) ||
+    fallback
+  );
+}
+
+export const apiSend = async <T, V>(
   url: string,
   method: string,
   data: V | null = null,
@@ -79,12 +116,7 @@ const apiSend = async <T, V>(
       if (contentType && contentType.includes("application/json")) {
         const text = await response.text();
         if (text) {
-          const errorData = JSON.parse(text);
-          errorMessage =
-            errorData?.detail ||
-            errorData?.error ||
-            errorData?.message ||
-            errorMessage;
+          errorMessage = extractErrorMessage(JSON.parse(text), errorMessage);
         }
       } else {
         const text = await response.text();
@@ -115,7 +147,10 @@ const apiSend = async <T, V>(
  * @param {Omit<UseQueryOptions<T, Error, T, TQueryKey>, 'queryKey' | 'queryFn'>} [options] - Additional options for the query.
  * @returns {UseQueryResult<T, Error>} - The result of the query.
  */
-export function useApiQuery<T, TQueryKey extends readonly unknown[]>(
+export function useApiQuery<
+  T,
+  TQueryKey extends readonly unknown[] = readonly unknown[],
+>(
   queryKey: TQueryKey,
   url: string,
   options?: Omit<

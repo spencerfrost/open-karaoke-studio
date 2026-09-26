@@ -47,10 +47,10 @@ interface EditArtistDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const ArtistImagePreview: React.FC<{ imageUrl: string; artistName: string }> = ({
-  imageUrl,
-  artistName,
-}) => {
+const ArtistImagePreview: React.FC<{
+  imageUrl: string;
+  artistName: string;
+}> = ({ imageUrl, artistName }) => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
@@ -94,7 +94,10 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
     { display_name: string }
   >(`artists/${artist.id}`, "patch", {
     onSuccess: (data) => {
-      logger.info("Artist updated", { id: data.id, display_name: data.display_name });
+      logger.info("Artist updated", {
+        id: data.id,
+        display_name: data.display_name,
+      });
       queryClient.invalidateQueries({ queryKey: ["artists"] });
       toast.success(`Artist renamed to "${data.display_name}"`);
       onOpenChange(false);
@@ -127,22 +130,21 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
     },
   );
 
-  const setImageMutation = useApiMutation<{ success: boolean }, { url: string }>(
-    `artists/${artist.id}/image`,
-    "post",
-    {
-      onSuccess: () => {
-        logger.info("Artist image updated", { id: artist.id });
-        setImageVersion((v) => v + 1);
-        setMode("edit");
-        toast.success("Artist image updated");
-      },
-      onError: (err) => {
-        logger.error("Failed to set artist image", { error: err.message });
-        toast.error(`Failed to set image: ${err.message}`);
-      },
+  const setImageMutation = useApiMutation<
+    { success: boolean },
+    { url: string }
+  >(`artists/${artist.id}/image`, "post", {
+    onSuccess: () => {
+      logger.info("Artist image updated", { id: artist.id });
+      setImageVersion((v) => v + 1);
+      setMode("edit");
+      toast.success("Artist image updated");
     },
-  );
+    onError: (err) => {
+      logger.error("Failed to set artist image", { error: err.message });
+      toast.error(`Failed to set image: ${err.message}`);
+    },
+  });
 
   const handleSave = () => {
     const trimmed = displayName.trim();
@@ -186,9 +188,12 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                   disabled={isBusy}
                   aria-label="Edit artist image"
                 >
-                  <ArtistImagePreview imageUrl={imageUrl} artistName={artist.name} />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Pencil className="h-5 w-5 text-white" />
+                  <ArtistImagePreview
+                    imageUrl={imageUrl}
+                    artistName={artist.name}
+                  />
+                  <div className="absolute inset-0 bg-overlay/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Pencil className="h-5 w-5 text-foreground" />
                   </div>
                 </button>
               </div>
@@ -216,15 +221,17 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete &quot;{artist.name}&quot;?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Delete &quot;{artist.name}&quot;?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
                       This will permanently delete this artist.
                       {artist.songCount > 0 && (
                         <>
                           {" "}
                           {artist.songCount} song
-                          {artist.songCount !== 1 ? "s" : ""} exclusively linked to
-                          this artist will also be removed. Songs credited to
+                          {artist.songCount !== 1 ? "s" : ""} exclusively linked
+                          to this artist will also be removed. Songs credited to
                           multiple artists will be kept.
                         </>
                       )}

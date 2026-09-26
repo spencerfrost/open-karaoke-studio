@@ -6,7 +6,6 @@ This module provides REST API endpoints for job management:
 - List all jobs
 - Get job details
 - Cancel jobs
-- Dismiss jobs
 """
 
 import logging
@@ -17,8 +16,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 
+from app.api.dependencies import require_host
 from app.db.database import SessionLocal
-from app.db.models import JobStatus
+from app.db.models import JobStatus, User
 from app.services.jobs_service import JobsService
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,6 @@ class JobResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
-    dismissed: bool = False
 
     class Config:
         from_attributes = True
@@ -88,7 +87,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error("Database session error: %s", e)
         db.rollback()
         raise
     finally:
@@ -105,12 +104,14 @@ def get_jobs_service() -> JobsService:
 # ============================================================================
 
 @router.get("/status", response_model=JobStatisticsResponse)
-async def get_job_status(jobs_service: JobsService = Depends(get_jobs_service)):
+async def get_job_status(
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Get the overall status of job processing with statistics.
     """
     stats = jobs_service.get_statistics()
-    # Map service stats to response model
     return JobStatisticsResponse(
         total=stats.get("total", 0),
         pending=stats.get("queue_length", 0),
@@ -124,59 +125,41 @@ async def get_job_status(jobs_service: JobsService = Depends(get_jobs_service)):
 @router.get("", response_model=JobListResponse)
 async def get_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
-    include_dismissed: bool = Query(False, description="Include dismissed jobs"),
     jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
 ):
     """
     List all jobs with their status.
-    
+
     - **status**: Filter by status (pending, processing, completed, failed, cancelled)
-    - **include_dismissed**: Include dismissed jobs in results
     """
     try:
         if status:
             try:
                 job_status = JobStatus(status)
                 jobs = jobs_service.get_jobs_by_status(job_status)
-                # Filter dismissed jobs unless explicitly requested
-                if not include_dismissed:
-                    jobs = [job for job in jobs if not job.dismissed]
             except ValueError:
                 raise HTTPException(
                     status_code=400, detail=f"Invalid status: {status}"
                 )
         else:
-            # Default to active jobs (non-dismissed) unless explicitly requested
-            if include_dismissed:
-                jobs = jobs_service.get_all_jobs(include_dismissed=True)
-            else:
-                jobs = jobs_service.get_active_jobs()
+            jobs = jobs_service.get_all_jobs()
 
         return JobListResponse(jobs=[job.to_dict() for job in jobs])
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching jobs: {e}", exc_info=True)
+        logger.error("Error fetching jobs: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch jobs: {str(e)}")
 
 
-@router.get("/dismissed", response_model=JobListResponse)
-async def get_dismissed_jobs(jobs_service: JobsService = Depends(get_jobs_service)):
-    """
-    List all dismissed jobs.
-    """
-    try:
-        jobs = jobs_service.get_dismissed_jobs()
-        return JobListResponse(jobs=[job.to_dict() for job in jobs])
-
-    except Exception as e:
-        logger.error(f"Error fetching dismissed jobs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch dismissed jobs: {str(e)}")
-
-
 @router.get("/{job_id}")
-async def get_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_service)):
+async def get_job(
+    job_id: str,
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Get detailed information about a specific job.
     """
@@ -189,7 +172,11 @@ async def get_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_serv
 
 
 @router.post("/{job_id}/cancel", response_model=JobActionResponse)
-async def cancel_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_service)):
+async def cancel_job(
+    job_id: str,
+    jobs_service: JobsService = Depends(get_jobs_service),
+    current_user: User = Depends(require_host),
+):
     """
     Cancel a pending or in-progress job.
     """
@@ -211,55 +198,3 @@ async def cancel_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_s
         )
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel job")
-
-
-@router.post("/{job_id}/dismiss", response_model=JobActionResponse)
-async def dismiss_job(job_id: str, jobs_service: JobsService = Depends(get_jobs_service)):
-    """
-    Dismiss a failed, completed, or cancelled job from the UI.
-    """
-    job = jobs_service.get_job(job_id)
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    if job.status not in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot dismiss job with status {job.status.value}. Only completed, failed, or cancelled jobs can be dismissed.",
-        )
-
-    success = jobs_service.dismiss_job(job_id)
-
-    if success:
-        return JobActionResponse(
-            success=True, message="Job dismissed", job_id=job_id
-        )
-    else:
-        raise HTTPException(status_code=500, detail="Failed to dismiss job")
-
-
-@router.post("/process-audio", response_model=JobResponse)
-async def start_audio_processing(job_data: JobCreateRequest):
-    """
-    Start audio processing job using existing Celery infrastructure.
-    This demonstrates how FastAPI integrates with the current Celery setup.
-    """
-    try:
-        # Import and dispatch to existing Celery worker
-        # from app.jobs.jobs import process_audio_job
-        # task = process_audio_job.delay(job_data.song_id)
-        # return JobResponse(
-        #     id=job_data.song_id,
-        #     task_id=task.id,
-        #     status="queued"
-        # )
-
-        # Mock response for demo - replace with actual Celery integration
-        return JobResponse(
-            id=job_data.song_id,
-            task_id="demo-task-123",
-            status="queued",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start job: {str(e)}")

@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
 
 const logger = createLogger("websocket:session");
 
@@ -47,11 +48,16 @@ interface SessionWebSocketEvents {
   session_connected: (data: {
     session_id: string;
     device_id: string;
-    is_host: boolean;
+    is_session_owner: boolean;
     performance_state: PerformanceState;
   }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
+
+  // Host authentication events
+  authenticated: (data: { is_session_owner: boolean }) => void;
+  auth_failed: (data: { reason: string }) => void;
+  permission_denied: (data: { action: string; reason: string }) => void;
 
   // Performance control events
   performance_state: (data: { state: PerformanceState }) => void;
@@ -69,9 +75,6 @@ interface SessionWebSocketEvents {
     items?: QueueItem[];
     trigger?: string;
   }) => void;
-
-  // UI control events (performer → host)
-  toggle_fullscreen: () => void;
 }
 
 type EventData =
@@ -85,24 +88,25 @@ type EventData =
       trigger?: string;
     }
   | { control: string; value: ControlValue }
+  | { is_session_owner: boolean }
+  | { reason: string }
+  | { action: string; reason: string }
   | undefined;
 
 class SessionWebSocketService {
   private websocket: WebSocket | null = null;
   private listeners: Map<string, Set<(data: EventData) => void>> = new Map();
   private isConnected = false;
-  private maxReconnectAttempts = 5;
   private reconnectAttempts = 0;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentSessionId: string | null = null;
   private deviceId: string | null = null;
-  private hostDeviceId: string | null = null; // REST API device ID for host identification
 
   constructor() {
     // Don't initialize connection immediately - wait for session
   }
 
-  private initializeConnection(sessionId: string, url: string) {
+  private initializeConnection(url: string) {
     try {
       logger.debug(
         "Attempting to connect to unified session WebSocket at:",
@@ -127,6 +131,14 @@ class SessionWebSocketService {
       logger.debug("Connected to unified session WebSocket");
       this.isConnected = true;
       this.reconnectAttempts = 0;
+
+      // Claim host authority if we hold a token. The server decides whether this user
+      // actually owns the session - performers have no token and simply skip this.
+      // Runs on every open, so reconnects re-authenticate automatically.
+      const token = useAuthStore.getState().token;
+      if (token) {
+        this.send({ type: "authenticate", token });
+      }
 
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
@@ -162,6 +174,16 @@ class SessionWebSocketService {
         // Hydrate the ephemeral WebSocket device ID from the server's greeting
         if (data.type === "session_connected" && data.device_id) {
           this.deviceId = data.device_id;
+        }
+
+        // Never let an authority failure pass silently - this class of bug went
+        // unnoticed for months because nothing listened for it.
+        if (data.type === "permission_denied") {
+          logger.error(
+            `Action "${data.action}" rejected by server: ${data.reason}. This connection does not hold host authority.`,
+          );
+        } else if (data.type === "auth_failed") {
+          logger.error(`Session authentication failed: ${data.reason}`);
         }
 
         // Emit the event to all registered listeners
@@ -203,11 +225,7 @@ class SessionWebSocketService {
           baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${this.currentSessionId}`;
         }
 
-        const socketUrl = this.hostDeviceId
-          ? `${baseSocketUrl}?device_id=${encodeURIComponent(this.hostDeviceId)}`
-          : baseSocketUrl;
-
-        this.initializeConnection(this.currentSessionId, socketUrl);
+        this.initializeConnection(baseSocketUrl);
       }
     }, delay);
   }
@@ -274,40 +292,36 @@ class SessionWebSocketService {
   }
 
   /**
-   * Connect to a session
+   * Connect to a session.
+   *
+   * Every connection starts unprivileged. Host authority is granted by the server in
+   * response to the `authenticate` message sent on open - it is never derived from the
+   * connection URL.
+   *
    * @param sessionId The session ID to connect to
-   * @param hostDeviceId Optional: The REST API device ID if this device is the host
    */
-  connectToSession(sessionId: string, hostDeviceId?: string) {
+  connectToSession(sessionId: string) {
     logger.debug(
       "Connecting to unified session WebSocket for session:",
       sessionId,
-      hostDeviceId ? "(as host)" : "(as performer)",
     );
     this.disconnect(); // Clean up any existing connection first
     this.currentSessionId = sessionId;
-    this.hostDeviceId = hostDeviceId || null;
     this.reconnectAttempts = 0;
 
-    // Build WebSocket URL with device_id query parameter if host
-    let baseSocketUrl: string;
+    let socketUrl: string;
     if (import.meta.env.DEV) {
       // Development mode - use the current host to leverage Vite proxy
-      baseSocketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
+      socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
     } else {
       // Production mode - use direct URLs
       const backendUrl =
         import.meta.env.VITE_BACKEND_URL ||
         `${window.location.protocol}//${window.location.host}`;
-      baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
+      socketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
     }
 
-    // Add device_id query parameter if this is the host
-    const socketUrl = hostDeviceId
-      ? `${baseSocketUrl}?device_id=${encodeURIComponent(hostDeviceId)}`
-      : baseSocketUrl;
-
-    this.initializeConnection(sessionId, socketUrl);
+    this.initializeConnection(socketUrl);
   }
 
   /**
@@ -409,13 +423,6 @@ class SessionWebSocketService {
   }
 
   /**
-   * Tell the host device to toggle fullscreen
-   */
-  toggleFullscreen() {
-    this.send({ type: "toggle_fullscreen" });
-  }
-
-  /**
    * Manually disconnect the WebSocket
    */
   disconnect() {
@@ -433,7 +440,6 @@ class SessionWebSocketService {
     this.reconnectAttempts = 0;
     this.currentSessionId = null;
     this.deviceId = null; // cleared until next session_connected
-    this.hostDeviceId = null;
   }
 
   /**
@@ -442,9 +448,8 @@ class SessionWebSocketService {
   reconnect() {
     if (this.currentSessionId) {
       const sessionId = this.currentSessionId;
-      const hostDeviceId = this.hostDeviceId;
       this.disconnect();
-      this.connectToSession(sessionId, hostDeviceId || undefined);
+      this.connectToSession(sessionId);
     }
   }
 }

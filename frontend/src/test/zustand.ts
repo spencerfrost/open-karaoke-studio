@@ -24,9 +24,10 @@ export function resetStore<T extends object>(
     }
   }
 
-  // Apply initial state override if provided
+  // Merge rather than replace: a replacing setState would drop every action
+  // off the store, since initialValues only carries the non-function keys.
   act(() => {
-    store.setState({ ...initialValues, ...initialState } as Partial<T>, true);
+    store.setState({ ...initialValues, ...initialState } as Partial<T>);
   });
 }
 

@@ -16,14 +16,14 @@ const getDurationComparison = (
       status: "perfect",
       message: "Perfect match",
       icon: CheckCircle,
-      className: "text-green-700",
+      className: "text-success-strong",
     };
   } else if (diff <= 2) {
     return {
       status: "good",
       message: "Good match",
       icon: ThumbsUp,
-      className: "text-green-700",
+      className: "text-success-strong",
     };
   } else if (diff <= 4) {
     return {
@@ -37,7 +37,7 @@ const getDurationComparison = (
       status: "poor",
       message: "Duration mismatch",
       icon: XCircle,
-      className: "text-red-600",
+      className: "text-destructive-strong",
     };
   }
 };
@@ -137,7 +137,7 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
               {option.syncedLyrics && (
                 <Badge
                   variant="secondary"
-                  className="bg-green-100 text-green-800 text-xs"
+                  className="bg-success/15 text-success-strong text-xs"
                 >
                   Synced
                 </Badge>

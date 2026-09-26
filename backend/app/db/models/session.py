@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from .base import Base
 
 if TYPE_CHECKING:
+    from .performer import SessionPerformer
     from .queue import KaraokeQueueItem
     from .song import DbSong
 
@@ -32,6 +33,16 @@ class KaraokeSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # "append" (today's insert-order behaviour) or "rotation" (strict round-robin
+    # by lap). Rotation is the default - append is the escape hatch. See
+    # docs/plans/archive/2026-08-29-roster-and-rotation.md.
+    queue_order_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="rotation"
+    )
+    # The frontier lap reached so far - max(current_lap, newly computed lap) after
+    # every insert. Lets a late joiner enter at the point the circle has reached
+    # instead of being handed catch-up turns. See queue_ordering.compute_lap.
+    current_lap: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Relationship to session devices
     devices: Mapped[List["SessionDevice"]] = relationship(
@@ -51,6 +62,11 @@ class KaraokeSession(Base):
         uselist=False,
     )
 
+    # Relationship to roster entries
+    performers: Mapped[List["SessionPerformer"]] = relationship(
+        "SessionPerformer", back_populates="session", cascade="all, delete-orphan"
+    )
+
     @classmethod
     def generate_session_id(cls) -> str:
         """Generate a unique session ID."""
@@ -58,7 +74,12 @@ class KaraokeSession(Base):
 
     @classmethod
     def generate_display_code(cls, db_session) -> str:
-        """Generate a unique 4-character display code using only capital letters, checking against active sessions."""
+        """Generate a 4-character display code unused by any session, active or retired.
+
+        Retired sessions keep their row, and display_code is UNIQUE, so a code is only free
+        once `purge_stale_sessions` has removed the row holding it - checking active
+        sessions alone would hand back a code that then fails on insert.
+        """
         # Use only uppercase letters for simplicity and readability
         chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -67,16 +88,7 @@ class KaraokeSession(Base):
         for _ in range(max_attempts):
             code = "".join(secrets.choice(chars) for _ in range(4))
 
-            # Check if this code is already in use by an active session
-            existing = (
-                db_session.query(cls)
-                .filter(
-                    cls.display_code == code,
-                    cls.is_active == True,
-                    cls.expires_at > datetime.utcnow(),
-                )
-                .first()
-            )
+            existing = db_session.query(cls).filter(cls.display_code == code).first()
 
             if not existing:
                 return code
@@ -86,9 +98,17 @@ class KaraokeSession(Base):
 
     @classmethod
     def create_new_session(
-        cls, db_session, host_device_id: str, duration_hours: int = 24
+        cls,
+        db_session,
+        host_device_id: str,
+        duration_hours: float = 24,
+        queue_order_mode: Optional[str] = None,
     ) -> "KaraokeSession":
-        """Create a new karaoke session with unique display code."""
+        """Create a new karaoke session with unique display code.
+
+        `queue_order_mode` is only applied when given, so callers that don't care
+        keep the column's "rotation" default.
+        """
         display_code = cls.generate_display_code(db_session)
         session = cls(
             session_id=display_code,  # Use display_code as session_id for simplicity
@@ -96,6 +116,8 @@ class KaraokeSession(Base):
             host_device_id=host_device_id,
             expires_at=datetime.utcnow() + timedelta(hours=duration_hours),
         )
+        if queue_order_mode is not None:
+            session.queue_order_mode = queue_order_mode
         return session
 
     def is_expired(self) -> bool:

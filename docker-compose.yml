@@ -53,6 +53,7 @@ services:
       - "15123:5123"
     volumes:
       - ./karaoke_library:/app/karaoke_library
+      - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
     environment:
       - ENVIRONMENT=production
@@ -70,6 +71,7 @@ services:
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+      - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5123/api/health"]
       interval: 5s
@@ -92,9 +94,10 @@ services:
     container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
-    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads
+    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment,lyrics
     volumes:
       - ./karaoke_library:/app/karaoke_library
+      - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -103,11 +106,13 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
-      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
+      - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     depends_on:
       redis:
         condition: service_healthy

@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import * as Tone from "tone";
-import { createLogger } from "@/lib/logger";
 import { useAudioControlsStore } from "./useAudioControlsStore";
 import { getGrainParams } from "./shared/audioHelpers";
-
-const logger = createLogger("store:playbackState");
 
 export interface PlaybackStateState {
   // Audio/track info
@@ -38,6 +35,7 @@ export interface PlaybackStateState {
   resetSongEnded: () => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
+  getFrequencyData: () => number[] | null;
 
   // Internal state updaters
   updatePlaybackState: (
@@ -89,6 +87,9 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     if (!analyser && audioContext) {
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
+      // Default (0.8) smooths so heavily that the visualizer barely moves
+      // frame to frame; lower this for a snappier, more reactive look.
+      analyser.smoothingTimeConstant = 0.4;
     }
   }
 
@@ -324,7 +325,9 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
         }
         const tempContext = new window.AudioContext();
 
-        // Fetch required tracks
+        // Fetch required tracks. /api/songs/{id}/download/{track} is served
+        // unauthenticated (so <audio> elements can load it directly), so these
+        // carry no Authorization header.
         const [instArr, vocArr] = await Promise.all([
           fetch(instrumentalUrl, { cache: "reload" }).then((r) => {
             if (!r.ok) throw new Error(`fetch failed with status ${r.status}`);
@@ -502,6 +505,13 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       if (!analyser) return null;
       const array = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(array);
+      return Array.from(array);
+    },
+
+    getFrequencyData: () => {
+      if (!analyser) return null;
+      const array = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(array);
       return Array.from(array);
     },
 

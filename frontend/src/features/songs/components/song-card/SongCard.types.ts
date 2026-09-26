@@ -9,21 +9,20 @@ export interface SongCardProps {
   showArtist?: boolean;
 }
 
-export type SongCardAction = "delete" | "details" | "queue";
+export type SongCardAction = "details" | "queue";
 
 export interface SongArtworkProps {
   song: Song;
   artworkUrl: string | null;
   showSyncedBadge?: boolean;
+  /** Shows a "needs review" flag when the song's AcoustID match is ambiguous. Host-only. */
+  showAmbiguousBadge?: boolean;
   onPlay: (e?: React.MouseEvent) => void;
   showPlayButton?: boolean;
-}
-
-export interface SongActionsProps {
-  song: Song;
-  onQueue?: (e: React.MouseEvent) => void;
-  onDelete?: (e: React.MouseEvent) => void;
-  onDetails?: (e: React.MouseEvent) => void;
+  /** Enables the hover-to-preview behaviour on this artwork. */
+  enablePreview?: boolean;
+  /** Renders an explicit preview control, for pointers that cannot hover. */
+  showPreviewButton?: boolean;
 }
 
 export interface SongInfoProps {

@@ -54,7 +54,7 @@ The YouTube API provides video metadata including:
 - **[API Documentation](../README.md)** - Complete API reference
 - **[Authentication](../authentication.md)** - API authentication patterns
 - **[Songs API](../songs.md)** - Song management endpoints
-- **[Metadata API](../metadata.md)** - Search and metadata endpoints
+- **[YouTube & Metadata Search API](../youtube.md)** - Search and import endpoints
 
 ## 📈 Usage Guidelines
 

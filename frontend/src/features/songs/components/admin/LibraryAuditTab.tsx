@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
 import { AlertCircle, HardDrive, RefreshCw, Trash2 } from "lucide-react";
+import { useSongRecovery } from "../../hooks/useSongRecovery";
 
 const logger = createLogger("component:LibraryAuditTab");
 
@@ -67,8 +68,12 @@ export const LibraryAuditTab: React.FC = () => {
   const { token } = useAuthStore();
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
-  const [selectedOrphans, setSelectedOrphans] = useState<Set<string>>(new Set());
+  const { recoverSong: recoverIncompleteSong, isRecovering } = useSongRecovery({
+    engineType: "demucs",
+  });
+  const [selectedOrphans, setSelectedOrphans] = useState<Set<string>>(
+    new Set(),
+  );
   const [selectedGhosts, setSelectedGhosts] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
@@ -110,15 +115,15 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-            ...prev,
-            orphaned_directories: prev.orphaned_directories.filter(
-              (d) => d.dir_name !== dirName,
-            ),
-            summary: {
-              ...prev.summary,
-              orphaned_count: prev.summary.orphaned_count - 1,
-            },
-          }
+              ...prev,
+              orphaned_directories: prev.orphaned_directories.filter(
+                (d) => d.dir_name !== dirName,
+              ),
+              summary: {
+                ...prev.summary,
+                orphaned_count: prev.summary.orphaned_count - 1,
+              },
+            }
           : null,
       );
     } catch {
@@ -144,13 +149,13 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-            ...prev,
-            ghost_records: prev.ghost_records.filter((r) => r.id !== songId),
-            summary: {
-              ...prev.summary,
-              ghost_count: prev.summary.ghost_count - 1,
-            },
-          }
+              ...prev,
+              ghost_records: prev.ghost_records.filter((r) => r.id !== songId),
+              summary: {
+                ...prev.summary,
+                ghost_count: prev.summary.ghost_count - 1,
+              },
+            }
           : null,
       );
     } catch {
@@ -165,59 +170,27 @@ export const LibraryAuditTab: React.FC = () => {
   };
 
   const recoverSong = async (song: IncompleteSong) => {
-    setReprocessingIds((prev) => new Set(prev).add(song.id));
-    try {
-      let res: Response;
-      if (song.video_id) {
-        // Re-download from YouTube and reprocess
-        res = await fetch(`/api/songs/${song.id}/replace-youtube`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            video_id: song.video_id,
-            title: song.title,
-            artist: song.artist,
-            engine_type: "demucs",
-          }),
-        });
-        if (!res.ok) throw new Error("Re-download failed");
-        toast.success("Re-download & reprocess job dispatched");
-      } else {
-        // original.mp3 exists, just reprocess
-        res = await fetch(`/api/songs/${song.id}/reprocess`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ engine_type: "demucs" }),
-        });
-        if (!res.ok) throw new Error("Reprocess failed");
-        toast.success("Reprocess job dispatched");
-      }
+    const succeeded = await recoverIncompleteSong({
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      videoId: song.video_id,
+    });
+    if (succeeded) {
       setAuditResult((prev) =>
         prev
           ? {
-            ...prev,
-            incomplete_songs: prev.incomplete_songs.filter((s) => s.id !== song.id),
-            summary: {
-              ...prev.summary,
-              incomplete_count: prev.summary.incomplete_count - 1,
-            },
-          }
+              ...prev,
+              incomplete_songs: prev.incomplete_songs.filter(
+                (s) => s.id !== song.id,
+              ),
+              summary: {
+                ...prev.summary,
+                incomplete_count: prev.summary.incomplete_count - 1,
+              },
+            }
           : null,
       );
-    } catch {
-      toast.error("Failed to dispatch recovery job");
-    } finally {
-      setReprocessingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(song.id);
-        return next;
-      });
     }
   };
 
@@ -244,15 +217,15 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-            ...prev,
-            orphaned_directories: prev.orphaned_directories.filter(
-              (d) => !selectedOrphans.has(d.dir_name),
-            ),
-            summary: {
-              ...prev.summary,
-              orphaned_count: prev.summary.orphaned_count - deleted,
-            },
-          }
+              ...prev,
+              orphaned_directories: prev.orphaned_directories.filter(
+                (d) => !selectedOrphans.has(d.dir_name),
+              ),
+              summary: {
+                ...prev.summary,
+                orphaned_count: prev.summary.orphaned_count - deleted,
+              },
+            }
           : null,
       );
       setSelectedOrphans(new Set());
@@ -286,15 +259,15 @@ export const LibraryAuditTab: React.FC = () => {
       setAuditResult((prev) =>
         prev
           ? {
-            ...prev,
-            ghost_records: prev.ghost_records.filter(
-              (r) => !selectedGhosts.has(r.id),
-            ),
-            summary: {
-              ...prev.summary,
-              ghost_count: prev.summary.ghost_count - deleted,
-            },
-          }
+              ...prev,
+              ghost_records: prev.ghost_records.filter(
+                (r) => !selectedGhosts.has(r.id),
+              ),
+              summary: {
+                ...prev.summary,
+                ghost_count: prev.summary.ghost_count - deleted,
+              },
+            }
           : null,
       );
       setSelectedGhosts(new Set());
@@ -356,14 +329,20 @@ export const LibraryAuditTab: React.FC = () => {
           </span>
           <span>·</span>
           <span
-            className={summary.ghost_count > 0 ? "font-medium text-red-500" : ""}
+            className={
+              summary.ghost_count > 0
+                ? "font-medium text-destructive-strong"
+                : ""
+            }
           >
             {summary.ghost_count} ghost records
           </span>
           <span>·</span>
           <span
             className={
-              summary.incomplete_count > 0 ? "font-medium text-yellow-500" : ""
+              summary.incomplete_count > 0
+                ? "font-medium text-warning-strong"
+                : ""
             }
           >
             {summary.incomplete_count} incomplete
@@ -395,7 +374,10 @@ export const LibraryAuditTab: React.FC = () => {
                 }}
                 aria-label="Select all orphaned directories"
               />
-              <Badge variant="outline" className="border-orange-500 text-orange-500">
+              <Badge
+                variant="outline"
+                className="border-orange-500 text-orange-500"
+              >
                 {orphaned_directories.length}
               </Badge>
               Orphaned Directories
@@ -419,9 +401,14 @@ export const LibraryAuditTab: React.FC = () => {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {selectedOrphans.size} orphaned director{selectedOrphans.size !== 1 ? "ies" : "y"}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Delete {selectedOrphans.size} orphaned director
+                      {selectedOrphans.size !== 1 ? "ies" : "y"}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete {selectedOrphans.size} director{selectedOrphans.size !== 1 ? "ies" : "y"} and all their files from disk. This action cannot be undone.
+                      This will permanently delete {selectedOrphans.size}{" "}
+                      director{selectedOrphans.size !== 1 ? "ies" : "y"} and all
+                      their files from disk. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -459,8 +446,8 @@ export const LibraryAuditTab: React.FC = () => {
                   <div>
                     <p className="font-mono text-sm">{dir.dir_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {dir.files.length} file{dir.files.length !== 1 ? "s" : ""} ·{" "}
-                      {formatBytes(dir.total_size_bytes)}
+                      {dir.files.length} file{dir.files.length !== 1 ? "s" : ""}{" "}
+                      · {formatBytes(dir.total_size_bytes)}
                     </p>
                   </div>
                 </div>
@@ -501,7 +488,10 @@ export const LibraryAuditTab: React.FC = () => {
                 }}
                 aria-label="Select all ghost records"
               />
-              <Badge variant="outline" className="border-red-500 text-red-500">
+              <Badge
+                variant="outline"
+                className="border-destructive/50 text-destructive-strong"
+              >
                 {ghost_records.length}
               </Badge>
               Ghost Records
@@ -525,9 +515,14 @@ export const LibraryAuditTab: React.FC = () => {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {selectedGhosts.size} ghost record{selectedGhosts.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Delete {selectedGhosts.size} ghost record
+                      {selectedGhosts.size !== 1 ? "s" : ""}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently remove {selectedGhosts.size} database record{selectedGhosts.size !== 1 ? "s" : ""} with no files on disk. This action cannot be undone.
+                      This will permanently remove {selectedGhosts.size}{" "}
+                      database record{selectedGhosts.size !== 1 ? "s" : ""} with
+                      no files on disk. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -564,7 +559,9 @@ export const LibraryAuditTab: React.FC = () => {
                   />
                   <div>
                     <p className="text-sm font-medium">{record.title}</p>
-                    <p className="text-xs text-muted-foreground">{record.artist}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {record.artist}
+                    </p>
                   </div>
                 </div>
                 <Button
@@ -586,7 +583,10 @@ export const LibraryAuditTab: React.FC = () => {
       {incomplete_songs.length > 0 && (
         <section className="space-y-2">
           <h3 className="flex items-center gap-2 font-medium">
-            <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+            <Badge
+              variant="outline"
+              className="border-warning/50 text-warning-strong"
+            >
               {incomplete_songs.length}
             </Badge>
             Incomplete Songs
@@ -620,11 +620,11 @@ export const LibraryAuditTab: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={reprocessingIds.has(song.id)}
+                      disabled={isRecovering(song.id)}
                       onClick={() => recoverSong(song)}
                     >
                       <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                      {reprocessingIds.has(song.id)
+                      {isRecovering(song.id)
                         ? "Dispatching..."
                         : song.video_id && !song.has_original
                           ? "Re-download & Reprocess"

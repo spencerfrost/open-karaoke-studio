@@ -5,9 +5,7 @@ def test_get_host_settings_creates_defaults(client):
     """GET /api/host-settings returns defaults when no settings exist."""
     resp = client.get("/api/host-settings")
     assert resp.status_code == 200
-    data = resp.json()
-    assert "queue_submission_mode" in data
-    assert "queue_open" in data
+    assert "session_duration_hours" in resp.json()
 
 
 def test_get_host_settings_idempotent(client):
@@ -16,31 +14,7 @@ def test_get_host_settings_idempotent(client):
     r2 = client.get("/api/host-settings")
     assert r1.status_code == 200
     assert r2.status_code == 200
-    assert r1.json()["queue_open"] == r2.json()["queue_open"]
-
-
-def test_update_host_settings_queue_open(client):
-    """PUT /api/host-settings can toggle queue_open."""
-    resp = client.put("/api/host-settings", json={"queue_open": False})
-    assert resp.status_code == 200
-    assert resp.json()["queue_open"] is False
-
-    resp2 = client.put("/api/host-settings", json={"queue_open": True})
-    assert resp2.status_code == 200
-    assert resp2.json()["queue_open"] is True
-
-
-def test_update_host_settings_max_songs(client):
-    """PUT /api/host-settings can change max_songs_per_singer."""
-    resp = client.put("/api/host-settings", json={"max_songs_per_singer": 3})
-    assert resp.status_code == 200
-    assert resp.json()["max_songs_per_singer"] == 3
-
-
-def test_update_host_settings_queue_submission_mode(client):
-    """PUT /api/host-settings can change queue_submission_mode."""
-    resp = client.put("/api/host-settings", json={"queue_submission_mode": "approval"})
-    assert resp.status_code == 200
+    assert r1.json()["session_duration_hours"] == r2.json()["session_duration_hours"]
 
 
 def test_update_host_settings_session_duration(client):
@@ -50,12 +24,23 @@ def test_update_host_settings_session_duration(client):
     assert resp.json()["session_duration_hours"] == 4
 
 
-def test_update_host_settings_partial_update(client):
-    """PUT with only some fields leaves others unchanged."""
-    # Set a known state
-    client.put("/api/host-settings", json={"max_songs_per_singer": 5, "queue_open": True})
-    # Update only one field
-    resp = client.put("/api/host-settings", json={"queue_open": False})
+def test_update_host_settings_empty_body_leaves_value_unchanged(client):
+    """PUT with no fields set is a no-op rather than a reset."""
+    client.put("/api/host-settings", json={"session_duration_hours": 6})
+    resp = client.put("/api/host-settings", json={})
     assert resp.status_code == 200
-    assert resp.json()["max_songs_per_singer"] == 5
-    assert resp.json()["queue_open"] is False
+    assert resp.json()["session_duration_hours"] == 6
+
+
+def test_update_host_settings_rejects_out_of_range_duration(client):
+    """session_duration_hours is bounded to (0, 24]."""
+    assert (
+        client.put("/api/host-settings", json={"session_duration_hours": 0}).status_code
+        == 422
+    )
+    assert (
+        client.put(
+            "/api/host-settings", json={"session_duration_hours": 25}
+        ).status_code
+        == 422
+    )

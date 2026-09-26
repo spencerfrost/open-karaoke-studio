@@ -4,6 +4,7 @@ Pytest configuration and shared fixtures for Open Karaoke Studio backend tests.
 This conftest provides FastAPI test fixtures after the Flask to FastAPI migration.
 """
 
+import os
 import random
 import sys
 import tempfile
@@ -15,16 +16,54 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+# Point the app's global engine at a throwaway SQLite file BEFORE any app
+# module is imported: app/db/database.py builds its engine from
+# config.DATABASE_URL at import time, and code that uses SessionLocal or
+# get_db_session() directly (jobs, repositories, several API modules) bypasses
+# FastAPI dependency overrides entirely. Without this, those paths write to
+# the real development database.
+_TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="okstudio-tests-", suffix=".db")
+os.close(_TEST_DB_FD)
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
+
 # Add the backend path for imports
 backend_path = str(Path(__file__).parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
 
+from app.db.database import engine as _global_engine
 from app.db.models import Base, DbSong
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from tests.fixtures.test_data import create_test_db_song, create_test_song
+
+# Alembic manages the real schema, but the throwaway test database needs its
+# tables created directly.
+Base.metadata.create_all(_global_engine)
+
+
+@pytest.fixture(autouse=True)
+def _clean_global_db():
+    """Truncate the global engine's tables after each test.
+
+    Covers any code path that wrote through SessionLocal/get_db_session
+    instead of an overridden get_db dependency.
+    """
+    yield
+    with _global_engine.connect() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
+        conn.commit()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Remove the throwaway test database file (and SQLite sidecars)."""
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            os.unlink(_TEST_DB_PATH + suffix)
+        except FileNotFoundError:
+            pass
 
 
 @pytest.fixture(scope="function")
@@ -41,7 +80,7 @@ def test_db_session():
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
-    
+
     # Begin a transaction
     connection = engine.connect()
     transaction = connection.begin()
@@ -107,7 +146,6 @@ def create_test_app():
         host_settings_router,
         jobs_router,
         lyrics_router,
-        metadata_router,
         performance_history_router,
         queue_router,
         sessions_router,
@@ -116,14 +154,13 @@ def create_test_app():
         youtube_music_router,
         youtube_router,
     )
-    from fastapi import WebSocket
-    from fastapi.middleware.cors import CORSMiddleware
-
     from app.ws import (
         SessionConnectionManager,
         websocket_jobs_endpoint,
         websocket_unified_session_endpoint,
     )
+    from fastapi import WebSocket
+    from fastapi.middleware.cors import CORSMiddleware
 
     test_app = FastAPI(
         title="Open Karaoke Studio API (Test)",
@@ -150,7 +187,6 @@ def create_test_app():
     test_app.include_router(queue_router)
     test_app.include_router(youtube_router)
     test_app.include_router(youtube_music_router)
-    test_app.include_router(metadata_router)
     test_app.include_router(lyrics_router)
     test_app.include_router(users_router)
     test_app.include_router(performance_history_router)
@@ -161,13 +197,12 @@ def create_test_app():
     async def jobs_ws(websocket: WebSocket):
         await websocket_jobs_endpoint(websocket, manager)
 
+    # Must mirror the production registration in app/main.py exactly - this route
+    # previously declared a device_id query param that main.py did not, which hid a
+    # production bug from every test.
     @test_app.websocket("/ws/session/{session_id}")
-    async def unified_session_ws(
-        websocket: WebSocket,
-        session_id: str,
-        device_id: Optional[str] = None,
-    ):
-        await websocket_unified_session_endpoint(websocket, session_id, manager, device_id)
+    async def unified_session_ws(websocket: WebSocket, session_id: str):
+        await websocket_unified_session_endpoint(websocket, session_id, manager)
 
     # Root endpoint for testing
     @test_app.get("/")
@@ -182,7 +217,6 @@ def create_test_app():
                 "queue": "/api/karaoke-queue",
                 "youtube": "/api/youtube",
                 "youtube_music": "/api/youtube-music",
-                "metadata": "/api/metadata",
                 "lyrics": "/api/lyrics",
                 "users": "/api/users",
             },
@@ -226,7 +260,7 @@ def db_session():
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
-    
+
     # Begin a transaction
     connection = engine.connect()
     transaction = connection.begin()
@@ -328,14 +362,6 @@ def mock_audio_service():
     service = Mock()
     service.separate_audio.return_value = {}
     return service
-
-
-@pytest.fixture(scope="function", autouse=True)
-def apply_test_config(monkeypatch):
-    """
-    Apply test configuration before any application modules are imported.
-    """
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
 
 
 @pytest.fixture

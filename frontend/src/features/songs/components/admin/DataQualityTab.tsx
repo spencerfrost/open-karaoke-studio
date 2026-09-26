@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { Clock, ShieldAlert } from "lucide-react";
+import { Clock, Mic, ShieldAlert } from "lucide-react";
 import { SongActionPanel } from "./SongActionPanel";
 import { Song } from "@/types/Song";
 
@@ -38,7 +38,7 @@ interface MetadataAuditResult {
 }
 
 const SEVERITY_BADGE_CLASS: Record<Severity, string> = {
-  error: "border-red-500 text-red-500",
+  error: "border-destructive/50 text-destructive-strong",
   warning: "border-amber-500 text-amber-500",
   info: "border-muted-foreground/50 text-muted-foreground",
 };
@@ -47,6 +47,7 @@ export const DataQualityTab: React.FC = () => {
   const { token } = useAuthStore();
   const [result, setResult] = useState<MetadataAuditResult | null>(null);
   const [expandedSongId, setExpandedSongId] = useState<string | null>(null);
+  const [selectedIssueTypes, setSelectedIssueTypes] = useState<string[]>([]);
 
   const scanMutation = useMutation({
     mutationFn: async () => {
@@ -59,6 +60,7 @@ export const DataQualityTab: React.FC = () => {
     onSuccess: (data) => {
       setResult(data);
       setExpandedSongId(null);
+      setSelectedIssueTypes([]);
       logger.info("Data quality scan complete", {
         scanned: data.total_songs_scanned,
         flagged: data.total_flagged,
@@ -84,9 +86,29 @@ export const DataQualityTab: React.FC = () => {
       return res.json() as Promise<{ taskId: string; queued: number }>;
     },
     onSuccess: (data) => {
-      toast.success(`Queued duration backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`);
+      toast.success(
+        `Queued duration backfill for ${data.queued} song${data.queued !== 1 ? "s" : ""}`,
+      );
     },
     onError: () => toast.error("Failed to queue duration backfill"),
+  });
+
+  const backfillVocalRangeMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const res = await fetch(`/api/songs/backfill-vocal-range?mode=${mode}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to queue vocal range backfill");
+      return res.json() as Promise<{ taskId: string; queued: number }>;
+    },
+    onSuccess: (data) => {
+      logger.info("Vocal range backfill queued", data);
+      toast.success(
+        `Queued vocal range detection for ${data.queued} song${data.queued !== 1 ? "s" : ""}`,
+      );
+    },
+    onError: () => toast.error("Failed to queue vocal range backfill"),
   });
 
   const handleDone = () => {
@@ -109,6 +131,58 @@ export const DataQualityTab: React.FC = () => {
       (n, s) => n + s.issues.filter((i) => i.severity === "info").length,
       0,
     ) ?? 0;
+
+  const availableIssueFilters = useMemo(() => {
+    if (!result) {
+      return [] as Array<MetadataIssue & { count: number }>;
+    }
+
+    const issuesByType = new Map<string, MetadataIssue & { count: number }>();
+
+    result.flagged_songs.forEach((song) => {
+      song.issues.forEach((issue) => {
+        const existing = issuesByType.get(issue.type);
+        if (existing) {
+          existing.count += 1;
+          return;
+        }
+
+        issuesByType.set(issue.type, { ...issue, count: 1 });
+      });
+    });
+
+    return Array.from(issuesByType.values()).sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+  }, [result]);
+
+  const filteredSongs = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    if (selectedIssueTypes.length === 0) {
+      return result.flagged_songs;
+    }
+
+    const selectedTypes = new Set(selectedIssueTypes);
+    return result.flagged_songs.filter((song) =>
+      song.issues.some((issue) => selectedTypes.has(issue.type)),
+    );
+  }, [result, selectedIssueTypes]);
+
+  const toggleIssueFilter = (issueType: string) => {
+    setExpandedSongId(null);
+    setSelectedIssueTypes((current) =>
+      current.includes(issueType)
+        ? current.filter((type) => type !== issueType)
+        : [...current, issueType],
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -140,7 +214,7 @@ export const DataQualityTab: React.FC = () => {
           {errorCount > 0 && (
             <>
               <span>·</span>
-              <span className="font-medium text-red-500">
+              <span className="font-medium text-destructive-strong">
                 {errorCount} error{errorCount !== 1 ? "s" : ""}
               </span>
             </>
@@ -162,52 +236,106 @@ export const DataQualityTab: React.FC = () => {
         </div>
       )}
 
+      {result && availableIssueFilters.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">Filter Results</p>
+            {selectedIssueTypes.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs"
+                onClick={() => {
+                  setExpandedSongId(null);
+                  setSelectedIssueTypes([]);
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableIssueFilters.map((issue) => {
+              const isActive = selectedIssueTypes.includes(issue.type);
+
+              return (
+                <button
+                  key={issue.type}
+                  type="button"
+                  className="rounded-full"
+                  onClick={() => toggleIssueFilter(issue.type)}
+                >
+                  <Badge
+                    variant="outline"
+                    className={`text-xs transition-colors ${SEVERITY_BADGE_CLASS[issue.severity]} ${
+                      isActive ? "bg-muted" : "opacity-70"
+                    }`}
+                  >
+                    {issue.label} ({issue.count})
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Results list */}
       {result && result.flagged_songs.length > 0 && (
         <div className="divide-y rounded-lg border">
-          {result.flagged_songs.map((flaggedSong) => (
-            <div key={flaggedSong.id}>
-              <button
-                type="button"
-                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
-                onClick={() =>
-                  setExpandedSongId((prev) =>
-                    prev === flaggedSong.id ? null : flaggedSong.id,
-                  )
-                }
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {flaggedSong.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {flaggedSong.artist}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1 ml-4 shrink-0 justify-end">
-                  {flaggedSong.issues.map((issue) => (
-                    <Badge
-                      key={issue.type}
-                      variant="outline"
-                      className={`text-xs ${SEVERITY_BADGE_CLASS[issue.severity]}`}
-                    >
-                      {issue.label}
-                    </Badge>
-                  ))}
-                </div>
-              </button>
+          {filteredSongs.length > 0 ? (
+            filteredSongs.map((flaggedSong) => (
+              <div key={flaggedSong.id}>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+                  onClick={() =>
+                    setExpandedSongId((prev) =>
+                      prev === flaggedSong.id ? null : flaggedSong.id,
+                    )
+                  }
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {flaggedSong.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {flaggedSong.artist}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1 ml-4 shrink-0 justify-end">
+                    {flaggedSong.issues.map((issue) => (
+                      <Badge
+                        key={issue.type}
+                        variant="outline"
+                        className={`text-xs ${SEVERITY_BADGE_CLASS[issue.severity]}`}
+                      >
+                        {issue.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </button>
 
-              {expandedSongId === flaggedSong.id && (
-                <div className="border-t bg-muted/20 p-4">
-                  <SongActionPanel
-                    song={flaggedSong as unknown as Song}
-                    issues={flaggedSong.issues.map((i) => i.type)}
-                    onDone={handleDone}
-                  />
-                </div>
-              )}
+                {expandedSongId === flaggedSong.id && (
+                  <div className="border-t bg-muted/20 p-4">
+                    <SongActionPanel
+                      song={flaggedSong as unknown as Song}
+                      issues={flaggedSong.issues.map((i) => i.type)}
+                      onDone={handleDone}
+                    />
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="py-12 text-center text-muted-foreground">
+              <p className="font-medium">No matching results</p>
+              <p className="text-sm">
+                Try a different issue filter or clear the current selection.
+              </p>
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -247,7 +375,8 @@ export const DataQualityTab: React.FC = () => {
             disabled={backfillDurationMutation.isPending}
           >
             <Clock className="mr-2 h-4 w-4" />
-            {backfillDurationMutation.variables === "missing" && backfillDurationMutation.isPending
+            {backfillDurationMutation.variables === "missing" &&
+            backfillDurationMutation.isPending
               ? "Queueing..."
               : "Backfill Missing"}
           </Button>
@@ -257,7 +386,43 @@ export const DataQualityTab: React.FC = () => {
             disabled={backfillDurationMutation.isPending}
           >
             <Clock className="mr-2 h-4 w-4" />
-            {backfillDurationMutation.variables === "all" && backfillDurationMutation.isPending
+            {backfillDurationMutation.variables === "all" &&
+            backfillDurationMutation.isPending
+              ? "Queueing..."
+              : "Refresh All"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Vocal Range Backfill */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Vocal Range</h2>
+          <p className="text-sm text-muted-foreground">
+            Detect the lowest and highest sung note from each song&apos;s vocals
+            track. Runs in the background at about 10–30 seconds per song.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => backfillVocalRangeMutation.mutate("missing")}
+            disabled={backfillVocalRangeMutation.isPending}
+          >
+            <Mic className="mr-2 h-4 w-4" />
+            {backfillVocalRangeMutation.variables === "missing" &&
+            backfillVocalRangeMutation.isPending
+              ? "Queueing..."
+              : "Backfill Missing"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => backfillVocalRangeMutation.mutate("all")}
+            disabled={backfillVocalRangeMutation.isPending}
+          >
+            <Mic className="mr-2 h-4 w-4" />
+            {backfillVocalRangeMutation.variables === "all" &&
+            backfillVocalRangeMutation.isPending
               ? "Queueing..."
               : "Refresh All"}
           </Button>

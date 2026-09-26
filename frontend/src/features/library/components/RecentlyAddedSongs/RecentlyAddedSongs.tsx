@@ -15,8 +15,8 @@ interface RecentlyAddedSongsProps {
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   maxSongs = 48,
 }) => {
-  const { isHost } = useSessionStore();
-  const CardComponent = isHost ? SongCard : PerformerSongCard;
+  const { isStageDevice } = useSessionStore();
+  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
   const { useSongs } = useSongsHook();
   const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,
@@ -40,14 +40,6 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
 
   return (
     <div className="mb-8 w-full">
-      {/* Section Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-xl font-semibold text-orange-peel">
-          Recently Added
-        </span>
-        <span className="text-sm text-lemon-chiffon/60">{songs.length} songs</span>
-      </div>
-
       {/* Horizontally scrollable row — scrollbar hidden on mobile, visible on md+ */}
       <div
         className={[
@@ -56,7 +48,7 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
           "[&::-webkit-scrollbar]:hidden md:[&::-webkit-scrollbar]:block",
           // Scrollbar height and track
           "md:[&::-webkit-scrollbar]:h-1.5",
-          "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-white/10",
+          "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-glass/10",
           // Scrollbar thumb
           "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-orange-peel/40",
           "md:hover:[&::-webkit-scrollbar-thumb]:bg-orange-peel/70",

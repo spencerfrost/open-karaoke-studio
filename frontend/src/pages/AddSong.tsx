@@ -11,13 +11,7 @@ const AddSongPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <SessionInfoDisplay
-        variant="code"
-        colorScheme="page"
-        trigger="hover"
-        visibility="host-only"
-        className="absolute top-2 right-3 z-30"
-      />
+      <SessionInfoDisplay className="absolute top-2 right-3 z-30" />
       <div className="md:p-6 space-y-6 container mx-auto">
         <SongSearchContainer
           initialQuery={initialQuery}

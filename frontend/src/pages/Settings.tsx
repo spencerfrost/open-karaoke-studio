@@ -1,6 +1,7 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
+import { AccountCard, RotationModeCard } from "@/features/session";
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API
@@ -46,6 +47,9 @@ const SettingsPage: React.FC = () => {
         <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
           Settings
         </h1>
+
+        <AccountCard />
+        <RotationModeCard />
 
         {/* Theme Settings */}
         <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
@@ -237,6 +241,19 @@ const SettingsPage: React.FC = () => {
                 checked={settings.display.showProgress}
                 onChange={(e) =>
                   handleDisplayChange("showProgress", e.target.checked)
+                }
+                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+              />
+            </div>
+            <div>
+              <label className="block mb-1">
+                Preview Songs on Hover in Library
+              </label>
+              <input
+                type="checkbox"
+                checked={settings.display.songPreviewsEnabled ?? true}
+                onChange={(e) =>
+                  handleDisplayChange("songPreviewsEnabled", e.target.checked)
                 }
                 className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
               />

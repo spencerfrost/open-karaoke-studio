@@ -46,7 +46,7 @@ export const ArtistResultCard: React.FC<ArtistResultCardProps> = ({
           {/* Artist Info */}
           <div className="flex-1 min-w-0">
             <h3
-              className="font-semibold text-foreground line-clamp-1 text-sm sm:text-base"
+              className="font-semibold text-card-foreground line-clamp-1 text-sm sm:text-base"
               title={result.name}
             >
               {result.name}

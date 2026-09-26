@@ -17,6 +17,25 @@ export const formatTime = (
 };
 
 /**
+ * Parse a "h:mm:ss" / "mm:ss" / "ss" duration string into seconds.
+ * Returns 0 for unparseable input. Inverse of formatTime.
+ */
+export const parseDurationToSeconds = (duration: string): number => {
+  const parts = duration.split(":").map(Number);
+  // A negative component means the string was malformed (e.g. a stray leading
+  // minus); fail safe to 0 rather than emit a negative duration downstream.
+  if (parts.some((part) => Number.isNaN(part) || part < 0)) return 0;
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    return parts[0];
+  }
+  return 0;
+};
+
+/**
  * Format a date string to a readable format
  */
 export const formatDate = (dateString: string): string => {

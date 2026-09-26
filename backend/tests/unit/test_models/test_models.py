@@ -42,6 +42,7 @@ class TestDbSong:
             duration=180.5,
             source="youtube",
             video_id="abc123",
+            status="processing",
         )
 
         # Act

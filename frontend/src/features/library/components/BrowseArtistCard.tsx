@@ -1,7 +1,7 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Music, ArrowRight } from "lucide-react";
+import { useOpenAddSong } from "@/hooks/useOpenAddSong";
 
 interface BrowseArtistCardProps {
   artistName: string;
@@ -10,10 +10,10 @@ interface BrowseArtistCardProps {
 export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
   artistName,
 }) => {
-  const navigate = useNavigate();
+  const openAddSong = useOpenAddSong();
 
   const handleClick = () => {
-    navigate(`/add?q=${encodeURIComponent(artistName)}&browseArtist=true`);
+    openAddSong({ query: artistName, browseArtist: true });
   };
 
   return (

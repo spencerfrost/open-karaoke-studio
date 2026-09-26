@@ -1,5 +1,9 @@
 """Extended integration tests for songs API — covers routes not in test_songs_api.py."""
+
 import uuid
+
+from app.db.models import DbSong
+from tests.integration.conftest import _TestingSessionLocal
 
 
 def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):
@@ -64,6 +68,16 @@ def test_get_artists_first_letter(client):
     assert zeppelin["firstLetter"] == "Z"
 
 
+def test_get_artists_files_by_name_without_article(client):
+    band = f"The Wheelwrights {uuid.uuid4().hex[:6]}"
+    _create_song(client, title="Track", artist=band)
+    response = client.get(f"/api/songs/artists?search={band}")
+    assert response.status_code == 200
+    artist = next(a for a in response.json()["artists"] if a["name"] == band)
+    assert artist["firstLetter"] == "W"
+    assert artist["sortName"].startswith("wheelwrights")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GET /api/songs/by-artist/{artist_name}
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,23 +135,6 @@ def test_search_songs_with_limit(client):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GET /api/songs/{song_id}/chords
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def test_get_chords_song_not_found(client):
-    response = client.get(f"/api/songs/{uuid.uuid4()}/chords")
-    assert response.status_code == 404
-
-
-def test_get_chords_no_chord_data(client):
-    song = _create_song(client, title="No Chords Song", artist="Chordless")
-    response = client.get(f"/api/songs/{song['id']}/chords")
-    # Song exists but has no chord data
-    assert response.status_code == 404
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # PATCH /api/songs/{song_id} — with lyrics update
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -151,6 +148,23 @@ def test_update_song_with_plain_lyrics(client):
     assert resp.status_code == 200
 
 
+def test_update_song_with_plain_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Lyrics Song", artist="Lyrical")
+    with _TestingSessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"plainLyrics": "Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
+
+
 def test_update_song_with_synced_lyrics(client):
     song = _create_song(client, title="Synced Song", artist="SyncedArtist")
     resp = client.patch(
@@ -158,6 +172,23 @@ def test_update_song_with_synced_lyrics(client):
         json={"syncedLyrics": "[00:00.06] Is this the real life?"},
     )
     assert resp.status_code == 200
+
+
+def test_update_song_with_synced_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Synced Song", artist="SyncedArtist")
+    with _TestingSessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"syncedLyrics": "[00:00.06] Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
 
 
 def test_update_song_clear_lyrics(client):
@@ -205,6 +236,24 @@ def test_download_track_missing_file(client):
     song = _create_song(client, title="Track Missing", artist="NoFiles")
     response = client.get(f"/api/songs/{song['id']}/download/vocals")
     # Song dir exists (created by POST) but vocals file doesn't
+    assert response.status_code == 404
+
+
+def test_download_track_is_public(unauthenticated_client):
+    """The download route must be reachable without an Authorization header.
+
+    <audio> elements cannot send one, so this endpoint is deliberately public.
+    A 401 here would mean HTTPBearer rejected the request before the handler
+    ran — i.e. the auth dependency crept back in.
+    """
+    # Invalid track type → the handler's own 400, not an auth 401
+    response = unauthenticated_client.get(f"/api/songs/{uuid.uuid4()}/download/kazoo")
+    assert response.status_code == 400
+
+    # Valid track type on a missing song → the handler's own 404
+    response = unauthenticated_client.get(
+        f"/api/songs/{uuid.uuid4()}/download/original"
+    )
     assert response.status_code == 404
 
 

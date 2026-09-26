@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import LyricsCard from "@/features/lyrics/components/LyricsCard";
 import type { LyricsOption } from "@/hooks/api/useLyrics";
+import { parseDurationToSeconds } from "@/utils/formatters";
 
 type LyricsResultsProps =
   | ({
@@ -43,19 +44,6 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
   youtubeMusicDurationSeconds,
   duration,
 }) => {
-  // Helper function to parse duration string to seconds
-  const parseYoutubeMusicDuration = (duration: string): number => {
-    const parts = duration.split(":").map(Number);
-    if (parts.length === 3) {
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    } else if (parts.length === 2) {
-      return parts[0] * 60 + parts[1];
-    } else if (parts.length === 1) {
-      return parts[0];
-    }
-    return 0;
-  };
-
   function getParsedDuration(
     youtubeDurationSeconds?: number,
     youtubeMusicDurationSeconds?: string,
@@ -65,7 +53,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
       return youtubeDurationSeconds;
     }
     if (youtubeMusicDurationSeconds !== undefined) {
-      return parseYoutubeMusicDuration(youtubeMusicDurationSeconds);
+      return parseDurationToSeconds(youtubeMusicDurationSeconds);
     }
     if (duration !== undefined) {
       return duration; // Already in seconds

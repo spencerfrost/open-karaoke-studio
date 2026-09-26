@@ -28,16 +28,18 @@ def _get_secret_key() -> str:
     if not key:
         key = secrets.token_urlsafe(64)
         os.environ["JWT_SECRET_KEY"] = key
-        logger.warning(
+        logger.error(
             "JWT_SECRET_KEY not set — generated a random key. "
             "Set JWT_SECRET_KEY in your .env for stable tokens across restarts."
         )
     return key
 
 
-def create_access_token(user: User) -> str:
+def create_access_token(user: User, expires_minutes: Optional[int] = None) -> str:
     """Generate a JWT access token for the given user."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_minutes is None:
+        expires_minutes = ACCESS_TOKEN_EXPIRE_MINUTES
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     payload = {
         "sub": str(user.id),
         "username": user.username,
@@ -54,7 +56,7 @@ def verify_token(token: str) -> Optional[dict]:
         payload = jwt.decode(token, _get_secret_key(), algorithms=[ALGORITHM])
         return payload
     except JWTError as e:
-        logger.warning("JWT verification failed: %s (token prefix: %s...)", e, token[:20] if token else "empty")
+        logger.warning("JWT verification failed: %s", e)
         return None
 
 

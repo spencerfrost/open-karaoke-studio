@@ -63,6 +63,13 @@ export function toggleVolume(
 }
 
 /**
+ * Lyrics offset in milliseconds as a signed readout in seconds: "+0.3s", "-1.2s".
+ */
+export function formatLyricsOffset(offsetMs: number): string {
+  return `${offsetMs > 0 ? "+" : ""}${(offsetMs / 1000).toFixed(1)}s`;
+}
+
+/**
  * Get timing offset description
  */
 export function getTimingOffsetDescription(offset: number): string {

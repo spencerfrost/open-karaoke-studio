@@ -8,10 +8,9 @@ Queue management is handled through the unified session WebSocket endpoint.
 import logging
 
 from app.db.database import get_db_session
-from app.db.models.queue import KaraokeQueueItem
 from app.db.models.session import SessionPlaybackState
-from app.db.models.song import DbSong
-from sqlalchemy.orm import joinedload, subqueryload
+from app.services.queue_ordering import get_ordered_queue_items
+from app.services.turn_service import compute_turn, serialize_turn
 
 from .connection_manager import SessionConnectionManager
 
@@ -25,19 +24,10 @@ async def get_current_queue_state(session_id: str):
     """
     try:
         with get_db_session() as session:
-            # Get queue items with song data for the specific session
-            queue_items = (
-                session.query(KaraokeQueueItem)
-                .filter(KaraokeQueueItem.session_id == session_id)
-                .options(
-                    joinedload(KaraokeQueueItem.song).options(
-                        subqueryload(DbSong.lyrics),
-                        joinedload(DbSong.album_rel),
-                    )
-                )
-                .order_by(KaraokeQueueItem.position, KaraokeQueueItem.id)
-                .all()
-            )
+            # Get queue items with song data for the specific session, ordered per
+            # the session's queue_order_mode - same sort REST uses, from the same
+            # queue_ordering service, so the two paths cannot drift again.
+            queue_items = get_ordered_queue_items(session, session_id)
 
             playback_state = (
                 session.query(SessionPlaybackState)
@@ -57,49 +47,18 @@ async def get_current_queue_state(session_id: str):
                     current_item = candidate
 
             # Format data for frontend
-            pending_data = []
-            for item in queue_items:
-                if item.status == "pending" and item.song:
-                    pending_data.append({
-                        "id": item.id,
-                        "songId": item.song_id,
-                        "singer": item.singer_name,
-                        "position": item.position,
-                        "status": "pending",
-                        "addedAt": item.created_at.isoformat() if hasattr(item, "created_at") and item.created_at else None,
-                        "song": {
-                            "id": item.song.id,
-                            "title": item.song.title,
-                            "artist": item.song.artist,
-                            "album": item.song.album,
-                            "duration": item.song.duration,
-                            "coverArt": (
-                                f"/api/albums/{item.song.album_id}/cover"
-                                if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
-                                else f"/api/songs/{item.song.id}/thumbnail"
-                                if item.song.thumbnail_path
-                                else None
-                            ),
-                        },
-                    })
-
-            active_queue_items = [item for item in queue_items if item.status != "pending"]
-
             upcoming_data = []
             for idx, item in enumerate(
                 [
                     item
-                    for item in active_queue_items
+                    for item in queue_items
                     if item.song
                     and (current_item is None or item.id != current_item.id)
                 ],
                 start=1,
             ):
                 if item.song:  # Ensure song exists
-                    # Handle potential null timestamps gracefully
-                    added_at = None
-                    if hasattr(item, "created_at") and item.created_at:
-                        added_at = item.created_at.isoformat()
+                    added_at = item.created_at.isoformat() if item.created_at else None
 
                     upcoming_data.append(
                         {
@@ -107,6 +66,7 @@ async def get_current_queue_state(session_id: str):
                             "songId": item.song_id,
                             "singer": item.singer_name,
                             "position": idx,
+                            "lap": item.lap,
                             "addedAt": added_at,
                             "song": {
                                 "id": item.song.id,
@@ -116,32 +76,35 @@ async def get_current_queue_state(session_id: str):
                                 "duration": item.song.duration,
                                 "coverArt": (
                                     f"/api/albums/{item.song.album_id}/cover"
-                                    if item.song.album_id and item.song.album_rel and item.song.album_rel.cover_path
-                                    else f"/api/songs/{item.song.id}/thumbnail"
-                                    if item.song.thumbnail_path
-                                    else None
+                                    if item.song.album_id
+                                    and item.song.album_rel
+                                    and item.song.album_rel.cover_path
+                                    else (
+                                        f"/api/songs/{item.song.id}/thumbnail"
+                                        if item.song.thumbnail_path
+                                        else None
+                                    )
                                 ),
-                                "syncedLyrics": item.song._get_active_lyrics_content(
-                                    "synced"
-                                ),
-                                "plainLyrics": item.song._get_active_lyrics_content(
-                                    "plain"
-                                ),
+                                "syncedLyrics": item.song.synced_lyrics,
+                                "plainLyrics": item.song.plain_lyrics,
                             },
                         }
                     )
 
             current_data = None
             if current_item and current_item.song:
-                added_at = None
-                if hasattr(current_item, "created_at") and current_item.created_at:
-                    added_at = current_item.created_at.isoformat()
+                added_at = (
+                    current_item.created_at.isoformat()
+                    if current_item.created_at
+                    else None
+                )
 
                 current_data = {
                     "id": current_item.id,
                     "songId": current_item.song_id,
                     "singer": current_item.singer_name,
                     "position": 0,
+                    "lap": current_item.lap,
                     "addedAt": added_at,
                     "song": {
                         "id": current_item.song.id,
@@ -151,17 +114,17 @@ async def get_current_queue_state(session_id: str):
                         "duration": current_item.song.duration,
                         "coverArt": (
                             f"/api/albums/{current_item.song.album_id}/cover"
-                            if current_item.song.album_id and current_item.song.album_rel and current_item.song.album_rel.cover_path
-                            else f"/api/songs/{current_item.song.id}/thumbnail"
-                            if current_item.song.thumbnail_path
-                            else None
+                            if current_item.song.album_id
+                            and current_item.song.album_rel
+                            and current_item.song.album_rel.cover_path
+                            else (
+                                f"/api/songs/{current_item.song.id}/thumbnail"
+                                if current_item.song.thumbnail_path
+                                else None
+                            )
                         ),
-                        "syncedLyrics": current_item.song._get_active_lyrics_content(
-                            "synced"
-                        ),
-                        "plainLyrics": current_item.song._get_active_lyrics_content(
-                            "plain"
-                        ),
+                        "syncedLyrics": current_item.song.synced_lyrics,
+                        "plainLyrics": current_item.song.plain_lyrics,
                     },
                 }
 
@@ -172,11 +135,35 @@ async def get_current_queue_state(session_id: str):
                 "current": current_data,
                 "upcoming": upcoming_data,
                 "items": items,
-                "pending": pending_data,
+                # Same service REST calls, so the handoff screen sees the same
+                # turn whichever path delivered the payload.
+                "turn": serialize_turn(compute_turn(session, session_id)),
             }
     except Exception as e:
-        logger.error(f"Error getting queue state from PostgreSQL: {e}")
-        return {"current": None, "upcoming": [], "items": []}
+        logger.error("Error getting queue state from PostgreSQL: %s", e)
+        return {
+            "current": None,
+            "upcoming": [],
+            "items": [],
+            "turn": {
+                "kind": "open",
+                "performerId": None,
+                "performerName": None,
+                "itemId": None,
+                "circle": [],
+            },
+        }
+
+
+async def broadcast_roster_update(
+    manager: SessionConnectionManager, session_id: str, performer_name: str
+):
+    """Broadcast a new roster entry so a picker already on screen sees it live."""
+    session_room = manager.get_session_room_name(session_id)
+    await manager.broadcast_to_room(
+        session_room,
+        {"type": "roster_updated", "name": performer_name},
+    )
 
 
 # Queue broadcasting functions
@@ -191,20 +178,7 @@ async def broadcast_queue_update(manager: SessionConnectionManager, session_id: 
             "current": queue_data.get("current"),
             "upcoming": queue_data.get("upcoming", []),
             "items": queue_data.get("items", []),
-            "pending": queue_data.get("pending", []),
-        },
-    )
-
-
-async def broadcast_pending_update(manager: SessionConnectionManager, session_id: str):
-    """Broadcast pending queue items update to the session room."""
-    queue_data = await get_current_queue_state(session_id)
-    session_room = manager.get_session_room_name(session_id)
-    await manager.broadcast_to_room(
-        session_room,
-        {
-            "type": "pending_queue_updated",
-            "pending": queue_data.get("pending", []),
+            "turn": queue_data.get("turn"),
         },
     )
 

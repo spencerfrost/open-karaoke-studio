@@ -1,24 +1,18 @@
 import React from "react";
 import { useSessionConnection } from "@/features/session";
 import { useSessionStore } from "@/stores/sessionStore";
-import { JoinSessionDialog } from "@/features/songs/components/JoinSessionDialog";
 import PerformanceControlsPanel from "./PerformanceControlsPanel";
-import { createLogger } from "@/lib/logger";
-
-const logger = createLogger("component:performance-controls");
 
 /**
- * Component that handles WebSocket connection and renders performance controls
- * Shows join dialog overlay when not in session, preview controls underneath
+ * Component that handles WebSocket connection and renders performance controls.
+ * RequireCapability({session: true}) guarantees a session exists before this
+ * mounts (see routes/guards.tsx), so there is nothing to gate here beyond the
+ * connecting state.
  */
 export const ConnectedPerformanceControls: React.FC = () => {
   const { sessionId } = useSessionStore();
   const { connected } = useSessionConnection();
 
-  // Show join dialog overlay if not in a session
-  const showJoinDialog = !sessionId;
-
-  // Show connecting state when in session but not connected
   const showConnecting = sessionId && !connected;
 
   if (showConnecting) {
@@ -34,20 +28,7 @@ export const ConnectedPerformanceControls: React.FC = () => {
 
   return (
     <div className="relative h-full">
-      {/* Always show performance controls (with default values if not connected) */}
       <PerformanceControlsPanel />
-
-      {/* Overlay join dialog when not in session */}
-      {showJoinDialog && (
-        <JoinSessionDialog
-          isOpen={true}
-          onClose={() => {}} // Uncloseable - user must join a session
-          context="control the karaoke performance"
-          onJoinSuccess={(name) => {
-            logger.debug(`${name} joined as performer`);
-          }}
-        />
-      )}
     </div>
   );
 };

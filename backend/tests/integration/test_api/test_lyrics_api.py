@@ -1,6 +1,9 @@
 """Integration tests for DB-backed /api/lyrics endpoints."""
 import uuid
 
+from app.db.models import DbSong
+from tests.integration.conftest import _TestingSessionLocal
+
 
 def _create_song(client, title="Lyric Song", artist="Lyrical Artist"):
     resp = client.post("/api/songs", json={"title": title, "artist": artist})
@@ -22,19 +25,21 @@ def test_get_song_lyrics_empty(client):
     song_id = _create_song(client)
     resp = client.get(f"/api/lyrics/songs/{song_id}")
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert data["plainLyrics"] is None
+    assert data["syncedLyrics"] is None
+    assert data["hasAlignment"] is False
 
 
-def test_get_song_lyrics_after_create(client):
+def test_get_song_lyrics_after_update(client):
     song_id = _create_song(client)
-    # Create a lyrics version
     client.post(
-        f"/api/lyrics/songs/{song_id}",
-        json={"type": "plain", "content": "Hello world", "source": "manual"},
+        f"/api/lyrics/songs/{song_id}?type=plain",
+        json={"content": "Hello world"},
     )
     resp = client.get(f"/api/lyrics/songs/{song_id}")
     assert resp.status_code == 200
-    assert len(resp.json()) == 1
+    assert resp.json()["plainLyrics"] == "Hello world"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -42,64 +47,110 @@ def test_get_song_lyrics_after_create(client):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_create_lyrics_song_not_found(client):
+def test_update_lyrics_song_not_found(client):
     resp = client.post(
-        f"/api/lyrics/songs/{uuid.uuid4()}",
-        json={"type": "plain", "content": "Test", "source": "manual"},
+        f"/api/lyrics/songs/{uuid.uuid4()}?type=plain",
+        json={"content": "Test"},
     )
     assert resp.status_code == 404
 
 
-def test_create_lyrics_success(client):
+def test_update_lyrics_invalid_type(client):
     song_id = _create_song(client)
     resp = client.post(
-        f"/api/lyrics/songs/{song_id}",
-        json={"type": "synced", "content": "[00:00] Verse 1", "source": "manual"},
+        f"/api/lyrics/songs/{song_id}?type=word_synced",
+        json={"content": "Test"},
     )
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["type"] == "synced"
-    assert "id" in data
+    assert resp.status_code == 400
+
+
+def test_update_plain_lyrics_success(client):
+    song_id = _create_song(client)
+    resp = client.post(
+        f"/api/lyrics/songs/{song_id}?type=plain",
+        json={"content": "Plain lyrics here"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["plainLyrics"] == "Plain lyrics here"
+
+
+def test_update_plain_lyrics_clears_alignment(client):
+    song_id = _create_song(client)
+    with _TestingSessionLocal() as session:
+        song = session.get(DbSong, song_id)
+        song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.post(
+        f"/api/lyrics/songs/{song_id}?type=plain",
+        json={"content": "Updated plain lyrics"},
+    )
+
+    assert resp.status_code == 200
+    data = client.get(f"/api/lyrics/songs/{song_id}").json()
+    assert data["hasAlignment"] is False
+
+
+def test_update_synced_lyrics_success(client):
+    song_id = _create_song(client)
+    resp = client.post(
+        f"/api/lyrics/songs/{song_id}?type=synced",
+        json={"content": "[00:00.00] Line 1"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["syncedLyrics"] == "[00:00.00] Line 1"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PATCH /api/lyrics/{lyrics_id}/activate
+# DELETE /api/lyrics/songs/{song_id}/{type}
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_activate_lyrics_not_found(client):
+def test_clear_lyrics_song_not_found(client):
+    resp = client.delete(f"/api/lyrics/songs/{uuid.uuid4()}/plain")
+    assert resp.status_code == 404
+
+
+def test_clear_lyrics_invalid_type(client):
+    song_id = _create_song(client)
+    resp = client.delete(f"/api/lyrics/songs/{song_id}/invalid")
+    assert resp.status_code == 400
+
+
+def test_clear_plain_lyrics_success(client):
+    song_id = _create_song(client)
+    client.post(f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"})
+    resp = client.delete(f"/api/lyrics/songs/{song_id}/plain")
+    assert resp.status_code == 204
+    data = client.get(f"/api/lyrics/songs/{song_id}").json()
+    assert data["plainLyrics"] is None
+
+
+def test_clear_plain_lyrics_clears_alignment(client):
+    song_id = _create_song(client)
+    client.post(f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"})
+    with _TestingSessionLocal() as session:
+        song = session.get(DbSong, song_id)
+        song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.delete(f"/api/lyrics/songs/{song_id}/plain")
+
+    assert resp.status_code == 204
+    data = client.get(f"/api/lyrics/songs/{song_id}").json()
+    assert data["hasAlignment"] is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Removed endpoints — verify they no longer exist
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_activate_endpoint_gone(client):
     resp = client.patch("/api/lyrics/999999/activate")
     assert resp.status_code == 404
 
 
-def test_activate_lyrics_success(client):
-    song_id = _create_song(client)
-    create_resp = client.post(
-        f"/api/lyrics/songs/{song_id}",
-        json={"type": "plain", "content": "Lyrics", "source": "manual", "isActive": False},
-    )
-    lyrics_id = create_resp.json()["id"]
-    resp = client.patch(f"/api/lyrics/{lyrics_id}/activate")
-    assert resp.status_code == 200
-    assert resp.json()["isActive"] is True
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DELETE /api/lyrics/{lyrics_id}
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def test_delete_lyrics_not_found(client):
+def test_delete_by_id_endpoint_gone(client):
     resp = client.delete("/api/lyrics/999999")
     assert resp.status_code == 404
-
-
-def test_delete_lyrics_success(client):
-    song_id = _create_song(client)
-    create_resp = client.post(
-        f"/api/lyrics/songs/{song_id}",
-        json={"type": "plain", "content": "Delete me", "source": "manual"},
-    )
-    lyrics_id = create_resp.json()["id"]
-    resp = client.delete(f"/api/lyrics/{lyrics_id}")
-    assert resp.status_code == 204

@@ -18,7 +18,9 @@ import sys
 sys.path.insert(0, ".")
 
 from app.db.database import SessionLocal
-from app.db.models import User
+from app.db.models import HostSettings, User
+
+DEMO_SESSION_DURATION_HOURS = 0.25
 
 
 def create_user(args):
@@ -33,13 +35,32 @@ def create_user(args):
             username=args.username,
             display_name=args.display_name or args.username,
             is_admin=args.admin,
+            is_host=args.host or args.demo,
+            is_demo=args.demo,
         )
         user.set_password(args.password)
         db.add(user)
         db.commit()
 
-        role = "admin" if args.admin else "host"
+        if args.demo:
+            settings = HostSettings(
+                user_id=user.id,
+                session_duration_hours=DEMO_SESSION_DURATION_HOURS,
+            )
+            db.add(settings)
+            db.commit()
+
+        if args.admin:
+            role = "admin"
+        elif args.demo:
+            role = "demo host"
+        elif args.host:
+            role = "host"
+        else:
+            role = "user"
         print(f"Created {role} user '{args.username}' (id={user.id})")
+        if args.demo:
+            print(f"Seeded host settings: {DEMO_SESSION_DURATION_HOURS}h sessions")
     finally:
         db.close()
 
@@ -52,12 +73,20 @@ def list_users(args):
             print("No users found.")
             return
 
-        print(f"{'ID':<6} {'Username':<20} {'Display Name':<20} {'Admin':<6}")
-        print("-" * 52)
+        print(
+            f"{'ID':<6} {'Username':<20} {'Display Name':<20} "
+            f"{'Admin':<6} {'Host':<6} {'Demo':<6}"
+        )
+        print("-" * 66)
         for user in users:
             admin = "Yes" if user.is_admin else "No"
+            host = "Yes" if user.is_host else "No"
+            demo = "Yes" if user.is_demo else "No"
             display = user.display_name or "-"
-            print(f"{user.id:<6} {user.username:<20} {display:<20} {admin:<6}")
+            print(
+                f"{user.id:<6} {user.username:<20} {display:<20} "
+                f"{admin:<6} {host:<6} {demo:<6}"
+            )
     finally:
         db.close()
 
@@ -103,6 +132,14 @@ def main():
     create_parser.add_argument("--display-name")
     create_parser.add_argument(
         "--admin", action="store_true", help="Grant admin privileges"
+    )
+    create_parser.add_argument(
+        "--host", action="store_true", help="Grant host privileges"
+    )
+    create_parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Mark as demo pool account (implies --host, seeds demo host settings)",
     )
     create_parser.set_defaults(func=create_user)
 

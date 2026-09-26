@@ -4,7 +4,6 @@
 
 import { ReactNode } from "react";
 import type { Song } from "@/types/Song";
-import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
 // Player control types
 export type PlayerControl = "play" | "volume" | "fullscreen";
@@ -14,9 +13,6 @@ export interface KaraokePlayerProps {
   // Song to play
   songId: string;
 
-  // Queue data (optional) - used to show queue status when song ends
-  queueItems?: KaraokeQueueItemWithSong[];
-
   // Player configuration
   autoPlay?: boolean;
 
@@ -24,12 +20,13 @@ export interface KaraokePlayerProps {
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
+  /** Dim the song header while the stage rails are collapsed. */
+  dimHeader?: boolean;
 
   // Event callbacks
   onPlay?: () => void;
   onPause?: () => void;
   onEnd?: () => void;
-  onPlayNext?: (queueItemId: string) => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
 
@@ -87,13 +84,11 @@ export interface KaraokePlayerHook {
   isLyricsSync: boolean;
   lyricsSize: "small" | "medium" | "large";
   lyricsOffset: number;
-  showChords: boolean;
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
-  setShowChords: (enabled: boolean) => void;
 
-  // Visualizer
-  waveformData: Uint8Array | null;
+  // Visualizer — the store copies the analyser's bytes into a plain array
+  waveformData: number[] | null;
 
   // Advanced
   reload: () => Promise<void>;
@@ -102,24 +97,10 @@ export interface KaraokePlayerHook {
 
 // Return interface for usePlayerUI hook
 export interface PlayerUIHook {
-  // UI state
   isFullscreen: boolean;
-  showVolumeSlider: boolean;
-  isControlsVisible: boolean;
-
-  // UI actions
   toggleFullscreen: () => void;
-  setShowVolumeSlider: (show: boolean) => void;
 
-  // Keyboard shortcuts
-  keyboardShortcuts: {
-    [key: string]: () => void;
-  };
-
-  // Focus management
-  focusPlayer: () => void;
-
-  // Internal refs and error state (for component usage)
+  // Attach containerRef to the element that should fill the screen
   containerRef: React.RefObject<HTMLDivElement | null>;
   fsError: string | null;
 }

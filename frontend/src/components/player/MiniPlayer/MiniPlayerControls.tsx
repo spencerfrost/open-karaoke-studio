@@ -28,7 +28,7 @@ const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
         variant="ghost"
         size="icon"
         onClick={onPlayPause}
-        className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+        className="h-8 w-8 text-foreground hover:bg-glass/20 hover:text-foreground"
         aria-label={isPlaying ? "Pause" : "Play"}
       >
         {isPlaying ? (
@@ -44,7 +44,7 @@ const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
           variant="ghost"
           size="icon"
           onClick={onExpand}
-          className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+          className="h-8 w-8 text-foreground hover:bg-glass/20 hover:text-foreground"
           aria-label="Expand to full player"
         >
           <Maximize2 size={16} aria-hidden="true" />
@@ -55,7 +55,7 @@ const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+          className="h-8 w-8 text-foreground hover:bg-glass/20 hover:text-foreground"
           aria-label="Close mini-player"
         >
           <X size={16} aria-hidden="true" />
