@@ -123,7 +123,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           <span
             className={cn(
               "font-accent leading-none text-foreground",
-              isTv ? "text-3xl" : "text-[34px]",
+              isTv ? "text-3xl" : "text-4xl",
             )}
           >
             {formatLyricsOffset(lyricsOffset)}

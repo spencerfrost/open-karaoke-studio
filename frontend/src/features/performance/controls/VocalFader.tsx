@@ -85,7 +85,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
       <div
         className={cn(
           "font-accent leading-none text-primary",
-          isTv ? "text-[2rem]" : "text-[30px]",
+          isTv ? "text-[2rem]" : "text-3xl",
         )}
       >
         {Math.round(volume * 100)}%
@@ -115,7 +115,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
             <span
               className={cn(
                 "max-w-full rounded-sm bg-overlay/70 px-2 py-1 text-center leading-tight text-foreground/70",
-                isTv ? "text-sm" : "text-[11px]",
+                isTv ? "text-sm" : "text-xs",
               )}
             >
               {disabledHint}

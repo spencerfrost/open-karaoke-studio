@@ -35,7 +35,7 @@ const PerformanceControlsPanel: React.FC = () => {
 
       <div className="flex shrink-0 flex-col gap-2.5 pt-0.5">
         <div className="flex items-center gap-3">
-          <span className="font-accent text-[22px] leading-none text-foreground/70">
+          <span className="font-accent text-2xl leading-none text-foreground/70">
             {formatTime(currentTime)}
           </span>
           <ProgressBar
@@ -44,7 +44,7 @@ const PerformanceControlsPanel: React.FC = () => {
             onSeek={seek}
             className="flex-1"
           />
-          <span className="font-accent text-[22px] leading-none text-foreground/70">
+          <span className="font-accent text-2xl leading-none text-foreground/70">
             {formatTime(duration)}
           </span>
         </div>
