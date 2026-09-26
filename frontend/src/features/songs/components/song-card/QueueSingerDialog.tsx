@@ -18,11 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useQueue } from "@/hooks/api/useKaraokeQueue";
 import { useRoster } from "@/hooks/api/useRoster";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { Song } from "@/types/Song";
 import type { SessionPerformer } from "@/types/SessionPerformer";
+import type { SessionTurn } from "@/types/KaraokeQueue";
 import RosterPicker from "@/features/stage/components/RosterPicker";
+import { useDefaultSinger } from "@/features/stage/hooks/useDefaultSinger";
 
 interface QueueSingerDialogProps {
   song: Song;
@@ -41,6 +44,8 @@ export const QueueSingerDialog: React.FC<QueueSingerDialogProps> = ({
   const rosterQuery = useRoster(displayCode ?? undefined, {
     enabled: isOpen && Boolean(displayCode),
   });
+  // Only for the turn, so the pick starts on whoever is up.
+  const queueQuery = useQueue(displayCode ?? undefined, { enabled: isOpen });
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -53,12 +58,13 @@ export const QueueSingerDialog: React.FC<QueueSingerDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Keyed on the roster arriving so the default pick is made against
-            real names rather than the empty list of the first render. */}
-        {isOpen && !rosterQuery.isLoading && (
+        {/* Held back until the roster and turn load so the picker opens on
+            the right name instead of jumping to it. Anything that changes
+            after that moves the default through useDefaultSinger. */}
+        {isOpen && !rosterQuery.isLoading && !queueQuery.isLoading && (
           <SingerForm
-            key={rosterQuery.dataUpdatedAt}
             roster={rosterQuery.data ?? []}
+            turn={queueQuery.data?.turn}
             onCancel={onClose}
             onSubmit={(name) => {
               onQueue(name);
@@ -74,11 +80,13 @@ export const QueueSingerDialog: React.FC<QueueSingerDialogProps> = ({
 
 const SingerForm: React.FC<{
   roster: SessionPerformer[];
+  turn: SessionTurn | undefined;
   onCancel: () => void;
   onSubmit: (name: string) => void;
-}> = ({ roster, onCancel, onSubmit }) => {
-  const [singer, setSinger] = useState(roster[0]?.name ?? "");
-  const [showOther, setShowOther] = useState(roster.length === 0);
+}> = ({ roster, turn, onCancel, onSubmit }) => {
+  const [singer, setSinger] = useDefaultSinger(roster, turn);
+  const [otherToggled, setShowOther] = useState<boolean | null>(null);
+  const showOther = otherToggled ?? roster.length === 0;
   const trimmed = singer.trim();
 
   return (

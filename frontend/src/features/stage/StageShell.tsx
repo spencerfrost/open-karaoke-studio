@@ -206,7 +206,11 @@ const StageShell: React.FC<StageShellProps> = ({
 
           {screen.name === "confirm" && (
             <div className="absolute inset-0 z-20 overflow-hidden">
-              <SongConfirmScreen song={screen.song} roster={roster} />
+              <SongConfirmScreen
+                song={screen.song}
+                roster={roster}
+                turn={turn}
+              />
             </div>
           )}
 

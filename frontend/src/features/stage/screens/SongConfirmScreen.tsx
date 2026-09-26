@@ -21,28 +21,35 @@ import { useSongActions } from "@/features/songs/hooks/useSongActions";
 import { cn } from "@/lib/utils";
 import type { Song } from "@/types/Song";
 import type { SessionPerformer } from "@/types/SessionPerformer";
+import type { SessionTurn } from "@/types/KaraokeQueue";
 import RosterPicker from "../components/RosterPicker";
+import { useDefaultSinger } from "../hooks/useDefaultSinger";
 import { useStageShell } from "../StageShellContext";
 
 interface SongConfirmScreenProps {
   song: Song;
   /** The session's roster, seat order. */
   roster: SessionPerformer[];
+  /** Whose turn it is - the singer the picker starts on. */
+  turn: SessionTurn;
 }
 
 const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
   song,
   roster,
+  turn,
 }) => {
   const shell = useStageShell();
 
   const { getArtworkUrl } = useSongs();
   const { handlePlayAs, handleAddToQueue } = useSongActions(song);
 
-  const [singer, setSinger] = useState(roster[0]?.name ?? "");
+  const [singer, setSinger] = useDefaultSinger(roster, turn);
   // The free-text field only shows once someone taps "Someone else…" - the
-  // common case is picking a name that's already on the roster.
-  const [showOther, setShowOther] = useState(roster.length === 0);
+  // common case is picking a name that's already on the roster. Derived until
+  // then, like the singer, so a roster that lands after mount brings the grid.
+  const [otherToggled, setShowOther] = useState<boolean | null>(null);
+  const showOther = otherToggled ?? roster.length === 0;
 
   const trimmed = singer.trim();
   const canSubmit = trimmed.length > 0;
@@ -118,7 +125,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [shell]);
+  }, [shell, setSinger]);
   const chosenRing = "ring-4 ring-primary ring-offset-2 ring-offset-background";
 
   return (
