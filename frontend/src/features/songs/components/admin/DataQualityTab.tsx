@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { Clock, ShieldAlert } from "lucide-react";
+import { Clock, Mic, ShieldAlert } from "lucide-react";
 import { SongActionPanel } from "./SongActionPanel";
 import { Song } from "@/types/Song";
 
@@ -91,6 +91,24 @@ export const DataQualityTab: React.FC = () => {
       );
     },
     onError: () => toast.error("Failed to queue duration backfill"),
+  });
+
+  const backfillVocalRangeMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const res = await fetch(`/api/songs/backfill-vocal-range?mode=${mode}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to queue vocal range backfill");
+      return res.json() as Promise<{ taskId: string; queued: number }>;
+    },
+    onSuccess: (data) => {
+      logger.info("Vocal range backfill queued", data);
+      toast.success(
+        `Queued vocal range detection for ${data.queued} song${data.queued !== 1 ? "s" : ""}`,
+      );
+    },
+    onError: () => toast.error("Failed to queue vocal range backfill"),
   });
 
   const handleDone = () => {
@@ -370,6 +388,41 @@ export const DataQualityTab: React.FC = () => {
             <Clock className="mr-2 h-4 w-4" />
             {backfillDurationMutation.variables === "all" &&
             backfillDurationMutation.isPending
+              ? "Queueing..."
+              : "Refresh All"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Vocal Range Backfill */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Vocal Range</h2>
+          <p className="text-sm text-muted-foreground">
+            Detect the lowest and highest sung note from each song&apos;s vocals
+            track. Runs in the background at about 10–30 seconds per song.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => backfillVocalRangeMutation.mutate("missing")}
+            disabled={backfillVocalRangeMutation.isPending}
+          >
+            <Mic className="mr-2 h-4 w-4" />
+            {backfillVocalRangeMutation.variables === "missing" &&
+            backfillVocalRangeMutation.isPending
+              ? "Queueing..."
+              : "Backfill Missing"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => backfillVocalRangeMutation.mutate("all")}
+            disabled={backfillVocalRangeMutation.isPending}
+          >
+            <Mic className="mr-2 h-4 w-4" />
+            {backfillVocalRangeMutation.variables === "all" &&
+            backfillVocalRangeMutation.isPending
               ? "Queueing..."
               : "Refresh All"}
           </Button>

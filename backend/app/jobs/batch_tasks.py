@@ -145,6 +145,43 @@ def batch_backfill_duration(mode: str = "missing") -> dict:
     return {"processed": len(song_ids), "success": success, "skipped": skipped}
 
 
+@celery.task(name="batch_backfill_vocal_range")
+def batch_backfill_vocal_range(mode: str = "missing") -> dict:
+    """Batch task: detect vocal range from each song's vocals stem.
+
+    Runs songs one after another inside this single task (~10-30s each) rather
+    than fanning out per-song tasks, so a long backfill occupies one enrichment
+    slot and new downloads can still post-process alongside it. Each song is
+    saved as it finishes, so re-running with mode="missing" resumes.
+    """
+    from app.db.database import get_db_session
+    from app.db.models.song import DbSong
+
+    from .metadata_tasks import detect_and_store_vocal_range
+
+    with get_db_session() as session:
+        query = session.query(DbSong.id)
+        if mode == "missing":
+            query = query.filter(DbSong.vocal_range_low.is_(None))
+        song_ids = [row[0] for row in query.all()]
+
+    logger.info("batch_backfill_vocal_range: processing %d songs (mode=%s)", len(song_ids), mode)
+
+    counts = {"ok": 0, "no_range": 0, "no_audio": 0, "error": 0}
+    for i, song_id in enumerate(song_ids, 1):
+        counts[detect_and_store_vocal_range(song_id)] += 1
+        if i % 25 == 0:
+            logger.info("batch_backfill_vocal_range: %d/%d done %s", i, len(song_ids), counts)
+
+    logger.info("batch_backfill_vocal_range: done — %s", counts)
+    return {
+        "processed": len(song_ids),
+        "success": counts["ok"],
+        "skipped": counts["no_range"] + counts["no_audio"] + counts["error"],
+        **counts,
+    }
+
+
 @celery.task(name="batch_align_lyrics")
 def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     """Batch task: run WhisperX forced alignment across the library."""

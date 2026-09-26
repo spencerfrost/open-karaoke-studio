@@ -1423,6 +1423,30 @@ async def backfill_duration_endpoint(
     return {"taskId": task.id, "queued": queued}
 
 
+@router.post("/backfill-vocal-range", status_code=202)
+async def backfill_vocal_range_endpoint(
+    mode: str = Query(
+        "missing",
+        description="'missing' to fill only songs without a range, 'all' to recompute every song",
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Dispatch a Celery task to detect vocal range from each song's vocals stem."""
+    if mode not in ("missing", "all"):
+        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
+
+    from app.jobs.jobs import batch_backfill_vocal_range
+
+    query = db.query(DbSong.id)
+    if mode == "missing":
+        query = query.filter(DbSong.vocal_range_low.is_(None))
+    queued = query.count()
+
+    task = batch_backfill_vocal_range.delay(mode=mode)
+    return {"taskId": task.id, "queued": queued}
+
+
 @router.post("/{song_id}/fingerprint/lookup")
 async def lookup_song_fingerprint(
     song_id: str,

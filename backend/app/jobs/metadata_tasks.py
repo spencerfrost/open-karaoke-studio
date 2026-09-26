@@ -78,33 +78,41 @@ def detect_song_loudness(song_id: str) -> dict:
     return {"status": "ok", "song_id": song_id}
 
 
-@celery.task(name="detect_song_vocal_range")
-def detect_song_vocal_range(song_id: str) -> dict:
-    """Detect vocal pitch range from vocals.mp3 and store note names."""
-    logger.info("[PIPELINE] detect_song_vocal_range starting for song %s", song_id)
+def detect_and_store_vocal_range(song_id: str) -> str:
+    """Detect a song's vocal range from vocals.mp3 and save it.
+
+    Returns "ok", "no_range" (too few voiced frames), "no_audio", or "error".
+    Shared by the per-song pipeline task and the library-wide backfill.
+    """
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
 
-    config = get_config()
-    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
-
+    vocals_path = Path(get_config().BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
     if not vocals_path.exists():
-        logger.warning("detect_song_vocal_range: vocals.mp3 not found for song %s", song_id)
-        return {"status": "no_audio", "song_id": song_id}
+        logger.warning("detect_vocal_range: vocals.mp3 not found for song %s", song_id)
+        return "no_audio"
 
     try:
         result = detect_vocal_range(vocals_path, lambda msg: logger.debug("VocalRange: %s", msg))
     except Exception:
-        logger.warning("detect_song_vocal_range: failed for song %s", song_id, exc_info=True)
-        return {"status": "error", "song_id": song_id}
+        logger.warning("detect_vocal_range: failed for song %s", song_id, exc_info=True)
+        return "error"
 
-    if result:
-        with get_db_session() as session:
-            SongRepository(session).update(song_id, vocal_range_low=result[0], vocal_range_high=result[1])
-        logger.info("detect_song_vocal_range: %s-%s for song %s", result[0], result[1], song_id)
+    if not result:
+        return "no_range"
 
-    return {"status": "ok", "song_id": song_id}
+    with get_db_session() as session:
+        SongRepository(session).update(song_id, vocal_range_low=result[0], vocal_range_high=result[1])
+    logger.info("detect_vocal_range: %s-%s for song %s", result[0], result[1], song_id)
+    return "ok"
+
+
+@celery.task(name="detect_song_vocal_range")
+def detect_song_vocal_range(song_id: str) -> dict:
+    """Detect vocal pitch range from vocals.mp3 and store note names."""
+    logger.info("[PIPELINE] detect_song_vocal_range starting for song %s", song_id)
+    return {"status": detect_and_store_vocal_range(song_id), "song_id": song_id}
 
 
 @celery.task(name="fingerprint_single_song")

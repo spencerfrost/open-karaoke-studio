@@ -466,7 +466,7 @@ POST /api/songs/{song_id}/reprocess
 
 ## Maintenance & Fingerprinting Endpoints
 
-The songs router also exposes a family of library-maintenance routes that are used by the admin tooling and are best explored via [Swagger UI](../api-reference.md): `GET /library-audit`, `GET /metadata-audit`, `GET /duplicates`, `GET /by-fingerprint-status`, `DELETE /orphan/{dir_name}`, `DELETE /orphan-bulk`, `DELETE /ghost-bulk`, `POST /fingerprint`, `POST /{song_id}/fingerprint`, `POST /{song_id}/fingerprint/lookup`, `POST /{song_id}/fingerprint/apply`, `POST /{song_id}/skip-fingerprint`, `POST /{song_id}/analyze-vocal-range`, `POST /{song_id}/validate-youtube-replacement`, `POST /{song_id}/validate-upload-replacement`, `POST /{song_id}/replace-youtube`, `POST /{song_id}/replace-upload`, `POST /backfill-artwork`, `POST /backfill-duration`.
+The songs router also exposes a family of library-maintenance routes that are used by the admin tooling and are best explored via [Swagger UI](../api-reference.md): `GET /library-audit`, `GET /metadata-audit`, `GET /duplicates`, `GET /by-fingerprint-status`, `DELETE /orphan/{dir_name}`, `DELETE /orphan-bulk`, `DELETE /ghost-bulk`, `POST /fingerprint`, `POST /{song_id}/fingerprint`, `POST /{song_id}/fingerprint/lookup`, `POST /{song_id}/fingerprint/apply`, `POST /{song_id}/skip-fingerprint`, `POST /{song_id}/analyze-vocal-range`, `POST /{song_id}/validate-youtube-replacement`, `POST /{song_id}/validate-upload-replacement`, `POST /{song_id}/replace-youtube`, `POST /{song_id}/replace-upload`, `POST /backfill-artwork`, `POST /backfill-duration`, `POST /backfill-vocal-range`.
 
 ---
 
