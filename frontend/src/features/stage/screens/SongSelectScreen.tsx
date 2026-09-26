@@ -1,20 +1,31 @@
 /**
  * SongSelectScreen - the stage's resting screen: pick something to sing.
  *
- * The same library the phone browses, framed for a TV across the room: one slim
- * bar at the top for the two things that are not "pick a song" (back to the
- * song that is playing, and leaving stage mode), and a floating add button for
- * the cold start — "I want a song that isn't here and I'm not searching yet."
+ * A song wheel rather than the phone's library. The phone's accordion of
+ * artists is a web page; this screen is driven from across the room by a
+ * mouse on the mic stand, or arrow keys, Enter and Back (see SongWheel). The
+ * phone keeps LibraryScreen - the two share data hooks, not components.
+ *
+ * One slim bar at the top for the things that are not "pick a song": back to
+ * the song that is playing, a quiet search for whoever has the keyboard, and
+ * leaving stage mode - which the arrow keys can never reach, so nobody walking
+ * up to sing ends the night by pressing Back one too many times. The join QR
+ * code sits bottom-left rather than in the bar.
  */
 
-import React from "react";
-import { LogOut, Plus, Undo2 } from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
+import { LogOut, Plus, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LibraryScreen } from "@/features/library";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
+import StageSearch from "../components/StageSearch";
+import SongWheel from "../wheel/SongWheel";
+import type { WheelFocusRequest } from "../wheel/useSongWheel";
 
 interface SongSelectScreenProps {
+  /** Whether this is the screen showing. It stays mounted behind the others. */
+  active: boolean;
   expandArtist?: string;
   /** Whether there is a song loaded to go back to. */
   hasCurrentSong: boolean;
@@ -22,17 +33,46 @@ interface SongSelectScreenProps {
 }
 
 const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
+  active,
   expandArtist,
   hasCurrentSong,
   onExitStage,
 }) => {
   const shell = useStageShell();
+  const [searching, setSearching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  // Where the wheel should jump: the player's "more by this artist" (arriving
+  // as a name on the screen state) or an artist picked from search. A new
+  // object per request, so asking for the same artist twice still jumps.
+  const [focusArtist, setFocusArtist] = useState<WheelFocusRequest | undefined>(
+    () => (expandArtist ? { name: expandArtist } : undefined),
+  );
+  const [seenExpandArtist, setSeenExpandArtist] = useState(expandArtist);
+  if (expandArtist !== seenExpandArtist) {
+    setSeenExpandArtist(expandArtist);
+    if (expandArtist) {
+      setFocusArtist({ name: expandArtist });
+      setSearching(false);
+    }
+  }
+
+  const handlePickSong = useCallback(
+    (song: Song) => shell?.openConfirm(song),
+    [shell],
+  );
+  const handleLeave = useMemo(
+    () => (hasCurrentSong ? () => shell?.openPerformance() : null),
+    [hasCurrentSong, shell],
+  );
+  const handlePickArtist = useCallback((pick: WheelFocusRequest) => {
+    setFocusArtist(pick);
+    setSearching(false);
+  }, []);
+  const closeSearch = useCallback(() => setSearching(false), []);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
+    <div className="relative flex h-full w-full flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-4">
-        {/* The one back affordance stage mode allows, and only when there is
-            something to go back to. */}
         {hasCurrentSong ? (
           <Button
             variant="ghost"
@@ -47,7 +87,16 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
         )}
 
         <div className="flex items-center gap-2">
-          <SessionInfoDisplay />
+          {!searching && (
+            <Button
+              variant="ghost"
+              onClick={() => setSearching(true)}
+              className="text-foreground/50 hover:text-foreground"
+            >
+              <Search className="mr-2 size-5" />
+              Search
+            </Button>
+          )}
           {/* Deliberately quiet: the mouse lives on the mic stand, and nobody
               walking up to sing should end the night by brushing this. */}
           <Button
@@ -63,12 +112,32 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6">
-        <LibraryScreen
-          expandArtist={expandArtist}
-          searchPlaceholder="What do you want to sing?"
-        />
+      <div className="relative min-h-0 flex-1">
+        {/* The wheel stays mounted under search, keeping its place. */}
+        <div className={searching ? "hidden" : "h-full"}>
+          <SongWheel
+            active={active && !searching}
+            focusArtist={focusArtist}
+            onPickSong={handlePickSong}
+            onLeave={handleLeave}
+          />
+        </div>
+        {searching && active && (
+          <div className="absolute inset-0">
+            <StageSearch
+              term={searchTerm}
+              onTermChange={setSearchTerm}
+              onPickArtist={handlePickArtist}
+              onClose={closeSearch}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Bottom-left, not in the top bar: at TV size the QR code made the bar
+          ~150px tall, which the wheel had to shrink to fit under. This corner
+          is empty beside the legend, and it is where guests look to join. */}
+      <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
 
       <Button
         variant="accent"
@@ -85,7 +154,6 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
 
 /**
  * Memoized, and given only stable props by the shell. It stays mounted behind
- * the other screens, so without this every transition would re-render the whole
- * library — ~600 artist rows and the recently-added grid — on the way past.
+ * the other screens, so the wheel keeps its place across a trip to confirm.
  */
 export default React.memo(SongSelectScreen);

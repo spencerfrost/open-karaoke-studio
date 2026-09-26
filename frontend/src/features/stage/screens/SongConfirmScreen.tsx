@@ -11,13 +11,14 @@
  * this screen was built expecting.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChevronLeft, ListPlus, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useSongActions } from "@/features/songs/hooks/useSongActions";
+import { cn } from "@/lib/utils";
 import type { Song } from "@/types/Song";
 import type { SessionPerformer } from "@/types/SessionPerformer";
 import RosterPicker from "../components/RosterPicker";
@@ -58,6 +59,67 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
     toast.success(`Added "${song.title}" for ${trimmed}`);
     shell?.openSelect();
   };
+
+  // The same four keys as the wheel, so a singer who arrived here on the
+  // arrow keys can finish without the mouse:
+  //   ▲▼ who's singing   ◀▶ which button   Enter do it   Back cancel
+  // A song that cannot play yet starts on "Add to queue".
+  const [choice, setChoice] = useState<"sing" | "queue">(
+    isReady ? "sing" : "queue",
+  );
+  const keys = useRef({ handleSingNow, handleQueue, roster, singer, isReady });
+  keys.current = { handleSingNow, handleQueue, roster, singer, isReady };
+  const choiceRef = useRef(choice);
+  choiceRef.current = choice;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      // The "Someone else" field is typing, not navigating.
+      if (t && ["INPUT", "TEXTAREA"].includes(t.tagName)) {
+        if (e.key === "Escape") shell?.back();
+        return;
+      }
+      if (t?.closest("[role='dialog']")) return;
+      const k = keys.current;
+      switch (e.key) {
+        case "ArrowLeft":
+        case "ArrowRight":
+          e.preventDefault();
+          if (e.key === "ArrowLeft" && k.isReady) setChoice("sing");
+          if (e.key === "ArrowRight") setChoice("queue");
+          return;
+        case "ArrowUp":
+        case "ArrowDown": {
+          e.preventDefault();
+          if (k.roster.length === 0) return;
+          const i = k.roster.findIndex((p) => p.name === k.singer);
+          const dir = e.key === "ArrowUp" ? -1 : 1;
+          const next = (i + dir + k.roster.length) % k.roster.length;
+          setSinger(k.roster[i === -1 ? 0 : next].name);
+          setShowOther(false);
+          return;
+        }
+        case "Enter":
+          // A button the mouse just clicked keeps Enter for itself.
+          if (t?.closest("button")) return;
+          e.preventDefault();
+          if (e.repeat) return;
+          if (choiceRef.current === "sing") k.handleSingNow();
+          else k.handleQueue();
+          return;
+        case "Backspace":
+        case "Escape":
+          e.preventDefault();
+          shell?.back();
+          return;
+        default:
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [shell]);
+  const chosenRing = "ring-4 ring-primary ring-offset-2 ring-offset-background";
 
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
@@ -105,7 +167,10 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
             size="lg"
             onClick={handleSingNow}
             disabled={!canSubmit || !isReady}
-            className="h-16 flex-1 text-xl"
+            className={cn(
+              "h-16 flex-1 text-xl",
+              choice === "sing" && chosenRing,
+            )}
           >
             <Mic className="mr-2 size-6" />
             Sing it now
@@ -115,7 +180,10 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
             size="lg"
             onClick={handleQueue}
             disabled={!canSubmit}
-            className="h-16 flex-1 text-xl"
+            className={cn(
+              "h-16 flex-1 text-xl",
+              choice === "queue" && chosenRing,
+            )}
           >
             <ListPlus className="mr-2 size-6" />
             Add to queue

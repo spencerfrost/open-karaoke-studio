@@ -356,3 +356,23 @@
     }
   }
 }
+
+/* Stage song wheel. Theme colors only, so a preset re-skins it. */
+@layer utilities {
+  /* A soft glow behind the selected row of the column at the front. No edges:
+     the columns have no surfaces, so a box here would be the only one. */
+  .wheel-band {
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      color-mix(in oklab, var(--primary) 28%, transparent),
+      color-mix(in oklab, var(--accent) 8%, transparent) 60%,
+      transparent 75%
+    );
+  }
+
+  .wheel-row-glow {
+    text-shadow:
+      0 0 18px color-mix(in oklab, var(--primary) 70%, transparent),
+      0 0 42px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+}

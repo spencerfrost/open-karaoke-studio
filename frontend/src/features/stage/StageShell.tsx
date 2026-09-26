@@ -130,10 +130,11 @@ const StageShell: React.FC<StageShellProps> = ({
 
   const isPerforming = screen.name === "performance";
 
-  // Song select is mounted once and then only ever hidden. It is ~600 artist
-  // rows, each holding two React Query observers, so mounting it costs seconds
-  // on a full library — far too much to pay every time someone taps Back. Kept
-  // mounted it also keeps its scroll position and expanded rows.
+  // Song select is mounted once and then only ever hidden, so the wheel keeps
+  // its place across a trip to confirm and back. This used to be forced: the
+  // old accordion was ~600 artist rows with two React Query observers each and
+  // took seconds to mount. The wheel renders ~40 rows, so that reason may be
+  // gone - measure on the TV before relying on remounting it.
   //
   // Add and confirm stay mount-on-demand: both are cheap, and the add screen
   // seeds its search box from `query` on mount only, so it has to remount to
@@ -193,6 +194,7 @@ const StageShell: React.FC<StageShellProps> = ({
               )}
             >
               <SongSelectScreen
+                active={screen.name === "select"}
                 expandArtist={
                   screen.name === "select" ? screen.expandArtist : undefined
                 }
