@@ -64,6 +64,7 @@ from app.schemas.song import (
 )
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
+from app.utils.filing import filing_letter, filing_name
 from fastapi import (
     APIRouter,
     Body,
@@ -319,7 +320,6 @@ async def get_artists(
             )
             .join(DbSongArtist, DbSongArtist.artist_id == DbArtist.id)
             .group_by(DbArtist.id)
-            .order_by(DbArtist.name)
         )
 
         # Apply search filter if provided
@@ -332,27 +332,29 @@ async def get_artists(
                 )
             )
 
-        total = query.count()
-
-        if limit:
-            query = query.offset(offset).limit(limit)
-
-        results = query.all()
-
-        return {
-            "artists": [
+        # Sorted here rather than in SQL: filing ignores leading articles and
+        # accents (see app.utils.filing), and a few hundred rows is nothing.
+        # Pagination has to follow the sort, so it slices afterwards.
+        artists = sorted(
+            (
                 {
                     "id": artist_id,
                     "name": display_name or name,
+                    "sortName": filing_name(display_name or name),
                     "songCount": count,
-                    "firstLetter": (
-                        "#"
-                        if name and name[0].isdigit()
-                        else (name[0].upper() if name else "?")
-                    ),
+                    "firstLetter": filing_letter(display_name or name),
                 }
-                for artist_id, display_name, name, count in results
-            ],
+                for artist_id, display_name, name, count in query.all()
+                if display_name or name
+            ),
+            key=lambda a: a["sortName"],
+        )
+        total = len(artists)
+        if limit:
+            artists = artists[offset : offset + limit]
+
+        return {
+            "artists": artists,
             "pagination": {
                 "total": total,
                 "limit": limit or total,
@@ -377,28 +379,25 @@ async def get_shows(
             db.query(DbSong.show_name, func.count(DbSong.id).label("song_count"))
             .filter(DbSong.show_name.isnot(None), DbSong.show_name != "")
             .group_by(DbSong.show_name)
-            .order_by(DbSong.show_name)
         )
 
         if search and search.strip():
             query = query.filter(DbSong.show_name.ilike(f"%{search.strip()}%"))
 
-        results = query.all()
-
-        return {
-            "shows": [
+        shows = sorted(
+            (
                 {
                     "name": show_name,
+                    "sortName": filing_name(show_name),
                     "songCount": count,
-                    "firstLetter": (
-                        "#"
-                        if show_name and show_name[0].isdigit()
-                        else (show_name[0].upper() if show_name else "?")
-                    ),
+                    "firstLetter": filing_letter(show_name),
                 }
-                for show_name, count in results
-            ],
-        }
+                for show_name, count in query.all()
+            ),
+            key=lambda show: show["sortName"],
+        )
+
+        return {"shows": shows}
 
     except Exception as e:
         logger.error("Error getting shows: %s", e, exc_info=True)

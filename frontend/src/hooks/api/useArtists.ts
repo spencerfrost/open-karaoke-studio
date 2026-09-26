@@ -3,7 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 export interface Artist {
   id: number;
   name: string;
+  /**
+   * What the name files under: leading article dropped, accents folded,
+   * lowercased. Computed server-side so every A–Z list agrees.
+   */
+  sortName: string;
   songCount: number;
+  /** "A"–"Z", or "#" for anything else. */
   firstLetter: string;
   /** True for a musical/soundtrack show folded into the artist browse list, not a real artist row. */
   isShow?: boolean;
@@ -11,6 +17,7 @@ export interface Artist {
 
 interface Show {
   name: string;
+  sortName: string;
   songCount: number;
   firstLetter: string;
 }
@@ -53,13 +60,14 @@ export function useArtists({
     const showsAsArtists: Artist[] = shows.map((show, i) => ({
       id: -(i + 1),
       name: show.name,
+      sortName: show.sortName,
       songCount: show.songCount,
       firstLetter: show.firstLetter,
       isShow: true,
     }));
 
     return [...artists, ...showsAsArtists].sort((a, b) =>
-      a.name.localeCompare(b.name),
+      a.sortName.localeCompare(b.sortName, undefined, { numeric: true }),
     );
   };
 

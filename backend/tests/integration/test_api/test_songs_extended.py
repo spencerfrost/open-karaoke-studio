@@ -68,6 +68,16 @@ def test_get_artists_first_letter(client):
     assert zeppelin["firstLetter"] == "Z"
 
 
+def test_get_artists_files_by_name_without_article(client):
+    band = f"The Wheelwrights {uuid.uuid4().hex[:6]}"
+    _create_song(client, title="Track", artist=band)
+    response = client.get(f"/api/songs/artists?search={band}")
+    assert response.status_code == 200
+    artist = next(a for a in response.json()["artists"] if a["name"] == band)
+    assert artist["firstLetter"] == "W"
+    assert artist["sortName"].startswith("wheelwrights")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GET /api/songs/by-artist/{artist_name}
 # ─────────────────────────────────────────────────────────────────────────────
