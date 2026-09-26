@@ -200,7 +200,7 @@ COMMANDS = {
 
 if __name__ == "__main__":
     # Add project root to path so app imports work
-    project_root = Path(__file__).parent.parent.parent
+    project_root = Path(__file__).parent.parent.parent.parent
     sys.path.insert(0, str(project_root))
 
     args = sys.argv[1:]

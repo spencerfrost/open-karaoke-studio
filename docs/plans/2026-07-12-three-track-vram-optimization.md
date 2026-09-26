@@ -52,7 +52,7 @@ In `separate_with_three_track`, after the Demucs vocals/instrumental WAVs are wr
 
 ### 4. Document the `htdemucs` swap (no code change)
 
-`DEMUCS_MODEL=htdemucs` already works via env ([base.py:49](../../backend/app/config/base.py)). Plain `htdemucs` is one model instead of the 4-model `_ft` bag: ~4× faster in step 1, same VRAM, modestly lower quality. **This is the only change with a real quality tradeoff** — the instrumental track comes straight from Demucs. A/B a few songs before committing to it on the server. The existing [compare_three_track_engines.py](../../backend/scripts/compare_three_track_engines.py) script may help here.
+`DEMUCS_MODEL=htdemucs` already works via env ([base.py:49](../../backend/app/config/base.py)). Plain `htdemucs` is one model instead of the 4-model `_ft` bag: ~4× faster in step 1, same VRAM, modestly lower quality. **This is the only change with a real quality tradeoff** — the instrumental track comes straight from Demucs. A/B a few songs before committing to it on the server. The existing [compare_three_track_engines.py](../../backend/scripts/experiments/compare_three_track_engines.py) script may help here.
 
 ### 5. Make the de-noise pass skippable
 

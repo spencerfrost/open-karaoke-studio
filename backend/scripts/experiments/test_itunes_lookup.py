@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 # Add backend app to path
-backend_dir = Path(__file__).parent.parent
+backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.services.itunes_service import search_itunes, lookup_itunes

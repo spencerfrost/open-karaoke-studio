@@ -9,7 +9,7 @@ See [lyrics-analysis-system.md](../lyrics-analysis-system.md) for the full desig
 ## Implementation
 
 **Service**: `backend/app/services/lyrics_analysis.py`
-**CLI**: `backend/scripts/analyze_section_breaks.py --song-id <id>`
+**CLI**: `backend/scripts/analyze_section_breaks.py --song-id <id>` (removed 2026-09-25; it depended on the lyrics-versions repository deleted in March)
 **API**: `GET /api/lyrics/songs/{id}/analyze`
 
 ---

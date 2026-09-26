@@ -28,9 +28,6 @@ Things archived plans promised that nobody owns yet.
 
 - **Phone ETA** ("You're 3rd — about 11 minutes"), from the [handoff screen](archive/2026-08-29-handoff-screen.md).
   Rotation-circle lists it under "not in this plan".
-- **Lyrics `line_index` backfill.** The script exists
-  (`backend/scripts/backfill_lyrics_line_index.py`), but whether it has been run against the
-  live library is unverified. See [the plan](archive/2026-08-30-lyrics-alignment-indexing.md).
 - **A phone queues while the TV sits in song select** — does the TV move? Still open from
   [sequencing](2026-08-29-sequencing.md).
 

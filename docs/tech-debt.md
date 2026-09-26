@@ -272,7 +272,7 @@ console.log("Preloading song:", preloadSongId);
 
 **Severity:** 🟡 MEDIUM
 
-**Location:** [batch_test.py:39-43](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/lyric_alignment/batch_test.py#L39-L43)
+**Location:** [batch_test.py:39-43](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/experiments/lyric_alignment/batch_test.py#L39-L43)
 
 **Problem:**
 - Analysis and reporting logic commented out with TODO
@@ -606,7 +606,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Locations:**
 - `/backend/scripts/bpm_investigation/` - 8 experimental BPM detection strategies
-- `/backend/scripts/ai_lyrics/asr_experiments/` - ASR model experiments
+- `/backend/scripts/experiments/ai_lyrics/asr_experiments/` - ASR model experiments
 - `/backend/app/services/separation_engines/` - 3 experimental separation engines
 
 **Problem:**

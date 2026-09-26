@@ -21,7 +21,7 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.db.database import get_db_session
 from app.repositories.song_repository import SongRepository

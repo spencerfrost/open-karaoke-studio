@@ -15,7 +15,7 @@ When creating karaoke tracks:
 ## Two Solution Approaches
 
 ### 1. Logic-First Lyric Alignment (Ready Now)
-**Location**: `/backend/scripts/lyric_alignment/`
+**Location**: `/backend/scripts/experiments/lyric_alignment/`
 
 **What it does**: Uses audio analysis to detect timing misalignment and provides correction values.
 
@@ -41,7 +41,7 @@ Recommendation: Shift all lyrics back by 2.67 seconds
 ```
 
 ### 2. AI-Generated Lyrics (Experimental)
-**Location**: `/backend/scripts/ai_lyrics/`
+**Location**: `/backend/scripts/experiments/ai_lyrics/`
 
 **What it does**: Uses AI speech recognition to generate perfectly timed lyrics from audio.
 
@@ -62,7 +62,7 @@ Recommendation: Shift all lyrics back by 2.67 seconds
 
 ```
 open-karaoke-studio/
-├── backend/scripts/
+├── backend/scripts/experiments/
 │   ├── lyric_alignment/          # Logic-first approach (ready)
 │   │   ├── USER_GUIDE.md        # How to use the system
 │   │   ├── onset_detection.py   # Finds vocal start timing
@@ -82,7 +82,7 @@ open-karaoke-studio/
 
 1. **Install dependencies**:
    ```bash
-   cd backend/scripts/lyric_alignment
+   cd backend/scripts/experiments/lyric_alignment
    pip install -r requirements.txt
    ```
 
@@ -139,8 +139,8 @@ This approach is still in development. It will provide:
 
 ## Getting Help
 
-- **For usage questions**: Read `/backend/scripts/lyric_alignment/USER_GUIDE.md`
+- **For usage questions**: Read `/backend/scripts/experiments/lyric_alignment/USER_GUIDE.md`
 - **For technical details**: See `/docs/vision_and_roadmap.md`
-- **For test results**: Check `/backend/scripts/lyric_alignment/ANALYSIS_RESULTS.md`
+- **For test results**: Check `/backend/scripts/experiments/lyric_alignment/ANALYSIS_RESULTS.md`
 
 This system is designed to solve real problems in karaoke track preparation. The logic-first approach gives you immediate value, while the AI approach provides a path for even better results in the future.

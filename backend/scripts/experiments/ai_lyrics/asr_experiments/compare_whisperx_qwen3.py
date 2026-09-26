@@ -17,7 +17,7 @@ from time import perf_counter
 from typing import Any
 
 
-BACKEND_DIR = Path(__file__).resolve().parents[3]
+BACKEND_DIR = Path(__file__).resolve().parents[4]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
