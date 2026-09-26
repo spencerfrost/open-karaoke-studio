@@ -13,16 +13,47 @@
  * - **Nothing loads = a letter tile,** when the slot has a letter to show.
  *   The backdrop has none and shows nothing.
  *
+ * Dimming lives here too, on the image itself, not on a wrapper: an image that
+ * no longer matches the cursor (`pending`, or the next one still loading)
+ * sits at `staleOpacity`, and only the next image arriving brightens the slot.
+ * A wrapper that dimmed on its own clock brightened the *old* image back up
+ * the moment the cursor settled, and then swapped it - a flash on every move.
+ *
  * It does not decide *when* to load: callers pass sources only once the
  * cursor has settled (see useSongWheel).
  */
 
 import React, { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /** URLs that failed to load, for the life of the page. */
 const failedUrls = new Set<string>();
+
+/**
+ * One thing the slot has shown: an image, or the letter tile. Each change of
+ * what is shown is a new layer, even back to an image still fading out, so a
+ * leaving layer is never revived mid-exit.
+ */
+interface Layer {
+  key: number;
+  /** The image, or null for the letter tile. */
+  src: string | null;
+  letter?: string;
+  /** Replaced: sits under the new layer, then fades out and is dropped. */
+  leaving: boolean;
+  /** There when the slot mounted: appears without fading in. */
+  mounted: boolean;
+}
+
+const sameContent = (
+  layer: Layer | undefined,
+  src: string | null,
+  letter?: string,
+) =>
+  layer !== undefined &&
+  layer.src === src &&
+  (src !== null || layer.letter === letter);
 
 interface WheelArtworkProps {
   /** Candidate images, best first. Empty entries are skipped. */
@@ -35,6 +66,13 @@ interface WheelArtworkProps {
   className?: string;
   /** Applied to each image layer; the backdrop's blur goes here. */
   layerClassName?: string;
+  /** The cursor has moved off what `sources` are for and not settled yet. */
+  pending?: boolean;
+  /**
+   * Opacity of an image that is out of date: while `pending`, and while the
+   * next image loads. 1 = never dimmed (the backdrop).
+   */
+  staleOpacity?: number;
   fadeMs?: number;
 }
 
@@ -44,6 +82,8 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
   shape = "square",
   className,
   layerClassName,
+  pending = false,
+  staleOpacity = 1,
   fadeMs = 200,
 }) => {
   const reducedMotion = useReducedMotion() ?? false;
@@ -75,22 +115,57 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
 
   // No source left at all: straight to the tile, nothing to wait for.
   const shown = target === null ? null : loaded;
-  const fade = reducedMotion ? 0 : fadeMs / 1000;
-  // The new layer fades in on top; the old one stays opaque underneath until
-  // it is covered, so the fade never dips through to the background.
-  const layer = {
-    initial: { opacity: 0, zIndex: 2 },
-    animate: { opacity: 1, zIndex: 2, transition: { duration: fade } },
-    exit: {
-      opacity: 0,
-      zIndex: 1,
-      transition: {
-        opacity: { delay: fade, duration: 0 },
-        zIndex: { duration: 0 },
-      },
-    },
-  };
+  const hasContent = shown !== null || fallback !== undefined;
 
+  const [layers, setLayers] = useState<Layer[]>(() =>
+    hasContent
+      ? [
+          {
+            key: 0,
+            src: shown,
+            letter: fallback,
+            leaving: false,
+            mounted: true,
+          },
+        ]
+      : [],
+  );
+  // Only the newest layer can be current; everything under it is leaving.
+  const newest = layers[layers.length - 1] as Layer | undefined;
+  const current = newest?.leaving ? undefined : newest;
+  const upToDate = hasContent
+    ? sameContent(current, shown, fallback)
+    : current === undefined;
+  if (!upToDate) {
+    // Adjusting state during render: the new layer is in the very next paint.
+    const key = (newest?.key ?? -1) + 1;
+    setLayers([
+      // With no fade there is nothing to wait for: the old ones just go.
+      ...(fadeMs > 0 && !reducedMotion
+        ? layers.map((l) => (l.leaving ? l : { ...l, leaving: true }))
+        : []),
+      ...(hasContent
+        ? [
+            {
+              key,
+              src: shown,
+              letter: fallback,
+              leaving: false,
+              mounted: false,
+            },
+          ]
+        : []),
+    ]);
+  }
+  const drop = (key: number) =>
+    setLayers((ls) => ls.filter((l) => l.key !== key));
+
+  const ms = reducedMotion ? 0 : fadeMs;
+  // Three properties, three elements, so none fights another for `opacity`:
+  // the outer one leaves, the middle one dims, the inner one arrives. The new
+  // layer fades in on top; the old one stays underneath until it is covered,
+  // then fades out - usually unseen, but a new layer that arrives dimmed does
+  // not fully cover it, and a snap would show.
   return (
     <div
       aria-hidden
@@ -100,29 +175,60 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
         className,
       )}
     >
-      <AnimatePresence initial={false}>
-        {shown !== null ? (
-          <motion.img
-            key={shown}
-            src={shown}
-            alt=""
-            draggable={false}
-            className={cn(
-              "absolute inset-0 size-full object-cover",
-              layerClassName,
-            )}
-            {...layer}
-          />
-        ) : fallback !== undefined ? (
-          <motion.div
-            key={`tile:${fallback}`}
-            className="absolute inset-0 grid place-items-center bg-surface font-display text-[52cqmin] font-extrabold leading-none text-foreground/55 ring-1 ring-inset ring-border/30"
-            {...layer}
+      {layers.map((l) => {
+        const stale =
+          l.leaving || pending || (l.src !== null && l.src !== target);
+        return (
+          <div
+            key={l.key}
+            className={cn("absolute inset-0", l.leaving ? "z-[1]" : "z-[2]")}
+            style={
+              l.leaving
+                ? { animation: `wheel-art-out ${ms}ms linear ${ms}ms both` }
+                : undefined
+            }
+            onAnimationEnd={(e) => {
+              if (e.target === e.currentTarget && l.leaving) drop(l.key);
+            }}
           >
-            {fallback}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            <div
+              className="absolute inset-0"
+              style={{
+                opacity: stale ? staleOpacity : 1,
+                transition: `opacity ${ms}ms`,
+              }}
+            >
+              {l.src !== null ? (
+                <img
+                  src={l.src}
+                  alt=""
+                  draggable={false}
+                  className={cn(
+                    "absolute inset-0 size-full object-cover",
+                    layerClassName,
+                  )}
+                  style={
+                    l.mounted
+                      ? undefined
+                      : { animation: `wheel-art-in ${ms}ms both` }
+                  }
+                />
+              ) : (
+                <div
+                  className="absolute inset-0 grid place-items-center bg-surface font-display text-[52cqmin] font-extrabold leading-none text-foreground/55 ring-1 ring-inset ring-border/30"
+                  style={
+                    l.mounted
+                      ? undefined
+                      : { animation: `wheel-art-in ${ms}ms both` }
+                  }
+                >
+                  {l.letter}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

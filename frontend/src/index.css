@@ -412,4 +412,20 @@
       color-mix(in oklab, var(--background) 90%, transparent)
     );
   }
+
+  /* WheelArtwork's layers. CSS rather than framer-motion: framer hands a
+     finished animation back to the element one frame late, and a layer showed
+     its starting opacity for that frame - a flash at the end of every fade.
+     Durations and delays are set inline; `both` holds the end values. */
+  @keyframes wheel-art-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes wheel-art-out {
+    to {
+      opacity: 0;
+    }
+  }
 }

@@ -26,7 +26,6 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Loader2, Theater } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { Song } from "@/types/Song";
 import SongInfoCard from "./SongInfoCard";
 import WheelArtwork from "./WheelArtwork";
@@ -278,11 +277,9 @@ const SongWheel: React.FC<SongWheelProps> = ({
                         ? tileInitial(settledArtist.name)
                         : undefined
                     }
-                    className={cn(
-                      "size-[84px] flex-none shadow-[0_8px_30px_rgba(0,0,0,.45)]",
-                      !reducedMotion && "transition-opacity duration-200",
-                      wheel.artistPending && "opacity-25",
-                    )}
+                    pending={wheel.artistPending}
+                    staleOpacity={0.25}
+                    className="size-[84px] flex-none shadow-[0_8px_30px_rgba(0,0,0,.45)]"
                   />
                   <div className="min-w-0">
                     Songs

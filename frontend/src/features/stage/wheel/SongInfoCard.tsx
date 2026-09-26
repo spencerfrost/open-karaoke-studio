@@ -45,6 +45,9 @@ const LYRICS_TAG: Record<LyricsKind, [string, TagTone]> = {
 
 type TagTone = "normal" | "warn" | "quiet";
 
+/** How far the card dims while the cursor is off the song it shows. */
+const STALE_OPACITY = 0.35;
+
 const Tag: React.FC<{ tone: TagTone; children: React.ReactNode }> = ({
   tone,
   children,
@@ -94,27 +97,33 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
       // The ring's turn easing, so the card arrives with the column.
       transition={{ duration: ms / 1000, ease: [0.2, 0.8, 0.25, 1] }}
     >
+      {/* The artwork dims itself: it lags the text by a load, and a wrapper
+          dimming both would brighten the old image before the new arrived. */}
+      <div className={cn("relative", showCover ? "mb-16" : "mb-5")}>
+        <WheelArtwork
+          sources={songHeroSources(song)}
+          fallback={tileInitial(song.title)}
+          pending={pending}
+          staleOpacity={STALE_OPACITY}
+          className="aspect-video w-full shadow-[0_8px_30px_rgba(0,0,0,.45)]"
+        />
+        {showCover && (
+          <WheelArtwork
+            sources={[song.albumCoverUrl]}
+            fallback={tileInitial(song.album || song.title)}
+            pending={pending}
+            staleOpacity={STALE_OPACITY}
+            className="absolute -bottom-12 left-[18px] size-[116px] shadow-[0_10px_30px_rgba(0,0,0,.5)] ring-4 ring-surface"
+          />
+        )}
+      </div>
+
       <div
         style={{
-          opacity: pending ? 0.35 : 1,
+          opacity: pending ? STALE_OPACITY : 1,
           transition: `opacity ${reducedMotion ? 0 : 120}ms`,
         }}
       >
-        <div className={cn("relative", showCover ? "mb-16" : "mb-5")}>
-          <WheelArtwork
-            sources={songHeroSources(song)}
-            fallback={tileInitial(song.title)}
-            className="aspect-video w-full shadow-[0_8px_30px_rgba(0,0,0,.45)]"
-          />
-          {showCover && (
-            <WheelArtwork
-              sources={[song.albumCoverUrl]}
-              fallback={tileInitial(song.album || song.title)}
-              className="absolute -bottom-12 left-[18px] size-[116px] shadow-[0_10px_30px_rgba(0,0,0,.5)] ring-4 ring-surface"
-            />
-          )}
-        </div>
-
         <h3 className="line-clamp-2 text-balance font-display text-[40px] font-extrabold leading-[1.05] text-foreground">
           {song.title}
         </h3>
