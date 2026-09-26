@@ -92,7 +92,11 @@ export interface SongWheel {
   back: () => void;
   /** Bring a column to the front (a click or a scroll over a side column). */
   focusColumn: (col: ColumnIndex) => void;
-  /** A click on a row: the centred row acts like Enter, any other moves to it. */
+  /**
+   * A click on a row in the front column. A letter or an artist moves to it
+   * and on to the next column. A song: the centred one acts like Enter, any
+   * other moves to it.
+   */
   pickRow: (col: ColumnIndex, index: number) => void;
 }
 
@@ -293,8 +297,10 @@ export function useSongWheel({
         setArtistIndex(target);
         setCol(COLUMN.artist);
       } else if (c === COLUMN.artist) {
-        if (index === artistIndex) enter();
-        else setArtistIndex(index);
+        // Any artist, centred or not: a click means "show me their songs",
+        // so it doesn't take a second click to get there.
+        setArtistIndex(index);
+        setCol(COLUMN.song);
       } else if (index === clampedSongIndex) {
         enter();
       } else {
@@ -305,7 +311,6 @@ export function useSongWheel({
       col,
       firstByLetter,
       setArtistIndex,
-      artistIndex,
       enter,
       clampedSongIndex,
       songs.length,
