@@ -1177,7 +1177,13 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
         for extension, mimetype in formats_to_try:
             thumbnail_path = song_dir / f"thumbnail.{extension}"
             if thumbnail_path.exists() and os.access(thumbnail_path, os.R_OK):
-                return FileResponse(thumbnail_path, media_type=mimetype)
+                # Without Cache-Control every view revalidates; see
+                # get_artist_image.
+                return FileResponse(
+                    thumbnail_path,
+                    media_type=mimetype,
+                    headers={"Cache-Control": "public, max-age=3600"},
+                )
 
         raise HTTPException(
             status_code=404, detail=f"Thumbnail not found for song: {song_id}"

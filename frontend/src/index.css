@@ -358,7 +358,35 @@
 }
 
 /* Stage song wheel. Theme colors only, so a preset re-skins it. */
+
+/* Registered so the list's edge fades can animate in and out. */
+@property --wheel-fade-top {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --wheel-fade-bottom {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 @layer utilities {
+  /* A wheel column's list fades out at an end only while there is more list
+     past it; WheelColumn sets the two fade lengths. */
+  .wheel-list-mask {
+    --wheel-list-mask: linear-gradient(
+      180deg,
+      transparent 0%,
+      #000 var(--wheel-fade-top),
+      #000 calc(100% - var(--wheel-fade-bottom)),
+      transparent 100%
+    );
+    mask-image: var(--wheel-list-mask);
+    -webkit-mask-image: var(--wheel-list-mask);
+  }
+
   /* A soft glow behind the selected row of the column at the front. No edges:
      the columns have no surfaces, so a box here would be the only one. */
   .wheel-band {
@@ -374,5 +402,14 @@
     text-shadow:
       0 0 18px color-mix(in oklab, var(--primary) 70%, transparent),
       0 0 42px color-mix(in oklab, var(--accent) 35%, transparent);
+  }
+
+  /* Over the blurred backdrop: light at the edges, dark behind the wheel. */
+  .wheel-backdrop-shade {
+    background: radial-gradient(
+      ellipse 70% 70% at 50% 50%,
+      color-mix(in oklab, var(--background) 45%, transparent),
+      color-mix(in oklab, var(--background) 90%, transparent)
+    );
   }
 }

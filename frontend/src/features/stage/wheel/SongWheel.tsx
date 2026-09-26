@@ -15,13 +15,21 @@
  * wheel looks the same on the TV as on a laptop, and the tuning numbers in
  * wheelModel mean the same thing everywhere.
  *
+ * Artwork (the artist photo in the songs heading, the song card, the blurred
+ * backdrop) follows the *settled* cursor only; see
+ * docs/plans/2026-09-25-stage-wheel-artwork.md.
+ *
  * See docs/plans/2026-09-25-stage-song-wheel.md.
  */
 
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { useReducedMotion } from "framer-motion";
+import { createPortal } from "react-dom";
+import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Loader2, Theater } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Song } from "@/types/Song";
+import SongInfoCard from "./SongInfoCard";
+import WheelArtwork from "./WheelArtwork";
 import WheelColumn from "./WheelColumn";
 import { useSongWheel, type WheelFocusRequest } from "./useSongWheel";
 import { useWheelKeys } from "./useWheelKeys";
@@ -31,16 +39,29 @@ import {
   LETTERS,
   ROW_HEIGHTS,
   WHEEL_TUNING,
+  artistImageUrl,
   columnBrightness,
   columnSeats,
+  songHeroSources,
+  tileInitial,
   type ColumnIndex,
 } from "./wheelModel";
 
 const FRAME_W = 1600;
 const FRAME_H = 900;
 const SEATS = columnSeats();
-/** Where each column's list starts, below its header. */
-const LIST_TOP = [60, 60, 104] as const;
+/** Where each column's list starts, below its header (the songs heading has
+ *  the artist photo in it). */
+const LIST_TOP = [60, 60, 128] as const;
+/** The ring's area on the frame; the song card centres on it. */
+const STAGE_TOP = 110;
+const STAGE_BOTTOM = 120;
+/**
+ * The full-screen blurred backdrop. The one artwork piece that can go without
+ * touching the others: switch it off here if it stutters or looks wrong on
+ * the TV.
+ */
+const SHOW_BACKDROP = true;
 
 interface SongWheelProps {
   /** Keys are live only while song select is the screen showing. */
@@ -49,6 +70,12 @@ interface SongWheelProps {
   onPickSong: (song: Song) => void;
   /** Back from the letter or artist column; null when there is nowhere to go. */
   onLeave: (() => void) | null;
+  /**
+   * Where the blurred backdrop is drawn: a layer behind the whole screen, top
+   * bar included, which the wheel's own box doesn't reach. No backdrop until
+   * it exists.
+   */
+  backdropTarget?: HTMLElement | null;
 }
 
 /** Scale the fixed frame to fit its container, letterboxed. */
@@ -78,6 +105,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
   focusArtist,
   onPickSong,
   onLeave,
+  backdropTarget,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(containerRef);
@@ -109,7 +137,15 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const columnTransform = (i: ColumnIndex) =>
     `rotateY(${SEATS[i]}deg) translateZ(${radiusPx}px) rotateY(${-(SEATS[i] + ringAngle)}deg)`;
 
-  const { artist, songs, col } = wheel;
+  const { artist, songs, col, settledArtist, settledSong } = wheel;
+  const settledArtistImage = settledArtist
+    ? artistImageUrl(settledArtist)
+    : null;
+  const songInFront = col === COLUMN.song && settledSong !== null;
+  const backdropSources =
+    songInFront && settledSong
+      ? songHeroSources(settledSong)
+      : [settledArtistImage];
 
   const legend: [string[], string][] = [
     [["▲", "▼"], ["Jump letter", "Browse artists", "Browse songs"][col]],
@@ -130,7 +166,8 @@ const SongWheel: React.FC<SongWheelProps> = ({
     scrollMs,
     onActivate: () => wheel.focusColumn(i),
     onRowClick: (index: number) => wheel.pickRow(i, index),
-    onWheelSteps: (dir: -1 | 1, steps: number) => wheel.move(dir, steps),
+    onWheelSteps: (dir: -1 | 1, steps: number) =>
+      wheel.scrollColumn(i, dir, steps),
   });
 
   let body: React.ReactNode;
@@ -173,8 +210,13 @@ const SongWheel: React.FC<SongWheelProps> = ({
         </div>
 
         <div
-          className="absolute inset-x-0 bottom-[120px] top-[110px]"
-          style={{ perspective: 1700, perspectiveOrigin: "50% 50%" }}
+          className="absolute inset-x-0"
+          style={{
+            top: STAGE_TOP,
+            bottom: STAGE_BOTTOM,
+            perspective: 1700,
+            perspectiveOrigin: "50% 50%",
+          }}
         >
           <div
             className="absolute left-1/2 top-1/2 size-0"
@@ -220,12 +262,30 @@ const SongWheel: React.FC<SongWheelProps> = ({
               {...shared(COLUMN.song)}
               label="Songs"
               header={
-                <>
-                  Songs
-                  <span className="mt-0.5 block truncate text-[40px] font-extrabold normal-case tracking-[0.02em] text-foreground">
-                    {artist?.name}
-                  </span>
-                </>
+                <div className="flex items-center gap-[18px]">
+                  {/* Follows the settled artist and dims while the cursor
+                      moves, so it never claims a photo for the wrong name. */}
+                  <WheelArtwork
+                    shape="round"
+                    sources={[settledArtistImage]}
+                    fallback={
+                      settledArtist
+                        ? tileInitial(settledArtist.name)
+                        : undefined
+                    }
+                    className={cn(
+                      "size-[84px] flex-none shadow-[0_8px_30px_rgba(0,0,0,.45)]",
+                      !reducedMotion && "transition-opacity duration-200",
+                      wheel.artistPending && "opacity-25",
+                    )}
+                  />
+                  <div className="min-w-0">
+                    Songs
+                    <span className="mt-0.5 block truncate text-[40px] font-extrabold normal-case tracking-[0.02em] text-foreground">
+                      {artist?.name}
+                    </span>
+                  </div>
+                </div>
               }
               count={songs.length}
               cursor={wheel.songIndex}
@@ -258,6 +318,17 @@ const SongWheel: React.FC<SongWheelProps> = ({
           </div>
         </div>
 
+        <AnimatePresence>
+          {active && songInFront && settledSong && (
+            <SongInfoCard
+              key="song-info"
+              song={settledSong}
+              pending={wheel.songPending}
+              centerY={(STAGE_TOP + FRAME_H - STAGE_BOTTOM) / 2}
+            />
+          )}
+        </AnimatePresence>
+
         <div className="absolute inset-x-0 bottom-11 flex justify-center gap-11 text-[22px] text-foreground/60">
           {legend.map(([keys, text]) => (
             <div key={text} className="flex items-center gap-3">
@@ -274,6 +345,24 @@ const SongWheel: React.FC<SongWheelProps> = ({
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
+      {SHOW_BACKDROP &&
+        backdropTarget &&
+        createPortal(
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+          >
+            <WheelArtwork
+              sources={backdropSources}
+              className="absolute -inset-[15%] rounded-none opacity-50"
+              layerClassName="blur-[90px] saturate-[1.2]"
+              fadeMs={600}
+            />
+            {/* Keeps the middle dark enough for the text. */}
+            <div className="wheel-backdrop-shade absolute inset-0" />
+          </div>,
+          backdropTarget,
+        )}
       <div
         className="absolute left-1/2 top-1/2"
         style={{

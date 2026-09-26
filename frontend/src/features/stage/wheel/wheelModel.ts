@@ -11,6 +11,7 @@
  */
 
 import type { Artist } from "@/hooks/api/useArtists";
+import type { Song } from "@/types/Song";
 
 /** Every letter, always, so the column's geometry never shifts. */
 export const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"] as const;
@@ -105,6 +106,23 @@ export function stepLetter(
 export const clampIndex = (i: number, length: number): number =>
   Math.max(0, Math.min(length - 1, i));
 
+/**
+ * How far a column's list is scrolled, in pixels: enough to centre the cursor
+ * row, but never past either end. At the top of the list the first row sits
+ * at the top of the column instead of leaving empty space above the cursor;
+ * the same at the bottom. A list shorter than the column never scrolls.
+ */
+export function listScrollOffset(
+  cursor: number,
+  count: number,
+  rowHeight: number,
+  viewportPx: number,
+): number {
+  const centred = cursor * rowHeight + rowHeight / 2 - viewportPx / 2;
+  const max = Math.max(0, count * rowHeight - viewportPx);
+  return Math.max(0, Math.min(max, centred));
+}
+
 /** A stable identity for an artist row; shows and artists can share a name. */
 export const artistKey = (artist: Pick<Artist, "name" | "isShow">): string =>
   `${artist.isShow ? "show" : "artist"}:${artist.name}`;
@@ -141,4 +159,83 @@ export function holdRate(heldMs: number): number {
   const { holdStartRate, holdTopRate, holdRampMs } = WHEEL_TUNING;
   const t = Math.min(1, Math.max(0, heldMs) / holdRampMs);
   return holdStartRate + t * (holdTopRate - holdStartRate);
+}
+
+// ---------------------------------------------------------------------------
+// Artwork. See docs/plans/2026-09-25-stage-wheel-artwork.md.
+// ---------------------------------------------------------------------------
+
+/** The artist photo, fetched from Discogs on first ask. Shows have none. */
+export const artistImageUrl = (
+  artist: Pick<Artist, "name" | "isShow">,
+): string | null =>
+  artist.isShow
+    ? null
+    : `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
+
+/**
+ * Images for the song card's hero, best first: the video still, then the
+ * album cover. The reverse of getArtworkUrl, on purpose: stills cover ~71% of
+ * songs and covers ~36%, so leading with the still keeps the cards alike.
+ */
+export function songHeroSources(
+  song: Pick<Song, "id" | "thumbnail" | "videoId" | "albumCoverUrl">,
+): string[] {
+  const sources: string[] = [];
+  if (song.thumbnail) sources.push(`/api/songs/${song.id}/thumbnail`);
+  // hqdefault always exists; maxresdefault often doesn't. It is 4:3 with the
+  // 16:9 picture letterboxed inside, which a 16:9 cover crop removes.
+  if (song.videoId)
+    sources.push(`https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg`);
+  if (song.albumCoverUrl) sources.push(song.albumCoverUrl);
+  return sources;
+}
+
+const LEADING_ARTICLE = /^(the|a|an)\s+/i;
+
+/** The letter on a tile standing in for a missing image. "The Cure" → "C". */
+export function tileInitial(name: string): string {
+  const trimmed = name.trim();
+  const filed = trimmed.replace(LEADING_ARTICLE, "") || trimmed;
+  return (Array.from(filed)[0] ?? "?").toUpperCase();
+}
+
+/** "Artist feat. Guest", from credits the artist string doesn't already name. */
+export function songByline(song: Pick<Song, "artist" | "artists">): string {
+  const credited = song.artist.toLowerCase();
+  const featured = (song.artists ?? [])
+    .filter((a) => a.role === "featured")
+    .map((a) => a.name)
+    .filter((name) => !credited.includes(name.toLowerCase()));
+  return featured.length > 0
+    ? `${song.artist} feat. ${featured.join(", ")}`
+    : song.artist;
+}
+
+export type LyricsKind = "word-synced" | "synced" | "plain" | "none";
+
+export function lyricsKind(
+  song: Pick<Song, "wordSyncedLyrics" | "syncedLyrics" | "plainLyrics">,
+): LyricsKind {
+  if (song.wordSyncedLyrics) return "word-synced";
+  if (song.syncedLyrics) return "synced";
+  if (song.plainLyrics) return "plain";
+  return "none";
+}
+
+/** "G3–D4", or null unless both ends are known. */
+export const vocalRange = (
+  song: Pick<Song, "vocalRangeLow" | "vocalRangeHigh">,
+): string | null =>
+  song.vocalRangeLow && song.vocalRangeHigh
+    ? `${song.vocalRangeLow}–${song.vocalRangeHigh}`
+    : null;
+
+/** The release year, from `year` or else the start of `releaseDate`. */
+export function songYear(
+  song: Pick<Song, "year" | "releaseDate">,
+): number | null {
+  if (song.year) return song.year;
+  const fromDate = Number.parseInt(song.releaseDate?.slice(0, 4) ?? "", 10);
+  return Number.isFinite(fromDate) && fromDate > 0 ? fromDate : null;
 }

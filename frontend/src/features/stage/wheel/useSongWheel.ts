@@ -26,9 +26,11 @@ import {
 } from "./wheelModel";
 
 /**
- * How long the artist cursor has to rest before its songs are fetched.
- * Holding ▼ passes 30 artists a second; fetching each one's songs on the way
- * past would be 30 requests for lists nobody saw.
+ * How long a cursor has to rest before anything is fetched for it: an
+ * artist's songs, an artist photo, a song's artwork. Holding ▼ passes 30 rows
+ * a second; fetching for each one on the way past would be 30 requests for
+ * things nobody saw - and for artist photos, 30 Discogs lookups against a
+ * limit of 60 a minute.
  */
 const SONGS_SETTLE_MS = 150;
 /** Songs per request. Almost every artist fits in one page. */
@@ -66,8 +68,24 @@ export interface SongWheel {
   songs: Song[];
   songsLoading: boolean;
   songIndex: number;
+  /** The artist the cursor last rested on; lags `artist` while it moves. */
+  settledArtist: WheelArtist | null;
+  /**
+   * The song the cursor last rested on while the song column was in front.
+   * Kept while the cursor moves on, so artwork can stay until the next loads.
+   */
+  settledSong: Song | null;
+  /** The cursor has moved off `settledArtist` / `settledSong` and not rested. */
+  artistPending: boolean;
+  songPending: boolean;
   /** ▲▼ in the column at the front, `steps` rows (or letters) at once. */
   move: (dir: -1 | 1, steps?: number) => void;
+  /**
+   * The scroll wheel over a column: brings it to the front and moves in *it*.
+   * Named explicitly because `col` in this render is still the old front
+   * column until the switch re-renders.
+   */
+  scrollColumn: (col: ColumnIndex, dir: -1 | 1, steps: number) => void;
   /** ◀▶. Stops at either end rather than falling through to anything else. */
   turn: (dir: -1 | 1) => void;
   enter: () => void;
@@ -142,8 +160,9 @@ export function useSongWheel({
   }, [currentKey, col]);
 
   const settledArtist =
-    settledKey !== null ? artists[indexByKey.get(settledKey) ?? -1] : undefined;
-  const songsArtist = settledArtist ?? null;
+    (settledKey !== null ? artists[indexByKey.get(settledKey) ?? -1] : null) ??
+    null;
+  const songsArtist = settledArtist;
   const artistSongs = useInfiniteArtistSongs(
     songsArtist?.name ?? "",
     SONGS_PAGE_SIZE,
@@ -165,6 +184,27 @@ export function useSongWheel({
   const songsLoading = !songsAreCurrent || songsQuery.isLoading;
   const clampedSongIndex = clampIndex(songIndex, Math.max(1, songs.length));
 
+  // The song the cursor rests on, for the info card. Only in the song column:
+  // anywhere else the card is not showing, so there is nothing to settle.
+  const cursorSong =
+    col === COLUMN.song ? (songs[clampedSongIndex] ?? null) : null;
+  const cursorSongId = cursorSong?.id ?? null;
+  const [settledSongId, setSettledSongId] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setSettledSongId(cursorSongId),
+      SONGS_SETTLE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [cursorSongId]);
+  const settledSong = useMemo(
+    () =>
+      settledSongId !== null
+        ? (songs.find((s) => s.id === settledSongId) ?? null)
+        : null,
+    [songs, settledSongId],
+  );
+
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = songsQuery;
   useEffect(() => {
     if (
@@ -182,9 +222,9 @@ export function useSongWheel({
     fetchNextPage,
   ]);
 
-  const move = useCallback(
-    (dir: -1 | 1, steps: number = 1) => {
-      if (col === COLUMN.letter) {
+  const moveIn = useCallback(
+    (c: ColumnIndex, dir: -1 | 1, steps: number) => {
+      if (c === COLUMN.letter) {
         let target = artistIndex;
         for (let n = 0; n < steps; n++) {
           const next = stepLetter(target, dir, artists, firstByLetter);
@@ -192,14 +232,13 @@ export function useSongWheel({
           target = next;
         }
         if (target !== artistIndex) setArtistIndex(target);
-      } else if (col === COLUMN.artist) {
+      } else if (c === COLUMN.artist) {
         setArtistIndex(artistIndex + dir * steps);
       } else if (songs.length > 0) {
         setSongIndex(clampIndex(clampedSongIndex + dir * steps, songs.length));
       }
     },
     [
-      col,
       artistIndex,
       artists,
       firstByLetter,
@@ -207,6 +246,19 @@ export function useSongWheel({
       songs.length,
       clampedSongIndex,
     ],
+  );
+
+  const move = useCallback(
+    (dir: -1 | 1, steps: number = 1) => moveIn(col, dir, steps),
+    [moveIn, col],
+  );
+
+  const scrollColumn = useCallback(
+    (c: ColumnIndex, dir: -1 | 1, steps: number) => {
+      setCol(c);
+      moveIn(c, dir, steps);
+    },
+    [moveIn],
   );
 
   const turn = useCallback((dir: -1 | 1) => {
@@ -272,7 +324,12 @@ export function useSongWheel({
     songs,
     songsLoading,
     songIndex: clampedSongIndex,
+    settledArtist,
+    settledSong,
+    artistPending: settledKey !== currentKey,
+    songPending: cursorSongId !== settledSongId,
     move,
+    scrollColumn,
     turn,
     enter,
     back,

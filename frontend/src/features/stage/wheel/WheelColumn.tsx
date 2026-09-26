@@ -1,8 +1,10 @@
 /**
- * WheelColumn - one column of the song wheel: a list sliding through a fixed
- * selection row, DDR style.
+ * WheelColumn - one column of the song wheel: a list that slides to keep the
+ * cursor in the middle, DDR style, but stops at its ends so the top and bottom
+ * of the list sit flush with the column instead of leaving empty space. Near
+ * an end the cursor (and its glow) moves off the middle instead.
  *
- * Only the rows near the cursor exist. The rows are positioned in list
+ * Only the rows near what is on screen exist. The rows are positioned in list
  * coordinates on a strip, and the strip slides, so a row mounted at the edge
  * slides into view like any other. ~17 rows per column rather than 600 is
  * what makes the wheel cheap to mount.
@@ -13,10 +15,15 @@
 
 import React, { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { WHEEL_TUNING } from "./wheelModel";
+import { WHEEL_TUNING, listScrollOffset } from "./wheelModel";
 
-/** Rows rendered each side of the cursor: the ~5 visible, plus slide room. */
-const ROWS_EACH_SIDE = 8;
+/** The column's height, header included. */
+const COLUMN_HEIGHT = 660;
+/** Rows rendered past each edge of the visible list, so a slide has rows to
+ *  bring in. */
+const SLIDE_ROOM_ROWS = 3;
+/** How much of the list fades out at an end with more list beyond it. */
+const EDGE_FADE = "18%";
 /** One notch of a line-based wheel, or this many pixels of a smooth one. */
 const WHEEL_PIXELS_PER_ROW = 50;
 
@@ -45,7 +52,7 @@ interface WheelColumnProps {
   rowClassName?: string;
   onActivate: () => void;
   onRowClick: (index: number) => void;
-  /** Positive steps move down the list. */
+  /** Positive steps move down the list. Brings the column to the front. */
   onWheelSteps: (dir: -1 | 1, steps: number) => void;
   /** Shown instead of rows when there are none yet. */
   placeholder?: React.ReactNode;
@@ -77,9 +84,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
   // Native, because React's onWheel is passive and cannot stop the page
   // scrolling. The scroll wheel spins whichever column the pointer is over and
   // brings it to the front.
-  const wheelRef = useRef({ active, onActivate, onWheelSteps, acc: 0 });
-  wheelRef.current.active = active;
-  wheelRef.current.onActivate = onActivate;
+  const wheelRef = useRef({ onWheelSteps, acc: 0 });
   wheelRef.current.onWheelSteps = onWheelSteps;
   useEffect(() => {
     const el = ref.current;
@@ -87,7 +92,6 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       const w = wheelRef.current;
-      if (!w.active) w.onActivate();
       const step =
         e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 1 : WHEEL_PIXELS_PER_ROW;
       w.acc += e.deltaY;
@@ -100,8 +104,16 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
 
-  const first = Math.max(0, cursor - ROWS_EACH_SIDE);
-  const last = Math.min(count - 1, cursor + ROWS_EACH_SIDE);
+  const viewportPx = COLUMN_HEIGHT - listTop;
+  const offset = listScrollOffset(cursor, count, rowHeight, viewportPx);
+  const moreAbove = offset > 0;
+  const moreBelow = offset + viewportPx < count * rowHeight;
+
+  const first = Math.max(0, Math.floor(offset / rowHeight) - SLIDE_ROOM_ROWS);
+  const last = Math.min(
+    count - 1,
+    Math.ceil((offset + viewportPx) / rowHeight) + SLIDE_ROOM_ROWS,
+  );
   const rows: React.ReactNode[] = [];
   for (let i = first; i <= last; i++) {
     const distance = Math.abs(i - cursor);
@@ -149,8 +161,8 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         active ? "cursor-default" : "cursor-pointer",
       )}
       style={{
-        top: -330,
-        height: 660,
+        top: -COLUMN_HEIGHT / 2,
+        height: COLUMN_HEIGHT,
         left: -width / 2,
         width,
         transform,
@@ -169,36 +181,42 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         {header ?? label}
       </div>
 
-      {/* The list fades out at both ends, starting below the header so rows
-          do not scroll up behind it. */}
+      {/* The list starts below the header so rows do not scroll up behind
+          it, and fades out only at an end with more list past it. */}
       <div
-        className="absolute inset-x-0 bottom-0"
-        style={{
-          top: listTop,
-          maskImage:
-            "linear-gradient(180deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
-          WebkitMaskImage:
-            "linear-gradient(180deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
-        }}
+        className="wheel-list-mask absolute inset-x-0 bottom-0"
+        style={
+          {
+            top: listTop,
+            "--wheel-fade-top": moreAbove ? EDGE_FADE : "0%",
+            "--wheel-fade-bottom": moreBelow ? EDGE_FADE : "0%",
+            transition: `--wheel-fade-top ${scrollMs}ms, --wheel-fade-bottom ${scrollMs}ms`,
+          } as React.CSSProperties
+        }
       >
         <div
           aria-hidden
-          className="wheel-band pointer-events-none absolute inset-x-2.5 top-1/2 -translate-y-1/2"
+          className="wheel-band pointer-events-none absolute inset-x-2.5 top-0"
           style={{
             height: rowHeight * 1.6,
             opacity: active ? 1 : 0,
-            transition: `opacity ${turnMs}ms`,
+            // Centred on the cursor row, wherever the clamp left it.
+            transform: `translateY(${cursor * rowHeight - offset - rowHeight * 0.3}px)`,
+            transition: `opacity ${turnMs}ms, transform ${scrollMs}ms ${WHEEL_TUNING.turnEasing}`,
           }}
         />
         {count === 0 && placeholder ? (
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-7 text-2xl text-foreground/50">
+          <div
+            className="absolute inset-x-0 top-0 flex items-center px-7 text-2xl text-foreground/50"
+            style={{ height: rowHeight }}
+          >
             {placeholder}
           </div>
         ) : (
           <div
-            className="absolute inset-x-0 top-1/2 will-change-transform"
+            className="absolute inset-x-0 top-0 will-change-transform"
             style={{
-              transform: `translateY(${-cursor * rowHeight - rowHeight / 2}px)`,
+              transform: `translateY(${-offset}px)`,
               transition: `transform ${scrollMs}ms ${WHEEL_TUNING.turnEasing}`,
             }}
           >

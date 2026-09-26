@@ -69,10 +69,16 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
     setSearching(false);
   }, []);
   const closeSearch = useCallback(() => setSearching(false), []);
+  // State, not a ref: the wheel has to re-render once the layer exists.
+  const [backdropEl, setBackdropEl] = useState<HTMLDivElement | null>(null);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between gap-4 px-6 pt-4">
+      {/* The wheel's blurred backdrop, behind the whole screen. Everything
+          after it is positioned, so it paints on top. */}
+      <div ref={setBackdropEl} className="absolute inset-0" />
+
+      <div className="relative flex shrink-0 items-center justify-between gap-4 px-6 pt-4">
         {hasCurrentSong ? (
           <Button
             variant="ghost"
@@ -120,6 +126,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             focusArtist={focusArtist}
             onPickSong={handlePickSong}
             onLeave={handleLeave}
+            backdropTarget={backdropEl}
           />
         </div>
         {searching && active && (

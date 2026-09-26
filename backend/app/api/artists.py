@@ -78,7 +78,14 @@ async def get_artist_image(name: str = Query(...)):
     path = await service.get_or_fetch_artist_image(name)
     if path is None:
         raise HTTPException(status_code=404, detail="Artist image not found")
-    return FileResponse(str(path), media_type="image/jpeg")
+    # Cached for an hour so the stage wheel can scroll back over an artist
+    # without asking again. Short enough that a replaced photo shows up the
+    # same evening; the edit dialog busts it at once with ?v=.
+    return FileResponse(
+        str(path),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.post("/images/backfill")
