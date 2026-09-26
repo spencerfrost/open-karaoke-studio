@@ -1,7 +1,7 @@
 """add performer consecutive passes
 
 Adds `session_performers.consecutive_passes`, the counter behind unit 4's
-auto-pass (see docs/plans/2026-08-29-handoff-screen.md). The handoff screen
+auto-pass (see docs/plans/archive/2026-08-29-handoff-screen.md). The handoff screen
 offers the turn to whoever is next in the circle; if nobody steps up before the
 timer expires, the turn passes forward one lap. Without a counter that pass
 repeats forever - a roster of three people who have all gone home would cycle

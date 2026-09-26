@@ -486,7 +486,7 @@ async def reorder_queue(
 
     Free reordering only makes sense in append mode - in rotation mode the next
     add would immediately undo a drag, so `Bump to next` is the only mutation
-    allowed there instead. See docs/plans/2026-08-29-roster-and-rotation.md.
+    allowed there instead. See docs/plans/archive/2026-08-29-roster-and-rotation.md.
     """
     if session.queue_order_mode != "append":
         raise HTTPException(

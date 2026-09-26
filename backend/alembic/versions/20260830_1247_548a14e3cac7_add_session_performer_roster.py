@@ -1,7 +1,7 @@
 """add session performer roster
 
 Adds `session_performers`, the name-bound roster table for unit 3a (see
-docs/plans/2026-08-29-roster-and-rotation.md). Links `karaoke_queue` and
+docs/plans/archive/2026-08-29-roster-and-rotation.md). Links `karaoke_queue` and
 `performance_history` to it via a nullable `performer_id`, backfilled by
 normalized name from the existing `singer_name` columns - `singer_name`
 itself is kept as the display fallback. Also adds `karaoke_queue.created_at`,

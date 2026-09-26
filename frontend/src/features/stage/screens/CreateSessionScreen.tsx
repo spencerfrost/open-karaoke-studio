@@ -17,7 +17,7 @@
  * end it and start this one, keeping everything typed so far.
  *
  * The rotation toggle here is a deliberate, scoped exception to "the mode control
- * must not go on the TV" (docs/plans/2026-08-29-roster-and-rotation.md): there is
+ * must not go on the TV" (docs/plans/archive/2026-08-29-roster-and-rotation.md): there is
  * no performer yet to be confused by it. `RotationModeCard` in Settings remains
  * the only way to change a *live* session's mode.
  */

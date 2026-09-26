@@ -23,7 +23,7 @@
  * someone taps, rather than playing the next song or passing over a person who
  * hasn't picked one yet.
  *
- * See docs/plans/2026-08-29-handoff-screen.md.
+ * See docs/plans/archive/2026-08-29-handoff-screen.md.
  */
 
 import React, { useCallback, useMemo, useState } from "react";

@@ -3,7 +3,7 @@ SessionPerformer model - a name-bound roster entry for a karaoke session.
 
 A performer entry can exist with zero devices attached, so a walk-up who never
 touches a phone is still a real person the queue can point at, not just a
-string. See docs/plans/2026-08-29-roster-and-rotation.md.
+string. See docs/plans/archive/2026-08-29-roster-and-rotation.md.
 """
 
 from datetime import datetime

@@ -1,6 +1,6 @@
 """add queue lap and order mode
 
-Adds unit 3b's rotation mechanism (see docs/plans/2026-08-29-roster-and-rotation.md,
+Adds unit 3b's rotation mechanism (see docs/plans/archive/2026-08-29-roster-and-rotation.md,
 Stage 3b): `karaoke_queue.lap`, computed once at insert and never recomputed, plus
 `karaoke_sessions.queue_order_mode` ("append" | "rotation", default rotation) and
 `karaoke_sessions.current_lap`, the lap playback has reached.

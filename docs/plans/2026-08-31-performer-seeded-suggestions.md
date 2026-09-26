@@ -1,6 +1,6 @@
 # Performer-seeded suggestions
 
-Split out of [unit 4 — the handoff screen](2026-08-29-handoff-screen.md), which
+Split out of [unit 4 — the handoff screen](archive/2026-08-29-handoff-screen.md), which
 ships with the suggestion tiles still seeded the old way. Depends on unit 4 having
 landed; nothing else depends on this.
 

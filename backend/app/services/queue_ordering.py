@@ -4,7 +4,7 @@ Queue ordering service - the single place play order is computed and sorted.
 `build_queue_state()` (REST) and `get_current_queue_state()` (WebSocket) both
 call `get_ordered_queue_items` instead of each hand-rolling their own
 `ORDER BY`, since those two had already drifted once. See
-docs/plans/2026-08-29-roster-and-rotation.md, Stage 3b.
+docs/plans/archive/2026-08-29-roster-and-rotation.md, Stage 3b.
 """
 
 import logging

@@ -12,7 +12,7 @@ playback - which a stored pointer would, every time a lap is rewritten.
 "The queue is empty" is therefore not a state. It is one reading of the same
 question: it is Sarah's turn with nothing in her slot.
 
-See docs/plans/2026-08-29-handoff-screen.md.
+See docs/plans/archive/2026-08-29-handoff-screen.md.
 """
 
 from datetime import datetime

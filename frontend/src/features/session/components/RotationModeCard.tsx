@@ -4,7 +4,7 @@
  *
  * Deliberately lives in Settings, not on the stage/TV screen or in
  * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen) -
- * see docs/plans/2026-08-29-roster-and-rotation.md's open decisions. Only
+ * see docs/plans/archive/2026-08-29-roster-and-rotation.md's open decisions. Only
  * ever shown to the session owner; a performer's phone never sees it.
  */
 

@@ -385,7 +385,7 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Problem:** Found 2026-08-30 during the access-gate audit (see #23). Anyone who knows a session's 4-character id can inject arbitrary named performers into that session's roster and trigger a broadcast to every connected device — no membership or ownership check at all.
 
-**Impact:** IMPORTANT — directly undercuts the roster feature ([docs/plans/2026-08-29-roster-and-rotation.md](https://github.com/spencerfrost/open-karaoke-studio/blob/master/docs/plans/2026-08-29-roster-and-rotation.md)): a stranger can pollute a live session's singer queue.
+**Impact:** IMPORTANT — directly undercuts the roster feature ([docs/plans/2026-08-29-roster-and-rotation.md](https://github.com/spencerfrost/open-karaoke-studio/blob/acc34ec32/docs/plans/2026-08-29-roster-and-rotation.md)): a stranger can pollute a live session's singer queue.
 
 **Recommendation:** Gate behind `require_host_or_session_member`, scoped to the named session the way `require_queue_access` now does for the queue endpoints (`backend/app/api/karaoke_queue.py`).
 

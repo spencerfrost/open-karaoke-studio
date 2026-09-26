@@ -2,7 +2,7 @@
 Tests for unit 3b: lap computation, the (lap, seat, id) sort, and bump-to-next.
 
 `test_lap_computation_matches_the_worked_example` walks the exact table from
-docs/plans/2026-08-29-roster-and-rotation.md's Stage 3b section - it is the
+docs/plans/archive/2026-08-29-roster-and-rotation.md's Stage 3b section - it is the
 regression test for the mechanism and must not drift from that table.
 """
 

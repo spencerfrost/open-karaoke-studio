@@ -2,7 +2,7 @@
 Backfill correct `line_index` values and instrumental_intervals into songs
 that already have stored word-synced alignment data.
 
-Fixes the root cause documented in docs/plans/2026-08-30-lyrics-alignment-indexing.md:
+Fixes the root cause documented in docs/plans/archive/2026-08-30-lyrics-alignment-indexing.md:
 WhisperX's sentence-splitting shifted line_index for every word after the
 first split, and the old intro/mid-song instrumental threshold split was
 inconsistent. The stored `words` array's timings are already correct and in

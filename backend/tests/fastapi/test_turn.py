@@ -2,7 +2,7 @@
 Tests for unit 4: whose turn it is, and the three ways that changes.
 
 The mechanism these guard is the one the handoff screen renders, so the cases
-follow docs/plans/2026-08-29-handoff-screen.md's state table directly: a queued
+follow docs/plans/archive/2026-08-29-handoff-screen.md's state table directly: a queued
 turn, an empty seat, an open floor, the one-lap pass, the claim, and the 409
 that makes two devices acting at once safe.
 """

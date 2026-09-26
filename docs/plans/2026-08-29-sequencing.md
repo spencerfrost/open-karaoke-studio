@@ -26,15 +26,19 @@ Fix those two and the plans stop competing.
 
 ## The units
 
+> **Status 2026-09-25:** units 0–4 are shipped and their plans are in [archive/](archive/).
+> Unit 3d is next. 4b and 5 are deferred.
+
 | # | Unit | Plan | Depends on | Track |
 |---|---|---|---|---|
-| — | Stage redesign (3-col player) | [2026-08-28-stage-redesign.md](2026-08-28-stage-redesign.md) | — | **Largely landed** |
-| 0 | Kill the KJ | [2026-08-29-kj-removal.md](2026-08-29-kj-removal.md) | — | **Shipped** — `bfffe584f` |
-| 1 | Session lifecycle (backend) | [2026-08-29-session-lifecycle.md](2026-08-29-session-lifecycle.md) | 0 | Backend |
-| 2 | Stage mode shell | [2026-08-29-stage-mode.md](2026-08-29-stage-mode.md) | 1 | Frontend |
-| 3 | Roster + derived order | [2026-08-29-roster-and-rotation.md](2026-08-29-roster-and-rotation.md) | 1 | Backend |
-| 3c | Create Session screen | [2026-08-30-create-session-screen.md](2026-08-30-create-session-screen.md) | 3a | Frontend |
-| 4 | The handoff screen | [2026-08-29-handoff-screen.md](2026-08-29-handoff-screen.md) | 2 **and** 3 | Frontend |
+| — | Stage redesign (3-col player) | [2026-08-28-stage-redesign.md](archive/2026-08-28-stage-redesign.md) | — | **Shipped** — `d4935f37e` |
+| 0 | Kill the KJ | [2026-08-29-kj-removal.md](archive/2026-08-29-kj-removal.md) | — | **Shipped** — `bfffe584f` |
+| 1 | Session lifecycle (backend) | [2026-08-29-session-lifecycle.md](archive/2026-08-29-session-lifecycle.md) | 0 | **Shipped** — `b959d6b6d` |
+| 2 | Stage mode shell | [2026-08-29-stage-mode.md](archive/2026-08-29-stage-mode.md) | 1 | **Shipped** — `a1d3a2ea5` |
+| 3 | Roster + derived order | [2026-08-29-roster-and-rotation.md](archive/2026-08-29-roster-and-rotation.md) | 1 | **3a shipped** — `ebf33f50f`. 3b shipped, superseded by 3d |
+| 3c | Create Session screen | [2026-08-30-create-session-screen.md](archive/2026-08-30-create-session-screen.md) | 3a | **Shipped** — `cb8489d18` |
+| 4 | The handoff screen | [2026-08-29-handoff-screen.md](archive/2026-08-29-handoff-screen.md) | 2 **and** 3 | **Shipped** — `d2d197206`. Turn controls superseded by 3d |
+| 3d | Rotation as a circle (replaces 3b's lap model + 4's turn controls) | [2026-09-25-rotation-circle.md](2026-09-25-rotation-circle.md) | 3a, 4 | **Next.** Not started |
 | 4b | Performer-seeded suggestions | [2026-08-31-performer-seeded-suggestions.md](2026-08-31-performer-seeded-suggestions.md) | 4 | Deferred |
 | 5 | Performer accounts | [2026-08-29-performer-accounts.md](2026-08-29-performer-accounts.md) | 4 | Deferred |
 
@@ -119,9 +123,12 @@ stage mode deletes. Without a new home there would be no logout anywhere in the 
 ## Open questions carried across units
 
 - **A phone queues while the TV sits in song select.** Does the TV react and move, or stay
-  put? Becomes sharper once rotation derives order. *(unit 2, settled by 3)*
+  put? Becomes sharper once rotation derives order. *(unit 2, settled by 3)* — **still open.**
 - **Where the queue-order mode toggle lives.** Its intended home was the KJ dashboard, which
-  no longer exists. Not the TV — see unit 4's "what stays off this screen." *(unit 3)*
-- **Whether a roster entry expires**, and how long the auto-pass timer runs. *(units 3, 4)*
+  no longer exists. Not the TV — see unit 4's "what stays off this screen." *(unit 3)* —
+  **settled:** `RotationModeCard` in Settings, plus the initial choice on the Create Session screen.
+- **Whether a roster entry expires**, and how long the auto-pass timer runs. *(units 3, 4)* —
+  **settled:** neither. Timers and automatic removal came out in `3436292e7`; leaving is a
+  deliberate "Remove from rotation" in unit 3d.
 - **The permission ladder** a `Performer` tier slots into, below the surviving `User.is_host`.
   *(unit 5)*

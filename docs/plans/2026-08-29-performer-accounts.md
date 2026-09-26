@@ -1,8 +1,8 @@
 # Unit 5 — Performer accounts
 
 Part of [2026-08-29-sequencing.md](2026-08-29-sequencing.md). Depends on
-[unit 3](2026-08-29-roster-and-rotation.md) for the roster and
-[unit 4](2026-08-29-handoff-screen.md) for the surfaces that benefit.
+[unit 3](archive/2026-08-29-roster-and-rotation.md) for the roster and
+[unit 4](archive/2026-08-29-handoff-screen.md) for the surfaces that benefit.
 
 **Deferred by design.** This unit is written down now so that unit 3 adds two nullable
 columns in its migration instead of needing a second one later. Nothing here has to be built
@@ -84,7 +84,7 @@ the threat model is your friends. Worth accepting explicitly rather than discove
 
 **Identity remains weak, and that is now fully accepted.** The original note here was that
 accounts *harden* `max_songs_per_singer` without fixing it, since an anonymous walk-up can
-retype a slightly different name for a fresh allowance. [Unit 0](2026-08-29-kj-removal.md)
+retype a slightly different name for a fresh allowance. [Unit 0](archive/2026-08-29-kj-removal.md)
 deleted that cap outright, so there is nothing left to harden — but the underlying point
 stands for anything built later: **do not add a per-person limit that assumes a strong
 identity.** The demo-account pool means `user_id` does not imply "trusted" either.
