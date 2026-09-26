@@ -2,11 +2,13 @@
  * useStageKeyboard - the one place stage keys are bound.
  *
  * The keyboard is already in the room, so it gets the fixes that matter
- * mid-song: seek, and nudging the lyrics offset when they drift.
+ * mid-song: the guide vocal, and nudging the lyrics when they drift. Seeking
+ * is left to the transport - it is almost never what anyone wants mid-song,
+ * and on the arrow keys it was one stray press away.
  *
- *   Space        play / pause
- *   Left/Right   seek -/+ 5s
- *   Up/Down      lyrics offset +/- 100ms
+ *   Space/Enter  play / pause
+ *   Up/Down      vocal volume +/- 10%
+ *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics earlier)
  *   F            toggle fullscreen
  *
  * Escape is not bound: the Fullscreen API makes the browser exit on Escape and
@@ -16,7 +18,7 @@
 import { useEffect, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
-const SEEK_STEP_SECONDS = 5;
+const VOCAL_STEP = 0.1;
 const OFFSET_STEP_MS = 100;
 
 interface UseStageKeyboardOptions {
@@ -72,42 +74,46 @@ export const useStageKeyboard = ({
       const {
         isReady,
         isPlaying,
-        currentTime,
-        duration,
+        vocalVolume,
         lyricsOffset,
         userPlay,
         userPause,
-        seek,
+        setVocalVolume,
         setLyricsOffset,
       } = useKaraokePlayerStore.getState();
 
       switch (e.code) {
         case "Space":
+        case "Enter":
+        case "NumpadEnter":
+          // A focused button owns Enter; let it click rather than toggling
+          // playback as well.
+          if (e.code !== "Space" && t?.closest("button, a, [role='button']")) {
+            return;
+          }
           if (!isReady) return;
           e.preventDefault(); // prevent page scroll
+          // Enter that started the song on the confirm screen, still held,
+          // must not auto-repeat into pausing it.
+          if (e.repeat) return;
           if (isPlaying) userPause();
           else userPlay();
           return;
-        case "ArrowLeft":
-          if (!isReady) return;
-          e.preventDefault();
-          seek(Math.max(0, currentTime - SEEK_STEP_SECONDS));
-          return;
-        case "ArrowRight":
-          if (!isReady) return;
-          e.preventDefault();
-          {
-            const next = currentTime + SEEK_STEP_SECONDS;
-            seek(duration > 0 ? Math.min(duration, next) : next);
-          }
-          return;
         case "ArrowUp":
           e.preventDefault();
-          setLyricsOffset(lyricsOffset + OFFSET_STEP_MS);
+          setVocalVolume(Math.min(1, vocalVolume + VOCAL_STEP));
           return;
         case "ArrowDown":
           e.preventDefault();
+          setVocalVolume(Math.max(0, vocalVolume - VOCAL_STEP));
+          return;
+        case "ArrowLeft":
+          e.preventDefault();
           setLyricsOffset(lyricsOffset - OFFSET_STEP_MS);
+          return;
+        case "ArrowRight":
+          e.preventDefault();
+          setLyricsOffset(lyricsOffset + OFFSET_STEP_MS);
           return;
         default:
       }
