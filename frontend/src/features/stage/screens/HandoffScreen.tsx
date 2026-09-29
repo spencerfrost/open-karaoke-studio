@@ -33,7 +33,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Library, Music, Play, UserRoundX, Users } from "lucide-react";
+import { BookOpen, Music, Play, UserRoundX, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { QRCodeDisplay } from "@/features/queue";
@@ -382,8 +382,8 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               onClick={() => shell?.openSelect()}
               className="gap-2"
             >
-              <Library className="size-5" />
-              Browse Library
+              <BookOpen className="size-5" />
+              Open the Songbook
             </Button>
           </div>
         )}

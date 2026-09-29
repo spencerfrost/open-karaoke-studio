@@ -180,13 +180,13 @@ const SongWheel: React.FC<SongWheelProps> = ({
     body = (
       <div className="absolute inset-0 flex items-center justify-center gap-4 text-3xl text-foreground/60">
         <Loader2 className="size-9 animate-spin" />
-        Loading the library…
+        Loading the songbook…
       </div>
     );
   } else if (wheel.error) {
     body = (
       <div className="absolute inset-0 flex items-center justify-center text-3xl text-destructive">
-        Couldn't load the library.
+        Couldn't load the songbook.
       </div>
     );
   } else if (wheel.artists.length === 0) {

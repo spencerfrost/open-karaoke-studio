@@ -30,7 +30,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   // shown here is a dead end.
   const getNavigationItems = () => {
     const items: NavItem[] = [
-      { name: "Library", path: "/", icon: Music },
+      { name: "Songbook", path: "/", icon: Music },
       { name: "Add", path: "/add", icon: Upload },
     ];
 

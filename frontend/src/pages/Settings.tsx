@@ -247,7 +247,7 @@ const SettingsPage: React.FC = () => {
             </div>
             <div>
               <label className="block mb-1">
-                Preview Songs on Hover in Library
+                Preview Songs on Hover in the Songbook
               </label>
               <input
                 type="checkbox"

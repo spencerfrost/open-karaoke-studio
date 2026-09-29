@@ -85,7 +85,7 @@ export const BaseResultCard: React.FC<BaseResultCardProps> = ({
               ) : existsInLibrary ? (
                 "Already Added"
               ) : (
-                "Add to Library"
+                "Add to Songbook"
               )}
             </Button>
           </div>

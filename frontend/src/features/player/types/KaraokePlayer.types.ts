@@ -20,8 +20,11 @@ export interface KaraokePlayerProps {
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
-  /** Dim the song header while the stage rails are collapsed. */
-  dimHeader?: boolean;
+  /**
+   * The stage rails are collapsed: dim the song header and hide the Songbook
+   * button along with the rest of the chrome.
+   */
+  chromeCollapsed?: boolean;
 
   // Event callbacks
   onPlay?: () => void;

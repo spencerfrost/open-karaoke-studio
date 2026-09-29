@@ -115,7 +115,7 @@ export const YoutubeMusicResultCard: React.FC<YoutubeMusicResultCardProps> = ({
               ) : result.existsInLibrary ? (
                 "Already Added"
               ) : (
-                "Add to Library"
+                "Add to Songbook"
               )}
             </Button>
           </div>

@@ -60,7 +60,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
             variant="ghost"
             size="icon"
             onClick={() => openSongSelect()}
-            aria-label="Browse library"
+            aria-label="Open the songbook"
             className="text-foreground/40 hover:text-foreground"
           >
             <Library className="size-4.5" />

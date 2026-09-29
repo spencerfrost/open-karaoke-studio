@@ -118,7 +118,7 @@ export const useSongCreation = () => {
           videoId: song.videoId,
           songId: createdSong.id,
         });
-        toast.success("Added to library and queued for processing");
+        toast.success("Added to the songbook and queued for processing");
 
         return createdSong;
       })

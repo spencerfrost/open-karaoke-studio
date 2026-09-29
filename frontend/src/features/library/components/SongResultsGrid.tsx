@@ -38,7 +38,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
       <div className="flex flex-col items-center justify-center py-12 px-4">
         <div className="text-center space-y-4 max-w-md">
           <p className="text-lemon-chiffon/60">
-            No songs found in your library for "{searchTerm}"
+            No songs found in the songbook for "{searchTerm}"
           </p>
           <Button
             onClick={() => openAddSong({ query: searchTerm })}

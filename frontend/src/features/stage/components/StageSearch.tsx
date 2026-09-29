@@ -130,7 +130,7 @@ const StageSearch: React.FC<StageSearchProps> = ({
 
         {nothingFound && (
           <div className="flex flex-col items-center gap-4 pt-12 text-xl text-foreground/60">
-            Nothing in the library matches "{trimmed}".
+            Nothing in the songbook matches "{trimmed}".
             <Button
               variant="accent"
               size="lg"

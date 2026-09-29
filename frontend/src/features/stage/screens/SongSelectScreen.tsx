@@ -165,7 +165,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
         size="lg"
         onClick={() => shell?.openAdd()}
         className="absolute bottom-8 right-8 z-10 size-16 rounded-full shadow-xl"
-        aria-label="Add a song to the library"
+        aria-label="Add a song to the songbook"
       >
         <Plus className="size-8" />
       </Button>
