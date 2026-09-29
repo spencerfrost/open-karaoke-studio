@@ -34,15 +34,17 @@ class SessionPerformer(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     normalized_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # This person's place in the circle - rotation order for the whole night.
+    # Fixed once they join; inserting someone at the turn renumbers everyone at
+    # or after that seat, inactive rows included, so an undo lands back in place.
     seat: Mapped[int] = mapped_column(Integer, nullable=False)
-    laps_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Part of the night. Only "Remove from rotation" clears it; their songs are
+    # hidden rather than deleted while it is off.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # When this person first queued anything - their place in the circle.
-    # Null until they queue: being on the roster (joined, picked, added by the
-    # host) does not put you in the rotation, singing does. `seat` is join
-    # order and drives roster display; it deliberately does not decide play
-    # order, or the host would win every lap tie all night.
-    first_queued_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Turns already sung out of order (a bump, or a song played from the rail
+    # early). The pointer steps over this person once per borrowed turn - see
+    # turn_service.advance_pointer, the only place it is spent.
+    turns_borrowed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -50,5 +52,5 @@ class SessionPerformer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     session: Mapped["KaraokeSession"] = relationship(
-        "KaraokeSession", back_populates="performers"
+        "KaraokeSession", back_populates="performers", foreign_keys=[session_id]
     )

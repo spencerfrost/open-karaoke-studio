@@ -17,13 +17,18 @@
  * Three slots, always in the same place:
  *   1. Who's up      - the name, at headline scale.
  *   2. What they're singing - the only slot whose content varies.
- *   3. How to change either - quiet, always present, never a modal.
+ *   3. How to change either - Skip my turn, Add performer, Remove from
+ *      rotation. Quiet, always present, never a modal.
+ *
+ * The rotation is authoritative: nobody overrules whose turn it is from here.
+ * Someone who walks up out of turn is added at the turn instead, and keeps
+ * that seat for the night.
  *
  * No clock runs here. This is a living-room app: the screen waits until
  * someone taps, rather than playing the next song or passing over a person who
  * hasn't picked one yet.
  *
- * See docs/plans/archive/2026-08-29-handoff-screen.md.
+ * See docs/plans/2026-09-25-rotation-circle.md.
  */
 
 import React, {
@@ -33,15 +38,25 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { BookOpen, Music, Play, UserRoundX, Users } from "lucide-react";
+import {
+  BookOpen,
+  Music,
+  Play,
+  SkipForward,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { QRCodeDisplay } from "@/features/queue";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import {
-  useClaimTurn,
-  useDeactivatePerformer,
+  useInsertPerformer,
+  useRemovePerformer,
+  useRestorePerformer,
+  useSkipTurn,
   TurnMovedOnError,
 } from "@/hooks/api/useTurn";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -57,7 +72,6 @@ import {
   useSongSuggestions,
   getSuggestionReasonText,
 } from "@/features/player/hooks/useSongSuggestions";
-import RosterPicker from "../components/RosterPicker";
 import { useStageShell } from "../StageShellContext";
 import { findTurnItem } from "../turnItem";
 
@@ -84,13 +98,16 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const { getArtworkUrl } = useSongs();
   const { displayCode } = useSessionStore();
 
-  const claimTurn = useClaimTurn(displayCode || undefined);
-  const deactivatePerformer = useDeactivatePerformer(displayCode || undefined);
-  const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
+  const sessionCode = displayCode || undefined;
+  const skipTurn = useSkipTurn(sessionCode);
+  const insertPerformer = useInsertPerformer(sessionCode);
+  const removePerformer = useRemovePerformer(sessionCode);
+  const restorePerformer = useRestorePerformer(sessionCode);
+  const addToQueue = useAddToKaraokeQueue(sessionCode);
 
-  const [isPicking, setIsPicking] = useState(false);
-  const [pickedName, setPickedName] = useState("");
-  const [showOther, setShowOther] = useState(false);
+  // "Add performer" swaps slot 2 for a name field.
+  const [isAdding, setIsAdding] = useState(false);
+  const [newName, setNewName] = useState("");
 
   // Shared with the shell, which uses it to decide whether Back from the
   // library comes here at all.
@@ -105,57 +122,87 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       return;
     }
     logger.error("%s failed:", action, error);
-    toast.error(`Couldn't ${action}. Try again.`);
+    toast.error(`Couldn't ${action}`, { description: error.message });
   }, []);
 
   const handleAdvance = useCallback(() => {
     if (nextItem) onPlayFromQueue(nextItem.id);
   }, [nextItem, onPlayFromQueue]);
 
-  const handleClaim = useCallback(
-    (opts: { performerId?: number; name?: string }) => {
-      claimTurn.mutate(
-        { expectedPerformerId: turn.performerId, ...opts },
+  const handleSkip = useCallback(() => {
+    skipTurn.mutate(
+      { expectedPerformerId: turn.performerId },
+      { onError: (e) => onTurnError(e, "skip the turn") },
+    );
+  }, [skipTurn, turn.performerId, onTurnError]);
+
+  const handleInsert = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const name = newName.trim();
+      if (!name) return;
+      insertPerformer.mutate(
+        { expectedPerformerId: turn.performerId, name },
         {
           onSuccess: () => {
-            setIsPicking(false);
-            setShowOther(false);
-            setPickedName("");
+            setIsAdding(false);
+            setNewName("");
           },
-          onError: (e) => onTurnError(e, "take the turn"),
+          onError: (err) => onTurnError(err, `add ${name}`),
         },
       );
     },
-    [claimTurn, turn.performerId, onTurnError],
+    [insertPerformer, newName, turn.performerId, onTurnError],
   );
 
-  const handleSkipMe = useCallback(() => {
-    if (turn.performerId === null) return;
-    deactivatePerformer.mutate(turn.performerId, {
-      onError: (e) => onTurnError(e, "step out"),
-    });
-  }, [deactivatePerformer, turn.performerId, onTurnError]);
+  // No confirm dialog: the undo toast is the safety net.
+  const handleRemove = useCallback(() => {
+    const { performerId, performerName } = turn;
+    if (performerId === null) return;
+    removePerformer.mutate(
+      { expectedPerformerId: performerId, performerId },
+      {
+        onSuccess: (removed) => {
+          toast(`${performerName ?? "They"} left the rotation`, {
+            duration: 10000,
+            action: {
+              label: "Undo",
+              onClick: () =>
+                restorePerformer.mutate(
+                  {
+                    performerId: removed.id,
+                    expectedHolderId: removed.holder_id,
+                  },
+                  { onError: (e) => onTurnError(e, "undo that") },
+                ),
+            },
+          });
+        },
+        onError: (e) => onTurnError(e, "remove them"),
+      },
+    );
+  }, [removePerformer, restorePerformer, turn, onTurnError]);
 
   // Keys, bound on the window like the confirm screen's, so nobody has to
   // reach for the mouse between songs:
   //   Enter      play their song, or open the library when they have none
   //   Back / L   the library
-  // While "That's not me" is open, Back means "Never mind" and Enter belongs
-  // to the picker's buttons.
-  const keys = useRef({ hasSong, isPicking, handleAdvance });
-  keys.current = { hasSong, isPicking, handleAdvance };
+  // While "Add performer" is open, Back means "Never mind" and Enter belongs
+  // to its form.
+  const keys = useRef({ hasSong, isAdding, handleAdvance });
+  keys.current = { hasSong, isAdding, handleAdvance };
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target instanceof HTMLElement ? e.target : null;
       const k = keys.current;
-      // The "Someone else" field is typing, not navigating.
+      // The name field is typing, not navigating.
       if (
         t &&
         (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) ||
           t.isContentEditable)
       ) {
-        if (e.key === "Escape" && k.isPicking) setIsPicking(false);
+        if (e.key === "Escape" && k.isAdding) setIsAdding(false);
         return;
       }
       if (t?.closest("[role='dialog'], [role='slider']")) return;
@@ -163,11 +210,11 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       if (e.key === "Escape" || e.key === "Backspace") {
         e.preventDefault();
         if (e.repeat) return;
-        if (k.isPicking) setIsPicking(false);
+        if (k.isAdding) setIsAdding(false);
         else shell?.openSelect();
         return;
       }
-      if (k.isPicking) return;
+      if (k.isAdding) return;
 
       if (e.code === "KeyL") {
         e.preventDefault();
@@ -211,14 +258,24 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
     );
   };
 
-  // Two or three ahead, so people can get ready. Free: the list is sorted.
+  // The next few *people*, so they can get ready - whose turns come next, not
+  // whose songs: someone with three songs queued is still one seat. The circle
+  // starts at whoever holds the turn. Leaving out the person on screen covers
+  // both the normal case (they are the holder) and a bumped song (the holder
+  // is next after them).
+  // Append mode has no circle, so there it is the singers of the next songs.
   const onDeck = useMemo(
     () =>
-      upcoming
-        .filter((item) => Number(item.id) !== turn.itemId)
-        .slice(0, 3)
-        .map((item) => item.singer),
-    [upcoming, turn.itemId],
+      turn.circle.length > 0
+        ? turn.circle
+            .filter((p) => p.id !== turn.performerId)
+            .slice(0, 3)
+            .map((p) => p.name)
+        : upcoming
+            .filter((item) => Number(item.id) !== turn.itemId)
+            .slice(0, 3)
+            .map((item) => item.singer),
+    [turn.circle, turn.performerId, upcoming, turn.itemId],
   );
 
   // An audience of one should not be told about a rotation.
@@ -246,38 +303,43 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
 
       {/* ---- Slot 2: what they're singing -------------------------------- */}
       <div className="flex w-full max-w-4xl flex-col items-center gap-6">
-        {isPicking ? (
-          <div className="w-full max-w-2xl space-y-4 text-center">
-            <p className="text-xl text-foreground/60">Who's up, then?</p>
-            <RosterPicker
-              roster={roster}
-              value={pickedName}
-              onChange={setPickedName}
-              showOther={showOther}
-              onShowOtherChange={setShowOther}
-              excludeIds={turn.performerId ? [turn.performerId] : []}
+        {isAdding ? (
+          <form
+            onSubmit={handleInsert}
+            className="w-full max-w-xl space-y-4 text-center"
+          >
+            <p className="text-xl text-foreground/60">
+              {turn.performerName
+                ? `They'll sing now, and ${turn.performerName} goes next.`
+                : "They'll sing now."}
+            </p>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Their name"
+              aria-label="Performer name"
+              maxLength={100}
+              autoFocus
+              className="h-14 text-center text-2xl"
             />
             <div className="flex justify-center gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setIsPicking(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsAdding(false)}
+              >
                 Never mind
               </Button>
               <Button
+                type="submit"
                 variant="primary"
                 size="lg"
-                disabled={!pickedName.trim() || claimTurn.isPending}
-                onClick={() => {
-                  const match = roster.find((p) => p.name === pickedName);
-                  handleClaim(
-                    match
-                      ? { performerId: match.id }
-                      : { name: pickedName.trim() },
-                  );
-                }}
+                disabled={!newName.trim() || insertPerformer.isPending}
               >
-                That's me
+                Add
               </Button>
             </div>
-          </div>
+          </form>
         ) : hasSong && nextItem ? (
           <button
             onClick={handleAdvance}
@@ -390,34 +452,52 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       </div>
 
       {/* ---- Slot 3: how to change either -------------------------------- */}
-      {!isPicking && (
+      {!isAdding && (
         <div className="flex w-full max-w-4xl flex-col items-center gap-4">
-          {turn.performerId !== null && (
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={() => {
-                  setPickedName("");
-                  setShowOther(roster.length <= 1);
-                  setIsPicking(true);
-                }}
-                className="gap-2 text-foreground/60 hover:text-foreground"
-              >
-                <Users className="size-5" />
-                That's not me
-              </Button>
-              <span className="text-foreground/20">·</span>
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={handleSkipMe}
-                disabled={deactivatePerformer.isPending}
-                className="gap-2 text-foreground/60 hover:text-foreground"
-              >
-                <UserRoundX className="size-5" />
-                Skip me for now
-              </Button>
+          {/* The circle is empty in append mode, which has no turns to change. */}
+          {turn.circle.length > 0 && (
+            <div className="flex flex-col items-center gap-2">
+              {turn.performerId !== null && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleSkip}
+                  disabled={skipTurn.isPending}
+                  className="gap-2"
+                >
+                  <SkipForward className="size-5" />
+                  Skip my turn
+                </Button>
+              )}
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  onClick={() => {
+                    setNewName("");
+                    setIsAdding(true);
+                  }}
+                  className="gap-2 text-foreground/60 hover:text-foreground"
+                >
+                  <UserPlus className="size-5" />
+                  Add performer
+                </Button>
+                {turn.performerId !== null && (
+                  <>
+                    <span className="text-foreground/20">·</span>
+                    <Button
+                      variant="ghost"
+                      size="lg"
+                      onClick={handleRemove}
+                      disabled={removePerformer.isPending}
+                      className="gap-2 text-foreground/60 hover:text-foreground"
+                    >
+                      <UserMinus className="size-5" />
+                      Remove from rotation
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           )}
 

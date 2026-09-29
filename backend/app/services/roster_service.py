@@ -22,16 +22,35 @@ class ResolvedPerformer(NamedTuple):
     created: bool
 
 
-def mark_active(performer: SessionPerformer) -> None:
-    """Any sign of life restores a seat someone stepped out of.
+def next_seat(db: Session, session_id: str) -> int:
+    """The seat after the highest one - the end of the current lap.
 
-    A seat only goes inactive when its person taps "Skip me for now" (or the
-    host removes them); the counterpart rule is that it comes back the instant
-    that person does anything. Queueing, being resolved by name, claiming a turn
-    and a song starting all route through here so the rule lives in one place
-    rather than being remembered at four call sites.
+    Counts inactive rows too: a removed person keeps their seat so an undo can
+    put them back in it, and nobody else may be handed the same number.
     """
+    highest = (
+        db.query(func.max(SessionPerformer.seat))
+        .filter(SessionPerformer.session_id == session_id)
+        .scalar()
+    )
+    return 0 if highest is None else highest + 1
+
+
+def mark_active(db: Session, performer: SessionPerformer) -> None:
+    """Bring someone back from "Remove from rotation" by joining again.
+
+    Anything other than the handoff screen's Undo - queueing a song under their
+    name, joining from a phone, the host typing it - is a rejoin, and a rejoin
+    goes to the end of the circle like any other join. Undo keeps the old seat
+    instead; see turn_service.restore.
+    """
+    if performer.is_active:
+        return
     performer.is_active = True
+    performer.seat = next_seat(db, performer.session_id)
+    # A fresh seat is a fresh start: turns borrowed before they left were
+    # already paid for by the laps they missed.
+    performer.turns_borrowed = 0
 
 
 def resolve_or_create_performer(
@@ -72,17 +91,12 @@ def resolve_or_create_performer_verbose(
         .first()
     )
     if existing:
-        mark_active(existing)
+        mark_active(db, existing)
         if device_id and not existing.device_id:
             existing.device_id = device_id
         return ResolvedPerformer(existing, created=False)
 
-    seat = (
-        db.query(func.count(SessionPerformer.id))
-        .filter(SessionPerformer.session_id == session_id)
-        .scalar()
-        or 0
-    )
+    seat = next_seat(db, session_id)
 
     performer = SessionPerformer(
         session_id=session_id,

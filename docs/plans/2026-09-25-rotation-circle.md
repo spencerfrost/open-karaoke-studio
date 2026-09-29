@@ -166,6 +166,11 @@ This replaces the lap arithmetic in `turn_service.py` and the rotation half of
 `queue_ordering.py`. `queue_ordering.get_ordered_queue_items` keeps the append-mode sort and
 delegates rotation mode to the projection, so ordering still lives in exactly one place.
 
+> **As built:** the read side (`get_circle`, `current_holder`/`holder_in`, `project_upcoming`)
+> lives in `queue_ordering`, and `turn_service` imports it. Everything that writes (the
+> pointer, borrowed turns, seats, the bump) stays in `turn_service`. With the projection in
+> `turn_service`, the two modules would import each other.
+
 | Function | Does |
 |---|---|
 | `get_circle(db, session)` | Active performers by `seat` |

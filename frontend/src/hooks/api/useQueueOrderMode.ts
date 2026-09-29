@@ -1,6 +1,6 @@
 /**
  * Switch a session between append (insert order) and rotation (strict
- * round-robin by lap) queue ordering. Session-owner only - see
+ * round-robin over the circle of performers) queue ordering. Session-owner only - see
  * docs/plans/archive/2026-08-29-roster-and-rotation.md.
  */
 import { useApiMutation } from "./useApi";

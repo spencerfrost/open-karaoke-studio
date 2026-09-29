@@ -33,16 +33,37 @@ class KaraokeSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # "append" (today's insert-order behaviour) or "rotation" (strict round-robin
-    # by lap). Rotation is the default - append is the escape hatch. See
-    # docs/plans/archive/2026-08-29-roster-and-rotation.md.
+    # "append" (today's insert-order behaviour) or "rotation" (round-robin over
+    # the circle of performers). Rotation is the default - append is the escape
+    # hatch. See docs/plans/2026-09-25-rotation-circle.md.
     queue_order_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="rotation"
     )
-    # The frontier lap reached so far - max(current_lap, newly computed lap) after
-    # every insert. Lets a late joiner enter at the point the circle has reached
-    # instead of being handed catch-up turns. See queue_ordering.compute_lap.
-    current_lap: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Whose turn is next - the only source of truth for it. Null means "the
+    # lowest active seat". `use_alter` because session_performers already points
+    # back at this table; the two FKs form a cycle.
+    turn_performer_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "session_performers.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_karaoke_sessions_turn_performer_id",
+        ),
+        nullable=True,
+    )
+    # A one-off "this song is next" from Bump. Takes precedence over the pointer
+    # for one turn and is cleared when that song starts.
+    bumped_item_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "karaoke_queue.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_karaoke_sessions_bumped_item_id",
+        ),
+        nullable=True,
+    )
 
     # Relationship to session devices
     devices: Mapped[List["SessionDevice"]] = relationship(
@@ -51,7 +72,10 @@ class KaraokeSession(Base):
 
     # Relationship to queue items
     queue_items: Mapped[List["KaraokeQueueItem"]] = relationship(
-        "KaraokeQueueItem", back_populates="session", cascade="all, delete-orphan"
+        "KaraokeQueueItem",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        foreign_keys="KaraokeQueueItem.session_id",
     )
 
     # Relationship to playback state
@@ -64,7 +88,10 @@ class KaraokeSession(Base):
 
     # Relationship to roster entries
     performers: Mapped[List["SessionPerformer"]] = relationship(
-        "SessionPerformer", back_populates="session", cascade="all, delete-orphan"
+        "SessionPerformer",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        foreign_keys="SessionPerformer.session_id",
     )
 
     @classmethod

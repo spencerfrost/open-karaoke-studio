@@ -75,6 +75,8 @@ interface SessionWebSocketEvents {
     items?: QueueItem[];
     trigger?: string;
   }) => void;
+  // Someone joined, left, or came back - the roster list is stale.
+  roster_updated: (data: { name: string }) => void;
 }
 
 type EventData =
@@ -91,6 +93,7 @@ type EventData =
   | { is_session_owner: boolean }
   | { reason: string }
   | { action: string; reason: string }
+  | { name: string }
   | undefined;
 
 class SessionWebSocketService {

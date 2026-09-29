@@ -74,6 +74,15 @@ performer** and **Remove from rotation** with undo.
 Build the backend and the new controls together, then take it to the next real gathering.
 That night is the acceptance test.
 
+**Later: a rotation strip on the handoff screen.** "On deck" and the rotation line below it
+now list the same names in the same order. Replace both with one strip: each person's next
+turn for one lap, starting after whoever is up, with their next song (artwork and title) or
+a "no song yet" placeholder. End it with a "then Spencer again" marker, and dim anyone who
+will be passed over for having sung early. Nothing on it is clickable. The turn payload's
+`circle` entries need two new fields from the server: `nextItemId`, pointing into
+`upcoming`, and a passed-over flag. Still open: whether it also goes on song select, and
+matching the song wheel's card style.
+
 ## 4. Domain docs for sessions and the stage
 
 **Size:** a day or two

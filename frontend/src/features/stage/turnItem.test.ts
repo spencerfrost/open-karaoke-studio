@@ -8,7 +8,6 @@ const item = (id: string): KaraokeQueueItemWithSong => ({
   songId: `song-${id}`,
   singer: "Sarah",
   position: Number(id),
-  lap: 0,
   addedAt: "2026-09-29T20:00:00Z",
   song: { id: `song-${id}` } as Song,
 });

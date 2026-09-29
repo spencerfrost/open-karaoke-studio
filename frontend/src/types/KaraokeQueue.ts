@@ -5,7 +5,6 @@ export interface KaraokeQueueItem {
   songId: string;
   singer: string;
   position: number;
-  lap: number;
   addedAt: string;
 }
 
@@ -33,7 +32,7 @@ export interface SessionTurn {
   performerId: number | null;
   performerName: string | null;
   itemId: number | null;
-  /** Active performers in rotation order. Empty in append mode. */
+  /** Active performers in seat order, starting with whoever is up. Empty in append mode. */
   circle: TurnPerformer[];
 }
 

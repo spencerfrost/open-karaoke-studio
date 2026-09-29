@@ -66,7 +66,6 @@ async def get_current_queue_state(session_id: str):
                             "songId": item.song_id,
                             "singer": item.singer_name,
                             "position": idx,
-                            "lap": item.lap,
                             "addedAt": added_at,
                             "song": {
                                 "id": item.song.id,
@@ -104,7 +103,6 @@ async def get_current_queue_state(session_id: str):
                     "songId": current_item.song_id,
                     "singer": current_item.singer_name,
                     "position": 0,
-                    "lap": current_item.lap,
                     "addedAt": added_at,
                     "song": {
                         "id": current_item.song.id,

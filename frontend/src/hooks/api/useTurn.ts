@@ -1,7 +1,11 @@
 /**
  * Turn-related API hooks - what the handoff screen can do to a turn.
  *
- * Every one of them sends `expected_performer_id`: the turn the screen was
+ * Rotation is a fixed circle of seats with a pointer to whose turn it is (see
+ * docs/plans/2026-09-25-rotation-circle.md). These move the pointer or change
+ * who is in the circle.
+ *
+ * The turn-changing ones send `expected_performer_id`: the turn the screen was
  * rendering when someone tapped. The server compares it against the turn it
  * computes and answers 409 if it has already moved on, so a phone and the TV
  * acting at the same moment settle on one outcome instead of both landing.
@@ -15,11 +19,23 @@ interface ExpectedTurn {
   expectedPerformerId: number | null;
 }
 
-export interface ClaimTurnVariables extends ExpectedTurn {
-  /** An existing roster entry... */
-  performerId?: number;
-  /** ...or a new name from the picker's "Someone else…" field. */
-  name?: string;
+export interface InsertPerformerVariables extends ExpectedTurn {
+  name: string;
+}
+
+export interface RemovePerformerVariables extends ExpectedTurn {
+  performerId: number;
+}
+
+export interface RestorePerformerVariables {
+  performerId: number;
+  /** `holderId` from the remove - proves the turn hasn't moved since. */
+  expectedHolderId: number | null;
+}
+
+/** A removed performer, plus whose turn it is now - what the undo sends back. */
+export interface RemovedPerformer extends SessionPerformer {
+  holder_id: number | null;
 }
 
 /** Raised for a 409 so callers can tell "someone beat me to it" from a real failure. */
@@ -30,10 +46,10 @@ export class TurnMovedOnError extends Error {
   }
 }
 
-async function postTurn(
+async function postTurn<T = SessionPerformer>(
   url: string,
   body: Record<string, unknown>,
-): Promise<SessionPerformer> {
+): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -41,35 +57,72 @@ async function postTurn(
   });
   if (response.status === 409) throw new TurnMovedOnError();
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    // The server's detail is written for people ("Dan is already in the
+    // rotation"), so pass it through.
+    const detail = await response
+      .json()
+      .then((json: { detail?: unknown }) => json.detail)
+      .catch(() => undefined);
+    throw new Error(
+      typeof detail === "string"
+        ? detail
+        : `Request failed with status ${response.status}`,
+    );
   }
-  return (await response.json()) as SessionPerformer;
+  return (await response.json()) as T;
 }
 
-/** Hook: hand the turn to someone else - the screen's "That's not me". */
-export function useClaimTurn(sessionCode?: string) {
-  return useMutation<SessionPerformer, Error, ClaimTurnVariables>({
-    mutationFn: ({ expectedPerformerId, performerId, name }) =>
-      postTurn(`/api/sessions/${sessionCode}/turn/claim`, {
+/**
+ * Hook: "Skip my turn". The turn moves to the next seat; their songs stay
+ * queued, each one a lap later.
+ */
+export function useSkipTurn(sessionCode?: string) {
+  return useMutation<SessionPerformer, Error, ExpectedTurn>({
+    mutationFn: ({ expectedPerformerId }) =>
+      postTurn(`/api/sessions/${sessionCode}/turn/skip`, {
         expected_performer_id: expectedPerformerId,
-        performer_id: performerId,
+      }),
+  });
+}
+
+/**
+ * Hook: "Add performer". Seats a name at the turn - they're up now, whoever
+ * was up goes next. A removed person's name brings them back the same way.
+ */
+export function useInsertPerformer(sessionCode?: string) {
+  return useMutation<SessionPerformer, Error, InsertPerformerVariables>({
+    mutationFn: ({ expectedPerformerId, name }) =>
+      postTurn(`/api/sessions/${sessionCode}/turn/insert`, {
+        expected_performer_id: expectedPerformerId,
         name,
       }),
   });
 }
 
 /**
- * Hook: step someone out of the rotation - the screen's "Skip me for now".
- *
- * Deliberate and self-service - the only way a seat leaves the rotation. The
- * seat comes back the moment they queue something, claim a turn, or join again.
+ * Hook: "Remove from rotation". Out for the night; their songs are hidden,
+ * not deleted, and their seat is kept for the undo.
  */
-export function useDeactivatePerformer(sessionCode?: string) {
-  return useMutation<SessionPerformer, Error, number>({
-    mutationFn: (performerId) =>
+export function useRemovePerformer(sessionCode?: string) {
+  return useMutation<RemovedPerformer, Error, RemovePerformerVariables>({
+    mutationFn: ({ expectedPerformerId, performerId }) =>
+      postTurn<RemovedPerformer>(
+        `/api/sessions/${sessionCode}/performers/${performerId}/remove`,
+        { expected_performer_id: expectedPerformerId },
+      ),
+  });
+}
+
+/**
+ * Hook: undo a remove. Same seat, and their turn back if nothing has happened
+ * since - otherwise they just rejoin their seat.
+ */
+export function useRestorePerformer(sessionCode?: string) {
+  return useMutation<SessionPerformer, Error, RestorePerformerVariables>({
+    mutationFn: ({ performerId, expectedHolderId }) =>
       postTurn(
-        `/api/sessions/${sessionCode}/performers/${performerId}/deactivate`,
-        {},
+        `/api/sessions/${sessionCode}/performers/${performerId}/restore`,
+        { expected_holder_id: expectedHolderId },
       ),
   });
 }

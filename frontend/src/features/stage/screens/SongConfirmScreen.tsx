@@ -6,9 +6,7 @@
  * display name, so the queue ends up as a wall of one person. Asking once, here,
  * costs a tap and makes the queue mean something.
  *
- * The name grid itself lives in RosterPicker, because unit 4's handoff screen
- * asks the same question when someone taps "That's not me" - the second caller
- * this screen was built expecting.
+ * The name grid itself lives in RosterPicker.
  */
 
 import React, { useEffect, useRef, useState } from "react";

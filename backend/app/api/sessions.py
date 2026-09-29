@@ -26,12 +26,13 @@ from app.api.dependencies import (
 from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
+from app.services import turn_service
 from app.services.roster_service import (
     resolve_or_create_performer,
     resolve_or_create_performer_verbose,
 )
 from app.services.session_service import deactivate_session
-from app.services.turn_service import claim_turn, compute_turn, pass_turn
+from app.services.turn_service import compute_turn
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
@@ -182,16 +183,27 @@ class ExpectedTurnRequest(BaseModel):
     )
 
 
-class TurnClaimRequest(ExpectedTurnRequest):
-    """Request model for handing the turn to someone else.
+class TurnInsertRequest(ExpectedTurnRequest):
+    """Request model for the handoff screen's "Add performer"."""
 
-    Either an existing roster entry (`performer_id`) or a new name from the
-    picker's "Someone else…" field, which is resolved the same way every other
-    roster entry point resolves one.
+    name: str = Field(..., min_length=1, max_length=100, description="Performer name")
+
+
+class PerformerRestoreRequest(BaseModel):
+    """Request model for undoing "Remove from rotation".
+
+    `expected_holder_id` is the `holder_id` the remove answered with. The turn
+    only goes back to the restored person if it is still there - otherwise a
+    song has started or someone skipped since, and they just rejoin their seat.
     """
 
-    performer_id: Optional[int] = None
-    name: Optional[str] = Field(None, max_length=100)
+    expected_holder_id: Optional[int] = None
+
+
+class RemovedPerformerResponse(PerformerResponse):
+    """A removed performer, plus whose turn it is now - what the undo checks."""
+
+    holder_id: Optional[int] = None
 
 
 class QueueOrderModeUpdateRequest(BaseModel):
@@ -1152,9 +1164,9 @@ async def add_performer(
 # The turn - unit 4's handoff screen
 # ============================================================================
 #
-# All three run under require_roster_access rather than host auth. The handoff
+# These run under require_roster_access rather than host auth. The handoff
 # screen is the part guests operate: someone walks up to the TV between songs
-# and says who they are or steps aside. Requiring the host to be standing there
+# and skips, adds someone, or steps out for the night. Requiring the host to be standing there
 # would defeat the feature. Session-level *settings* stay host-only - see
 # set_queue_order_mode below.
 
@@ -1186,80 +1198,9 @@ def _check_expected(turn, expected_performer_id: Optional[int]) -> None:
         raise HTTPException(status_code=409, detail="The turn has already moved on")
 
 
-@router.post("/{session_id}/turn/claim", response_model=PerformerResponse)
-async def claim_current_turn(
-    body: TurnClaimRequest,
-    session_id: str = Depends(require_roster_access),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-):
-    """Hand the turn to someone else - the screen's "That's not me".
-
-    Whoever held it is passed forward invisibly. The person stepping up only
-    says who they are; they never adjudicate somebody else's turn in front of
-    the room.
-    """
-    session = _active_session_or_404(db, session_id)
-    turn = compute_turn(db, session_id)
-    _check_expected(turn, body.expected_performer_id)
-
-    if body.performer_id is not None:
-        claimant = (
-            db.query(SessionPerformer)
-            .filter(
-                SessionPerformer.id == body.performer_id,
-                SessionPerformer.session_id == session_id,
-            )
-            .first()
-        )
-        if claimant is None:
-            raise HTTPException(status_code=404, detail="Performer not found")
-        created = False
-    elif body.name:
-        try:
-            claimant, created = resolve_or_create_performer_verbose(
-                db, session_id, body.name
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-    else:
-        raise HTTPException(status_code=400, detail="performer_id or name is required")
-
-    claim_turn(db, session, turn, claimant)
-    db.commit()
-
-    if created:
-        await broadcast_roster_update(manager, session_id, claimant.name)
-    await broadcast_queue_update(manager, session_id)
-
-    return PerformerResponse(
-        id=claimant.id,
-        name=claimant.name,
-        seat=claimant.seat,
-        is_active=claimant.is_active,
-    )
-
-
-@router.post(
-    "/{session_id}/performers/{performer_id}/deactivate",
-    response_model=PerformerResponse,
-)
-async def deactivate_performer(
-    performer_id: int,
-    session_id: str = Depends(require_roster_access),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-):
-    """Step out of the rotation - the screen's "Skip me for now".
-
-    Deliberate and self-service, unlike the automatic pass. The seat stops being
-    offered until this person queues something, claims a turn, or joins again -
-    any of which routes through `roster_service.mark_active`.
-
-    If they are holding the turn right now, pass it forward too, so the button
-    does something visible even for someone with songs already queued.
-    """
-    session = _active_session_or_404(db, session_id)
+def _performer_or_404(
+    db: Session, session_id: str, performer_id: int
+) -> SessionPerformer:
     performer = (
         db.query(SessionPerformer)
         .filter(
@@ -1270,21 +1211,165 @@ async def deactivate_performer(
     )
     if performer is None:
         raise HTTPException(status_code=404, detail="Performer not found")
+    return performer
 
-    turn = compute_turn(db, session_id)
-    if turn.performer is not None and turn.performer.id == performer.id:
-        pass_turn(session, turn)
 
-    performer.is_active = False
-    db.commit()
-
-    await broadcast_queue_update(manager, session_id)
+def _performer_response(performer: SessionPerformer) -> PerformerResponse:
     return PerformerResponse(
         id=performer.id,
         name=performer.name,
         seat=performer.seat,
         is_active=performer.is_active,
     )
+
+
+def _require_rotation(session: KaraokeSession) -> None:
+    if session.queue_order_mode != "rotation":
+        raise HTTPException(status_code=400, detail="Turns only exist in rotation mode")
+
+
+@router.post("/{session_id}/turn/skip", response_model=PerformerResponse)
+async def skip_turn(
+    body: ExpectedTurnRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Skip my turn" - the turn moves to the next seat.
+
+    Their songs stay where they are, so each one is simply a lap later. Never
+    takes anyone out of the rotation.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+    if turn.performer is None:
+        raise HTTPException(status_code=400, detail="Nobody is up")
+
+    skipped = turn.performer
+    turn_service.skip(db, session, turn)
+    db.commit()
+
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(skipped)
+
+
+@router.post(
+    "/{session_id}/turn/insert", response_model=PerformerResponse, status_code=201
+)
+async def insert_performer_at_turn(
+    body: TurnInsertRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Add performer" - seat someone at the turn. They're up now, whoever was
+    up goes next, and they keep that seat for the night.
+
+    A removed person's name brings them back the same way. Someone already in
+    the circle is rejected: moving them isn't what this button means.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+
+    normalized = body.name.strip().lower()
+    existing = (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.session_id == session_id,
+            SessionPerformer.normalized_name == normalized,
+        )
+        .first()
+    )
+    if existing is not None and existing.is_active:
+        raise HTTPException(
+            status_code=400, detail=f"{existing.name} is already in the rotation"
+        )
+
+    try:
+        performer, created = resolve_or_create_performer_verbose(
+            db, session_id, body.name
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    turn_service.insert_at_turn(db, session, performer)
+    db.commit()
+
+    if created:
+        await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(performer)
+
+
+@router.post(
+    "/{session_id}/performers/{performer_id}/remove",
+    response_model=RemovedPerformerResponse,
+)
+async def remove_performer(
+    performer_id: int,
+    body: ExpectedTurnRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Remove from rotation" - out of the circle for the night.
+
+    Their songs are hidden, not deleted, and their seat is kept, so the undo
+    (`/restore`) is a flag flip. Answers with whose turn it is now, which the
+    undo sends back to prove nothing has moved since.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+    performer = _performer_or_404(db, session_id, performer_id)
+
+    turn_service.remove(db, session, performer)
+    db.commit()
+
+    holder = compute_turn(db, session_id).performer
+    # The roster lists active performers only, so pickers need to hear about it.
+    await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return RemovedPerformerResponse(
+        **_performer_response(performer).model_dump(),
+        holder_id=holder.id if holder else None,
+    )
+
+
+@router.post(
+    "/{session_id}/performers/{performer_id}/restore",
+    response_model=PerformerResponse,
+)
+async def restore_performer(
+    performer_id: int,
+    body: PerformerRestoreRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Undo "Remove from rotation": same seat, and their turn back if the turn
+    is still where the remove left it."""
+    session = _active_session_or_404(db, session_id)
+    performer = _performer_or_404(db, session_id, performer_id)
+    if performer.is_active:
+        # Already back - a double tap, or they rejoined some other way.
+        return _performer_response(performer)
+
+    holder = compute_turn(db, session_id).performer
+    point_back = body.expected_holder_id is not None and body.expected_holder_id == (
+        holder.id if holder else None
+    )
+    turn_service.restore(session, performer, point_back)
+    db.commit()
+
+    await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(performer)
 
 
 @router.patch("/{session_id}/queue-order-mode", response_model=QueueOrderModeResponse)

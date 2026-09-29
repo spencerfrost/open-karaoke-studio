@@ -1,10 +1,10 @@
 """
-Tests for unit 4: whose turn it is, and the three ways that changes.
+Tests for the turn: the circle, the pointer, and everything that moves it.
 
-The mechanism these guard is the one the handoff screen renders, so the cases
-follow docs/plans/archive/2026-08-29-handoff-screen.md's state table directly: a queued
-turn, an empty seat, an open floor, the one-lap pass, the claim, and the 409
-that makes two devices acting at once safe.
+The cases follow docs/plans/2026-09-25-rotation-circle.md's verification list:
+walk-ups, skip without back-to-back songs, add performer at the pointer, phone
+joins, remove and undo, songs played out of order, bump mid-song, and append
+mode being unaffected by any of it.
 """
 
 from datetime import datetime, timedelta
@@ -17,15 +17,14 @@ from app.db.models import (
     SessionPerformer,
     SessionPlaybackState,
 )
-from app.services.queue_ordering import advance_to, compute_lap, enter_rotation
+from app.services import turn_service
+from app.services.queue_ordering import get_ordered_queue_items
 from app.services.roster_service import resolve_or_create_performer
 from app.services.turn_service import (
     KIND_EMPTY_SEAT,
     KIND_OPEN,
     KIND_QUEUED,
-    claim_turn,
     compute_turn,
-    pass_turn,
     serialize_turn,
 )
 from tests.fastapi.conftest import _TestingSessionLocal
@@ -70,17 +69,19 @@ def _make_song(db, song_id="test-song"):
     return song
 
 
-def _add_item(db, session, performer, song_id, position=1):
-    """Insert a queue item the way add_to_queue does."""
-    lap = compute_lap(db, session, performer)
-    enter_rotation(performer)
+def _people(db, *names):
+    performers = [resolve_or_create_performer(db, "AAAA", name) for name in names]
+    db.commit()
+    return performers
+
+
+def _add_item(db, session, performer, position=1):
     item = KaraokeQueueItem(
         singer_name=performer.name,
-        song_id=song_id,
+        song_id="test-song",
         session_id=session.session_id,
         position=position,
         performer_id=performer.id,
-        lap=lap,
     )
     db.add(item)
     db.commit()
@@ -88,9 +89,37 @@ def _add_item(db, session, performer, song_id, position=1):
     return item
 
 
-def _set_playing(db, session_id, item_id):
-    db.add(SessionPlaybackState(session_id=session_id, current_queue_item_id=item_id))
+def _play(db, session, item):
+    """What /play does to the rotation: the previous song leaves, this one
+    becomes current, and the turn is recorded."""
+    state = db.query(SessionPlaybackState).filter_by(session_id="AAAA").first()
+    if state is None:
+        state = SessionPlaybackState(session_id="AAAA")
+        db.add(state)
+    elif state.current_queue_item_id is not None:
+        previous = db.get(KaraokeQueueItem, state.current_queue_item_id)
+        if previous is not None and previous.id != item.id:
+            db.delete(previous)
+    state.current_queue_item_id = item.id
+    turn_service.record_play(db, session, item)
     db.commit()
+
+
+def _play_next(db, session):
+    """Play whatever the turn says - the handoff screen's Enter."""
+    turn = compute_turn(db, "AAAA")
+    assert turn.kind == KIND_QUEUED, turn
+    _play(db, session, turn.item)
+    return turn
+
+
+def _holder(db):
+    return compute_turn(db, "AAAA").performer
+
+
+def _singers(db, session, count):
+    """Who sings the next `count` songs, playing each one in turn."""
+    return [_play_next(db, session).performer.name for _ in range(count)]
 
 
 # ---------------------------------------------------------------------------
@@ -98,49 +127,49 @@ def _set_playing(db, session_id, item_id):
 # ---------------------------------------------------------------------------
 
 
-def test_turn_is_the_head_of_the_queue(db):
+def test_turn_is_the_holders_first_song(db):
     session = _make_session(db)
     _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-
-    _add_item(db, session, spencer, "test-song")
-    _add_item(db, session, dan, "test-song", position=2)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    _add_item(db, session, dan)
+    spencers = _add_item(db, session, spencer)
 
     turn = compute_turn(db, "AAAA")
     assert turn.kind == KIND_QUEUED
     assert turn.performer.id == spencer.id
-    assert turn.item is not None
+    assert turn.item.id == spencers.id
 
 
-def test_currently_playing_item_is_not_the_turn(db):
-    """The turn is what happens *next*, so the song on screen is excluded."""
+def test_walk_up_is_an_empty_seat_even_with_others_queued(db):
+    """The pointer is on Patrick with nothing queued: name him and wait."""
     session = _make_session(db)
     _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-
-    playing = _add_item(db, session, spencer, "test-song")
-    dans_item = _add_item(db, session, dan, "test-song", position=2)
-    _set_playing(db, "AAAA", playing.id)
-
-    turn = compute_turn(db, "AAAA")
-    assert turn.performer.id == dan.id
-    assert turn.item.id == dans_item.id
-
-
-def test_empty_queue_is_a_persons_turn_not_the_end_of_the_night(db):
-    """The whole reframe: an empty queue is Sarah's turn with an empty slot."""
-    _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
+    spencer, patrick = _people(db, "Spencer", "Patrick")
+    _add_item(db, session, spencer)
+    session.turn_performer_id = patrick.id
     db.commit()
 
     turn = compute_turn(db, "AAAA")
     assert turn.kind == KIND_EMPTY_SEAT
-    assert turn.performer.id == sarah.id
+    assert turn.performer.id == patrick.id
     assert turn.item is None
+
+
+def test_empty_seat_every_lap_until_they_pick(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, patrick = _people(db, "Spencer", "Patrick")
+    for _ in range(3):
+        _add_item(db, session, spencer)
+
+    for _ in range(3):
+        assert _play_next(db, session).performer.id == spencer.id
+        turn = compute_turn(db, "AAAA")
+        assert turn.kind == KIND_EMPTY_SEAT
+        assert turn.performer.id == patrick.id
+        # Patrick walks up, browses, and picks nothing this time.
+        turn_service.skip(db, session, turn)
+        db.commit()
 
 
 def test_empty_roster_is_open(db):
@@ -151,59 +180,22 @@ def test_empty_roster_is_open(db):
     assert turn.circle == []
 
 
-def test_append_mode_has_no_circle_and_no_empty_seat(db):
-    """Append mode has no rotation to ask, so an empty queue is just open."""
-    _make_session(db, mode="append")
-    resolve_or_create_performer(db, "AAAA", "Sarah")
-    db.commit()
-
-    turn = compute_turn(db, "AAAA")
-    assert turn.kind == KIND_OPEN
-    assert turn.circle == []
-
-
-def test_circle_puts_the_person_who_just_sang_last(db):
-    """No special case needed - advance_to already moved their laps_taken."""
+def test_circle_starts_at_the_holder(db):
     session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    session.turn_performer_id = dan.id
     db.commit()
 
-    item = _add_item(db, session, spencer, "test-song")
-    advance_to(session, item)
-    db.commit()
-
-    turn = compute_turn(db, "AAAA")
-    assert [p.id for p in turn.circle] == [dan.id, spencer.id]
-
-
-def test_solo_singer_comes_straight_back_round(db):
-    session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-
-    item = _add_item(db, session, spencer, "test-song")
-    advance_to(session, item)
-    db.delete(item)
-    db.commit()
-
-    turn = compute_turn(db, "AAAA")
-    assert turn.kind == KIND_EMPTY_SEAT
-    assert turn.performer.id == spencer.id
+    circle = serialize_turn(compute_turn(db, "AAAA"))["circle"]
+    assert [p["id"] for p in circle] == [dan.id, sarah.id, spencer.id]
 
 
 def test_serialize_falls_back_to_singer_name_for_pre_roster_rows(db):
     """Legacy rows have no performer_id; the screen still needs a name."""
-    session = _make_session(db)
+    _make_session(db)
     _make_song(db)
     item = KaraokeQueueItem(
-        singer_name="Ghost",
-        song_id="test-song",
-        session_id=session.session_id,
-        position=1,
-        lap=0,
+        singer_name="Ghost", song_id="test-song", session_id="AAAA", position=1
     )
     db.add(item)
     db.commit()
@@ -215,144 +207,295 @@ def test_serialize_falls_back_to_singer_name_for_pre_roster_rows(db):
 
 
 # ---------------------------------------------------------------------------
-# Passing - a full lap, never back to the front
+# Playing songs
 # ---------------------------------------------------------------------------
 
 
-def test_pass_moves_the_item_one_lap_forward_not_to_the_front(db):
+def test_playing_the_holders_song_passes_the_turn(db):
     session = _make_session(db)
     _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
+    spencer, dan = _people(db, "Spencer", "Dan")
+    _add_item(db, session, spencer)
 
-    spencers = _add_item(db, session, spencer, "test-song")
-    _add_item(db, session, dan, "test-song", position=2)
-    assert spencers.lap == 0
-
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
-
-    # One lap forward, so Dan sings next and Spencer follows - not immediately
-    # re-offered, which an unchanged low lap would have done.
-    assert spencers.lap == 1
-    assert compute_turn(db, "AAAA").performer.id == dan.id
-
-
-def test_pass_with_an_empty_seat_moves_laps_taken(db):
-    """No item to rewrite, so the pass has to land on the performer."""
-    _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-
-    assert compute_turn(db, "AAAA").performer.id == sarah.id
-
-    session = db.query(KaraokeSession).filter_by(session_id="AAAA").one()
-    pass_turn(session, compute_turn(db, "AAAA"))
-    db.commit()
-
-    assert sarah.laps_taken == 1
-    assert compute_turn(db, "AAAA").performer.id == dan.id
-
-
-def test_passing_never_takes_anyone_off_the_roster(db):
-    """Nobody is rushed: a seat nobody stepped up for keeps coming round."""
-    session = _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-
-    for _ in range(6):
-        pass_turn(session, compute_turn(db, "AAAA"))
-        db.commit()
-
-    assert sarah.is_active is True
-    assert dan.is_active is True
-    assert compute_turn(db, "AAAA").kind == KIND_EMPTY_SEAT
-
-
-def test_queueing_restores_a_seat_that_stepped_out(db):
-    _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    # What "Skip me for now" does - the only way a seat goes inactive.
-    sarah.is_active = False
-    db.commit()
-
-    resolve_or_create_performer(db, "AAAA", "sarah")
-    db.commit()
-
-    assert sarah.is_active is True
-
-
-# ---------------------------------------------------------------------------
-# Claiming - "That's not me"
-# ---------------------------------------------------------------------------
-
-
-def test_claim_pulls_the_claimants_song_to_the_front(db):
-    session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-
-    spencers = _add_item(db, session, spencer, "test-song")
-    dans = _add_item(db, session, dan, "test-song", position=2)
-
-    claim_turn(db, session, compute_turn(db, "AAAA"), dan)
-    db.commit()
-
-    turn = compute_turn(db, "AAAA")
-    assert turn.performer.id == dan.id
-    assert turn.item.id == dans.id
-    # And Spencer is one lap out, not gone.
-    assert spencers.lap == 1
-
-
-def test_claim_without_a_song_still_takes_the_turn(db):
-    session = _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-    assert compute_turn(db, "AAAA").performer.id == sarah.id
-
-    claim_turn(db, session, compute_turn(db, "AAAA"), dan)
-    db.commit()
+    _play_next(db, session)
 
     turn = compute_turn(db, "AAAA")
     assert turn.kind == KIND_EMPTY_SEAT
     assert turn.performer.id == dan.id
 
 
-def test_claiming_your_own_turn_is_a_no_op(db):
-    """Idempotent, so a race between two devices settles instead of double-passing."""
+def test_the_pointer_wraps_at_the_end_of_the_lap(db):
     session = _make_session(db)
     _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-    spencers = _add_item(db, session, spencer, "test-song")
+    spencer, dan = _people(db, "Spencer", "Dan")
+    for _ in range(2):
+        _add_item(db, session, spencer)
+        _add_item(db, session, dan)
 
-    claim_turn(db, session, compute_turn(db, "AAAA"), spencer)
-    db.commit()
-
-    assert spencers.lap == 0
-    assert compute_turn(db, "AAAA").performer.id == spencer.id
+    assert _singers(db, session, 4) == ["Spencer", "Dan", "Spencer", "Dan"]
 
 
-def test_claim_reactivates_someone_who_stepped_out(db):
+def test_solo_singer_comes_straight_back_round(db):
     session = _make_session(db)
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    dan.is_active = False
+    _make_song(db)
+    (spencer,) = _people(db, "Spencer")
+    _add_item(db, session, spencer)
+
+    _play_next(db, session)
+
+    turn = compute_turn(db, "AAAA")
+    assert turn.kind == KIND_EMPTY_SEAT
+    assert turn.performer.id == spencer.id
+
+
+def test_playing_out_of_order_moves_nobody_else(db):
+    """The old lap model jumped the room forward here. Dan borrows his next
+    turn instead; Patrick, who has nothing queued, keeps his."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, patrick, sarah = _people(db, "Spencer", "Dan", "Patrick", "Sarah")
+    _add_item(db, session, spencer)
+    dans = _add_item(db, session, dan)
+    _add_item(db, session, dan)
+    _add_item(db, session, sarah)
+    session.turn_performer_id = patrick.id
     db.commit()
 
-    claim_turn(db, session, compute_turn(db, "AAAA"), dan)
+    # From the queue rail, the host plays Dan's song while it's Patrick's turn.
+    _play(db, session, dans)
+
+    assert _holder(db).id == patrick.id
+    turn_service.skip(db, session, compute_turn(db, "AAAA"))
+    db.commit()
+    # Sarah, Spencer, then the pointer steps over Dan once and it's Patrick.
+    assert _singers(db, session, 2) == ["Sarah", "Spencer"]
+    assert _holder(db).id == patrick.id
+    assert dan.turns_borrowed == 0
+    # Next lap nobody but Dan has a song; walking the empty seats reaches him.
+    for _ in range(3):  # Patrick, Sarah, Spencer
+        turn_service.skip(db, session, compute_turn(db, "AAAA"))
+        db.commit()
+    assert _singers(db, session, 1) == ["Dan"]
+
+
+def test_bump_during_a_song_then_the_pointer_resumes(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    spencers = _add_item(db, session, spencer)
+    _add_item(db, session, dan)
+    sarahs = _add_item(db, session, sarah)
+
+    _play_next(db, session)  # Spencer is singing; Dan is up next.
+    session.bumped_item_id = sarahs.id
     db.commit()
 
-    assert dan.is_active is True
-    assert compute_turn(db, "AAAA").performer.id == dan.id
-    assert sarah.laps_taken == 1
+    turn = compute_turn(db, "AAAA")
+    assert turn.item.id == sarahs.id
+    assert get_ordered_queue_items(db, "AAAA")[0].id == spencers.id  # current
+
+    _play_next(db, session)
+    assert session.bumped_item_id is None
+    # The pointer never left Dan; Sarah's borrowed turn is spent when it
+    # reaches her, so Spencer follows Dan.
+    assert _holder(db).id == dan.id
+    _add_item(db, session, spencer)
+    assert _singers(db, session, 2) == ["Dan", "Spencer"]
+
+
+# ---------------------------------------------------------------------------
+# Skip
+# ---------------------------------------------------------------------------
+
+
+def test_skip_with_songs_in_consecutive_laps_is_not_back_to_back(db):
+    """The lap-model bug: Sarah's two songs both landed in lap 3."""
+    session = _make_session(db)
+    _make_song(db)
+    sarah, dan = _people(db, "Sarah", "Dan")
+    _add_item(db, session, sarah)
+    _add_item(db, session, sarah)
+    _add_item(db, session, dan)
+    _add_item(db, session, dan)
+
+    turn_service.skip(db, session, compute_turn(db, "AAAA"))
+    db.commit()
+
+    assert _singers(db, session, 4) == ["Dan", "Sarah", "Dan", "Sarah"]
+
+
+def test_skip_never_takes_anyone_out_of_the_rotation(db):
+    session = _make_session(db)
+    sarah, dan = _people(db, "Sarah", "Dan")
+
+    for _ in range(5):
+        turn_service.skip(db, session, compute_turn(db, "AAAA"))
+        db.commit()
+
+    assert sarah.is_active and dan.is_active
+    assert _holder(db).id == dan.id
+
+
+def test_skipping_someone_elses_bump_returns_the_turn_to_the_holder(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    spencers = _add_item(db, session, spencer)
+    dans = _add_item(db, session, dan)
+    session.bumped_item_id = dans.id
+    db.commit()
+
+    turn_service.skip(db, session, compute_turn(db, "AAAA"))
+    db.commit()
+
+    turn = compute_turn(db, "AAAA")
+    assert session.bumped_item_id is None
+    assert turn.item.id == spencers.id
+
+
+# ---------------------------------------------------------------------------
+# Add performer, joining, remove and undo
+# ---------------------------------------------------------------------------
+
+
+def test_insert_at_the_pointer_holds_on_the_next_lap(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, patrick, sarah = _people(db, "Spencer", "Dan", "Patrick", "Sarah")
+    for p in (spencer, dan, patrick, sarah):
+        _add_item(db, session, p)
+        _add_item(db, session, p)
+    session.turn_performer_id = patrick.id
+    db.commit()
+
+    jess = resolve_or_create_performer(db, "AAAA", "Jess")
+    turn_service.insert_at_turn(db, session, jess)
+    db.commit()
+    assert _holder(db).id == jess.id
+    _add_item(db, session, jess)
+    _add_item(db, session, jess)
+
+    order = ["Jess", "Patrick", "Sarah", "Spencer", "Dan"]
+    assert _singers(db, session, 10) == order + order
+
+
+def test_insert_keeps_seats_of_removed_people_in_place(db):
+    """Inactive rows are renumbered too, so an undo lands in the right spot."""
+    session = _make_session(db)
+    spencer, dan, patrick = _people(db, "Spencer", "Dan", "Patrick")
+    turn_service.remove(db, session, patrick)
+    db.commit()
+
+    jess = resolve_or_create_performer(db, "AAAA", "Jess")
+    session.turn_performer_id = dan.id
+    turn_service.insert_at_turn(db, session, jess)
+    db.commit()
+
+    assert [spencer.seat, jess.seat, dan.seat, patrick.seat] == [0, 1, 2, 3]
+
+
+def test_phone_join_mid_lap_sings_before_the_wrap(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    for p in (spencer, dan, sarah):
+        _add_item(db, session, p)
+    assert _singers(db, session, 1) == ["Spencer"]
+
+    (jess,) = _people(db, "Jess")
+    _add_item(db, session, jess)
+
+    assert _singers(db, session, 3) == ["Dan", "Sarah", "Jess"]
+
+
+def test_remove_then_undo_restores_seat_and_pointer(db):
+    session = _make_session(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    session.turn_performer_id = dan.id
+    db.commit()
+
+    turn_service.remove(db, session, dan)
+    db.commit()
+    holder_after_remove = _holder(db)
+    assert holder_after_remove.id == sarah.id
+
+    turn_service.restore(session, dan, point_back=True)
+    db.commit()
+
+    assert dan.is_active and dan.seat == 1
+    assert _holder(db).id == dan.id
+
+
+def test_remove_hides_their_songs_and_drops_their_bump(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    spencers = _add_item(db, session, spencer)
+    dans = _add_item(db, session, dan)
+    session.bumped_item_id = dans.id
+    db.commit()
+
+    turn_service.remove(db, session, dan)
+    db.commit()
+
+    assert session.bumped_item_id is None
+    assert [i.id for i in get_ordered_queue_items(db, "AAAA")] == [spencers.id]
+    turn_service.restore(session, dan, point_back=False)
+    db.commit()
+    assert dans.id in [i.id for i in get_ordered_queue_items(db, "AAAA")]
+
+
+def test_removing_the_last_person_leaves_the_floor_open(db):
+    session = _make_session(db)
+    (spencer,) = _people(db, "Spencer")
+
+    turn_service.remove(db, session, spencer)
+    db.commit()
+
+    assert compute_turn(db, "AAAA").kind == KIND_OPEN
+    assert session.turn_performer_id is None
+
+
+def test_rejoining_by_name_goes_to_the_end_of_the_circle(db):
+    session = _make_session(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    dan.turns_borrowed = 1
+    turn_service.remove(db, session, dan)
+    db.commit()
+
+    resolve_or_create_performer(db, "AAAA", "dan")
+    db.commit()
+
+    assert dan.is_active
+    assert dan.seat == 3
+    assert dan.turns_borrowed == 0
+
+
+# ---------------------------------------------------------------------------
+# Append mode
+# ---------------------------------------------------------------------------
+
+
+def test_append_mode_has_no_circle_and_no_empty_seat(db):
+    _make_session(db, mode="append")
+    _people(db, "Sarah")
+
+    turn = compute_turn(db, "AAAA")
+    assert turn.kind == KIND_OPEN
+    assert turn.circle == []
+
+
+def test_append_mode_plays_touch_no_rotation_state(db):
+    session = _make_session(db, mode="append")
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    _add_item(db, session, spencer, position=1)
+    dans = _add_item(db, session, dan, position=2)
+
+    _play(db, session, dans)
+
+    assert session.turn_performer_id is None
+    assert dan.turns_borrowed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -360,42 +503,158 @@ def test_claim_reactivates_someone_who_stepped_out(db):
 # ---------------------------------------------------------------------------
 
 
-def test_claim_endpoint_accepts_a_new_name(db, client):
-    """The picker's "Someone else…" creates a roster entry and takes the turn."""
-    session = _make_session(db)
-    _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-    _add_item(db, session, spencer, "test-song")
+def test_skip_endpoint_moves_the_turn(db, client):
+    _make_session(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
 
     response = client.post(
-        "/api/sessions/AAAA/turn/claim",
-        json={"expected_performer_id": spencer.id, "name": "Sarah"},
+        "/api/sessions/AAAA/turn/skip", json={"expected_performer_id": spencer.id}
     )
     assert response.status_code == 200
-    assert response.json()["name"] == "Sarah"
+    assert response.json()["id"] == spencer.id
 
     db.expire_all()
-    sarah = (
-        db.query(SessionPerformer)
-        .filter_by(session_id="AAAA", normalized_name="sarah")
-        .one()
+    assert _holder(db).id == dan.id
+
+
+def test_turn_endpoints_answer_409_when_the_turn_has_moved_on(db, client):
+    _make_session(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+
+    for path, body in [
+        ("/api/sessions/AAAA/turn/skip", {"expected_performer_id": dan.id}),
+        (
+            "/api/sessions/AAAA/turn/insert",
+            {"expected_performer_id": dan.id, "name": "Jess"},
+        ),
+        (
+            f"/api/sessions/AAAA/performers/{dan.id}/remove",
+            {"expected_performer_id": dan.id},
+        ),
+    ]:
+        assert client.post(path, json=body).status_code == 409, path
+
+    db.expire_all()
+    assert _holder(db).id == spencer.id
+    assert db.query(SessionPerformer).filter_by(normalized_name="jess").first() is None
+
+
+def test_insert_endpoint_seats_a_new_name_at_the_turn(db, client):
+    _make_session(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+
+    response = client.post(
+        "/api/sessions/AAAA/turn/insert",
+        json={"expected_performer_id": spencer.id, "name": "Jess"},
     )
-    assert compute_turn(db, "AAAA").performer.id == sarah.id
+    assert response.status_code == 201
+    assert response.json()["name"] == "Jess"
+
+    db.expire_all()
+    circle = serialize_turn(compute_turn(db, "AAAA"))["circle"]
+    assert [p["name"] for p in circle] == ["Jess", "Spencer", "Dan"]
 
 
-def test_deactivate_endpoint_steps_someone_out_and_passes_their_turn(db, client):
+def test_insert_endpoint_rejects_someone_already_in_the_circle(db, client):
+    _make_session(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+
+    response = client.post(
+        "/api/sessions/AAAA/turn/insert",
+        json={"expected_performer_id": spencer.id, "name": " dan "},
+    )
+    assert response.status_code == 400
+
+    db.expire_all()
+    assert _holder(db).id == spencer.id
+
+
+def test_insert_endpoint_brings_a_removed_person_back_at_the_turn(db, client):
+    session = _make_session(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    turn_service.remove(db, session, spencer)
+    db.commit()
+
+    response = client.post(
+        "/api/sessions/AAAA/turn/insert",
+        json={"expected_performer_id": dan.id, "name": "Spencer"},
+    )
+    assert response.status_code == 201
+
+    db.expire_all()
+    circle = serialize_turn(compute_turn(db, "AAAA"))["circle"]
+    assert [p["name"] for p in circle] == ["Spencer", "Dan", "Sarah"]
+
+
+def test_remove_then_restore_endpoints_round_trip(db, client):
+    _make_session(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+
+    removed = client.post(
+        f"/api/sessions/AAAA/performers/{spencer.id}/remove",
+        json={"expected_performer_id": spencer.id},
+    )
+    assert removed.status_code == 200
+    assert removed.json()["is_active"] is False
+    assert removed.json()["holder_id"] == dan.id
+
+    restored = client.post(
+        f"/api/sessions/AAAA/performers/{spencer.id}/restore",
+        json={"expected_holder_id": removed.json()["holder_id"]},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["is_active"] is True
+
+    db.expire_all()
+    assert _holder(db).id == spencer.id
+
+
+def test_restore_after_the_turn_moved_does_not_steal_it(db, client):
     session = _make_session(db)
     _make_song(db)
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
-    spencers = _add_item(db, session, spencer, "test-song")
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    _add_item(db, session, dan)
 
-    response = client.post(f"/api/sessions/AAAA/performers/{spencer.id}/deactivate")
-    assert response.status_code == 200
-    assert response.json()["is_active"] is False
+    removed = client.post(
+        f"/api/sessions/AAAA/performers/{spencer.id}/remove",
+        json={"expected_performer_id": spencer.id},
+    ).json()
+    assert removed["holder_id"] == dan.id
 
     db.expire_all()
-    assert spencers.lap == 1
-    assert compute_turn(db, "AAAA").performer.id == dan.id
+    session = db.query(KaraokeSession).filter_by(session_id="AAAA").one()
+    _play_next(db, session)  # Dan sings; the turn moves to Sarah.
+
+    client.post(
+        f"/api/sessions/AAAA/performers/{spencer.id}/restore",
+        json={"expected_holder_id": removed["holder_id"]},
+    )
+
+    db.expire_all()
+    assert db.get(SessionPerformer, spencer.id).is_active is True
+    assert _holder(db).id == sarah.id
+
+
+def test_turn_endpoints_require_rotation_mode(db, client):
+    _make_session(db, mode="append")
+    (spencer,) = _people(db, "Spencer")
+
+    response = client.post("/api/sessions/AAAA/turn/skip", json={})
+    assert response.status_code == 400
+
+
+def test_play_endpoint_records_the_turn(client, db):
+    """The play endpoint mutates the session row `require_session_owner`
+    resolved - this asserts that write actually lands, rather than being made
+    on a second Session and dropped."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    spencers = _add_item(db, session, spencer)
+
+    response = client.post(f"/api/karaoke-queue/{spencers.id}/play?session_code=AAAA")
+    assert response.status_code == 200
+
+    db.expire_all()
+    session = db.query(KaraokeSession).filter_by(session_id="AAAA").one()
+    assert session.turn_performer_id == dan.id

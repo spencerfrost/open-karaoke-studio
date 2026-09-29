@@ -1,9 +1,11 @@
 """
-Tests for unit 3b: lap computation, the (lap, seat, id) sort, and bump-to-next.
+Tests for queue ordering: the rotation projection, append mode, and the queue
+endpoints that feed them.
 
-`test_lap_computation_matches_the_worked_example` walks the exact table from
-docs/plans/archive/2026-08-29-roster-and-rotation.md's Stage 3b section - it is the
-regression test for the mechanism and must not drift from that table.
+Rotation mode is a circle of seats and a pointer (see
+docs/plans/2026-09-25-rotation-circle.md). The play order is a projection:
+start at the pointer, take each person's k-th song on the k-th pass. These
+tests pin that walk; the pointer's movement is covered in test_turn.py.
 """
 
 from datetime import datetime, timedelta
@@ -15,13 +17,7 @@ from app.db.models import (
     KaraokeSession,
     SessionPlaybackState,
 )
-from app.services.queue_ordering import (
-    advance_to,
-    bump_to_next,
-    compute_lap,
-    enter_rotation,
-    get_ordered_queue_items,
-)
+from app.services.queue_ordering import get_ordered_queue_items
 from app.services.roster_service import resolve_or_create_performer
 from tests.fastapi.conftest import _TestingSessionLocal
 
@@ -37,7 +33,7 @@ def db():
         session.close()
 
 
-def _make_session(db, session_id="AAAA"):
+def _make_session(db, session_id="AAAA", mode="rotation"):
     session = KaraokeSession(
         session_id=session_id,
         display_code=session_id,
@@ -45,6 +41,7 @@ def _make_session(db, session_id="AAAA"):
         host_user_id=HOST_USER_ID,
         expires_at=datetime.utcnow() + timedelta(hours=8),
         is_active=True,
+        queue_order_mode=mode,
     )
     db.add(session)
     db.commit()
@@ -64,17 +61,14 @@ def _make_song(db, song_id="test-song"):
     return song
 
 
-def _add_item(db, session, performer, song_id, position):
-    """Insert a queue item the way add_to_queue does: compute_lap, then a row."""
-    lap = compute_lap(db, session, performer)
-    enter_rotation(performer)
+def _add_item(db, session, performer, position=1, song_id="test-song"):
+    """Insert a queue item the way add_to_queue does: no ordering data at all."""
     item = KaraokeQueueItem(
         singer_name=performer.name,
         song_id=song_id,
         session_id=session.session_id,
         position=position,
         performer_id=performer.id,
-        lap=lap,
     )
     db.add(item)
     db.commit()
@@ -82,284 +76,230 @@ def _add_item(db, session, performer, song_id, position):
     return item
 
 
-# ---------------------------------------------------------------------------
-# Lap computation - the worked example
-# ---------------------------------------------------------------------------
-
-
-def test_lap_computation_matches_the_worked_example(db):
-    """The plan doc's table, built the way it says it was built.
-
-    Note the doc's table is in *play* order, not insert order - Spencer
-    "queued 5 songs before anyone else touched a phone", so all five of his
-    inserts happen first and the alternation is produced by the sort.
-    """
-    session = _make_session(db)
-    _make_song(db)
-
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
+def _people(db, *names):
+    performers = [resolve_or_create_performer(db, "AAAA", name) for name in names]
     db.commit()
-
-    spencers = [_add_item(db, session, spencer, "test-song", i) for i in range(1, 6)]
-    dans = [_add_item(db, session, dan, "test-song", i) for i in range(6, 11)]
-
-    # Each performer's Nth song is their Nth turn - one burst of adds does not
-    # push the next person to the back.
-    assert [item.lap for item in spencers] == [0, 1, 2, 3, 4]
-    assert [item.lap for item in dans] == [0, 1, 2, 3, 4]
-
-    ordered = get_ordered_queue_items(db, "AAAA")
-    assert [(item.singer_name, item.lap) for item in ordered[:5]] == [
-        ("Spencer", 0),
-        ("Dan", 0),
-        ("Spencer", 1),
-        ("Dan", 1),
-        ("Spencer", 2),
-    ]
-
-    # Sarah walks up once playback has reached lap 2.
-    session.current_lap = 2
-    sarah = resolve_or_create_performer(db, "AAAA", "Sarah")
-    db.commit()
-    sarahs = _add_item(db, session, sarah, "test-song", 11)
-
-    assert sarahs.lap == 2  # joins the circle where it is, no catch-up turns
-
-    # Dan was queueing before Sarah walked up, so he precedes her in lap 2.
-    lap_two = [item for item in get_ordered_queue_items(db, "AAAA") if item.lap == 2]
-    assert [item.singer_name for item in lap_two] == ["Spencer", "Dan", "Sarah"]
+    return performers
 
 
-def test_one_persons_burst_does_not_push_the_next_person_to_the_back(db):
-    """Four songs as Jess, then three as Spencer, interleaves from the front.
-
-    Two regressions in one: adding used to advance `current_lap` (so Spencer's
-    first song landed at lap 3 behind all of Jess's), and the lap tie used to
-    go to the lower seat (so Spencer, seated first as the host, opened every
-    lap despite Jess having queued first).
-    """
-    session = _make_session(db)
-    _make_song(db)
-
-    # Spencer is on the roster first - he's the host, seated when the session
-    # was created - but Jess is the first to actually queue anything.
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    jess = resolve_or_create_performer(db, "AAAA", "Jess")
-    db.commit()
-    assert spencer.seat < jess.seat
-
-    for i in range(1, 5):
-        _add_item(db, session, jess, "test-song", i)
-    for i in range(5, 8):
-        _add_item(db, session, spencer, "test-song", i)
-
-    assert session.current_lap == 0  # nothing has played, so nothing has moved
-    ordered = get_ordered_queue_items(db, "AAAA")
-    assert [item.singer_name for item in ordered] == [
-        "Jess",
-        "Spencer",
-        "Jess",
-        "Spencer",
-        "Jess",
-        "Spencer",
-        "Jess",
-    ]
-
-
-def test_a_roster_entry_that_never_queues_does_not_take_a_place_in_the_circle(db):
-    """Being on the roster is not being in the rotation - only queueing is."""
-    session = _make_session(db)
-    _make_song(db)
-
-    bystander = resolve_or_create_performer(db, "AAAA", "Bystander")
-    jess = resolve_or_create_performer(db, "AAAA", "Jess")
-    db.commit()
-
-    _add_item(db, session, jess, "test-song", 1)
-
-    assert bystander.first_queued_at is None
-    assert jess.first_queued_at is not None
-
-
-def test_a_late_joiner_does_not_get_catch_up_turns(db):
-    """Someone who arrives at lap 4 enters at lap 4, not with four turns owed."""
-    session = _make_session(db)
-    _make_song(db)
-
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-    for i in range(1, 5):
-        _add_item(db, session, spencer, "test-song", i)
-
-    session.current_lap = 4  # the room has sung its way to lap 4
-    late = resolve_or_create_performer(db, "AAAA", "Late Larry")
-    db.commit()
-
-    item = _add_item(db, session, late, "test-song", 5)
-    assert item.lap == 4
-
-
-def test_advance_to_moves_the_rotation_on_play(db):
-    session = _make_session(db)
-    _make_song(db)
-
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-    first = _add_item(db, session, spencer, "test-song", 1)
-    second = _add_item(db, session, spencer, "test-song", 2)
-
-    advance_to(session, second)  # second song starts playing: lap 1
-    db.commit()
-
-    assert session.current_lap == 1
-    assert spencer.laps_taken == 2  # his lap-1 turn is spent
-    assert first.lap == 0  # existing rows are never rewritten
-
-
-def test_a_singer_who_already_sang_this_lap_queues_into_the_next_one(db):
-    session = _make_session(db)
-    _make_song(db)
-
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    db.commit()
-    only = _add_item(db, session, spencer, "test-song", 1)
-
-    advance_to(session, only)  # he sings it; laps_taken becomes 1
-    db.commit()
-
-    # His one row is still in the table as the current item, but it is no
-    # longer pending, so his next song is lap 1 and not lap 2.
-    playback = SessionPlaybackState(session_id="AAAA", current_queue_item_id=only.id)
-    db.add(playback)
-    db.commit()
-
-    assert compute_lap(db, session, spencer) == 1
+def _order(db):
+    return [item.id for item in get_ordered_queue_items(db, "AAAA")]
 
 
 # ---------------------------------------------------------------------------
-# Sort order
+# The projection
 # ---------------------------------------------------------------------------
 
 
-def test_rotation_mode_sorts_by_lap_then_entry_order(db):
+def test_bursts_alternate_from_the_top(db):
+    """Two people queue 5 and 3 songs in bursts - the order still alternates."""
     session = _make_session(db)
     _make_song(db)
-    session.queue_order_mode = "rotation"
-    db.commit()
+    spencer, dan = _people(db, "Spencer", "Dan")
 
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
+    spencers = [_add_item(db, session, spencer) for _ in range(5)]
+    dans = [_add_item(db, session, dan) for _ in range(3)]
 
-    item1 = _add_item(db, session, spencer, "test-song", 1)
-    item2 = _add_item(db, session, dan, "test-song", 2)
-    item3 = _add_item(db, session, spencer, "test-song", 3)
-    item4 = _add_item(db, session, dan, "test-song", 4)
-
-    ordered = get_ordered_queue_items(db, "AAAA")
-    assert [item.id for item in ordered] == [item1.id, item2.id, item3.id, item4.id]
+    s, d = [i.id for i in spencers], [i.id for i in dans]
+    assert _order(db) == [s[0], d[0], s[1], d[1], s[2], d[2], s[3], s[4]]
 
 
-def test_append_mode_sorts_by_position_ignoring_lap(db):
+def test_order_within_a_lap_is_seat_order_not_queue_order(db):
+    """Dan queued first, but Spencer holds the lower seat."""
     session = _make_session(db)
     _make_song(db)
-    session.queue_order_mode = "append"
-    db.commit()
+    spencer, dan = _people(db, "Spencer", "Dan")
 
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
-    db.commit()
+    dans = _add_item(db, session, dan)
+    spencers = _add_item(db, session, spencer)
 
-    # Both queued back to back, so both land on lap 0 - append mode must not
-    # reorder them by anything lap-derived.
-    item1 = _add_item(db, session, spencer, "test-song", 1)
-    item2 = _add_item(db, session, spencer, "test-song", 2)
-    item3 = _add_item(db, session, dan, "test-song", 3)
-
-    ordered = get_ordered_queue_items(db, "AAAA")
-    assert [item.id for item in ordered] == [item1.id, item2.id, item3.id]
+    assert _order(db) == [spencers.id, dans.id]
 
 
-# ---------------------------------------------------------------------------
-# Bump to next
-# ---------------------------------------------------------------------------
-
-
-def test_bump_to_next_moves_an_item_ahead_of_everyone_pending(db):
+def test_projection_starts_at_the_pointer(db):
     session = _make_session(db)
     _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    items = {p.id: _add_item(db, session, p).id for p in (spencer, dan, sarah)}
 
-    spencer = resolve_or_create_performer(db, "AAAA", "Spencer")
-    dan = resolve_or_create_performer(db, "AAAA", "Dan")
+    session.turn_performer_id = dan.id
     db.commit()
 
-    item1 = _add_item(db, session, spencer, "test-song", 1)
-    item2 = _add_item(db, session, dan, "test-song", 2)
-    item3 = _add_item(db, session, spencer, "test-song", 3)
+    assert _order(db) == [items[dan.id], items[sarah.id], items[spencer.id]]
 
-    bumped = bump_to_next(db, "AAAA", item3.id)
+
+def test_someone_with_nothing_queued_gives_up_no_place(db):
+    """An empty seat is a turn, not a song - the list just moves past it."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, patrick, sarah = _people(db, "Spencer", "Patrick", "Sarah")
+    a = _add_item(db, session, spencer)
+    b = _add_item(db, session, sarah)
+
+    assert _order(db) == [a.id, b.id]
+
+
+def test_the_playing_item_leads_and_is_not_projected(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    playing = _add_item(db, session, dan)
+    spencers = _add_item(db, session, spencer)
+    db.add(SessionPlaybackState(session_id="AAAA", current_queue_item_id=playing.id))
     db.commit()
 
-    assert bumped is not None
-    assert bumped.lap < item1.lap
-    ordered = get_ordered_queue_items(db, "AAAA")
-    assert ordered[0].id == item3.id
+    assert _order(db) == [playing.id, spencers.id]
 
 
-def test_bump_to_next_returns_none_for_an_unknown_item(db):
-    _make_session(db)
-    assert bump_to_next(db, "AAAA", 999) is None
-
-
-# ---------------------------------------------------------------------------
-# API: add_to_queue writes a real lap
-# ---------------------------------------------------------------------------
-
-
-def test_playing_a_song_persists_the_advanced_rotation(client, db):
-    """The play endpoint mutates the session row `require_session_owner`
-    resolved - this asserts that write actually lands, rather than being made
-    on a second Session and dropped."""
-    _make_session(db)
+def test_borrowed_turn_is_stepped_over_once(db):
+    session = _make_session(db)
     _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    s1, s2 = _add_item(db, session, spencer), _add_item(db, session, spencer)
+    d1, d2 = _add_item(db, session, dan), _add_item(db, session, dan)
+    r1, r2 = _add_item(db, session, sarah), _add_item(db, session, sarah)
 
-    for _ in range(2):
-        client.post(
-            "/api/karaoke-queue?session_code=AAAA",
-            json={"singer": "Spencer", "songId": "test-song"},
-        )
-    second = db.query(KaraokeQueueItem).order_by(KaraokeQueueItem.id).all()[1]
-    assert second.lap == 1
+    dan.turns_borrowed = 1
+    db.commit()
 
-    response = client.post(f"/api/karaoke-queue/{second.id}/play?session_code=AAAA")
-    assert response.status_code == 200
-
-    db.expire_all()
-    session = db.query(KaraokeSession).filter_by(session_id="AAAA").one()
-    assert session.current_lap == 1
-    assert second.performer.laps_taken == 2
+    # Lap 1 skips Dan; lap 2 is everyone; Dan's second song trails on its own.
+    assert _order(db) == [s1.id, r1.id, s2.id, d1.id, r2.id, d2.id]
 
 
-def test_add_to_queue_writes_a_nonzero_lap_for_a_second_song(client, db):
-    _make_session(db)
+def test_bumped_song_goes_first_and_costs_that_persons_next_turn(db):
+    session = _make_session(db)
     _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    s1, s2 = _add_item(db, session, spencer), _add_item(db, session, spencer)
+    d1, d2 = _add_item(db, session, dan), _add_item(db, session, dan)
+    r1 = _add_item(db, session, sarah)
 
-    client.post(
-        "/api/karaoke-queue?session_code=AAAA",
-        json={"singer": "Spencer", "songId": "test-song"},
+    session.bumped_item_id = d2.id
+    db.commit()
+
+    # d2 now, then the pointer resumes at Spencer and steps over Dan once.
+    assert _order(db) == [d2.id, s1.id, r1.id, s2.id, d1.id]
+
+
+def test_holders_own_bump_is_their_real_turn(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    s1, s2 = _add_item(db, session, spencer), _add_item(db, session, spencer)
+    d1 = _add_item(db, session, dan)
+
+    session.bumped_item_id = s2.id
+    db.commit()
+
+    assert _order(db) == [s2.id, d1.id, s1.id]
+
+
+def test_removed_performers_songs_are_hidden_not_deleted(db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    s1 = _add_item(db, session, spencer)
+    d1 = _add_item(db, session, dan)
+
+    dan.is_active = False
+    db.commit()
+
+    assert _order(db) == [s1.id]
+    assert db.get(KaraokeQueueItem, d1.id) is not None
+
+
+def test_rows_without_a_performer_trail_the_circle(db):
+    session = _make_session(db)
+    _make_song(db)
+    (spencer,) = _people(db, "Spencer")
+    ghost = KaraokeQueueItem(
+        singer_name="Ghost", song_id="test-song", session_id="AAAA", position=1
     )
+    db.add(ghost)
+    db.commit()
+    s1 = _add_item(db, session, spencer)
+
+    assert _order(db) == [s1.id, ghost.id]
+
+
+def test_append_mode_sorts_by_position(db):
+    session = _make_session(db, mode="append")
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+
+    item1 = _add_item(db, session, spencer, position=1)
+    item2 = _add_item(db, session, spencer, position=2)
+    item3 = _add_item(db, session, dan, position=3)
+
+    assert _order(db) == [item1.id, item2.id, item3.id]
+
+
+def test_append_mode_ignores_the_circle(db):
+    """Removed people, bumps and borrowed turns only mean anything in rotation."""
+    session = _make_session(db, mode="append")
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    item1 = _add_item(db, session, spencer, position=1)
+    item2 = _add_item(db, session, dan, position=2)
+
+    dan.is_active = False
+    session.bumped_item_id = item2.id
+    db.commit()
+
+    assert _order(db) == [item1.id, item2.id]
+
+
+# ---------------------------------------------------------------------------
+# API
+# ---------------------------------------------------------------------------
+
+
+def test_queue_payload_no_longer_carries_a_lap(client, db):
+    _make_session(db)
+    _make_song(db)
+
     response = client.post(
         "/api/karaoke-queue?session_code=AAAA",
         json={"singer": "Spencer", "songId": "test-song"},
     )
+    assert response.status_code == 201
+    assert "lap" not in response.json()
 
-    assert response.json()["lap"] == 1
+    state = client.get("/api/karaoke-queue?session_code=AAAA").json()
+    assert "lap" not in state["upcoming"][0]
 
 
-# ---------------------------------------------------------------------------
-# API: the queue-order-mode toggle
-# ---------------------------------------------------------------------------
+def test_bump_endpoint_makes_the_song_next(client, db):
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan = _people(db, "Spencer", "Dan")
+    _add_item(db, session, spencer)
+    dans = _add_item(db, session, dan)
+
+    response = client.post(f"/api/karaoke-queue/{dans.id}/bump?session_code=AAAA")
+    assert response.status_code == 200
+
+    db.expire_all()
+    assert db.get(KaraokeSession, session.id).bumped_item_id == dans.id
+    assert _order(db)[0] == dans.id
+
+
+def test_bump_endpoint_rejects_the_playing_song(client, db):
+    session = _make_session(db)
+    _make_song(db)
+    (spencer,) = _people(db, "Spencer")
+    playing = _add_item(db, session, spencer)
+    db.add(SessionPlaybackState(session_id="AAAA", current_queue_item_id=playing.id))
+    db.commit()
+
+    response = client.post(f"/api/karaoke-queue/{playing.id}/bump?session_code=AAAA")
+    assert response.status_code == 400
+
+
+def test_bump_endpoint_returns_404_for_an_unknown_item(client, db):
+    _make_session(db)
+    response = client.post("/api/karaoke-queue/999/bump?session_code=AAAA")
+    assert response.status_code == 404
 
 
 def test_set_queue_order_mode_updates_the_session(client, db):
@@ -389,10 +329,8 @@ def test_set_queue_order_mode_rejects_an_invalid_mode(client, db):
 
 
 def test_bump_endpoint_requires_rotation_mode(client, db):
-    session = _make_session(db)
+    _make_session(db, mode="append")
     _make_song(db)
-    session.queue_order_mode = "append"
-    db.commit()
 
     add_response = client.post(
         "/api/karaoke-queue?session_code=AAAA",
@@ -405,10 +343,8 @@ def test_bump_endpoint_requires_rotation_mode(client, db):
 
 
 def test_reorder_endpoint_requires_append_mode(client, db):
-    session = _make_session(db)
+    _make_session(db)
     _make_song(db)
-    session.queue_order_mode = "rotation"
-    db.commit()
 
     add_response = client.post(
         "/api/karaoke-queue?session_code=AAAA",
