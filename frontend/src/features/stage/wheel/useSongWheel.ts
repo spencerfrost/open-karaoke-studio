@@ -307,14 +307,7 @@ export function useSongWheel({
         setSongIndex(clampIndex(index, songs.length));
       }
     },
-    [
-      col,
-      firstByLetter,
-      setArtistIndex,
-      enter,
-      clampedSongIndex,
-      songs.length,
-    ],
+    [col, firstByLetter, setArtistIndex, enter, clampedSongIndex, songs.length],
   );
 
   return {

@@ -1,5 +1,5 @@
 /**
- * useWheelKeys - arrow keys, Enter and Back for the song wheel.
+ * useWheelKeys - arrow keys, Enter, Back and L for the song wheel.
  *
  * Bound on the window, like useStageKeyboard, so nothing has to hold focus: a
  * singer who clicked a button with the mic-stand mouse can still arrow away.
@@ -19,6 +19,11 @@ interface WheelKeyHandlers {
   turn: (dir: -1 | 1) => void;
   enter: () => void;
   back: () => void;
+  /**
+   * L: leave song select from any column. The performance screen opens the
+   * library on L, so the same key takes you back.
+   */
+  leave: () => void;
 }
 
 interface UseWheelKeysOptions extends WheelKeyHandlers {
@@ -112,6 +117,15 @@ export function useWheelKeys({
           handlersRef.current.back();
           return;
         default:
+      }
+
+      // By position, like the stage's F key, so it is the same physical key
+      // on any layout. Typing an L into search never gets here: the
+      // text-entry guard above returns first.
+      if (e.code === "KeyL") {
+        e.preventDefault();
+        if (e.repeat) return;
+        handlersRef.current.leave();
       }
     };
 

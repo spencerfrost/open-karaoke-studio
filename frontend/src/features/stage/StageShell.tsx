@@ -16,7 +16,13 @@
  * screen is inside it; anything mounted outside would vanish in full screen.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { StageLayout } from "@/features/player/components/stage";
 import { usePlayerUI } from "@/features/player/hooks";
 import { useRoster } from "@/hooks/api/useRoster";
@@ -39,6 +45,7 @@ import SongSelectScreen from "./screens/SongSelectScreen";
 import SongConfirmScreen from "./screens/SongConfirmScreen";
 import AddSongScreen from "./screens/AddSongScreen";
 import HandoffScreen from "./screens/HandoffScreen";
+import { findTurnItem } from "./turnItem";
 
 interface StageShellProps {
   songId: string;
@@ -104,12 +111,29 @@ const StageShell: React.FC<StageShellProps> = ({
     }
   }, [songEnded]);
 
+  // Read by `back` rather than listed as its dependencies: both change on
+  // every queue broadcast, and the shell API must keep one identity.
+  const queueRef = useRef({ turn, upcoming });
+  queueRef.current = { turn, upcoming };
+
   // Confirm and add are detours off song select; song select falls back to the
   // player. There is no deeper history to keep, which is the point.
+  //
+  // Unless the song has ended: the player would only show a finished song. If
+  // the next singer has a song, their handoff screen is the place to be;
+  // otherwise the library is, so stay in it.
+  //
+  // openPerformance itself stays unconditional. "Sing it now" calls it before
+  // the new song has loaded, while songEnded still describes the old one.
   const back = useCallback(() => {
-    setScreen((current_) =>
-      current_.name === "select" ? { name: "performance" } : { name: "select" },
-    );
+    setScreen((current_) => {
+      if (current_.name !== "select") return { name: "select" };
+      if (!usePlaybackStateStore.getState().songEnded) {
+        return { name: "performance" };
+      }
+      const { turn: turn_, upcoming: upcoming_ } = queueRef.current;
+      return findTurnItem(turn_, upcoming_) ? { name: "handoff" } : current_;
+    });
   }, []);
 
   // Constant for the life of the shell: every setter is a stable useCallback and

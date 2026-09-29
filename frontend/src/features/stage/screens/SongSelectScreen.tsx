@@ -17,6 +17,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { LogOut, Plus, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import { usePlaybackStateStore } from "@/stores/usePlaybackStateStore";
 import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
 import StageSearch from "../components/StageSearch";
@@ -31,6 +32,28 @@ interface SongSelectScreenProps {
   hasCurrentSong: boolean;
   onExitStage: () => void;
 }
+
+/**
+ * Gone once the song has ended: the shell's `back` no longer opens a finished
+ * song, so with nobody queued the button would do nothing. Subscribes here, not
+ * in the screen, which is memoized on stable props and must not re-render when
+ * a song ends.
+ */
+const BackToSongButton: React.FC = () => {
+  const shell = useStageShell();
+  const songEnded = usePlaybackStateStore((state) => state.songEnded);
+  if (songEnded) return <span />;
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => shell?.back()}
+      className="text-foreground/60 hover:text-foreground"
+    >
+      <Undo2 className="mr-2 size-5" />
+      Back to the song
+    </Button>
+  );
+};
 
 const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
   active,
@@ -60,8 +83,10 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
     (song: Song) => shell?.openConfirm(song),
     [shell],
   );
+  // The shell decides where leaving goes: the song, or the handoff screen once
+  // it has ended.
   const handleLeave = useMemo(
-    () => (hasCurrentSong ? () => shell?.openPerformance() : null),
+    () => (hasCurrentSong ? () => shell?.back() : null),
     [hasCurrentSong, shell],
   );
   const handlePickArtist = useCallback((pick: WheelFocusRequest) => {
@@ -79,18 +104,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
       <div ref={setBackdropEl} className="absolute inset-0" />
 
       <div className="relative flex shrink-0 items-center justify-between gap-4 px-6 pt-4">
-        {hasCurrentSong ? (
-          <Button
-            variant="ghost"
-            onClick={() => shell?.openPerformance()}
-            className="text-foreground/60 hover:text-foreground"
-          >
-            <Undo2 className="mr-2 size-5" />
-            Back to the song
-          </Button>
-        ) : (
-          <span />
-        )}
+        {hasCurrentSong ? <BackToSongButton /> : <span />}
 
         <div className="flex items-center gap-2">
           {!searching && (

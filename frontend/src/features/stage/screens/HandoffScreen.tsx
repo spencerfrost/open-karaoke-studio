@@ -26,7 +26,13 @@
  * See docs/plans/archive/2026-08-29-handoff-screen.md.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Library, Music, Play, UserRoundX, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +59,7 @@ import {
 } from "@/features/player/hooks/useSongSuggestions";
 import RosterPicker from "../components/RosterPicker";
 import { useStageShell } from "../StageShellContext";
+import { findTurnItem } from "../turnItem";
 
 const logger = createLogger("component:handoff-screen");
 
@@ -85,8 +92,10 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const [pickedName, setPickedName] = useState("");
   const [showOther, setShowOther] = useState(false);
 
-  const nextItem = upcoming.find((item) => Number(item.id) === turn.itemId);
-  const hasSong = turn.kind === "queued" && Boolean(nextItem);
+  // Shared with the shell, which uses it to decide whether Back from the
+  // library comes here at all.
+  const nextItem = findTurnItem(turn, upcoming);
+  const hasSong = nextItem !== null;
 
   // A 409 means somebody else got there first. Both screens are about to be
   // told the same thing by the queue broadcast, so there is nothing to say.
@@ -126,6 +135,60 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       onError: (e) => onTurnError(e, "step out"),
     });
   }, [deactivatePerformer, turn.performerId, onTurnError]);
+
+  // Keys, bound on the window like the confirm screen's, so nobody has to
+  // reach for the mouse between songs:
+  //   Enter      play their song, or open the library when they have none
+  //   Back / L   the library
+  // While "That's not me" is open, Back means "Never mind" and Enter belongs
+  // to the picker's buttons.
+  const keys = useRef({ hasSong, isPicking, handleAdvance });
+  keys.current = { hasSong, isPicking, handleAdvance };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      const k = keys.current;
+      // The "Someone else" field is typing, not navigating.
+      if (
+        t &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) ||
+          t.isContentEditable)
+      ) {
+        if (e.key === "Escape" && k.isPicking) setIsPicking(false);
+        return;
+      }
+      if (t?.closest("[role='dialog'], [role='slider']")) return;
+
+      if (e.key === "Escape" || e.key === "Backspace") {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (k.isPicking) setIsPicking(false);
+        else shell?.openSelect();
+        return;
+      }
+      if (k.isPicking) return;
+
+      if (e.code === "KeyL") {
+        e.preventDefault();
+        if (e.repeat) return;
+        shell?.openSelect();
+        return;
+      }
+      if (e.key === "Enter") {
+        // A button the mouse just clicked keeps Enter for itself.
+        if (t?.closest("button, a, [role='button']")) return;
+        e.preventDefault();
+        // The Enter that started the last song, still held, must not start
+        // this one.
+        if (e.repeat) return;
+        if (k.hasSong) k.handleAdvance();
+        else shell?.openSelect();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [shell]);
 
   const { suggestions, isLoading: suggestionsLoading } = useSongSuggestions(
     current?.song ? { currentSong: current.song, limit: 4 } : null,

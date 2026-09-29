@@ -15,6 +15,7 @@
 
 import React, { useCallback } from "react";
 import { ControlsStrip } from "@/features/performance/controls";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { cn } from "@/lib/utils";
 import type { PlayerUIHook } from "../../types/KaraokePlayer.types";
@@ -61,8 +62,11 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 }) => {
   const isPlaying = useKaraokePlayerStore((state) => state.isPlaying);
   const { collapsed } = useStageRails(isPlaying);
+  const openSongSelect = useOpenSongSelect();
+  const openLibrary = useCallback(() => openSongSelect(), [openSongSelect]);
   useStageKeyboard({
     onToggleFullscreen: ui.toggleFullscreen,
+    onOpenLibrary: openLibrary,
     enabled: keyboardEnabled,
   });
   // keyboardEnabled is false exactly while another stage screen covers this one.

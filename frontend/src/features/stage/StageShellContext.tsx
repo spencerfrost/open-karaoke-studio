@@ -35,7 +35,11 @@ export interface StageShellApi {
   openConfirm: (song: Song) => void;
   openAdd: (opts?: { query?: string; browseArtist?: boolean }) => void;
   openHandoff: () => void;
-  /** One step back along the select-family screens; ends at the performance screen. */
+  /**
+   * One step back along the select-family screens; ends at the performance
+   * screen. After a song has ended, song select leads to the handoff screen
+   * when the next singer has a song, and nowhere when they don't.
+   */
   back: () => void;
 }
 

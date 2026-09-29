@@ -124,6 +124,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
     turn: wheel.turn,
     enter: wheel.enter,
     back: wheel.back,
+    leave: () => onLeave?.(),
   });
 
   const turnMs = reducedMotion ? 0 : WHEEL_TUNING.turnMs;
