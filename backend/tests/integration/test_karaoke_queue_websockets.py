@@ -11,7 +11,12 @@ from sqlalchemy.orm import sessionmaker
 import app.db.models as models
 import app.api.karaoke_queue as _queue_api
 import app.api.sessions as _sessions_api
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import (
+    RequesterContext,
+    get_current_user,
+    get_db,
+    require_host_or_session_member,
+)
 from app.db.models import Base
 from app.services.auth_service import create_access_token
 from tests.conftest import create_test_app
@@ -53,6 +58,9 @@ def test_setup():
     app.dependency_overrides[_queue_api.get_db] = _get_db
     app.dependency_overrides[_sessions_api.get_db] = _get_db
     app.dependency_overrides[get_current_user] = _make_mock_user
+    app.dependency_overrides[require_host_or_session_member] = lambda: (
+        RequesterContext(user=_make_mock_user())
+    )
 
     setup_session = TestingSession()
     # Patch SessionLocal globally so WebSocket handlers (which bypass DI) use SQLite
