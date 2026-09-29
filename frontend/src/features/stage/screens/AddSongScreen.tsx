@@ -13,6 +13,7 @@ import React from "react";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SongSearchContainer } from "@/features/songs/components/shared/SongSearchContainer";
+import StageNowPlaying from "../components/StageNowPlaying";
 import { useStageShell } from "../StageShellContext";
 
 interface AddSongScreenProps {
@@ -48,6 +49,7 @@ const AddSongScreen: React.FC<AddSongScreenProps> = ({
           />
         </div>
       </div>
+      <StageNowPlaying />
     </div>
   );
 };

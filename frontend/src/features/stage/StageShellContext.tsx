@@ -13,9 +13,17 @@
  * the actions, and there are several hundred of them mounted at once — putting
  * both in one value meant every screen change re-rendered the entire library.
  * Read `useStageShell()` for the actions, `useStageScreen()` for the state.
+ *
+ * A third, `useStageQueue()`, carries the queue for the stage's own chrome (the
+ * now-playing bar). It changes on every queue broadcast, so it is kept out of
+ * the other two, and the memoized song select screen never reads it.
  */
 
 import { createContext, useContext } from "react";
+import type {
+  KaraokeQueueItemWithSong,
+  SessionTurn,
+} from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
 
 export type StageScreen =
@@ -43,8 +51,15 @@ export interface StageShellApi {
   back: () => void;
 }
 
+export interface StageQueue {
+  current: KaraokeQueueItemWithSong | null;
+  upcoming: KaraokeQueueItemWithSong[];
+  turn: SessionTurn;
+}
+
 export const StageShellContext = createContext<StageShellApi | null>(null);
 export const StageScreenContext = createContext<StageScreen | null>(null);
+export const StageQueueContext = createContext<StageQueue | null>(null);
 
 /** The stage shell's actions, or null when not running on the stage. */
 export const useStageShell = (): StageShellApi | null =>
@@ -53,3 +68,7 @@ export const useStageShell = (): StageShellApi | null =>
 /** The active stage screen. Only the shell's own chrome should need this. */
 export const useStageScreen = (): StageScreen | null =>
   useContext(StageScreenContext);
+
+/** The session queue as the shell holds it, or null off the stage. */
+export const useStageQueue = (): StageQueue | null =>
+  useContext(StageQueueContext);

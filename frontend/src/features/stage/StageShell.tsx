@@ -37,6 +37,8 @@ import type { Song } from "@/types/Song";
 import {
   StageShellContext,
   StageScreenContext,
+  StageQueueContext,
+  type StageQueue,
   type StageScreen,
   type StageShellApi,
 } from "./StageShellContext";
@@ -152,6 +154,11 @@ const StageShell: React.FC<StageShellProps> = ({
     [openPerformance, openSelect, openConfirm, openAdd, openHandoff, back],
   );
 
+  const stageQueue = useMemo<StageQueue>(
+    () => ({ current: current ?? null, upcoming, turn }),
+    [current, upcoming, turn],
+  );
+
   const isPerforming = screen.name === "performance";
 
   // Song select is mounted once and then only ever hidden, so the wheel keeps
@@ -176,95 +183,97 @@ const StageShell: React.FC<StageShellProps> = ({
   return (
     <StageShellContext.Provider value={shellApi}>
       <StageScreenContext.Provider value={screen}>
-        <div
-          ref={ui.containerRef}
-          className="relative h-full w-full overflow-hidden"
-          style={{ background: "var(--page-bg)" }}
-        >
-          {/* Painted once, for every screen. Both of these are expensive - a
+        <StageQueueContext.Provider value={stageQueue}>
+          <div
+            ref={ui.containerRef}
+            className="relative h-full w-full overflow-hidden"
+            style={{ background: "var(--page-bg)" }}
+          >
+            {/* Painted once, for every screen. Both of these are expensive - a
             full-viewport repeating-conic-gradient and a tiled SVG - so a
             second copy stacked over the first made every repaint, down to
             expanding an accordion row, visibly slow. */}
-          <div className="vintage-sunburst-pattern" />
-          <div className="vintage-texture-overlay" />
-          <div className="absolute inset-0 z-[11] bg-overlay/85" />
+            <div className="vintage-sunburst-pattern" />
+            <div className="vintage-texture-overlay" />
+            <div className="absolute inset-0 z-[11] bg-overlay/85" />
 
-          {/* Always mounted, `hidden` while another screen is up. Same discipline
+            {/* Always mounted, `hidden` while another screen is up. Same discipline
             the rails already use: React state, dialogs and audio all survive,
             but display:none means the covered player costs no layout or paint
             - and the lyrics stop repainting 60x/sec behind the library. */}
-          <div
-            className={cn(
-              "relative z-20 h-full w-full",
-              !isPerforming && "hidden",
-            )}
-          >
-            <StageLayout
-              songId={songId}
-              current={current}
-              upcoming={upcoming}
-              onPlayFromQueue={onPlayFromQueue}
-              onRemoveFromQueue={onRemoveFromQueue}
-              ui={ui}
-              keyboardEnabled={isPerforming}
-            />
-          </div>
-
-          {selectMounted && (
             <div
               className={cn(
-                "absolute inset-0 z-20 overflow-hidden",
-                screen.name !== "select" && "hidden",
+                "relative z-20 h-full w-full",
+                !isPerforming && "hidden",
               )}
             >
-              <SongSelectScreen
-                active={screen.name === "select"}
-                expandArtist={
-                  screen.name === "select" ? screen.expandArtist : undefined
-                }
-                hasCurrentSong={Boolean(current)}
-                onExitStage={handleExitStage}
-              />
-            </div>
-          )}
-
-          {screen.name === "confirm" && (
-            <div className="absolute inset-0 z-20 overflow-hidden">
-              <SongConfirmScreen
-                song={screen.song}
-                roster={roster}
-                turn={turn}
-              />
-            </div>
-          )}
-
-          {screen.name === "handoff" && (
-            <div className="absolute inset-0 z-20 overflow-hidden">
-              <HandoffScreen
+              <StageLayout
+                songId={songId}
                 current={current}
                 upcoming={upcoming}
-                turn={turn}
-                roster={roster}
                 onPlayFromQueue={onPlayFromQueue}
+                onRemoveFromQueue={onRemoveFromQueue}
+                ui={ui}
+                keyboardEnabled={isPerforming}
               />
             </div>
-          )}
 
-          {screen.name === "add" && (
-            <div className="absolute inset-0 z-20 overflow-hidden">
-              <AddSongScreen
-                query={screen.query}
-                browseArtist={screen.browseArtist}
-              />
-            </div>
-          )}
+            {selectMounted && (
+              <div
+                className={cn(
+                  "absolute inset-0 z-20 overflow-hidden",
+                  screen.name !== "select" && "hidden",
+                )}
+              >
+                <SongSelectScreen
+                  active={screen.name === "select"}
+                  expandArtist={
+                    screen.name === "select" ? screen.expandArtist : undefined
+                  }
+                  hasCurrentSong={Boolean(current)}
+                  onExitStage={handleExitStage}
+                />
+              </div>
+            )}
 
-          <ExitStagePrompt
-            isOpen={isExitPromptOpen}
-            onClose={() => setIsExitPromptOpen(false)}
-            onLeaveStage={handleLeaveStage}
-          />
-        </div>
+            {screen.name === "confirm" && (
+              <div className="absolute inset-0 z-20 overflow-hidden">
+                <SongConfirmScreen
+                  song={screen.song}
+                  roster={roster}
+                  turn={turn}
+                />
+              </div>
+            )}
+
+            {screen.name === "handoff" && (
+              <div className="absolute inset-0 z-20 overflow-hidden">
+                <HandoffScreen
+                  current={current}
+                  upcoming={upcoming}
+                  turn={turn}
+                  roster={roster}
+                  onPlayFromQueue={onPlayFromQueue}
+                />
+              </div>
+            )}
+
+            {screen.name === "add" && (
+              <div className="absolute inset-0 z-20 overflow-hidden">
+                <AddSongScreen
+                  query={screen.query}
+                  browseArtist={screen.browseArtist}
+                />
+              </div>
+            )}
+
+            <ExitStagePrompt
+              isOpen={isExitPromptOpen}
+              onClose={() => setIsExitPromptOpen(false)}
+              onLeaveStage={handleLeaveStage}
+            />
+          </div>
+        </StageQueueContext.Provider>
       </StageScreenContext.Provider>
     </StageShellContext.Provider>
   );

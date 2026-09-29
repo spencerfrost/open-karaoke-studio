@@ -24,6 +24,7 @@ import type { SessionPerformer } from "@/types/SessionPerformer";
 import type { SessionTurn } from "@/types/KaraokeQueue";
 import RosterPicker from "../components/RosterPicker";
 import { useDefaultSinger } from "../hooks/useDefaultSinger";
+import StageNowPlaying from "../components/StageNowPlaying";
 import { useStageShell } from "../StageShellContext";
 
 interface SongConfirmScreenProps {
@@ -129,7 +130,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
   const chosenRing = "ring-4 ring-primary ring-offset-2 ring-offset-background";
 
   return (
-    <div className="flex h-full w-full flex-col overflow-auto">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-4">
         <Button
           variant="ghost"
@@ -141,7 +142,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 p-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-auto p-6">
         <div className="flex items-center gap-6">
           <img
             src={getArtworkUrl(song, "medium") ?? undefined}
@@ -203,6 +204,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
           </p>
         )}
       </div>
+      <StageNowPlaying />
     </div>
   );
 };

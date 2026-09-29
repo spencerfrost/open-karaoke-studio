@@ -6,20 +6,21 @@
  * mouse on the mic stand, or arrow keys, Enter and Back (see SongWheel). The
  * phone keeps LibraryScreen - the two share data hooks, not components.
  *
- * One slim bar at the top for the things that are not "pick a song": back to
- * the song that is playing, a quiet search for whoever has the keyboard, and
- * leaving stage mode - which the arrow keys can never reach, so nobody walking
- * up to sing ends the night by pressing Back one too many times. The join QR
- * code sits bottom-left rather than in the bar.
+ * One slim bar at the top for the things that are not "pick a song": a quiet
+ * search for whoever has the keyboard, and leaving stage mode - which the
+ * arrow keys can never reach, so nobody walking up to sing ends the night by
+ * pressing Back one too many times. The join QR code sits bottom-left rather
+ * than in the bar. The now-playing footer, which is also the way back to the
+ * song, runs along the bottom.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { LogOut, Plus, Search, Undo2 } from "lucide-react";
+import { LogOut, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
-import { usePlaybackStateStore } from "@/stores/usePlaybackStateStore";
 import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
+import StageNowPlaying from "../components/StageNowPlaying";
 import StageSearch from "../components/StageSearch";
 import SongWheel from "../wheel/SongWheel";
 import type { WheelFocusRequest } from "../wheel/useSongWheel";
@@ -28,32 +29,10 @@ interface SongSelectScreenProps {
   /** Whether this is the screen showing. It stays mounted behind the others. */
   active: boolean;
   expandArtist?: string;
-  /** Whether there is a song loaded to go back to. */
+  /** Whether there is a song loaded to go back to. The wheel's Back needs it. */
   hasCurrentSong: boolean;
   onExitStage: () => void;
 }
-
-/**
- * Gone once the song has ended: the shell's `back` no longer opens a finished
- * song, so with nobody queued the button would do nothing. Subscribes here, not
- * in the screen, which is memoized on stable props and must not re-render when
- * a song ends.
- */
-const BackToSongButton: React.FC = () => {
-  const shell = useStageShell();
-  const songEnded = usePlaybackStateStore((state) => state.songEnded);
-  if (songEnded) return <span />;
-  return (
-    <Button
-      variant="ghost"
-      onClick={() => shell?.back()}
-      className="text-foreground/60 hover:text-foreground"
-    >
-      <Undo2 className="mr-2 size-5" />
-      Back to the song
-    </Button>
-  );
-};
 
 const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
   active,
@@ -103,9 +82,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
           after it is positioned, so it paints on top. */}
       <div ref={setBackdropEl} className="absolute inset-0" />
 
-      <div className="relative flex shrink-0 items-center justify-between gap-4 px-6 pt-4">
-        {hasCurrentSong ? <BackToSongButton /> : <span />}
-
+      <div className="relative flex shrink-0 items-center justify-end gap-4 px-6 pt-4">
         <div className="flex items-center gap-2">
           {!searching && (
             <Button
@@ -153,22 +130,27 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             />
           </div>
         )}
+
+        {/* Inside the wheel area, so both sit above the footer. */}
+        {/* Bottom-left, not in the top bar: at TV size the QR code made the bar
+            ~150px tall, which the wheel had to shrink to fit under. This corner
+            is empty beside the legend, and it is where guests look to join. */}
+        <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
+
+        <Button
+          variant="accent"
+          size="lg"
+          onClick={() => shell?.openAdd()}
+          className="absolute bottom-8 right-8 z-10 size-16 rounded-full shadow-xl"
+          aria-label="Add a song to the songbook"
+        >
+          <Plus className="size-8" />
+        </Button>
       </div>
 
-      {/* Bottom-left, not in the top bar: at TV size the QR code made the bar
-          ~150px tall, which the wheel had to shrink to fit under. This corner
-          is empty beside the legend, and it is where guests look to join. */}
-      <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
-
-      <Button
-        variant="accent"
-        size="lg"
-        onClick={() => shell?.openAdd()}
-        className="absolute bottom-8 right-8 z-10 size-16 rounded-full shadow-xl"
-        aria-label="Add a song to the songbook"
-      >
-        <Plus className="size-8" />
-      </Button>
+      {/* Reads the store and the shell's queue itself, so the playing song
+          never re-renders this memoized screen. */}
+      <StageNowPlaying />
     </div>
   );
 };
