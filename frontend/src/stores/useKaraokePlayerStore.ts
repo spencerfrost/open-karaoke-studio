@@ -32,6 +32,12 @@ import {
 
 const logger = createLogger("store:player");
 
+/**
+ * How long a playing song takes to fade out when another song replaces it.
+ * A guess, to be tuned on the TV.
+ */
+export const SONG_CHANGE_FADE_MS = 3000;
+
 // Extend window interface for cleanup storage
 declare global {
   interface Window {
@@ -118,6 +124,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
   // Flag to prevent WebSocket interference during song loading
   let isLoadingNewSong: boolean = false;
+  // The song setSongAndLoad is currently fading towards, so a repeat call for
+  // it (the player's load effect re-running mid-fade) doesn't load it twice.
+  let switchingTo: string | null = null;
 
   function socketEmit(messageType: string, data?: Record<string, unknown>) {
     if (messageType === "update_performance_control") {
@@ -352,7 +361,20 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       artist?: string,
       gainDb?: number,
     ) => {
+      if (id === switchingTo) return;
+      switchingTo = id;
       isLoadingNewSong = true;
+
+      // Within a night, one song never cuts another off: whatever is playing
+      // fades out first. Nobody asks for this and nothing shows it. It is
+      // simply how songs change over. Pausing stays instant, and so does
+      // leaving the session, which cleans up without coming through here.
+      //
+      // Carried on even if a pause interrupts the fade: the queue has
+      // already moved on to this song.
+      await usePlaybackStateStore.getState().fadeOut(SONG_CHANGE_FADE_MS);
+      if (switchingTo !== id) return; // a later song overtook this one
+      switchingTo = null;
 
       get().cleanup();
       get().setSongId(id, duration, gainDb);

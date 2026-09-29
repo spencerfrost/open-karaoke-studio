@@ -32,6 +32,13 @@ export interface PlaybackStateState {
     playbackSpeed: number,
     volumes: { vocal: number; backing: number; instrumental: number },
   ) => void;
+  /**
+   * Ramp the output to silence over `ms`. Resolves true once it is silent,
+   * false if play, pause, seek or a new song interrupted it (the volume is back
+   * at full by then). Resolves true at once when nothing is playing.
+   * The players keep running at gain 0: stopping them is the caller's call.
+   */
+  fadeOut: (ms: number) => Promise<boolean>;
   resetSongEnded: () => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
@@ -81,6 +88,15 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   // Per-song normalization gain in dB (stored when song is loaded, applied in audio graph)
   let normalizationGainDb: number = 0;
   let normalizationGainNode: GainNode | null = null;
+  // Its own node rather than a ramp on normalizationGainNode, so the per-song
+  // loudness value is never overwritten and nothing has to restore it. Before
+  // the analyser, so the visualizer fades with the sound.
+  let fadeGainNode: GainNode | null = null;
+  let activeFade: {
+    promise: Promise<boolean>;
+    resolve: (completed: boolean) => void;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
 
   // --- Audio graph helpers ---
   function setupAnalyser() {
@@ -90,6 +106,38 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       // Default (0.8) smooths so heavily that the visualizer barely moves
       // frame to frame; lower this for a snappier, more reactive look.
       analyser.smoothingTimeConstant = 0.4;
+    }
+  }
+
+  /**
+   * Stop any fade in progress and put the volume back to full. Everything that
+   * changes what is playing calls this, so a fade never outlives the song
+   * position it was started on.
+   */
+  function cancelFade() {
+    if (activeFade) {
+      clearTimeout(activeFade.timer);
+      activeFade.resolve(false);
+      activeFade = null;
+    }
+    if (fadeGainNode) {
+      fadeGainNode.gain.cancelScheduledValues(0);
+      fadeGainNode.gain.value = 1;
+    }
+  }
+
+  function stopPlayers() {
+    for (const player of [
+      instrumentalPlayer,
+      vocalPlayer,
+      backingVocalPlayer,
+    ]) {
+      if (!player) continue;
+      try {
+        player.stop();
+      } catch {
+        // Ignore if already stopped
+      }
     }
   }
 
@@ -185,7 +233,13 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     normalizationGainNode = audioContext.createGain();
     normalizationGainNode.gain.value = Math.pow(10, normalizationGainDb / 20);
 
-    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> Analyser -> Destination
+    // A fresh fade node per graph, at full volume: every play and seek starts
+    // unfaded.
+    if (fadeGainNode) fadeGainNode.disconnect();
+    fadeGainNode = audioContext.createGain();
+    fadeGainNode.gain.value = 1;
+
+    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> FadeGain -> Analyser -> Destination
     instrumentalPlayer.connect(instrumentalGain);
     vocalPlayer.connect(vocalGain);
     instrumentalGain.connect(normalizationGainNode);
@@ -194,7 +248,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       backingVocalPlayer.connect(backingVocalGain);
       backingVocalGain.connect(normalizationGainNode);
     }
-    normalizationGainNode.connect(analyser!);
+    normalizationGainNode.connect(fadeGainNode);
+    fadeGainNode.connect(analyser!);
     analyser!.connect(audioContext.destination);
 
     // Handle playback end - use instrumental track as the reference
@@ -266,6 +321,11 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       normalizationGainNode.disconnect();
       normalizationGainNode = null;
     }
+    cancelFade();
+    if (fadeGainNode) {
+      fadeGainNode.disconnect();
+      fadeGainNode = null;
+    }
     analyser = null;
     clearIntervals();
     playbackStartTime = null;
@@ -294,6 +354,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
 
     setSongId: (id: string, duration?: number, gainDb?: number) => {
       // Accept duration and normalization gain from the backend if available
+      cancelFade();
       songDuration = duration;
       normalizationGainDb = gainDb ?? 0;
       // Reset playback state when changing songs
@@ -395,6 +456,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       }
       if (!instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
+      cancelFade();
 
       // Reset songEnded flag when starting playback
       set({ songEnded: false });
@@ -410,27 +472,10 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     },
 
     pause: (playbackSpeed: number) => {
-      if (instrumentalPlayer) {
-        try {
-          instrumentalPlayer.stop();
-        } catch {
-          // Ignore if already stopped
-        }
-      }
-      if (vocalPlayer) {
-        try {
-          vocalPlayer.stop();
-        } catch {
-          // Ignore if already stopped
-        }
-      }
-      if (backingVocalPlayer) {
-        try {
-          backingVocalPlayer.stop();
-        } catch {
-          // Ignore if already stopped
-        }
-      }
+      stopPlayers();
+      // After stopping, so restoring the volume can't let a moment of the
+      // song through at full level.
+      cancelFade();
       clearIntervals();
       if (audioContext && playbackStartTime !== null) {
         // Calculate how much time has elapsed since playback started, accounting for speed
@@ -451,6 +496,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     ) => {
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
+      cancelFade();
       playbackOffset = timeSeconds;
 
       // Reset songEnded flag when seeking
@@ -491,6 +537,32 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
         playbackStartTime = null;
         set({ currentTime: timeSeconds, isPlaying: false });
       }
+    },
+
+    fadeOut: (ms: number) => {
+      if (activeFade) return activeFade.promise;
+      if (!get().isPlaying || !audioContext || !fadeGainNode) {
+        return Promise.resolve(true);
+      }
+
+      const gain = fadeGainNode.gain;
+      const now = audioContext.currentTime;
+      gain.cancelScheduledValues(now);
+      // Anchor the ramp at the current level; without a scheduled start point
+      // it would ramp from whenever the last event was.
+      gain.setValueAtTime(gain.value, now);
+      gain.linearRampToValueAtTime(0, now + ms / 1000);
+
+      let resolve!: (completed: boolean) => void;
+      const promise = new Promise<boolean>((r) => {
+        resolve = r;
+      });
+      const timer = setTimeout(() => {
+        activeFade = null;
+        resolve(true);
+      }, ms);
+      activeFade = { promise, resolve, timer };
+      return promise;
     },
 
     resetSongEnded: () => {
