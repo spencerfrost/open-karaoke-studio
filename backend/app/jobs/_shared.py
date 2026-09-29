@@ -1,6 +1,5 @@
 """Shared helpers and state for job tasks."""
 
-import hashlib
 from datetime import datetime
 from typing import Optional
 
@@ -16,21 +15,6 @@ job_repository = JobRepository()
 
 def _get_lyrics_job_id(song_id: str) -> str:
     return f"lyrics-align:{song_id}"
-
-
-def _make_alignment_cache_key(
-    *,
-    source_type: str,
-    content: str,
-    language: str,
-    alignment_mode: str,
-) -> tuple[str, str, str, str]:
-    return (
-        source_type,
-        alignment_mode,
-        language,
-        hashlib.sha1(content.encode("utf-8")).hexdigest(),
-    )
 
 
 def _create_lyrics_alignment_job(

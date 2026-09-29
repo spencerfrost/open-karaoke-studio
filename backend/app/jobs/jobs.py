@@ -112,17 +112,6 @@ def _get_lyrics_job_id(song_id: str) -> str:
     return _impl(song_id)
 
 
-def _make_alignment_cache_key(*, source_type: str, content: str, language: str, alignment_mode: str):
-    from ._shared import _make_alignment_cache_key as _impl
-
-    return _impl(
-        source_type=source_type,
-        content=content,
-        language=language,
-        alignment_mode=alignment_mode,
-    )
-
-
 def _create_lyrics_alignment_job(
     song_id: str,
     title: Optional[str] = None,
@@ -169,7 +158,6 @@ __all__ = [
     "_complete_lyrics_alignment_job",
     "_create_lyrics_alignment_job",
     "_get_lyrics_job_id",
-    "_make_alignment_cache_key",
     "_update_lyrics_alignment_job",
     "align_song_lyrics",
     "batch_align_lyrics",

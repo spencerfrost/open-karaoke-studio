@@ -193,6 +193,34 @@ The median estimator is robust: even if 2 of 6 anchors are bad (ambiguous onset,
 
 This feature gets the best anchor points for free from the section break analysis — the same candidates already detected as high-confidence section boundaries (timing gap + text repetition agreement) are exactly the lines after clear silences that make the best offset anchors. The two features run as one analysis pass.
 
+### In the automatic pipeline: the WhisperX shift sweep
+
+The RMS-onset method above backs the manual `analyze/offset` endpoints. The automatic
+alignment task (`align_song_lyrics`) uses a different estimator, `sweep_lrc_offset` in
+`lyrics_offset.py`, when a synced LRC aligns below the 0.3 mean-score bar:
+
+1. Shift the whole LRC by every value from −12s to +12s in 0.5s steps
+2. Re-run strict WhisperX forced alignment at each shift and record the mean word score
+3. Keep the best shift if it beats the unshifted score by ≥ 0.03 and itself reaches 0.3
+4. Store the shifted LRC **and** the word timings from aligning that exact text; otherwise
+   fall through to ASR
+
+This works because strict forced alignment only searches each line's
+`[timestamp, next timestamp]` window. When the whole file is early or late, the words
+sit outside their windows and the aligner cannot see them. Shifting the LRC moves the
+windows, and the score jumps when they land on the vocals.
+
+Validated on 7 known-good songs pushed off by −6…+9s: the sweep found the correction
+within 0.5s in 35/35 cases and never moved an already-correct file. A real offset gained
+≥ 0.058 in score, a correct file ≤ 0.006, hence the 0.03 threshold.
+
+The estimator it replaced read offsets from where WhisperX placed words inside padded
+windows. It confused the padding with an offset (hence corrections of exactly −8.0s and
+−3.0s) and applied its result with the wrong sign. It also discarded word timings on
+every correction. **Sign conventions differ between the two estimators**: the RMS
+method reports LRC − audio (apply negated); the sweep reports the correction itself
+(apply as-is).
+
 ### Coverage
 
 Global offset correction handles the *easy majority* of misaligned lyrics. The remaining cases — songs where timestamps drift over time, or where individual lines are wrong but others are correct — require per-line alignment (Whisper forced alignment or dense RMS matching), which is a much harder problem to solve and much less common in practice.
