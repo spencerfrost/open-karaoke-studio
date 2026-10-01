@@ -49,6 +49,8 @@ def backfill_lyrics_line_index(apply: bool) -> None:
         print(f"Found {len(songs)} songs with stored word-synced alignment\n")
 
         songs_changed = 0
+        songs_relabelled = 0
+        songs_source_type_inferred = 0
         songs_unchanged = 0
         songs_skipped_no_content = 0
         songs_skipped_divergence = 0
@@ -64,20 +66,34 @@ def backfill_lyrics_line_index(apply: bool) -> None:
                 songs_skipped_no_content += 1
                 continue
 
-            source_type = stored.get("lyrics_source_type")
             words: list[AlignedWord] = stored.get("words", [])
-            content = _source_content(song, source_type) if source_type else None
+            # Alignments from before 2026-04-19 don't record which lyrics they
+            # used. Try synced, then plain: the token walk only accepts an
+            # exact word-for-word match, so a wrong guess is skipped, not stored.
+            stored_source_type = stored.get("lyrics_source_type")
+            source_types = (
+                [stored_source_type] if stored_source_type else ["synced", "plain"]
+            )
+            candidates = [
+                (source_type, content)
+                for source_type in source_types
+                if (content := _source_content(song, source_type))
+            ]
 
-            if not content or not words:
+            if not candidates or not words:
                 print(
                     f"[{i}/{len(songs)}] ⊘ Skipping {song.title}: no source content or words"
                 )
                 songs_skipped_no_content += 1
                 continue
 
-            recomputed = recompute_alignment_line_indices(
-                words, source_type=source_type, content=content
-            )
+            recomputed = None
+            for source_type, content in candidates:
+                recomputed = recompute_alignment_line_indices(
+                    words, source_type=source_type, content=content
+                )
+                if recomputed is not None:
+                    break
             if recomputed is None:
                 print(
                     f"[{i}/{len(songs)}] ⊘ Skipping {song.title}: token walk diverged"
@@ -92,24 +108,32 @@ def backfill_lyrics_line_index(apply: bool) -> None:
             )
             new_intervals = _build_instrumental_intervals(recomputed)
 
-            if words_relabelled == 0 and new_intervals == stored.get(
-                "instrumental_intervals", []
+            if (
+                words_relabelled == 0
+                and stored_source_type
+                and new_intervals == stored.get("instrumental_intervals", [])
             ):
                 songs_unchanged += 1
                 continue
 
             songs_changed += 1
             total_lines_changed += words_relabelled
+            if words_relabelled:
+                songs_relabelled += 1
+            if not stored_source_type:
+                songs_source_type_inferred += 1
             print(
                 f"[{i}/{len(songs)}] {'✓' if apply else '→'} {song.title}: "
                 f"{words_relabelled} word(s) relabelled, "
                 f"{len(new_intervals)} instrumental interval(s) "
                 f"(was {len(stored.get('instrumental_intervals', []))})"
+                + ("" if stored_source_type else f", source type: {source_type}")
             )
 
             if apply:
                 stored["words"] = recomputed
                 stored["instrumental_intervals"] = new_intervals
+                stored["lyrics_source_type"] = source_type
                 repo.update(song.id, word_synced_lyrics=json.dumps(stored))
 
         print(f"\n{'=' * 60}")
@@ -117,6 +141,8 @@ def backfill_lyrics_line_index(apply: bool) -> None:
             "Backfill complete!" if apply else "Dry run complete — no changes written."
         )
         print(f"  Changed:            {songs_changed}")
+        print(f"    with relabelled words:   {songs_relabelled}")
+        print(f"    with source type added:  {songs_source_type_inferred}")
         print(f"  Words relabelled:   {total_lines_changed}")
         print(f"  Unchanged:          {songs_unchanged}")
         print(f"  Skipped (content):  {songs_skipped_no_content}")

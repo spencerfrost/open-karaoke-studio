@@ -189,7 +189,7 @@ class LoggingConfig:
                     "handlers": ["console", "file_celery",],
                     "propagate": False,
                 },
-                "app.lyrics_timing": {
+                "app.services.lyrics_timing": {
                     "level": "INFO",
                     "handlers": ["file_lyrics_timing"],
                     "propagate": False,
