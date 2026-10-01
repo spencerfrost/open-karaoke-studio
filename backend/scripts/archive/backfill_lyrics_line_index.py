@@ -10,6 +10,10 @@ WhisperX's original positional order, so this recomputes labels offline by
 walking that order against the original lyrics text — no audio, no GPU,
 no re-running WhisperX.
 
+Synced lyrics only. Plain-lyrics alignments were nonsense (made-up 5s line
+windows) and are re-run rather than relabelled; see
+docs/plans/2026-09-29-lyrics-alignment-repair.md step 4.
+
 Usage:
     python scripts/backfill_lyrics_line_index.py            # dry run, report only
     python scripts/backfill_lyrics_line_index.py --apply     # write changes
@@ -32,10 +36,6 @@ from app.services.lyrics_alignment import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _source_content(song, source_type: str) -> str | None:
-    return song.synced_lyrics if source_type == "synced" else song.plain_lyrics
 
 
 def backfill_lyrics_line_index(apply: bool) -> None:
@@ -68,32 +68,19 @@ def backfill_lyrics_line_index(apply: bool) -> None:
 
             words: list[AlignedWord] = stored.get("words", [])
             # Alignments from before 2026-04-19 don't record which lyrics they
-            # used. Try synced, then plain: the token walk only accepts an
-            # exact word-for-word match, so a wrong guess is skipped, not stored.
+            # used. The token walk only accepts an exact word-for-word match
+            # against the synced text, so a plain-lyrics alignment is skipped.
             stored_source_type = stored.get("lyrics_source_type")
-            source_types = (
-                [stored_source_type] if stored_source_type else ["synced", "plain"]
-            )
-            candidates = [
-                (source_type, content)
-                for source_type in source_types
-                if (content := _source_content(song, source_type))
-            ]
-
-            if not candidates or not words:
+            if stored_source_type == "plain" or not song.synced_lyrics or not words:
                 print(
                     f"[{i}/{len(songs)}] ⊘ Skipping {song.title}: no source content or words"
                 )
                 songs_skipped_no_content += 1
                 continue
 
-            recomputed = None
-            for source_type, content in candidates:
-                recomputed = recompute_alignment_line_indices(
-                    words, source_type=source_type, content=content
-                )
-                if recomputed is not None:
-                    break
+            recomputed = recompute_alignment_line_indices(
+                words, content=song.synced_lyrics
+            )
             if recomputed is None:
                 print(
                     f"[{i}/{len(songs)}] ⊘ Skipping {song.title}: token walk diverged"
@@ -127,13 +114,13 @@ def backfill_lyrics_line_index(apply: bool) -> None:
                 f"{words_relabelled} word(s) relabelled, "
                 f"{len(new_intervals)} instrumental interval(s) "
                 f"(was {len(stored.get('instrumental_intervals', []))})"
-                + ("" if stored_source_type else f", source type: {source_type}")
+                + ("" if stored_source_type else ", source type: synced")
             )
 
             if apply:
                 stored["words"] = recomputed
                 stored["instrumental_intervals"] = new_intervals
-                stored["lyrics_source_type"] = source_type
+                stored["lyrics_source_type"] = "synced"
                 repo.update(song.id, word_synced_lyrics=json.dumps(stored))
 
         print(f"\n{'=' * 60}")

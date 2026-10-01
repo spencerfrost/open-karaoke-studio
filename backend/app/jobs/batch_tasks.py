@@ -1,5 +1,7 @@
 """Batch Celery tasks for library-wide backfills and alignment."""
 
+from collections.abc import Collection
+
 from app.services.lyrics_selection import SongData
 from celery.utils.log import get_task_logger
 
@@ -9,11 +11,17 @@ from .lyrics_support import build_alignment_attempts_for_song
 logger = get_task_logger(__name__)
 
 
-def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
+def _build_alignment_attempts(
+    song: SongData,
+    include_remote: bool = True,
+    max_remote_results: int = 3,
+    rejected_keys: Collection[str] = (),
+) -> list[dict]:
     return build_alignment_attempts_for_song(
         song,
         include_remote=include_remote,
         max_remote_results=max_remote_results,
+        rejected_keys=rejected_keys,
     )
 
 
@@ -188,14 +196,11 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
     import json as _json
 
     from app.db.database import get_db_session
+    from app.repositories.lyrics_report_repository import LyricsReportRepository
     from app.repositories.song_repository import SongRepository
     from app.services.file_service import FileService
     from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
-    from app.services.lyrics_alignment import (
-        align_lyrics_to_vocals_with_model,
-        align_plain_lyrics_to_vocals_with_model,
-        load_alignment_model,
-    )
+    from app.services.lyrics_alignment import align_lyrics_to_vocals_with_model, load_alignment_model
 
     MIN_SCORE = 0.5
     file_service = FileService()
@@ -217,7 +222,8 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                 continue
             if mode == "missing" and song.word_synced_lyrics:
                 continue
-            if not song.synced_lyrics and not song.plain_lyrics:
+            # Plain lyrics are never force-aligned; only align_song_lyrics' ASR times them.
+            if not song.synced_lyrics:
                 continue
         eligible.append(song_id)
 
@@ -265,8 +271,13 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                     "synced_lyrics": song.synced_lyrics,
                     "word_synced_lyrics": song.word_synced_lyrics,
                 }
+                rejected_keys = LyricsReportRepository(session).rejected_keys(song_id)
 
-            attempts = _build_alignment_attempts(song_data, include_remote=False)
+            attempts = [
+                attempt
+                for attempt in _build_alignment_attempts(song_data, include_remote=False, rejected_keys=rejected_keys)
+                if attempt["source_type"] == "synced"
+            ]
             if not attempts:
                 failed += 1
                 results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
@@ -276,14 +287,9 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
             align_error_count = 0
 
             for idx, attempt in enumerate(attempts):
-                source_content = attempt["content"]
-                use_plain = attempt["source_type"] == "plain"
-
                 try:
-                    result = (
-                        align_plain_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
-                        if use_plain
-                        else align_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
+                    result = align_lyrics_to_vocals_with_model(
+                        attempt["content"], vocals_path, model_a, metadata, language=language
                     )
                 except Exception as e:
                     align_error_count += 1
@@ -318,11 +324,8 @@ def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
                             "lyrics_source": attempt["source"],
                             "lyrics_attempt": idx + 1,
                         })
-                        if attempt["persist"]:
-                            if attempt["source_type"] == "plain" and not song.plain_lyrics:
-                                song.plain_lyrics = attempt["content"]
-                            if attempt["source_type"] == "synced" and not song.synced_lyrics:
-                                song.synced_lyrics = attempt["content"]
+                        if attempt["persist"] and not song.synced_lyrics:
+                            song.synced_lyrics = attempt["content"]
                         session.commit()
                     activated += 1
                     results.append({

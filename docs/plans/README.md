@@ -15,6 +15,8 @@ Last audited 2026-09-25.
 | [Rotation as a circle](2026-09-25-rotation-circle.md) (unit 3d) | Step 1, the walk-up singer default, shipped (`22bf8bec0`). Steps 2–3, the circle model and handoff controls, built and committed. The migration (`f5b9d2c7e184`) is applied on dev. The full end-to-end check on the TV is left |
 | [Stage song wheel](2026-09-25-stage-song-wheel.md) | Built (`acc34ec32`). Step 5, tuning on the TV and deciding whether song select can unmount, is left |
 | [Stage wheel artwork](2026-09-25-stage-wheel-artwork.md) | Built (`e921b3631`). Step 5, checking it on the TV (readability, backdrop smoothness, settle delay), is left |
+| [Lyrics alignment repair](2026-09-29-lyrics-alignment-repair.md) | Steps 1–4 committed (4: plain lyrics, ASR only re-times real lyrics), none deployed. Step 5, the library re-run, waits for lyrics reports to be deployed |
+| [Lyrics reports](2026-09-30-lyrics-reports.md) | Built and committed, not deployed. Singers report "Wrong words" / "Out of sync" from the Lyrics card, the app tries a fix and lists it in the admin Lyrics Reports tab; rejected and hand-picked lyrics are remembered. Checking it on the phone and TV is left |
 | [Theme token migration](2026-07-19-theme-token-migration.md) | Stages 1–2 done. Stage 3 partial: ~140 raw palette classes left. Stages 4–5 not started |
 | [Documentation mapping](2026-08-30-documentation-mapping.md) | 1 of 6 chunks done (`docs/domains/ingestion-pipeline.md`) |
 | [Three-track VRAM optimization](2026-07-12-three-track-vram-optimization.md) | Not started |

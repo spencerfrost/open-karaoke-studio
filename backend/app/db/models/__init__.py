@@ -8,6 +8,7 @@ from .artist import DbArtist
 from .base import UNKNOWN_ARTIST, Base
 from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus
+from .lyrics_report import LyricsReport
 from .performance import PerformanceHistory
 from .performer import SessionPerformer
 from .queue import KaraokeQueueItem
@@ -28,6 +29,7 @@ __all__ = [
     "HostSettings",
     "KaraokeSession",
     "KaraokeQueueItem",
+    "LyricsReport",
     "PerformanceHistory",
     "SessionPerformer",
     "SessionDevice",

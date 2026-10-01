@@ -173,7 +173,7 @@ class TestManualAlignmentSelection:
             "app.api.lyrics.FileService.get_vocals_path",
             return_value=vocals_path,
         ), patch(
-            "app.api.lyrics._enqueue_song_alignment",
+            "app.api.lyrics.enqueue_song_alignment",
             return_value={"status": "pending", "dispatched": True},
         ) as mock_enqueue:
             response = client.post(f"/api/lyrics/songs/{song_id}/align")
@@ -191,7 +191,7 @@ class TestManualAlignmentSelection:
             "app.api.lyrics.FileService.get_vocals_path",
             return_value=vocals_path,
         ), patch(
-            "app.api.lyrics._enqueue_song_alignment",
+            "app.api.lyrics.enqueue_song_alignment",
             return_value={"status": "pending", "dispatched": True},
         ) as mock_enqueue:
             response = client.post(

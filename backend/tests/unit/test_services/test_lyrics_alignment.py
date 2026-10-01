@@ -217,7 +217,7 @@ def test_instrumental_interval_names_the_line_that_starts_at_its_end():
 
 
 # ---------------------------------------------------------------------------
-# recompute_alignment_line_indices — the offline backfill path
+# recompute_alignment_line_indices — fitting stored words to their text
 # ---------------------------------------------------------------------------
 
 
@@ -228,25 +228,12 @@ def test_recompute_line_indices_from_stored_words_synced():
         for i, w in enumerate(["First", "line", "here", "Second", "line", "here"])
     ]
 
-    recomputed = recompute_alignment_line_indices(words, source_type="synced", content=lrc)
+    recomputed = recompute_alignment_line_indices(words, content=lrc)
 
     assert recomputed is not None
     assert [w["line_index"] for w in recomputed] == [0, 0, 0, 2, 2, 2]
     # Timings are untouched — only the label changes.
     assert [w["start"] for w in recomputed] == [w["start"] for w in words]
-
-
-def test_recompute_line_indices_from_stored_words_plain():
-    plain = "First line here\n[Chorus]\nSecond line here\n"
-    words = [
-        AlignedWord(word=w, start=i * 0.3, end=i * 0.3 + 0.3, score=0.9, line_index=99)
-        for i, w in enumerate(["First", "line", "here", "Second", "line", "here"])
-    ]
-
-    recomputed = recompute_alignment_line_indices(words, source_type="plain", content=plain)
-
-    assert recomputed is not None
-    assert [w["line_index"] for w in recomputed] == [0, 0, 0, 1, 1, 1]
 
 
 def test_recompute_line_indices_returns_none_on_divergence():
@@ -256,4 +243,4 @@ def test_recompute_line_indices_returns_none_on_divergence():
         for i, w in enumerate(["Totally", "different", "words"])
     ]
 
-    assert recompute_alignment_line_indices(words, source_type="synced", content=lrc) is None
+    assert recompute_alignment_line_indices(words, content=lrc) is None

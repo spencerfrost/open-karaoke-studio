@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from time import perf_counter
 from typing import Literal, Optional, TypedDict
 
@@ -51,8 +52,15 @@ def build_alignment_attempts(
     song: SongData,
     include_remote: bool = True,
     max_remote_results: int = 3,
+    rejected_keys: Collection[str] = (),
 ) -> list[AlignmentAttempt]:
-    """Build ordered lyric-alignment attempts for a song."""
+    """Build ordered lyric-alignment attempts for a song.
+
+    Candidates whose words someone reported as wrong (`rejected_keys`, see
+    lyrics_words_key) are left out, the stored lyrics included.
+    """
+    from app.services.lyrics_retiming import lyrics_words_key
+
     attempts: list[AlignmentAttempt] = []
     seen: set[tuple[str, str]] = set()
 
@@ -71,6 +79,9 @@ def build_alignment_attempts(
         if key in seen:
             return
         seen.add(key)
+        if rejected_keys and lyrics_words_key(text, source_type) in rejected_keys:
+            log_lyrics_event(song["id"], "lyrics_candidate_rejected", source=source, source_type=source_type)
+            return
         attempts.append(
             {
                 "content": text,

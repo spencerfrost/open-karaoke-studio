@@ -37,12 +37,14 @@ def test_prefetch_persists_synced_lyrics_when_missing(
         plain_lyrics=None,
         synced_lyrics=None,
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
+        language=None,
     )
 
     mock_session = MagicMock()
     mock_get_db.return_value = _make_db_context(mock_session)
     mock_repo = MagicMock()
-    mock_repo.fetch.side_effect = [song, song]
+    mock_repo.fetch.return_value = song
     mock_repo_cls.return_value = mock_repo
 
     candidate = {
@@ -84,12 +86,14 @@ def test_prefetch_formats_synced_lyrics_before_persisting(
         plain_lyrics=None,
         synced_lyrics=None,
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
+        language=None,
     )
 
     mock_session = MagicMock()
     mock_get_db.return_value = _make_db_context(mock_session)
     mock_repo = MagicMock()
-    mock_repo.fetch.side_effect = [song, song]
+    mock_repo.fetch.return_value = song
     mock_repo_cls.return_value = mock_repo
 
     original_lrc = "[00:00.00]first line\n[00:10.00]second line"
@@ -137,12 +141,14 @@ def test_prefetch_does_not_overwrite_existing_synced_lyrics(
         plain_lyrics=None,
         synced_lyrics="[00:00.00]existing synced",
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
+        language=None,
     )
 
     mock_session = MagicMock()
     mock_get_db.return_value = _make_db_context(mock_session)
     mock_repo = MagicMock()
-    mock_repo.fetch.side_effect = [song, song]
+    mock_repo.fetch.return_value = song
     mock_repo_cls.return_value = mock_repo
 
     candidate = {
@@ -182,6 +188,8 @@ def test_prefetch_reports_no_candidate_when_none_available(
         plain_lyrics=None,
         synced_lyrics=None,
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
+        language=None,
     )
 
     mock_session = MagicMock()

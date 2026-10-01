@@ -5,33 +5,26 @@ task, the alignment services, the admin Lyrics Alignment tab and prod data.
 
 ## Status (2026-09-30)
 
-Steps 1–3 are done and committed on `develop`. **None of them is deployed to prod yet.** Step 4
-is next, then step 5.
+Steps 1–4 are done and committed on `develop`. **None of them is deployed to prod yet.** Step 5
+is next, after [lyrics reports](2026-09-30-lyrics-reports.md) is deployed.
 
 | Step | State |
 |---|---|
 | 1. Event log + line-index backfill | `6fb33accd`. Backfill applied to prod 2026-09-30 |
 | 2. Lyrics and words from the same candidate | `3279cdf10` |
 | 3. Align in the song's language | `229ea480a` |
-| 4. Plain lyrics | Not started |
+| 4. Plain lyrics, and ASR only times real lyrics | Done, with lyrics reports |
 | 5. Library re-run from the admin tab | Not started. Needs 1–4 deployed first |
 
 After the next deploy, check that `logs/lyrics_timing.jsonl` in the prod Celery container gets
 lines with `song_id` and scores once a song is processed (step 1's fix).
 
-### Where things are, for steps 4 and 5
+### Where things are, for step 5
 
-- **Plain alignment path** (step 4): `run_alignment_attempt` in
-  [lyrics_support.py](../../backend/app/jobs/lyrics_support.py) calls
-  `align_plain_lyrics_to_vocals` for plain candidates. `_plain_lines_to_segments` is used there,
-  in `align_plain_lyrics_to_vocals_with_model`, and in the plain branch of
-  `recompute_alignment_line_indices` (all in
-  [lyrics_alignment.py](../../backend/app/services/lyrics_alignment.py)). Step 2's
-  `_fit_words_to_lyrics` calls `recompute_alignment_line_indices` with `source_type="plain"` when
-  a plain candidate wins, so that path has to go when plain alignment goes.
 - **Admin batch** (step 5): `batch_align_lyrics` in
   [batch_tasks.py](../../backend/app/jobs/batch_tasks.py) is the only user of
-  `load_alignment_model` and the two `*_with_model` functions. Its API is `POST /api/lyrics/batch/align`
+  `load_alignment_model` and `align_lyrics_to_vocals_with_model`. Since step 4 it skips songs
+  without synced lyrics. Its API is `POST /api/lyrics/batch/align`
   in [lyrics.py](../../backend/app/api/lyrics.py), which still takes a `language` defaulting to
   `"en"`. The UI is `LyricsAlignmentTab.tsx` in `frontend/src/features/songs/components/admin/`.
 - **"Needs repair" selection** (step 5): the 20 songs the old offset corrector touched aren't
@@ -73,6 +66,7 @@ they worked. An audit of prod on 2026-09-29 (1,476 songs, Celery logs back to Ju
    song ID ([audio_tasks.py:326](../../backend/app/jobs/audio_tasks.py#L326)), so `language`
    defaults to `"en"`. Non-English songs score low and fall through to ASR, which can replace
    correct human lyrics with a transcription. French songs by Stromae are the known cases.
+   (Step 4 stops ASR from replacing lyrics at all.)
 5. **Plain-lyrics alignment is nonsense.**
    [`_plain_lines_to_segments`](../../backend/app/services/lyrics_alignment.py#L528) gives line N
    a made-up window of 5N to 5N+5 seconds. WhisperX only searches the audio inside each window, so
@@ -108,7 +102,7 @@ align_song_lyrics(song_id)
         ▼
   for each candidate, in order:
     synced → format, then strict alignment
-    plain  → (step 4 decides)
+    plain  → not aligned; kept for display   ◄── step 4
     score ≥ 0.3 → store this candidate's lyrics AND its words together   ◄── step 2
         │
         ▼  none reached 0.3
@@ -117,6 +111,7 @@ align_song_lyrics(song_id)
         │
         ▼  no usable shift
   ASR transcription in the song's language
+  (also straight away when there are only plain candidates)   ◄── step 4
 ```
 
 The admin batch button queues this same task for each song instead of running its own copy.
@@ -194,15 +189,76 @@ Tests: [test_lyrics_language.py](../../backend/tests/jobs/test_lyrics_language.p
 [unit](../../backend/tests/unit/test_services/test_lyrics_language.py), and the PATCH tests in
 [test_songs_api.py](../../backend/tests/integration/test_api/test_songs_api.py).
 
-### 4. Plain lyrics: stop pretending to align them
+### 4. Plain lyrics, and ASR only times real lyrics
 
-- Short term: don't run forced alignment on plain-only lyrics. Store the plain lyrics for display
-  and let ASR produce timings.
-- Better, if it's worth it: run ASR, then match its timed words to the plain lyrics text to give
-  each plain line a timestamp. This makes synced lyrics out of plain ones without losing the human
-  text. Decide after step 5 shows how many plain-only songs there are.
-- Delete `_plain_lines_to_segments` and the plain `*_with_model` path along with the short-term
-  change.
+Plain lyrics have no timestamps, so forced alignment had nothing to search around (the made-up
+5s windows). Prod on 2026-09-30 had **82 songs with plain lyrics and no synced lyrics**, 78 of
+them with no word timings, not the 4 the audit counted. Sending them to the old ASR fallback
+would have made things worse: it stored the ASR transcript as the song's lyrics, and the player
+shows synced lyrics before plain, so the stage would show what ASR misheard instead of the real
+lyrics. The same fallback already replaced synced lyrics that failed alignment.
+
+**The rule now:** an ASR transcript never replaces lyrics a song has. It only times them, or
+fills a song that has no lyrics at all.
+
+**Done (2026-09-30).**
+
+```
+song has lyrics candidates?
+  no  → ASR transcript stored as the lyrics (unchanged)
+  yes → align synced candidates as they are (plain ones are never force-aligned)
+          ≥ 0.3 → store
+          else  → offset sweep (unchanged)
+          else, or only plain candidates →  RE-TIME FROM ASR
+                    ASR transcript of the vocals
+                    match each candidate's words to it, in order (longest common subsequence)
+                    match < 0.5 of the words → not this song's lyrics, skip
+                    lines ASR clearly heard (≥ 2 words at score ≥ 0.5) cut the song into chunks
+                    forced alignment of each chunk places its lines
+                    first aligned word of each line → LRC → normal alignment, ≥ 0.3 → store
+                  nothing passes → lyrics kept, shown without word timing
+```
+
+- Matching is a longest common subsequence over lowercased words, not `difflib`: difflib takes
+  the longest identical run first, so a song's second chorus paired with the audio's first and
+  everything between was squashed into a second.
+- ASR's word times only cut chunks, they don't time lines. Whisper sometimes squeezes a verse
+  into a few seconds ("No One Knows": "I drift along the ocean" at 106s, sung at 122s), mostly
+  with low word scores. Within a chunk wav2vec2 finds each line.
+- Stored as synced lyrics (the candidate's text, timed) with word timings; `plain_lyrics` is kept.
+  The word payload has `retimed_from` (`plain`/`synced`), `retimed_by` (`asr:whisperx`) and
+  `retime_match_ratio`. Task status `retimed`, with `reason` `plain_only`, `low_confidence` or
+  `no_result`. Events: `lyrics_retime_requested`, `lyrics_retime_matched`,
+  `lyrics_retime_rejected`, `lyrics_retime_no_fit`. A plain-only song that can't be re-timed
+  ends `plain_only`.
+- ASR no longer overwrites stored `plain_lyrics` either.
+- Removed: `align_plain_lyrics_to_vocals`, its `_with_model` copy, `_plain_lines_to_segments`.
+  `recompute_alignment_line_indices` only takes synced LRC. The old admin batch task skips songs
+  without synced lyrics until step 5 replaces it; the archived line-index backfill skips plain
+  alignments. `align_lyrics_to_vocals` now shares its WhisperX core (`_align_segments`) with the
+  new `align_line_chunks`.
+
+Checked on dev, re-timing songs with good human LRCs from their text alone and comparing line
+starts with the human timestamps:
+
+| Song | Lines > 2s off | Score, re-timed | Score, human LRC |
+|---|---|---|---|
+| Crying on the Inside | 0/37 | 0.61 | 0.63 |
+| This Charming Man | 1/23 | 0.72 | 0.72 |
+| (You Made It Feel Like) Home | 3/23 | 0.72 | 0.73 |
+| No One Knows | 4/34 | 0.66 | 0.65 |
+| I Will Wait | 5/40 | 0.73 | 0.74 |
+
+Median line error 0.14–0.5s. Most of what's left is backing vocals the human LRC times and the
+vocals stem barely has ("(Home, home)", Mumford's layered "I will wait"). Plain-only songs:
+Blackbird 0.97 match, We Are Young 0.89, Nowhere Fast 0.68, all re-timed at ≥ 0.6; It Gets
+Better (0.41) and Talullah (0.16) fall below the 0.5 match bar and stay untimed. Talullah's
+re-timed alignment would still have scored 0.34, so the match bar is what stops it. Blackbird ran
+end to end through the task on dev.
+
+Cost: one ASR pass plus two alignments per re-timed song, on top of the normal attempts.
+Tests: [test_lyrics_retiming.py](../../backend/tests/unit/test_services/test_lyrics_retiming.py)
+and [test_lyrics_alignment_fallback.py](../../backend/tests/jobs/test_lyrics_alignment_fallback.py).
 
 ### 5. One re-run of the library from the admin tab
 
@@ -210,10 +266,16 @@ Tests: [test_lyrics_language.py](../../backend/tests/jobs/test_lyrics_language.p
   Remove `align_lyrics_to_vocals_with_model` and `align_plain_lyrics_to_vocals_with_model` if
   nothing else uses them.
 - Add a "needs repair" selection alongside "missing": songs with synced lyrics and no words, songs
-  the old corrector touched, and songs failing the words/text check from step 2.
-- Deploy, then run it on prod from the Lyrics Alignment tab. Expect about 413 + 20 + 47 songs,
-  at about 5–60s each, on the `lyrics` queue.
+  the old corrector touched, songs failing the words/text check from step 2, and songs whose word
+  timings have `lyrics_source_type: plain` (step 4), and the 78 plain-only songs without word
+  timings.
+- Deploy, then run it on prod from the Lyrics Alignment tab. Expect about 413 + 20 + 47 + 82
+  songs, at about 5–60s each, on the `lyrics` queue; songs that fall through to re-timing take
+  longer (an ASR pass and two more alignments).
 - Re-run the audit numbers (see "Measuring it") and record them here.
+- **Before the prod run:** step 1 of [lyrics reports](2026-09-30-lyrics-reports.md) has to be
+  deployed, so the re-run skips rejected lyrics and doesn't replace hand-picked ones. Songs with
+  open lyrics reports go in the "needs repair" selection.
 
 ## Measuring it
 
@@ -227,6 +289,7 @@ The 2026-09-29 baseline, from prod. Re-run the same queries after step 5.
 | Words point at the wrong line | ~128 |
 | Words don't match the stored text | ~47 |
 | Plain-lyrics alignments (nonsense timings) | 4 |
+| Plain lyrics only (no synced lyrics) | 82, 78 of them with no word timings |
 | `align_song_lyrics` outcomes since 2026-05-19 | 198 ok, 11 low confidence, 9 offset corrected, 1 no audio |
 
 ## Decisions made
@@ -238,6 +301,9 @@ The 2026-09-29 baseline, from prod. Re-run the same queries after step 5.
   them. No hand-edit marker for now.
 - The language is detected from the vocals, not taken from metadata (2026-09-30). Metadata is
   sparse; a wrong detection is fixed in song details.
+- An ASR transcript never replaces lyrics a song has; it only times them (2026-09-30). When
+  re-timing fails, the lyrics stay and show without word timing. Re-timing needs half the
+  lyrics' words to match what ASR heard.
 
 ## Open questions
 

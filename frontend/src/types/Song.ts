@@ -28,6 +28,7 @@ export interface Song {
   year?: number;
   showName?: string; // Musical/soundtrack, e.g. "Wicked"
   language?: string | null; // Sung language as a Whisper code ("fr"); null until detected
+  lyricsHandPicked?: boolean; // A person saved the lyrics; automatic runs only time them
 
   // Lyrics
   plainLyrics?: string;

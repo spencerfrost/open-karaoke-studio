@@ -1,5 +1,6 @@
 /**
- * LyricsControlsCard - search, timing offset and size, in priority order.
+ * LyricsControlsCard - search, timing offset, size and reporting bad lyrics,
+ * in priority order.
  *
  * Named to avoid colliding with the library's LyricsCard. The search and paste
  * dialogs (and their update mutations) come from the old settings-menu
@@ -18,6 +19,7 @@ import type { LyricsResult } from "@/features/lyrics/components/LyricsFetchDialo
 import type { Song } from "@/types/Song";
 import { cn } from "@/lib/utils";
 import LyricsOffsetRow from "./LyricsOffsetRow";
+import LyricsReportRow from "./LyricsReportRow";
 import LyricsSizeRow from "./LyricsSizeRow";
 import {
   cardClass,
@@ -146,6 +148,11 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
 
       <LyricsOffsetRow density={density} />
       <LyricsSizeRow density={density} />
+      <LyricsReportRow
+        density={density}
+        songId={songId}
+        hasLyrics={!!(song?.syncedLyrics || song?.plainLyrics)}
+      />
 
       {songForDialog && (
         <>

@@ -4,15 +4,20 @@ FastAPI router for lyrics endpoints.
 
 import json
 import logging
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import List, Literal, Optional
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import (
+    RequesterContext,
+    get_current_user,
+    require_host,
+    require_host_or_session_member,
+)
 from app.db.database import SessionLocal
-from app.db.models import JobStatus, User
+from app.db.models import User
 from app.exceptions import ServiceError
-from app.jobs.celery_app import celery
-from app.jobs.jobs import _create_lyrics_alignment_job, _get_lyrics_job_id
-from app.repositories import JobRepository
+from app.jobs.lyrics_dispatch import enqueue_song_alignment, realign_hand_picked_lyrics
+from app.repositories.lyrics_report_repository import LyricsReportRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
@@ -83,61 +88,6 @@ def _validate_db_alignment_request(song, source: Optional[str]) -> None:
         raise HTTPException(status_code=404, detail=f"No synced lyrics for song: {song.id}")
     if source is None and not (song.plain_lyrics or song.synced_lyrics):
         raise HTTPException(status_code=404, detail=f"No synced or plain lyrics for song: {song.id}")
-
-
-def _enqueue_song_alignment(
-    song,
-    *,
-    include_remote: bool,
-    source: Optional[str],
-    language: Optional[str],
-) -> dict:
-    job_repository = JobRepository()
-    job_id = _get_lyrics_job_id(song.id)
-    existing_job = job_repository.get_by_id(job_id)
-    in_flight_statuses = {JobStatus.PENDING, JobStatus.DOWNLOADING, JobStatus.PROCESSING}
-
-    if existing_job and existing_job.status in in_flight_statuses:
-        return {
-            "jobId": existing_job.id,
-            "taskId": existing_job.task_id,
-            "songId": song.id,
-            "status": existing_job.status.value,
-            "dispatched": False,
-            "includeRemote": include_remote,
-            "source": source,
-            "language": language,
-            "message": "Lyrics alignment already in progress.",
-        }
-
-    task = celery.send_task(
-        "align_song_lyrics",
-        args=[song.id],
-        kwargs={
-            "include_remote": include_remote,
-            "source": source,
-            "language": language,
-        },
-    )
-    _create_lyrics_alignment_job(
-        song.id,
-        title=song.title,
-        artist=song.artist,
-        task_id=task.id,
-        status_message="Queued lyrics alignment",
-    )
-
-    return {
-        "jobId": job_id,
-        "taskId": task.id,
-        "songId": song.id,
-        "status": JobStatus.PENDING.value,
-        "dispatched": True,
-        "includeRemote": include_remote,
-        "source": source,
-        "language": language,
-        "message": "Lyrics alignment queued.",
-    }
 
 
 @router.get("/languages", response_model=List[str])
@@ -242,7 +192,10 @@ async def update_song_lyrics(
     else:
         song.synced_lyrics = content or None
     song.word_synced_lyrics = None
+    # A person chose these lyrics: automatic runs now only time them.
+    song.lyrics_hand_picked_at = datetime.now(timezone.utc)
     db.commit()
+    realign_hand_picked_lyrics(song)
     return {"plainLyrics": song.plain_lyrics, "syncedLyrics": song.synced_lyrics}
 
 
@@ -404,7 +357,7 @@ async def align_song_lyrics(
     language: Optional[str] = Query(
         None, description="Whisper language code. Defaults to the song's language, detected if unknown."
     ),
-    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
+    source: Optional[str] = Query(None, description="Only use 'synced' or 'plain' candidates. Plain lyrics are timed by ASR, not aligned."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -417,7 +370,7 @@ async def align_song_lyrics(
     """
     source = _validate_alignment_source(source)
     song = _validate_song_and_vocals(song_id, db)
-    return _enqueue_song_alignment(
+    return enqueue_song_alignment(
         song,
         include_remote=True,
         source=source,
@@ -431,7 +384,7 @@ async def align_song_lyrics_from_database(
     language: Optional[str] = Query(
         None, description="Whisper language code. Defaults to the song's language, detected if unknown."
     ),
-    source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
+    source: Optional[str] = Query(None, description="Only use 'synced' or 'plain' candidates. Plain lyrics are timed by ASR, not aligned."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -444,12 +397,125 @@ async def align_song_lyrics_from_database(
     source = _validate_alignment_source(source)
     song = _validate_song_and_vocals(song_id, db)
     _validate_db_alignment_request(song, source)
-    return _enqueue_song_alignment(
+    return enqueue_song_alignment(
         song,
         include_remote=False,
         source=source,
         language=language,
     )
+
+
+# ============================================================================
+# Lyrics reports: someone singing says the lyrics are wrong
+# ============================================================================
+
+
+class LyricsReportRequest(BaseModel):
+    # "words": the text is wrong. "timing": the words are right but out of sync.
+    kind: Literal["words", "timing"]
+
+
+def _reporter_name(requester: RequesterContext) -> str:
+    if requester.user is not None:
+        return requester.user.display_name or requester.user.username
+    device = requester.device
+    if device is not None and device.display_name:
+        return device.display_name
+    return "Stage" if device is not None and device.device_type == "stage" else "Guest"
+
+
+def _lyrics_source(song) -> Optional[str]:
+    """Where the word timings on screen came from ("lrclib:1", "asr:whisperx"), if any."""
+    if not song.word_synced_lyrics:
+        return None
+    try:
+        return json.loads(song.word_synced_lyrics).get("lyrics_source")
+    except (TypeError, ValueError):
+        return None
+
+
+def _report_to_dict(report) -> dict:
+    song = report.song
+    return {
+        "id": report.id,
+        "songId": report.song_id,
+        "title": song.title if song else None,
+        "artist": song.artist if song else None,
+        "kind": report.kind,
+        "reportCount": report.report_count,
+        "reporterName": report.reporter_name,
+        "createdAt": report.created_at.isoformat() if report.created_at else None,
+        "lastReportedAt": report.last_reported_at.isoformat() if report.last_reported_at else None,
+        "outcome": report.outcome,
+        "resolved": report.resolved_at is not None,
+        "lyricsSource": _lyrics_source(song) if song else None,
+        "lyricsHandPicked": bool(song and song.lyrics_hand_picked_at is not None),
+    }
+
+
+@router.post("/songs/{song_id}/reports", response_model=dict, status_code=200)
+async def report_song_lyrics(
+    song_id: str,
+    body: LyricsReportRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+):
+    """
+    Report that the lyrics on screen have the wrong words or are out of sync.
+
+    The report is recorded for an admin, and alignment is queued to try a fix:
+    other lyrics for "words" (the reported ones are never used again), a
+    re-timing of the same words for "timing".
+    """
+    from app.services.lyrics_retiming import shown_lyrics_key
+
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    words_key = shown_lyrics_key(song.synced_lyrics, song.plain_lyrics)
+    if words_key is None:
+        raise HTTPException(status_code=422, detail="This song has no lyrics to report")
+
+    report = LyricsReportRepository(db).report(
+        song_id=song.id,
+        kind=body.kind,
+        words_key=words_key,
+        reporter_name=_reporter_name(requester),
+        user_id=requester.user.id if requester.user else None,
+        session_id=requester.session_id,
+    )
+    if body.kind == "words" and song.lyrics_hand_picked_at is not None:
+        # Someone said the hand-picked lyrics are wrong, so other sources may replace them.
+        song.lyrics_hand_picked_at = None
+        db.commit()
+
+    alignment = None
+    if FileService().get_vocals_path(song.id, ".mp3").exists():
+        alignment = enqueue_song_alignment(song, include_remote=True)
+    logger.info("Lyrics reported for song %s: %s (report %s)", song.id, body.kind, report.id)
+    return {"report": _report_to_dict(report), "alignment": alignment}
+
+
+@router.get("/reports", response_model=List[dict])
+async def list_lyrics_reports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """Open lyrics reports, most recently reported first."""
+    return [_report_to_dict(report) for report in LyricsReportRepository(db).list_open()]
+
+
+@router.post("/reports/{report_id}/resolve", response_model=dict, status_code=200)
+async def resolve_lyrics_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """Mark a report as dealt with. Lyrics reported as wrong stay rejected."""
+    report = LyricsReportRepository(db).resolve(report_id, user_id=current_user.id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Lyrics report not found: {report_id}")
+    return _report_to_dict(report)
 
 
 # ============================================================================

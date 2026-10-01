@@ -37,6 +37,10 @@ class DbSong(Base):
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
     word_synced_lyrics = Column(Text, nullable=True)  # JSON: {words, language, mean_score, ...}
+    # When a person last saved these lyrics (edited, pasted or picked from
+    # search). While set, automatic runs only time them and never replace them
+    # with another source. A run that sees it change stops and starts again.
+    lyrics_hand_picked_at = Column(DateTime, nullable=True)
 
     # iTunes metadata
     itunes_track_id = Column(Integer, nullable=True)
@@ -121,6 +125,7 @@ class DbSong(Base):
             "showName": self.show_name,
             "language": self.language,
             # Lyrics
+            "lyricsHandPicked": self.lyrics_hand_picked_at is not None,
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
             "wordSyncedLyrics": self.word_synced_lyrics,

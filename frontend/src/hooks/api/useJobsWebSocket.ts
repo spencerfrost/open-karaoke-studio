@@ -131,6 +131,11 @@ export function useJobsWebSocket() {
           queryClient.invalidateQueries({
             queryKey: ["songs", jobData.song_id],
           });
+          // Word timings are cached apart from the song, and a lyrics job
+          // (a report's fix, a re-align) changes them along with the text.
+          queryClient.invalidateQueries({
+            queryKey: ["lyrics", jobData.song_id],
+          });
         }
       }
     },
@@ -165,6 +170,9 @@ export function useJobsWebSocket() {
           completedJobs.forEach((j) => {
             if (j.song_id) {
               queryClient.invalidateQueries({ queryKey: ["songs", j.song_id] });
+              queryClient.invalidateQueries({
+                queryKey: ["lyrics", j.song_id],
+              });
             }
           });
         }

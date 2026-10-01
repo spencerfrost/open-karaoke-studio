@@ -56,11 +56,12 @@ def task_env():
         plain_lyrics=None,
         synced_lyrics=LATE_LRC,
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
         language="en",
     )
     mock_session = MagicMock()
     mock_repo = MagicMock()
-    mock_repo.fetch.side_effect = [song, song]
+    mock_repo.fetch.return_value = song
 
     with (
         patch("pathlib.Path.exists", return_value=True),

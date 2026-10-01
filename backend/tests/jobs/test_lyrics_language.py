@@ -44,6 +44,7 @@ def task_env():
         plain_lyrics=None,
         synced_lyrics=LRC,
         word_synced_lyrics=None,
+        lyrics_hand_picked_at=None,
         language=None,
     )
     mock_repo = MagicMock()

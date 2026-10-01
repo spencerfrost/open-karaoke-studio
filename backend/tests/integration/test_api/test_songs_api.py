@@ -247,3 +247,31 @@ def test_lyrics_languages_lists_whisper_codes(client):
     response = client.get("/api/lyrics/languages")
     assert response.status_code == 200
     assert {"en", "fr", "ja"} <= set(response.json())
+
+
+def test_saving_lyrics_marks_them_hand_picked_and_times_them(client):
+    """Lyrics a person saves (edit, paste, search pick) are only timed from then on."""
+    from unittest.mock import patch
+
+    song_id = client.post("/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}).json()["id"]
+    assert client.get(f"/api/songs/{song_id}").json()["lyricsHandPicked"] is False
+
+    with patch("app.jobs.lyrics_dispatch.realign_hand_picked_lyrics") as mock_realign:
+        response = client.patch(f"/api/songs/{song_id}", json={"plainLyrics": "Blackbird singing"})
+
+    assert response.status_code == 200
+    assert response.json()["lyricsHandPicked"] is True
+    mock_realign.assert_called_once()
+    assert mock_realign.call_args.args[0].id == song_id
+
+
+def test_other_song_edits_dont_mark_lyrics_hand_picked(client):
+    from unittest.mock import patch
+
+    song_id = client.post("/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}).json()["id"]
+
+    with patch("app.jobs.lyrics_dispatch.realign_hand_picked_lyrics") as mock_realign:
+        response = client.patch(f"/api/songs/{song_id}", json={"title": "Blackbird (Remastered)"})
+
+    assert response.json()["lyricsHandPicked"] is False
+    mock_realign.assert_not_called()

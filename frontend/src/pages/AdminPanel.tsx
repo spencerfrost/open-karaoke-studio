@@ -19,12 +19,14 @@ import {
   Copy,
   Fingerprint,
   AlignLeft,
+  MessageSquareWarning,
 } from "lucide-react";
 import { AcoustIdTab } from "@/features/songs/components/admin/AcoustIdTab";
 import { LibraryAuditTab } from "@/features/songs/components/admin/LibraryAuditTab";
 import { DataQualityTab } from "@/features/songs/components/admin/DataQualityTab";
 import { DuplicatesTab } from "@/features/songs/components/admin/DuplicatesTab";
 import { LyricsAlignmentTab } from "@/features/songs/components/admin/LyricsAlignmentTab";
+import { LyricsReportsTab } from "@/features/songs/components/admin/LyricsReportsTab";
 import { Card } from "@/components/ui/card";
 
 interface UserListItem {
@@ -199,6 +201,10 @@ const AdminPanel: React.FC = () => {
               <AlignLeft className="mr-1.5 h-3.5 w-3.5" />
               Alignment
             </TabsTrigger>
+            <TabsTrigger value="lyrics-reports">
+              <MessageSquareWarning className="mr-1.5 h-3.5 w-3.5" />
+              Lyrics Reports
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="acoustid">
@@ -219,6 +225,10 @@ const AdminPanel: React.FC = () => {
 
           <TabsContent value="alignment">
             <LyricsAlignmentTab />
+          </TabsContent>
+
+          <TabsContent value="lyrics-reports">
+            <LyricsReportsTab />
           </TabsContent>
 
           <TabsContent value="users">

@@ -43,6 +43,8 @@ class SongResponse(BaseModel):
     showName: Optional[str] = None  # Musical/soundtrack, e.g. "Wicked"
     language: Optional[str] = None  # Sung language, Whisper code ("en", "fr")
     # Lyrics
+    # A person saved the lyrics; automatic runs only time them
+    lyricsHandPicked: bool = False
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
     wordSyncedLyrics: Optional[str] = None

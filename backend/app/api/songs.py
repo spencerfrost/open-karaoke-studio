@@ -17,6 +17,7 @@ import logging
 import os
 import uuid
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
@@ -1072,17 +1073,27 @@ async def update_song(
             populate_song_artists(db, db_song, db_song.artist)
 
         # Update lyrics columns directly
+        lyrics_text_saved = False
         if lyrics_data:
             db_song = repo.fetch(song_id)
             if "plainLyrics" in lyrics_data:
                 db_song.plain_lyrics = lyrics_data["plainLyrics"] or None
                 db_song.word_synced_lyrics = None
+                lyrics_text_saved = True
             if "syncedLyrics" in lyrics_data:
                 db_song.synced_lyrics = lyrics_data["syncedLyrics"] or None
                 db_song.word_synced_lyrics = None
+                lyrics_text_saved = True
             if "wordSyncedLyrics" in lyrics_data:
                 db_song.word_synced_lyrics = lyrics_data["wordSyncedLyrics"] or None
+            if lyrics_text_saved:
+                # A person chose these lyrics: automatic runs now only time them.
+                db_song.lyrics_hand_picked_at = datetime.now(timezone.utc)
             db.commit()
+            if lyrics_text_saved:
+                from app.jobs.lyrics_dispatch import realign_hand_picked_lyrics
+
+                realign_hand_picked_lyrics(db_song)
 
         # Handle album + artist linkage when iTunes collection ID is provided
         if itunes_collection_id is not None:
