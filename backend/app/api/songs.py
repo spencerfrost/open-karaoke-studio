@@ -64,6 +64,7 @@ from app.schemas.song import (
 )
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
+from app.services.lyrics_language import normalize_language
 from app.utils.filing import filing_letter, filing_name
 from fastapi import (
     APIRouter,
@@ -1043,8 +1044,18 @@ async def update_song(
         # Extract lyrics fields for separate handling
         lyrics_data = extract_lyrics_fields(update_dict)
 
+        # Language is validated, and can be cleared, which the mapping below can't do
+        language_set = "language" in update_dict
+        if language_set:
+            try:
+                language = normalize_language(update_dict.pop("language"))
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+
         # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
+        if language_set:
+            update_fields["language"] = language
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)

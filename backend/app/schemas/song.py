@@ -41,6 +41,7 @@ class SongResponse(BaseModel):
     releaseDate: Optional[str] = None
     year: Optional[int] = None
     showName: Optional[str] = None  # Musical/soundtrack, e.g. "Wicked"
+    language: Optional[str] = None  # Sung language, Whisper code ("en", "fr")
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
@@ -118,6 +119,8 @@ class SongUpdateRequest(BaseModel):
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
     showName: Optional[str] = Field(None, max_length=200)
+    # Whisper code ("fr"); an empty string clears it so it's detected again
+    language: Optional[str] = Field(None, max_length=8)
 
     # Lyrics
     plainLyrics: Optional[str] = None

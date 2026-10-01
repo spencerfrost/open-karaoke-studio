@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { useApiQuery } from "@/hooks/api/useApi";
+import { apiSend, useApiMutation, useApiQuery } from "@/hooks/api/useApi";
 import type { InstrumentalInterval, WordTimestamp } from "@/utils/lrcParser";
 
 interface AlignmentData {
@@ -60,4 +60,21 @@ export function useLyricsAlignment(songId: string | undefined) {
     isLoading: query.isLoading,
     error: query.error,
   };
+}
+
+/** Language codes a song's sung language can be set to (every language Whisper knows). */
+export function useLyricsLanguages() {
+  return useApiQuery<string[], readonly unknown[]>(
+    ["lyrics", "languages"] as const,
+    "lyrics/languages",
+    { staleTime: Infinity },
+  );
+}
+
+/** Queue lyrics alignment for a song, in its stored language (detected if it has none). */
+export function useRealignLyrics() {
+  return useApiMutation<unknown, string>("lyrics/songs/:id/align", "post", {
+    mutationFn: (songId) =>
+      apiSend<unknown, null>(`lyrics/songs/${songId}/align`, "post"),
+  });
 }

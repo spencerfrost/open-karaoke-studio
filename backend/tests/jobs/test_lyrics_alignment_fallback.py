@@ -49,6 +49,7 @@ def test_align_song_lyrics_uses_asr_fallback_when_no_candidates(
         plain_lyrics=None,
         synced_lyrics=None,
         word_synced_lyrics=None,
+        language="en",
     )
     mock_session = MagicMock()
     mock_get_db.return_value = _make_db_context(mock_session)
@@ -125,6 +126,7 @@ def test_align_song_lyrics_uses_asr_fallback_when_alignment_is_low_confidence(
         plain_lyrics="old plain lyrics",
         synced_lyrics="[00:00.00]old synced lyrics",
         word_synced_lyrics=None,
+        language="en",
     )
     mock_session = MagicMock()
     mock_get_db.return_value = _make_db_context(mock_session)

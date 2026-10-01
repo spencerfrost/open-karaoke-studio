@@ -72,6 +72,7 @@ def task_env():
         plain_lyrics=None,
         synced_lyrics=DB_LRC,
         word_synced_lyrics=None,
+        language="en",
     )
     mock_session = MagicMock()
     mock_repo = MagicMock()

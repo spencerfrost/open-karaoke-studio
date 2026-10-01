@@ -219,3 +219,31 @@ def test_get_songs_unicode(client):
 
 # --- SECURITY & EDGE CASES ---
 # Add more as needed, e.g. test_download_song_track_security_violation, etc.
+
+
+def test_update_song_language_sets_and_clears_it(client):
+    """PATCH sets the sung language; an empty string clears it so it's detected again."""
+    create_resp = client.post("/api/songs", json={"title": "Papaoutai", "artist": "Stromae"})
+    song_id = create_resp.json()["id"]
+
+    response = client.patch(f"/api/songs/{song_id}", json={"language": "FR"})
+    assert response.status_code == 200
+    assert response.json()["language"] == "fr"
+
+    response = client.patch(f"/api/songs/{song_id}", json={"language": ""})
+    assert response.status_code == 200
+    assert response.json()["language"] is None
+
+
+def test_update_song_language_rejects_unknown_codes(client):
+    create_resp = client.post("/api/songs", json={"title": "Valid", "artist": "Valid"})
+    song_id = create_resp.json()["id"]
+
+    response = client.patch(f"/api/songs/{song_id}", json={"language": "french"})
+    assert response.status_code == 422
+
+
+def test_lyrics_languages_lists_whisper_codes(client):
+    response = client.get("/api/lyrics/languages")
+    assert response.status_code == 200
+    assert {"en", "fr", "ja"} <= set(response.json())

@@ -30,6 +30,8 @@ class DbSong(Base):
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     show_name = Column(String, nullable=True)  # Musical/soundtrack, e.g. "Wicked"
+    # Sung language as a Whisper code ("en", "fr"); None until detected or set
+    language = Column(String, nullable=True)
 
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
@@ -117,6 +119,7 @@ class DbSong(Base):
             "releaseDate": self.release_date,
             "year": year_value,
             "showName": self.show_name,
+            "language": self.language,
             # Lyrics
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,

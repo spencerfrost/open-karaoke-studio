@@ -252,6 +252,40 @@ def _apply_offset_correction(
     return {"sweep": sweep, "result": result}
 
 
+def _resolve_song_language(song_id: str, *, requested: str | None, stored: str | None, vocals_path: Path) -> str:
+    """The language to align in: the one asked for, the song's, or detected from the vocals.
+
+    A confident detection is stored on the song; an unsure one is used for this
+    run only, falling back to English, so the next run tries again.
+    """
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_language import (
+        DEFAULT_LANGUAGE,
+        MIN_DETECTION_PROBABILITY,
+        detect_vocals_language,
+    )
+
+    if requested:
+        language, language_source = requested, "requested"
+    elif stored:
+        language, language_source = stored, "song"
+    else:
+        _update_lyrics_alignment_job(
+            song_id, status=JobStatus.PROCESSING, progress=15, message="Detecting the sung language"
+        )
+        detected = detect_vocals_language(song_id, vocals_path)
+        if detected and detected["probability"] >= MIN_DETECTION_PROBABILITY:
+            language, language_source = detected["language"], "detected"
+            with get_db_session() as session:
+                SongRepository(session).update(song_id, language=language)
+        else:
+            language, language_source = DEFAULT_LANGUAGE, "default"
+
+    log_lyrics_event(song_id, "lyrics_language_resolved", language=language, language_source=language_source)
+    return language
+
+
 def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_reason: str) -> bool:
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
@@ -450,9 +484,12 @@ def align_song_lyrics(
     song_id: str,
     include_remote: bool = True,
     source: Optional[str] = None,
-    language: str = "en",
+    language: Optional[str] = None,
 ) -> dict:
-    """Run WhisperX forced alignment against vocals.mp3 and store word-level timings."""
+    """Run WhisperX forced alignment against vocals.mp3 and store word-level timings.
+
+    `language` overrides the song's stored language for this run.
+    """
     logger.info("[PIPELINE] align_song_lyrics starting for song %s", song_id)
     from app.config import get_config
     from app.db.database import get_db_session
@@ -523,6 +560,9 @@ def align_song_lyrics(
             "synced_lyrics": song.synced_lyrics,
             "word_synced_lyrics": song.word_synced_lyrics,
         }
+        stored_language = song.language
+
+    language = _resolve_song_language(song_id, requested=language, stored=stored_language, vocals_path=vocals_path)
 
     log_lyrics_event(
         song_id,
@@ -603,6 +643,25 @@ def align_song_lyrics(
             message="Lyrics alignment finished: no lyrics candidates found",
         )
         return {"status": "no_lyrics", "song_id": song_id}
+
+    from app.services.lyrics_language import supports_word_alignment
+
+    if not supports_word_alignment(language):
+        # The lyrics fetched above still scroll line by line.
+        log_lyrics_event(
+            song_id,
+            "lyrics_task_completed",
+            status="no_alignment_model",
+            language=language,
+            total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            queue_wait_ms=queue_wait_ms,
+        )
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message=f"Lyrics ready without word timing (no alignment model for '{language}')",
+        )
+        return {"status": "no_alignment_model", "song_id": song_id, "language": language}
 
     best_result = None
     best_attempt = None

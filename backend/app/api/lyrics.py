@@ -16,6 +16,7 @@ from app.repositories import JobRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
+from app.services.lyrics_language import whisper_language_codes
 from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
@@ -89,7 +90,7 @@ def _enqueue_song_alignment(
     *,
     include_remote: bool,
     source: Optional[str],
-    language: str,
+    language: Optional[str],
 ) -> dict:
     job_repository = JobRepository()
     job_id = _get_lyrics_job_id(song.id)
@@ -137,6 +138,12 @@ def _enqueue_song_alignment(
         "language": language,
         "message": "Lyrics alignment queued.",
     }
+
+
+@router.get("/languages", response_model=List[str])
+async def list_lyrics_languages():
+    """Language codes a song can be set to: every language Whisper knows."""
+    return whisper_language_codes()
 
 
 # ============================================================================
@@ -394,7 +401,9 @@ async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
 @router.post("/songs/{song_id}/align", response_model=dict, status_code=200)
 async def align_song_lyrics(
     song_id: str,
-    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    language: Optional[str] = Query(
+        None, description="Whisper language code. Defaults to the song's language, detected if unknown."
+    ),
     source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -419,7 +428,9 @@ async def align_song_lyrics(
 @router.post("/songs/{song_id}/align-db", response_model=dict, status_code=200)
 async def align_song_lyrics_from_database(
     song_id: str,
-    language: str = Query("en", description="BCP-47 language code for the alignment model"),
+    language: Optional[str] = Query(
+        None, description="Whisper language code. Defaults to the song's language, detected if unknown."
+    ),
     source: Optional[str] = Query(None, description="Force source type: 'plain' or 'synced'. Defaults to plain-first."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

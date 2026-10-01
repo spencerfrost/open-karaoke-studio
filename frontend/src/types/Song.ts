@@ -27,6 +27,7 @@ export interface Song {
   releaseDate?: string;
   year?: number;
   showName?: string; // Musical/soundtrack, e.g. "Wicked"
+  language?: string | null; // Sung language as a Whisper code ("fr"); null until detected
 
   // Lyrics
   plainLyrics?: string;

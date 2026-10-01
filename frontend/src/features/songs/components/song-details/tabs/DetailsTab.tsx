@@ -1,14 +1,31 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Song, SongArtist } from "@/types/Song";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  useLyricsLanguages,
+  useRealignLyrics,
+} from "@/hooks/api/useLyricsAlignment";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
 import { ArtistManager } from "../components/ArtistManager";
 
 const logger = createLogger("component:DetailsTab");
+
+// Select items can't have an empty value; this stands for "no stored language".
+const DETECT_LANGUAGE = "detect";
+const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
+
+const languageName = (code: string) => languageNames.of(code) ?? code;
 
 interface DetailsTabProps {
   song: Song;
@@ -17,14 +34,25 @@ interface DetailsTabProps {
 export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
+  const realignLyricsMutation = useRealignLyrics();
+  const { data: languageCodes } = useLyricsLanguages();
 
   const [title, setTitle] = useState(song.title);
   const [album, setAlbum] = useState(song.album ?? "");
   const [showName, setShowName] = useState(song.showName ?? "");
   const [year, setYear] = useState(song.year?.toString() ?? "");
+  const [language, setLanguage] = useState(song.language ?? DETECT_LANGUAGE);
   const [primaryArtist, setPrimaryArtist] = useState(song.artist);
   const [featuredArtists, setFeaturedArtists] = useState<SongArtist[]>(
     song.artists?.filter((a) => a.role === "featured") ?? [],
+  );
+
+  const languageOptions = useMemo(
+    () =>
+      (languageCodes ?? [])
+        .map((code) => ({ code, name: languageName(code) }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [languageCodes],
   );
 
   const handleSave = () => {
@@ -43,9 +71,24 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
         showName: showName || undefined,
         year: year ? parseInt(year) : undefined,
         artist: artistString,
+        // An empty string clears it, so it's detected from the vocals again
+        language: language === DETECT_LANGUAGE ? "" : language,
       },
       {
-        onSuccess: () => toast.success("Saved"),
+        onSuccess: () => {
+          const languageChanged =
+            language !== (song.language ?? DETECT_LANGUAGE);
+          if (!languageChanged) {
+            toast.success("Saved");
+            return;
+          }
+          // The lyrics were timed in the old language; time them again.
+          realignLyricsMutation.mutate(song.id, {
+            onSuccess: () => toast.success("Saved. Re-timing the lyrics…"),
+            onError: () =>
+              toast.error("Saved, but the lyrics couldn't be re-timed"),
+          });
+        },
         onError: () => toast.error("Failed to save"),
       },
     );
@@ -95,6 +138,34 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
             value={year}
             onChange={(e) => setYear(e.target.value)}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="song-language">Sung language</Label>
+          <Select value={language} onValueChange={setLanguage}>
+            <SelectTrigger id="song-language">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DETECT_LANGUAGE}>
+                Detect from the vocals
+              </SelectItem>
+              {/* Keep the stored language selectable while the list loads */}
+              {languageOptions.length === 0 && song.language && (
+                <SelectItem value={song.language}>
+                  {languageName(song.language)}
+                </SelectItem>
+              )}
+              {languageOptions.map(({ code, name }) => (
+                <SelectItem key={code} value={code}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            The lyrics are timed to the singing in this language.
+          </p>
         </div>
 
         <ArtistManager
