@@ -159,6 +159,39 @@ def _estimate_qwen_confidence(*, word_text: str, start: float, end: float, prev_
     return round(_clamp_confidence(score), 3)
 
 
+def _line_words(raw_words: list[dict[str, Any]], *, line_index: int, segment_start: float) -> list[dict[str, Any]]:
+    """Turn one ASR segment's words into stored words, one per whitespace token.
+
+    WhisperX leaves some words untimed (numbers, symbols). They're kept, with
+    the previous word's end as their time and a score of 0, so that the line
+    text built from these words has nothing the word list lacks. Punctuation
+    the ASR returns as its own word is attached to the word before it.
+    """
+    words: list[dict[str, Any]] = []
+    last_end = segment_start
+    for raw_word in raw_words:
+        raw_start = _coerce_float(raw_word.get("start"))
+        raw_end = _coerce_float(raw_word.get("end"))
+        timed = raw_start is not None and raw_end is not None
+        word_start = raw_start if raw_start is not None and timed else last_end
+        word_end = raw_end if raw_end is not None and timed else last_end
+        for token in _normalize_text(str(raw_word.get("word", ""))).split():
+            if words and not any(char.isalnum() for char in token):
+                words[-1]["word"] += token
+                continue
+            words.append(
+                {
+                    "word": token,
+                    "start": round(word_start, 3),
+                    "end": round(word_end, 3),
+                    "score": round(_coerce_float(raw_word.get("score")) or 0.0, 3) if timed else 0.0,
+                    "line_index": line_index,
+                }
+            )
+        last_end = word_end
+    return words
+
+
 def _build_transcription_result(
     *,
     song_id: str,
@@ -172,32 +205,27 @@ def _build_transcription_result(
     synced_lines: list[str] = []
     aligned_words: list[dict[str, Any]] = []
 
-    for seg_idx, segment in enumerate(segments):
-        text = _normalize_text(str(segment.get("text", "")))
+    for segment in segments:
+        segment_start = _coerce_float(segment.get("start"))
+        if segment_start is None:
+            # No timestamp, so no place in the synced lyrics.
+            continue
+
+        line_index = len(synced_lines)
+        line_words = _line_words(segment.get("words", []), line_index=line_index, segment_start=segment_start)
+        # Build the line from its words when there are any, so the stored text
+        # and the stored words read the same, word for word.
+        text = (
+            " ".join(word["word"] for word in line_words)
+            if line_words
+            else _normalize_text(str(segment.get("text", "")))
+        )
         if not text:
             continue
 
         plain_lines.append(text)
-
-        segment_start = _coerce_float(segment.get("start"))
-        if segment_start is not None:
-            synced_lines.append(f"{_format_lrc_timestamp(segment_start)}{text}")
-
-        for word in segment.get("words", []):
-            word_text = _normalize_text(str(word.get("word", "")))
-            word_start = _coerce_float(word.get("start"))
-            word_end = _coerce_float(word.get("end"))
-            if not word_text or word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                {
-                    "word": word_text,
-                    "start": round(word_start, 3),
-                    "end": round(word_end, 3),
-                    "score": round(_coerce_float(word.get("score")) or 0.0, 3),
-                    "line_index": seg_idx,
-                }
-            )
+        synced_lines.append(f"{_format_lrc_timestamp(segment_start)}{text}")
+        aligned_words.extend(line_words)
 
     if not plain_lines or not synced_lines:
         logger.warning("%s ASR produced unusable lyric content for %s", provider, song_id)

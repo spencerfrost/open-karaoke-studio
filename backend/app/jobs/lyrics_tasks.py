@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Optional
 
 from app.db.models import JobStatus
@@ -23,7 +24,6 @@ from .celery_app import celery
 from .lyrics_support import build_alignment_attempts_for_song, run_alignment_attempt
 
 if TYPE_CHECKING:
-    from app.services.lyrics_alignment import AlignmentResult
     from app.services.lyrics_offset import LrcOffsetSweep
 
 logger = get_task_logger(__name__)
@@ -49,6 +49,60 @@ def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_r
         include_remote=include_remote,
         max_remote_results=max_remote_results,
     )
+
+
+def _format_synced_attempts(attempts: list[dict]) -> list[dict]:
+    """Format every synced candidate before it's aligned.
+
+    Formatting inserts blank break lines, which renumbers lines, so a candidate
+    has to be aligned in the form it will be stored in. Candidates that turn
+    out identical after formatting are aligned once.
+    """
+    formatted: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for attempt in attempts:
+        if attempt["source_type"] == "synced":
+            attempt = {**attempt, "content": _format_synced_lyrics_for_storage(attempt["content"])}
+        key = (attempt["source_type"], attempt["content"])
+        if key in seen:
+            continue
+        seen.add(key)
+        formatted.append(attempt)
+    return formatted
+
+
+def _fit_words_to_lyrics(
+    song_id: str,
+    alignment: Mapping[str, Any],
+    *,
+    source_type: str,
+    content: str,
+    source: str,
+) -> dict[str, Any] | None:
+    """Point every word's line_index into `content`, the exact text stored beside it.
+
+    Returns the alignment with line indexes and instrumental intervals derived
+    from that text, or None when the words don't read as that text word for
+    word. Storing those would highlight different words than the screen shows.
+    """
+    from app.services.lyrics_alignment import _build_instrumental_intervals, recompute_alignment_line_indices
+
+    words = recompute_alignment_line_indices(alignment["words"], source_type=source_type, content=content)
+    if words is None:
+        logger.warning("Lyrics words don't match the lyrics text for song %s (source=%s)", song_id, source)
+        log_lyrics_event(
+            song_id,
+            "lyrics_words_mismatch",
+            source=source,
+            source_type=source_type,
+            word_count=len(alignment["words"]),
+        )
+        return None
+
+    relabelled = sum(1 for old, new in zip(alignment["words"], words) if old["line_index"] != new["line_index"])
+    if relabelled:
+        log_lyrics_event(song_id, "lyrics_words_relabelled", source=source, word_count=relabelled)
+    return {**alignment, "words": words, "instrumental_intervals": _build_instrumental_intervals(words)}
 
 
 def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | None) -> tuple[bool, bool]:
@@ -84,7 +138,7 @@ def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | 
 
 
 def _build_word_sync_payload(
-    result: "AlignmentResult",
+    result: Mapping[str, Any],
     *,
     source_type: str,
     source: str,
@@ -172,6 +226,13 @@ def _apply_offset_correction(
         )
         return None
 
+    fitted = _fit_words_to_lyrics(
+        song_id, result, source_type="synced", content=corrected_lrc, source=attempt["source"]
+    )
+    if fitted is None:
+        return None
+    result = fitted
+
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
         if not song:
@@ -206,15 +267,29 @@ def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_
         or transcription.get("alignment", {}).get("asr_model")
         or "unknown"
     )
-    alignment_payload = {
-        **transcription["alignment"],
-        "lyrics_source_type": "synced",
-        "lyrics_source": f"asr:{asr_provider}",
-        "lyrics_attempt": 0,
-        "fallback_reason": fallback_reason,
-        "asr_provider": asr_provider,
-        "asr_model": asr_model,
-    }
+    alignment = transcription["alignment"]
+    if alignment["words"]:
+        # Formatting inserted break lines; point the words at the formatted text.
+        alignment = _fit_words_to_lyrics(
+            song_id,
+            alignment,
+            source_type="synced",
+            content=formatted_synced_lyrics,
+            source=f"asr:{asr_provider}",
+        )
+    alignment_payload = (
+        {
+            **alignment,
+            "lyrics_source_type": "synced",
+            "lyrics_source": f"asr:{asr_provider}",
+            "lyrics_attempt": 0,
+            "fallback_reason": fallback_reason,
+            "asr_provider": asr_provider,
+            "asr_model": asr_model,
+        }
+        if alignment is not None
+        else None
+    )
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
@@ -223,11 +298,13 @@ def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_
 
         song.plain_lyrics = transcription["plain_lyrics"]
         song.synced_lyrics = formatted_synced_lyrics
-        song.word_synced_lyrics = json.dumps(alignment_payload)
+        # Without matching words the lyrics still scroll line by line.
+        song.word_synced_lyrics = json.dumps(alignment_payload) if alignment_payload else None
         session.commit()
 
     transcription["synced_lyrics"] = formatted_synced_lyrics
-    transcription["alignment"] = alignment_payload
+    if alignment_payload:
+        transcription["alignment"] = alignment_payload
     return True
 
 
@@ -466,6 +543,7 @@ def align_song_lyrics(
     attempts = _build_alignment_attempts(song_data, include_remote=include_remote)
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+    attempts = _format_synced_attempts(attempts)
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
     logger.info(
         "align_song_lyrics: built %d attempts for song %s in %.2fs",
@@ -621,33 +699,34 @@ def align_song_lyrics(
         )
 
         if result["mean_score"] >= MIN_ALIGNMENT_SCORE:
+            fitted = _fit_words_to_lyrics(
+                song_id, result, source_type=source_type, content=attempt["content"], source=source_label
+            )
+            if fitted is None:
+                continue
+
             persist_started_at = perf_counter()
             with get_db_session() as session:
                 song = SongRepository(session).fetch(song_id)
                 if not song:
                     return {"status": "not_found", "song_id": song_id}
 
-                should_persist_plain_lyrics = bool(
-                    attempt["persist"] and source_type == "plain" and not song.plain_lyrics
-                )
-                should_persist_synced_lyrics = bool(
-                    attempt["persist"] and source_type == "synced" and not song.synced_lyrics
-                )
-
+                # The words index into this candidate's text, so its text is
+                # stored with them, replacing whatever was there before.
+                should_persist_plain_lyrics = source_type == "plain" and song.plain_lyrics != attempt["content"]
+                should_persist_synced_lyrics = source_type == "synced" and song.synced_lyrics != attempt["content"]
+                if source_type == "plain":
+                    song.plain_lyrics = attempt["content"]
+                else:
+                    song.synced_lyrics = attempt["content"]
                 song.word_synced_lyrics = json.dumps(
                     _build_word_sync_payload(
-                        result,
+                        fitted,
                         source_type=source_type,
                         source=source_label,
                         attempt_index=idx + 1,
                     )
                 )
-
-                if attempt["persist"]:
-                    if should_persist_plain_lyrics:
-                        song.plain_lyrics = attempt["content"]
-                    if should_persist_synced_lyrics:
-                        song.synced_lyrics = attempt["content"]
 
                 session.commit()
 

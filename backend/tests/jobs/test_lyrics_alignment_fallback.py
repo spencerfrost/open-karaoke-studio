@@ -153,8 +153,8 @@ def test_align_song_lyrics_uses_asr_fallback_when_alignment_is_low_confidence(
         "mean_score": 0.2,
     }
     mock_transcribe.return_value = {
-        "plain_lyrics": "new asr plain lyrics",
-        "synced_lyrics": "[00:00.00]new asr plain lyrics",
+        "plain_lyrics": "new asr",
+        "synced_lyrics": "[00:00.00]new asr",
         "alignment": {
             "words": [
                 {"word": "new", "start": 0.0, "end": 0.3, "score": 0.8, "line_index": 0},
@@ -177,8 +177,8 @@ def test_align_song_lyrics_uses_asr_fallback_when_alignment_is_low_confidence(
     assert result["fallback_reason"] == "low_confidence"
     assert result["asr_provider"] == "whisperx"
     assert result["asr_model"] == "unknown"
-    assert song.plain_lyrics == "new asr plain lyrics"
-    assert song.synced_lyrics == "[00:00.00]new asr plain lyrics"
+    assert song.plain_lyrics == "new asr"
+    assert song.synced_lyrics == "[00:00.00]new asr"
     assert song.word_synced_lyrics is not None
     mock_run_alignment.assert_called_once()
     mock_transcribe.assert_called_once()
