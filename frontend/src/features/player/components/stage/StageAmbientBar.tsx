@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils";
 import AudioVisualizer from "../subcomponents/AudioVisualizer";
 import ProgressBar from "../subcomponents/ProgressBar";
 
+const VISUALIZER_HEIGHT = 56;
+// gap-2 between the visualizer and the progress rail, then the rail's own h-2.
+// px, not rem: the strip is pinned to the viewport and does not scale.
+export const STAGE_AMBIENT_BAR_HEIGHT = `${VISUALIZER_HEIGHT + 8 + 8}px`;
+
 interface StageAmbientBarProps {
   visible: boolean;
 }
@@ -26,7 +31,7 @@ const StageAmbientBar: React.FC<StageAmbientBarProps> = ({ visible }) => {
         visible ? "opacity-100" : "opacity-0",
       )}
     >
-      <AudioVisualizer height={56} />
+      <AudioVisualizer height={VISUALIZER_HEIGHT} />
       <div className={cn(visible && "pointer-events-auto")}>
         <ProgressBar
           currentTime={currentTime}

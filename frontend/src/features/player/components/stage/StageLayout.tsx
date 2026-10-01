@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import type { PlayerUIHook } from "../../types/KaraokePlayer.types";
 import KaraokePlayer from "../KaraokePlayer";
 import StageTransport from "./StageTransport";
-import StageAmbientBar from "./StageAmbientBar";
+import StageAmbientBar, { STAGE_AMBIENT_BAR_HEIGHT } from "./StageAmbientBar";
 import StageQueueRail from "./StageQueueRail";
 import StageRailIcons from "./StageRailIcons";
 import { useStageRails } from "./useStageRails";
@@ -34,6 +34,9 @@ import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 // to the mic.
 const RAIL_OPEN = "17rem";
 const RAIL_COLLAPSED = "6rem";
+// While collapsed the transport gives its height back to the lyrics, keeping
+// only what the ambient bar covers below the grid's own bottom padding (p-6).
+const COLLAPSED_TRANSPORT_RESERVE = `calc(${STAGE_AMBIENT_BAR_HEIGHT} - 1.5rem)`;
 
 interface StageLayoutProps {
   songId: string;
@@ -118,17 +121,26 @@ const StageLayout: React.FC<StageLayoutProps> = ({
           {/* Autoplay: "Sing it now", the queue rail and the handoff screen
             all mean "start this", so a newly loaded song plays by itself. */}
           <KaraokePlayer songId={songId} autoPlay chromeCollapsed={collapsed} />
+          {/* Fading alone would leave the lyrics stopping where the transport
+            used to be. The 1fr -> 0fr row animates the height out too. */}
           <div
             className={cn(
-              "w-full shrink-0 transition-opacity duration-500",
+              "grid w-full shrink-0 transition-[grid-template-rows,opacity,padding] duration-500",
               collapsed && "pointer-events-none opacity-0",
             )}
+            style={{
+              gridTemplateRows: collapsed ? "0fr" : "1fr",
+              paddingBottom: collapsed ? COLLAPSED_TRANSPORT_RESERVE : 0,
+            }}
           >
-            <StageTransport
-              onNext={nextItem ? handleNext : undefined}
-              onToggleFullscreen={ui.toggleFullscreen}
-              isFullscreen={ui.isFullscreen}
-            />
+            {/* Clip only while collapsed, so the play button's glow isn't cut. */}
+            <div className={cn("min-h-0", collapsed && "overflow-hidden")}>
+              <StageTransport
+                onNext={nextItem ? handleNext : undefined}
+                onToggleFullscreen={ui.toggleFullscreen}
+                isFullscreen={ui.isFullscreen}
+              />
+            </div>
           </div>
         </div>
 
