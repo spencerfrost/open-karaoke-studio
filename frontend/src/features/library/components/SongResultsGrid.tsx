@@ -4,7 +4,7 @@ import {
   SongCard,
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { Button } from "@/components/ui/button";
 import { Loader2, Youtube } from "lucide-react";
 import { useOpenAddSong } from "@/hooks/useOpenAddSong";
@@ -30,8 +30,9 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   showArtist = true,
 }) => {
   const openAddSong = useOpenAddSong();
-  const { isStageDevice } = useSessionStore();
-  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
+  // Admins manage songs from any device, not just the one running the Stage.
+  const { isStageDevice, isAdmin } = useAccess();
+  const CardComponent = isStageDevice || isAdmin ? SongCard : PerformerSongCard;
 
   if (songs.length === 0 && searchTerm) {
     return (

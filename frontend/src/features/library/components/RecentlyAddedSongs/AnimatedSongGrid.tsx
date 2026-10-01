@@ -3,7 +3,7 @@ import {
   SongCard,
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { Song } from "@/types/Song";
 
 interface AnimatedSongGridProps {
@@ -24,8 +24,9 @@ export const AnimatedSongGrid: React.FC<AnimatedSongGridProps> = ({
   displayPage,
   sessionId,
 }) => {
-  const { isStageDevice } = useSessionStore();
-  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
+  // Admins manage songs from any device, not just the one running the Stage.
+  const { isStageDevice, isAdmin } = useAccess();
+  const CardComponent = isStageDevice || isAdmin ? SongCard : PerformerSongCard;
 
   return (
     <div className="relative overflow-hidden">

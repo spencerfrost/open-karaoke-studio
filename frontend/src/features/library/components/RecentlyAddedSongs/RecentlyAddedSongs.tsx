@@ -4,7 +4,7 @@ import {
   SongCard,
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
@@ -15,8 +15,9 @@ interface RecentlyAddedSongsProps {
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   maxSongs = 48,
 }) => {
-  const { isStageDevice } = useSessionStore();
-  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
+  // Admins manage songs from any device, not just the one running the Stage.
+  const { isStageDevice, isAdmin } = useAccess();
+  const CardComponent = isStageDevice || isAdmin ? SongCard : PerformerSongCard;
   const { useSongs } = useSongsHook();
   const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,
