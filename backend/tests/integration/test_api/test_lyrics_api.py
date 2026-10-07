@@ -290,3 +290,56 @@ def test_resolving_a_report_takes_it_off_the_list(client):
     assert resp.json()["resolved"] is True
     assert client.get("/api/lyrics/reports").json() == []
     assert client.post("/api/lyrics/reports/999999/resolve").status_code == 404
+
+
+def test_report_was_wrong_puts_the_reported_lyrics_back(client):
+    original = "[00:01.00]Blackbird singing"
+    song_id = _song_with_lyrics(client, synced=original)
+    with _as_guest(client), _vocals_ready():
+        report_id = client.post(f"/api/lyrics/songs/{song_id}/reports", json={"kind": "words"}).json()["report"]["id"]
+    # The fix replaced the lyrics.
+    db = _TestingSessionLocal()
+    db.get(DbSong, song_id).synced_lyrics = "[00:01.00]what asr heard"
+    db.commit()
+    db.close()
+
+    with patch("app.api.lyrics.realign_hand_picked_lyrics") as mock_realign:
+        resp = client.post(f"/api/lyrics/reports/{report_id}/undo")
+
+    assert resp.status_code == 200
+    assert resp.json()["restored"] is True
+    song = client.get(f"/api/songs/{song_id}").json()
+    assert song["syncedLyrics"] == original
+    # An admin vouched for them, so automatic runs only time them now.
+    assert song["lyricsHandPicked"] is True
+    mock_realign.assert_called_once()
+    # The report is gone, and with it the rejection.
+    assert client.get("/api/lyrics/reports").json() == []
+    from app.repositories.lyrics_report_repository import LyricsReportRepository
+
+    db = _TestingSessionLocal()
+    assert LyricsReportRepository(db).rejected_keys(song_id) == set()
+    db.close()
+
+
+def test_report_was_wrong_without_kept_lyrics_still_lifts_the_rejection(client):
+    from app.db.models import LyricsReport
+
+    song_id = _song_with_lyrics(client)
+    db = _TestingSessionLocal()
+    report = LyricsReport(song_id=song_id, kind="words", words_key="old-key", report_count=1)
+    db.add(report)
+    db.commit()
+    report_id = report.id
+    db.close()
+
+    with _vocals_ready() as mock_enqueue:
+        resp = client.post(f"/api/lyrics/reports/{report_id}/undo")
+
+    assert resp.json()["restored"] is False
+    assert client.get("/api/lyrics/reports").json() == []
+    mock_enqueue.assert_called_once()
+
+
+def test_undoing_an_unknown_report_is_not_found(client):
+    assert client.post("/api/lyrics/reports/999999/undo").status_code == 404

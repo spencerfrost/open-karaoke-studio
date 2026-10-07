@@ -6,6 +6,7 @@ import { MessageSquareWarning } from "lucide-react";
 import {
   useLyricsReports,
   useResolveLyricsReport,
+  useUndoLyricsReport,
   type LyricsReport,
   type LyricsReportOutcome,
 } from "@/hooks/api/useLyricsReports";
@@ -45,6 +46,7 @@ function describeWhen(iso: string | null): string {
 export const LyricsReportsTab: React.FC = () => {
   const { data: reports, isLoading } = useLyricsReports();
   const resolveReport = useResolveLyricsReport();
+  const undoReport = useUndoLyricsReport();
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
 
   const resolve = (reportId: number) => {
@@ -56,6 +58,22 @@ export const LyricsReportsTab: React.FC = () => {
       onError: (error) => toast.error(error.message),
     });
   };
+
+  const undo = (report: LyricsReport) => {
+    undoReport.mutate(report, {
+      onSuccess: ({ restored }) => {
+        setExpandedReportId(null);
+        toast.success(
+          restored
+            ? "Put the reported lyrics back"
+            : "Report removed. Those lyrics can be used again",
+        );
+      },
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
+  const isBusy = resolveReport.isPending || undoReport.isPending;
 
   if (isLoading) {
     return <p className="py-12 text-center text-muted-foreground">Loading…</p>;
@@ -78,7 +96,8 @@ export const LyricsReportsTab: React.FC = () => {
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         The app tries a fix as soon as something is reported. Check the song,
-        then close the report, or fix the lyrics here.
+        then close the report, fix the lyrics here, or undo the report if the
+        lyrics were right.
       </p>
       {reports.map((report) => {
         const isExpanded = expandedReportId === report.id;
@@ -126,14 +145,29 @@ export const LyricsReportsTab: React.FC = () => {
                   )}
                 </p>
               </button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={resolveReport.isPending}
-                onClick={() => resolve(report.id)}
-              >
-                Looks right now
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={isBusy}
+                  onClick={() => undo(report)}
+                  title={
+                    report.canRestore
+                      ? "The lyrics were right: put them back and forget this report"
+                      : "The lyrics were right: let them be used again"
+                  }
+                >
+                  Report was wrong
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isBusy}
+                  onClick={() => resolve(report.id)}
+                >
+                  Looks right now
+                </Button>
+              </div>
             </div>
             {isExpanded && (
               <div className="border-t bg-muted/20 p-4">

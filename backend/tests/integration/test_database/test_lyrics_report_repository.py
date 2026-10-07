@@ -68,3 +68,18 @@ def test_reporting_resolved_lyrics_again_reopens_the_report(test_db_session):
     assert reopened.resolved_at is None
     assert reopened.outcome is None
     assert reopened.report_count == 2
+
+
+def test_the_lyrics_kept_for_undo_are_from_the_first_report(test_db_session):
+    repo = _repo(test_db_session)
+
+    repo.report(
+        song_id="song-1", kind="timing", words_key="same-words", reporter_name=None,
+        user_id=None, session_id=None, synced_lyrics="[00:01.00]original timing",
+    )
+    report = repo.report(
+        song_id="song-1", kind="timing", words_key="same-words", reporter_name=None,
+        user_id=None, session_id=None, synced_lyrics="[00:03.00]after the first fix",
+    )
+
+    assert report.reported_synced_lyrics == "[00:01.00]original timing"

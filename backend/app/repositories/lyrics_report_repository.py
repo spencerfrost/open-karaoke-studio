@@ -38,11 +38,15 @@ class LyricsReportRepository:
         reporter_name: Optional[str],
         user_id: Optional[int],
         session_id: Optional[str],
+        synced_lyrics: Optional[str] = None,
+        plain_lyrics: Optional[str] = None,
     ) -> LyricsReport:
         """Record a report, or count it again if these lyrics were already reported.
 
         A report of lyrics that an admin had resolved opens it again, with its
-        last outcome cleared for the fix about to run.
+        last outcome cleared for the fix about to run. The lyrics kept for
+        undoing are the ones from the first report: what the song had before
+        any fix.
         """
         now = datetime.now(timezone.utc)
         report = (
@@ -57,6 +61,8 @@ class LyricsReportRepository:
                 words_key=words_key,
                 report_count=1,
                 created_at=now,
+                reported_synced_lyrics=synced_lyrics,
+                reported_plain_lyrics=plain_lyrics,
             )
             self.db.add(report)
         else:
@@ -98,3 +104,11 @@ class LyricsReportRepository:
         self.db.commit()
         self.db.refresh(report)
         return report
+
+    def get(self, report_id: int) -> Optional[LyricsReport]:
+        return self.db.get(LyricsReport, report_id)
+
+    def delete(self, report: LyricsReport) -> None:
+        """Forget a report, and with it the rejection of the lyrics it reported."""
+        self.db.delete(report)
+        self.db.commit()

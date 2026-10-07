@@ -38,6 +38,11 @@ mid-song.
   `realign_hand_picked_lyrics`). `POST /lyrics/songs/{id}` (lyrics text) marks hand-picked too.
 - **Live refresh:** the jobs websocket now also invalidates `["lyrics", songId]` when a song's job
   finishes; the word timings are cached apart from the song.
+- **"Report was wrong"** (added 2026-10-06, after testing on dev): a report keeps the lyrics on
+  screen when it was first made (migration `c4f2a7e1b903`). The admin button puts them back,
+  marks them hand-picked, re-times them and deletes the report, which lifts their rejection.
+  Without it a mistaken "Wrong words" banned correct lyrics for good. Reports from before the
+  migration have no copy; undoing them only lifts the rejection.
 
 ## Context
 

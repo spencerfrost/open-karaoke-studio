@@ -28,6 +28,8 @@ export interface LyricsReport {
   /** Where the word timings on screen came from ("lrclib:1", "asr:whisperx"). */
   lyricsSource: string | null;
   lyricsHandPicked: boolean;
+  /** The lyrics from before the report were kept, so they can be put back. */
+  canRestore: boolean;
 }
 
 const REPORTS_KEY = ["lyrics", "reports"] as const;
@@ -75,6 +77,27 @@ export function useResolveLyricsReport() {
         ),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: REPORTS_KEY });
+      },
+    },
+  );
+}
+
+/** The report was wrong: put back the lyrics it was about and forget it. */
+export function useUndoLyricsReport() {
+  const queryClient = useQueryClient();
+  return useApiMutation<{ restored: boolean }, LyricsReport>(
+    "lyrics/reports/:id/undo",
+    "post",
+    {
+      mutationFn: (report) =>
+        apiSend<{ restored: boolean }, null>(
+          `lyrics/reports/${report.id}/undo`,
+          "post",
+        ),
+      onSuccess: (_data, report) => {
+        queryClient.invalidateQueries({ queryKey: REPORTS_KEY });
+        queryClient.invalidateQueries({ queryKey: ["songs", report.songId] });
+        queryClient.invalidateQueries({ queryKey: ["lyrics", report.songId] });
       },
     },
   );

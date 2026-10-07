@@ -450,6 +450,7 @@ def _report_to_dict(report) -> dict:
         "resolved": report.resolved_at is not None,
         "lyricsSource": _lyrics_source(song) if song else None,
         "lyricsHandPicked": bool(song and song.lyrics_hand_picked_at is not None),
+        "canRestore": bool(report.reported_synced_lyrics or report.reported_plain_lyrics),
     }
 
 
@@ -483,6 +484,8 @@ async def report_song_lyrics(
         reporter_name=_reporter_name(requester),
         user_id=requester.user.id if requester.user else None,
         session_id=requester.session_id,
+        synced_lyrics=song.synced_lyrics,
+        plain_lyrics=song.plain_lyrics,
     )
     if body.kind == "words" and song.lyrics_hand_picked_at is not None:
         # Someone said the hand-picked lyrics are wrong, so other sources may replace them.
@@ -516,6 +519,49 @@ async def resolve_lyrics_report(
     if report is None:
         raise HTTPException(status_code=404, detail=f"Lyrics report not found: {report_id}")
     return _report_to_dict(report)
+
+
+@router.post("/reports/{report_id}/undo", response_model=dict, status_code=200)
+async def undo_lyrics_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    The report was wrong: put back the lyrics it was about and forget it.
+
+    The lyrics on screen when it was first reported are restored and marked
+    hand-picked (an admin vouched for them), then re-timed. Deleting the
+    report lifts their rejection. Reports from before lyrics were kept have
+    nothing to restore; their rejection is still lifted.
+    """
+    reports = LyricsReportRepository(db)
+    report = reports.get(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Lyrics report not found: {report_id}")
+    song = SongRepository(db).fetch(report.song_id)
+    restored = bool(report.reported_synced_lyrics or report.reported_plain_lyrics)
+    if song is not None and restored:
+        song.synced_lyrics = report.reported_synced_lyrics
+        song.plain_lyrics = report.reported_plain_lyrics
+        song.word_synced_lyrics = None
+        song.lyrics_hand_picked_at = datetime.now(timezone.utc)
+    reports.delete(report)
+
+    alignment = None
+    if song is not None:
+        db.refresh(song)
+        alignment = (
+            realign_hand_picked_lyrics(song)
+            if restored
+            else (
+                enqueue_song_alignment(song, include_remote=True)
+                if FileService().get_vocals_path(song.id, ".mp3").exists()
+                else None
+            )
+        )
+    logger.info("Lyrics report %s undone (restored=%s)", report_id, restored)
+    return {"restored": restored, "alignment": alignment}
 
 
 # ============================================================================

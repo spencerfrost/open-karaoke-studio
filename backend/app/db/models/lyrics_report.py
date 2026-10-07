@@ -4,7 +4,15 @@ Lyrics reports - someone singing said a song's lyrics are wrong.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -35,6 +43,10 @@ class LyricsReport(Base):
     # lyrics_words_key() of the lyrics on screen when reported.
     words_key = Column(String, nullable=False)
     report_count = Column(Integer, nullable=False, default=1)
+    # The lyrics on screen when first reported, so "the report was wrong" can
+    # put them back.
+    reported_synced_lyrics = Column(Text, nullable=True)
+    reported_plain_lyrics = Column(Text, nullable=True)
 
     # Who reported it last: an account, or a guest in a session.
     reporter_name = Column(String, nullable=True)
