@@ -1,14 +1,13 @@
 /**
- * StageQueueRail - the right rail: who is singing, who is next, and the QR
- * code to join. Full replacement for the old KaraokeQueueList/Item pair.
+ * StageQueueRail - the right rail: who is singing and who is next. The join
+ * code under it is StageJoinCode, which stays up while the rail collapses.
+ * Full replacement for the old KaraokeQueueList/Item pair.
  */
 
 import React from "react";
 import { Library, Mic, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { QRCodeDisplay } from "@/features/queue";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
-import { useSessionStore } from "@/stores/sessionStore";
 import { cn } from "@/lib/utils";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
@@ -30,13 +29,12 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
   onPlay,
   onRemove,
 }) => {
-  const { displayCode } = useSessionStore();
   const openSongSelect = useOpenSongSelect();
 
   return (
     // h-full so the rail is bounded by the stage row rather than by its own
     // content — that is what lets "Up Next" scroll instead of growing and
-    // shoving the join code off the bottom of the screen.
+    // shoving the join code below it off the bottom of the screen.
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className={cn(cardClass, "shrink-0")}>
         <span className={railLabelClass}>Singing Now</span>
@@ -115,26 +113,6 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
           </div>
         )}
       </div>
-
-      {displayCode && (
-        <div className="flex flex-col shrink-0 items-center gap-4 rounded-md border border-glass-border/10 bg-glass/5 p-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base uppercase tracking-[0.08em] text-foreground/60">
-                Join Code:
-              </span>
-              <span className="font-accent text-3xl leading-tight text-primary">
-                {displayCode}
-              </span>
-            </div>
-          </div>
-          <QRCodeDisplay
-            value={`${window.location.origin}/join/${displayCode}`}
-            size="9.5rem"
-            className="shrink-0 mb-2"
-          />
-        </div>
-      )}
     </div>
   );
 };
