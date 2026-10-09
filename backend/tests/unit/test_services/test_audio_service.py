@@ -114,6 +114,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()
@@ -138,6 +140,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()
@@ -177,6 +181,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()

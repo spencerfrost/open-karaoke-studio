@@ -1,7 +1,23 @@
 export const SONG_ERROR_FALLBACK =
   "This song couldn't be processed. The original download or audio separation failed.";
 
-const AGE_RESTRICTED_PATTERN = /confirm your age|age-restricted/i;
+// Each pattern maps a raw failure reason to a plain-language hint. The
+// server-busy and network ones only stick after the automatic retries ran out.
+const ERROR_HINTS: { pattern: RegExp; hint: string }[] = [
+  {
+    pattern: /confirm your age|age-restricted/i,
+    hint: "This video is age-restricted on YouTube.",
+  },
+  {
+    pattern: /out of memory/i,
+    hint: "The server was too busy to process it, even after a few tries.",
+  },
+  {
+    pattern:
+      /name resolution|timed out|connection (reset|refused|aborted)|temporary failure|network is unreachable|HTTP Error 5\d\d/i,
+    hint: "Couldn't reach YouTube to download it, even after a few tries.",
+  },
+];
 
 /**
  * Prefix a raw failure reason with a plain-language hint when the pattern is
@@ -12,8 +28,8 @@ export const humanizeSongError = (
   errorMessage: string | null | undefined,
 ): { hint?: string; detail: string } => {
   const detail = errorMessage?.trim() || SONG_ERROR_FALLBACK;
-  if (errorMessage && AGE_RESTRICTED_PATTERN.test(errorMessage)) {
-    return { hint: "This video is age-restricted on YouTube.", detail };
-  }
-  return { detail };
+  const match = errorMessage
+    ? ERROR_HINTS.find(({ pattern }) => pattern.test(errorMessage))
+    : undefined;
+  return match ? { hint: match.hint, detail } : { detail };
 };

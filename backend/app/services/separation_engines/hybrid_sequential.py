@@ -276,8 +276,9 @@ def separate_with_hybrid(
 
         return True
 
-    except StopProcessingError:
-        # Clean up temp directory
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry
+        # later) - clean up and re-raise
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         raise

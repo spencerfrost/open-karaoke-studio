@@ -20,12 +20,47 @@ from ._events import (
 )
 from ._shared import _create_lyrics_alignment_job, _get_lyrics_job_id
 from .celery_app import celery
-from .exceptions import AudioProcessingError
+from .exceptions import AudioProcessingError, is_transient_processing_error
 from .separation import run_separation_with_fallback
 
 logger = get_task_logger(__name__)
 
 _setup_event_subscriptions()
+
+# Waits before each automatic retry of a transient failure (full GPU, network
+# blip): ~21 minutes in all, long enough for another job to let go of VRAM.
+TRANSIENT_RETRY_DELAYS = (60, 300, 900)
+
+
+def _schedule_transient_retry(task, job, job_repository, exc):
+    """Park the job as pending with a reason and return the Retry to raise.
+
+    The song row stays "processing" — from the outside the song is just
+    taking longer, not broken.
+    """
+    import torch
+
+    retries = task.request.retries
+    delay = TRANSIENT_RETRY_DELAYS[min(retries, len(TRANSIENT_RETRY_DELAYS) - 1)]
+    if isinstance(exc, torch.cuda.OutOfMemoryError):
+        reason = "The server is busy"
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    else:
+        reason = "Couldn't reach YouTube"
+
+    logger.warning(
+        "Job %s hit a transient failure, retry %s/%s in %ss: %s",
+        job.id,
+        retries + 1,
+        task.max_retries,
+        delay,
+        exc,
+    )
+    job.status = JobStatus.PENDING
+    job.status_message = f"{reason} — trying again in {max(1, delay // 60)} min"
+    job_repository.update(job)
+    return task.retry(countdown=delay, exc=exc)
 
 
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
@@ -159,6 +194,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
     except Exception as e:
+        if is_transient_processing_error(e) and self.request.retries < self.max_retries:
+            raise _schedule_transient_retry(self, job, job_repository, e)
         error_message = str(e)[:2000]
         logger.error("Error processing job %s: %s", job_id, error_message)
         traceback.print_exc()
@@ -273,24 +310,30 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             raise AudioProcessingError(f"Job {job_id} has no associated song_id")
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
 
-        update_progress(10, "Starting YouTube download")
-
-        youtube_service.download_video(
-            video_id_or_url=video_id,
-            song_id=song_id,
-            artist=metadata.get("artist"),
-            title=metadata.get("title"),
-        )
-
-        update_progress(12, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING)
-
-        celery.send_task("fingerprint_single_song", args=[song_id])
-        celery.send_task("detect_song_loudness", args=[song_id])
-        celery.send_task("prefetch_song_lyrics", args=[song_id])
-        logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
-        logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
-
         original_file = song_dir / "original.mp3"
+
+        # A retry after a transient failure (usually a full GPU) keeps the
+        # audio it already downloaded. First attempts always download, so
+        # replace-youtube still fetches fresh audio.
+        if self.request.retries > 0 and original_file.exists():
+            update_progress(12, f"Reusing downloaded audio, preparing {engine_type} engine", JobStatus.PROCESSING)
+        else:
+            update_progress(10, "Starting YouTube download")
+
+            youtube_service.download_video(
+                video_id_or_url=video_id,
+                song_id=song_id,
+                artist=metadata.get("artist"),
+                title=metadata.get("title"),
+            )
+
+            update_progress(12, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING)
+
+            celery.send_task("fingerprint_single_song", args=[song_id])
+            celery.send_task("detect_song_loudness", args=[song_id])
+            celery.send_task("prefetch_song_lyrics", args=[song_id])
+            logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
+            logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
 
         if not original_file.exists():
             raise AudioProcessingError(f"Original audio file not found: {original_file}")
@@ -376,6 +419,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
+        if is_transient_processing_error(e) and self.request.retries < self.max_retries:
+            raise _schedule_transient_retry(self, job, job_repository, e)
         error_message = str(e)[:2000]
         logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()

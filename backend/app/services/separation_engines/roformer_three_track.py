@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
+import torch
 from audio_separator.separator import Separator
 from pydub import AudioSegment
 
@@ -322,8 +323,9 @@ def separate_with_three_track(
         status_callback(f"Three-track separation processing completed for {input_path.name}!")
         return True
 
-    except StopProcessingError:
-        logger.info("Processing halted — user issued break request signal.")
+    except (StopProcessingError, torch.cuda.OutOfMemoryError) as e:
+        if isinstance(e, StopProcessingError):
+            logger.info("Processing halted — user issued break request signal.")
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         raise

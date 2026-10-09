@@ -161,3 +161,12 @@ class DbSong(Base):
                 for sa in sorted(self.song_artists, key=lambda x: x.display_order)
             ] if self.song_artists else [],
         }
+
+
+def in_songbook():
+    """SQL filter for the songs the songbook lists: all but failed ones.
+
+    A failed song can't be sung. Adding it again restarts the failed row
+    (POST /api/songs/{id}/retry), and admins find it in Library Audit.
+    """
+    return DbSong.status != "error"

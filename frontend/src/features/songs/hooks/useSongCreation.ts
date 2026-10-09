@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiSend } from "@/hooks/api/useApi";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
 import { createLogger } from "@/lib/logger";
@@ -19,6 +21,9 @@ export interface SongInput {
   startTime?: number;
   endTime?: number;
   lyrics?: string;
+  // A failed library copy of this song: adding restarts it instead of
+  // creating a duplicate beside it.
+  failedSongId?: string | null;
 }
 
 export type SongSubmissionStatus = "idle" | "pending" | "queued";
@@ -28,6 +33,7 @@ export const useSongCreation = () => {
     Record<string, "pending" | "queued">
   >({});
   const inFlightVideoIdRef = useRef<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { useCreateSong } = useSongs();
   const createSongMutation = useCreateSong();
@@ -56,7 +62,32 @@ export const useSongCreation = () => {
     });
   };
 
-  const createSong = (song: SongInput) => {
+  const retryFailedSong = async (songId: string) => {
+    logger.debug("Restarting failed song instead of adding a duplicate", {
+      songId,
+    });
+    await apiSend<{ jobId: string }, null>(`songs/${songId}/retry`, "post");
+    // It's back in the songbook (as processing) now that it's no longer failed.
+    queryClient.invalidateQueries({ queryKey: ["songs"] });
+    return songId;
+  };
+
+  const addNewSong = async (song: SongInput) => {
+    const songData = {
+      title: song.title,
+      artist: song.artist,
+      album: song.album || "",
+      duration: song.duration,
+      source: song.source,
+      video_id: song.videoId,
+    };
+    const createdSong = await createSongMutation.mutateAsync(songData);
+    logger.debug("Song created successfully:", createdSong);
+    await downloadFromYouTube(createdSong.id, song);
+    return createdSong.id;
+  };
+
+  const createSong = (song: SongInput): Promise<string | null> => {
     const existingState = submissionStates[song.videoId];
     logger.debug("createSong invoked", {
       videoId: song.videoId,
@@ -95,32 +126,23 @@ export const useSongCreation = () => {
       videoId: song.videoId,
     });
 
-    const songData = {
-      title: song.title,
-      artist: song.artist,
-      album: song.album || "",
-      duration: song.duration,
-      source: song.source,
-      video_id: song.videoId,
-    };
+    const request = song.failedSongId
+      ? retryFailedSong(song.failedSongId)
+      : addNewSong(song);
 
-    return createSongMutation
-      .mutateAsync(songData)
-      .then(async (createdSong) => {
-        logger.debug("Song created successfully:", createdSong);
-
-        await downloadFromYouTube(createdSong.id, song);
+    return request
+      .then((songId) => {
         setSubmissionStates((current) => ({
           ...current,
           [song.videoId]: "queued",
         }));
         logger.debug("Marked song as queued in local submission state", {
           videoId: song.videoId,
-          songId: createdSong.id,
+          songId,
         });
         toast.success("Added to the songbook and queued for processing");
 
-        return createdSong;
+        return songId;
       })
       .catch((error) => {
         logger.error("Error creating song:", error);

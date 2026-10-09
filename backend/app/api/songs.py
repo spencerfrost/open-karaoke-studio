@@ -37,10 +37,11 @@ from app.api.validators import (
     validate_direction,
     validate_sort_field,
 )
+from app.api.youtube import get_session_manager
 from app.config import get_config
 from app.db.database import SessionLocal
 from app.db.models.artist import DbArtist
-from app.db.models.song import DbSong
+from app.db.models.song import DbSong, in_songbook
 from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
 from app.repositories.album_repository import AlbumRepository
@@ -67,6 +68,8 @@ from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
 from app.services.lyrics_language import normalize_language
 from app.utils.filing import filing_letter, filing_name
+from app.ws.connection_manager import SessionConnectionManager
+from app.ws.jobs import broadcast_job_created
 from fastapi import (
     APIRouter,
     Body,
@@ -179,7 +182,11 @@ async def get_songs(
     try:
         repo = SongRepository(db)
         songs = repo.fetch_all(
-            sort_by=sort_by, direction=direction, limit=limit, offset=offset
+            sort_by=sort_by,
+            direction=direction,
+            limit=limit,
+            offset=offset,
+            songbook_only=True,
         )
 
         response_data = [song.to_dict() for song in songs]
@@ -236,7 +243,7 @@ async def search_songs(
         if group_by_artist:
             artist_query = (
                 db.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
-                .filter(search_filter)
+                .filter(search_filter, in_songbook())
                 .group_by(DbSong.artist)
             )
             total_artists = artist_query.count()
@@ -245,7 +252,12 @@ async def search_songs(
             artists_data = []
             total_songs = 0
             for artist, count in artist_results:
-                songs = db.query(DbSong).filter(DbSong.artist == artist).limit(5).all()
+                songs = (
+                    db.query(DbSong)
+                    .filter(DbSong.artist == artist, in_songbook())
+                    .limit(5)
+                    .all()
+                )
                 total_songs += count
                 artists_data.append(
                     ArtistInfo(
@@ -267,7 +279,7 @@ async def search_songs(
                 ),
             )
         else:
-            base_query = db.query(DbSong).filter(search_filter)
+            base_query = db.query(DbSong).filter(search_filter, in_songbook())
 
             if sort == "relevance":
                 base_query = base_query.order_by(
@@ -321,6 +333,10 @@ async def get_artists(
                 func.count(DbSongArtist.song_id).label("song_count"),
             )
             .join(DbSongArtist, DbSongArtist.artist_id == DbArtist.id)
+            # Counts only songs the songbook lists, so an artist whose only
+            # song failed drops out instead of leading to an empty list.
+            .join(DbSong, DbSong.id == DbSongArtist.song_id)
+            .filter(in_songbook())
             .group_by(DbArtist.id)
         )
 
@@ -379,7 +395,7 @@ async def get_shows(
     try:
         query = (
             db.query(DbSong.show_name, func.count(DbSong.id).label("song_count"))
-            .filter(DbSong.show_name.isnot(None), DbSong.show_name != "")
+            .filter(DbSong.show_name.isnot(None), DbSong.show_name != "", in_songbook())
             .group_by(DbSong.show_name)
         )
 
@@ -446,7 +462,9 @@ async def get_songs_by_artist(
             .filter(DbArtist.name == artist_name.lower().strip())
             .subquery()
         )
-        base_query = db.query(DbSong).filter(DbSong.id.in_(song_ids_subq))
+        base_query = db.query(DbSong).filter(
+            DbSong.id.in_(song_ids_subq), in_songbook()
+        )
 
         # Apply sorting
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
@@ -512,7 +530,9 @@ async def get_songs_by_show(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
-        base_query = db.query(DbSong).filter(DbSong.show_name == show_name)
+        base_query = db.query(DbSong).filter(
+            DbSong.show_name == show_name, in_songbook()
+        )
 
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
         if direction.lower() == "desc":
@@ -1824,26 +1844,26 @@ def _format_validation_message(status: str, score: Optional[float]) -> str:
         return f"? Unknown validation status: {status}"
 
 
-@router.post("/{song_id}/replace-youtube", status_code=202)
-async def replace_song_youtube(
+def _restart_youtube_processing(
+    song_repo: SongRepository,
     song_id: str,
-    request: SongReplaceYouTubeRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """Replace a song's audio source with a YouTube Music track and reprocess."""
-    from datetime import datetime, timezone
+    *,
+    video_id: str,
+    title: str,
+    artist: str,
+    engine_type: str,
+    session_id: Optional[str] = None,
+    user_id: Optional[int] = None,
+) -> str:
+    """Clear a song's processing results and files, then queue a fresh download.
 
+    Shared by replace-youtube (admin, possibly a new source) and retry (guest,
+    same source). Returns the new job id; 409 if the song already has a job.
+    """
     from app.repositories import JobRepository
     from app.services.youtube_service import YouTubeService
 
-    song_repo = SongRepository(db)
-    db_song = song_repo.fetch(song_id)
-    if not db_song:
-        raise HTTPException(status_code=404, detail="Song not found")
-
-    job_repository = JobRepository()
-    active_jobs = job_repository.get_in_flight_jobs()
+    active_jobs = JobRepository().get_in_flight_jobs()
     if any(j.song_id == song_id for j in active_jobs):
         raise HTTPException(status_code=409, detail="Song is already being processed")
 
@@ -1863,14 +1883,92 @@ async def replace_song_youtube(
 
     FileService().delete_song_files(song_id)
 
-    job_id = YouTubeService().download_and_process_async(
-        video_id_or_url=request.video_id,
+    return YouTubeService().download_and_process_async(
+        video_id_or_url=video_id,
         song_id=song_id,
+        artist=artist,
+        title=title,
+        engine_type=engine_type,
+        session_id=session_id,
+        user_id=user_id,
+    )
+
+
+@router.post("/{song_id}/replace-youtube", status_code=202)
+async def replace_song_youtube(
+    song_id: str,
+    request: SongReplaceYouTubeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Replace a song's audio source with a YouTube Music track and reprocess."""
+    song_repo = SongRepository(db)
+    db_song = song_repo.fetch(song_id)
+    if not db_song:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    job_id = _restart_youtube_processing(
+        song_repo,
+        song_id,
+        video_id=request.video_id,
         artist=request.artist or db_song.artist,
         title=request.title or db_song.title,
         engine_type=request.engine_type,
     )
     logger.info("replace-youtube: queued job %s for song %s", job_id, song_id)
+    return {"jobId": job_id, "status": "pending"}
+
+
+@router.post("/{song_id}/retry", status_code=202)
+async def retry_failed_song(
+    song_id: str,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Restart a failed song from its own YouTube source.
+
+    Open to anyone who can add songs: adding a song whose earlier attempt
+    failed restarts that row rather than creating a duplicate beside it.
+    Only failed songs qualify, so this can't disturb a working one.
+    """
+    song_repo = SongRepository(db)
+    db_song = song_repo.fetch(song_id)
+    if not db_song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if db_song.status != "error":
+        raise HTTPException(status_code=409, detail="Only a failed song can be retried")
+    if not db_song.video_id:
+        raise HTTPException(
+            status_code=400, detail="This song has no YouTube source to retry from"
+        )
+
+    # Counts against demo download quotas like any other add. No-op otherwise.
+    session_id, user_id = enforce_demo_download_quota(db, requester)
+
+    job_id = _restart_youtube_processing(
+        song_repo,
+        song_id,
+        video_id=db_song.video_id,
+        artist=db_song.artist,
+        title=db_song.title,
+        engine_type="three_track",
+        session_id=session_id,
+        user_id=user_id,
+    )
+    logger.info("retry: queued job %s for failed song %s", job_id, song_id)
+
+    await broadcast_job_created(
+        manager,
+        {
+            "id": job_id,
+            "song_id": song_id,
+            "status": "pending",
+            "progress": 0,
+            "artist": db_song.artist,
+            "title": db_song.title,
+        },
+    )
     return {"jobId": job_id, "status": "pending"}
 
 

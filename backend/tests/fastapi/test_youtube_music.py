@@ -4,7 +4,22 @@ Tests for FastAPI YouTube Music endpoints.
 
 from unittest.mock import Mock
 
+import uuid
+
 import pytest
+
+from app.db.database import get_db_session
+from app.db.models import DbSong
+
+
+def _add_library_song(*, video_id, status, title="Bohemian Rhapsody", artist="Queen"):
+    song_id = str(uuid.uuid4())
+    with get_db_session() as session:
+        session.add(
+            DbSong(id=song_id, title=title, artist=artist, video_id=video_id, status=status)
+        )
+        session.commit()
+    return song_id
 
 
 class TestYouTubeMusicSearch:
@@ -52,16 +67,55 @@ class TestYouTubeMusicSearch:
         for result in data["songs"]:
             assert "existsInLibrary" in result
 
-    def test_search_marks_existing_library_song(self, client, mock_youtube_music_service, mock_db_session):
-        """existsInLibrary=True when a matching song is found in the DB (covers line 98)."""
-        from unittest.mock import Mock as _Mock
-        # Make DB lookup return a truthy existing song record
-        mock_db_session.query.return_value.filter.return_value.first.return_value = _Mock()
-        response = client.get("/api/youtube-music/search?q=bohemian+rhapsody")
-        assert response.status_code == 200
-        data = response.json()
-        songs = data["songs"]
-        assert any(s["existsInLibrary"] is True for s in songs)
+    # The library checks below run against real rows in the test database
+    # (no mock_db_session), since what matters is how statuses combine.
+
+    def test_search_marks_existing_library_song(self, client, mock_youtube_music_service):
+        _add_library_song(video_id="utwMHfDZ6SA", status="processed")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["existsInLibrary"] is True
+        assert song["failedSongId"] is None
+
+    def test_search_matches_by_artist_and_title(self, client, mock_youtube_music_service):
+        _add_library_song(video_id="someOtherVid", status="processed")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["existsInLibrary"] is True
+
+    def test_failed_song_does_not_count_as_added(self, client, mock_youtube_music_service):
+        failed_id = _add_library_song(video_id="utwMHfDZ6SA", status="error")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["existsInLibrary"] is False
+        assert song["failedSongId"] == failed_id
+
+    def test_failed_song_prefers_the_exact_video_match(self, client, mock_youtube_music_service):
+        _add_library_song(video_id="someOtherVid", status="error")
+        exact_id = _add_library_song(video_id="utwMHfDZ6SA", status="error")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["failedSongId"] == exact_id
+
+    def test_working_copy_wins_over_a_failed_one(self, client, mock_youtube_music_service):
+        _add_library_song(video_id="utwMHfDZ6SA", status="error")
+        _add_library_song(video_id="someOtherVid", status="processed")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["existsInLibrary"] is True
+        assert song["failedSongId"] is None
+
+    def test_processing_song_counts_as_added(self, client, mock_youtube_music_service):
+        _add_library_song(video_id="utwMHfDZ6SA", status="processing")
+
+        song = client.get("/api/youtube-music/search?q=bohemian+rhapsody").json()["songs"][0]
+
+        assert song["existsInLibrary"] is True
 
     def test_search_handles_service_error(self, client, mock_youtube_music_service, mock_db_session):
         """Test handling of service errors."""

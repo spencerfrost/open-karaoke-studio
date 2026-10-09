@@ -357,8 +357,9 @@ def separate_with_three_track(
 
         return True
 
-    except StopProcessingError:
-        # User cancelled - clean up and re-raise
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry
+        # later) - clean up and re-raise
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         raise

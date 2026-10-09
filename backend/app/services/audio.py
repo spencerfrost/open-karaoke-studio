@@ -444,7 +444,8 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         logger.info(complete_msg)
         status_callback(complete_msg)
         return True
-    except StopProcessingError:
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry later).
         raise
     except Exception as e:
         logger.error(

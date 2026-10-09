@@ -56,6 +56,7 @@ const mapYoutubeMusicToSongInput = (
   url: `https://www.youtube.com/watch?v=${result.videoId}`,
   duration: parseDurationToSeconds(result.duration),
   thumbnail: result.thumbnails[0]?.url || "",
+  failedSongId: result.failedSongId,
 });
 
 const mapYouTubeToSongInput = (

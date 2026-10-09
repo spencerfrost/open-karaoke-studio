@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
+import torch
 from audio_separator.separator import Separator
 from app.services import file_management
 
@@ -126,6 +127,10 @@ def separate_with_roformer(
         logger.info("Roformer Karaoke-First separation completed successfully")
 
         return True
+
+    except torch.cuda.OutOfMemoryError:
+        # A full GPU is the job's to handle (retry later)
+        raise
 
     except Exception as e:
         logger.error("Roformer separation failed: %s", e, exc_info=True)

@@ -27,6 +27,7 @@ Song repository for managing song records in the database.
 from typing import Any, Dict, List, Optional
 
 from app.db.models import DbSong
+from app.db.models.song import in_songbook
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 
@@ -103,11 +104,19 @@ class SongRepository:
         )
 
     def fetch_all(
-        self, *, filters=None, sort_by=None, direction="desc", limit=None, offset=None
+        self,
+        *,
+        filters=None,
+        sort_by=None,
+        direction="desc",
+        limit=None,
+        offset=None,
+        songbook_only=False,
     ) -> List[DbSong]:
         """
         Fetch all songs with optional filtering, sorting, and pagination.
         :param filters: dict of field-value pairs to filter by
+        :param songbook_only: leave out failed songs, as the songbook does
         :param sort_by: field name to sort by (default None)
         :param direction: 'asc' or 'desc' (default 'desc')
         :param limit: max number of results (default None)
@@ -119,6 +128,8 @@ class SongRepository:
         if filters:
             for attr, value in filters.items():
                 query = query.filter(getattr(DbSong, attr) == value)
+        if songbook_only:
+            query = query.filter(in_songbook())
         if sort_by:
             sort_col = getattr(DbSong, sort_by, None)
             if sort_col is not None:

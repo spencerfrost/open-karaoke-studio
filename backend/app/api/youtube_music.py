@@ -29,6 +29,7 @@ class YoutubeMusicSearchResult(BaseModel):
     thumbnailUrl: Optional[str] = None
     duration: Optional[str] = None
     existsInLibrary: bool = False
+    failedSongId: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -65,52 +66,54 @@ class YoutubeMusicAlbumResponse(BaseModel):
 
 
 def _add_exists_in_library_flags(songs: List[dict]) -> List[dict]:
-    """Add existsInLibrary flag to a list of songs."""
+    """Add existsInLibrary and failedSongId to a list of songs.
+
+    A song is in the library only if a matching row (same video_id, or same
+    artist + title, case-insensitive) isn't a failed one. When every match
+    failed, failedSongId names the row to restart instead of adding a
+    duplicate — so a failed copy never blocks adding the song again.
+    """
     if not songs:
         return songs
 
     video_ids = [s.get("videoId") for s in songs if s.get("videoId")]
-    existing_video_ids: set = set()
-    existing_songs_by_artist_title: set = set()
+    # video_id -> [(song_id, status)], (artist, title) -> [(song_id, status)]
+    rows_by_video_id: dict[str, list[tuple[str, str]]] = {}
+    rows_by_artist_title: dict[tuple[str, str], list[tuple[str, str]]] = {}
 
     with get_db_session() as session:
         # Check by video_id for exact YouTube matches
         if video_ids:
-            existing_songs = session.query(DbSong.video_id).filter(
-                DbSong.video_id.in_(video_ids)
-            ).all()
-            existing_video_ids = {song.video_id for song in existing_songs}
+            for song_id, video_id, status in (
+                session.query(DbSong.id, DbSong.video_id, DbSong.status)
+                .filter(DbSong.video_id.in_(video_ids))
+                .all()
+            ):
+                rows_by_video_id.setdefault(video_id, []).append((song_id, status))
 
         # Check by artist + title for fuzzy matches (case-insensitive)
         for song in songs:
-            artist = song.get("artist", "")
-            if artist:
-                artist = artist.strip()
-            title = song.get("title", "")
-            if title:
-                title = title.strip()
+            artist = (song.get("artist") or "").strip()
+            title = (song.get("title") or "").strip()
             if artist and title:
-                existing = session.query(DbSong.id).filter(
-                    DbSong.artist.ilike(artist),
-                    DbSong.title.ilike(title)
-                ).first()
-                if existing:
-                    existing_songs_by_artist_title.add((artist.lower(), title.lower()))
+                rows_by_artist_title[(artist.lower(), title.lower())] = (
+                    session.query(DbSong.id, DbSong.status)
+                    .filter(DbSong.artist.ilike(artist), DbSong.title.ilike(title))
+                    .all()
+                )
 
-    # Add existsInLibrary flag to each song
     for song in songs:
-        video_id = song.get("videoId")
-        artist = song.get("artist", "")
-        if artist:
-            artist = artist.strip().lower()
-        title = song.get("title", "")
-        if title:
-            title = title.strip().lower()
-
-        song["existsInLibrary"] = (
-            video_id in existing_video_ids or
-            (artist, title) in existing_songs_by_artist_title
+        artist = (song.get("artist") or "").strip().lower()
+        title = (song.get("title") or "").strip().lower()
+        # video_id matches first, so a failed exact match is preferred below
+        matches = rows_by_video_id.get(song.get("videoId"), []) + list(
+            rows_by_artist_title.get((artist, title), [])
         )
+        working = [song_id for song_id, status in matches if status != "error"]
+        failed = [song_id for song_id, status in matches if status == "error"]
+
+        song["existsInLibrary"] = bool(working)
+        song["failedSongId"] = failed[0] if failed and not working else None
 
     return songs
 

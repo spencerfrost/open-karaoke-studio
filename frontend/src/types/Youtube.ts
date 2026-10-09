@@ -22,6 +22,8 @@ export interface YoutubeMusicSearchResult {
   album?: string;
   thumbnails: Array<{ url: string; width?: number; height?: number }>;
   existsInLibrary: boolean;
+  // Set when the only library copy failed; adding restarts that copy.
+  failedSongId?: string | null;
   trackNumber?: number;
   isExplicit?: boolean;
 }
