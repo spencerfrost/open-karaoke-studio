@@ -57,6 +57,9 @@ Left/Right turns the cylinder. Up/Down moves within the column at the front.
 - **Spacing follows real widths.** Neighbours are spaced by their widths plus a gap, measured
   along the curve, so the narrow letter column sits close to the artists instead of taking an
   equal slice of the circle.
+- **The letter column never turns to the front.** (Changed 2026-10-09 after use.) Turning it to
+  the middle shoved the whole wheel into the left half of the screen. With letters active, the
+  ring stays with artists in front and the letter column grows a little where it is.
 - **The cursor stays centred.** Each list moves through a fixed selection row, like a DDR wheel.
 
 ### Controls
@@ -73,6 +76,11 @@ Left/Right turns the cylinder. Up/Down moves within the column at the front.
 - **Left at the leftmost column does nothing.** It must not fall through to the performance
   screen, where Left would nudge the lyrics offset.
 - **Back is the only way out of the library.**
+- **One mouse-wheel flick stays on one column.** (Added 2026-10-09.) Wheel events less than
+  ~250ms apart go to the column the flick started on. Otherwise the ring turns under a still
+  pointer, and the next notch of the same flick lands on the next column over.
+- **The song card is clickable**, same as Enter. **Resting on a song previews it** after ~1.5s at
+  half volume (the library's preview: the original mix from 30% in). Never during a performance.
 - **Held ▲▼ ramps up.** The OS key repeat is ignored in favour of our own: the first repeat comes
   after ~350ms, then speed climbs from ~8 to ~36 rows/sec over about a second.
 

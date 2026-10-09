@@ -42,6 +42,14 @@ export const WHEEL_TUNING = {
   holdRampMs: 1100,
   /** Plain one-row scroll animation, shortened while a key is held. */
   scrollMs: 160,
+  /**
+   * Mouse-wheel events closer together than this are one gesture, and stay
+   * on the column the gesture started on (see routeWheelScroll).
+   */
+  scrollGestureGapMs: 250,
+  /** The letter column grows this much while active instead of turning to
+   *  the front. */
+  letterActiveScale: 1.15,
 } as const;
 
 export interface WheelArtist extends Artist {
@@ -145,6 +153,58 @@ export function columnSeats(
     0,
     deg(artistW / 2 + songW / 2 + gapPx),
   ];
+}
+
+/**
+ * The ring's angle with `col` active. The letter column never turns the ring:
+ * it is narrow, and bringing it to the middle shoved the whole wheel into the
+ * left half of the screen. With letters active the ring stays where it is
+ * with artists in front, and the letter column grows in place instead.
+ */
+export function ringAngleFor(
+  col: ColumnIndex,
+  seats: [number, number, number],
+): number {
+  return -seats[Math.max(col, COLUMN.artist)];
+}
+
+/** One mouse-wheel gesture: the column it went to, and its last event. */
+export interface WheelScrollLock {
+  col: ColumnIndex;
+  at: number;
+}
+
+/**
+ * Which column a mouse-wheel event scrolls, given the column under the
+ * pointer (null over empty space).
+ *
+ * A scroll over a side column brings it to the front, which turns the ring
+ * under a pointer that hasn't moved: the rest of the same flick would land on
+ * whatever turned in under it - another column, or empty space where nothing
+ * scrolls at all. Instead, events that keep arriving less than `gapMs` apart
+ * are one gesture and all go to the column it started on, wherever the
+ * pointer now is. A pause starts a new gesture over whatever is under the
+ * pointer; over empty space, none starts.
+ *
+ * `started` marks the first event of a gesture.
+ */
+export function routeWheelScroll(
+  lock: WheelScrollLock | null,
+  hovered: ColumnIndex | null,
+  now: number,
+  gapMs: number = WHEEL_TUNING.scrollGestureGapMs,
+):
+  | { target: ColumnIndex; lock: WheelScrollLock; started: boolean }
+  | { target: null; lock: null; started: false } {
+  if (lock && now - lock.at < gapMs) {
+    return {
+      target: lock.col,
+      lock: { col: lock.col, at: now },
+      started: false,
+    };
+  }
+  if (hovered === null) return { target: null, lock: null, started: false };
+  return { target: hovered, lock: { col: hovered, at: now }, started: true };
 }
 
 /** Opacity for a column `steps` away from the front: compounds per step. */

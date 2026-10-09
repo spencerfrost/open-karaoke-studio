@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Artist } from "@/hooks/api/useArtists";
 import {
+  COLUMN,
   LETTERS,
   artistImageUrl,
   columnBrightness,
@@ -8,6 +9,8 @@ import {
   firstArtistByLetter,
   holdRate,
   listScrollOffset,
+  ringAngleFor,
+  routeWheelScroll,
   lyricsKind,
   songByline,
   songHeroSources,
@@ -196,5 +199,69 @@ describe("listScrollOffset", () => {
   it("never scrolls a list shorter than the column", () => {
     expect(offset(0, 3)).toBe(0);
     expect(offset(2, 3)).toBe(0);
+  });
+});
+
+describe("ringAngleFor", () => {
+  const seats = columnSeats();
+
+  it("turns the active artist or song column to the front", () => {
+    expect(ringAngleFor(COLUMN.artist, seats)).toBeCloseTo(-seats[1]);
+    expect(ringAngleFor(COLUMN.song, seats)).toBeCloseTo(-seats[2]);
+  });
+
+  it("leaves the ring on the artists when letters are active", () => {
+    expect(ringAngleFor(COLUMN.letter, seats)).toBe(
+      ringAngleFor(COLUMN.artist, seats),
+    );
+  });
+});
+
+describe("routeWheelScroll", () => {
+  const gap = WHEEL_TUNING.scrollGestureGapMs;
+
+  it("starts a gesture on the hovered column", () => {
+    expect(routeWheelScroll(null, COLUMN.artist, 1000).target).toBe(
+      COLUMN.artist,
+    );
+  });
+
+  it("keeps a gesture on its column when another turns in under the pointer", () => {
+    const first = routeWheelScroll(null, COLUMN.artist, 1000);
+    const next = routeWheelScroll(first.lock, COLUMN.letter, 1000 + gap - 1);
+    expect(next.target).toBe(COLUMN.artist);
+  });
+
+  it("stays locked through a long continuous scroll", () => {
+    let { lock } = routeWheelScroll(null, COLUMN.artist, 0);
+    for (let t = 100; t <= 2000; t += 100) {
+      const step = routeWheelScroll(lock, COLUMN.letter, t);
+      expect(step.target).toBe(COLUMN.artist);
+      lock = step.lock;
+    }
+  });
+
+  it("keeps going once the pointer is left over empty space", () => {
+    const first = routeWheelScroll(null, COLUMN.artist, 1000);
+    const next = routeWheelScroll(first.lock, null, 1100);
+    expect(next.target).toBe(COLUMN.artist);
+    expect(next.started).toBe(false);
+  });
+
+  it("starts nothing over empty space", () => {
+    expect(routeWheelScroll(null, null, 1000).target).toBeNull();
+  });
+
+  it("marks only the first event of a gesture as started", () => {
+    const first = routeWheelScroll(null, COLUMN.song, 1000);
+    expect(first.started).toBe(true);
+    expect(routeWheelScroll(first.lock, COLUMN.song, 1050).started).toBe(false);
+  });
+
+  it("frees the lock after a pause", () => {
+    const first = routeWheelScroll(null, COLUMN.artist, 1000);
+    expect(routeWheelScroll(first.lock, COLUMN.letter, 1000 + gap).target).toBe(
+      COLUMN.letter,
+    );
   });
 });

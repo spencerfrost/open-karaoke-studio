@@ -13,7 +13,7 @@
  * the selected row while this column is at the front.
  */
 
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 import { WHEEL_TUNING, listScrollOffset } from "./wheelModel";
 
@@ -24,10 +24,11 @@ const COLUMN_HEIGHT = 660;
 const SLIDE_ROOM_ROWS = 3;
 /** How much of the list fades out at an end with more list beyond it. */
 const EDGE_FADE = "18%";
-/** One notch of a line-based wheel, or this many pixels of a smooth one. */
-const WHEEL_PIXELS_PER_ROW = 50;
 
 interface WheelColumnProps {
+  /** Which column this is; the wheel reads it off the element to route the
+   *  mouse wheel. */
+  column: number;
   label: string;
   /** Replaces the plain label - the song column puts the artist's name there. */
   header?: React.ReactNode;
@@ -52,13 +53,12 @@ interface WheelColumnProps {
   rowClassName?: string;
   onActivate: () => void;
   onRowClick: (index: number) => void;
-  /** Positive steps move down the list. Brings the column to the front. */
-  onWheelSteps: (dir: -1 | 1, steps: number) => void;
   /** Shown instead of rows when there are none yet. */
   placeholder?: React.ReactNode;
 }
 
 const WheelColumn: React.FC<WheelColumnProps> = ({
+  column,
   label,
   header,
   listTop,
@@ -76,34 +76,8 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
   rowClassName,
   onActivate,
   onRowClick,
-  onWheelSteps,
   placeholder,
 }) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Native, because React's onWheel is passive and cannot stop the page
-  // scrolling. The scroll wheel spins whichever column the pointer is over and
-  // brings it to the front.
-  const wheelRef = useRef({ onWheelSteps, acc: 0 });
-  wheelRef.current.onWheelSteps = onWheelSteps;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const w = wheelRef.current;
-      const step =
-        e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 1 : WHEEL_PIXELS_PER_ROW;
-      w.acc += e.deltaY;
-      const steps = Math.trunc(w.acc / step);
-      if (steps === 0) return;
-      w.acc -= steps * step;
-      w.onWheelSteps(steps < 0 ? -1 : 1, Math.abs(steps));
-    };
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => el.removeEventListener("wheel", handleWheel);
-  }, []);
-
   const viewportPx = COLUMN_HEIGHT - listTop;
   const offset = listScrollOffset(cursor, count, rowHeight, viewportPx);
   const moreAbove = offset > 0;
@@ -151,7 +125,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
 
   return (
     <div
-      ref={ref}
+      data-wheel-column={column}
       onClick={() => {
         if (!active) onActivate();
       }}

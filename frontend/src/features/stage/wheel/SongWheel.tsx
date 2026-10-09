@@ -22,7 +22,7 @@
  * See docs/plans/2026-09-25-stage-song-wheel.md.
  */
 
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Loader2, Theater } from "lucide-react";
@@ -32,6 +32,7 @@ import WheelArtwork from "./WheelArtwork";
 import WheelColumn from "./WheelColumn";
 import { useSongWheel, type WheelFocusRequest } from "./useSongWheel";
 import { useWheelKeys } from "./useWheelKeys";
+import { useWheelPreview } from "./useWheelPreview";
 import {
   COLUMN,
   COLUMN_WIDTHS,
@@ -41,9 +42,12 @@ import {
   artistImageUrl,
   columnBrightness,
   columnSeats,
+  ringAngleFor,
+  routeWheelScroll,
   songHeroSources,
   tileInitial,
   type ColumnIndex,
+  type WheelScrollLock,
 } from "./wheelModel";
 
 const FRAME_W = 1600;
@@ -61,6 +65,8 @@ const STAGE_BOTTOM = 120;
  * the TV.
  */
 const SHOW_BACKDROP = true;
+/** One notch of a line-based mouse wheel, or this many pixels of a smooth one. */
+const WHEEL_PIXELS_PER_ROW = 50;
 
 interface SongWheelProps {
   /** Keys are live only while song select is the screen showing. */
@@ -93,6 +99,50 @@ function useFitScale(ref: React.RefObject<HTMLDivElement | null>) {
   return scale;
 }
 
+/**
+ * The mouse wheel, for the whole wheel rather than per column: a flick that
+ * starts over a column keeps scrolling it after the ring turns it out from
+ * under the pointer, even when the pointer is left over empty space (see
+ * routeWheelScroll). Native, because React's onWheel is passive and cannot
+ * stop the page scrolling.
+ */
+function useMouseWheel(
+  ref: React.RefObject<HTMLDivElement | null>,
+  scrollColumn: (col: ColumnIndex, dir: -1 | 1, steps: number) => void,
+) {
+  const latest = useRef(scrollColumn);
+  latest.current = scrollColumn;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let lock: WheelScrollLock | null = null;
+    let acc = 0;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const over = (e.target as Element | null)?.closest<HTMLElement>(
+        "[data-wheel-column]",
+      );
+      const hovered = over
+        ? (Number(over.dataset.wheelColumn) as ColumnIndex)
+        : null;
+      const route = routeWheelScroll(lock, hovered, performance.now());
+      lock = route.lock;
+      if (route.target === null) return;
+      if (route.started) acc = 0;
+
+      const step =
+        e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 1 : WHEEL_PIXELS_PER_ROW;
+      acc += e.deltaY;
+      const steps = Math.trunc(acc / step);
+      if (steps === 0) return;
+      acc -= steps * step;
+      latest.current(route.target, steps < 0 ? -1 : 1, Math.abs(steps));
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [ref]);
+}
+
 const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <kbd className="inline-grid h-[38px] min-w-[42px] place-items-center rounded-lg border border-b-[3px] border-border bg-surface px-2.5 font-display text-xl font-bold text-foreground">
     {children}
@@ -117,6 +167,8 @@ const SongWheel: React.FC<SongWheelProps> = ({
     onLeave: () => onLeave?.(),
   });
 
+  useMouseWheel(containerRef, wheel.scrollColumn);
+
   useWheelKeys({
     enabled: active,
     onScrollMs: setHeldScrollMs,
@@ -131,17 +183,24 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const scrollMs = reducedMotion ? 0 : (heldScrollMs ?? WHEEL_TUNING.scrollMs);
 
   // Pull the ring back by its radius so the front column sits at z=0 (true
-  // size), then turn it so the active column faces the room.
+  // size), then turn it so the active column faces the room - except the
+  // letter column, which grows where it is instead (see ringAngleFor).
   const { radiusPx } = WHEEL_TUNING;
-  const ringAngle = -SEATS[wheel.col];
-  const columnTransform = (i: ColumnIndex) =>
-    `rotateY(${SEATS[i]}deg) translateZ(${radiusPx}px) rotateY(${-(SEATS[i] + ringAngle)}deg)`;
+  const ringAngle = ringAngleFor(wheel.col, SEATS);
+  const columnTransform = (i: ColumnIndex) => {
+    const seat = `rotateY(${SEATS[i]}deg) translateZ(${radiusPx}px) rotateY(${-(SEATS[i] + ringAngle)}deg)`;
+    const grow = i === COLUMN.letter && wheel.col === COLUMN.letter;
+    return `${seat} scale(${grow ? WHEEL_TUNING.letterActiveScale : 1})`;
+  };
 
   const { artist, songs, col, settledArtist, settledSong } = wheel;
   const settledArtistImage = settledArtist
     ? artistImageUrl(settledArtist)
     : null;
   const songInFront = col === COLUMN.song && settledSong !== null;
+  useWheelPreview(
+    active && songInFront && !wheel.songPending ? settledSong : null,
+  );
   const backdropSources =
     songInFront && settledSong
       ? songHeroSources(settledSong)
@@ -171,8 +230,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
     scrollMs,
     onActivate: () => wheel.focusColumn(i),
     onRowClick: (index: number) => wheel.pickRow(i, index),
-    onWheelSteps: (dir: -1 | 1, steps: number) =>
-      wheel.scrollColumn(i, dir, steps),
+    column: i,
   });
 
   let body: React.ReactNode;
@@ -327,6 +385,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
               key="song-info"
               song={settledSong}
               pending={wheel.songPending}
+              onPick={wheel.enter}
               centerY={(STAGE_TOP + FRAME_H - STAGE_BOTTOM) / 2}
             />
           )}

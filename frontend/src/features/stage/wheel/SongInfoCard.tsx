@@ -2,7 +2,7 @@
  * SongInfoCard - what the song under the cursor is, on the right of the wheel.
  *
  * Shown only while the song column is at the front: the one time the right of
- * the screen is empty. It sits on the wheel's flat frame, beside the cylinder
+ * the screen is empty. Clicking it picks the song. It sits on the wheel's flat frame, beside the cylinder
  * rather than on it, so the ring's 3D transforms never touch it.
  *
  * Built around what the library actually has (see the coverage table in
@@ -34,6 +34,12 @@ interface SongInfoCardProps {
   pending: boolean;
   /** Frame pixels from the top to the card's centre line. */
   centerY: number;
+  /**
+   * A click on the card: picks the song under the cursor, the same as a click
+   * on its title. Guests click the card far more than the title, which
+   * doesn't look clickable once it is already the highlighted one.
+   */
+  onPick: () => void;
 }
 
 const LYRICS_TAG: Record<LyricsKind, [string, TagTone]> = {
@@ -68,6 +74,7 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
   song,
   pending,
   centerY,
+  onPick,
 }) => {
   const reducedMotion = useReducedMotion() ?? false;
   const slide = reducedMotion ? 0 : 24;
@@ -89,7 +96,8 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
   return (
     <motion.aside
       aria-label="Song details"
-      className="pointer-events-none absolute right-14 w-[400px] rounded-[20px] bg-surface/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,.5)] ring-1 ring-border/30"
+      onClick={onPick}
+      className="absolute right-14 w-[400px] cursor-pointer rounded-[20px] bg-surface/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,.5)] ring-1 ring-border/30 transition-shadow hover:ring-2 hover:ring-primary/60"
       style={{ top: centerY, y: "-50%" }}
       initial={{ opacity: 0, x: slide }}
       animate={{ opacity: 1, x: 0 }}
