@@ -65,8 +65,9 @@ class SongResponse(BaseModel):
     vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
 
     # Loudness normalization
-    loudnessDbfs: Optional[float] = None  # RMS loudness in dBFS
-    gainDb: Optional[float] = None  # Gain correction to reach -14 dBFS target
+    loudnessLufs: Optional[float] = None  # EBU R128 integrated loudness
+    truePeakDbtp: Optional[float] = None  # Loudest instant, in dB true peak
+    gainDb: Optional[float] = None  # Correction the player applies
 
     # AcoustID fingerprinting
     musicbrainzRecordingId: Optional[str] = None
@@ -145,7 +146,8 @@ class SongUpdateRequest(BaseModel):
     )
 
     # Audio analysis
-    loudnessDbfs: Optional[float] = Field(None, description="RMS loudness in dBFS")
+    loudnessLufs: Optional[float] = Field(None, description="EBU R128 integrated loudness")
+    truePeakDbtp: Optional[float] = Field(None, description="True peak in dBTP")
     gainDb: Optional[float] = Field(
         None, ge=-20, le=20, description="Gain correction in dB"
     )

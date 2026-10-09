@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.services.audio import detect_loudness, detect_vocal_range
+from app.services.audio import detect_vocal_range
 from celery.utils.log import get_task_logger
 
 from .celery_app import celery
@@ -34,15 +34,6 @@ def _run_post_processing(song_id: str, song_dir: Path) -> None:
                 update_kwargs["vocal_range_high"] = vocal_range[1]
     except Exception as e:
         logger.warning("Vocal range detection failed for song %s: %s", song_id, e)
-
-    try:
-        if instrumental_path.exists():
-            loudness_result = detect_loudness(instrumental_path, lambda msg: logger.debug("Loudness: %s", msg))
-            if loudness_result:
-                update_kwargs["loudness_dbfs"] = loudness_result[0]
-                update_kwargs["gain_db"] = loudness_result[1]
-    except Exception as e:
-        logger.warning("Loudness detection failed for song %s: %s", song_id, e)
 
     try:
         with get_db_session() as session:

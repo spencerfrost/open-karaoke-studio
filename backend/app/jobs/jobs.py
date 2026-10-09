@@ -24,6 +24,7 @@ from .batch_tasks import (
     batch_align_lyrics,
     batch_backfill_artwork,
     batch_backfill_duration,
+    batch_backfill_loudness,
     batch_backfill_vocal_range,
     batch_fingerprint_songs,
 )
@@ -163,6 +164,7 @@ __all__ = [
     "batch_align_lyrics",
     "batch_backfill_artwork",
     "batch_backfill_duration",
+    "batch_backfill_loudness",
     "batch_backfill_vocal_range",
     "batch_fingerprint_songs",
     "cleanup_old_jobs",

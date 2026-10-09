@@ -350,19 +350,28 @@ describe("useKaraokePlayerStore", () => {
     // fade node can be told apart from the loudness node.
     let gains: MockGain[] = [];
     let analysers: object[] = [];
+    type MockLimiter = {
+      threshold: { value: number };
+      knee: { value: number };
+      ratio: { value: number };
+      attack: { value: number };
+      release: { value: number };
+      connect: ReturnType<typeof vi.fn>;
+    };
+    let limiters: MockLimiter[] = [];
     // Typed loosely: the setup mock is not a full AudioContext, and neither
     // are the nodes the subclass below returns.
     const BaseAudioContext =
       globalThis.AudioContext as unknown as new () => object;
 
     const fadeNode = () => {
-      const analyser = analysers[analysers.length - 1];
+      const limiter = limiters[limiters.length - 1];
       const node = [...gains]
         .reverse()
         .find((g) =>
-          g.connect.mock.calls.some(([target]) => target === analyser),
+          g.connect.mock.calls.some(([target]) => target === limiter),
         );
-      if (!node) throw new Error("no gain node feeds the analyser");
+      if (!node) throw new Error("no gain node feeds the limiter");
       return node;
     };
 
@@ -376,6 +385,7 @@ describe("useKaraokePlayerStore", () => {
     beforeEach(() => {
       gains = [];
       analysers = [];
+      limiters = [];
       vi.stubGlobal(
         "AudioContext",
         class extends BaseAudioContext {
@@ -391,6 +401,18 @@ describe("useKaraokePlayerStore", () => {
               disconnect: vi.fn(),
             };
             gains.push(node);
+            return node;
+          });
+          createDynamicsCompressor = vi.fn(() => {
+            const node: MockLimiter = {
+              threshold: { value: -24 },
+              knee: { value: 30 },
+              ratio: { value: 12 },
+              attack: { value: 0.003 },
+              release: { value: 0.25 },
+              connect: vi.fn(),
+            };
+            limiters.push(node);
             return node;
           });
           createAnalyser = vi.fn(() => {
@@ -444,6 +466,21 @@ describe("useKaraokePlayerStore", () => {
       // The old song plays on underneath the fade.
       expect(usePlaybackStateStore.getState().songId).toBe("fade-song");
       expect(usePlaybackStateStore.getState().isPlaying).toBe(true);
+    });
+
+    it("passes everything through a limiter just under full scale before the analyser", async () => {
+      await startSong();
+
+      expect(limiters).toHaveLength(1);
+      const [limiter] = limiters;
+      expect(limiter.threshold.value).toBe(-1);
+      expect(limiter.ratio.value).toBe(20);
+      expect(limiter.knee.value).toBe(0);
+      expect(limiter.connect).toHaveBeenCalledWith(
+        analysers[analysers.length - 1],
+      );
+      // fadeNode() throws unless a gain node feeds the limiter.
+      expect(fadeNode().connect).toHaveBeenCalledWith(limiter);
     });
 
     it("loads the new song once the fade is done, at full volume", async () => {

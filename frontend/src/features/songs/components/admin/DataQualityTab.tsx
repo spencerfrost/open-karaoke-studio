@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import { Clock, Mic, ShieldAlert } from "lucide-react";
+import { Clock, Mic, ShieldAlert, Volume2 } from "lucide-react";
 import { SongActionPanel } from "./SongActionPanel";
 import { Song } from "@/types/Song";
 
@@ -109,6 +109,24 @@ export const DataQualityTab: React.FC = () => {
       );
     },
     onError: () => toast.error("Failed to queue vocal range backfill"),
+  });
+
+  const backfillLoudnessMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const res = await fetch(`/api/songs/backfill-loudness?mode=${mode}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to queue loudness backfill");
+      return res.json() as Promise<{ taskId: string; queued: number }>;
+    },
+    onSuccess: (data) => {
+      logger.info("Loudness backfill queued", data);
+      toast.success(
+        `Queued loudness measurement for ${data.queued} song${data.queued !== 1 ? "s" : ""}`,
+      );
+    },
+    onError: () => toast.error("Failed to queue loudness backfill"),
   });
 
   const handleDone = () => {
@@ -423,6 +441,42 @@ export const DataQualityTab: React.FC = () => {
             <Mic className="mr-2 h-4 w-4" />
             {backfillVocalRangeMutation.variables === "all" &&
             backfillVocalRangeMutation.isPending
+              ? "Queueing..."
+              : "Refresh All"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Loudness Backfill */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Loudness</h2>
+          <p className="text-sm text-muted-foreground">
+            Measure how loud each song plays (instrumental plus backing vocals)
+            and set the volume correction that evens songs out. Runs in the
+            background at a second or two per song.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => backfillLoudnessMutation.mutate("missing")}
+            disabled={backfillLoudnessMutation.isPending}
+          >
+            <Volume2 className="mr-2 h-4 w-4" />
+            {backfillLoudnessMutation.variables === "missing" &&
+            backfillLoudnessMutation.isPending
+              ? "Queueing..."
+              : "Backfill Missing"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => backfillLoudnessMutation.mutate("all")}
+            disabled={backfillLoudnessMutation.isPending}
+          >
+            <Volume2 className="mr-2 h-4 w-4" />
+            {backfillLoudnessMutation.variables === "all" &&
+            backfillLoudnessMutation.isPending
               ? "Queueing..."
               : "Refresh All"}
           </Button>

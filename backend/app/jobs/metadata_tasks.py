@@ -48,34 +48,49 @@ def fetch_song_artwork(song_id: str) -> dict:
     return {"status": "ok", "song_id": song_id}
 
 
-@celery.task(name="detect_song_loudness")
-def detect_song_loudness(song_id: str) -> dict:
-    """Measure loudness from original.mp3 and store gain correction value."""
-    logger.info("[PIPELINE] detect_song_loudness starting for song %s", song_id)
+def detect_and_store_loudness(song_id: str) -> str:
+    """Measure how loud a song plays by default and save its normalization gain.
+
+    Returns "ok", "silent", "no_audio" (no instrumental stem yet), or "error".
+    Shared by the per-song pipeline task and the library-wide backfill.
+    """
     from app.config import get_config
     from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
 
-    config = get_config()
-    audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
-
-    if not audio_path.exists():
-        logger.warning("detect_song_loudness: original.mp3 not found for song %s", song_id)
-        return {"status": "no_audio", "song_id": song_id}
-
+    song_dir = Path(get_config().BASE_LIBRARY_DIR) / song_id
     try:
-        result = detect_loudness(audio_path, lambda msg: logger.debug("Loudness: %s", msg))
+        result = detect_loudness(song_dir)
+    except FileNotFoundError:
+        logger.warning(
+            "detect_loudness: instrumental.mp3 not found for song %s", song_id
+        )
+        return "no_audio"
     except Exception:
-        logger.warning("detect_song_loudness: failed for song %s", song_id, exc_info=True)
-        return {"status": "error", "song_id": song_id}
+        logger.warning("detect_loudness: failed for song %s", song_id, exc_info=True)
+        return "error"
 
-    if result:
-        with get_db_session() as session:
-            from app.repositories.song_repository import SongRepository as _Repo
+    if result is None:
+        logger.warning(
+            "detect_loudness: song %s is silent, leaving its gain unset", song_id
+        )
+        return "silent"
 
-            _Repo(session).update(song_id, loudness_dbfs=result[0], gain_db=result[1])
-        logger.info("detect_song_loudness: %.2f dBFS (gain %.2f dB) for song %s", result[0], result[1], song_id)
+    with get_db_session() as session:
+        SongRepository(session).update(
+            song_id,
+            loudness_lufs=result.loudness_lufs,
+            true_peak_dbtp=result.true_peak_dbtp,
+            gain_db=result.gain_db,
+        )
+    return "ok"
 
-    return {"status": "ok", "song_id": song_id}
+
+@celery.task(name="detect_song_loudness")
+def detect_song_loudness(song_id: str) -> dict:
+    """Measure the separated stems' loudness and store the gain the player applies."""
+    logger.info("[PIPELINE] detect_song_loudness starting for song %s", song_id)
+    return {"status": detect_and_store_loudness(song_id), "song_id": song_id}
 
 
 def detect_and_store_vocal_range(song_id: str) -> str:

@@ -1,10 +1,13 @@
+import json
 import logging
+import math
 import os
 import re
+import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
 
 import librosa
 import numpy as np
@@ -12,7 +15,6 @@ import torch
 from app.config import get_config
 from demucs.api import Separator
 from demucs.audio import save_audio
-from pydub import AudioSegment
 
 from . import file_management
 
@@ -233,48 +235,113 @@ def detect_vocal_range(
         return None
 
 
-_LOUDNESS_TARGET_DBFS = -14.0
-_LOUDNESS_GAIN_MAX_DB = 12.0
+# Loudness is measured on the stems the player plays by default: lead vocal off,
+# backing vocals and instrumental at full level.
+_LOUDNESS_TARGET_LUFS = -16.0
+# Never boost a song so far that its loudest instant passes this level.
+_LOUDNESS_PEAK_CEILING_DBTP = -1.0
+# Guards against a bad measurement producing an absurd correction.
+_LOUDNESS_GAIN_LIMIT_DB = 12.0
+# Below this the audio is silence (EBU R128 gates out everything under -70 LUFS).
+_LOUDNESS_SILENCE_LUFS = -70.0
+_LOUDNESS_FFMPEG_TIMEOUT_SECONDS = 300
 
 
-def detect_loudness(
-    audio_path: Path,
-    status_callback: Callable[[str], None],
-) -> Optional[Tuple[float, float]]:
+class LoudnessResult(NamedTuple):
+    loudness_lufs: float
+    true_peak_dbtp: float
+    gain_db: float
+
+
+def compute_normalization_gain(loudness_lufs: float, true_peak_dbtp: float) -> float:
+    """Gain in dB that brings a song to the loudness target without pushing its peak past the ceiling."""
+    gain = _LOUDNESS_TARGET_LUFS - loudness_lufs
+    gain = min(gain, _LOUDNESS_PEAK_CEILING_DBTP - true_peak_dbtp)
+    return max(-_LOUDNESS_GAIN_LIMIT_DB, min(_LOUDNESS_GAIN_LIMIT_DB, gain))
+
+
+def parse_loudnorm_output(stderr: str) -> Optional[Tuple[float, float]]:
     """
-    Measure the RMS loudness of an audio file and compute a normalization gain.
+    Read integrated loudness and true peak from ffmpeg's loudnorm JSON summary.
 
-    Args:
-        audio_path: Path to the audio file (MP3 or WAV)
-        status_callback: Function to call with status updates
-
-    Returns:
-        Tuple of (loudness_dbfs, gain_db) or None if detection fails.
-        loudness_dbfs: RMS loudness relative to full scale (e.g. -20.0)
-        gain_db: dB gain needed to reach -14 dBFS target, clamped to ±12 dB
+    Returns (loudness_lufs, true_peak_dbtp), or None when the audio is silent.
+    Raises ValueError when the output has no readable summary.
     """
-    try:
-        status_callback("Detecting loudness...")
-        audio = AudioSegment.from_file(str(audio_path))
-        loudness_dbfs = audio.dBFS
-        if loudness_dbfs == float("-inf"):
-            # Silent file — skip normalization
-            status_callback("Warning: Silent audio file, skipping loudness detection")
-            return None
-        raw_gain = _LOUDNESS_TARGET_DBFS - loudness_dbfs
-        gain_db = max(-_LOUDNESS_GAIN_MAX_DB, min(_LOUDNESS_GAIN_MAX_DB, raw_gain))
-        status_callback(f"Loudness detected: {loudness_dbfs:.1f} dBFS (gain: {gain_db:+.1f} dB)")
-        logger.info(
-            "Loudness detection complete: %.1f dBFS, gain correction: %+.1f dB",
-            loudness_dbfs,
-            gain_db,
-        )
-        return loudness_dbfs, gain_db
-    except Exception as e:
-        error_msg = f"Loudness detection failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        status_callback(f"Warning: {error_msg}")
+    start = stderr.rfind("{")
+    end = stderr.rfind("}")
+    if start == -1 or end < start:
+        raise ValueError("ffmpeg loudnorm output has no JSON summary")
+    summary = json.loads(stderr[start : end + 1])
+    loudness_lufs = float(summary["input_i"])
+    true_peak_dbtp = float(summary["input_tp"])
+    if not math.isfinite(loudness_lufs) or loudness_lufs < _LOUDNESS_SILENCE_LUFS:
         return None
+    if not math.isfinite(true_peak_dbtp):
+        return None
+    return loudness_lufs, true_peak_dbtp
+
+
+def _loudnorm_command(stem_paths: list[Path]) -> list[str]:
+    command = ["ffmpeg", "-hide_banner", "-nostats"]
+    for path in stem_paths:
+        command += ["-i", str(path)]
+    analysis = "loudnorm=print_format=json"
+    if len(stem_paths) == 1:
+        command += ["-af", analysis]
+    else:
+        # normalize=0 sums the stems at full level, as the player does. amix's
+        # default scales each input down, which would read about 6 dB low.
+        command += [
+            "-filter_complex",
+            f"amix=inputs={len(stem_paths)}:normalize=0,{analysis}",
+        ]
+    return command + ["-f", "null", "-"]
+
+
+def detect_loudness(song_dir: Path) -> Optional[LoudnessResult]:
+    """
+    Measure how loud a song plays by default and compute its normalization gain.
+
+    Measures instrumental.mp3, summed with backing_vocals.mp3 when the song has
+    one, using EBU R128 integrated loudness and true peak.
+
+    Returns None when the audio is silent.
+    Raises FileNotFoundError when there is no instrumental stem, and
+    RuntimeError or ValueError when ffmpeg fails or its output can't be read.
+    """
+    instrumental_path = song_dir / "instrumental.mp3"
+    backing_path = song_dir / "backing_vocals.mp3"
+    if not instrumental_path.exists():
+        raise FileNotFoundError(instrumental_path)
+    stem_paths = [instrumental_path]
+    if backing_path.exists():
+        stem_paths.append(backing_path)
+
+    completed = subprocess.run(
+        _loudnorm_command(stem_paths),
+        capture_output=True,
+        text=True,
+        timeout=_LOUDNESS_FFMPEG_TIMEOUT_SECONDS,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg loudnorm failed ({completed.returncode}): {completed.stderr[-500:]}"
+        )
+
+    measured = parse_loudnorm_output(completed.stderr)
+    if measured is None:
+        return None
+    loudness_lufs, true_peak_dbtp = measured
+    gain_db = compute_normalization_gain(loudness_lufs, true_peak_dbtp)
+    logger.info(
+        "Loudness: %.1f LUFS, true peak %.1f dBTP, gain %+.1f dB (%d stem(s))",
+        loudness_lufs,
+        true_peak_dbtp,
+        gain_db,
+        len(stem_paths),
+    )
+    return LoudnessResult(loudness_lufs, true_peak_dbtp, gain_db)
 
 
 def save_stem(

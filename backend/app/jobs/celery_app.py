@@ -60,6 +60,7 @@ celery.conf.update(
         "batch_backfill_artwork": {"queue": "enrichment"},
         "batch_backfill_duration": {"queue": "enrichment"},
         "batch_backfill_vocal_range": {"queue": "enrichment"},
+        "batch_backfill_loudness": {"queue": "enrichment"},
         "batch_align_lyrics": {"queue": "enrichment"},
         "post_process_song": {"queue": "enrichment"},
     },

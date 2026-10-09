@@ -27,6 +27,10 @@ const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
 const languageName = (code: string) => languageNames.of(code) ?? code;
 
+// "+3.2 dB" / "-6.2 dB" / "0.0 dB"
+const formatSignedDb = (db: number) =>
+  `${Number(db.toFixed(1)) > 0 ? "+" : ""}${db.toFixed(1)} dB`;
+
 interface DetailsTabProps {
   song: Song;
 }
@@ -212,13 +216,21 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
             </div>
           )}
 
-          {song.loudnessDbfs != null && (
+          {song.loudnessLufs != null && (
             <div className="flex justify-between text-sm py-1 border-b">
               <span className="text-muted-foreground">Loudness</span>
               <span>
-                {song.loudnessDbfs.toFixed(1)} dBFS
-                {song.gainDb != null && ` (+${song.gainDb.toFixed(1)} dB gain)`}
+                {song.loudnessLufs.toFixed(1)} LUFS
+                {song.truePeakDbtp != null &&
+                  ` · peak ${song.truePeakDbtp.toFixed(1)} dBTP`}
               </span>
+            </div>
+          )}
+
+          {song.gainDb != null && (
+            <div className="flex justify-between text-sm py-1 border-b">
+              <span className="text-muted-foreground">Volume correction</span>
+              <span>{formatSignedDb(song.gainDb)}</span>
             </div>
           )}
 

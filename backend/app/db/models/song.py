@@ -59,8 +59,10 @@ class DbSong(Base):
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
     vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
     vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
-    loudness_dbfs = Column(Float, nullable=True)  # RMS loudness in dBFS (e.g. -20.0)
-    gain_db = Column(Float, nullable=True)        # Gain correction to reach -14 dBFS target
+    # Measured on the stems as played by default (no lead vocal); see services/audio.py
+    loudness_lufs = Column(Float, nullable=True)   # EBU R128 integrated loudness
+    true_peak_dbtp = Column(Float, nullable=True)  # Loudest instant, in dB true peak
+    gain_db = Column(Float, nullable=True)         # Correction the player applies
 
     # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")
@@ -145,7 +147,8 @@ class DbSong(Base):
             "engineType": self.engine_type,
             "vocalRangeLow": self.vocal_range_low,
             "vocalRangeHigh": self.vocal_range_high,
-            "loudnessDbfs": self.loudness_dbfs,
+            "loudnessLufs": self.loudness_lufs,
+            "truePeakDbtp": self.true_peak_dbtp,
             "gainDb": self.gain_db,
             # AcoustID fingerprinting
             "musicbrainzRecordingId": self.musicbrainz_recording_id,

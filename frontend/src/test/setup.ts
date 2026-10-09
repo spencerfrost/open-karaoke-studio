@@ -68,6 +68,15 @@ class AudioContextMock {
     connect: vi.fn().mockReturnThis(),
   });
 
+  createDynamicsCompressor = vi.fn().mockReturnValue({
+    threshold: { value: -24 },
+    knee: { value: 30 },
+    ratio: { value: 12 },
+    attack: { value: 0.003 },
+    release: { value: 0.25 },
+    connect: vi.fn().mockReturnThis(),
+  });
+
   createAnalyser = vi.fn().mockReturnValue({
     fftSize: 256,
     frequencyBinCount: 128,

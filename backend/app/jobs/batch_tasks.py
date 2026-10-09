@@ -172,6 +172,47 @@ def batch_backfill_vocal_range(mode: str = "missing") -> dict:
     }
 
 
+@celery.task(name="batch_backfill_loudness")
+def batch_backfill_loudness(mode: str = "missing") -> dict:
+    """Batch task: measure each song's loudness from its stems and store its gain.
+
+    Runs songs one after another inside this single task (a second or two each)
+    rather than fanning out per-song tasks, so new downloads can still
+    post-process alongside it. Each song is saved as it finishes, so re-running
+    with mode="missing" resumes.
+    """
+    from app.db.database import get_db_session
+    from app.db.models.song import DbSong
+
+    from .metadata_tasks import detect_and_store_loudness
+
+    with get_db_session() as session:
+        query = session.query(DbSong.id)
+        if mode == "missing":
+            query = query.filter(DbSong.loudness_lufs.is_(None))
+        song_ids = [row[0] for row in query.all()]
+
+    logger.info(
+        "batch_backfill_loudness: processing %d songs (mode=%s)", len(song_ids), mode
+    )
+
+    counts = {"ok": 0, "silent": 0, "no_audio": 0, "error": 0}
+    for i, song_id in enumerate(song_ids, 1):
+        counts[detect_and_store_loudness(song_id)] += 1
+        if i % 25 == 0:
+            logger.info(
+                "batch_backfill_loudness: %d/%d done %s", i, len(song_ids), counts
+            )
+
+    logger.info("batch_backfill_loudness: done — %s", counts)
+    return {
+        "processed": len(song_ids),
+        "success": counts["ok"],
+        "skipped": counts["silent"] + counts["no_audio"] + counts["error"],
+        **counts,
+    }
+
+
 @celery.task(name="batch_align_lyrics")
 def batch_align_lyrics(mode: str = "missing") -> dict:
     """Batch task: queue align_song_lyrics for every song a `mode` run selects.

@@ -77,6 +77,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   let vocalGain: GainNode | null = null;
   let backingVocalGain: GainNode | null = null;
   let analyser: AnalyserNode | null = null;
+  // Safety ceiling between the fade node and the analyser; see setupLimiter.
+  let limiter: DynamicsCompressorNode | null = null;
   let animationFrameId: number | null = null;
   let websocketInterval: number | null = null;
 
@@ -99,6 +101,23 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   } | null = null;
 
   // --- Audio graph helpers ---
+  /**
+   * A safety ceiling just under full scale. The stored per-song gain already
+   * keeps peaks below it; this catches what that can't predict, such as the
+   * lead vocal turned up or songs that haven't been measured yet. Reused for
+   * the life of the audio context, like the analyser.
+   */
+  function setupLimiter() {
+    if (!limiter && audioContext) {
+      limiter = audioContext.createDynamicsCompressor();
+      limiter.threshold.value = -1;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.1;
+    }
+  }
+
   function setupAnalyser() {
     if (!analyser && audioContext) {
       analyser = audioContext.createAnalyser();
@@ -226,7 +245,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     backingVocalGain = audioContext.createGain();
     backingVocalGain.gain.value = volumes.backing;
 
-    // Create or reuse the analyser node
+    // Create or reuse the limiter and analyser nodes
+    setupLimiter();
     setupAnalyser();
 
     // Create normalization gain node (converts dB to linear amplitude)
@@ -239,7 +259,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     fadeGainNode = audioContext.createGain();
     fadeGainNode.gain.value = 1;
 
-    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> FadeGain -> Analyser -> Destination
+    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> FadeGain -> Limiter -> Analyser -> Destination
     instrumentalPlayer.connect(instrumentalGain);
     vocalPlayer.connect(vocalGain);
     instrumentalGain.connect(normalizationGainNode);
@@ -249,7 +269,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       backingVocalGain.connect(normalizationGainNode);
     }
     normalizationGainNode.connect(fadeGainNode);
-    fadeGainNode.connect(analyser!);
+    fadeGainNode.connect(limiter!);
+    limiter!.connect(analyser!);
     analyser!.connect(audioContext.destination);
 
     // Handle playback end - use instrumental track as the reference
@@ -326,6 +347,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       fadeGainNode.disconnect();
       fadeGainNode = null;
     }
+    limiter = null;
     analyser = null;
     clearIntervals();
     playbackStartTime = null;

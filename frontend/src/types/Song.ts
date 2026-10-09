@@ -64,8 +64,10 @@ export interface Song {
   vocalRangeHigh?: string; // Highest note detected, e.g. "E5"
 
   // Loudness normalization
-  loudnessDbfs?: number; // RMS loudness in dBFS (e.g. -20.0)
-  gainDb?: number; // Gain correction to reach -14 dBFS target
+  // Measured on the stems as played by default (no lead vocal)
+  loudnessLufs?: number; // EBU R128 integrated loudness, e.g. -9.8
+  truePeakDbtp?: number; // Loudest instant in dB true peak, e.g. -0.3
+  gainDb?: number; // Correction the player applies, e.g. -6.2
 
   status: SongStatus;
   errorMessage?: string; // Failure reason when status="error"

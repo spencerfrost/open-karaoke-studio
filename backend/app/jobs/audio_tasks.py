@@ -171,7 +171,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         _broadcast_job_event(job)
 
         celery.send_task("post_process_song", args=[song_id])
-        logger.debug("Dispatched post_process_song for song %s", song_id)
+        celery.send_task("detect_song_loudness", args=[song_id])
+        logger.debug("Dispatched post_process_song + detect_song_loudness for song %s", song_id)
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 
@@ -330,9 +331,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             update_progress(12, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING)
 
             celery.send_task("fingerprint_single_song", args=[song_id])
-            celery.send_task("detect_song_loudness", args=[song_id])
             celery.send_task("prefetch_song_lyrics", args=[song_id])
-            logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
+            logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song for song %s", song_id)
             logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
 
         if not original_file.exists():
@@ -391,6 +391,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 repo.update(song_id, **update_fields)
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
+
+        # Loudness is measured on the stems, so it waits for separation.
+        celery.send_task("detect_song_loudness", args=[song_id])
+        logger.debug("[PIPELINE] separation done — dispatched detect_song_loudness for song %s", song_id)
 
         job.status = JobStatus.COMPLETED
         job.progress = 100

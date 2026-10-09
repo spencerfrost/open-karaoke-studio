@@ -1465,6 +1465,30 @@ async def backfill_duration_endpoint(
     return {"taskId": task.id, "queued": queued}
 
 
+@router.post("/backfill-loudness", status_code=202)
+async def backfill_loudness_endpoint(
+    mode: str = Query(
+        "missing",
+        description="'missing' to measure only songs without a loudness value, 'all' to re-measure every song",
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Dispatch a Celery task to measure each song's loudness and store its playback gain."""
+    if mode not in ("missing", "all"):
+        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
+
+    from app.jobs.jobs import batch_backfill_loudness
+
+    query = db.query(DbSong.id)
+    if mode == "missing":
+        query = query.filter(DbSong.loudness_lufs.is_(None))
+    queued = query.count()
+
+    task = batch_backfill_loudness.delay(mode=mode)
+    return {"taskId": task.id, "queued": queued}
+
+
 @router.post("/backfill-vocal-range", status_code=202)
 async def backfill_vocal_range_endpoint(
     mode: str = Query(
@@ -1876,7 +1900,8 @@ def _restart_youtube_processing(
         musicbrainz_recording_id=None,
         vocal_range_low=None,
         vocal_range_high=None,
-        loudness_dbfs=None,
+        loudness_lufs=None,
+        true_peak_dbtp=None,
         gain_db=None,
         engine_type=None,
     )
@@ -2021,7 +2046,8 @@ async def replace_song_upload(
         musicbrainz_recording_id=None,
         vocal_range_low=None,
         vocal_range_high=None,
-        loudness_dbfs=None,
+        loudness_lufs=None,
+        true_peak_dbtp=None,
         gain_db=None,
         engine_type=None,
     )
