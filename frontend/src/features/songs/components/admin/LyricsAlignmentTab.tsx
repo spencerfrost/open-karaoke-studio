@@ -7,16 +7,24 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { createLogger } from "@/lib/logger";
 import { toast } from "sonner";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Mic2,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { CheckCircle2, Clock, Mic2, RefreshCw, Loader2 } from "lucide-react";
 
 const logger = createLogger("component:LyricsAlignmentTab");
+
+type RepairReason =
+  | "no_word_timing"
+  | "plain_only"
+  | "plain_timing"
+  | "words_mismatch"
+  | "reported";
+
+const REPAIR_REASON_LABEL: Record<RepairReason, string> = {
+  no_word_timing: "Synced lyrics, no word timing",
+  plain_only: "Plain lyrics only",
+  plain_timing: "Timed against plain lyrics",
+  words_mismatch: "Word timing doesn't match the lyrics",
+  reported: "Reported by a singer",
+};
 
 interface AlignmentStatus {
   total: number;
@@ -24,42 +32,41 @@ interface AlignmentStatus {
   aligned: number;
   needsAlignment: number;
   noLyrics: number;
+  repair: number;
+  repairReasons: Record<RepairReason, number>;
 }
 
 interface SongResult {
   songId: string;
   title: string;
-  status: "activated" | "low_confidence" | "failed";
-  meanScore?: number;
-  wordCount?: number;
-  sourceType?: "synced" | "plain";
-  reason?: string;
+  status: "queued" | "already_running";
+  reasons: RepairReason[];
 }
 
 interface BatchResult {
-  processed: number;
-  activated: number;
-  failed: number;
+  mode: RunMode;
+  selected: number;
+  queued: number;
+  alreadyRunning: number;
   skipped: number;
+  reasons: Record<RepairReason, number>;
   results: SongResult[];
 }
 
-const STATUS_ICON: Record<SongResult["status"], React.ReactNode> = {
-  activated: <CheckCircle2 className="h-4 w-4 text-success-strong shrink-0" />,
-  low_confidence: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />,
-  failed: <XCircle className="h-4 w-4 text-destructive-strong shrink-0" />,
+type RunMode = "missing" | "repair" | "all";
+
+const MODE_LABEL: Record<RunMode, string> = {
+  missing: "Missing only",
+  repair: "Needs repair",
+  all: "Re-run all",
 };
 
-const STATUS_BADGE: Record<SongResult["status"], string> = {
-  activated: "border-success/50 text-success-strong",
-  low_confidence: "border-amber-500 text-amber-600",
-  failed: "border-destructive/50 text-destructive-strong",
-};
-
-const STATUS_LABEL: Record<SongResult["status"], string> = {
-  activated: "Activated",
-  low_confidence: "Low confidence",
-  failed: "Failed",
+const MODE_DESCRIPTION: Record<RunMode, string> = {
+  missing:
+    "Songs without word-level lyrics, including songs with no lyrics yet.",
+  repair:
+    "Songs whose lyrics or word timing look wrong, or that a singer reported.",
+  all: "Every song with vocals, including already-aligned ones.",
 };
 
 type TaskState = "idle" | "dispatched" | "running" | "done" | "error";
@@ -67,7 +74,7 @@ type TaskState = "idle" | "dispatched" | "running" | "done" | "error";
 export const LyricsAlignmentTab: React.FC = () => {
   const { token } = useAuthStore();
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
-  const [mode, setMode] = useState<"missing" | "all">("missing");
+  const [mode, setMode] = useState<RunMode>("missing");
   const [taskId, setTaskId] = useState<string | null>(null);
   const [taskState, setTaskState] = useState<TaskState>("idle");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -108,17 +115,15 @@ export const LyricsAlignmentTab: React.FC = () => {
           setTaskState("done");
           setBatchResult(data.result);
           statusQuery.refetch();
-          logger.info("Batch alignment complete", data.result);
-          if (data.result.activated > 0) {
+          logger.info("Batch alignment queued", data.result);
+          if (data.result.queued > 0) {
             toast.success(
-              `Activated ${data.result.activated} song${data.result.activated !== 1 ? "s" : ""} with word-level lyrics`,
+              `Queued ${data.result.queued} song${data.result.queued !== 1 ? "s" : ""} for lyrics alignment`,
             );
-          } else if (data.result.processed === 0) {
+          } else if (data.result.selected === 0) {
             toast.info("No songs needed alignment");
           } else {
-            toast.warning(
-              `Processed ${data.result.processed} songs — ${data.result.failed} failed, ${data.result.activated} activated`,
-            );
+            toast.info("Every selected song is already aligning");
           }
         } else if (data.state === "FAILURE") {
           stopPolling();
@@ -153,6 +158,12 @@ export const LyricsAlignmentTab: React.FC = () => {
 
   const isRunning = taskState === "dispatched" || taskState === "running";
   const status = statusQuery.data;
+  const modeCount: Record<RunMode, number | undefined> = {
+    missing: status && status.withVocals - status.aligned,
+    repair: status?.repair,
+    all: status?.withVocals,
+  };
+  const runCount = modeCount[mode];
 
   return (
     <div className="space-y-6">
@@ -161,8 +172,8 @@ export const LyricsAlignmentTab: React.FC = () => {
         <div>
           <h2 className="text-lg font-semibold">Lyrics Alignment</h2>
           <p className="text-sm text-muted-foreground">
-            Generate word-level synced lyrics for songs using WhisperX forced
-            alignment.
+            Re-run lyrics alignment for many songs at once. Each song is queued
+            as its own job, the same way a newly added song is aligned.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -192,8 +203,36 @@ export const LyricsAlignmentTab: React.FC = () => {
           <StatCard
             label="Needs alignment"
             value={status.needsAlignment}
-            className={status.needsAlignment > 0 ? "text-amber-600" : undefined}
+            className={
+              status.needsAlignment > 0 ? "text-warning-strong" : undefined
+            }
           />
+          <StatCard
+            label="Needs repair"
+            value={status.repair}
+            className={status.repair > 0 ? "text-warning-strong" : undefined}
+          />
+        </div>
+      )}
+
+      {status && status.repair > 0 && (
+        <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+          <p className="mb-2 font-medium">Why songs need repair</p>
+          <ul className="space-y-1 text-muted-foreground">
+            {(Object.keys(REPAIR_REASON_LABEL) as RepairReason[])
+              .filter((reason) => status.repairReasons[reason] > 0)
+              .map((reason) => (
+                <li key={reason} className="flex justify-between gap-4">
+                  <span>{REPAIR_REASON_LABEL[reason]}</span>
+                  <span className="tabular-nums">
+                    {status.repairReasons[reason]}
+                  </span>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">
+            A song can be listed under more than one reason.
+          </p>
         </div>
       )}
 
@@ -204,34 +243,26 @@ export const LyricsAlignmentTab: React.FC = () => {
         <div className="space-y-1">
           <p className="text-sm font-medium">Run batch alignment</p>
           <p className="text-xs text-muted-foreground">
-            {mode === "missing"
-              ? "Only processes songs without word-level lyrics. Skips already-aligned songs."
-              : "Re-runs alignment on all songs with vocals, including already-aligned ones."}
+            {MODE_DESCRIPTION[mode]}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <Button
-            variant={mode === "missing" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMode("missing")}
-          >
-            Missing only
-          </Button>
-          <Button
-            variant={mode === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMode("all")}
-          >
-            Re-run all
-          </Button>
+          {(Object.keys(MODE_LABEL) as RunMode[]).map((m) => (
+            <Button
+              key={m}
+              variant={mode === m ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMode(m)}
+            >
+              {MODE_LABEL[m]}
+            </Button>
+          ))}
         </div>
       </div>
 
       <Button
         onClick={handleRun}
-        disabled={
-          isRunning || (mode === "missing" && status?.needsAlignment === 0)
-        }
+        disabled={isRunning || runCount === 0}
         className="w-full sm:w-auto"
       >
         {isRunning ? (
@@ -242,10 +273,8 @@ export const LyricsAlignmentTab: React.FC = () => {
         {taskState === "dispatched"
           ? "Dispatching…"
           : taskState === "running"
-            ? "Aligning… (check back in a moment)"
-            : mode === "missing"
-              ? `Align ${status?.needsAlignment ?? "…"} unaligned song${status?.needsAlignment !== 1 ? "s" : ""}`
-              : `Re-align all ${status?.withVocals ?? "…"} songs`}
+            ? "Queueing songs…"
+            : `Align ${runCount ?? "…"} song${runCount !== 1 ? "s" : ""}`}
       </Button>
 
       {/* In-flight indicator */}
@@ -265,17 +294,13 @@ export const LyricsAlignmentTab: React.FC = () => {
         <div className="space-y-3">
           <Separator />
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-            <span>{batchResult.processed} processed</span>
-            <span>·</span>
             <span className="font-medium text-success-strong">
-              {batchResult.activated} activated
+              {batchResult.queued} queued
             </span>
-            {batchResult.failed > 0 && (
+            {batchResult.alreadyRunning > 0 && (
               <>
                 <span>·</span>
-                <span className="font-medium text-destructive-strong">
-                  {batchResult.failed} failed
-                </span>
+                <span>{batchResult.alreadyRunning} already aligning</span>
               </>
             )}
             {batchResult.skipped > 0 && (
@@ -285,6 +310,12 @@ export const LyricsAlignmentTab: React.FC = () => {
               </>
             )}
           </div>
+          {batchResult.queued > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Songs align one after another in the background, up to a minute or
+              more each. Refresh the counts above to see progress.
+            </p>
+          )}
 
           {batchResult.results.length > 0 && (
             <div className="divide-y rounded-lg border max-h-96 overflow-y-auto">
@@ -293,38 +324,24 @@ export const LyricsAlignmentTab: React.FC = () => {
                   key={r.songId}
                   className="flex items-center gap-3 px-4 py-2.5"
                 >
-                  {STATUS_ICON[r.status]}
+                  {r.status === "queued" ? (
+                    <CheckCircle2 className="h-4 w-4 text-success-strong shrink-0" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{r.title}</p>
-                    {r.status === "failed" && r.reason && (
+                    {r.reasons.length > 0 && (
                       <p className="text-xs text-muted-foreground truncate">
-                        {r.reason}
+                        {r.reasons
+                          .map((reason) => REPAIR_REASON_LABEL[reason])
+                          .join(" · ")}
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {r.meanScore !== undefined && (
-                      <span className="text-xs text-muted-foreground">
-                        {r.meanScore.toFixed(3)}
-                      </span>
-                    )}
-                    {r.wordCount !== undefined && (
-                      <span className="text-xs text-muted-foreground">
-                        {r.wordCount}w
-                      </span>
-                    )}
-                    {r.sourceType && (
-                      <Badge variant="outline" className="text-xs opacity-60">
-                        {r.sourceType}
-                      </Badge>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${STATUS_BADGE[r.status]}`}
-                    >
-                      {STATUS_LABEL[r.status]}
-                    </Badge>
-                  </div>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {r.status === "queued" ? "Queued" : "Already aligning"}
+                  </Badge>
                 </div>
               ))}
             </div>

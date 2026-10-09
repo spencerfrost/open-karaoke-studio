@@ -573,58 +573,55 @@ async def undo_lyrics_report(
 async def batch_align_status(db: Session = Depends(get_db)):
     """
     Return library-wide alignment statistics without running any processing.
+
+    `repair` counts the songs a `repair` run would queue, and `repairReasons`
+    how many of them have each reason (a song can have several).
     """
-    file_service = FileService()
-    all_songs = SongRepository(db).fetch_all()
+    from app.db.models import DbSong
+    from app.services.lyrics_repair import count_reasons, select_songs_for_alignment
 
-    total = len(all_songs)
-    with_vocals = 0
-    aligned = 0
-    needs_alignment = 0
-    no_lyrics = 0
-
-    for song in all_songs:
-        vocals_path = file_service.get_vocals_path(song.id, ".mp3")
-        if not vocals_path.exists():
-            continue
-        with_vocals += 1
-
-        if song.word_synced_lyrics:
-            aligned += 1
-        elif song.synced_lyrics or song.plain_lyrics:
-            needs_alignment += 1
-        else:
-            no_lyrics += 1
+    selected, with_vocals = select_songs_for_alignment(db, "all")
+    needs_repair = [(song, reasons) for song, reasons in selected if reasons]
 
     return {
-        "total": total,
+        "total": db.query(DbSong).count(),
         "withVocals": with_vocals,
-        "aligned": aligned,
-        "needsAlignment": needs_alignment,
-        "noLyrics": no_lyrics,
+        "aligned": sum(1 for song, _ in selected if song.word_synced_lyrics),
+        "needsAlignment": sum(
+            1 for song, _ in selected if not song.word_synced_lyrics and (song.synced_lyrics or song.plain_lyrics)
+        ),
+        "noLyrics": sum(
+            1 for song, _ in selected if not (song.word_synced_lyrics or song.synced_lyrics or song.plain_lyrics)
+        ),
+        "repair": len(needs_repair),
+        "repairReasons": count_reasons(needs_repair),
     }
 
 
 @router.post("/batch/align", status_code=202, response_model=dict)
 async def batch_align_songs(
-    mode: str = Query("missing", description="'missing' = only unaligned songs, 'all' = re-run everyone"),
-    language: str = Query("en", description="BCP-47 language code"),
+    mode: str = Query(
+        "missing",
+        description="'missing' = songs without word timings, 'repair' = songs whose lyrics need a re-run, "
+        "'all' = every song with vocals",
+    ),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Dispatch a Celery task to run forced alignment across the library.
+    Dispatch a Celery task that queues lyrics alignment for each selected song.
 
     Returns immediately with a taskId. Poll GET /batch/align/status/{taskId}
-    to check progress and retrieve results when the task completes.
+    for the songs it queued; each song then runs as its own alignment job.
     """
     from app.jobs.jobs import batch_align_lyrics
+    from app.services.lyrics_repair import ALIGNMENT_RUN_MODES
 
-    if mode not in ("missing", "all"):
-        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
+    if mode not in ALIGNMENT_RUN_MODES:
+        raise HTTPException(status_code=400, detail="mode must be 'missing', 'repair' or 'all'")
 
-    task = batch_align_lyrics.delay(mode=mode, language=language)
+    task = batch_align_lyrics.delay(mode=mode)
     logger.info("Dispatched batch_align_lyrics task %s (mode=%s)", task.id, mode)
-    return {"taskId": task.id, "status": "dispatched", "mode": mode, "language": language}
+    return {"taskId": task.id, "status": "dispatched", "mode": mode}
 
 
 @router.get("/batch/align/status/{task_id}", response_model=dict)

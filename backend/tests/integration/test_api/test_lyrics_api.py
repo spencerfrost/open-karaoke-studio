@@ -343,3 +343,81 @@ def test_report_was_wrong_without_kept_lyrics_still_lifts_the_rejection(client):
 
 def test_undoing_an_unknown_report_is_not_found(client):
     assert client.post("/api/lyrics/reports/999999/undo").status_code == 404
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Library-wide alignment runs
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@contextmanager
+def _vocals_only_for(*song_ids):
+    """Only these songs have vocals, so other tests' songs stay out of the counts."""
+    with patch("app.services.lyrics_repair.FileService") as mock_files:
+        mock_files.return_value.get_vocals_path.side_effect = lambda song_id, ext: SimpleNamespace(
+            exists=lambda: song_id in song_ids
+        )
+        yield
+
+
+def test_alignment_stats_count_songs_needing_repair_by_reason(client):
+    import json
+
+    synced_only = _song_with_lyrics(client)
+    aligned = _song_with_lyrics(client)
+    plain_aligned = _song_with_lyrics(client)
+    db = _TestingSessionLocal()
+    db.get(DbSong, aligned).word_synced_lyrics = json.dumps(
+        {
+            "words": [
+                {"word": "Blackbird", "start": 1.0, "end": 1.4, "score": 0.9, "line_index": 0},
+                {"word": "singing", "start": 1.4, "end": 1.9, "score": 0.9, "line_index": 0},
+            ],
+            "lyrics_source_type": "synced",
+        }
+    )
+    db.get(DbSong, plain_aligned).word_synced_lyrics = json.dumps(
+        {"words": [], "lyrics_source_type": "plain"}
+    )
+    db.commit()
+    db.close()
+
+    with _vocals_only_for(synced_only, aligned, plain_aligned):
+        resp = client.get("/api/lyrics/batch/align")
+
+    assert resp.status_code == 200
+    stats = resp.json()
+    assert stats["withVocals"] == 3
+    assert stats["aligned"] == 2
+    assert stats["needsAlignment"] == 1
+    assert stats["repair"] == 2
+    assert stats["repairReasons"]["no_word_timing"] == 1
+    assert stats["repairReasons"]["plain_timing"] == 1
+
+
+def test_a_song_with_an_open_report_needs_repair(client):
+    song_id = _song_with_lyrics(client)
+    with _as_guest(client), _vocals_ready():
+        client.post(f"/api/lyrics/songs/{song_id}/reports", json={"kind": "timing"})
+
+    with _vocals_only_for(song_id):
+        stats = client.get("/api/lyrics/batch/align").json()
+
+    assert stats["repair"] == 1
+    assert stats["repairReasons"]["reported"] == 1
+
+
+def test_a_repair_run_is_dispatched(client):
+    with patch("app.jobs.jobs.batch_align_lyrics") as mock_task:
+        mock_task.delay.return_value = SimpleNamespace(id="task-1")
+        resp = client.post("/api/lyrics/batch/align?mode=repair")
+
+    assert resp.status_code == 202
+    assert resp.json()["taskId"] == "task-1"
+    mock_task.delay.assert_called_once_with(mode="repair")
+
+
+def test_an_unknown_run_mode_is_rejected(client):
+    resp = client.post("/api/lyrics/batch/align?mode=everything")
+
+    assert resp.status_code == 400

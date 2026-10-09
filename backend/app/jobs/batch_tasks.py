@@ -1,28 +1,10 @@
 """Batch Celery tasks for library-wide backfills and alignment."""
 
-from collections.abc import Collection
-
-from app.services.lyrics_selection import SongData
 from celery.utils.log import get_task_logger
 
 from .celery_app import celery
-from .lyrics_support import build_alignment_attempts_for_song
 
 logger = get_task_logger(__name__)
-
-
-def _build_alignment_attempts(
-    song: SongData,
-    include_remote: bool = True,
-    max_remote_results: int = 3,
-    rejected_keys: Collection[str] = (),
-) -> list[dict]:
-    return build_alignment_attempts_for_song(
-        song,
-        include_remote=include_remote,
-        max_remote_results=max_remote_results,
-        rejected_keys=rejected_keys,
-    )
 
 
 @celery.task(name="batch_fingerprint_songs")
@@ -191,197 +173,46 @@ def batch_backfill_vocal_range(mode: str = "missing") -> dict:
 
 
 @celery.task(name="batch_align_lyrics")
-def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
-    """Batch task: run WhisperX forced alignment across the library."""
-    import json as _json
+def batch_align_lyrics(mode: str = "missing") -> dict:
+    """Batch task: queue align_song_lyrics for every song a `mode` run selects.
 
+    Each song runs as its own job on the lyrics queue, exactly like a new
+    song's alignment: in its own language, with remote candidates, the offset
+    sweep and ASR re-timing, and respecting hand-picked and rejected lyrics.
+    """
     from app.db.database import get_db_session
-    from app.repositories.lyrics_report_repository import LyricsReportRepository
-    from app.repositories.song_repository import SongRepository
-    from app.services.file_service import FileService
-    from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
-    from app.services.lyrics_alignment import align_lyrics_to_vocals_with_model, load_alignment_model
-
-    MIN_SCORE = 0.5
-    file_service = FileService()
+    from app.jobs.lyrics_dispatch import enqueue_song_alignment
+    from app.services.lyrics_repair import count_reasons, select_songs_for_alignment
 
     with get_db_session() as session:
-        all_songs = SongRepository(session).fetch_all()
-        song_ids = [s.id for s in all_songs]
+        selected, with_vocals = select_songs_for_alignment(session, mode)
+        reason_counts = count_reasons(selected)
+        results = []
+        queued = 0
+        for song, reasons in selected:
+            dispatch = enqueue_song_alignment(song, include_remote=True)
+            queued += int(dispatch["dispatched"])
+            results.append({
+                "songId": song.id,
+                "title": f"{song.artist or '?'} — {song.title or song.id}",
+                "status": "queued" if dispatch["dispatched"] else "already_running",
+                "reasons": reasons,
+            })
 
-    logger.info("batch_align_lyrics: found %d songs (mode=%s)", len(song_ids), mode)
-
-    eligible = []
-    for song_id in song_ids:
-        vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-        if not vocals_path.exists():
-            continue
-        with get_db_session() as session:
-            song = SongRepository(session).fetch(song_id)
-            if not song:
-                continue
-            if mode == "missing" and song.word_synced_lyrics:
-                continue
-            # Plain lyrics are never force-aligned; only align_song_lyrics' ASR times them.
-            if not song.synced_lyrics:
-                continue
-        eligible.append(song_id)
-
-    total_songs = len(song_ids)
-    if not eligible:
-        logger.info("batch_align_lyrics: no eligible songs — done")
-        return {
-            "processed": 0,
-            "activated": 0,
-            "failed": 0,
-            "skipped": total_songs,
-            "results": [],
-        }
-
-    logger.info("batch_align_lyrics: loading wav2vec2 model for %d songs", len(eligible))
-    model_a, metadata = load_alignment_model(language=language)
-
-    MIN_SCORE = 0.3
-    results = []
-    activated = 0
-    failed = 0
-
-    # The whole batch runs as sustained CUDA work on this worker thread. Without
-    # this guard, the idle-VRAM-cleanup timer (armed by an unrelated task on this
-    # same process) can fire torch.cuda.empty_cache() concurrently with an
-    # in-flight allocation here and corrupt the CUDA caching allocator — this is
-    # what caused the segfaults in libc10_cuda.so during earlier batch runs.
-    begin_gpu_activity(f"batch-lyrics-alignment:{language}")
-    try:
-        for song_id in eligible:
-            vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-            with get_db_session() as session:
-                song = SongRepository(session).fetch(song_id)
-                if not song:
-                    failed += 1
-                    results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
-                    continue
-                song_label = f"{song.artist or '?'} — {song.title or song_id}"
-                song_data: SongData = {
-                    "id": song.id,
-                    "title": song.title,
-                    "artist": song.artist,
-                    "album": song.album,
-                    "plain_lyrics": song.plain_lyrics,
-                    "synced_lyrics": song.synced_lyrics,
-                    "word_synced_lyrics": song.word_synced_lyrics,
-                }
-                rejected_keys = LyricsReportRepository(session).rejected_keys(song_id)
-
-            attempts = [
-                attempt
-                for attempt in _build_alignment_attempts(song_data, include_remote=False, rejected_keys=rejected_keys)
-                if attempt["source_type"] == "synced"
-            ]
-            if not attempts:
-                failed += 1
-                results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
-                continue
-            best_result = None
-            best_attempt = None
-            align_error_count = 0
-
-            for idx, attempt in enumerate(attempts):
-                try:
-                    result = align_lyrics_to_vocals_with_model(
-                        attempt["content"], vocals_path, model_a, metadata, language=language
-                    )
-                except Exception as e:
-                    align_error_count += 1
-                    logger.warning(
-                        "batch_align_lyrics: attempt failed for %s (source=%s): %s",
-                        song_label,
-                        attempt["source"],
-                        e,
-                        exc_info=True,
-                    )
-                    continue
-
-                if not result:
-                    continue
-
-                if not best_result or result["mean_score"] > best_result["mean_score"]:
-                    best_result = result
-                    best_attempt = attempt
-
-                if result["mean_score"] >= MIN_SCORE:
-                    with get_db_session() as session:
-                        song = SongRepository(session).fetch(song_id)
-                        song.word_synced_lyrics = _json.dumps({
-                            "words": result["words"],
-                            "instrumental_intervals": result.get("instrumental_intervals", []),
-                            "language": result["language"],
-                            "mean_score": result["mean_score"],
-                            "word_count": result["word_count"],
-                            "line_count": result["line_count"],
-                            "aligned_at": result["aligned_at"],
-                            "lyrics_source_type": attempt["source_type"],
-                            "lyrics_source": attempt["source"],
-                            "lyrics_attempt": idx + 1,
-                        })
-                        if attempt["persist"] and not song.synced_lyrics:
-                            song.synced_lyrics = attempt["content"]
-                        session.commit()
-                    activated += 1
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "activated",
-                        "meanScore": result["mean_score"],
-                        "wordCount": result["word_count"],
-                        "sourceType": attempt["source_type"],
-                        "source": attempt["source"],
-                    })
-                    logger.info(
-                        "batch_align_lyrics %s: activated (score=%.3f, source=%s)",
-                        song_label,
-                        result["mean_score"],
-                        attempt["source"],
-                    )
-                    break
-            else:
-                failed += 1
-                if best_result and best_attempt:
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "low_confidence",
-                        "meanScore": best_result["mean_score"],
-                        "wordCount": best_result["word_count"],
-                        "sourceType": best_attempt["source_type"],
-                        "source": best_attempt["source"],
-                        "attempted": len(attempts),
-                        "errors": align_error_count,
-                    })
-                    logger.info(
-                        "batch_align_lyrics %s: low_confidence (score=%.3f, source=%s)",
-                        song_label,
-                        best_result["mean_score"],
-                        best_attempt["source"],
-                    )
-                else:
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "failed",
-                        "reason": "alignment produced no words",
-                        "attempted": len(attempts),
-                        "errors": align_error_count,
-                    })
-                    logger.info("batch_align_lyrics %s: failed after %d attempts", song_label, len(attempts))
-    finally:
-        end_gpu_activity(f"batch-lyrics-alignment:{language}")
-
-    logger.info("batch_align_lyrics: done — activated=%d, failed=%d", activated, failed)
+    logger.info(
+        "batch_align_lyrics: mode=%s, queued %d of %d selected songs (%d with vocals), reasons=%s",
+        mode,
+        queued,
+        len(selected),
+        with_vocals,
+        reason_counts,
+    )
     return {
-        "processed": len(eligible),
-        "activated": activated,
-        "failed": failed,
-        "skipped": total_songs - len(eligible),
+        "mode": mode,
+        "selected": len(selected),
+        "queued": queued,
+        "alreadyRunning": len(selected) - queued,
+        "skipped": with_vocals - len(selected),
+        "reasons": reason_counts,
         "results": results,
     }
