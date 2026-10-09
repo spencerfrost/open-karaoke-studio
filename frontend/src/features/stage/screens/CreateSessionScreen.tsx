@@ -23,7 +23,8 @@
  */
 
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronLeft, X } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -154,6 +155,19 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
 
   return (
     <div className="flex w-full flex-col gap-8">
+      {/* Fixed rather than absolute: this column is centered and width-capped by
+          StageFrame, and the way out belongs in the screen's corner. */}
+      <Button
+        asChild
+        variant="ghost"
+        className="fixed top-4 left-6 text-foreground/60 hover:text-foreground"
+      >
+        <Link to="/">
+          <ChevronLeft className="mr-1 size-5" />
+          Back
+        </Link>
+      </Button>
+
       <h1 className="text-center font-display text-4xl text-foreground">
         Create a session
       </h1>
