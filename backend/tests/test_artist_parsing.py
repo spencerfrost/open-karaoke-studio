@@ -1,10 +1,10 @@
 """Tests for artist name parsing and credit resolution."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
-from app.services.artist_parsing import parse_song_artists
+from app.services.artist_parsing import normalize_artist_name, parse_song_artists
+from app.services.credits_resolver import resolve_artist_credits
 from app.services.musicbrainz_service import _parse_artist_credits
 from app.services.song_artist_service import try_ampersand_split
 
@@ -45,8 +45,16 @@ class TestParseArtistCredits:
     def test_ampersand_collaboration(self):
         """Two separate MB artist entities joined by '&' → two primaries."""
         credits = [
-            {"name": "Amber Mark", "artist": {"name": "Amber Mark"}, "joinphrase": " & "},
-            {"name": "John The Blind", "artist": {"name": "John the Blind"}, "joinphrase": ""},
+            {
+                "name": "Amber Mark",
+                "artist": {"name": "Amber Mark"},
+                "joinphrase": " & ",
+            },
+            {
+                "name": "John The Blind",
+                "artist": {"name": "John the Blind"},
+                "joinphrase": "",
+            },
         ]
         result = _parse_artist_credits(credits)
         assert result == [("Amber Mark", "primary"), ("John The Blind", "primary")]
@@ -76,7 +84,11 @@ class TestParseArtistCredits:
         """A & B feat. C → two primaries + one featured."""
         credits = [
             {"name": "Artist A", "artist": {"name": "Artist A"}, "joinphrase": " & "},
-            {"name": "Artist B", "artist": {"name": "Artist B"}, "joinphrase": " feat. "},
+            {
+                "name": "Artist B",
+                "artist": {"name": "Artist B"},
+                "joinphrase": " feat. ",
+            },
             {"name": "Artist C", "artist": {"name": "Artist C"}, "joinphrase": ""},
         ]
         result = _parse_artist_credits(credits)
@@ -187,3 +199,111 @@ class TestTryAmpersandSplit:
             credits = [(band, "primary")]
             db = MagicMock()
             assert try_ampersand_split(credits, db) == credits
+
+
+# --- Artist name normalization ---
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        ("Norah Jones", "norah jones"),
+        ("Cee Lo Green", "CeeLo Green"),
+        ("Beyoncé", "Beyonce"),
+        ("Simon & Garfunkel", "Simon and Garfunkel"),
+        ("The Beatles", "Beatles"),
+        ("AC/DC", "ACDC"),
+        ("P!nk", "Pnk"),
+    ],
+)
+def test_normalize_artist_name_matches_variants(a, b):
+    assert normalize_artist_name(a) == normalize_artist_name(b)
+
+
+def test_normalize_artist_name_distinguishes_artists():
+    assert normalize_artist_name("Norah Jones") != normalize_artist_name(
+        "Kent Nishimura"
+    )
+
+
+def test_normalize_artist_name_keeps_non_latin_letters():
+    assert normalize_artist_name("宇多田ヒカル") != ""
+
+
+# --- Credit resolution (MB search step) ---
+
+
+def _search_result(score: float, credits: list[tuple[str, str]]) -> dict:
+    return {"score": score, "recordingId": "rec-id", "artistCredits": credits}
+
+
+class TestResolveArtistCredits:
+    @pytest.fixture
+    def mock_search(self):
+        with patch("app.services.musicbrainz_service.search_recordings") as mock:
+            yield mock
+
+    def test_rejects_top_hit_by_another_artist(self, mock_search):
+        """A cover whose title contains the real artist's name must not win."""
+        mock_search.return_value = [
+            _search_result(1.0, [("Kent Nishimura", "primary")]),
+            _search_result(0.52, [("Norah Jones", "primary")]),
+        ]
+        with patch("app.services.credits_resolver.logger") as mock_logger:
+            credits = resolve_artist_credits(
+                "Norah Jones - Don't Know Why", "Norah Jones"
+            )
+        assert credits == [("Norah Jones", "primary")]
+        assert any(
+            "Rejected MB search result" in call.args[0]
+            for call in mock_logger.info.call_args_list
+        )
+
+    def test_accepts_matching_artist(self, mock_search):
+        mock_search.return_value = [
+            _search_result(1.0, [("Bonobo", "primary"), ("Fink", "featured")]),
+        ]
+        credits = resolve_artist_credits("Kerala", "Bonobo")
+        assert credits == [("Bonobo", "primary"), ("Fink", "featured")]
+
+    def test_accepts_spelling_variant(self, mock_search):
+        mock_search.return_value = [
+            _search_result(0.95, [("CeeLo Green", "primary")]),
+        ]
+        credits = resolve_artist_credits("Crazy", "Cee Lo Green")
+        assert credits == [("CeeLo Green", "primary")]
+
+    def test_accepts_later_result_that_matches(self, mock_search):
+        mock_search.return_value = [
+            _search_result(1.0, [("Kent Nishimura", "primary")]),
+            _search_result(0.92, [("Norah Jones", "primary"), ("Guest", "featured")]),
+        ]
+        credits = resolve_artist_credits("Don't Know Why", "Norah Jones")
+        assert credits == [("Norah Jones", "primary"), ("Guest", "featured")]
+
+    def test_matching_artist_below_threshold_falls_back(self, mock_search):
+        mock_search.return_value = [
+            _search_result(0.85, [("Norah Jones", "primary"), ("Guest", "featured")]),
+        ]
+        credits = resolve_artist_credits("Don't Know Why", "Norah Jones")
+        assert credits == [("Norah Jones", "primary")]
+
+    def test_accepts_collaboration_split_into_two_primaries(self, mock_search):
+        """Song saved as "A & B"; MB credits A and B as separate artists."""
+        mock_search.return_value = [
+            _search_result(
+                0.97, [("Amber Mark", "primary"), ("John The Blind", "primary")]
+            ),
+        ]
+        credits = resolve_artist_credits("Some Song", "Amber Mark & John The Blind")
+        assert credits == [("Amber Mark", "primary"), ("John The Blind", "primary")]
+
+    def test_recording_credits_skip_search(self, mock_search):
+        recording = [("Kent Nishimura", "primary")]
+        assert resolve_artist_credits("x", "Norah Jones", recording) == recording
+        mock_search.assert_not_called()
+
+    def test_search_error_falls_back_to_regex(self, mock_search):
+        mock_search.side_effect = RuntimeError("boom")
+        credits = resolve_artist_credits("Kerala", "Bonobo feat. Fink")
+        assert credits == [("Bonobo", "primary"), ("Fink", "featured")]

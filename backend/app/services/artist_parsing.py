@@ -1,11 +1,13 @@
 """Artist name parsing — extracts primary + featured artists from a single artist string."""
 
 import re
+import unicodedata
 
-_FEAT_PATTERN = re.compile(
-    r"\s+(?:ft\.?|feat\.?|featuring)\s+", re.IGNORECASE
-)
+_FEAT_PATTERN = re.compile(r"\s+(?:ft\.?|feat\.?|featuring)\s+", re.IGNORECASE)
 _SPLIT_PATTERN = re.compile(r"\s*,\s*")
+_AND_PATTERN = re.compile(r"\s*&\s*")
+_LEADING_THE = re.compile(r"^the\s+")
+_NON_WORD = re.compile(r"[\W_]+")
 
 
 def parse_song_artists(artist_str: str) -> tuple[str, list[str]]:
@@ -29,3 +31,18 @@ def parse_song_artists(artist_str: str) -> tuple[str, list[str]]:
     else:
         featured = []
     return primary, featured
+
+
+def normalize_artist_name(name: str) -> str:
+    """Reduce an artist name to a key for comparing spellings of the same name.
+
+    Case-folds, folds accents, treats "&" as "and", drops a leading "The", and
+    removes punctuation and spaces, so "CeeLo Green" and "Cee Lo Green" (or
+    "Beyoncé" and "Beyonce") produce the same key. Letters in non-Latin scripts
+    are kept.
+    """
+    decomposed = unicodedata.normalize("NFKD", name)
+    folded = "".join(c for c in decomposed if not unicodedata.combining(c))
+    key = _AND_PATTERN.sub(" and ", folded.casefold().strip())
+    key = _LEADING_THE.sub("", key)
+    return _NON_WORD.sub("", key)
