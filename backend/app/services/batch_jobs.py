@@ -6,11 +6,14 @@ need it) and which Celery task runs it. The coverage filters here are the same
 ones the tasks select with, so "Run on 12 missing" queues exactly those 12.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 from sqlalchemy.orm import Query, Session
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -108,6 +111,23 @@ JOBS: dict[str, BatchJob] = {
 }
 
 
+# The scans an admin runs by hand. They run inside their request and are
+# recorded in batch_runs once they finish, so the overview can show the last
+# result without scanning again.
+SCAN_KINDS = ("disk_check", "metadata_scan", "duplicates")
+
+
+def record_scan(session: Session, kind: str, *, total: int, issues: int) -> None:
+    """Record a finished scan. Never fails the scan: it already has its result."""
+    from app.repositories.batch_run_repository import BatchRunRepository
+
+    try:
+        BatchRunRepository(session).record_scan(kind, total=total, issues=issues)
+    except Exception:
+        session.rollback()
+        logger.warning("Couldn't record the %s scan", kind, exc_info=True)
+
+
 class UnknownJob(ValueError):
     pass
 
@@ -179,6 +199,7 @@ def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
         "done": run.done,
         "failed": run.failed,
         "error": run.error,
+        "issues": run.issues,
         "createdAt": _iso(run.created_at),
         "startedAt": _iso(run.started_at),
         "finishedAt": _iso(run.finished_at),

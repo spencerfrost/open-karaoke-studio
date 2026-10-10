@@ -3,7 +3,7 @@ Batch run repository: the record of every batch job run.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Iterable, Optional
 
 from app.db.models import BatchRun
 from sqlalchemy.orm import Session
@@ -49,9 +49,10 @@ class BatchRunRepository:
             .first()
         )
 
-    def recent(self, limit: int) -> list[BatchRun]:
+    def recent(self, limit: int, kinds: Iterable[str]) -> list[BatchRun]:
         return (
             self.db.query(BatchRun)
+            .filter(BatchRun.kind.in_(list(kinds)))
             .order_by(BatchRun.created_at.desc(), BatchRun.id.desc())
             .limit(limit)
             .all()
@@ -68,6 +69,27 @@ class BatchRunRepository:
             done=0,
             failed=0,
             created_at=now,
+            updated_at=now,
+        )
+        self.db.add(run)
+        self.db.commit()
+        self.db.refresh(run)
+        return run
+
+    def record_scan(self, kind: str, *, total: int, issues: int) -> BatchRun:
+        """Record a finished hand-run scan: what it looked at, what it found."""
+        now = utc_now()
+        run = BatchRun(
+            kind=kind,
+            mode="all",
+            status="done",
+            total=total,
+            done=total,
+            failed=0,
+            issues=issues,
+            created_at=now,
+            started_at=now,
+            finished_at=now,
             updated_at=now,
         )
         self.db.add(run)

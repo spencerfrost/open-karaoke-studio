@@ -64,6 +64,7 @@ from app.schemas.song import (
     SongSearchResponse,
     SongUpdateRequest,
 )
+from app.services.batch_jobs import record_scan
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
 from app.services.lyrics_language import normalize_language
@@ -659,6 +660,12 @@ async def get_library_audit(
                 }
             )
 
+    record_scan(
+        db,
+        "disk_check",
+        total=len(disk_ids | db_ids),
+        issues=len(orphaned_directories) + len(ghost_records) + len(incomplete_songs),
+    )
     return {
         "orphaned_directories": orphaned_directories,
         "ghost_records": ghost_records,
@@ -803,6 +810,7 @@ async def get_metadata_audit(
                 )
             )
 
+    record_scan(db, "metadata_scan", total=len(all_songs), issues=len(flagged))
     return MetadataAuditResponse(
         flagged_songs=flagged,
         summary=dict(summary),
@@ -935,6 +943,12 @@ async def get_duplicate_songs(
         ]
         for cluster in clusters
     ]
+    record_scan(
+        db,
+        "duplicates",
+        total=db.query(func.count(DbSong.id)).scalar() or 0,
+        issues=len(result),
+    )
     return {
         "clusters": result,
         "total_clusters": len(result),

@@ -19,6 +19,9 @@ class BatchRun(Base):
     The API creates the row as "queued" when someone presses Run, so the
     admin page shows it straight away; the task moves it to "running",
     counts songs as it goes and closes it as "done" or "failed".
+
+    The hand-run scans (disk check, metadata, duplicates) run inside their
+    request, so they write one finished row with `issues` once they're done.
     """
 
     __tablename__ = "batch_runs"
@@ -40,6 +43,8 @@ class BatchRun(Base):
     failed = Column(Integer, nullable=False, default=0)
     # Why the whole run stopped, when it did.
     error = Column(Text, nullable=True)
+    # Hand-run scans only: how many problems the scan found. None for jobs.
+    issues = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, nullable=False, default=_now)
     started_at = Column(DateTime, nullable=True)

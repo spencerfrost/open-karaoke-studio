@@ -1,5 +1,6 @@
 """
-Admin endpoints: the background jobs page, worker status and failed songs.
+Admin endpoints: the overview, the background jobs page, worker status and
+failed songs.
 """
 
 import logging
@@ -11,6 +12,7 @@ from app.jobs.celery_app import celery
 from app.repositories.batch_run_repository import BatchRunRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import SongResponse
+from app.services.admin_overview import build_overview
 from app.services.batch_jobs import (
     JOBS,
     UnknownJob,
@@ -29,6 +31,17 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 # means its jobs sit waiting.
 EXPECTED_QUEUES = ("audio", "enrichment", "lyrics")
 WORKER_PING_TIMEOUT_SECONDS = 1.0
+
+
+@router.get("/overview")
+def overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Counts for the admin landing page: what needs reviewing, job coverage
+    and runs in progress, songs added per week, and each hand-run scan's last
+    result. Cheap enough to poll; nothing here scans the library."""
+    return build_overview(db)
 
 
 @router.get("/jobs")
@@ -64,7 +77,7 @@ def list_runs(
     return {
         "runs": [
             serialize_run(run)
-            for run in BatchRunRepository(db).recent(limit)
+            for run in BatchRunRepository(db).recent(limit, kinds=JOBS.keys())
         ]
     }
 
