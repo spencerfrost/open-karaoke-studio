@@ -5,8 +5,7 @@
  * the screen is empty. Clicking it picks the song. It sits on the wheel's flat frame, beside the cylinder
  * rather than on it, so the ring's 3D transforms never touch it.
  *
- * Built around what the library actually has (see the coverage table in
- * docs/plans/2026-09-25-stage-wheel-artwork.md): the video still leads because
+ * Built around what the library actually has: the video still leads because
  * most songs have one, and any fact a song lacks is left out rather than shown
  * as "—", so a sparse song gets a shorter card, not a card of blanks.
  */

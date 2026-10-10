@@ -2,8 +2,7 @@
 
 Rotation is a fixed circle of seats and a pointer (`session.turn_performer_id`)
 to whose turn it is. The pointer is stored, not derived: it is the only source
-of truth for the turn, so nothing else can disagree with it. See
-docs/plans/2026-09-25-rotation-circle.md.
+of truth for the turn, so nothing else can disagree with it.
 
 `queue_ordering` is the read side - the circle, the holder, the play order.
 This module answers the handoff screen's question (*whose turn is it, and do

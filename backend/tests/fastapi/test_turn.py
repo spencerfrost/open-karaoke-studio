@@ -1,10 +1,9 @@
 """
 Tests for the turn: the circle, the pointer, and everything that moves it.
 
-The cases follow docs/plans/2026-09-25-rotation-circle.md's verification list:
-walk-ups, skip without back-to-back songs, add performer at the pointer, phone
-joins, remove and undo, songs played out of order, bump mid-song, and append
-mode being unaffected by any of it.
+The cases cover walk-ups, skip without back-to-back songs, add performer at
+the pointer, phone joins, remove and undo, songs played out of order, bump
+mid-song, and append mode being unaffected by any of it.
 """
 
 from datetime import datetime, timedelta

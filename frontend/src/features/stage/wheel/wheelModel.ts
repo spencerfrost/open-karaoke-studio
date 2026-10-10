@@ -6,8 +6,6 @@
  * own.** It is read off the artist cursor every time, so sitting on Fleetwood
  * Mac and turning left always lands on F. Two stored cursors would disagree
  * the first time one of them scrolled without the other.
- *
- * See docs/plans/2026-09-25-stage-song-wheel.md.
  */
 
 import type { Artist } from "@/hooks/api/useArtists";
@@ -222,7 +220,7 @@ export function holdRate(heldMs: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Artwork. See docs/plans/2026-09-25-stage-wheel-artwork.md.
+// Artwork.
 // ---------------------------------------------------------------------------
 
 /** The artist photo, fetched from Discogs on first ask. Shows have none. */

@@ -1,9 +1,8 @@
 /**
  * Turn-related API hooks - what the handoff screen can do to a turn.
  *
- * Rotation is a fixed circle of seats with a pointer to whose turn it is (see
- * docs/plans/2026-09-25-rotation-circle.md). These move the pointer or change
- * who is in the circle.
+ * Rotation is a fixed circle of seats with a pointer to whose turn it is.
+ * These move the pointer or change who is in the circle.
  *
  * The turn-changing ones send `expected_performer_id`: the turn the screen was
  * rendering when someone tapped. The server compares it against the turn it

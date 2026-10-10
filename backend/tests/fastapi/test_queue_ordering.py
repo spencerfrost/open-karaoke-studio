@@ -2,8 +2,7 @@
 Tests for queue ordering: the rotation projection, append mode, and the queue
 endpoints that feed them.
 
-Rotation mode is a circle of seats and a pointer (see
-docs/plans/2026-09-25-rotation-circle.md). The play order is a projection:
+Rotation mode is a circle of seats and a pointer. The play order is a projection:
 start at the pointer, take each person's k-th song on the k-th pass. These
 tests pin that walk; the pointer's movement is covered in test_turn.py.
 """

@@ -35,7 +35,7 @@ class KaraokeSession(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # "append" (today's insert-order behaviour) or "rotation" (round-robin over
     # the circle of performers). Rotation is the default - append is the escape
-    # hatch. See docs/plans/2026-09-25-rotation-circle.md.
+    # hatch.
     queue_order_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="rotation"
     )

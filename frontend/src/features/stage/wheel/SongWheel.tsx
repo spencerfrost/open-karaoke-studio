@@ -16,10 +16,7 @@
  * wheelModel mean the same thing everywhere.
  *
  * Artwork (the artist photo in the songs heading, the song card, the blurred
- * backdrop) follows the *settled* cursor only; see
- * docs/plans/2026-09-25-stage-wheel-artwork.md.
- *
- * See docs/plans/2026-09-25-stage-song-wheel.md.
+ * backdrop) follows the *settled* cursor only.
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";

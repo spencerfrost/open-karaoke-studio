@@ -3,9 +3,8 @@
  * currently owned by this browser.
  *
  * Deliberately lives in Settings, not on the stage/TV screen or in
- * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen) -
- * see docs/plans/archive/2026-08-29-roster-and-rotation.md's open decisions. Only
- * ever shown to the session owner; a performer's phone never sees it.
+ * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen),
+ * so a performer glancing at the TV never sees host controls. Only ever shown to the session owner; a performer's phone never sees it.
  */
 
 import React from "react";

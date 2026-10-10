@@ -91,7 +91,6 @@ class SessionCreateRequest(BaseModel):
     )
     # Setup collected by the stage's create-session screen. All three are
     # creation-time only: a request that resumes a live session ignores them.
-    # See docs/plans/archive/2026-08-30-create-session-screen.md.
     duration_hours: Optional[float] = Field(
         None, description="Override tonight's session length"
     )
@@ -1382,9 +1381,8 @@ async def set_queue_order_mode(
 ):
     """Switch a session between append and rotation queue ordering.
 
-    Deliberately not exposed on the stage/TV screen - it's the Settings-page
-    control described in docs/plans/archive/2026-08-29-roster-and-rotation.md's open
-    decisions, so a performer glancing at the TV never sees host controls.
+    Deliberately not exposed on the stage/TV screen - it's a Settings-page
+    control, so a performer glancing at the TV never sees host controls.
     """
     if mode_data.mode not in ("append", "rotation"):
         raise HTTPException(

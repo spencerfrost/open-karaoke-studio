@@ -12,8 +12,6 @@
  * Several hundred wheel rows sit on the same screen, so this is careful about
  * what re-renders: it reads narrow store slices, and only the progress parts
  * subscribe to `currentTime`, which ticks every frame.
- *
- * See docs/plans/2026-09-25-stage-now-playing.md.
  */
 
 import React from "react";

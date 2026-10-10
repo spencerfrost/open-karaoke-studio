@@ -27,8 +27,6 @@
  * No clock runs here. This is a living-room app: the screen waits until
  * someone taps, rather than playing the next song or passing over a person who
  * hasn't picked one yet.
- *
- * See docs/plans/2026-09-25-rotation-circle.md.
  */
 
 import React, {

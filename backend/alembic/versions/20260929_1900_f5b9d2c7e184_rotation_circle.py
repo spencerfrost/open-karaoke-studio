@@ -2,7 +2,7 @@
 
 Rotation becomes a fixed circle of seats with a pointer to whose turn it is,
 replacing the per-item lap number and the three counters that held it
-together. See docs/plans/2026-09-25-rotation-circle.md.
+together.
 
 `seat` and `is_active` keep their columns and values but change meaning: seat
 is now the place in the circle, and is_active is "part of the night".

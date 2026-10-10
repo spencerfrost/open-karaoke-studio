@@ -5,9 +5,8 @@ Queue ordering service - the single place play order is computed.
 call `get_ordered_queue_items` instead of each hand-rolling their own
 `ORDER BY`, since those two had already drifted once.
 
-Rotation mode is a circle of performers and a pointer to whose turn it is (see
-docs/plans/2026-09-25-rotation-circle.md). This module is the read side of it:
-who is in the circle, who holds the turn, and the play order that follows.
+Rotation mode is a circle of performers and a pointer to whose turn it is.
+This module is the read side of it: who is in the circle, who holds the turn, and the play order that follows.
 Everything that *moves* the pointer lives in turn_service, which builds on
 these.
 """
