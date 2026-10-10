@@ -20,7 +20,11 @@ const KEEP_UNTIL_RESCAN = {
 
 // --- AcoustID review lists ---
 
-export type FingerprintStatus = "ambiguous" | "no_match" | "failed";
+export type FingerprintStatus =
+  | "suggested"
+  | "ambiguous"
+  | "no_match"
+  | "failed";
 
 export const ACOUSTID_SONGS_KEY = "admin-acoustid-songs";
 
@@ -173,7 +177,12 @@ export interface AdminOverview {
   librarySize: number;
   needsYou: {
     lyricsReports: number;
-    acoustid: { ambiguous: number; noMatch: number; failed: number };
+    acoustid: {
+      suggested: number;
+      ambiguous: number;
+      noMatch: number;
+      failed: number;
+    };
     failedSongs: number;
     alignmentRepair: number;
   };

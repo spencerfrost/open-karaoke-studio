@@ -49,12 +49,20 @@ export interface Song {
   acoustidFingerprintStatus?:
     | "not_checked"
     | "matched"
+    | "suggested"
     | "no_match"
     | "ambiguous"
     | "skipped"
     | "failed";
   acoustidScore?: number;
   musicbrainzRecordingId?: string;
+  // What AcoustID thinks the song is called, when that differs (status "suggested")
+  acoustidSuggestion?: {
+    recordingId: string;
+    title: string | null;
+    artist: string | null;
+  } | null;
+  metadataConfirmed?: boolean; // A person set the title/artist; AcoustID leaves them alone
 
   // Processing metadata
   engineType?: string; // Separation engine used (demucs, roformer, hybrid, clean_backing)

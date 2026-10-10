@@ -30,7 +30,11 @@ def _select(kind: str, mode: str) -> list:
 def batch_fingerprint_songs(
     mode: str = "missing", run_id: Optional[int] = None
 ) -> dict:
-    """Batch task: fingerprint songs via AcoustID."""
+    """Batch task: fingerprint songs via AcoustID.
+
+    "missing" takes songs never checked; "retry" takes unconfirmed songs AcoustID
+    couldn't settle (ambiguous, no match, or a failed lookup).
+    """
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
@@ -73,9 +77,12 @@ def batch_fingerprint_songs(
 
             try:
                 with get_db_session() as session:
-                    AcoustIdService(SongRepository(session)).fingerprint_and_identify(
-                        song_id, audio_path
-                    )
+                    outcome = AcoustIdService(
+                        SongRepository(session)
+                    ).fingerprint_and_link(song_id, audio_path)
+                # Credits follow the linked recording, as for a single song.
+                if outcome == "matched":
+                    celery.send_task("enrich_song_artist_credits", args=[song_id])
                 counts["ok"] += 1
                 run.song_done()
             except Exception:

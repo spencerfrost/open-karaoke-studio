@@ -575,7 +575,15 @@ async def get_songs_by_fingerprint_status(
     current_user: User = Depends(require_host),
 ):
     """Return songs filtered by acoustid_fingerprint_status."""
-    valid = {"no_match", "failed", "not_checked", "matched", "skipped", "ambiguous"}
+    valid = {
+        "not_checked",
+        "matched",
+        "suggested",
+        "ambiguous",
+        "no_match",
+        "failed",
+        "skipped",
+    }
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"status must be one of: {valid}")
     songs = SongRepository(db).fetch_all(
@@ -1103,6 +1111,28 @@ async def update_song(
         if language_set:
             update_fields["language"] = language
 
+        # A person changing the title or artist confirms them, so AcoustID
+        # leaves them alone. The recording linked under the old names no
+        # longer describes the song, and the edit settles any review.
+        if any(
+            key in update_fields and update_fields[key] != getattr(db_song, key)
+            for key in ("title", "artist")
+        ):
+            update_fields.update(
+                metadata_confirmed_at=datetime.now(timezone.utc),
+                musicbrainz_recording_id=None,
+                acoustid_suggested_recording_id=None,
+                acoustid_suggested_title=None,
+                acoustid_suggested_artist=None,
+            )
+            if db_song.acoustid_fingerprint_status in (
+                "matched",
+                "suggested",
+                "ambiguous",
+                "no_match",
+            ):
+                update_fields["acoustid_fingerprint_status"] = "skipped"
+
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
             if not updated_song:
@@ -1488,43 +1518,90 @@ async def apply_song_fingerprint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Apply a selected AcoustID candidate to the song record."""
+    """Apply a recording a person picked (from AcoustID or a MusicBrainz search)."""
     song_repo = SongRepository(db)
-    song = song_repo.fetch(song_id)
-    if not song:
+    if not song_repo.fetch(song_id):
         raise HTTPException(status_code=404, detail="Song not found")
 
-    song_repo.update(
+    _apply_picked_recording(
+        db,
         song_id,
+        recording_id=request.recording_id,
         title=request.title,
         artist=request.artist,
-        acoustid_score=request.score,
-        musicbrainz_recording_id=request.recording_id,
+        score=request.score,
+    )
+    return {"status": "applied"}
+
+
+@router.post("/{song_id}/fingerprint/suggestion/accept")
+async def accept_fingerprint_suggestion(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Rename the song as AcoustID suggested and link its recording."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if not song.acoustid_suggested_recording_id:
+        raise HTTPException(status_code=409, detail="Song has no AcoustID suggestion")
+
+    _apply_picked_recording(
+        db,
+        song_id,
+        recording_id=song.acoustid_suggested_recording_id,
+        title=song.acoustid_suggested_title or song.title,
+        artist=song.acoustid_suggested_artist or song.artist,
+        score=song.acoustid_score,
+    )
+    return {"status": "applied"}
+
+
+def _apply_picked_recording(
+    db: Session,
+    song_id: str,
+    *,
+    recording_id: str,
+    title: str,
+    artist: str,
+    score: Optional[float],
+) -> None:
+    """Set the title, artist and recording a person chose, and confirm them."""
+    from app.jobs.celery_app import celery
+    from app.services.song_artist_service import populate_song_artists
+
+    song_repo = SongRepository(db)
+    song = song_repo.update(
+        song_id,
+        title=title,
+        artist=artist,
+        acoustid_score=score,
+        musicbrainz_recording_id=recording_id,
         acoustid_fingerprint_status="matched",
+        acoustid_suggested_recording_id=None,
+        acoustid_suggested_title=None,
+        acoustid_suggested_artist=None,
+        metadata_confirmed_at=datetime.now(timezone.utc),
     )
 
     # Re-populate song_artists join table so artist browse stays in sync
-    from app.services.song_artist_service import populate_song_artists
-
-    song = song_repo.fetch(song_id)
-    populate_song_artists(db, song, request.artist)
+    populate_song_artists(db, song, artist)
 
     logger.info(
-        "fingerprint/apply: song %s → '%s' by '%s' (score=%.2f, recording=%s)",
+        "Picked recording for song %s → '%s' by '%s' (score=%s, recording=%s)",
         song_id,
-        request.title,
-        request.artist,
-        request.score,
-        request.recording_id,
+        title,
+        artist,
+        f"{score:.2f}" if score is not None else "n/a",
+        recording_id,
     )
 
-    # Now that the song has a confirmed recording ID, run MusicBrainz enrichment
-    # (artist credits + soundtrack show_name).
-    from app.jobs.celery_app import celery
-
-    celery.send_task("enrich_song_artist_credits", args=[song_id])
-
-    return {"status": "applied"}
+    # Now that the song has a recording a person chose, run MusicBrainz
+    # enrichment (artist credits + soundtrack show_name) from it.
+    celery.send_task(
+        "enrich_song_artist_credits", args=[song_id], kwargs={"picked": True}
+    )
 
 
 @router.post("/{song_id}/skip-fingerprint", status_code=200)
@@ -1533,14 +1610,23 @@ async def skip_fingerprint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Mark a song's AcoustID status as skipped so it no longer appears in the review panel."""
+    """Keep the song's current title and artist: AcoustID won't change or suggest them."""
     repo = SongRepository(db)
     song = repo.fetch(song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
-    song.acoustid_fingerprint_status = "skipped"
-    db.commit()
-    logger.info("Marked song %s as fingerprint-skipped", song_id)
+    fields: dict = {
+        "acoustid_fingerprint_status": "skipped",
+        "acoustid_suggested_recording_id": None,
+        "acoustid_suggested_title": None,
+        "acoustid_suggested_artist": None,
+        "metadata_confirmed_at": datetime.now(timezone.utc),
+    }
+    # A suggested song has no recording that matches the names being kept.
+    if song.acoustid_fingerprint_status == "suggested":
+        fields["musicbrainz_recording_id"] = None
+    repo.update(song_id, **fields)
+    logger.info("Kept current title/artist for song %s", song_id)
     return {"status": "skipped"}
 
 
@@ -1823,6 +1909,9 @@ def _restart_youtube_processing(
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
+        acoustid_suggested_recording_id=None,
+        acoustid_suggested_title=None,
+        acoustid_suggested_artist=None,
         vocal_range_low=None,
         vocal_range_high=None,
         loudness_lufs=None,
@@ -1969,6 +2058,9 @@ async def replace_song_upload(
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
+        acoustid_suggested_recording_id=None,
+        acoustid_suggested_title=None,
+        acoustid_suggested_artist=None,
         vocal_range_low=None,
         vocal_range_high=None,
         loudness_lufs=None,

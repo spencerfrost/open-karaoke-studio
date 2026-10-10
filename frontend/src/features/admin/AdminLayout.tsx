@@ -52,11 +52,12 @@ function useLyricsReportCount() {
 }
 
 function useAcoustIdCount() {
+  const suggested = useSongsByFingerprintStatus("suggested").data;
   const ambiguous = useSongsByFingerprintStatus("ambiguous").data;
   const noMatch = useSongsByFingerprintStatus("no_match").data;
   const failed = useSongsByFingerprintStatus("failed").data;
-  if (!ambiguous || !noMatch || !failed) return undefined;
-  return ambiguous.length + noMatch.length + failed.length;
+  if (!suggested || !ambiguous || !noMatch || !failed) return undefined;
+  return suggested.length + ambiguous.length + noMatch.length + failed.length;
 }
 
 function useMetadataCount() {

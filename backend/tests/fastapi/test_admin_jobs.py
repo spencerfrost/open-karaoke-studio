@@ -15,6 +15,7 @@ from app.repositories.batch_run_repository import (
     RunNotActive,
     utc_now,
 )
+from app.services.batch_jobs import select_ids
 
 NO_ALIGNMENT = ([], 0)
 
@@ -91,6 +92,39 @@ class TestListJobs:
         assert covers["modeCounts"] == {"missing": 1, "all": 3}
         assert covers["modes"] == ["missing"]
 
+    def test_fingerprint_retries_unconfirmed_unsettled_songs(self, client, db):
+        for song_id, status, confirmed in [
+            ("new", "not_checked", False),
+            ("none", "no_match", False),
+            ("broke", "failed", False),
+            ("tied", "ambiguous", False),
+            ("tied-kept", "ambiguous", True),
+            ("kept", "no_match", True),
+            ("ok", "matched", False),
+            ("review", "suggested", False),
+        ]:
+            db.add(
+                DbSong(
+                    id=song_id,
+                    title=song_id,
+                    artist="Queen",
+                    acoustid_fingerprint_status=status,
+                    metadata_confirmed_at=utc_now() if confirmed else None,
+                )
+            )
+        db.commit()
+
+        fingerprint = _jobs_by_kind(client)["fingerprint"]
+
+        assert fingerprint["modes"] == ["missing", "retry"]
+        assert fingerprint["modeCounts"]["missing"] == 1
+        assert fingerprint["modeCounts"]["retry"] == 3
+        assert sorted(select_ids(db, "fingerprint", "retry")) == [
+            "broke",
+            "none",
+            "tied",
+        ]
+
     def test_lists_every_job(self, client):
         assert set(_jobs_by_kind(client)) == {
             "duration",
@@ -148,6 +182,12 @@ class TestRunJob:
     def test_mode_the_job_does_not_have(self, client, mock_celery):
         assert (
             client.post("/api/admin/jobs/artist_images/run?mode=all").status_code == 400
+        )
+        assert (
+            client.post("/api/admin/jobs/fingerprint/run?mode=all").status_code == 400
+        )
+        assert (
+            client.post("/api/admin/jobs/fingerprint/run?mode=retry").status_code == 202
         )
         assert (
             client.post("/api/admin/jobs/lyrics_alignment/run?mode=repair").status_code

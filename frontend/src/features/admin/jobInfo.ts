@@ -42,7 +42,7 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
   fingerprint: {
     name: "AcoustID fingerprints",
     description:
-      "Identifies each song from its audio, so its title and artist can be checked.",
+      "Identifies each song from its audio and links it to MusicBrainz. A song AcoustID names differently goes to the AcoustID page for review; nothing is renamed automatically.",
     unit: ["song", "songs"],
   },
   artist_images: {

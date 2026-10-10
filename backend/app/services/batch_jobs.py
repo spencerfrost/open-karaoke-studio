@@ -7,7 +7,7 @@ ones the tasks select with, so "Run on 12 missing" queues exactly those 12.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from sqlalchemy.orm import Query, Session
@@ -26,6 +26,16 @@ class BatchJob:
     # Every row the job covers, and the ones that still need it.
     covered: Callable[[Session], Query]
     missing: Callable[[Session], Query]
+    # Rows for modes other than "missing" and "all".
+    others: dict[str, Callable[[Session], Query]] = field(default_factory=dict)
+
+    def rows(self, session: Session, mode: str) -> Query:
+        """The rows a run in `mode` works through: "all" is every covered row."""
+        if mode == "missing":
+            return self.missing(session)
+        if mode == "all":
+            return self.covered(session)
+        return self.others[mode](session)
 
 
 def _songs(session: Session) -> Query:
@@ -83,11 +93,24 @@ JOBS: dict[str, BatchJob] = {
         BatchJob(
             kind="fingerprint",
             task_name="batch_fingerprint_songs",
-            modes=("missing", "all"),
+            # No "all": fingerprinting a song again only re-asks AcoustID, and
+            # matched or hand-confirmed songs have nothing to gain from that.
+            # "retry" re-asks about unconfirmed songs it couldn't settle: no
+            # match or a failed lookup (its database may have caught up), and
+            # ambiguous ties (one of them may be named like the song).
+            modes=("missing", "retry"),
             covered=_songs,
             missing=lambda s: _songs(s).filter(
                 DbSong.acoustid_fingerprint_status == "not_checked"
             ),
+            others={
+                "retry": lambda s: _songs(s).filter(
+                    DbSong.acoustid_fingerprint_status.in_(
+                        ("ambiguous", "no_match", "failed")
+                    ),
+                    DbSong.metadata_confirmed_at.is_(None),
+                )
+            },
         ),
         BatchJob(
             kind="artist_images",
@@ -149,7 +172,7 @@ def get_job(kind: str, mode: Optional[str] = None) -> BatchJob:
 def select_ids(session: Session, kind: str, mode: str) -> list[Any]:
     """The rows a run of `kind` in `mode` works through."""
     job = get_job(kind, mode)
-    query = job.missing(session) if mode == "missing" else job.covered(session)
+    query = job.rows(session, mode)
     return [row[0] for row in query.all()]
 
 
@@ -177,9 +200,12 @@ def job_summary(session: Session, job: BatchJob) -> dict:
         return alignment_summary(session)
     covered = job.covered(session).count()
     missing = job.missing(session).count()
+    counts = {"missing": missing, "all": covered}
+    for mode in job.others:
+        counts[mode] = job.rows(session, mode).count()
     return {
         "coverage": {"have": covered - missing, "of": covered},
-        "modeCounts": {"missing": missing, "all": covered},
+        "modeCounts": counts,
     }
 
 

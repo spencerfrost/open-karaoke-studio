@@ -11,7 +11,7 @@ export type JobKind =
   | "artist_images"
   | "lyrics_alignment";
 
-export type RunMode = "missing" | "repair" | "all";
+export type RunMode = "missing" | "repair" | "retry" | "all";
 
 export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 

@@ -20,6 +20,14 @@ class SongArtistRef(BaseModel):
     role: str  # 'primary' | 'featured'
 
 
+class AcoustIdSuggestion(BaseModel):
+    """The recording AcoustID found when it named the song differently."""
+
+    recordingId: str
+    title: Optional[str] = None
+    artist: Optional[str] = None
+
+
 class SongResponse(BaseModel):
     """Full song response model"""
 
@@ -73,6 +81,8 @@ class SongResponse(BaseModel):
     musicbrainzRecordingId: Optional[str] = None
     acoustidScore: Optional[float] = None
     acoustidFingerprintStatus: Optional[str] = None
+    acoustidSuggestion: Optional[AcoustIdSuggestion] = None
+    metadataConfirmed: bool = False  # A person set the title/artist
 
     # Structured artist credits
     artists: List[SongArtistRef] = []

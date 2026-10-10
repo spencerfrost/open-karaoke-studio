@@ -18,7 +18,7 @@ from app.services.batch_jobs import JOBS, SCAN_KINDS, job_summary, serialize_run
 
 SONGS_ADDED_WEEKS = 12
 RECENT_SONGS = 6
-REVIEW_FINGERPRINT_STATUSES = ("ambiguous", "no_match", "failed")
+REVIEW_FINGERPRINT_STATUSES = ("suggested", "ambiguous", "no_match", "failed")
 
 
 def _acoustid_counts(db: Session) -> dict:
@@ -30,6 +30,7 @@ def _acoustid_counts(db: Session) -> dict:
     )
     counts = dict(rows)
     return {
+        "suggested": counts.get("suggested", 0),
         "ambiguous": counts.get("ambiguous", 0),
         "noMatch": counts.get("no_match", 0),
         "failed": counts.get("failed", 0),

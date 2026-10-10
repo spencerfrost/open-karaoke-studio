@@ -32,6 +32,7 @@ import WorkerStrip from "./WorkerStrip";
 const MODE_LABEL: Record<RunMode, string> = {
   missing: "missing",
   repair: "needing repair",
+  retry: "not yet matched",
   all: "all",
 };
 
@@ -76,6 +77,7 @@ function describeRun(run: BatchRun, unit: JobInfo["unit"]): string {
   const parts = [formatWhen(run.finishedAt ?? run.createdAt)];
   if (run.mode === "all") parts.push("re-ran all");
   if (run.mode === "repair") parts.push("ones needing repair");
+  if (run.mode === "retry") parts.push("retried ones not yet matched");
   if (run.total !== null) parts.push(countOf(run.total, unit));
   if (run.failed > 0) parts.push(`${run.failed.toLocaleString()} failed`);
   return parts.join(" · ");

@@ -87,7 +87,17 @@ class DbSong(Base):
     musicbrainz_recording_id = Column(String, nullable=True)
     acoustid_score = Column(Float, nullable=True)
     acoustid_fingerprint_status = Column(String, nullable=False, default="not_checked")
-    # acoustid_fingerprint_status: "not_checked" | "matched" | "no_match" | "failed"
+    # acoustid_fingerprint_status: "not_checked" | "matched" | "suggested" |
+    # "ambiguous" | "no_match" | "failed" | "skipped". "matched" means AcoustID
+    # agreed with the title and artist (or a person picked the recording);
+    # "suggested" means it named the song differently, kept below for review.
+    acoustid_suggested_recording_id = Column(String, nullable=True)
+    acoustid_suggested_title = Column(String, nullable=True)
+    acoustid_suggested_artist = Column(String, nullable=True)
+    # When a person last set this song's title or artist (edited it, applied a
+    # match, accepted or turned down a suggestion). While set, automatic runs
+    # never change its title, artist, recording or artist credits.
+    metadata_confirmed_at = Column(DateTime, nullable=True)
 
     queue_items = relationship(
         "KaraokeQueueItem", back_populates="song", cascade="all, delete-orphan"
@@ -174,6 +184,16 @@ class DbSong(Base):
             "musicbrainzRecordingId": self.musicbrainz_recording_id,
             "acoustidScore": self.acoustid_score,
             "acoustidFingerprintStatus": self.acoustid_fingerprint_status,
+            "acoustidSuggestion": (
+                {
+                    "recordingId": self.acoustid_suggested_recording_id,
+                    "title": self.acoustid_suggested_title,
+                    "artist": self.acoustid_suggested_artist,
+                }
+                if self.acoustid_suggested_recording_id
+                else None
+            ),
+            "metadataConfirmed": self.metadata_confirmed_at is not None,
             # Structured artist credits
             "artists": (
                 [

@@ -92,10 +92,10 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to skip");
+      if (!res.ok) throw new Error("Failed to keep the details");
     },
     onSuccess: () => {
-      toast.success("Fingerprint skipped");
+      toast.success("Kept the current title and artist");
       onDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -217,8 +217,9 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
             size="sm"
             disabled={skipMutation.isPending}
             onClick={() => skipMutation.mutate()}
+            title="These details are right. AcoustID won't change or suggest others."
           >
-            Skip Fingerprint
+            Keep Current Details
           </Button>
         </div>
         {canRetryDownload && (

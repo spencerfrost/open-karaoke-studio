@@ -142,7 +142,7 @@ export const DeleteSongButton: React.FC<{
   );
 };
 
-/** AcoustID only: stop trying to match this song. */
+/** AcoustID only: keep the song's title and artist as they are, for good. */
 export const SkipFingerprintButton: React.FC<{
   songId: string;
   onSkipped: () => void;
@@ -152,7 +152,7 @@ export const SkipFingerprintButton: React.FC<{
     "post",
     {
       onSuccess: () => {
-        toast.success("Won't look this one up again");
+        toast.success("Kept the current title and artist");
         onSkipped();
       },
       onError: (error) => toast.error(error.message),
@@ -165,9 +165,37 @@ export const SkipFingerprintButton: React.FC<{
       variant="secondary"
       disabled={skip.isPending}
       onClick={() => skip.mutate()}
-      title="Leave the details as they are and stop looking this song up"
+      title="These details are right. AcoustID won't change or suggest others."
     >
-      {skip.isPending ? "Skipping…" : "Stop looking this up"}
+      {skip.isPending ? "Keeping…" : "Keep current details"}
+    </Button>
+  );
+};
+
+/** AcoustID only: rename the song as AcoustID suggested. */
+export const AcceptSuggestionButton: React.FC<{
+  songId: string;
+  onAccepted: () => void;
+}> = ({ songId, onAccepted }) => {
+  const accept = useApiMutation<unknown, void>(
+    `songs/${songId}/fingerprint/suggestion/accept`,
+    "post",
+    {
+      onSuccess: () => {
+        toast.success("Renamed to AcoustID's suggestion");
+        onAccepted();
+      },
+      onError: (error) => toast.error(error.message),
+    },
+  );
+
+  return (
+    <Button
+      size="sm"
+      disabled={accept.isPending}
+      onClick={() => accept.mutate()}
+    >
+      {accept.isPending ? "Renaming…" : "Use suggestion"}
     </Button>
   );
 };

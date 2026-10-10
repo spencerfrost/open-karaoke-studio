@@ -180,23 +180,26 @@ def fingerprint_single_song(song_id: str) -> dict:
             )
             return {"status": "no_audio", "song_id": song_id}
         try:
-            AcoustIdService(SongRepository(session)).fingerprint_and_identify(
+            outcome = AcoustIdService(SongRepository(session)).fingerprint_and_link(
                 song_id, audio_path
             )
         except Exception:
             logger.exception("fingerprint_single_song: failed for song %s", song_id)
+            return {"status": "error", "song_id": song_id}
 
-    logger.debug(
-        "[PIPELINE] fingerprint complete - dispatching enrich_song_artist_credits for song %s",
-        song_id,
-    )
-    celery.send_task("enrich_song_artist_credits", args=[song_id])
+    # Credits follow the linked recording; a suggestion links none.
+    if outcome == "matched":
+        logger.debug(
+            "[PIPELINE] fingerprint linked - dispatching enrich_song_artist_credits for song %s",
+            song_id,
+        )
+        celery.send_task("enrich_song_artist_credits", args=[song_id])
 
-    return {"status": "ok", "song_id": song_id}
+    return {"status": outcome, "song_id": song_id}
 
 
 @celery.task(name="enrich_song_artist_credits")
-def enrich_song_artist_credits(song_id: str) -> dict:
+def enrich_song_artist_credits(song_id: str, picked: bool = False) -> dict:
     """Re-resolve artist credits for a single song using MB recording -> MB search -> regex."""
     from app.db.database import get_db_session
     from app.db.models.song_artist import DbSongArtist
@@ -229,6 +232,14 @@ def enrich_song_artist_credits(song_id: str) -> dict:
                     song_id,
                     exc_info=True,
                 )
+
+        # A person confirmed this song's names, so automatic runs leave its
+        # credits alone too. `picked` is a person choosing the recording just
+        # now, which is when its credits should be used.
+        if song.metadata_confirmed_at and not picked:
+            session.commit()
+            logger.info("Kept song_artists for confirmed song %s", song_id)
+            return {"status": "confirmed", "song_id": song_id}
 
         credits = resolve_artist_credits(
             title=song.title,

@@ -43,6 +43,7 @@ def _overview(client):
 class TestOverview:
     def test_counts_what_needs_reviewing(self, client, db):
         _add(db, "fine")
+        _add(db, "renamed", acoustid_fingerprint_status="suggested")
         _add(db, "unsure", acoustid_fingerprint_status="ambiguous")
         _add(db, "unknown", acoustid_fingerprint_status="no_match")
         _add(db, "unknown-2", acoustid_fingerprint_status="no_match")
@@ -65,12 +66,12 @@ class TestOverview:
 
         assert body["needsYou"] == {
             "lyricsReports": 1,
-            "acoustid": {"ambiguous": 1, "noMatch": 2, "failed": 0},
+            "acoustid": {"suggested": 1, "ambiguous": 1, "noMatch": 2, "failed": 0},
             "failedSongs": 1,
             "alignmentRepair": 0,
         }
         # Failed songs aren't in the songbook.
-        assert body["librarySize"] == 4
+        assert body["librarySize"] == 5
 
     def test_reports_coverage_and_runs_in_progress(self, client, db):
         _add(db, "a", loudness_lufs=-9.0)

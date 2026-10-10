@@ -49,7 +49,7 @@ interface Tile {
 }
 
 function tilesFor({ needsYou }: AdminOverview): Tile[] {
-  const { ambiguous, noMatch, failed } = needsYou.acoustid;
+  const { suggested, ambiguous, noMatch, failed } = needsYou.acoustid;
   return [
     {
       to: "lyrics-reports",
@@ -59,9 +59,9 @@ function tilesFor({ needsYou }: AdminOverview): Tile[] {
     },
     {
       to: "acoustid",
-      count: ambiguous + noMatch + failed,
+      count: suggested + ambiguous + noMatch + failed,
       label: "AcoustID matches",
-      why: `${ambiguous} unsure · ${noMatch} no match · ${failed} failed`,
+      why: `${suggested} different name · ${ambiguous} unsure · ${noMatch} no match · ${failed} failed`,
     },
     {
       to: "failed",
