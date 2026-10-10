@@ -3,7 +3,10 @@
  * `[data-theme="<id>"]` block in index.css; retro is `:root`, so it's also
  * what any unknown or missing theme falls back to.
  */
-export const THEMES = [{ id: "retro", label: "Retro" }] as const;
+export const THEMES = [
+  { id: "retro", label: "Retro" },
+  { id: "cyberpunk", label: "Cyberpunk" },
+] as const;
 
 export type ThemeName = (typeof THEMES)[number]["id"];
 

@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Manrope:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -129,6 +130,91 @@
 }
 
 /*
+ * Cyberpunk theme. Rough on purpose: its job right now is to show where
+ * components assume retro's colors.
+ */
+[data-theme="cyberpunk"] {
+  --cp-void: #07060d;
+  --cp-panel: #17142e;
+  --cp-ink: #e6f6ff;
+  --cp-magenta: #ff2a6d;
+  --cp-cyan: #05d9e8;
+  --cp-violet: #7a04eb;
+  --cp-yellow: #fcee0a;
+
+  --radius: 0.125rem;
+  --background: var(--cp-void);
+  --foreground: var(--cp-ink);
+  --foreground-dim: #b4bde0;
+  --foreground-faint: #6f7399;
+
+  --surface-sunk: #0b0918;
+  --surface: var(--cp-panel);
+  --surface-raised: #211d40;
+  --surface-hover: #2c2754;
+  --surface-foreground: var(--cp-ink);
+
+  --card: var(--surface);
+  --card-foreground: var(--cp-ink);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--cp-ink);
+
+  --primary: var(--cp-magenta);
+  --primary-foreground: var(--cp-void);
+  --secondary: var(--cp-violet);
+  --secondary-foreground: var(--cp-ink);
+  --accent: var(--cp-cyan);
+  --accent-foreground: var(--cp-void);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--foreground-dim);
+
+  --destructive: #ff3b3b;
+  --destructive-foreground: var(--cp-void);
+  --destructive-strong: color-mix(in oklab, var(--destructive), white 25%);
+  --success: #39ff88;
+  --success-foreground: var(--cp-void);
+  --success-strong: color-mix(in oklab, var(--success), white 25%);
+  --warning: #ffe14d;
+  --warning-foreground: var(--cp-void);
+  --warning-strong: color-mix(in oklab, var(--warning), white 25%);
+  --info: #4da3ff;
+  --info-foreground: var(--cp-void);
+  --info-strong: color-mix(in oklab, var(--info), white 25%);
+
+  --border: color-mix(in oklab, var(--cp-cyan) 45%, transparent);
+  --input: var(--border);
+  --ring: var(--cp-cyan);
+
+  --glass: var(--cp-ink);
+  --glass-border: var(--cp-cyan);
+  --overlay: #000;
+
+  --page-bg:
+    radial-gradient(
+      ellipse at 50% 120%,
+      color-mix(in oklab, var(--cp-violet) 35%, transparent),
+      transparent 60%
+    ),
+    var(--cp-void);
+
+  --decor-1: var(--cp-cyan);
+  --decor-2: var(--cp-magenta);
+  --decor-3: var(--cp-yellow);
+  --decor-4: var(--cp-violet);
+
+  --glow-primary:
+    0 0 6px var(--cp-magenta),
+    0 0 18px color-mix(in oklab, var(--cp-magenta) 60%, transparent);
+  --glow-accent:
+    0 0 6px var(--cp-cyan),
+    0 0 18px color-mix(in oklab, var(--cp-cyan) 60%, transparent);
+
+  --display-font: "Orbitron", system-ui, sans-serif;
+  --body-font: "Rajdhani", system-ui, sans-serif;
+  --accent-font: "Share Tech Mono", monospace;
+}
+
+/*
  * Background decorations. Layouts render .theme-pattern and .theme-texture
  * behind their content; each theme defines what they look like, or hides them.
  * These are retro's: a faint sunburst and a pixel-grain texture.
@@ -161,6 +247,29 @@
     @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
 
+  /* Cyberpunk: scanlines instead of grain, a grid instead of the sunburst. */
+  [data-theme="cyberpunk"] .theme-texture {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      color-mix(in oklab, white 4%, transparent) 0 1px,
+      transparent 1px 3px
+    );
+  }
+
+  [data-theme="cyberpunk"] .theme-pattern {
+    background:
+      linear-gradient(
+          color-mix(in oklab, var(--accent) 25%, transparent) 1px,
+          transparent 1px
+        )
+        0 0 / 48px 48px,
+      linear-gradient(
+          90deg,
+          color-mix(in oklab, var(--accent) 25%, transparent) 1px,
+          transparent 1px
+        )
+        0 0 / 48px 48px;
+  }
 }
 
 @theme inline {
