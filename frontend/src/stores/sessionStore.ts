@@ -250,7 +250,10 @@ export const useSessionStore = create<SessionState>()(
             recoveryError: null,
           });
 
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            sessionData.device_id,
+          );
 
           registerSessionEndedHandler(get);
 
@@ -328,7 +331,10 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Update WebSocket services for new session
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            sessionData.device_id,
+          );
 
           registerSessionEndedHandler(get);
 
@@ -396,7 +402,10 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Update WebSocket services for new session
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            sessionData.device_id,
+          );
 
           registerSessionEndedHandler(get);
 
@@ -524,7 +533,10 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Reconnect WebSocket
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            deviceId,
+          );
 
           registerSessionEndedHandler(get);
 
@@ -667,7 +679,10 @@ export const useSessionStore = create<SessionState>()(
           });
 
           // Reconnect WebSocket
-          sessionWebSocketService.connectToSession(sessionData.session_id);
+          sessionWebSocketService.connectToSession(
+            sessionData.session_id,
+            deviceId,
+          );
 
           registerSessionEndedHandler(get);
 
@@ -825,10 +840,11 @@ export const useSessionStore = create<SessionState>()(
 );
 
 // The server is the authority on session ownership - it compares the token against
-// host_user_id. It answers the `authenticate` message sent on every WebSocket open, so this
-// also corrects ownership after a reconnect. It says nothing about the device role, which
-// this client decides for itself. Registered once at module scope against the singleton.
-sessionWebSocketService.on("authenticated", (data) => {
+// host_user_id. It answers the `authenticate` message sent on every WebSocket open with
+// session_connected, so this also corrects ownership after a reconnect. It says nothing
+// about the device role, which this client decides for itself. Registered once at module
+// scope against the singleton.
+sessionWebSocketService.on("session_connected", (data) => {
   const isSessionOwner = Boolean(
     (data as { is_session_owner?: boolean })?.is_session_owner,
   );

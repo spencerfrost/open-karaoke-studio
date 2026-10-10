@@ -27,6 +27,17 @@ def _make_mock_user():
     return u
 
 
+def _join(websocket, device_id, token=None):
+    """Send the opening authenticate message and return the session_connected greeting."""
+    message = {"type": "authenticate", "device_id": device_id}
+    if token is not None:
+        message["token"] = token
+    websocket.send_json(message)
+    greeting = websocket.receive_json()
+    assert greeting["type"] == "session_connected"
+    return greeting
+
+
 @pytest.fixture(scope="function")
 def test_setup():
     """App with auth bypassed, plus factories that seed the shared test database."""
@@ -56,6 +67,12 @@ def test_setup():
             expires_at=datetime.utcnow() + timedelta(hours=1),
         )
         setup_session.add(session)
+        # Session creation registers the host's device; sockets authenticate with it.
+        setup_session.add(
+            models.SessionDevice(
+                session_id=session_id, device_id=host_device_id, device_type="stage"
+            )
+        )
         setup_session.commit()
         setup_session.refresh(session)
         return session
@@ -117,12 +134,8 @@ def test_websocket_queue_update_is_session_specific(test_setup):
         f"/ws/session/{session_id_2}"
     ) as websocket2:
 
-        # Get initial connection messages
-        message1 = websocket1.receive_json()
-        assert message1["type"] == "session_connected"
-
-        message2 = websocket2.receive_json()
-        assert message2["type"] == "session_connected"
+        _join(websocket1, host_device_id_1)
+        _join(websocket2, host_device_id_2)
 
         # Request queue update for session 1
         websocket1.send_json({"type": "request_queue_update"})
@@ -235,15 +248,10 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
     host_token = create_access_token(host)
     ws_url = f"/ws/session/{session_id}"
     with client.websocket_connect(ws_url) as websocket:
-        connected_message = websocket.receive_json()
-        assert connected_message["type"] == "session_connected"
+        # The host token makes player state commands acceptable
+        connected_message = _join(websocket, host_device_id, host_token)
         assert connected_message["performance_state"]["current_song_id"] == song.id
-
-        # Authenticate so player state commands are accepted
-        websocket.send_json({"type": "authenticate", "token": host_token})
-        auth_reply = websocket.receive_json()
-        assert auth_reply["type"] == "authenticated"
-        assert auth_reply["is_session_owner"] is True
+        assert connected_message["is_session_owner"] is True
 
         websocket.send_json(
             {
@@ -260,8 +268,7 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
         _ = websocket.receive_json()  # queue_updated response
 
     with client.websocket_connect(ws_url) as websocket:
-        connected_message = websocket.receive_json()
-        assert connected_message["type"] == "session_connected"
+        connected_message = _join(websocket, host_device_id)
 
         state = connected_message["performance_state"]
         assert state["current_song_id"] == song.id
@@ -275,15 +282,17 @@ def test_performance_control_cannot_write_playback_state(test_setup):
     client, session_factory, _song_factory, user_factory = test_setup
 
     session_id = f"session_{uuid.uuid4()}"
+    host_device_id = f"host_{uuid.uuid4()}"
     host = user_factory("controls-host")
-    session_factory(session_id, f"host_{uuid.uuid4()}", host_user_id=host.id)
+    session_factory(session_id, host_device_id, host_user_id=host.id)
 
     ws_url = f"/ws/session/{session_id}"
     with client.websocket_connect(ws_url) as performer, client.websocket_connect(
         ws_url
     ) as tv:
-        performer.receive_json()  # session_connected
-        tv.receive_json()  # session_connected
+        # No token on either: both connections are unprivileged members
+        _join(performer, host_device_id)
+        _join(tv, host_device_id)
 
         performer.send_json(
             {

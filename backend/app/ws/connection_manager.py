@@ -27,6 +27,10 @@ class SessionConnectionManager:
 
     async def connect(self, websocket: WebSocket, device_id: Optional[str] = None):
         await websocket.accept()
+        self.register(websocket, device_id)
+
+    def register(self, websocket: WebSocket, device_id: Optional[str] = None):
+        """Track an already-accepted socket (one that had to authenticate first)."""
         self.active_connections.append(websocket)
         if device_id:
             # Store device_id in our mapping instead of on the websocket object

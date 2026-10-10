@@ -54,8 +54,7 @@ interface SessionWebSocketEvents {
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
 
-  // Host authentication events
-  authenticated: (data: { is_session_owner: boolean }) => void;
+  // Authentication events
   auth_failed: (data: { reason: string }) => void;
   permission_denied: (data: { action: string; reason: string }) => void;
 
@@ -90,11 +89,22 @@ type EventData =
       trigger?: string;
     }
   | { control: string; value: ControlValue }
-  | { is_session_owner: boolean }
   | { reason: string }
   | { action: string; reason: string }
   | { name: string }
   | undefined;
+
+function socketUrl(sessionId: string): string {
+  if (import.meta.env.DEV) {
+    // Development mode - use the current host to leverage Vite proxy
+    return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
+  }
+  // Production mode - use direct URLs
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
+}
 
 class SessionWebSocketService {
   private websocket: WebSocket | null = null;
@@ -103,6 +113,10 @@ class SessionWebSocketService {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentSessionId: string | null = null;
+  // The session-member credential (the REST X-Device-ID), sent in the opening
+  // `authenticate` message.
+  private memberDeviceId: string | null = null;
+  // This socket's ephemeral id, assigned by the server's session_connected greeting.
   private deviceId: string | null = null;
 
   constructor() {
@@ -135,13 +149,16 @@ class SessionWebSocketService {
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
-      // Claim host authority if we hold a token. The server decides whether this user
-      // actually owns the session - performers have no token and simply skip this.
-      // Runs on every open, so reconnects re-authenticate automatically.
+      // The server ignores everything until this arrives: the device id proves session
+      // membership, and the token (if we hold one) claims host authority. The server
+      // decides ownership and answers in session_connected. Runs on every open, so
+      // reconnects re-authenticate automatically.
       const token = useAuthStore.getState().token;
-      if (token) {
-        this.send({ type: "authenticate", token });
-      }
+      this.send({
+        type: "authenticate",
+        device_id: this.memberDeviceId,
+        ...(token ? { token } : {}),
+      });
 
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
@@ -157,9 +174,13 @@ class SessionWebSocketService {
       this.isConnected = false;
       this.websocket = null;
 
-      // Attempt to reconnect if it wasn't a manual disconnect
-      if (event.code !== 1000) {
-        // 1000 = normal closure
+      // 1000 = normal closure. 1008 = the server says this device isn't a member of
+      // a live session; retrying with the same credential can't succeed.
+      if (event.code === 1008) {
+        logger.error(
+          `Session WebSocket rejected: ${event.reason}. Not reconnecting.`,
+        );
+      } else if (event.code !== 1000) {
         this.scheduleReconnect();
       }
     };
@@ -217,18 +238,7 @@ class SessionWebSocketService {
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       if (this.currentSessionId) {
-        // Rebuild the WebSocket URL with device_id query parameter if host
-        let baseSocketUrl: string;
-        if (import.meta.env.DEV) {
-          baseSocketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${this.currentSessionId}`;
-        } else {
-          const backendUrl =
-            import.meta.env.VITE_BACKEND_URL ||
-            `${window.location.protocol}//${window.location.host}`;
-          baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${this.currentSessionId}`;
-        }
-
-        this.initializeConnection(baseSocketUrl);
+        this.initializeConnection(socketUrl(this.currentSessionId));
       }
     }, delay);
   }
@@ -297,34 +307,24 @@ class SessionWebSocketService {
   /**
    * Connect to a session.
    *
-   * Every connection starts unprivileged. Host authority is granted by the server in
-   * response to the `authenticate` message sent on open - it is never derived from the
-   * connection URL.
+   * The server admits only session members: the opening `authenticate` message carries
+   * `deviceId`, and host authority comes from the auth token in that same message - it
+   * is never derived from the connection URL.
    *
    * @param sessionId The session ID to connect to
+   * @param deviceId The device id minted when this device joined or created the session
    */
-  connectToSession(sessionId: string) {
+  connectToSession(sessionId: string, deviceId: string) {
     logger.debug(
       "Connecting to unified session WebSocket for session:",
       sessionId,
     );
     this.disconnect(); // Clean up any existing connection first
     this.currentSessionId = sessionId;
+    this.memberDeviceId = deviceId;
     this.reconnectAttempts = 0;
 
-    let socketUrl: string;
-    if (import.meta.env.DEV) {
-      // Development mode - use the current host to leverage Vite proxy
-      socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
-    } else {
-      // Production mode - use direct URLs
-      const backendUrl =
-        import.meta.env.VITE_BACKEND_URL ||
-        `${window.location.protocol}//${window.location.host}`;
-      socketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
-    }
-
-    this.initializeConnection(socketUrl);
+    this.initializeConnection(socketUrl(sessionId));
   }
 
   /**
@@ -435,6 +435,7 @@ class SessionWebSocketService {
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.currentSessionId = null;
+    this.memberDeviceId = null;
     this.deviceId = null; // cleared until next session_connected
   }
 
@@ -442,10 +443,11 @@ class SessionWebSocketService {
    * Manually reconnect the WebSocket
    */
   reconnect() {
-    if (this.currentSessionId) {
+    if (this.currentSessionId && this.memberDeviceId) {
       const sessionId = this.currentSessionId;
+      const deviceId = this.memberDeviceId;
       this.disconnect();
-      this.connectToSession(sessionId);
+      this.connectToSession(sessionId, deviceId);
     }
   }
 }

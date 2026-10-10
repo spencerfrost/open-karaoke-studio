@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from app.db.database import get_db_session
 from app.db.models import KaraokeSession, SessionPlaybackState, User
 from app.services.auth_service import verify_token
-from app.services.session_service import deactivate_session
+from app.services.session_service import deactivate_session, find_session_member
 
 from .connection_manager import SessionConnectionManager
 from .queue import get_current_queue_state
@@ -47,6 +47,9 @@ session_cleanup_locks = {}
 # Pending host-disconnect termination tasks (cancelled on host reconnect)
 # Grace period: 30 seconds before session is destroyed after host disconnects
 HOST_DISCONNECT_GRACE_SECONDS = 30
+
+# How long a new connection has to send its `authenticate` message before it is dropped
+AUTH_TIMEOUT_SECONDS = 10
 session_termination_tasks: Dict[str, asyncio.Task] = {}
 
 
@@ -188,6 +191,51 @@ def cleanup_session_performance_state(session_id: str):
         logger.debug("🔓 Cleaned up lock for session %s", session_id)
 
 
+async def _authenticate_connection(
+    websocket: WebSocket, session_id: str
+) -> Optional[bool]:
+    """
+    Read the connection's opening `authenticate` message and check it.
+
+    The message must carry the `device_id` minted by join-by-code or session creation (the
+    same credential REST calls send as X-Device-ID). It may also carry the host's JWT.
+
+    Returns None when the connection is not a member of this live session - a wrong code
+    and a wrong device get the same answer, so the socket can't be used to find live codes.
+    Otherwise returns whether the connection is the session owner. A bad token on a valid
+    device is reported but not fatal: the connection continues as a non-owner.
+    """
+    try:
+        raw = await asyncio.wait_for(
+            websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
+        )
+        message = json.loads(raw)
+    except (asyncio.TimeoutError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(message, dict) or message.get("type") != "authenticate":
+        return None
+
+    device_id = message.get("device_id")
+    if not isinstance(device_id, str) or not device_id:
+        return None
+
+    with get_db_session() as db:
+        if find_session_member(db, session_id, device_id) is None:
+            return None
+
+    token = message.get("token")
+    if not token:
+        return False
+
+    is_session_owner, error = resolve_host_claim(token, session_id)
+    if error:
+        logger.warning("Session %s host claim failed: %s", session_id, error)
+        await websocket.send_text(json.dumps({"type": "auth_failed", "reason": error}))
+        return False
+    return is_session_owner
+
+
 async def websocket_unified_session_endpoint(
     websocket: WebSocket,
     session_id: str,
@@ -196,36 +244,28 @@ async def websocket_unified_session_endpoint(
     """
     Unified session WebSocket endpoint.
     Handles all session-related communication: performance controls, player state, and queue management.
-    Only devices in the specified session can access this endpoint.
 
-    Connections start unprivileged. A client becomes the host only by sending an
-    `authenticate` message carrying the host user's JWT - see resolve_host_claim.
+    Only session members get in. The first message must be `authenticate` with the
+    device's `device_id` (and, for the host, a JWT) - see _authenticate_connection. Until
+    it passes, the socket is not in the room and receives nothing.
     """
-    # Verify session exists in database
-    with get_db_session() as db:
-        db_session = (
-            db.query(KaraokeSession)
-            .filter(
-                KaraokeSession.session_id == session_id,
-                KaraokeSession.is_active == True,
-            )
-            .first()
+    await websocket.accept()
+
+    try:
+        is_session_owner = await _authenticate_connection(websocket, session_id)
+    except WebSocketDisconnect:
+        return
+
+    if is_session_owner is None:
+        await websocket.send_text(
+            json.dumps({"type": "auth_failed", "reason": "not_a_member"})
         )
-
-        if not db_session:
-            await websocket.close(code=1008, reason="Session not found or inactive")
-            return
-
-        if db_session.is_expired():
-            await websocket.close(code=1008, reason="Session has expired")
-            return
-
-    # Session ownership is granted only via the `authenticate` message below.
-    is_session_owner = False
+        await websocket.close(code=1008, reason="Not a member of this session")
+        return
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
-    await manager.connect(websocket, ws_connection_id)
+    manager.register(websocket, ws_connection_id)
 
     # Add device to session (in-memory for WebSocket management)
     manager.join_session(session_id, ws_connection_id, "unified")
@@ -235,8 +275,18 @@ async def websocket_unified_session_endpoint(
     await manager.join_room(websocket, session_room)
 
     logger.info(
-        f"Session {session_id} unified client connected: {ws_connection_id} (unauthenticated)"
+        "Session %s unified client connected: %s (is_session_owner: %s)",
+        session_id,
+        ws_connection_id,
+        is_session_owner,
     )
+
+    # Host reconnecting within the grace period - cancel pending termination
+    if is_session_owner and session_id in session_termination_tasks:
+        session_termination_tasks.pop(session_id).cancel()
+        logger.info(
+            f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
+        )
 
     try:
         # Hydrate in-memory state from persisted playback state before greeting client
@@ -260,52 +310,6 @@ async def websocket_unified_session_endpoint(
             data = await websocket.receive_text()
             message = json.loads(data)
             message_type = message.get("type")
-
-            # === AUTHENTICATION ===
-            # The only way a connection gains host authority. Performers never send this.
-            if message_type == "authenticate":
-                token = message.get("token")
-                if not token:
-                    await websocket.send_text(
-                        json.dumps({"type": "auth_failed", "reason": "missing_token"})
-                    )
-                    continue
-
-                claimed_host, error = resolve_host_claim(token, session_id)
-                if error:
-                    logger.warning(
-                        "Session %s auth failed for %s: %s",
-                        session_id,
-                        ws_connection_id,
-                        error,
-                    )
-                    await websocket.send_text(
-                        json.dumps({"type": "auth_failed", "reason": error})
-                    )
-                    continue
-
-                is_session_owner = claimed_host
-                logger.info(
-                    "Session %s client %s authenticated (is_session_owner: %s)",
-                    session_id,
-                    ws_connection_id,
-                    is_session_owner,
-                )
-
-                # Host reconnecting within the grace period - cancel pending termination
-                if is_session_owner and session_id in session_termination_tasks:
-                    pending_task = session_termination_tasks.pop(session_id)
-                    pending_task.cancel()
-                    logger.info(
-                        f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
-                    )
-
-                await websocket.send_text(
-                    json.dumps(
-                        {"type": "authenticated", "is_session_owner": is_session_owner}
-                    )
-                )
-                continue
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
             if message_type == "join_performance":

@@ -11,8 +11,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
-from app.db.models import KaraokeSession, SessionDevice, User
+from app.db.models import SessionDevice, User
 from app.services.auth_service import verify_token
+from app.services.session_service import find_session_member
 
 logger = logging.getLogger(__name__)
 
@@ -98,18 +99,8 @@ def _resolve_session_member(
     session_id: str, device_id: str, db: Session
 ) -> SessionDevice:
     """Return the active SessionDevice for a live session, or raise 403."""
-    device = (
-        db.query(SessionDevice)
-        .join(KaraokeSession, KaraokeSession.session_id == SessionDevice.session_id)
-        .filter(
-            SessionDevice.device_id == device_id,
-            SessionDevice.session_id == session_id,
-            SessionDevice.is_active.is_(True),
-            KaraokeSession.is_active.is_(True),
-        )
-        .first()
-    )
-    if device is None or device.session.is_expired():
+    device = find_session_member(db, session_id, device_id)
+    if device is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not a member of an active session",
