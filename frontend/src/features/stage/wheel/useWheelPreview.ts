@@ -17,8 +17,8 @@ import type { Song } from "@/types/Song";
 
 /** How long the cursor rests on a song before its preview starts. */
 const WHEEL_PREVIEW_DELAY_MS = 1500;
-/** Half volume: under the room's chatter, not over it. */
-const WHEEL_PREVIEW_VOLUME = 0.5;
+/** Lower volume: under the room's chatter, not over it. */
+const WHEEL_PREVIEW_VOLUME = 0.25;
 
 /** `song` is the one to preview, or null for silence. */
 export function useWheelPreview(song: Song | null) {
