@@ -339,7 +339,7 @@ describe("useKaraokePlayerStore", () => {
         value: number;
         cancelScheduledValues: ReturnType<typeof vi.fn>;
         setValueAtTime: ReturnType<typeof vi.fn>;
-        linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+        setValueCurveAtTime: ReturnType<typeof vi.fn>;
       };
       connect: ReturnType<typeof vi.fn>;
       disconnect: ReturnType<typeof vi.fn>;
@@ -395,7 +395,7 @@ describe("useKaraokePlayerStore", () => {
                 value: 1,
                 cancelScheduledValues: vi.fn(),
                 setValueAtTime: vi.fn(),
-                linearRampToValueAtTime: vi.fn(),
+                setValueCurveAtTime: vi.fn(),
               },
               connect: vi.fn(),
               disconnect: vi.fn(),
@@ -457,12 +457,19 @@ describe("useKaraokePlayerStore", () => {
 
       void changeSong("next-song");
 
-      expect(fade.gain.linearRampToValueAtTime).toHaveBeenCalledWith(
+      expect(fade.gain.setValueCurveAtTime).toHaveBeenCalledWith(
+        expect.any(Float32Array),
         0,
         SONG_CHANGE_FADE_MS / 1000,
       );
+      const curve: Float32Array =
+        fade.gain.setValueCurveAtTime.mock.calls[0][0];
+      expect(curve[0]).toBe(1);
+      expect(curve[curve.length - 1]).toBe(0);
+      // Squared, not straight: halfway through it is at a quarter.
+      expect(curve[(curve.length - 1) / 2]).toBeCloseTo(0.25);
       expect(loudness.gain.value).toBeCloseTo(Math.pow(10, -6 / 20));
-      expect(loudness.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+      expect(loudness.gain.setValueCurveAtTime).not.toHaveBeenCalled();
       // The old song plays on underneath the fade.
       expect(usePlaybackStateStore.getState().songId).toBe("fade-song");
       expect(usePlaybackStateStore.getState().isPlaying).toBe(true);
@@ -499,7 +506,7 @@ describe("useKaraokePlayerStore", () => {
       useKaraokePlayerStore.getState().play();
       const fade = fadeNode();
       expect(fade.gain.value).toBe(1);
-      expect(fade.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+      expect(fade.gain.setValueCurveAtTime).not.toHaveBeenCalled();
     });
 
     it("switches straight away when nothing is playing", async () => {

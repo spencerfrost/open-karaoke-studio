@@ -570,10 +570,19 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       const gain = fadeGainNode.gain;
       const now = audioContext.currentTime;
       gain.cancelScheduledValues(now);
-      // Anchor the ramp at the current level; without a scheduled start point
-      // it would ramp from whenever the last event was.
-      gain.setValueAtTime(gain.value, now);
-      gain.linearRampToValueAtTime(0, now + ms / 1000);
+      // A straight line in amplitude sounds like it holds and then drops off
+      // at the end, because loudness tracks amplitude roughly as a square
+      // root. Squaring the line makes the fall sound even all the way down.
+      // The curve starts at the current level, so it needs no anchor event
+      // (one at `now` would overlap the curve and throw).
+      const start = gain.value;
+      const steps = 64;
+      const curve = new Float32Array(steps + 1);
+      for (let i = 0; i <= steps; i++) {
+        const remaining = 1 - i / steps;
+        curve[i] = start * remaining * remaining;
+      }
+      gain.setValueCurveAtTime(curve, now, ms / 1000);
 
       let resolve!: (completed: boolean) => void;
       const promise = new Promise<boolean>((r) => {
