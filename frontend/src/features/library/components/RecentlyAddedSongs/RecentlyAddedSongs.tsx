@@ -51,8 +51,8 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
           "md:[&::-webkit-scrollbar]:h-1.5",
           "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-glass/10",
           // Scrollbar thumb
-          "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-orange-peel/40",
-          "md:hover:[&::-webkit-scrollbar-thumb]:bg-orange-peel/70",
+          "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-primary/40",
+          "md:hover:[&::-webkit-scrollbar-thumb]:bg-primary/70",
           // Padding below for scrollbar space on desktop
           "pb-1 md:pb-3",
         ].join(" ")}

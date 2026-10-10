@@ -18,13 +18,13 @@ export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
 
   return (
     <Card
-      className="group overflow-hidden relative hover:shadow-lg transition-shadow pt-0 pb-2 gap-0.5 border-dashed border-2 border-orange-peel/40 hover:border-orange-peel/80 cursor-pointer"
+      className="group overflow-hidden relative hover:shadow-lg transition-shadow pt-0 pb-2 gap-0.5 border-dashed border-2 border-primary/40 hover:border-primary/80 cursor-pointer"
       onClick={handleClick}
     >
       <CardContent className="p-0 flex-1">
         <div className="flex flex-col">
-          <div className="relative overflow-hidden flex items-center justify-center bg-orange-peel/10 aspect-video w-full">
-            <div className="flex flex-col items-center gap-2 text-orange-peel/70 group-hover:text-orange-peel transition-colors">
+          <div className="relative overflow-hidden flex items-center justify-center bg-primary/10 aspect-video w-full">
+            <div className="flex flex-col items-center gap-2 text-primary/70 group-hover:text-primary transition-colors">
               <Music size={48} />
               <span className="text-xs font-medium uppercase tracking-wide">
                 YouTube Music
@@ -32,7 +32,7 @@ export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
             </div>
           </div>
           <div className="p-3 flex-1">
-            <h3 className="font-medium truncate text-orange-peel/90">
+            <h3 className="font-medium truncate text-primary/90">
               Find more from {artistName}
             </h3>
             <p className="text-sm opacity-75 flex items-center gap-1 mt-1">

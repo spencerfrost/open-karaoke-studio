@@ -92,26 +92,26 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
 
   return (
     <div
-      className="border border-orange-peel rounded-lg overflow-hidden"
+      className="border border-primary rounded-lg overflow-hidden"
       id={`artist-${artist.name}`}
     >
       {/* Artist Header */}
-      <div className="flex items-center bg-lemon-chiffon/10 text-lemon-chiffon">
+      <div className="flex items-center bg-glass/10 text-foreground">
         <button
           onClick={() => onToggle(artist.name)}
-          className="flex-1 px-4 py-3 flex items-center text-left hover:bg-lemon-chiffon/5 transition-colors"
+          className="flex-1 px-4 py-3 flex items-center text-left hover:bg-glass/5 transition-colors"
         >
           <div className="flex items-center gap-3">
             {isExpanded ? (
-              <ChevronDown size={20} className="text-orange-peel" />
+              <ChevronDown size={20} className="text-primary" />
             ) : (
-              <ChevronRight size={20} className="text-orange-peel" />
+              <ChevronRight size={20} className="text-primary" />
             )}
-            <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-orange-peel/20 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-primary/20 flex items-center justify-center">
               {artist.isShow ? (
-                <Theater size={18} className="text-orange-peel" />
+                <Theater size={18} className="text-primary" />
               ) : imageError ? (
-                <Users size={18} className="text-orange-peel" />
+                <Users size={18} className="text-primary" />
               ) : (
                 <img
                   src={imageUrl}
@@ -138,7 +138,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("grid");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-orange-peel" : "text-lemon-chiffon/30 hover:text-lemon-chiffon/60"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-primary" : "text-foreground/30 hover:text-foreground/60"}`}
               aria-label="Grid view"
             >
               <LayoutGrid size={16} />
@@ -148,7 +148,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("table");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-orange-peel" : "text-lemon-chiffon/30 hover:text-lemon-chiffon/60"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-primary" : "text-foreground/30 hover:text-foreground/60"}`}
               aria-label="List view"
             >
               <List size={16} />
@@ -160,24 +160,24 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
-              className="px-3 py-3 hover:bg-lemon-chiffon/5 transition-colors text-orange-peel/60 hover:text-orange-peel"
+              className="px-3 py-3 hover:bg-glass/5 transition-colors text-primary/60 hover:text-primary"
               aria-label={`Actions for ${artist.name}`}
             >
               <MoreHorizontal size={18} />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="bg-overlay/95 border-orange-peel/20"
+              className="bg-overlay/95 border-primary/20"
             >
               <DropdownMenuItem
                 onClick={() => setEditOpen(true)}
-                className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"
+                className="text-foreground hover:bg-glass/10 cursor-pointer"
               >
                 Edit Artist
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setCollabsOpen(true)}
-                className="text-lemon-chiffon hover:bg-lemon-chiffon/10 cursor-pointer"
+                className="text-foreground hover:bg-glass/10 cursor-pointer"
               >
                 Manage Collabs
               </DropdownMenuItem>
