@@ -5,11 +5,12 @@ Host settings API endpoints.
 import logging
 from typing import Optional
 
-from app.api.dependencies import get_db, require_host
-from app.db.models import HostSettings, User
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_db, require_host
+from app.db.models import HostSettings, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/host-settings", tags=["host-settings"])

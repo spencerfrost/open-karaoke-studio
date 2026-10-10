@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 from app.jobs.lyrics_tasks import prefetch_song_lyrics
 
-
 SONG_ID = "song-lyrics-123"
 
 

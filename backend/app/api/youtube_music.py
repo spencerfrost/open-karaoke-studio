@@ -8,7 +8,6 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-
 from app.db.database import get_db_session
 from app.db.models.song import DbSong
 from app.services.youtube_music_service import YoutubeMusicService
@@ -20,6 +19,7 @@ router = APIRouter(prefix="/api/youtube-music", tags=["youtube-music"])
 
 class YoutubeMusicSearchResult(BaseModel):
     """Individual YouTube Music search result."""
+
     videoId: Optional[str] = None
     title: Optional[str] = None
     artist: Optional[str] = None
@@ -37,6 +37,7 @@ class YoutubeMusicSearchResult(BaseModel):
 
 class YoutubeMusicArtistSearchResult(BaseModel):
     """Individual YouTube Music artist search result."""
+
     browseId: str
     name: str
     subscribers: Optional[str] = None
@@ -48,6 +49,7 @@ class YoutubeMusicArtistSearchResult(BaseModel):
 
 class YoutubeMusicSearchResponse(BaseModel):
     """Response model for YouTube Music search."""
+
     artists: List[YoutubeMusicArtistSearchResult] = []
     songs: List[dict] = []
     error: Optional[str] = None
@@ -55,12 +57,14 @@ class YoutubeMusicSearchResponse(BaseModel):
 
 class YoutubeMusicArtistResponse(BaseModel):
     """Response model for YouTube Music artist details."""
+
     data: Optional[dict] = None
     error: Optional[str] = None
 
 
 class YoutubeMusicAlbumResponse(BaseModel):
     """Response model for YouTube Music album tracks."""
+
     data: Optional[dict] = None
     error: Optional[str] = None
 
@@ -121,7 +125,7 @@ def _add_exists_in_library_flags(songs: List[dict]) -> List[dict]:
 @router.get("/search", response_model=YoutubeMusicSearchResponse)
 async def search_youtube_music(
     q: str = Query(..., min_length=1, description="Search query"),
-    limit: int = Query(10, ge=1, le=50, description="Maximum number of results")
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
 ):
     """
     Search YouTube Music for artists and songs.
@@ -137,9 +141,7 @@ async def search_youtube_music(
         songs = _add_exists_in_library_flags(combined.get("songs", []))
 
         return YoutubeMusicSearchResponse(
-            artists=combined.get("artists", []),
-            songs=songs,
-            error=None
+            artists=combined.get("artists", []), songs=songs, error=None
         )
 
     except Exception as e:
@@ -150,11 +152,11 @@ async def search_youtube_music(
 @router.get("/artist/{artist_id}", response_model=YoutubeMusicArtistResponse)
 async def get_artist(
     artist_id: str,
-    limit: int = Query(12, ge=1, le=50, description="Number of top songs to return")
+    limit: int = Query(12, ge=1, le=50, description="Number of top songs to return"),
 ):
     """
     Get artist details including top songs and albums.
-    
+
     Returns artist information with existsInLibrary flags on top songs.
     """
     try:
@@ -174,8 +176,12 @@ async def get_artist(
 @router.get("/artist/{artist_id}/releases")
 async def get_artist_releases(
     artist_id: str,
-    channel_id: str = Query(..., description="Artist channel ID from albumsMore/singlesMore"),
-    params: str = Query(..., description="Pagination params from albumsMore/singlesMore"),
+    channel_id: str = Query(
+        ..., description="Artist channel ID from albumsMore/singlesMore"
+    ),
+    params: str = Query(
+        ..., description="Pagination params from albumsMore/singlesMore"
+    ),
 ):
     """
     Fetch all albums or singles for an artist (load more).
@@ -188,7 +194,9 @@ async def get_artist_releases(
         releases = service.get_all_artist_releases(channel_id, params)
         return {"data": releases, "error": None}
     except Exception as e:
-        logger.error("Failed to get releases for artist %s: %s", artist_id, e, exc_info=True)
+        logger.error(
+            "Failed to get releases for artist %s: %s", artist_id, e, exc_info=True
+        )
         return {"data": None, "error": str(e)}
 
 
@@ -196,7 +204,7 @@ async def get_artist_releases(
 async def get_album_tracks(album_id: str):
     """
     Get all tracks from an album.
-    
+
     Returns album track list with existsInLibrary flags.
     """
     try:

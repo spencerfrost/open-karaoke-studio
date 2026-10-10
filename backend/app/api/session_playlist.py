@@ -10,14 +10,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from app.api.dependencies import get_db
-from app.db.models import DbSong, KaraokeSession, PerformanceHistory
-from app.db.models import Job, JobStatus
-from app.repositories.job_repository import JobRepository
-from app.services.youtube_music_service import YoutubeMusicService
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_db
+from app.db.models import DbSong, Job, JobStatus, KaraokeSession, PerformanceHistory
+from app.repositories.job_repository import JobRepository
+from app.services.youtube_music_service import YoutubeMusicService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["session-playlist"])
@@ -68,7 +68,11 @@ def _job_to_response(job: Job) -> SessionPlaylistResponse:
         youtube_music_playlist_id=youtube_music_playlist_id,
         song_count=song_count,
         error_message=job.error,
-        created_at=job.created_at.isoformat() if job.created_at else datetime.now(timezone.utc).isoformat(),
+        created_at=(
+            job.created_at.isoformat()
+            if job.created_at
+            else datetime.now(timezone.utc).isoformat()
+        ),
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
     )
 
@@ -114,17 +118,22 @@ def _generate_playlist(session_id: str, job_id: str) -> None:
         url, playlist_id = service.create_playlist(name, description, video_ids)
 
         job.status = JobStatus.COMPLETED
-        job.status_message = json.dumps({
-            "youtube_music_url": url,
-            "youtube_music_playlist_id": playlist_id,
-            "song_count": len(video_ids),
-        })
+        job.status_message = json.dumps(
+            {
+                "youtube_music_url": url,
+                "youtube_music_playlist_id": playlist_id,
+                "song_count": len(video_ids),
+            }
+        )
         job.completed_at = datetime.now(timezone.utc)
         job_repo.update(job)
 
     except Exception as e:
         logger.error(
-            "Failed to generate playlist for session %s: %s", session_id, e, exc_info=True
+            "Failed to generate playlist for session %s: %s",
+            session_id,
+            e,
+            exc_info=True,
         )
         job.status = JobStatus.FAILED
         job.error = str(e)
@@ -142,9 +151,7 @@ async def generate_session_playlist(
     Returns immediately; poll GET /{session_id}/playlist for status.
     """
     session = (
-        db.query(KaraokeSession)
-        .filter(KaraokeSession.session_id == session_id)
-        .first()
+        db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
     )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")

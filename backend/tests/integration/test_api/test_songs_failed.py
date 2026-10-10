@@ -4,10 +4,10 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
+from tests.integration.conftest import _get_mock_user, _TestingSessionLocal
 
 from app.api.dependencies import require_admin
 from app.db.models import DbSong
-from tests.integration.conftest import _get_mock_user, _TestingSessionLocal
 
 
 def _create_song(

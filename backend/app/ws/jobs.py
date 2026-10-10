@@ -11,7 +11,6 @@ import logging
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-
 from app.services.jobs_service import JobsService
 
 from .connection_manager import SessionConnectionManager

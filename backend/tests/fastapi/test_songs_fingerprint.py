@@ -1,10 +1,10 @@
 """Tests for songs fingerprint and replace endpoints."""
+
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from app.api.dependencies import get_current_user
-
 
 SONG_ID = "test-song-abc"
 
@@ -22,7 +22,11 @@ def make_mock_song(song_id=SONG_ID):
     song.id = song_id
     song.title = "Test Song"
     song.artist = "Test Artist"
-    song.to_dict.return_value = {"id": song_id, "title": "Test Song", "artist": "Test Artist"}
+    song.to_dict.return_value = {
+        "id": song_id,
+        "title": "Test Song",
+        "artist": "Test Artist",
+    }
     return song
 
 
@@ -83,8 +87,12 @@ class TestReplaceSongYouTube:
             mock_repo_cls.return_value.update.return_value = None
             mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = []
             mock_fs_cls.return_value.delete_song_files.return_value = None
-            mock_yt_cls.return_value.download_and_process_async = Mock(return_value="job-123")
-            response = client.post(f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD)
+            mock_yt_cls.return_value.download_and_process_async = Mock(
+                return_value="job-123"
+            )
+            response = client.post(
+                f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD
+            )
         assert response.status_code == 202
         data = response.json()
         assert data["jobId"] == "job-123"
@@ -93,7 +101,9 @@ class TestReplaceSongYouTube:
     def test_song_not_found(self, client):
         with patch("app.api.songs.SongRepository") as mock_repo_cls:
             mock_repo_cls.return_value.fetch.return_value = None
-            response = client.post(f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD)
+            response = client.post(
+                f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD
+            )
         assert response.status_code == 404
 
     def test_active_job_returns_409(self, client):
@@ -103,8 +113,12 @@ class TestReplaceSongYouTube:
             patch("app.repositories.JobRepository") as mock_job_repo_cls,
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
-            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [active_job]
-            response = client.post(f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD)
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [
+                active_job
+            ]
+            response = client.post(
+                f"/api/songs/{SONG_ID}/replace-youtube", json=self.PAYLOAD
+            )
         assert response.status_code == 409
 
     def test_invalid_engine_type_returns_422(self, client):
@@ -180,7 +194,9 @@ class TestReplaceSongUpload:
             patch("app.repositories.JobRepository") as mock_job_repo_cls,
         ):
             mock_repo_cls.return_value.fetch.return_value = make_mock_song()
-            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [active_job]
+            mock_job_repo_cls.return_value.get_in_flight_jobs.return_value = [
+                active_job
+            ]
             response = client.post(
                 f"/api/songs/{SONG_ID}/replace-upload",
                 files={"audio_file": ("test.mp3", b"data", "audio/mpeg")},

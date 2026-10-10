@@ -6,18 +6,16 @@ from datetime import datetime
 from pathlib import Path
 
 import librosa
+from celery.utils.log import get_task_logger
 
 from app.db.models import JobStatus
 from app.repositories import JobRepository
 from app.services import FileService, audio
 from app.services.audio import create_audio_progress_mapper
 from app.services.lyrics_timing import log_lyrics_event
-from celery.utils.log import get_task_logger
 
-from ._events import (
-    broadcast_job_event as _broadcast_job_event,
-    setup_event_subscriptions as _setup_event_subscriptions,
-)
+from ._events import broadcast_job_event as _broadcast_job_event
+from ._events import setup_event_subscriptions as _setup_event_subscriptions
 from ._shared import _create_lyrics_alignment_job, _get_lyrics_job_id
 from .celery_app import celery
 from .exceptions import AudioProcessingError, is_transient_processing_error
@@ -63,7 +61,9 @@ def _schedule_transient_retry(task, job, job_repository, exc):
     return task.retry(countdown=delay, exc=exc)
 
 
-def _dispatch_vocals_ready_tasks(song_id: str, vocals_path: Path, title: str | None, artist: str | None) -> None:
+def _dispatch_vocals_ready_tasks(
+    song_id: str, vocals_path: Path, title: str | None, artist: str | None
+) -> None:
     """Queue the steps that need vocals.mp3: vocal range and lyric alignment."""
     logger.debug(
         "[PIPELINE] vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
@@ -80,7 +80,9 @@ def _dispatch_vocals_ready_tasks(song_id: str, vocals_path: Path, title: str | N
     _create_lyrics_alignment_job(song_id, title=title, artist=artist)
     celery.send_task("detect_song_vocal_range", args=[song_id])
     celery.send_task("align_song_lyrics", args=[song_id])
-    log_lyrics_event(song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id))
+    log_lyrics_event(
+        song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id)
+    )
 
 
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
@@ -95,11 +97,11 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             logger.warning(
                 "Job %s not found, retrying in %s seconds (attempt %s/%s)",
                 job_id,
-                2 ** self.request.retries,
+                2**self.request.retries,
                 self.request.retries + 1,
                 self.max_retries + 1,
             )
-            raise self.retry(countdown=2 ** self.request.retries)
+            raise self.retry(countdown=2**self.request.retries)
 
         logger.error("Job %s not found after %s attempts", job_id, self.max_retries + 1)
         return {"status": "error", "message": "Job not found after retries"}
@@ -198,7 +200,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
 
         with get_db_session() as session:
             repo = SongRepository(session)
-            update_kwargs: dict = {"engine_type": final_engine_type, "status": "processed"}
+            update_kwargs: dict = {
+                "engine_type": final_engine_type,
+                "status": "processed",
+            }
             try:
                 update_kwargs["duration"] = librosa.get_duration(path=str(filepath))
             except Exception as e:
@@ -215,7 +220,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
 
         # Loudness is measured on the stems, so it waits for separation.
         celery.send_task("detect_song_loudness", args=[song_id])
-        logger.debug("[PIPELINE] separation done — dispatched detect_song_loudness for song %s", song_id)
+        logger.debug(
+            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
+            song_id,
+        )
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 
@@ -319,7 +327,22 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
 
         progress_diff = abs(progress - last_saved_progress)
         status_changed = status and status != last_saved_status
-        is_milestone = progress in [0, 5, 10, 12, 50, 60, 70, 73, 80, 90, 93, 95, 99, 100]
+        is_milestone = progress in [
+            0,
+            5,
+            10,
+            12,
+            50,
+            60,
+            70,
+            73,
+            80,
+            90,
+            93,
+            95,
+            99,
+            100,
+        ]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
         if should_save:
@@ -360,7 +383,11 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         # audio it already downloaded. First attempts always download, so
         # replace-youtube still fetches fresh audio.
         if self.request.retries > 0 and original_file.exists():
-            update_progress(12, f"Reusing downloaded audio, preparing {engine_type} engine", JobStatus.PROCESSING)
+            update_progress(
+                12,
+                f"Reusing downloaded audio, preparing {engine_type} engine",
+                JobStatus.PROCESSING,
+            )
         else:
             update_progress(10, "Starting YouTube download")
 
@@ -371,15 +398,27 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 title=metadata.get("title"),
             )
 
-            update_progress(12, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING)
+            update_progress(
+                12,
+                f"Download complete, preparing {engine_type} engine",
+                JobStatus.PROCESSING,
+            )
 
             celery.send_task("fingerprint_single_song", args=[song_id])
             celery.send_task("prefetch_song_lyrics", args=[song_id])
-            logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song for song %s", song_id)
-            logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
+            logger.debug(
+                "[PIPELINE] ~12%% — dispatched fingerprint_single_song for song %s",
+                song_id,
+            )
+            logger.debug(
+                "[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s",
+                song_id,
+            )
 
         if not original_file.exists():
-            raise AudioProcessingError(f"Original audio file not found: {original_file}")
+            raise AudioProcessingError(
+                f"Original audio file not found: {original_file}"
+            )
 
         import threading
 
@@ -391,7 +430,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             engine_type=engine_type,
             base_start=12,
             base_end=50,
-            update_fn=lambda prog, msg: update_progress(prog, f"Audio processing: {msg}"),
+            update_fn=lambda prog, msg: update_progress(
+                prog, f"Audio processing: {msg}"
+            ),
         )
 
         vocals_dispatched = False
@@ -399,7 +440,9 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         def on_vocals_ready(vocals_path: Path) -> None:
             nonlocal vocals_dispatched
             vocals_dispatched = True
-            _dispatch_vocals_ready_tasks(song_id, vocals_path, metadata.get("title"), metadata.get("artist"))
+            _dispatch_vocals_ready_tasks(
+                song_id, vocals_path, metadata.get("title"), metadata.get("artist")
+            )
 
         success, final_engine_type = run_separation_with_fallback(
             engine_type=engine_type,
@@ -419,18 +462,28 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         try:
             with get_db_session() as session:
                 repo = SongRepository(session)
-                update_fields: dict = {"engine_type": final_engine_type, "status": "processed"}
+                update_fields: dict = {
+                    "engine_type": final_engine_type,
+                    "status": "processed",
+                }
                 try:
-                    update_fields["duration"] = librosa.get_duration(path=str(original_file))
+                    update_fields["duration"] = librosa.get_duration(
+                        path=str(original_file)
+                    )
                 except Exception as e:
-                    logger.warning("Duration detection failed for song %s: %s", song_id, e)
+                    logger.warning(
+                        "Duration detection failed for song %s: %s", song_id, e
+                    )
                 repo.update(song_id, **update_fields)
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
 
         # Loudness is measured on the stems, so it waits for separation.
         celery.send_task("detect_song_loudness", args=[song_id])
-        logger.debug("[PIPELINE] separation done — dispatched detect_song_loudness for song %s", song_id)
+        logger.debug(
+            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
+            song_id,
+        )
 
         job.status = JobStatus.COMPLETED
         job.progress = 100

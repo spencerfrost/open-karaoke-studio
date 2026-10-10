@@ -1,7 +1,9 @@
-import pytest
+import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
-import threading
+
+import pytest
+
 from app.jobs.jobs import select_and_run_separation_engine
 
 

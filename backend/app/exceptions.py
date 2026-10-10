@@ -3,7 +3,6 @@
 Custom exception classes for the application
 """
 
-
 from typing import Optional
 
 

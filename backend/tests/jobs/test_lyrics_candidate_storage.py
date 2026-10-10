@@ -50,7 +50,9 @@ def _alignment_for(lrc: str, mean_score: float, *, line_index_shift: int = 0) ->
         "language": "en",
         "aligned_at": "2026-09-30T00:00:00+00:00",
         "word_count": len(words),
-        "line_count": len([line for line in parse_lrc_lines(lrc) if line["text"].strip()]),
+        "line_count": len(
+            [line for line in parse_lrc_lines(lrc) if line["text"].strip()]
+        ),
         "mean_score": mean_score,
     }
 
@@ -59,7 +61,10 @@ def _stored_line_texts(song) -> dict[int, list[str]]:
     """Map each stored word's line_index to the words on that line of the stored LRC."""
     lines = parse_lrc_lines(song.synced_lyrics)
     stored = json.loads(song.word_synced_lyrics)
-    return {word["line_index"]: lines[word["line_index"]]["text"].split() for word in stored["words"]}
+    return {
+        word["line_index"]: lines[word["line_index"]]["text"].split()
+        for word in stored["words"]
+    }
 
 
 @pytest.fixture
@@ -81,9 +86,17 @@ def task_env():
 
     with (
         patch("pathlib.Path.exists", return_value=True),
-        patch("app.config.get_config", return_value=SimpleNamespace(BASE_LIBRARY_DIR="/karaoke-library")),
-        patch("app.db.database.get_db_session", return_value=_make_db_context(mock_session)),
-        patch("app.repositories.song_repository.SongRepository", return_value=mock_repo),
+        patch(
+            "app.config.get_config",
+            return_value=SimpleNamespace(BASE_LIBRARY_DIR="/karaoke-library"),
+        ),
+        patch(
+            "app.db.database.get_db_session",
+            return_value=_make_db_context(mock_session),
+        ),
+        patch(
+            "app.repositories.song_repository.SongRepository", return_value=mock_repo
+        ),
         patch("app.jobs.lyrics_tasks.job_repository") as mock_job_repository,
         patch("app.jobs.lyrics_tasks._build_alignment_attempts") as mock_build_attempts,
         patch("app.jobs.lyrics_tasks.run_alignment_attempt") as mock_run_alignment,
@@ -91,7 +104,10 @@ def task_env():
         patch("app.jobs.lyrics_tasks._update_lyrics_alignment_job"),
         patch("app.jobs.lyrics_tasks._complete_lyrics_alignment_job"),
         patch("app.services.lyrics_offset.sweep_lrc_offset", return_value=None),
-        patch("app.services.lyrics_transcription.transcribe_lyrics_from_vocals", return_value=None) as mock_transcribe,
+        patch(
+            "app.services.lyrics_transcription.transcribe_lyrics_from_vocals",
+            return_value=None,
+        ) as mock_transcribe,
     ):
         mock_job_repository.get_by_id.return_value = None
         yield SimpleNamespace(
@@ -109,12 +125,24 @@ def _logged_events(mock_log) -> list[str]:
 
 def test_a_later_candidate_that_aligns_replaces_the_stored_lyrics(task_env):
     task_env.build_attempts.return_value = [
-        {"content": DB_LRC, "source_type": "synced", "source": "db:synced", "persist": False},
-        {"content": REMOTE_LRC, "source_type": "synced", "source": "lrclib:2", "persist": True},
+        {
+            "content": DB_LRC,
+            "source_type": "synced",
+            "source": "db:synced",
+            "persist": False,
+        },
+        {
+            "content": REMOTE_LRC,
+            "source_type": "synced",
+            "source": "lrclib:2",
+            "persist": True,
+        },
     ]
     # The aligner sees the formatted remote LRC; number its words against that.
     task_env.run_alignment.side_effect = lambda *, attempt, **_: (
-        _alignment_for(DB_LRC, 0.1) if attempt["source"] == "db:synced" else _alignment_for(attempt["content"], 0.8)
+        _alignment_for(DB_LRC, 0.1)
+        if attempt["source"] == "db:synced"
+        else _alignment_for(attempt["content"], 0.8)
     )
 
     result = align_song_lyrics(SONG_ID)
@@ -125,27 +153,53 @@ def test_a_later_candidate_that_aligns_replaces_the_stored_lyrics(task_env):
     stored = json.loads(task_env.song.word_synced_lyrics)
     assert stored["lyrics_source"] == "lrclib:2"
     for line_index, line_words in _stored_line_texts(task_env.song).items():
-        assert [w["word"] for w in stored["words"] if w["line_index"] == line_index] == line_words
+        assert [
+            w["word"] for w in stored["words"] if w["line_index"] == line_index
+        ] == line_words
 
 
 def test_every_synced_candidate_is_formatted_before_it_is_aligned(task_env):
     task_env.build_attempts.return_value = [
-        {"content": DB_LRC, "source_type": "synced", "source": "db:synced", "persist": False},
-        {"content": REMOTE_LRC, "source_type": "synced", "source": "lrclib:2", "persist": True},
+        {
+            "content": DB_LRC,
+            "source_type": "synced",
+            "source": "db:synced",
+            "persist": False,
+        },
+        {
+            "content": REMOTE_LRC,
+            "source_type": "synced",
+            "source": "lrclib:2",
+            "persist": True,
+        },
     ]
-    task_env.run_alignment.side_effect = lambda *, attempt, **_: _alignment_for(attempt["content"], 0.1)
+    task_env.run_alignment.side_effect = lambda *, attempt, **_: _alignment_for(
+        attempt["content"], 0.1
+    )
 
     align_song_lyrics(SONG_ID)
 
-    aligned_remote = task_env.run_alignment.call_args_list[1].kwargs["attempt"]["content"]
+    aligned_remote = task_env.run_alignment.call_args_list[1].kwargs["attempt"][
+        "content"
+    ]
     assert len(aligned_remote.splitlines()) == len(REMOTE_LRC.splitlines()) + 1
     assert [line["text"] for line in parse_lrc_lines(aligned_remote)][3] == ""
 
 
 def test_words_that_do_not_read_as_the_candidate_text_are_not_stored(task_env):
     task_env.build_attempts.return_value = [
-        {"content": DB_LRC, "source_type": "synced", "source": "db:synced", "persist": False},
-        {"content": REMOTE_LRC, "source_type": "synced", "source": "lrclib:1", "persist": True},
+        {
+            "content": DB_LRC,
+            "source_type": "synced",
+            "source": "db:synced",
+            "persist": False,
+        },
+        {
+            "content": REMOTE_LRC,
+            "source_type": "synced",
+            "source": "lrclib:1",
+            "persist": True,
+        },
     ]
     # db:synced scores well, but its words are another version of the lyrics.
     task_env.run_alignment.side_effect = lambda *, attempt, **_: (
@@ -163,10 +217,17 @@ def test_words_that_do_not_read_as_the_candidate_text_are_not_stored(task_env):
 
 def test_words_pointing_at_the_wrong_line_are_renumbered_before_storing(task_env):
     task_env.build_attempts.return_value = [
-        {"content": DB_LRC, "source_type": "synced", "source": "db:synced", "persist": False},
+        {
+            "content": DB_LRC,
+            "source_type": "synced",
+            "source": "db:synced",
+            "persist": False,
+        },
     ]
     # Right words, but every word points one line down (the old sentence-split bug).
-    task_env.run_alignment.return_value = _alignment_for(DB_LRC, 0.8, line_index_shift=1)
+    task_env.run_alignment.return_value = _alignment_for(
+        DB_LRC, 0.8, line_index_shift=1
+    )
 
     align_song_lyrics(SONG_ID)
 
@@ -194,7 +255,9 @@ def test_asr_words_point_at_the_formatted_transcript(task_env):
     after_break = [w for w in stored["words"] if w["word"] == "after"]
     assert after_break[0]["line_index"] == 4
     for line_index, line_words in _stored_line_texts(task_env.song).items():
-        assert [w["word"] for w in stored["words"] if w["line_index"] == line_index] == line_words
+        assert [
+            w["word"] for w in stored["words"] if w["line_index"] == line_index
+        ] == line_words
 
 
 def test_asr_lyrics_are_kept_without_word_timings_when_the_words_do_not_match(task_env):

@@ -147,7 +147,9 @@ class SongUpdateRequest(BaseModel):
     )
 
     # Audio analysis
-    loudnessLufs: Optional[float] = Field(None, description="EBU R128 integrated loudness")
+    loudnessLufs: Optional[float] = Field(
+        None, description="EBU R128 integrated loudness"
+    )
     truePeakDbtp: Optional[float] = Field(None, description="True peak in dBTP")
     gainDb: Optional[float] = Field(
         None, ge=-20, le=20, description="Gain correction in dB"

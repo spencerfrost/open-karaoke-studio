@@ -1,5 +1,7 @@
 """Shared validation utilities for API endpoints"""
+
 from typing import Literal
+
 from fastapi import HTTPException
 
 # Field mapping constants

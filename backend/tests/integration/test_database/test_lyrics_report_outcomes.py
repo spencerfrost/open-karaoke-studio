@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from app.db.models import DbSong, LyricsReport
 from app.jobs.lyrics_tasks import _record_report_outcomes
 from app.services.lyrics_retiming import lyrics_words_key

@@ -5,14 +5,15 @@ FastAPI router for user management endpoints.
 import logging
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import get_current_user, get_db, require_admin
 from app.db.models import User
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
 from app.services.demo_service import DEMO_TOKEN_EXPIRE_MINUTES, resolve_demo_login
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

@@ -221,8 +221,12 @@ def separate_with_three_track(
 
         # Write vocals.mp3 early so downstream tasks can start immediately
         _ts("vocals_mp3_start")
-        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-        logger.info("[PIPELINE] ~62%% — converting lead vocals to MP3 early (before de-noise)")
+        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(
+            ".mp3"
+        )
+        logger.info(
+            "[PIPELINE] ~62%% — converting lead vocals to MP3 early (before de-noise)"
+        )
         status_callback("Progress: 62% - Converting lead vocals to MP3 (early)...")
         lead_audio_early = AudioSegment.from_wav(str(lead_vocals_path))
         lead_audio_early.export(
@@ -312,8 +316,13 @@ def separate_with_three_track(
 
         # 1. Lead vocals — already written early after Roformer pass; skip if present
         if vocals_final.exists():
-            status_callback("Progress: 95% - Lead vocals already converted (written early)")
-            logger.info("Lead vocals already written early, skipping re-conversion: %s", vocals_final)
+            status_callback(
+                "Progress: 95% - Lead vocals already converted (written early)"
+            )
+            logger.info(
+                "Lead vocals already written early, skipping re-conversion: %s",
+                vocals_final,
+            )
         else:
             status_callback("Progress: 95% - Converting lead vocals to MP3...")
             lead_audio = AudioSegment.from_wav(str(lead_vocals_path))

@@ -20,6 +20,10 @@ backend_path = str(Path(__file__).parent.parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from tests.conftest import create_test_app
+
 import app.api.host_settings as _host_settings_api
 import app.api.jobs as _jobs_api
 import app.api.karaoke_queue as _queue_api
@@ -33,9 +37,6 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.db.models import Base  # noqa: F401 — triggers all model imports
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from tests.conftest import create_test_app
 
 _engine = create_engine(
     "sqlite:///:memory:",

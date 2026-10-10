@@ -1,11 +1,11 @@
 """Tests for the fingerprint_single_song Celery task."""
+
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, call
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
 from app.jobs.jobs import fingerprint_single_song
-
 
 SONG_ID = "song-abc-123"
 FAKE_LIB = "/fake/lib"

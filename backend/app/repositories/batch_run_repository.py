@@ -5,8 +5,9 @@ Batch run repository: the record of every batch job run.
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
-from app.db.models import BatchRun
 from sqlalchemy.orm import Session
+
+from app.db.models import BatchRun
 
 ACTIVE_STATUSES = ("queued", "running")
 

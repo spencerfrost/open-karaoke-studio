@@ -223,7 +223,9 @@ def analyze_global_offset(
     # Additional anchors: lines that immediately follow a high-confidence timing gap
     # (i.e. the line that starts a new section — fresh silence → onset pattern)
     timing_candidates = analyze_timing_gaps(lines)
-    high_conf = [c for c in timing_candidates if c["confidence"] >= min_anchor_confidence]
+    high_conf = [
+        c for c in timing_candidates if c["confidence"] >= min_anchor_confidence
+    ]
     fused = fuse_candidates(high_conf) if high_conf else []
 
     # Map after_line_index → the LrcLine that comes right after the break
@@ -403,6 +405,7 @@ def shift_lrc_timestamps(content: str, shift_seconds: float) -> str:
     """
     result_lines: list[str] = []
     for raw_line in content.splitlines():
+
         def _replace_ts(m: re.Match) -> str:
             mins = int(m.group(1))
             secs = int(m.group(2))
@@ -500,10 +503,16 @@ def sweep_lrc_offset(
         if _is_cuda_device(device):
             begin_gpu_activity(f"lyrics-offset-sweep:{language}")
             activity_started = True
-        model_a, metadata = whisperx.load_align_model(language_code=language, device=device)
+        model_a, metadata = whisperx.load_align_model(
+            language_code=language, device=device
+        )
         for shift in _sweep_shifts(max_shift, step):
-            segments = _lrc_lines_to_segments(parse_lrc_lines(shift_lrc_timestamps(lrc_content, shift)))
-            result = whisperx.align(segments, model_a, metadata, audio, device, return_char_alignments=False)
+            segments = _lrc_lines_to_segments(
+                parse_lrc_lines(shift_lrc_timestamps(lrc_content, shift))
+            )
+            result = whisperx.align(
+                segments, model_a, metadata, audio, device, return_char_alignments=False
+            )
             word_scores = [
                 word["score"]
                 for segment in result.get("segments", [])

@@ -36,7 +36,9 @@ def _attempt_priority(attempt: AlignmentAttempt) -> tuple[int, int, str]:
 
 def select_initial_lyrics(attempts: list[AlignmentAttempt]) -> AlignmentAttempt | None:
     """Pick the best remote candidate to persist for immediate display."""
-    remote_attempts = [attempt for attempt in attempts if not attempt["source"].startswith("db:")]
+    remote_attempts = [
+        attempt for attempt in attempts if not attempt["source"].startswith("db:")
+    ]
     if not remote_attempts:
         return None
 
@@ -80,7 +82,12 @@ def build_alignment_attempts(
             return
         seen.add(key)
         if rejected_keys and lyrics_words_key(text, source_type) in rejected_keys:
-            log_lyrics_event(song["id"], "lyrics_candidate_rejected", source=source, source_type=source_type)
+            log_lyrics_event(
+                song["id"],
+                "lyrics_candidate_rejected",
+                source=source,
+                source_type=source_type,
+            )
             return
         attempts.append(
             {
@@ -136,7 +143,12 @@ def build_alignment_attempts(
                 persist=True,
             )
     except Exception as e:
-        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="lrclib", exc_type=type(e).__name__)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_failed",
+            provider="lrclib",
+            exc_type=type(e).__name__,
+        )
         logger.warning(
             "LRCLIB candidate fetch failed for %s - %s",
             artist_name,
@@ -168,7 +180,12 @@ def build_alignment_attempts(
                 persist=True,
             )
     except Exception as e:
-        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="syncedlyrics", exc_type=type(e).__name__)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_failed",
+            provider="syncedlyrics",
+            exc_type=type(e).__name__,
+        )
         logger.warning(
             "syncedlyrics candidate fetch failed for %s - %s",
             artist_name,

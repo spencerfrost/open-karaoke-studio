@@ -1,7 +1,7 @@
 """
 Three-Track Separation Engine (Roformer v2 Upgraded Edition)
 
-Multi-pass separation that completely cuts out Demucs in favor of 
+Multi-pass separation that completely cuts out Demucs in favor of
 next-gen Time-Frequency Transformers. This produces three independent audio tracks:
 1. Lead Vocals (isolated via Roformer karaoke model)
 2. Backing Vocals (extracted from pure Roformer vocals + de-noised)
@@ -91,7 +91,9 @@ def separate_with_three_track(
     Returns:
         True if separation succeeded, False otherwise.
     """
-    logger.info("Starting Roformer-based Three-Track separation for: %s", input_path.name)
+    logger.info(
+        "Starting Roformer-based Three-Track separation for: %s", input_path.name
+    )
     status_callback("Engine: Dual-Pass Roformer + Spec De-Noise")
 
     def _ts(key: str) -> None:
@@ -108,24 +110,30 @@ def separate_with_three_track(
     try:
         # ===== STEP 1: Primary Vocal/Instrumental Separation (12-50% progress) =====
         _ts("primary_separation_start")
-        status_callback("Progress: 12% - Step 1/4: Initializing Primary Vocal Transformer...")
-        logger.info("Step 1: Roformer isolation for clean vocal mix and pure instrumental")
+        status_callback(
+            "Progress: 12% - Step 1/4: Initializing Primary Vocal Transformer..."
+        )
+        logger.info(
+            "Step 1: Roformer isolation for clean vocal mix and pure instrumental"
+        )
 
         # Initialize the native wrapper for primary isolation
         primary_separator = Separator(
             output_dir=str(temp_dir),
             output_format="wav",
         )
-        
+
         status_callback(f"Progress: 15% - Loading primary model: {PRIMARY_VOCAL_MODEL}")
         primary_separator.load_model(model_filename=PRIMARY_VOCAL_MODEL)
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
 
-        status_callback("Progress: 25% - Separating master audio band into pristine stems...")
+        status_callback(
+            "Progress: 25% - Separating master audio band into pristine stems..."
+        )
         primary_outputs = primary_separator.separate(str(input_path))
-        
+
         primary_vocals_path = None
         pure_instrumental_path = None
 
@@ -144,7 +152,9 @@ def separate_with_three_track(
                 pure_instrumental_path = file_obj
 
         if not primary_vocals_path or not pure_instrumental_path:
-            raise Exception("Primary separation failed to generate required structural stems.")
+            raise Exception(
+                "Primary separation failed to generate required structural stems."
+            )
 
         logger.info("Primary pristine mix vocals saved to: %s", primary_vocals_path)
         logger.info("Pure instrumental backing saved to: %s", pure_instrumental_path)
@@ -155,7 +165,9 @@ def separate_with_three_track(
 
         # ===== STEP 2: Roformer Karaoke on Isolated Vocals (50-60% progress) =====
         _ts("roformer_start")
-        status_callback("Progress: 50% - Step 2/4: Running Karaoke Roformer to isolate lead vocal track...")
+        status_callback(
+            "Progress: 50% - Step 2/4: Running Karaoke Roformer to isolate lead vocal track..."
+        )
         logger.info("Step 2: Roformer karaoke separation on primary vocal track")
 
         karaoke_separator = Separator(
@@ -189,7 +201,9 @@ def separate_with_three_track(
                 backing_vocals_path = file_obj
 
         if not lead_vocals_path or not backing_vocals_path:
-            raise Exception(f"Expected karaoke outputs not found. Got: {karaoke_output_files}")
+            raise Exception(
+                f"Expected karaoke outputs not found. Got: {karaoke_output_files}"
+            )
 
         logger.info("Lead vocals: %s", lead_vocals_path)
         logger.info("Backing vocals (raw form): %s", backing_vocals_path)
@@ -200,10 +214,16 @@ def separate_with_three_track(
 
         # ===== Early pipeline trigger: Write vocals.mp3 immediately for upstream modules =====
         _ts("vocals_mp3_start")
-        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-        logger.info("[PIPELINE] ~62%% — converting lead vocals to MP3 early for timing tasks")
-        status_callback("Progress: 62% - Converting lead vocals to MP3 (early alignment mode)...")
-        
+        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(
+            ".mp3"
+        )
+        logger.info(
+            "[PIPELINE] ~62%% — converting lead vocals to MP3 early for timing tasks"
+        )
+        status_callback(
+            "Progress: 62% - Converting lead vocals to MP3 (early alignment mode)..."
+        )
+
         lead_audio_early = AudioSegment.from_wav(str(lead_vocals_path))
         lead_audio_early.export(
             str(vocals_final),
@@ -214,18 +234,25 @@ def separate_with_three_track(
         _ts("vocals_mp3_end")
 
         if on_vocals_ready is not None:
-            logger.info("[PIPELINE] firing downstream on_vocals_ready callback tracking hook")
+            logger.info(
+                "[PIPELINE] firing downstream on_vocals_ready callback tracking hook"
+            )
             try:
                 on_vocals_ready(vocals_final)
                 logger.info("[PIPELINE] downstream callback execution completed")
             except Exception as e:
-                logger.warning("[PIPELINE] on_vocals_ready tracking callback raised exception: %s", e)
+                logger.warning(
+                    "[PIPELINE] on_vocals_ready tracking callback raised exception: %s",
+                    e,
+                )
         else:
             logger.info("[PIPELINE] no downstream alignment callback hook registered")
 
         # ===== STEP 3: De-Noise Backing Vocals (73-93% progress) =====
         _ts("denoise_start")
-        status_callback("Progress: 73% - Step 3/4: Polishing backing vocals with de-noise pass...")
+        status_callback(
+            "Progress: 73% - Step 3/4: Polishing backing vocals with de-noise pass..."
+        )
         logger.info("Step 3: De-noising backing vocals track")
 
         cleaned_backing_path = None
@@ -241,7 +268,9 @@ def separate_with_three_track(
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
 
-            status_callback("Progress: 83% - Removing residual room echoes/breaths from backline...")
+            status_callback(
+                "Progress: 83% - Removing residual room echoes/breaths from backline..."
+            )
             denoise_output_files = denoise_separator.separate(str(backing_vocals_path))
             logger.info("Spectral de-noise engine produced: %s", denoise_output_files)
 
@@ -258,12 +287,19 @@ def separate_with_three_track(
             if cleaned_backing_path and cleaned_backing_path.exists():
                 logger.info("Cleaned backing vocals set to: %s", cleaned_backing_path)
             else:
-                logger.warning("De-noise dry output missing from arrays. Falling back to uncleaned raw backing")
+                logger.warning(
+                    "De-noise dry output missing from arrays. Falling back to uncleaned raw backing"
+                )
                 cleaned_backing_path = backing_vocals_path
 
         except Exception as e:
-            logger.warning("De-noise engine tracking failed, falling back safely to uncleaned stems: %s", e)
-            status_callback("De-noise layer bypassed, continuing with uncleaned backing layers...")
+            logger.warning(
+                "De-noise engine tracking failed, falling back safely to uncleaned stems: %s",
+                e,
+            )
+            status_callback(
+                "De-noise layer bypassed, continuing with uncleaned backing layers..."
+            )
             cleaned_backing_path = backing_vocals_path
 
         _ts("denoise_end")
@@ -276,15 +312,26 @@ def separate_with_three_track(
         status_callback("Progress: 93% - Step 4/4: Exporting compressed targets...")
         logger.info("Step 4: Exporting final three-track configuration")
 
-        backing_vocals_final = file_management.get_backing_vocals_path_stem(song_dir).with_suffix(".mp3")
-        instrumental_final = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
+        backing_vocals_final = file_management.get_backing_vocals_path_stem(
+            song_dir
+        ).with_suffix(".mp3")
+        instrumental_final = file_management.get_instrumental_path_stem(
+            song_dir
+        ).with_suffix(".mp3")
 
         # 1. Verification step for lead vocals
         if vocals_final.exists():
-            status_callback("Progress: 95% - Lead vocals verified (cached via early render loop)")
-            logger.info("Lead vocals already generated during alignment hook pass: %s", vocals_final)
+            status_callback(
+                "Progress: 95% - Lead vocals verified (cached via early render loop)"
+            )
+            logger.info(
+                "Lead vocals already generated during alignment hook pass: %s",
+                vocals_final,
+            )
         else:
-            status_callback("Progress: 95% - Converting lead vocals to target configuration...")
+            status_callback(
+                "Progress: 95% - Converting lead vocals to target configuration..."
+            )
             lead_audio = AudioSegment.from_wav(str(lead_vocals_path))
             lead_audio.export(
                 str(vocals_final),
@@ -320,7 +367,9 @@ def separate_with_three_track(
         shutil.rmtree(temp_dir)
         logger.info("Temporary workspace cleanly unlinked")
 
-        status_callback(f"Three-track separation processing completed for {input_path.name}!")
+        status_callback(
+            f"Three-track separation processing completed for {input_path.name}!"
+        )
         return True
 
     except (StopProcessingError, torch.cuda.OutOfMemoryError) as e:
@@ -331,8 +380,12 @@ def separate_with_three_track(
         raise
 
     except Exception as e:
-        logger.error("Three-Track separation execution pipeline failed: %s", e, exc_info=True)
-        status_callback(f"** Fatal script exception encountered during extraction processing: {e} **")
+        logger.error(
+            "Three-Track separation execution pipeline failed: %s", e, exc_info=True
+        )
+        status_callback(
+            f"** Fatal script exception encountered during extraction processing: {e} **"
+        )
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         return False

@@ -12,13 +12,13 @@ from .host_settings import router as host_settings_router
 from .jobs import router as jobs_router
 from .karaoke_queue import router as queue_router
 from .lyrics import router as lyrics_router
+from .musicbrainz import router as musicbrainz_router
 from .performance_history import router as performance_history_router
 from .session_playlist import router as session_playlist_router
 from .sessions import router as sessions_router
 from .songs import router as songs_router
 from .users import router as users_router
 from .youtube import router as youtube_router
-from .musicbrainz import router as musicbrainz_router
 from .youtube_music import router as youtube_music_router
 
 __all__ = [

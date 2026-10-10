@@ -26,6 +26,7 @@ class YouTubeProcessRequest(BaseModel):
 
         return v
 
+
 class YouTubeDownloadRequest(BaseModel):
     """Schema for YouTube download requests"""
 

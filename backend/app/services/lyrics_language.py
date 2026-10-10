@@ -55,10 +55,15 @@ def supports_word_alignment(language: str) -> bool:
 
     if language in alignment.LANGUAGES_WITHOUT_SPACES:
         return False
-    return language in alignment.DEFAULT_ALIGN_MODELS_TORCH or language in alignment.DEFAULT_ALIGN_MODELS_HF
+    return (
+        language in alignment.DEFAULT_ALIGN_MODELS_TORCH
+        or language in alignment.DEFAULT_ALIGN_MODELS_HF
+    )
 
 
-def detect_vocals_language(song_id: str, vocals_path: Path, device: str | None = None) -> DetectedLanguage | None:
+def detect_vocals_language(
+    song_id: str, vocals_path: Path, device: str | None = None
+) -> DetectedLanguage | None:
     """Detect the sung language with Whisper, skipping the silent parts of the vocals stem."""
     from faster_whisper import WhisperModel, decode_audio
 

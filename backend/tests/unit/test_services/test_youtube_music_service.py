@@ -1,4 +1,5 @@
 """Unit tests for YoutubeMusicService — all external calls mocked."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,6 +31,7 @@ def mock_ytmusic():
 @pytest.fixture
 def service(mock_ytmusic):
     from app.services.youtube_music_service import YoutubeMusicService
+
     return YoutubeMusicService()
 
 
@@ -171,6 +173,7 @@ class TestSearchCombined:
             if filter == "songs":
                 return [SAMPLE_SONG_RESULT]
             return []
+
         mock_ytmusic.search.side_effect = search_side_effect
         result = service.search_combined("Rick Astley")
         assert len(result["songs"]) == 1
@@ -184,9 +187,7 @@ class TestSearchCombined:
 
 class TestGetSongDuration:
     def test_returns_mmss_format(self, service, mock_ytmusic):
-        mock_ytmusic.get_song.return_value = {
-            "videoDetails": {"lengthSeconds": "225"}
-        }
+        mock_ytmusic.get_song.return_value = {"videoDetails": {"lengthSeconds": "225"}}
         result = service._get_song_duration("vid123")
         assert result == "3:45"
 
@@ -228,7 +229,12 @@ SAMPLE_ARTIST_RAW = {
     },
     "albums": {
         "results": [
-            {"browseId": "album-1", "title": "Whenever You Need Somebody", "year": "1987", "thumbnails": []}
+            {
+                "browseId": "album-1",
+                "title": "Whenever You Need Somebody",
+                "year": "1987",
+                "thumbnails": [],
+            }
         ]
     },
     "singles": {"results": []},
@@ -264,7 +270,15 @@ class TestGetArtist:
         raw = {
             **SAMPLE_ARTIST_RAW,
             "songs": {
-                "results": [{"videoId": "vid123", "title": "Song", "duration": None, "album": None, "thumbnails": []}]
+                "results": [
+                    {
+                        "videoId": "vid123",
+                        "title": "Song",
+                        "duration": None,
+                        "album": None,
+                        "thumbnails": [],
+                    }
+                ]
             },
         }
         mock_ytmusic.get_artist.return_value = raw

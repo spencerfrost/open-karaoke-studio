@@ -3,9 +3,10 @@
 from datetime import datetime
 
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
+
 from app.db.models import DbSong
 from app.repositories.song_repository import SongRepository
-from tests.fastapi.conftest import _TestingSessionLocal
 
 
 @pytest.fixture

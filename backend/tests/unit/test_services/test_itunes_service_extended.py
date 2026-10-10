@@ -1,11 +1,11 @@
 """Extended tests for itunes_service covering lookup_itunes and uncovered error paths."""
+
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import requests
 
 from app.services.itunes_service import lookup_itunes, search_itunes
-
 
 SAMPLE_TRACK = {
     "trackId": 123456789,
@@ -15,7 +15,6 @@ SAMPLE_TRACK = {
     "collectionName": "Whenever You Need Somebody",
     "collectionId": 111222333,
     "releaseDate": "1987-11-01T00:00:00Z",
-
     "trackNumber": 1,
     "trackCount": 10,
     "discNumber": 1,
@@ -192,8 +191,11 @@ class TestSearchItunesErrorPaths:
     def test_result_limit_respected(self, mock_get):
         tracks = [
             {
-                "trackId": i, "trackName": f"Song {i}", "artistName": "Artist",
-                "collectionName": "Album", "releaseDate": "2023-01-01T00:00:00Z",
+                "trackId": i,
+                "trackName": f"Song {i}",
+                "artistName": "Artist",
+                "collectionName": "Album",
+                "releaseDate": "2023-01-01T00:00:00Z",
             }
             for i in range(10)
         ]

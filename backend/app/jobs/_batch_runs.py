@@ -3,8 +3,9 @@
 from contextlib import contextmanager
 from typing import Generator, Optional
 
-from app.repositories.batch_run_repository import RunNotActive
 from celery.utils.log import get_task_logger
+
+from app.repositories.batch_run_repository import RunNotActive
 
 logger = get_task_logger(__name__)
 

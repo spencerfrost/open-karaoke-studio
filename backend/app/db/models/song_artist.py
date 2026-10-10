@@ -10,7 +10,9 @@ class DbSongArtist(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_id = Column(String, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     artist_id = Column(Integer, ForeignKey("artists.id"), nullable=False)
-    role = Column(String(20), nullable=False, default="primary")  # 'primary' | 'featured'
+    role = Column(
+        String(20), nullable=False, default="primary"
+    )  # 'primary' | 'featured'
     display_order = Column(Integer, nullable=False, default=0)
 
     __table_args__ = (

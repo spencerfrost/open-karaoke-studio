@@ -117,7 +117,10 @@ class EventBus:
                     handler(event)
                 except Exception as e:
                     logger.error(
-                        "Error in event handler for '%s': %s", event.name, e, exc_info=True
+                        "Error in event handler for '%s': %s",
+                        event.name,
+                        e,
+                        exc_info=True,
                     )
         else:
             logger.debug("No subscribers for '%s' event", event.name)

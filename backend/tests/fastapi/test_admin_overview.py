@@ -4,9 +4,10 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
+
 from app.db.models import BatchRun, DbSong, LyricsReport
 from app.repositories.batch_run_repository import BatchRunRepository, utc_now
-from tests.fastapi.conftest import _TestingSessionLocal
 
 
 @pytest.fixture

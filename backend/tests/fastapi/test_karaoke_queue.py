@@ -7,8 +7,9 @@ timestamp now that karaoke_queue.created_at exists.
 from datetime import datetime, timedelta
 
 import pytest
-from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession, SessionPerformer
 from tests.fastapi.conftest import _TestingSessionLocal
+
+from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession, SessionPerformer
 
 HOST_USER_ID = 1
 

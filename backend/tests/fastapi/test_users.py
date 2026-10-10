@@ -206,8 +206,9 @@ class TestUserUpdate:
 
     def test_update_requires_auth(self, client, fastapi_app):
         """Test that update endpoint requires authentication."""
-        from app.api.dependencies import get_current_user
         from fastapi import HTTPException
+
+        from app.api.dependencies import get_current_user
 
         def require_auth():
             raise HTTPException(status_code=401, detail="Not authenticated")

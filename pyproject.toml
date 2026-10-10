@@ -5,6 +5,8 @@ skip-string-normalization = false
 [tool.isort]
 profile = "black"
 line_length = 88
+# Config lives at the repo root, so isort can't find backend/app on its own
+known_first_party = ["app"]
 
 [tool.pyright]
 typeCheckingMode = "basic"

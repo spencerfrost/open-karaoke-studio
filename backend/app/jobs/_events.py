@@ -1,7 +1,8 @@
 """Event bridge for translating job events into job status broadcasts."""
 
-from app.db.models import Job, JobStatus
 from celery.utils.log import get_task_logger
+
+from app.db.models import Job, JobStatus
 
 logger = get_task_logger(__name__)
 _subscriptions_initialized = False

@@ -49,7 +49,9 @@ class YoutubeMusicService:
                 )
         return songs
 
-    def _normalize_artist_results(self, raw_results: List[Dict], max_results: int = 3) -> List[Dict[str, Any]]:
+    def _normalize_artist_results(
+        self, raw_results: List[Dict], max_results: int = 3
+    ) -> List[Dict[str, Any]]:
         """Normalize raw artist search results from ytmusicapi.
 
         Args:
@@ -139,17 +141,16 @@ class YoutubeMusicService:
             logger.error("YouTube Music search failed: %s", e, exc_info=True)
             raise
 
-
     def _get_song_duration(self, video_id: str) -> Optional[str]:
         """Fetch duration for a song using get_song API.
-        
+
         Returns duration in mm:ss format, or None if unavailable.
         """
         try:
             song_info = self.ytmusic.get_song(video_id)
             video_details = song_info.get("videoDetails", {})
             length_seconds = video_details.get("lengthSeconds")
-            
+
             if length_seconds:
                 seconds = int(length_seconds)
                 minutes = seconds // 60
@@ -160,7 +161,9 @@ class YoutubeMusicService:
             logger.warning("Failed to get duration for video %s: %s", video_id, e)
             return None
 
-    def get_all_artist_releases(self, channel_id: str, params: str) -> List[Dict[str, Any]]:
+    def get_all_artist_releases(
+        self, channel_id: str, params: str
+    ) -> List[Dict[str, Any]]:
         """Fetch all albums or singles for an artist using ytmusicapi pagination params."""
         cache_key = f"releases:{channel_id}:{params}"
         if cache_key in _artist_cache:
@@ -184,7 +187,12 @@ class YoutubeMusicService:
             logger.info("Fetched %d releases for channel: %s", len(result), channel_id)
             return result
         except Exception as e:
-            logger.error("Failed to get releases for channel %s: %s", channel_id, e, exc_info=True)
+            logger.error(
+                "Failed to get releases for channel %s: %s",
+                channel_id,
+                e,
+                exc_info=True,
+            )
             raise
 
     def get_artist(self, artist_id: str, top_songs_limit: int = 12) -> Dict[str, Any]:
@@ -204,37 +212,49 @@ class YoutubeMusicService:
             songs_data = raw.get("songs", {})
             songs_browse_id = songs_data.get("browseId")
             raw_songs = []
-            
+
             # Try to fetch full playlist if browseId is available
             if songs_browse_id:
                 try:
-                    playlist = self.ytmusic.get_playlist(songs_browse_id, limit=top_songs_limit)
+                    playlist = self.ytmusic.get_playlist(
+                        songs_browse_id, limit=top_songs_limit
+                    )
                     raw_songs = playlist.get("tracks", [])[:top_songs_limit]
-                    logger.info("Fetched %d top songs via playlist for artist %s", len(raw_songs), artist_id)
+                    logger.info(
+                        "Fetched %d top songs via playlist for artist %s",
+                        len(raw_songs),
+                        artist_id,
+                    )
                 except Exception as e:
-                    logger.warning("Playlist fetch failed for %s, falling back to results: %s", artist_id, e)
+                    logger.warning(
+                        "Playlist fetch failed for %s, falling back to results: %s",
+                        artist_id,
+                        e,
+                    )
                     raw_songs = songs_data.get("results", [])[:top_songs_limit]
             else:
                 raw_songs = songs_data.get("results", [])[:top_songs_limit]
-            
+
             for song in raw_songs:
                 video_id = song.get("videoId")
                 duration = song.get("duration")
-                
+
                 # Only call _get_song_duration for get_artist() results
                 # (playlist tracks from get_playlist() already have duration)
                 if not duration and video_id and not songs_browse_id:
                     duration = self._get_song_duration(video_id)
-                
+
                 top_songs.append(
                     {
                         "videoId": video_id,
                         "title": song.get("title"),
                         "artist": raw.get("name"),
                         "artistId": artist_id,
-                        "album": song.get("album", {}).get("name")
-                        if isinstance(song.get("album"), dict)
-                        else song.get("album"),
+                        "album": (
+                            song.get("album", {}).get("name")
+                            if isinstance(song.get("album"), dict)
+                            else song.get("album")
+                        ),
                         "duration": duration,
                         "thumbnails": song.get("thumbnails", []),
                     }
@@ -335,9 +355,11 @@ class YoutubeMusicService:
                 "album": {
                     "browseId": album_id,
                     "title": album_title,
-                    "artist": raw.get("artists", [{}])[0].get("name")
-                    if raw.get("artists")
-                    else None,
+                    "artist": (
+                        raw.get("artists", [{}])[0].get("name")
+                        if raw.get("artists")
+                        else None
+                    ),
                     "year": raw.get("year"),
                     "thumbnails": album_thumbnails,
                     "trackCount": len(tracks),
@@ -347,9 +369,7 @@ class YoutubeMusicService:
 
             # Cache the result
             _album_cache[album_id] = result
-            logger.info(
-                "Fetched album %s with %d tracks", album_title, len(tracks)
-            )
+            logger.info("Fetched album %s with %d tracks", album_title, len(tracks))
             return result
 
         except Exception as e:

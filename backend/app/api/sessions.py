@@ -14,6 +14,12 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Generator, List, Literal, Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import (
     RequesterContext,
     _resolve_user,
@@ -36,11 +42,6 @@ from app.services.turn_service import compute_turn
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])

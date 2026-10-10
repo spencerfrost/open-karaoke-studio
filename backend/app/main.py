@@ -19,7 +19,13 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
+from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Import routers
 from app.api import (
@@ -44,6 +50,7 @@ from app.api import (
 # Import configuration and logging setup
 from app.config import get_config
 from app.config.logging import setup_logging
+from app.limiter import limiter
 
 # Import the cleanup utility
 from app.utils.cleanup_jobs import cleanup_stuck_jobs
@@ -54,12 +61,6 @@ from app.ws import (
     websocket_jobs_endpoint,
     websocket_unified_session_endpoint,
 )
-from app.limiter import limiter
-from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
 
 # Get configuration and setup logging
 config = get_config()
@@ -176,12 +177,12 @@ async def performance_test():
     start_time = time.time()
     await asyncio.sleep(0.01)  # 10ms of "work"
     end_time = time.time()
-    
+
     return {
         "framework": "fastapi",
         "response_time_ms": round((end_time - start_time) * 1000, 2),
         "async_capable": True,
-        "concurrent_ready": True
+        "concurrent_ready": True,
     }
 
 
@@ -193,7 +194,7 @@ async def not_found_handler(request, exc):
         content={
             "error": "Not found",
             "message": f"The endpoint {request.url.path} was not found",
-        }
+        },
     )
 
 
@@ -202,27 +203,23 @@ async def internal_error_handler(request, exc):
     return JSONResponse(
         status_code=500,
         content={
-            "error": "Internal server error", 
+            "error": "Internal server error",
             "message": "An unexpected error occurred",
-        }
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     port = int(os.environ.get("PORT", 5123))
-    
+
     logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
     print(f"🚀 Starting Open Karaoke Studio FastAPI Backend")
     print(f"📖 API Documentation: http://localhost:{port}/docs")
     print(f"🔍 Alternative Docs: http://localhost:{port}/redoc")
     print(f"❤️  Health Check: http://localhost:{port}/api/health")
-    
+
     uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=True,
-        log_level="info"
+        "app.main:app", host="0.0.0.0", port=port, reload=True, log_level="info"
     )

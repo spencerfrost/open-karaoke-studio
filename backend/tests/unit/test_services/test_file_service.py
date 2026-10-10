@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from app.exceptions import ServiceError
 from app.services.file_service import FileService
 
@@ -447,7 +448,6 @@ class TestFileServiceIntegration:
         # Check all songs are deleted
         processed_ids = self.file_service.get_processed_song_ids()
         assert processed_ids == []
-
 
     def test_get_artist_image_path(self):
         path = self.file_service.get_artist_image_path("rick-astley")

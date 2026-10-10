@@ -23,7 +23,13 @@ def _alignment(mean_score, line_indices=(0, 0, 1, 1, 1)):
     words = ["hello", "world", "second", "line", "here"]
     return {
         "words": [
-            {"word": w, "start": float(i), "end": i + 0.4, "score": mean_score, "line_index": line}
+            {
+                "word": w,
+                "start": float(i),
+                "end": i + 0.4,
+                "score": mean_score,
+                "line_index": line,
+            }
             for i, (w, line) in enumerate(zip(words, line_indices))
         ],
         "instrumental_intervals": [],
@@ -65,21 +71,43 @@ def task_env():
 
     with (
         patch("pathlib.Path.exists", return_value=True),
-        patch("app.config.get_config", return_value=SimpleNamespace(BASE_LIBRARY_DIR="/karaoke-library")),
-        patch("app.db.database.get_db_session", return_value=_make_db_context(mock_session)),
-        patch("app.repositories.song_repository.SongRepository", return_value=mock_repo),
+        patch(
+            "app.config.get_config",
+            return_value=SimpleNamespace(BASE_LIBRARY_DIR="/karaoke-library"),
+        ),
+        patch(
+            "app.db.database.get_db_session",
+            return_value=_make_db_context(mock_session),
+        ),
+        patch(
+            "app.repositories.song_repository.SongRepository", return_value=mock_repo
+        ),
         patch("app.jobs.lyrics_tasks.job_repository") as mock_job_repository,
         patch(
             "app.jobs.lyrics_tasks._build_alignment_attempts",
-            return_value=[{"content": LATE_LRC, "source_type": "synced", "source": "db:synced", "persist": False}],
+            return_value=[
+                {
+                    "content": LATE_LRC,
+                    "source_type": "synced",
+                    "source": "db:synced",
+                    "persist": False,
+                }
+            ],
         ),
-        patch("app.jobs.lyrics_tasks.run_alignment_attempt", return_value=_alignment(0.12)),
+        patch(
+            "app.jobs.lyrics_tasks.run_alignment_attempt", return_value=_alignment(0.12)
+        ),
         patch("app.jobs.lyrics_tasks.log_lyrics_event"),
         patch("app.jobs.lyrics_tasks._update_lyrics_alignment_job"),
-        patch("app.jobs.lyrics_tasks._complete_lyrics_alignment_job") as mock_complete_job,
+        patch(
+            "app.jobs.lyrics_tasks._complete_lyrics_alignment_job"
+        ) as mock_complete_job,
         patch("app.services.lyrics_offset.sweep_lrc_offset") as mock_sweep,
         patch("app.services.lyrics_alignment.align_lyrics_to_vocals") as mock_realign,
-        patch("app.services.lyrics_transcription.transcribe_lyrics_from_vocals", return_value=None) as mock_transcribe,
+        patch(
+            "app.services.lyrics_transcription.transcribe_lyrics_from_vocals",
+            return_value=None,
+        ) as mock_transcribe,
     ):
         mock_job_repository.get_by_id.return_value = None
         yield SimpleNamespace(

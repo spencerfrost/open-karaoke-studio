@@ -1,4 +1,5 @@
 """Unit tests for app/repositories/album_repository.py."""
+
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -38,7 +39,9 @@ def test_get_or_create_returns_existing_album(repo, db):
     existing = MagicMock(spec=DbAlbum)
     db.query.return_value.filter.return_value.first.return_value = existing
 
-    result = repo.get_or_create(title="Abbey Road", itunes_collection_id=111, artist_id=1)
+    result = repo.get_or_create(
+        title="Abbey Road", itunes_collection_id=111, artist_id=1
+    )
 
     assert result is existing
     db.add.assert_not_called()

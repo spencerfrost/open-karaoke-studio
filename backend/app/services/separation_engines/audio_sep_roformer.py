@@ -16,6 +16,7 @@ from typing import Callable, Optional, Tuple
 
 import torch
 from audio_separator.separator import Separator
+
 from app.services import file_management
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ def separate_with_roformer(
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # Initialize audio-separator with song_dir as output directory
@@ -68,6 +70,7 @@ def separate_with_roformer(
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # Perform separation
@@ -80,6 +83,7 @@ def separate_with_roformer(
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # The Roformer karaoke model typically outputs:
@@ -113,10 +117,13 @@ def separate_with_roformer(
 
         # Move to standard names in song_dir
         vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-        instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
+        instrumental_path = file_management.get_instrumental_path_stem(
+            song_dir
+        ).with_suffix(".mp3")
 
         # Use shutil.move instead of rename to handle cross-filesystem moves
         import shutil
+
         shutil.move(str(vocals_file), str(vocals_path))
         shutil.move(str(instrumental_file), str(instrumental_path))
 

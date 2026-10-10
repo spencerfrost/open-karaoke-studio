@@ -1,6 +1,7 @@
 """Tests for A–Z filing of artist and show names."""
 
 import pytest
+
 from app.utils.filing import filing_letter, filing_name
 
 

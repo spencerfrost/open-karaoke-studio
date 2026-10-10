@@ -8,13 +8,14 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from tests.fastapi.conftest import _get_mock_requester, _TestingSessionLocal
+
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
     require_host_or_session_member,
 )
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
-from tests.fastapi.conftest import _get_mock_requester, _TestingSessionLocal
 
 HOST_A_USER_ID = 1
 HOST_B_USER_ID = 2

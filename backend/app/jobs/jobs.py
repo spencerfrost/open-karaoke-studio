@@ -95,7 +95,9 @@ def run_separation_with_fallback(
         if success or not engine_type.startswith("three_track"):
             return success, engine_type
 
-        status_callback("Three-track separation failed, retrying with demucs fallback...")
+        status_callback(
+            "Three-track separation failed, retrying with demucs fallback..."
+        )
         fallback_success = select_and_run_separation_engine(
             engine_type="demucs",
             input_path=input_path,
@@ -132,13 +134,19 @@ def _create_lyrics_alignment_job(
     )
 
 
-def _update_lyrics_alignment_job(*, song_id: str, status, progress: int, message: str, error: Optional[str] = None):
+def _update_lyrics_alignment_job(
+    *, song_id: str, status, progress: int, message: str, error: Optional[str] = None
+):
     from ._shared import _update_lyrics_alignment_job as _impl
 
-    return _impl(song_id=song_id, status=status, progress=progress, message=message, error=error)
+    return _impl(
+        song_id=song_id, status=status, progress=progress, message=message, error=error
+    )
 
 
-def _complete_lyrics_alignment_job(*, song_id: str, status, message: str, error: Optional[str] = None):
+def _complete_lyrics_alignment_job(
+    *, song_id: str, status, message: str, error: Optional[str] = None
+):
     from ._shared import _complete_lyrics_alignment_job as _impl
 
     return _impl(song_id=song_id, status=status, message=message, error=error)

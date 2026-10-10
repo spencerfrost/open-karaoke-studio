@@ -1,4 +1,5 @@
 """Unit tests for app/repositories/artist_repository.py."""
+
 from unittest.mock import MagicMock
 
 import pytest

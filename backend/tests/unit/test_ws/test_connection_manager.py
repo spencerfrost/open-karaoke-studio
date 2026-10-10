@@ -1,4 +1,5 @@
 """Unit tests for SessionConnectionManager."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 

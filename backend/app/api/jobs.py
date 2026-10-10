@@ -15,7 +15,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-
 from app.api.dependencies import require_host
 from app.db.database import SessionLocal
 from app.db.models import JobStatus, User
@@ -28,6 +27,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 # ============================================================================
 # Pydantic Models
 # ============================================================================
+
 
 class JobResponse(BaseModel):
     """Job response model"""
@@ -81,6 +81,7 @@ class JobActionResponse(BaseModel):
 # Dependencies
 # ============================================================================
 
+
 def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
@@ -102,6 +103,7 @@ def get_jobs_service() -> JobsService:
 # ============================================================================
 # Endpoints
 # ============================================================================
+
 
 @router.get("/status", response_model=JobStatisticsResponse)
 async def get_job_status(
@@ -139,9 +141,7 @@ async def get_jobs(
                 job_status = JobStatus(status)
                 jobs = jobs_service.get_jobs_by_status(job_status)
             except ValueError:
-                raise HTTPException(
-                    status_code=400, detail=f"Invalid status: {status}"
-                )
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         else:
             jobs = jobs_service.get_all_jobs()
 
@@ -193,8 +193,6 @@ async def cancel_job(
     success = jobs_service.cancel_job(job_id)
 
     if success:
-        return JobActionResponse(
-            success=True, message="Job cancelled", job_id=job_id
-        )
+        return JobActionResponse(success=True, message="Job cancelled", job_id=job_id)
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel job")

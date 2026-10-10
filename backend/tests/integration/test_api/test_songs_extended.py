@@ -2,8 +2,9 @@
 
 import uuid
 
-from app.db.models import DbSong
 from tests.integration.conftest import _TestingSessionLocal
+
+from app.db.models import DbSong
 
 
 def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):

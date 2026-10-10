@@ -13,7 +13,6 @@ from app.services.lyrics_offset import (
     sweep_lrc_offset,
 )
 
-
 # ---------------------------------------------------------------------------
 # pick_best_lrc_shift
 # ---------------------------------------------------------------------------
@@ -59,11 +58,19 @@ def _fake_whisperx():
     the vocals align with high confidence.
     """
 
-    def align(segments, _model, _metadata, _audio, _device, return_char_alignments=False):
+    def align(
+        segments, _model, _metadata, _audio, _device, return_char_alignments=False
+    ):
         out = []
         for segment, true_start in zip(segments, TRUE_VOCAL_STARTS):
             score = max(0.0, 1.0 - abs(segment["start"] - true_start) / 4.0)
-            out.append({"words": [{"word": w, "score": score} for w in segment["text"].split()]})
+            out.append(
+                {
+                    "words": [
+                        {"word": w, "score": score} for w in segment["text"].split()
+                    ]
+                }
+            )
         return {"segments": out}
 
     return SimpleNamespace(load_align_model=lambda **_kwargs: (None, None), align=align)
@@ -72,18 +79,25 @@ def _fake_whisperx():
 @pytest.fixture
 def fake_alignment(monkeypatch):
     monkeypatch.setitem(sys.modules, "whisperx", _fake_whisperx())
-    monkeypatch.setattr(lyrics_offset, "load_vocals", lambda _path: (np.zeros(16000, dtype=np.float32), 16000))
+    monkeypatch.setattr(
+        lyrics_offset,
+        "load_vocals",
+        lambda _path: (np.zeros(16000, dtype=np.float32), 16000),
+    )
 
 
 @pytest.mark.parametrize("lrc_error", [-6.0, -2.5, 1.5, 4.0, 9.0])
-def test_sweep_returns_the_shift_that_puts_the_lyrics_back_on_the_vocals(fake_alignment, tmp_path, lrc_error):
+def test_sweep_returns_the_shift_that_puts_the_lyrics_back_on_the_vocals(
+    fake_alignment, tmp_path, lrc_error
+):
     """
     Regression for the old estimator, which reported (vocals - LRC) and then
     applied it negated, pushing late lyrics even later. The sweep's `shift`
     is the correction itself: applying it as-is must land on the vocals.
     """
     lrc = "\n".join(
-        f"[00:{start + lrc_error:05.2f}]line number {i}" for i, start in enumerate(TRUE_VOCAL_STARTS)
+        f"[00:{start + lrc_error:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
     )
 
     sweep = sweep_lrc_offset(lrc, tmp_path / "vocals.mp3", device="cpu")
@@ -92,12 +106,18 @@ def test_sweep_returns_the_shift_that_puts_the_lyrics_back_on_the_vocals(fake_al
     assert sweep["shift"] == -lrc_error
     assert sweep["score"] == 1.0
     assert sweep["gain"] > 0.0
-    corrected_starts = [line["timestamp"] for line in parse_lrc_lines(shift_lrc_timestamps(lrc, sweep["shift"]))]
+    corrected_starts = [
+        line["timestamp"]
+        for line in parse_lrc_lines(shift_lrc_timestamps(lrc, sweep["shift"]))
+    ]
     assert corrected_starts == pytest.approx(TRUE_VOCAL_STARTS)
 
 
 def test_sweep_leaves_correctly_timed_lyrics_alone(fake_alignment, tmp_path):
-    lrc = "\n".join(f"[00:{start:05.2f}]line number {i}" for i, start in enumerate(TRUE_VOCAL_STARTS))
+    lrc = "\n".join(
+        f"[00:{start:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
+    )
 
     sweep = sweep_lrc_offset(lrc, tmp_path / "vocals.mp3", device="cpu")
 
@@ -107,4 +127,9 @@ def test_sweep_leaves_correctly_timed_lyrics_alone(fake_alignment, tmp_path):
 
 
 def test_sweep_returns_none_when_there_are_no_lyric_lines(fake_alignment, tmp_path):
-    assert sweep_lrc_offset("[00:05.00]\n[00:09.00]", tmp_path / "vocals.mp3", device="cpu") is None
+    assert (
+        sweep_lrc_offset(
+            "[00:05.00]\n[00:09.00]", tmp_path / "vocals.mp3", device="cpu"
+        )
+        is None
+    )

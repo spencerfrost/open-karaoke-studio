@@ -163,7 +163,9 @@ async def websocket_session_endpoint(
                         )
                     else:
                         # Regular device leaving
-                        session_room = manager.get_session_room_name(session["session_id"])
+                        session_room = manager.get_session_room_name(
+                            session["session_id"]
+                        )
                         manager.leave_session(device_id, session["session_id"])
                         await manager.leave_room(websocket, session_room)
 
@@ -176,7 +178,10 @@ async def websocket_session_endpoint(
                         )
 
                         await manager.send_personal_message(
-                            {"type": "session_left", "session_id": session["session_id"]},
+                            {
+                                "type": "session_left",
+                                "session_id": session["session_id"],
+                            },
                             websocket,
                         )
 

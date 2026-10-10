@@ -10,8 +10,9 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 from sqlalchemy.orm import Query, Session
+
+from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 
 logger = logging.getLogger(__name__)
 

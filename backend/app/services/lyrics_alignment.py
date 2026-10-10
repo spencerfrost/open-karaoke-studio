@@ -17,6 +17,7 @@ from time import perf_counter
 from typing import TypedDict
 
 import numpy as np
+
 from app.services.audio import load_vocals
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines

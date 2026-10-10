@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 import requests
+
 from app.services.itunes_service import (
     _filter_canonical_releases,
     search_itunes,

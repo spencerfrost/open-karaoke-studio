@@ -120,7 +120,9 @@ async def set_artist_image(
     service = ArtistImageService(FileService(), SessionLocal)
     path = await service.set_image_from_url(artist_id, body.url)
     if path is None:
-        raise HTTPException(status_code=422, detail="Failed to download image from the provided URL")
+        raise HTTPException(
+            status_code=422, detail="Failed to download image from the provided URL"
+        )
     return {"success": True}
 
 
@@ -143,7 +145,9 @@ async def split_artist_credits(
 
     primary_credits = [c for c in body.credits if c.role == "primary"]
     if not primary_credits:
-        raise HTTPException(status_code=400, detail="At least one primary credit is required")
+        raise HTTPException(
+            status_code=400, detail="At least one primary credit is required"
+        )
 
     # Find all songs currently credited to this artist
     songs = (
@@ -162,12 +166,14 @@ async def split_artist_credits(
     for song in songs:
         db.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
         for i, (new_artist, role) in enumerate(resolved):
-            db.add(DbSongArtist(
-                song_id=song.id,
-                artist_id=new_artist.id,
-                role=role,
-                display_order=i,
-            ))
+            db.add(
+                DbSongArtist(
+                    song_id=song.id,
+                    artist_id=new_artist.id,
+                    role=role,
+                    display_order=i,
+                )
+            )
         # Rebuild denormalized artist string from primary credits
         song.artist = " & ".join(
             new_artist.display_name or new_artist.name

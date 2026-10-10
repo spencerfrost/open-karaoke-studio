@@ -5,7 +5,16 @@ Song database model - Single source of truth.
 from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from .base import UNKNOWN_ARTIST, Base
@@ -36,7 +45,9 @@ class DbSong(Base):
     # Lyrics
     plain_lyrics = Column(Text, nullable=True)
     synced_lyrics = Column(Text, nullable=True)
-    word_synced_lyrics = Column(Text, nullable=True)  # JSON: {words, language, mean_score, ...}
+    word_synced_lyrics = Column(
+        Text, nullable=True
+    )  # JSON: {words, language, mean_score, ...}
     # When a person last saved these lyrics (edited, pasted or picked from
     # search). While set, automatic runs only time them and never replace them
     # with another source. A run that sees it change stops and starts again.
@@ -57,12 +68,12 @@ class DbSong(Base):
     engine_type = Column(
         String, nullable=True
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
-    vocal_range_low = Column(String, nullable=True)   # Lowest sung note, e.g. "G2"
+    vocal_range_low = Column(String, nullable=True)  # Lowest sung note, e.g. "G2"
     vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
     # Measured on the stems as played by default (no lead vocal); see services/audio.py
-    loudness_lufs = Column(Float, nullable=True)   # EBU R128 integrated loudness
+    loudness_lufs = Column(Float, nullable=True)  # EBU R128 integrated loudness
     true_peak_dbtp = Column(Float, nullable=True)  # Loudest instant, in dB true peak
-    gain_db = Column(Float, nullable=True)         # Correction the player applies
+    gain_db = Column(Float, nullable=True)  # Correction the player applies
 
     # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")
@@ -84,7 +95,10 @@ class DbSong(Base):
     artist_rel = relationship("DbArtist", back_populates="songs")
     album_rel = relationship("DbAlbum", back_populates="songs")
     song_artists = relationship(
-        "DbSongArtist", back_populates="song_rel", cascade="all, delete-orphan", lazy="joined"
+        "DbSongArtist",
+        back_populates="song_rel",
+        cascade="all, delete-orphan",
+        lazy="joined",
     )
 
     def to_dict(self) -> dict:
@@ -161,14 +175,18 @@ class DbSong(Base):
             "acoustidScore": self.acoustid_score,
             "acoustidFingerprintStatus": self.acoustid_fingerprint_status,
             # Structured artist credits
-            "artists": [
-                {
-                    "id": sa.artist_rel.id,
-                    "name": sa.artist_rel.display_name or sa.artist_rel.name,
-                    "role": sa.role,
-                }
-                for sa in sorted(self.song_artists, key=lambda x: x.display_order)
-            ] if self.song_artists else [],
+            "artists": (
+                [
+                    {
+                        "id": sa.artist_rel.id,
+                        "name": sa.artist_rel.display_name or sa.artist_rel.name,
+                        "role": sa.role,
+                    }
+                    for sa in sorted(self.song_artists, key=lambda x: x.display_order)
+                ]
+                if self.song_artists
+                else []
+            ),
         }
 
 

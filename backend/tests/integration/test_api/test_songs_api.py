@@ -223,7 +223,9 @@ def test_get_songs_unicode(client):
 
 def test_update_song_language_sets_and_clears_it(client):
     """PATCH sets the sung language; an empty string clears it so it's detected again."""
-    create_resp = client.post("/api/songs", json={"title": "Papaoutai", "artist": "Stromae"})
+    create_resp = client.post(
+        "/api/songs", json={"title": "Papaoutai", "artist": "Stromae"}
+    )
     song_id = create_resp.json()["id"]
 
     response = client.patch(f"/api/songs/{song_id}", json={"language": "FR"})
@@ -253,11 +255,15 @@ def test_saving_lyrics_marks_them_hand_picked_and_times_them(client):
     """Lyrics a person saves (edit, paste, search pick) are only timed from then on."""
     from unittest.mock import patch
 
-    song_id = client.post("/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}).json()["id"]
+    song_id = client.post(
+        "/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}
+    ).json()["id"]
     assert client.get(f"/api/songs/{song_id}").json()["lyricsHandPicked"] is False
 
     with patch("app.jobs.lyrics_dispatch.realign_hand_picked_lyrics") as mock_realign:
-        response = client.patch(f"/api/songs/{song_id}", json={"plainLyrics": "Blackbird singing"})
+        response = client.patch(
+            f"/api/songs/{song_id}", json={"plainLyrics": "Blackbird singing"}
+        )
 
     assert response.status_code == 200
     assert response.json()["lyricsHandPicked"] is True
@@ -268,10 +274,14 @@ def test_saving_lyrics_marks_them_hand_picked_and_times_them(client):
 def test_other_song_edits_dont_mark_lyrics_hand_picked(client):
     from unittest.mock import patch
 
-    song_id = client.post("/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}).json()["id"]
+    song_id = client.post(
+        "/api/songs", json={"title": "Blackbird", "artist": "The Beatles"}
+    ).json()["id"]
 
     with patch("app.jobs.lyrics_dispatch.realign_hand_picked_lyrics") as mock_realign:
-        response = client.patch(f"/api/songs/{song_id}", json={"title": "Blackbird (Remastered)"})
+        response = client.patch(
+            f"/api/songs/{song_id}", json={"title": "Blackbird (Remastered)"}
+        )
 
     assert response.json()["lyricsHandPicked"] is False
     mock_realign.assert_not_called()

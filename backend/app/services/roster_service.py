@@ -10,9 +10,10 @@ for the same person in the same session.
 import logging
 from typing import NamedTuple, Optional
 
-from app.db.models import SessionPerformer
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
+from app.db.models import SessionPerformer
 
 logger = logging.getLogger(__name__)
 

@@ -8,6 +8,7 @@ The alias (DEMO_LOGIN_USERNAME / DEMO_LOGIN_PASSWORD) resolves to a free
 from datetime import datetime, timedelta
 
 import pytest
+
 from app.db.models import HostSettings, KaraokeSession, User
 
 ALIAS_USERNAME = "demo"

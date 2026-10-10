@@ -1,4 +1,5 @@
 """Unit tests for app/services/artist_image_service.py."""
+
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -75,7 +76,9 @@ def svc(file_service, artist_repo):
     """
     mock_db = MagicMock()
     session_factory = Mock(return_value=mock_db)
-    service = ArtistImageService(file_service=file_service, session_factory=session_factory)
+    service = ArtistImageService(
+        file_service=file_service, session_factory=session_factory
+    )
     # Patch _repo to return a fresh mock DB each call but the SAME repo
     service._repo = Mock(side_effect=lambda: (MagicMock(), artist_repo))
     return service
@@ -110,7 +113,9 @@ async def test_returns_none_if_notfound_marker_exists(svc, artist_repo, mock_art
 
 
 @pytest.mark.asyncio
-async def test_fetches_and_saves_image_when_found(svc, artist_repo, file_service, mock_artist):
+async def test_fetches_and_saves_image_when_found(
+    svc, artist_repo, file_service, mock_artist
+):
     """Discogs flow: search → artist detail → download image (3 GET calls)."""
     image_path = file_service.get_artist_image_path.return_value
 
@@ -124,12 +129,15 @@ async def test_fetches_and_saves_image_when_found(svc, artist_repo, file_service
     mock_img_resp.content = b"fake_image_bytes"
 
     mock_client = AsyncMock()
-    mock_client.get = AsyncMock(side_effect=[mock_search_resp, mock_detail_resp, mock_img_resp])
+    mock_client.get = AsyncMock(
+        side_effect=[mock_search_resp, mock_detail_resp, mock_img_resp]
+    )
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
-         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
+    with patch(
+        "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
+    ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("Queen")
 
     assert result is image_path
@@ -150,8 +158,9 @@ async def test_creates_notfound_when_no_search_results(svc, artist_repo, mock_ar
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
-         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
+    with patch(
+        "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
+    ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("NoArtist")
 
     assert result is None
@@ -173,8 +182,9 @@ async def test_creates_notfound_when_no_images(svc, artist_repo, mock_artist):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
-         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
+    with patch(
+        "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
+    ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("NoThumb")
 
     assert result is None
@@ -190,8 +200,9 @@ async def test_returns_none_on_network_error(svc, artist_repo, mock_artist):
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client), \
-         patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
+    with patch(
+        "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
+    ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
         result = await svc.get_or_fetch_artist_image("ErrorArtist")
 
     assert result is None

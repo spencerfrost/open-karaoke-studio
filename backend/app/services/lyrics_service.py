@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 import requests
+
 from app.exceptions import ServiceError
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,9 @@ class LyricsService:
             url = f"{base_url}{path}"
             logger.debug("LRCLIB request: %s params=%s", url, params)
             try:
-                resp = requests.get(url, params=params, headers=self.headers, timeout=10)
+                resp = requests.get(
+                    url, params=params, headers=self.headers, timeout=10
+                )
                 status = resp.status_code
                 try:
                     data = resp.json()
@@ -46,7 +49,9 @@ class LyricsService:
                     raise ServiceError(f"LRCLIB server error: {status}")
                 return status, data
             except requests.RequestException as e:
-                logger.warning("Failed to make request to LRCLIB at %s: %s", base_url, e)
+                logger.warning(
+                    "Failed to make request to LRCLIB at %s: %s", base_url, e
+                )
                 last_exception = e
             except ServiceError as e:
                 logger.warning("LRCLIB server error at %s: %s", base_url, e)

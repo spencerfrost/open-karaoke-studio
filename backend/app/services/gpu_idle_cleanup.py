@@ -98,14 +98,18 @@ def end_gpu_activity(reason: str) -> None:
     )
 
 
-def _run_idle_cleanup_if_still_idle(expected_generation: int, timeout_seconds: int) -> None:
+def _run_idle_cleanup_if_still_idle(
+    expected_generation: int, timeout_seconds: int
+) -> None:
     global _cleanup_timer
 
     with _lock:
         _cleanup_timer = None
         idle_for = time.monotonic() - _last_gpu_activity_monotonic
         if _active_gpu_users > 0:
-            logger.debug("Skipping idle GPU cleanup; active users=%d", _active_gpu_users)
+            logger.debug(
+                "Skipping idle GPU cleanup; active users=%d", _active_gpu_users
+            )
             return
         if expected_generation != _cleanup_generation:
             logger.debug(
@@ -139,7 +143,9 @@ def _release_gpu_resources(idle_for_seconds: float) -> None:
         try:
             torch.cuda.ipc_collect()
         except RuntimeError:
-            logger.warning("torch.cuda.ipc_collect failed during idle cleanup", exc_info=True)
+            logger.warning(
+                "torch.cuda.ipc_collect failed during idle cleanup", exc_info=True
+            )
 
     reserved_after = torch.cuda.memory_reserved()
     allocated_after = torch.cuda.memory_allocated()

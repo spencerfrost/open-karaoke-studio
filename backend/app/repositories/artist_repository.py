@@ -40,11 +40,7 @@ class ArtistRepository:
         return artist
 
     def get_all_with_image_status(self, status: str) -> list[DbArtist]:
-        return (
-            self.db.query(DbArtist)
-            .filter(DbArtist.image_status == status)
-            .all()
-        )
+        return self.db.query(DbArtist).filter(DbArtist.image_status == status).all()
 
     def update_image(
         self, artist: DbArtist, *, image_path: str | None, status: str
@@ -99,11 +95,7 @@ class ArtistRepository:
                     deleted_songs += 1
 
         # Also handle songs that have artist_id FK directly but no song_artists entries
-        orphan_songs = (
-            self.db.query(DbSong)
-            .filter(DbSong.artist_id == artist.id)
-            .all()
-        )
+        orphan_songs = self.db.query(DbSong).filter(DbSong.artist_id == artist.id).all()
         for song in orphan_songs:
             # Only delete if it has no other artist credits in join table
             other_credits = (

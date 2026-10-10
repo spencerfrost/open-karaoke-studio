@@ -2,15 +2,17 @@
 
 import uuid
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from tests.conftest import create_test_app
 
-import app.db.models as models
 import app.api.karaoke_queue as _queue_api
 import app.api.sessions as _sessions_api
+import app.db.models as models
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
@@ -19,9 +21,6 @@ from app.api.dependencies import (
 )
 from app.db.models import Base
 from app.services.auth_service import create_access_token
-from tests.conftest import create_test_app
-
-from unittest.mock import MagicMock
 
 
 def _make_mock_user():
@@ -36,7 +35,8 @@ def _make_mock_user():
 @pytest.fixture(scope="function")
 def test_setup():
     """Set up test database tables and factories using SQLite."""
-    import tempfile, os
+    import os
+    import tempfile
 
     fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(fd)

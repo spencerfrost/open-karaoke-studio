@@ -5,9 +5,10 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from tests.integration.conftest import _TestingSessionLocal
+
 from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.db.models import DbSong
-from tests.integration.conftest import _TestingSessionLocal
 
 
 def _create_song(client, title="Lyric Song", artist="Lyrical Artist"):
@@ -124,7 +125,9 @@ def test_clear_lyrics_invalid_type(client):
 
 def test_clear_plain_lyrics_success(client):
     song_id = _create_song(client)
-    client.post(f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"})
+    client.post(
+        f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"}
+    )
     resp = client.delete(f"/api/lyrics/songs/{song_id}/plain")
     assert resp.status_code == 204
     data = client.get(f"/api/lyrics/songs/{song_id}").json()
@@ -133,7 +136,9 @@ def test_clear_plain_lyrics_success(client):
 
 def test_clear_plain_lyrics_clears_alignment(client):
     song_id = _create_song(client)
-    client.post(f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"})
+    client.post(
+        f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"}
+    )
     with _TestingSessionLocal() as session:
         song = session.get(DbSong, song_id)
         song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
@@ -296,7 +301,9 @@ def test_report_was_wrong_puts_the_reported_lyrics_back(client):
     original = "[00:01.00]Blackbird singing"
     song_id = _song_with_lyrics(client, synced=original)
     with _as_guest(client), _vocals_ready():
-        report_id = client.post(f"/api/lyrics/songs/{song_id}/reports", json={"kind": "words"}).json()["report"]["id"]
+        report_id = client.post(
+            f"/api/lyrics/songs/{song_id}/reports", json={"kind": "words"}
+        ).json()["report"]["id"]
     # The fix replaced the lyrics.
     db = _TestingSessionLocal()
     db.get(DbSong, song_id).synced_lyrics = "[00:01.00]what asr heard"
@@ -327,7 +334,9 @@ def test_report_was_wrong_without_kept_lyrics_still_lifts_the_rejection(client):
 
     song_id = _song_with_lyrics(client)
     db = _TestingSessionLocal()
-    report = LyricsReport(song_id=song_id, kind="words", words_key="old-key", report_count=1)
+    report = LyricsReport(
+        song_id=song_id, kind="words", words_key="old-key", report_count=1
+    )
     db.add(report)
     db.commit()
     report_id = report.id
@@ -354,8 +363,8 @@ def test_undoing_an_unknown_report_is_not_found(client):
 def _vocals_only_for(*song_ids):
     """Only these songs have vocals, so other tests' songs stay out of the counts."""
     with patch("app.services.lyrics_repair.FileService") as mock_files:
-        mock_files.return_value.get_vocals_path.side_effect = lambda song_id, ext: SimpleNamespace(
-            exists=lambda: song_id in song_ids
+        mock_files.return_value.get_vocals_path.side_effect = (
+            lambda song_id, ext: SimpleNamespace(exists=lambda: song_id in song_ids)
         )
         yield
 
@@ -370,8 +379,20 @@ def test_alignment_stats_count_songs_needing_repair_by_reason(client):
     db.get(DbSong, aligned).word_synced_lyrics = json.dumps(
         {
             "words": [
-                {"word": "Blackbird", "start": 1.0, "end": 1.4, "score": 0.9, "line_index": 0},
-                {"word": "singing", "start": 1.4, "end": 1.9, "score": 0.9, "line_index": 0},
+                {
+                    "word": "Blackbird",
+                    "start": 1.0,
+                    "end": 1.4,
+                    "score": 0.9,
+                    "line_index": 0,
+                },
+                {
+                    "word": "singing",
+                    "start": 1.4,
+                    "end": 1.9,
+                    "score": 0.9,
+                    "line_index": 0,
+                },
             ],
             "lyrics_source_type": "synced",
         }

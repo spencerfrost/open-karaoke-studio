@@ -5,6 +5,8 @@ from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
+
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 from app.jobs._batch_runs import RunTracker, tracked_run
 from app.repositories.batch_run_repository import (
@@ -13,7 +15,6 @@ from app.repositories.batch_run_repository import (
     RunNotActive,
     utc_now,
 )
-from tests.fastapi.conftest import _TestingSessionLocal
 
 NO_ALIGNMENT = ([], 0)
 

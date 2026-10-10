@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from app.services.artist_parsing import normalize_artist_name, parse_song_artists
 from app.services.credits_resolver import resolve_artist_credits
 from app.services.musicbrainz_service import _parse_artist_credits

@@ -21,6 +21,20 @@ from datetime import datetime, timezone
 from typing import Generator, List, Optional
 from urllib.parse import unquote
 
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
+from fastapi.responses import FileResponse
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
@@ -71,19 +85,6 @@ from app.services.lyrics_language import normalize_language
 from app.utils.filing import filing_letter, filing_name
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
-from fastapi import (
-    APIRouter,
-    Body,
-    Depends,
-    File,
-    Form,
-    HTTPException,
-    Query,
-    UploadFile,
-)
-from fastapi.responses import FileResponse
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
 
 # ============================================================================
 # Router & Logger
@@ -831,7 +832,12 @@ async def delete_orphaned_directory(
     config = get_config()
 
     # Safety: reject any path traversal attempts and the shared artwork folders
-    if "/" in dir_name or "\\" in dir_name or ".." in dir_name or dir_name in NON_SONG_DIRS:
+    if (
+        "/" in dir_name
+        or "\\" in dir_name
+        or ".." in dir_name
+        or dir_name in NON_SONG_DIRS
+    ):
         raise HTTPException(status_code=400, detail="Invalid directory name")
 
     # Confirm it's actually on disk
@@ -871,7 +877,12 @@ async def bulk_delete_orphaned_directories(
 
     for dir_name in request.dir_names:
         # Safety: reject any path traversal attempts and the shared artwork folders
-        if "/" in dir_name or "\\" in dir_name or ".." in dir_name or dir_name in NON_SONG_DIRS:
+        if (
+            "/" in dir_name
+            or "\\" in dir_name
+            or ".." in dir_name
+            or dir_name in NON_SONG_DIRS
+        ):
             logger.warning("Bulk delete skipping invalid dir name: %r", dir_name)
             skipped += 1
             continue

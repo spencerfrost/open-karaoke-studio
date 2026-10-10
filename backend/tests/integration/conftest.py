@@ -9,13 +9,18 @@ import os
 import tempfile
 from unittest.mock import MagicMock
 
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from tests.conftest import create_test_app
+
 import app.api.host_settings as _host_settings_api
 import app.api.jobs as _jobs_api
 import app.api.karaoke_queue as _queue_api
 import app.api.lyrics as _lyrics_api
 import app.api.sessions as _sessions_api
 import app.api.songs as _songs_api
-import pytest
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
@@ -25,10 +30,6 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.db.models import Base
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from tests.conftest import create_test_app
 
 
 def _get_mock_user():

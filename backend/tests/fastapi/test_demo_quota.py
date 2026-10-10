@@ -8,6 +8,7 @@ Non-demo requesters are never counted and keep their behavior unchanged.
 from datetime import datetime, timedelta
 
 import pytest
+
 from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.db.models import DbJob, DbSong, KaraokeSession, User
 
@@ -205,8 +206,9 @@ class TestNonDemoUnaffected:
 def override_songs_db(fastapi_app):
     """songs.py defines its own local get_db; the shared conftest only overrides
     dependencies.get_db, so create_song would otherwise hit the real database."""
-    import app.api.songs as songs_api
     from tests.fastapi.conftest import _get_test_db
+
+    import app.api.songs as songs_api
 
     fastapi_app.dependency_overrides[songs_api.get_db] = _get_test_db
     yield

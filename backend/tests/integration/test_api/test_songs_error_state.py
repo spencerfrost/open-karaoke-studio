@@ -5,8 +5,9 @@ declare errorMessage — response_model=SongResponse silently drops any key
 to_dict() emits that the schema doesn't also declare.
 """
 
-from app.db.models import DbSong
 from tests.integration.conftest import _TestingSessionLocal
+
+from app.db.models import DbSong
 
 
 def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):

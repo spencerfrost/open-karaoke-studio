@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from tests.fastapi.conftest import _TestingSessionLocal
 
 from app.db.models import DbAlbum
 from app.services.itunes_service import fetch_album_cover
-from tests.fastapi.conftest import _TestingSessionLocal
 
 
 @contextmanager

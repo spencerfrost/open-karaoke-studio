@@ -8,12 +8,13 @@ are not re-run; their last recorded run is reported instead.
 
 from datetime import timedelta
 
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.db.models import DbSong, LyricsReport
 from app.db.models.song import in_songbook
 from app.repositories.batch_run_repository import BatchRunRepository, utc_now
 from app.services.batch_jobs import JOBS, SCAN_KINDS, job_summary, serialize_run
-from sqlalchemy import func
-from sqlalchemy.orm import Session
 
 SONGS_ADDED_WEEKS = 12
 RECENT_SONGS = 6
@@ -114,7 +115,5 @@ def build_overview(db: Session) -> dict:
         },
         "jobs": jobs,
         "songsAdded": _songs_added(db),
-        "scans": {
-            kind: serialize_run(repo.last_finished(kind)) for kind in SCAN_KINDS
-        },
+        "scans": {kind: serialize_run(repo.last_finished(kind)) for kind in SCAN_KINDS},
     }

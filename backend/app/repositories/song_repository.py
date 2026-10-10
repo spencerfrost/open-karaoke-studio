@@ -27,9 +27,10 @@ Song repository for managing song records in the database.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy.orm import Session, joinedload, subqueryload
+
 from app.db.models import DbSong
 from app.db.models.song import in_songbook
-from sqlalchemy.orm import Session, joinedload, subqueryload
 
 
 class SongRepository:
@@ -123,9 +124,7 @@ class SongRepository:
         :param limit: max number of results (default None)
         :param offset: number of results to skip (default None)
         """
-        query = self.db.query(DbSong).options(
-            subqueryload(DbSong.album_rel)
-        )
+        query = self.db.query(DbSong).options(subqueryload(DbSong.album_rel))
         if filters:
             for attr, value in filters.items():
                 query = query.filter(getattr(DbSong, attr) == value)
@@ -144,7 +143,9 @@ class SongRepository:
                 elif sort_by in ["title", "artist"]:
                     # For title/artist sorts, use date_added as secondary
                     if direction == "desc":
-                        query = query.order_by(sort_col.desc(), DbSong.date_added.desc())
+                        query = query.order_by(
+                            sort_col.desc(), DbSong.date_added.desc()
+                        )
                     else:
                         query = query.order_by(sort_col.asc(), DbSong.date_added.desc())
                 else:
@@ -179,8 +180,9 @@ class SongRepository:
         Update an existing song record.
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         song = self.fetch(song_id)
         if not song:
             logger.warning("Song %s not found for update", song_id)
@@ -199,7 +201,7 @@ class SongRepository:
             setattr(song, key, value)
         self.db.commit()
         self.db.refresh(song)
-        
+
         logger.debug("Successfully updated song %s", song_id)
         return song
 
@@ -237,7 +239,9 @@ class SongRepository:
         )
 
         clusters = []
-        for _, group in groupby(songs, key=lambda s: (s.title.lower(), s.artist.lower())):
+        for _, group in groupby(
+            songs, key=lambda s: (s.title.lower(), s.artist.lower())
+        ):
             clusters.append(list(group))
         return clusters
 

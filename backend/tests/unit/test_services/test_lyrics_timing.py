@@ -4,11 +4,12 @@ import logging
 from pathlib import Path
 
 import pytest
+from pythonjsonlogger.jsonlogger import JsonFormatter
+
 from app.config.base import BaseConfig
 from app.config.logging import LoggingConfig
 from app.services import lyrics_timing
 from app.services.lyrics_timing import log_lyrics_event
-from pythonjsonlogger.jsonlogger import JsonFormatter
 
 
 @pytest.fixture

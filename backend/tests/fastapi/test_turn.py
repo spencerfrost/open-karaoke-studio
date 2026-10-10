@@ -10,6 +10,8 @@ mode being unaffected by any of it.
 from datetime import datetime, timedelta
 
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
+
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -27,7 +29,6 @@ from app.services.turn_service import (
     compute_turn,
     serialize_turn,
 )
-from tests.fastapi.conftest import _TestingSessionLocal
 
 HOST_USER_ID = 1
 

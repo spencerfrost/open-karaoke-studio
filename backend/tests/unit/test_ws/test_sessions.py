@@ -1,4 +1,5 @@
 """Unit tests for WebSocket session management endpoint."""
+
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,7 +8,6 @@ import pytest
 from fastapi import WebSocketDisconnect
 
 from app.ws.sessions import websocket_session_endpoint
-
 
 FAKE_SESSION = {
     "session_id": "sess-abc",
@@ -212,6 +212,7 @@ async def test_get_session_info_when_not_in_session(websocket, manager):
 @pytest.mark.asyncio
 async def test_get_session_info_when_in_session(websocket, manager):
     from datetime import datetime, timezone
+
     fake_session = {
         **FAKE_SESSION,
         "connected_devices": {
@@ -233,7 +234,9 @@ async def test_get_session_info_when_in_session(websocket, manager):
 
 
 @pytest.mark.asyncio
-async def test_disconnect_as_non_host_broadcasts_device_disconnected(websocket, manager):
+async def test_disconnect_as_non_host_broadcasts_device_disconnected(
+    websocket, manager
+):
     fake_session = {
         **FAKE_SESSION,
         "host_device_id": "someone-else",

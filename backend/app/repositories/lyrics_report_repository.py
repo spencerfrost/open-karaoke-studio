@@ -6,8 +6,9 @@ rejected lyrics they remember.
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from app.db.models import LyricsReport
 from sqlalchemy.orm import Session, joinedload
+
+from app.db.models import LyricsReport
 
 LyricsReportKind = Literal["words", "timing"]
 

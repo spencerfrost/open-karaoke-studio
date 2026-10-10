@@ -34,7 +34,9 @@ def _add_vocals(library, song_id=SONG_ID):
 @patch("app.db.database.get_db_session")
 @patch("app.jobs.metadata_tasks.detect_vocal_range")
 class TestDetectAndStoreVocalRange:
-    def test_saves_detected_range(self, mock_detect, mock_get_db, mock_repo_cls, library):
+    def test_saves_detected_range(
+        self, mock_detect, mock_get_db, mock_repo_cls, library
+    ):
         _add_vocals(library)
         mock_get_db.return_value = _make_db_context()
         mock_detect.return_value = ("G2", "E5")
@@ -49,7 +51,9 @@ class TestDetectAndStoreVocalRange:
         mock_detect.assert_not_called()
         mock_repo_cls.return_value.update.assert_not_called()
 
-    def test_too_few_voiced_frames(self, mock_detect, mock_get_db, mock_repo_cls, library):
+    def test_too_few_voiced_frames(
+        self, mock_detect, mock_get_db, mock_repo_cls, library
+    ):
         _add_vocals(library)
         mock_detect.return_value = None
 
@@ -92,7 +96,13 @@ class TestBatchBackfillVocalRange:
             "no_audio": 1,
             "error": 1,
         }
-        assert [c.args[0] for c in mock_detect.call_args_list] == ["a", "b", "c", "d", "e"]
+        assert [c.args[0] for c in mock_detect.call_args_list] == [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+        ]
 
     def test_missing_mode_filters_songs_with_a_range(self, mock_get_db, mock_detect):
         session = self._session_with_ids(mock_get_db, [])

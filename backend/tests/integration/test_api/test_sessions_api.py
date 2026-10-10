@@ -259,8 +259,9 @@ def test_post_my_session_ignores_stale_active_sessions(client):
     """
     from datetime import datetime, timedelta
 
-    from app.db.models import KaraokeSession
     from tests.integration.conftest import _TestingSessionLocal
+
+    from app.db.models import KaraokeSession
 
     payload = {"device_type": "stage", "display_name": "Host"}
 
@@ -307,8 +308,9 @@ def test_create_session_records_owning_user(client):
     Without it, host authority on the WebSocket - which derives from host_user_id - can
     never be granted for sessions created through this path.
     """
-    from app.db.models import KaraokeSession
     from tests.integration.conftest import _TestingSessionLocal
+
+    from app.db.models import KaraokeSession
 
     session_id = _create_session(client)["session_id"]
 

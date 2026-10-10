@@ -140,7 +140,6 @@ class ArtistImageService:
 
         return fetched_path
 
-
     async def search_artist_images(self, query: str) -> list[dict]:
         """Search Discogs for artist images and return multiple candidates.
 
@@ -174,7 +173,9 @@ class ArtistImageService:
             title = result.get("title", "")
             # Skip Discogs spacer placeholder images
             if cover and "spacer" not in cover:
-                candidates.append({"thumb": thumb or cover, "uri": cover, "title": title})
+                candidates.append(
+                    {"thumb": thumb or cover, "uri": cover, "title": title}
+                )
             elif thumb and "spacer" not in thumb:
                 candidates.append({"thumb": thumb, "uri": thumb, "title": title})
         return candidates

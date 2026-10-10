@@ -9,8 +9,9 @@ session's history stays intact. Stale rows are reclaimed later by
 
 import logging
 
-from app.db.models import KaraokeSession, SessionDevice
 from sqlalchemy.orm import Session
+
+from app.db.models import KaraokeSession, SessionDevice
 
 logger = logging.getLogger(__name__)
 

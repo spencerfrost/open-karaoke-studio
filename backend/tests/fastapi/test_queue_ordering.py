@@ -11,6 +11,8 @@ tests pin that walk; the pointer's movement is covered in test_turn.py.
 from datetime import datetime, timedelta
 
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
+
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -19,7 +21,6 @@ from app.db.models import (
 )
 from app.services.queue_ordering import get_ordered_queue_items
 from app.services.roster_service import resolve_or_create_performer
-from tests.fastapi.conftest import _TestingSessionLocal
 
 HOST_USER_ID = 1
 

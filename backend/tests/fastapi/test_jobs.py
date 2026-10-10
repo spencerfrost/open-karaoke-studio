@@ -3,11 +3,11 @@
 from unittest.mock import MagicMock, Mock
 
 import pytest
+from fastapi.testclient import TestClient
+from tests.conftest import create_test_app
 
 from app.api.dependencies import get_current_user
 from app.db.models import JobStatus
-from tests.conftest import create_test_app
-from fastapi.testclient import TestClient
 
 
 def _get_mock_user():

@@ -5,10 +5,11 @@ import logging
 from collections import Counter
 from typing import Literal
 
+from sqlalchemy.orm import Session
+
 from app.db.models import DbSong, LyricsReport
 from app.services.file_service import FileService
 from app.services.lyrics_alignment import recompute_alignment_line_indices
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

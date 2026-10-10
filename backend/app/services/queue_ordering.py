@@ -15,6 +15,8 @@ these.
 import logging
 from typing import Dict, List, Optional
 
+from sqlalchemy.orm import Session, joinedload
+
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -22,7 +24,6 @@ from app.db.models import (
     SessionPerformer,
     SessionPlaybackState,
 )
-from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 

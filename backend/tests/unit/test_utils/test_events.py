@@ -1,4 +1,5 @@
 """Unit tests for app/utils/events.py — EventBus, JobEvent, and convenience functions."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

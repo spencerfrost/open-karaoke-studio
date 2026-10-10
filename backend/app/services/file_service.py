@@ -68,8 +68,12 @@ class FileService(FileServiceInterface):
                 logger.warning("Song directory does not exist: %s", song_dir)
                 return False
         except PermissionError as e:
-            logger.warning("Permission denied when deleting files for song %s: %s", song_id, e)
-            raise ServiceError(f"Permission denied when deleting files for song {song_id}: {e}")
+            logger.warning(
+                "Permission denied when deleting files for song %s: %s", song_id, e
+            )
+            raise ServiceError(
+                f"Permission denied when deleting files for song {song_id}: {e}"
+            )
         except Exception as e:
             logger.error("Error deleting files for song %s: %s", song_id, e)
             raise ServiceError(f"Failed to delete files for song {song_id}: {e}")
@@ -117,7 +121,6 @@ class FileService(FileServiceInterface):
     def get_artist_notfound_path(self, slug: str) -> Path:
         """Get artist not-found marker file path"""
         return self.base_library_dir / "artists" / f"{slug}.notfound"
-
 
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""

@@ -15,12 +15,13 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from app.api.dependencies import RequesterContext
-from app.db.models import DbJob, HostSettings, JobStatus, KaraokeSession, User
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.api.dependencies import RequesterContext
+from app.db.models import DbJob, HostSettings, JobStatus, KaraokeSession, User
 
 logger = logging.getLogger(__name__)
 

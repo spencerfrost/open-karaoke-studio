@@ -18,6 +18,8 @@ it is Sarah's turn with nothing in her slot.
 import logging
 from typing import List, NamedTuple, Optional
 
+from sqlalchemy.orm import Session
+
 from app.db.models import (
     KaraokeQueueItem,
     KaraokeSession,
@@ -25,7 +27,6 @@ from app.db.models import (
     SessionPlaybackState,
 )
 from app.services import queue_ordering
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

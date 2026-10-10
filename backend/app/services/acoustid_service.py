@@ -30,9 +30,9 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
         score = result["score"]
         for recording in result.get("recordings") or []:
             artists = recording.get("artists") or []
-            artist_name = "".join(
-                a["name"] + a.get("joinphrase", "") for a in artists
-            ) or None
+            artist_name = (
+                "".join(a["name"] + a.get("joinphrase", "") for a in artists) or None
+            )
             raw_releases = recording.get("releases") or []
             releases = [r["title"] for r in raw_releases if r.get("title")]
             years = [
@@ -77,9 +77,7 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
 def _album_matches(song_album: str, candidate_releases: list[str]) -> bool:
     """Return True if the song's album fuzzy-matches any of the candidate's release titles."""
     needle = song_album.lower().strip()
-    return any(
-        needle in r.lower() or r.lower() in needle for r in candidate_releases
-    )
+    return any(needle in r.lower() or r.lower() in needle for r in candidate_releases)
 
 
 class AcoustIdService:
@@ -100,7 +98,10 @@ class AcoustIdService:
         """
         api_key = get_config().ACOUSTID_API_KEY
         if not api_key:
-            logger.warning("ACOUSTID_API_KEY not configured; skipping fingerprinting for song %s", song_id)
+            logger.warning(
+                "ACOUSTID_API_KEY not configured; skipping fingerprinting for song %s",
+                song_id,
+            )
             self.song_repo.update(song_id, acoustid_fingerprint_status="failed")
             return
 
@@ -120,7 +121,9 @@ class AcoustIdService:
             self.song_repo.update(song_id, acoustid_fingerprint_status="failed")
             return
         except Exception:
-            logger.warning("AcoustID: unexpected error for song %s", song_id, exc_info=True)
+            logger.warning(
+                "AcoustID: unexpected error for song %s", song_id, exc_info=True
+            )
             self.song_repo.update(song_id, acoustid_fingerprint_status="failed")
             return
 
@@ -142,7 +145,9 @@ class AcoustIdService:
 
             if song_album:
                 album_matches = [
-                    c for c in top_candidates if _album_matches(song_album, c["releases"])
+                    c
+                    for c in top_candidates
+                    if _album_matches(song_album, c["releases"])
                 ]
                 if len(album_matches) == 1:
                     chosen = album_matches[0]
@@ -187,7 +192,11 @@ class AcoustIdService:
             "acoustid_fingerprint_status": "matched",
         }
 
-        if best["score"] >= _MIN_AUTO_CORRECT_SCORE and best["title"] and best["artist"]:
+        if (
+            best["score"] >= _MIN_AUTO_CORRECT_SCORE
+            and best["title"]
+            and best["artist"]
+        ):
             update["title"] = best["title"]
             update["artist"] = best["artist"]
             logger.info(
@@ -214,8 +223,8 @@ class AcoustIdService:
             return
         try:
             from app.db.database import get_db_session
-            from app.services.song_artist_service import populate_song_artists
             from app.repositories.song_repository import SongRepository
+            from app.services.song_artist_service import populate_song_artists
 
             with get_db_session() as session:
                 song = SongRepository(session).fetch(song_id)

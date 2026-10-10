@@ -12,16 +12,17 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-import app.api.sessions as _sessions_api
-import app.db.models as models
 import pytest
-from app.api.dependencies import get_db
-from app.db.models import Base
-from app.services.auth_service import create_access_token
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from tests.conftest import create_test_app
+
+import app.api.sessions as _sessions_api
+import app.db.models as models
+from app.api.dependencies import get_db
+from app.db.models import Base
+from app.services.auth_service import create_access_token
 
 
 @pytest.fixture(scope="function")

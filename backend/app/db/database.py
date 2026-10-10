@@ -10,8 +10,6 @@ from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
-from app.config import get_config
-from app.services import file_management
 from sqlalchemy import (
     Boolean,
     Column,
@@ -29,6 +27,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import get_config
+from app.services import file_management
+
 from .models import Base, DbSong
 
 # Get configuration and create database engine
@@ -39,7 +40,11 @@ logger.debug("Database URL: %s", DATABASE_URL)
 # Log the actual database file path for SQLite debugging
 if DATABASE_URL.startswith("sqlite:"):
     db_file_path = DATABASE_URL.replace("sqlite:///", "")
-    logger.debug("SQLite database file: %s (exists=%s)", db_file_path, Path(db_file_path).exists())
+    logger.debug(
+        "SQLite database file: %s (exists=%s)",
+        db_file_path,
+        Path(db_file_path).exists(),
+    )
 
 # Configure SQLite engine for better concurrency and cross-process reliability
 if DATABASE_URL.startswith("sqlite:"):
@@ -113,8 +118,6 @@ class DBSessionMiddleware:
     """Middleware to manage database sessions in web requests"""
 
     pass
-
-
 
 
 @contextmanager

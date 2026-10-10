@@ -1,4 +1,5 @@
 """Unit tests for YouTubeService pure-logic helpers — no yt-dlp, no network, no DB."""
+
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -20,16 +21,25 @@ def service():
 
 class TestValidateVideoUrl:
     def test_standard_watch_url(self, service):
-        assert service.validate_video_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is True
+        assert (
+            service.validate_video_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            is True
+        )
 
     def test_short_youtu_be_url(self, service):
         assert service.validate_video_url("https://youtu.be/dQw4w9WgXcQ") is True
 
     def test_mobile_url(self, service):
-        assert service.validate_video_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ") is True
+        assert (
+            service.validate_video_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ")
+            is True
+        )
 
     def test_embed_url(self, service):
-        assert service.validate_video_url("https://www.youtube.com/embed/dQw4w9WgXcQ") is True
+        assert (
+            service.validate_video_url("https://www.youtube.com/embed/dQw4w9WgXcQ")
+            is True
+        )
 
     def test_empty_string_returns_false(self, service):
         assert service.validate_video_url("") is False
@@ -52,7 +62,9 @@ class TestValidateVideoUrl:
 
 class TestGetVideoIdFromUrl:
     def test_extracts_id_from_watch_url(self, service):
-        vid = service.get_video_id_from_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        vid = service.get_video_id_from_url(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
         assert vid == "dQw4w9WgXcQ"
 
     def test_extracts_id_from_youtu_be(self, service):
@@ -232,6 +244,7 @@ class TestBuildSearchResultEntry:
 class TestSearchVideos:
     def _make_ydl_ctx(self, info):
         from unittest.mock import MagicMock, patch
+
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = info
         ctx = MagicMock()
@@ -240,8 +253,15 @@ class TestSearchVideos:
         return ctx, mock_ydl
 
     def test_returns_list_of_results(self, service):
-        from unittest.mock import patch, MagicMock
-        entry = {"id": "abc", "title": "Hit", "channel": "Ch", "thumbnails": [{"url": "t.jpg"}], "duration": 200}
+        from unittest.mock import MagicMock, patch
+
+        entry = {
+            "id": "abc",
+            "title": "Hit",
+            "channel": "Ch",
+            "thumbnails": [{"url": "t.jpg"}],
+            "duration": 200,
+        }
         ctx, mock_ydl = self._make_ydl_ctx({"entries": [entry]})
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
             results = service.search_videos("hit song")
@@ -250,6 +270,7 @@ class TestSearchVideos:
 
     def test_returns_empty_list_when_no_entries(self, service):
         from unittest.mock import patch
+
         ctx, mock_ydl = self._make_ydl_ctx(None)
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
             results = service.search_videos("nothing")
@@ -257,14 +278,17 @@ class TestSearchVideos:
 
     def test_returns_empty_when_info_has_no_entries_key(self, service):
         from unittest.mock import patch
+
         ctx, mock_ydl = self._make_ydl_ctx({"other": "data"})
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
             results = service.search_videos("nothing")
         assert results == []
 
     def test_raises_service_error_on_exception(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from app.exceptions import ServiceError
+
         ctx = MagicMock()
         ctx.__enter__.side_effect = RuntimeError("network down")
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
@@ -272,7 +296,8 @@ class TestSearchVideos:
                 service.search_videos("query")
 
     def test_respects_max_results(self, service):
-        from unittest.mock import patch, call
+        from unittest.mock import call, patch
+
         entries = [{"id": f"v{i}", "thumbnails": []} for i in range(3)]
         ctx, mock_ydl = self._make_ydl_ctx({"entries": entries})
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
@@ -289,6 +314,7 @@ class TestSearchVideos:
 class TestExtractVideoInfo:
     def _make_ydl_ctx(self, info):
         from unittest.mock import MagicMock
+
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = info
         ctx = MagicMock()
@@ -298,6 +324,7 @@ class TestExtractVideoInfo:
 
     def test_returns_video_info_dict(self, service):
         from unittest.mock import patch
+
         info = {"id": "abc", "title": "Test"}
         ctx = self._make_ydl_ctx(info)
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
@@ -305,10 +332,13 @@ class TestExtractVideoInfo:
         assert result["id"] == "abc"
 
     def test_constructs_url_for_plain_video_id(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         info = {"id": "vid123"}
         ctx = self._make_ydl_ctx(info)
-        with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx) as MockYDL:
+        with patch(
+            "app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx
+        ) as MockYDL:
             ctx.__enter__.return_value.extract_info.return_value = info
             service.extract_video_info("vid123")
         # Should have prepended watch?v= URL
@@ -316,8 +346,10 @@ class TestExtractVideoInfo:
         assert "vid123" in called_url
 
     def test_raises_service_error_on_failure(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from app.exceptions import ServiceError
+
         ctx = MagicMock()
         ctx.__enter__.side_effect = RuntimeError("boom")
         with patch("app.services.youtube_service.yt_dlp.YoutubeDL", return_value=ctx):
@@ -366,13 +398,19 @@ class TestExtractMetadataInnerThumbnails:
 class TestFetchAndSaveThumbnail:
     def test_returns_url_on_success(self, service):
         from unittest.mock import patch
-        service.extract_video_info = MagicMock(return_value={"id": "v1", "thumbnails": []})
-        service._download_thumbnail_with_fallback = MagicMock(return_value="https://thumb.jpg")
+
+        service.extract_video_info = MagicMock(
+            return_value={"id": "v1", "thumbnails": []}
+        )
+        service._download_thumbnail_with_fallback = MagicMock(
+            return_value="https://thumb.jpg"
+        )
         result = service.fetch_and_save_thumbnail("v1", "song-1")
         assert result == "https://thumb.jpg"
 
     def test_raises_service_error_when_no_url(self, service):
         from app.exceptions import ServiceError
+
         service.extract_video_info = MagicMock(return_value={"id": "v1"})
         service._download_thumbnail_with_fallback = MagicMock(return_value=None)
         with pytest.raises(ServiceError, match="No valid thumbnail"):
@@ -380,12 +418,14 @@ class TestFetchAndSaveThumbnail:
 
     def test_propagates_service_error_from_extract(self, service):
         from app.exceptions import ServiceError
+
         service.extract_video_info = MagicMock(side_effect=ServiceError("yt failed"))
         with pytest.raises(ServiceError):
             service.fetch_and_save_thumbnail("v1", "song-1")
 
     def test_wraps_unexpected_error(self, service):
         from app.exceptions import ServiceError
+
         service.extract_video_info = MagicMock(side_effect=ValueError("unexpected"))
         with pytest.raises(ServiceError, match="Failed to fetch thumbnail"):
             service.fetch_and_save_thumbnail("v1", "song-1")
@@ -402,11 +442,20 @@ class TestDownloadThumbnailWithFallback:
         assert result is None
 
     def test_uses_yt_dlp_thumbnails_first(self, service):
-        service._download_and_save_thumbnail = MagicMock(return_value=(True, "thumbnail.jpg"))
+        service._download_and_save_thumbnail = MagicMock(
+            return_value=(True, "thumbnail.jpg")
+        )
         service._update_song_thumbnail_in_db = MagicMock()
         video_info = {
             "id": "v1",
-            "thumbnails": [{"url": "https://yt.jpg", "preference": 1, "width": 1920, "height": 1080}],
+            "thumbnails": [
+                {
+                    "url": "https://yt.jpg",
+                    "preference": 1,
+                    "width": 1920,
+                    "height": 1080,
+                }
+            ],
         }
         result = service._download_thumbnail_with_fallback(video_info, "song-1")
         assert result == "https://yt.jpg"
@@ -458,15 +507,27 @@ class TestGetBestQualityThumbnail:
         video_info = {
             "id": "v1",
             "thumbnails": [
-                {"url": "https://low.jpg", "preference": -1, "width": 120, "height": 90},
-                {"url": "https://high.jpg", "preference": 10, "width": 1920, "height": 1080},
+                {
+                    "url": "https://low.jpg",
+                    "preference": -1,
+                    "width": 120,
+                    "height": 90,
+                },
+                {
+                    "url": "https://high.jpg",
+                    "preference": 10,
+                    "width": 1920,
+                    "height": 1080,
+                },
             ],
         }
         result = service._get_best_quality_thumbnail(video_info)
         assert result == "https://high.jpg"
 
     def test_falls_back_to_url_check_when_no_thumbnails(self, service):
-        service._check_thumbnail_exists = MagicMock(side_effect=lambda url: "maxresdefault.webp" in url)
+        service._check_thumbnail_exists = MagicMock(
+            side_effect=lambda url: "maxresdefault.webp" in url
+        )
         video_info = {"id": "v1", "thumbnails": []}
         result = service._get_best_quality_thumbnail(video_info)
         assert result is not None
@@ -486,14 +547,16 @@ class TestGetBestQualityThumbnail:
 
 class TestCheckThumbnailExists:
     def test_returns_true_for_200(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch("requests.head", return_value=mock_resp):
             assert service._check_thumbnail_exists("https://example.com/t.jpg") is True
 
     def test_returns_false_for_404(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         mock_resp = MagicMock()
         mock_resp.status_code = 404
         with patch("requests.head", return_value=mock_resp):
@@ -501,6 +564,7 @@ class TestCheckThumbnailExists:
 
     def test_returns_false_on_exception(self, service):
         from unittest.mock import patch
+
         with patch("requests.head", side_effect=Exception("timeout")):
             assert service._check_thumbnail_exists("https://example.com/t.jpg") is False
 
@@ -512,44 +576,59 @@ class TestCheckThumbnailExists:
 
 class TestDownloadAndSaveThumbnail:
     def test_returns_true_and_filename_on_success(self, service):
-        from unittest.mock import patch, MagicMock
         from pathlib import Path
+        from unittest.mock import MagicMock, patch
+
         service.file_service.get_song_directory.return_value = Path("/tmp/songs/s1")
-        with patch("app.services.file_management.download_image", return_value=True) as mock_dl:
-            success, filename = service._download_and_save_thumbnail("s1", "https://i.ytimg.com/vi_webp/abc/maxresdefault.webp")
+        with patch(
+            "app.services.file_management.download_image", return_value=True
+        ) as mock_dl:
+            success, filename = service._download_and_save_thumbnail(
+                "s1", "https://i.ytimg.com/vi_webp/abc/maxresdefault.webp"
+            )
         assert success is True
         assert filename == "thumbnail.webp"
 
     def test_detects_jpg_extension(self, service):
-        from unittest.mock import patch
         from pathlib import Path
+        from unittest.mock import patch
+
         service.file_service.get_song_directory.return_value = Path("/tmp/songs/s1")
         with patch("app.services.file_management.download_image", return_value=True):
             _, filename = service._download_and_save_thumbnail("s1", "https://t.jpg")
         assert filename == "thumbnail.jpg"
 
     def test_detects_png_extension(self, service):
-        from unittest.mock import patch
         from pathlib import Path
+        from unittest.mock import patch
+
         service.file_service.get_song_directory.return_value = Path("/tmp/songs/s1")
         with patch("app.services.file_management.download_image", return_value=True):
-            _, filename = service._download_and_save_thumbnail("s1", "https://i.ytimg.com/vi/abc/thumb.png")
+            _, filename = service._download_and_save_thumbnail(
+                "s1", "https://i.ytimg.com/vi/abc/thumb.png"
+            )
         assert filename == "thumbnail.png"
 
     def test_defaults_to_jpg_for_unknown_extension(self, service):
-        from unittest.mock import patch
         from pathlib import Path
+        from unittest.mock import patch
+
         service.file_service.get_song_directory.return_value = Path("/tmp/songs/s1")
         with patch("app.services.file_management.download_image", return_value=True):
-            _, filename = service._download_and_save_thumbnail("s1", "https://i.ytimg.com/vi/abc/thumb.gif")
+            _, filename = service._download_and_save_thumbnail(
+                "s1", "https://i.ytimg.com/vi/abc/thumb.gif"
+            )
         assert filename == "thumbnail.jpg"
 
     def test_returns_false_when_download_fails(self, service):
-        from unittest.mock import patch
         from pathlib import Path
+        from unittest.mock import patch
+
         service.file_service.get_song_directory.return_value = Path("/tmp/songs/s1")
         with patch("app.services.file_management.download_image", return_value=False):
-            success, filename = service._download_and_save_thumbnail("s1", "https://t.jpg")
+            success, filename = service._download_and_save_thumbnail(
+                "s1", "https://t.jpg"
+            )
         assert success is False
         assert filename == ""
 
@@ -567,7 +646,8 @@ class TestDownloadAndSaveThumbnail:
 
 class TestExtractAudioDuration:
     def test_returns_duration_from_librosa(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         mock_librosa = MagicMock()
         mock_librosa.get_duration.return_value = 213.5
         with patch.dict("sys.modules", {"librosa": mock_librosa}):
@@ -575,7 +655,8 @@ class TestExtractAudioDuration:
         assert result == 213.5
 
     def test_returns_none_on_exception(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         mock_librosa = MagicMock()
         mock_librosa.get_duration.side_effect = Exception("no audio")
         with patch.dict("sys.modules", {"librosa": mock_librosa}):
@@ -590,7 +671,8 @@ class TestExtractAudioDuration:
 
 class TestGetAudioPreviewUrl:
     def test_returns_stream_url(self, service):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         stream_url = "https://cdn.example.com/audio.webm"
         with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
             mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
@@ -600,7 +682,9 @@ class TestGetAudioPreviewUrl:
 
     def test_raises_service_error_when_no_url(self, service):
         from unittest.mock import patch
+
         from app.exceptions import ServiceError
+
         with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
             mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
             mock_ydl.extract_info.return_value = {"url": None}
@@ -609,7 +693,9 @@ class TestGetAudioPreviewUrl:
 
     def test_raises_service_error_on_ydl_exception(self, service):
         from unittest.mock import patch
+
         from app.exceptions import ServiceError
+
         with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
             mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
             mock_ydl.extract_info.side_effect = Exception("yt-dlp failed")

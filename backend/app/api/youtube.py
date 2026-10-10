@@ -5,6 +5,11 @@ FastAPI router for YouTube search and download endpoints.
 import logging
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import (
     RequesterContext,
     get_db,
@@ -15,10 +20,6 @@ from app.services.demo_service import enforce_demo_download_quota
 from app.services.youtube_service import YouTubeService
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field, field_validator
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

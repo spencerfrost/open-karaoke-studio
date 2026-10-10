@@ -12,6 +12,7 @@ from typing import Optional
 from app.db.models import Job, JobStatus
 from app.jobs.celery_app import celery
 from app.repositories import JobRepository
+
 from .interfaces.jobs_service import JobsServiceInterface
 
 logger = logging.getLogger(__name__)

@@ -12,6 +12,10 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import Generator, List, Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session, joinedload, subqueryload
+
 from app.api.dependencies import (
     RequesterContext,
     require_host,
@@ -33,9 +37,6 @@ from app.services.roster_service import resolve_or_create_performer_verbose
 from app.services.turn_service import compute_turn, record_play, serialize_turn
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session, joinedload, subqueryload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/karaoke-queue", tags=["queue"])

@@ -6,12 +6,13 @@ import logging
 from dataclasses import dataclass
 from typing import Generator, Optional
 
-from app.db.database import SessionLocal
-from app.db.models import KaraokeSession, SessionDevice, User
-from app.services.auth_service import verify_token
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+
+from app.db.database import SessionLocal
+from app.db.models import KaraokeSession, SessionDevice, User
+from app.services.auth_service import verify_token
 
 logger = logging.getLogger(__name__)
 

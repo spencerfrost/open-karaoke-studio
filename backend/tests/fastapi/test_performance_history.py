@@ -1,4 +1,5 @@
 """Tests for performance history endpoint."""
+
 import pytest
 
 

@@ -1,4 +1,5 @@
 """Unit tests for YouTubeService._cookie_opts — no yt-dlp, no network, no DB."""
+
 import os
 from pathlib import Path
 from unittest.mock import MagicMock

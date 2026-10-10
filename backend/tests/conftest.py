@@ -39,11 +39,12 @@ if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
 
-from app.db.database import engine as _global_engine
-from app.db.models import Base, DbSong
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from tests.fixtures.test_data import create_test_db_song, create_test_song
+
+from app.db.database import engine as _global_engine
+from app.db.models import Base, DbSong
 
 # Alembic manages the real schema, but the throwaway test database needs its
 # tables created directly.
@@ -147,6 +148,9 @@ def create_test_app():
     Create a minimal FastAPI app for testing that includes all routers.
     This is a factory function to allow fresh app instances for tests.
     """
+    from fastapi import WebSocket
+    from fastapi.middleware.cors import CORSMiddleware
+
     from app.api import (
         admin_router,
         albums_router,
@@ -168,8 +172,6 @@ def create_test_app():
         websocket_jobs_endpoint,
         websocket_unified_session_endpoint,
     )
-    from fastapi import WebSocket
-    from fastapi.middleware.cors import CORSMiddleware
 
     test_app = FastAPI(
         title="Open Karaoke Studio API (Test)",

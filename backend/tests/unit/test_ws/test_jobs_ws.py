@@ -1,4 +1,5 @@
 """Unit tests for WebSocket jobs endpoint."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
