@@ -30,7 +30,6 @@ celery = Celery(
         "app.jobs.audio_tasks",
         "app.jobs.lyrics_tasks",
         "app.jobs.batch_tasks",
-        "app.jobs.enrichment_tasks",
         "app.jobs.metadata_tasks",
     ],
 )
