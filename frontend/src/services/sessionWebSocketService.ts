@@ -419,13 +419,6 @@ class SessionWebSocketService {
   }
 
   /**
-   * Notify about queue changes (called after API mutations)
-   */
-  notifyQueueChanged() {
-    this.send({ type: "queue_changed" });
-  }
-
-  /**
    * Manually disconnect the WebSocket
    */
   disconnect() {

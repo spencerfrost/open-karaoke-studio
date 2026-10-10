@@ -268,3 +268,49 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
         assert state["is_playing"] is True
         assert state["current_time"] == 42.5
         assert state["duration"] == 180
+
+
+def test_performance_control_cannot_write_playback_state(test_setup):
+    """An unprivileged connection may change mix controls but not playback state."""
+    client, session_factory, _song_factory, user_factory = test_setup
+
+    session_id = f"session_{uuid.uuid4()}"
+    host = user_factory("controls-host")
+    session_factory(session_id, f"host_{uuid.uuid4()}", host_user_id=host.id)
+
+    ws_url = f"/ws/session/{session_id}"
+    with client.websocket_connect(ws_url) as performer, client.websocket_connect(
+        ws_url
+    ) as tv:
+        performer.receive_json()  # session_connected
+        tv.receive_json()  # session_connected
+
+        performer.send_json(
+            {
+                "type": "update_performance_control",
+                "control": "is_playing",
+                "value": True,
+            }
+        )
+        denied = performer.receive_json()
+        assert denied["type"] == "permission_denied"
+        assert denied["action"] == "update_performance_control"
+
+        performer.send_json(
+            {
+                "type": "update_performance_control",
+                "control": "vocal_volume",
+                "value": 0.25,
+            }
+        )
+        relayed = tv.receive_json()
+        assert relayed == {
+            "type": "control_updated",
+            "control": "vocal_volume",
+            "value": 0.25,
+        }
+
+        tv.send_json({"type": "join_performance"})
+        state = tv.receive_json()["state"]
+        assert state["vocal_volume"] == 0.25
+        assert state["is_playing"] is False

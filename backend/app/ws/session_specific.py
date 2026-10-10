@@ -27,6 +27,20 @@ from .queue import get_current_queue_state
 # Session-based performance state - separate state for each session
 session_performance_states = {}
 
+# Keys any connection may set via `update_performance_control` (performer phones send
+# these from /controls). Playback keys (is_playing, current_time, ...) live in the same
+# dict but only the session owner may change them, through the player messages.
+PERFORMANCE_CONTROLS = frozenset(
+    {
+        "vocal_volume",
+        "backing_vocal_volume",
+        "instrumental_volume",
+        "lyrics_size",
+        "lyrics_offset",
+        "playback_speed",
+    }
+)
+
 # Session-level locks to prevent race conditions during disconnect/cleanup
 session_cleanup_locks = {}
 
@@ -307,21 +321,32 @@ async def websocket_unified_session_endpoint(
             elif message_type == "update_performance_control":
                 control_name = message.get("control")
                 value = message.get("value")
-                session_state = get_session_performance_state(session_id)
 
-                if control_name and control_name in session_state:
-                    session_state[control_name] = value
-
-                    # Broadcast to all devices in this session
-                    await manager.broadcast_to_room(
-                        session_room,
-                        {
-                            "type": "control_updated",
-                            "control": control_name,
-                            "value": value,
-                        },
-                        exclude=websocket,
+                if control_name not in PERFORMANCE_CONTROLS:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": f"Not a performance control: {control_name}",
+                            }
+                        )
                     )
+                    continue
+
+                session_state = get_session_performance_state(session_id)
+                session_state[control_name] = value
+
+                # Broadcast to all devices in this session
+                await manager.broadcast_to_room(
+                    session_room,
+                    {
+                        "type": "control_updated",
+                        "control": control_name,
+                        "value": value,
+                    },
+                    exclude=websocket,
+                )
 
             elif message_type == "update_player_state":
                 if not is_session_owner:
@@ -443,14 +468,6 @@ async def websocket_unified_session_endpoint(
                             "items": queue_state.get("items", []),
                         }
                     )
-                )
-
-            elif message_type == "queue_changed":
-                # Broadcast queue changes to all devices in session
-                await manager.broadcast_to_room(
-                    session_room,
-                    {"type": "queue_updated", "trigger": "external_change"},
-                    exclude=websocket,
                 )
 
     except WebSocketDisconnect:

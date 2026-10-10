@@ -9,7 +9,6 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useAccess } from "@/hooks/useAccess";
 import { Song } from "@/types/Song";
 import { toast } from "sonner";
-import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { useStageShell } from "@/features/stage";
 import { createLogger } from "@/lib/logger";
 
@@ -115,7 +114,6 @@ export const useSongActions = (
           queryClient.invalidateQueries({
             queryKey: ["karaoke-queue"],
           });
-          sessionWebSocketService.notifyQueueChanged();
         },
       },
     );
