@@ -11,8 +11,8 @@
  * Legacy (vintage) theme. Semantic tokens describe roles, not colors:
  * --background/--foreground are the page itself (dark gradient base, light text);
  * --card is the raised opaque surface (cream, dark text). Components must only
- * reference roles — raw palette vars below are slated for removal (see
- * docs/plans/2026-07-19-theme-token-migration.md).
+ * reference roles — the raw palette vars below are this theme's internals and
+ * are deliberately not exposed as Tailwind utilities.
  */
 :root {
   /* Raw palette (legacy theme internals — do not use directly in components) */
@@ -159,12 +159,6 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   --color-black: var(--black);
-  --color-white: var(--lemon-chiffon);
-  --color-rust: var(--rust);
-  --color-russet: var(--russet);
-  --color-lemon-chiffon: var(--lemon-chiffon);
-  --color-orange-peel: var(--orange-peel);
-  --color-dark-cyan: var(--dark-cyan);
 }
 
 @layer base {
