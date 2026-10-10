@@ -4,6 +4,7 @@ FastAPI Routers for Open Karaoke Studio
 This package contains all API endpoint routers organized by domain.
 """
 
+from .admin import router as admin_router
 from .albums import router as albums_router
 from .artists import router as artists_router
 from .health import router as health_router
@@ -21,6 +22,7 @@ from .musicbrainz import router as musicbrainz_router
 from .youtube_music import router as youtube_music_router
 
 __all__ = [
+    "admin_router",
     "albums_router",
     "artists_router",
     "health_router",

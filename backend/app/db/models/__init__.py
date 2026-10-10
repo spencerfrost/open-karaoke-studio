@@ -6,6 +6,7 @@ Database models package exports
 from .album import DbAlbum
 from .artist import DbArtist
 from .base import UNKNOWN_ARTIST, Base
+from .batch_run import BatchRun
 from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus
 from .lyrics_report import LyricsReport
@@ -22,6 +23,7 @@ __all__ = [
     "DbAlbum",
     "DbArtist",
     "Base",
+    "BatchRun",
     "UNKNOWN_ARTIST",
     "DbJob",
     "Job",

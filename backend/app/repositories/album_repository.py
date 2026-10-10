@@ -41,3 +41,10 @@ class AlbumRepository:
         self.db.commit()
         self.db.refresh(album)
         return album
+
+    def mark_cover_not_found(self, album: DbAlbum) -> DbAlbum:
+        """iTunes has no artwork for it: stop asking."""
+        album.image_status = "not_found"
+        self.db.commit()
+        self.db.refresh(album)
+        return album

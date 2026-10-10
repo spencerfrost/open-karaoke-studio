@@ -88,42 +88,6 @@ async def get_artist_image(name: str = Query(...)):
     )
 
 
-@router.post("/images/backfill")
-async def backfill_artist_images(current_user: User = Depends(require_admin)):
-    """
-    Fetch images for all artists that haven't been checked yet.
-    Runs sequentially to respect Discogs rate limits (60 req/min authenticated).
-    Returns counts of fetched, not_found, and errors.
-    Requires admin.
-    """
-    db = SessionLocal()
-    try:
-        repo = ArtistRepository(db)
-        unchecked = repo.get_all_with_image_status("not_checked")
-        artist_names = [a.name for a in unchecked]
-    finally:
-        db.close()
-
-    logger.info("Starting artist image backfill for %d unchecked artists", len(artist_names))
-
-    results = {"fetched": 0, "not_found": 0, "errors": 0, "total": len(artist_names)}
-
-    for name in artist_names:
-        try:
-            service = ArtistImageService(FileService(), SessionLocal)
-            path = await service.get_or_fetch_artist_image(name)
-            if path is not None:
-                results["fetched"] += 1
-            else:
-                results["not_found"] += 1
-        except Exception as e:
-            logger.warning("Backfill error for artist %s: %s", name, e)
-            results["errors"] += 1
-
-    logger.info("Artist image backfill complete: %s", results)
-    return results
-
-
 @router.get("/{artist_id}/images/search")
 async def search_artist_images(
     artist_id: int,

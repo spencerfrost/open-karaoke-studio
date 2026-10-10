@@ -485,6 +485,56 @@ def fetch_and_assign_album_art(song_id: str, title: str, artist: str) -> bool:
         return False
 
 
+def fetch_album_cover(album_id: int) -> str:
+    """
+    Download the cover for an album that has an iTunes collection id but no cover.
+
+    Returns "found", "not_found" (iTunes has no artwork for it; the album is
+    marked so later runs skip it) or "error" (network trouble; the album stays
+    not_checked so the next run tries again).
+    """
+    from app.db.database import get_db_session
+    from app.db.models.album import DbAlbum
+    from app.repositories.album_repository import AlbumRepository
+
+    with get_db_session() as session:
+        album = session.get(DbAlbum, album_id)
+        if album is None:
+            return "not_found"
+        collection_id = album.itunes_collection_id
+
+    if collection_id is None:
+        artwork_url = None
+    else:
+        try:
+            response = requests.get(
+                "https://itunes.apple.com/lookup",
+                params={"id": collection_id},
+                timeout=10,
+                headers={"User-Agent": "curl/8.0.0", "Accept": "*/*"},
+            )
+            response.raise_for_status()
+            results = response.json().get("results", [])
+        except Exception as e:
+            logger.warning(
+                "iTunes collection lookup failed for %s: %s", collection_id, e
+            )
+            return "error"
+        artwork_url = results[0].get("artworkUrl100") if results else None
+
+    with get_db_session() as session:
+        repo = AlbumRepository(session)
+        album = session.get(DbAlbum, album_id)
+        if artwork_url is None:
+            repo.mark_cover_not_found(album)
+            return "not_found"
+        cover_path = _download_itunes_cover(collection_id, artwork_url)
+        if cover_path is None:
+            return "error"
+        repo.update_cover(album, cover_path)
+        return "found"
+
+
 def _download_itunes_cover(collection_id: int, artwork_url_100: str) -> str | None:
     """Download iTunes artwork at 600px and cache locally. Returns relative path or None."""
     from app.config import get_config

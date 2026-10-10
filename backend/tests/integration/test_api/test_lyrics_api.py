@@ -405,19 +405,3 @@ def test_a_song_with_an_open_report_needs_repair(client):
 
     assert stats["repair"] == 1
     assert stats["repairReasons"]["reported"] == 1
-
-
-def test_a_repair_run_is_dispatched(client):
-    with patch("app.jobs.jobs.batch_align_lyrics") as mock_task:
-        mock_task.delay.return_value = SimpleNamespace(id="task-1")
-        resp = client.post("/api/lyrics/batch/align?mode=repair")
-
-    assert resp.status_code == 202
-    assert resp.json()["taskId"] == "task-1"
-    mock_task.delay.assert_called_once_with(mode="repair")
-
-
-def test_an_unknown_run_mode_is_rejected(client):
-    resp = client.post("/api/lyrics/batch/align?mode=everything")
-
-    assert resp.status_code == 400

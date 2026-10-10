@@ -23,6 +23,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.en
 
 # Import routers
 from app.api import (
+    admin_router,
     albums_router,
     artists_router,
     health_router,
@@ -107,6 +108,7 @@ manager = SessionConnectionManager()
 app.state.session_manager = manager
 
 # Include all API routers
+app.include_router(admin_router)
 app.include_router(albums_router)
 app.include_router(artists_router)
 app.include_router(health_router)
