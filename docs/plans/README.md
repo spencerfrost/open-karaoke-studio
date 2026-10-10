@@ -18,6 +18,8 @@ Last audited 2026-09-25.
 | [Lyrics alignment repair](2026-09-29-lyrics-alignment-repair.md) | Steps 1–4 committed (4: plain lyrics, ASR only re-times real lyrics), none deployed. Step 5, the library re-run, waits for lyrics reports to be deployed |
 | [Lyrics reports](2026-09-30-lyrics-reports.md) | Built and committed, not deployed. Singers report "Wrong words" / "Out of sync" from the Lyrics card, the app tries a fix and lists it in the admin Lyrics Reports tab; rejected and hand-picked lyrics are remembered. Checking it on the phone and TV is left |
 | [Theme token migration](2026-07-19-theme-token-migration.md) | Stages 1–2 done. Stage 3 partial: ~140 raw palette classes left. Stages 4–5 not started |
+| [Make the retro style consistent](2026-10-10-retro-style-pass.md) | Done: surface ladder, text tiers and decoration colors are in, components use them. Accent deferred |
+| [Cyberpunk and Catppuccin themes](2026-10-10-cyberpunk-and-catppuccin-themes.md) | Ready to start. Finish the rough cyberpunk block and map Catppuccin Mocha onto the roles |
 | [Documentation mapping](2026-08-30-documentation-mapping.md) | 1 of 6 chunks done (`docs/domains/ingestion-pipeline.md`) |
 | [Three-track VRAM optimization](2026-07-12-three-track-vram-optimization.md) | Not started |
 | [Pre-production testing checklist](2026-08-28-pre-production-testing-checklist.md) | Out of date. Written at 40 unpushed commits; `develop` is now 114 ahead of `origin/develop` (last pushed 2026-07-09) |
