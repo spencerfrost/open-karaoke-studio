@@ -219,9 +219,8 @@ GET /api/songs/{song_id}
   "plainLyrics": "Lyrics text...",
   "syncedLyrics": "[00:12.00] First line...",
   "wordSyncedLyrics": null,
-  "itunesTrackId": 123456789,
-  "itunesExplicit": false,
-  "itunesPreviewUrl": "https://...",
+  "explicit": false,
+  "albumHandSet": false,
   "artistId": 1,
   "albumId": 12,
   "albumCoverUrl": "/api/albums/12/cover",
@@ -303,11 +302,6 @@ All fields optional (camelCase):
   "plainLyrics": "New lyrics...",
   "syncedLyrics": "[00:10.00] New synced lyrics...",
   "wordSyncedLyrics": null,
-  "itunesTrackId": 123456789,
-  "itunesCollectionId": 987654321,
-  "itunesArtworkUrls": ["https://..."],
-  "itunesExplicit": false,
-  "itunesPreviewUrl": "https://...",
   "loudnessDbfs": -11.2,
   "gainDb": -2.8
 }
@@ -315,7 +309,7 @@ All fields optional (camelCase):
 
 Notes:
 - Updating `plainLyrics` or `syncedLyrics` clears any existing `wordSyncedLyrics`.
-- Providing `itunesCollectionId` links the song to an album (created if needed) and downloads its cover from `itunesArtworkUrls`.
+- A new `album` name marks the album hand-set: automatic album lookups skip the song, and its cover stays linked. An empty `album` clears the name, the cover link and the marker, so the next lookup finds one.
 
 #### Response
 

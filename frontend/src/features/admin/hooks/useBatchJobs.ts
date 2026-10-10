@@ -6,7 +6,6 @@ export type JobKind =
   | "loudness"
   | "vocal_range"
   | "song_albums"
-  | "album_covers"
   | "fingerprint"
   | "artist_images"
   | "lyrics_alignment";

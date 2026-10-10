@@ -53,16 +53,20 @@ class DbSong(Base):
     # with another source. A run that sees it change stops and starts again.
     lyrics_hand_picked_at = Column(DateTime, nullable=True)
 
-    # iTunes metadata
-    itunes_track_id = Column(Integer, nullable=True)
-    itunes_explicit = Column(Boolean, nullable=True)
-    itunes_preview_url = Column(
-        String, nullable=True
-    )  # 30-sec preview for "what's this song?"
+    # Explicit lyrics, from the album lookup; None when it couldn't tell
+    explicit = Column(Boolean, nullable=True)
 
-    # Relational links (nullable; backfilled by migration, enriched via iTunes metadata)
+    # Relational links (nullable; backfilled by migration)
     artist_id = Column(Integer, ForeignKey("artists.id"), nullable=True)
+    # Written with `album` by app.services.album_service, so the name and the
+    # cover come from the same release.
     album_id = Column(Integer, ForeignKey("albums.id"), nullable=True)
+    # When a person last set the album name. While set, automatic album
+    # lookups skip the song; the cover it had stays linked.
+    album_hand_set_at = Column(DateTime, nullable=True)
+    # When the album lookup last ended without a cover. Missing-mode runs skip
+    # the song until an "all" run looks again.
+    album_checked_at = Column(DateTime, nullable=True)
 
     # Processing metadata
     engine_type = Column(
@@ -161,10 +165,8 @@ class DbSong(Base):
             "plainLyrics": self.plain_lyrics,
             "syncedLyrics": self.synced_lyrics,
             "wordSyncedLyrics": self.word_synced_lyrics,
-            # iTunes metadata
-            "itunesTrackId": self.itunes_track_id,
-            "itunesExplicit": self.itunes_explicit,
-            "itunesPreviewUrl": self.itunes_preview_url,
+            "explicit": self.explicit,
+            "albumHandSet": self.album_hand_set_at is not None,
             # Relational IDs and computed cover URL
             "artistId": self.artist_id,
             "albumId": self.album_id,

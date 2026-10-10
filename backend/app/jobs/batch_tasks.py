@@ -14,8 +14,9 @@ from .celery_app import celery
 
 logger = get_task_logger(__name__)
 
-# Spacing between iTunes requests, to stay inside its rate limit.
-ITUNES_REQUEST_GAP_SECONDS = 1.5
+# Spacing between album lookups. Deezer allows 10 requests a second and
+# YouTube Music publishes no limit; a second keeps both comfortable.
+ALBUM_LOOKUP_GAP_SECONDS = 1.0
 
 
 def _select(kind: str, mode: str) -> list:
@@ -98,105 +99,42 @@ def batch_fingerprint_songs(
     return counts
 
 
-@celery.task(name="batch_backfill_artwork")
-def batch_backfill_artwork(mode: str = "missing", run_id: Optional[int] = None) -> dict:
-    """Batch task: find each album-less song's album (and its cover) on iTunes.
+@celery.task(name="batch_fetch_albums")
+def batch_fetch_albums(mode: str = "missing", run_id: Optional[int] = None) -> dict:
+    """Batch task: find each song's album and cover (YouTube Music, then Deezer).
 
-    "all" looks every song up again.
+    "all" looks every song up again. Songs whose album a person set are never
+    included. When the run ends, albums no song links to are deleted.
     """
     import time
 
-    from app.db.database import get_db_session
-    from app.db.models.song import DbSong
-    from app.services.itunes_service import fetch_and_assign_album_art
+    from app.services.album_service import delete_unlinked_albums, refresh_song_album
 
-    success = 0
-    skipped = 0
-    errors = 0
+    counts = {"found": 0, "no_cover": 0, "not_found": 0, "hand_set": 0, "error": 0}
 
     with tracked_run(run_id) as run:
         song_ids = _select("song_albums", mode)
-        with get_db_session() as session:
-            rows = (
-                (
-                    session.query(DbSong.id, DbSong.title, DbSong.artist)
-                    .filter(DbSong.id.in_(song_ids))
-                    .all()
-                )
-                if song_ids
-                else []
-            )
-        songs = [(row[0], row[1], row[2]) for row in rows]
-        run.start(len(songs))
+        run.start(len(song_ids))
         logger.info(
-            "batch_backfill_artwork: processing %d songs (mode=%s)", len(songs), mode
+            "batch_fetch_albums: processing %d songs (mode=%s)", len(song_ids), mode
         )
 
-        for i, (song_id, title, artist) in enumerate(songs):
-            if not title or not artist:
-                skipped += 1
-                run.song_done()
-                continue
+        for i, song_id in enumerate(song_ids):
             if i > 0:
-                time.sleep(ITUNES_REQUEST_GAP_SECONDS)
+                time.sleep(ALBUM_LOOKUP_GAP_SECONDS)
             try:
-                if fetch_and_assign_album_art(song_id, title, artist):
-                    success += 1
-                else:
-                    skipped += 1
-                run.song_done()
+                outcome = refresh_song_album(song_id)
             except Exception:
                 logger.warning(
-                    "batch_backfill_artwork: error for song %s", song_id, exc_info=True
-                )
-                errors += 1
-                run.song_done(ok=False)
-
-    logger.info(
-        "batch_backfill_artwork: done — %d succeeded, %d skipped, %d errors",
-        success,
-        skipped,
-        errors,
-    )
-    return {
-        "processed": success + skipped + errors,
-        "success": success,
-        "skipped": skipped + errors,
-    }
-
-
-@celery.task(name="batch_fetch_album_covers")
-def batch_fetch_album_covers(
-    mode: str = "missing", run_id: Optional[int] = None
-) -> dict:
-    """Batch task: download the cover of every album not checked yet."""
-    import time
-
-    from app.services.itunes_service import fetch_album_cover
-
-    counts = {"found": 0, "not_found": 0, "error": 0}
-
-    with tracked_run(run_id) as run:
-        album_ids = _select("album_covers", mode)
-        run.start(len(album_ids))
-        logger.info("batch_fetch_album_covers: processing %d albums", len(album_ids))
-
-        for i, album_id in enumerate(album_ids):
-            if i > 0:
-                time.sleep(ITUNES_REQUEST_GAP_SECONDS)
-            try:
-                outcome = fetch_album_cover(album_id)
-            except Exception:
-                logger.warning(
-                    "batch_fetch_album_covers: error for album %s",
-                    album_id,
-                    exc_info=True,
+                    "batch_fetch_albums: error for song %s", song_id, exc_info=True
                 )
                 outcome = "error"
-            counts[outcome] += 1
+            counts[outcome] = counts.get(outcome, 0) + 1
             run.song_done(ok=outcome != "error")
 
-    logger.info("batch_fetch_album_covers: done — %s", counts)
+        counts["albums_deleted"] = delete_unlinked_albums()
+
+    logger.info("batch_fetch_albums: done — %s", counts)
     return counts
 
 

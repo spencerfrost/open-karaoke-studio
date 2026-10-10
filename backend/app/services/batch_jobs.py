@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
 
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
@@ -46,8 +47,8 @@ def _artists(session: Session) -> Query:
     return session.query(DbArtist.id)
 
 
-def _albums(session: Session) -> Query:
-    return session.query(DbAlbum.id)
+def _songs_without_hand_set_album(session: Session) -> Query:
+    return _songs(session).filter(DbSong.album_hand_set_at.is_(None))
 
 
 JOBS: dict[str, BatchJob] = {
@@ -76,19 +77,17 @@ JOBS: dict[str, BatchJob] = {
         ),
         BatchJob(
             kind="song_albums",
-            task_name="batch_backfill_artwork",
+            task_name="batch_fetch_albums",
             modes=("missing", "all"),
-            covered=_songs,
-            missing=lambda s: _songs(s).filter(DbSong.album_id.is_(None)),
-        ),
-        BatchJob(
-            kind="album_covers",
-            task_name="batch_fetch_album_covers",
-            # Only unchecked albums: a found cover is on disk, and one iTunes
-            # had no artwork for is marked not_found.
-            modes=("missing",),
-            covered=_albums,
-            missing=lambda s: _albums(s).filter(DbAlbum.image_status == "not_checked"),
+            covered=_songs_without_hand_set_album,
+            # Not checked yet, and no album or an album without a cover. A
+            # song the lookup found nothing for is checked; "all" asks again.
+            missing=lambda s: _songs_without_hand_set_album(s)
+            .outerjoin(DbAlbum, DbSong.album_id == DbAlbum.id)
+            .filter(
+                DbSong.album_checked_at.is_(None),
+                or_(DbSong.album_id.is_(None), DbAlbum.cover_path.is_(None)),
+            ),
         ),
         BatchJob(
             kind="fingerprint",

@@ -160,7 +160,7 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Tag tone={lyricsTone}>{lyricsLabel}</Tag>
-          {song.itunesExplicit && <Tag tone="warn">Explicit</Tag>}
+          {song.explicit && <Tag tone="warn">Explicit</Tag>}
           {song.status !== "processed" && <Tag tone="quiet">Processing</Tag>}
         </div>
       </div>

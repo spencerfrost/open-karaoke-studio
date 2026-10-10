@@ -57,10 +57,9 @@ class SongResponse(BaseModel):
     syncedLyrics: Optional[str] = None
     wordSyncedLyrics: Optional[str] = None
 
-    # iTunes metadata
-    itunesTrackId: Optional[int] = None
-    itunesExplicit: Optional[bool] = None
-    itunesPreviewUrl: Optional[str] = None  # 30-sec preview for song identification
+    explicit: Optional[bool] = None
+    # A person set the album name; automatic album lookups skip the song
+    albumHandSet: bool = False
 
     # Relational IDs and computed cover URL
     artistId: Optional[int] = None
@@ -140,21 +139,6 @@ class SongUpdateRequest(BaseModel):
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
     wordSyncedLyrics: Optional[str] = None
-
-    # iTunes metadata
-    itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
-    itunesCollectionId: Optional[int] = Field(
-        None, description="iTunes collection/album ID"
-    )
-    itunesArtworkUrls: Optional[List[str]] = Field(
-        None, description="iTunes artwork URLs"
-    )
-    itunesExplicit: Optional[bool] = Field(
-        None, description="iTunes explicit content flag"
-    )
-    itunesPreviewUrl: Optional[str] = Field(
-        None, max_length=500, description="iTunes 30-sec preview URL"
-    )
 
     # Audio analysis
     loudnessLufs: Optional[float] = Field(

@@ -22,11 +22,10 @@ from ._events import setup_event_subscriptions as _setup_event_subscriptions
 from .audio_tasks import process_audio_job, process_youtube_job
 from .batch_tasks import (
     batch_align_lyrics,
-    batch_backfill_artwork,
     batch_backfill_duration,
     batch_backfill_loudness,
     batch_backfill_vocal_range,
-    batch_fetch_album_covers,
+    batch_fetch_albums,
     batch_fetch_artist_images,
     batch_fingerprint_songs,
 )
@@ -171,11 +170,10 @@ __all__ = [
     "_update_lyrics_alignment_job",
     "align_song_lyrics",
     "batch_align_lyrics",
-    "batch_backfill_artwork",
     "batch_backfill_duration",
     "batch_backfill_loudness",
     "batch_backfill_vocal_range",
-    "batch_fetch_album_covers",
+    "batch_fetch_albums",
     "batch_fetch_artist_images",
     "batch_fingerprint_songs",
     "detect_song_loudness",

@@ -27,16 +27,10 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
     description: "Reads each song's length from its audio file.",
     unit: ["song", "songs"],
   },
-  album_covers: {
+  song_albums: {
     name: "Album covers",
     description:
-      "Downloads the cover for albums that don't have one yet, from iTunes.",
-    unit: ["album", "albums"],
-  },
-  song_albums: {
-    name: "Albums for songs",
-    description:
-      "Finds the album (and its cover) on iTunes for songs that aren't on one.",
+      "Finds each song's album and cover on YouTube Music from the exact video it was downloaded from, or on Deezer when that fails.",
     unit: ["song", "songs"],
   },
   fingerprint: {

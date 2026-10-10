@@ -80,17 +80,39 @@ class TestListJobs:
         assert images["coverage"] == {"have": 1, "of": 2}
         assert images["modes"] == ["missing"]
 
-    def test_album_covers_only_run_on_unchecked_albums(self, client, db):
-        db.add(DbAlbum(title="A Night at the Opera", image_status="found"))
-        db.add(DbAlbum(title="Arrival", image_status="not_found"))
-        db.add(DbAlbum(title="Rumours", image_status="not_checked"))
+    def test_song_albums_skip_hand_set_checked_and_covered_songs(self, client, db):
+        covered = DbAlbum(title="Rumours", cover_path="covers/album-1.jpg")
+        bare = DbAlbum(title="Tusk")
+        db.add_all([covered, bare])
+        db.commit()
+        for song_id, album_id, hand_set, checked in [
+            ("no-album", None, False, False),
+            ("bare-album", bare.id, False, False),
+            ("covered", covered.id, False, False),
+            ("checked", None, False, True),
+            ("hand-set", None, True, False),
+        ]:
+            db.add(
+                DbSong(
+                    id=song_id,
+                    title=song_id,
+                    artist="Fleetwood Mac",
+                    album_id=album_id,
+                    album_hand_set_at=utc_now() if hand_set else None,
+                    album_checked_at=utc_now() if checked else None,
+                )
+            )
         db.commit()
 
-        covers = _jobs_by_kind(client)["album_covers"]
+        albums = _jobs_by_kind(client)["song_albums"]
 
-        assert covers["coverage"] == {"have": 2, "of": 3}
-        assert covers["modeCounts"] == {"missing": 1, "all": 3}
-        assert covers["modes"] == ["missing"]
+        assert albums["modes"] == ["missing", "all"]
+        assert albums["modeCounts"] == {"missing": 2, "all": 4}
+        assert sorted(select_ids(db, "song_albums", "missing")) == [
+            "bare-album",
+            "no-album",
+        ]
+        assert "hand-set" not in select_ids(db, "song_albums", "all")
 
     def test_fingerprint_retries_unconfirmed_unsettled_songs(self, client, db):
         for song_id, status, confirmed in [
@@ -131,7 +153,6 @@ class TestListJobs:
             "loudness",
             "vocal_range",
             "song_albums",
-            "album_covers",
             "fingerprint",
             "artist_images",
             "lyrics_alignment",

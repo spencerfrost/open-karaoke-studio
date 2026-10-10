@@ -495,10 +495,9 @@ def update_volume(volume: float):
 | video_id | String (nullable) | YouTube video ID |
 | plain_lyrics | Text (nullable) | Plain text lyrics |
 | synced_lyrics | Text (nullable) | LRC format lyrics |
-| itunes_track_id | Integer (nullable) | iTunes metadata ID |
-| itunes_explicit | Boolean (nullable) | Explicit content flag |
-| itunes_preview_url | String (nullable) | 30s preview URL |
-| itunes_artwork_urls | Text (nullable) | JSON array of artwork |
+| explicit | Boolean (nullable) | Explicit flag from the album lookup |
+| album_hand_set_at | DateTime (nullable) | A person set the album; lookups skip the song |
+| album_checked_at | DateTime (nullable) | The album lookup found no cover |
 | youtube_thumbnail_urls | Text (nullable) | JSON array of thumbnails |
 | engine_type | String | "three_track", "demucs", "roformer", "hybrid", "clean_backing" |
 | bpm | Float | Beats per minute |
@@ -809,7 +808,7 @@ backend/app/
 │   ├── youtube_service.py     # yt-dlp wrapper
 │   ├── audio.py               # Audio separation
 │   ├── lyrics_service.py      # Lyrics fetching
-│   ├── itunes_service.py      # iTunes metadata
+│   ├── album_service.py       # Album + cover (YouTube Music, Deezer)
 │   └── separation_engines/    # Audio processing engines
 │       ├── demucs_standard.py
 │       ├── audio_sep_roformer.py

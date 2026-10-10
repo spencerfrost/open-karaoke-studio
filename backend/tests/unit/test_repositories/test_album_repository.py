@@ -1,73 +1,80 @@
 """Unit tests for app/repositories/album_repository.py."""
 
-from unittest.mock import MagicMock, Mock
-
 import pytest
+from tests.fastapi.conftest import _TestingSessionLocal
 
-from app.db.models.album import DbAlbum
+from app.db.models import DbAlbum, DbSong
 from app.repositories.album_repository import AlbumRepository
 
 
 @pytest.fixture
 def db():
-    return MagicMock()
+    session = _TestingSessionLocal()
+    yield session
+    session.rollback()
+    session.query(DbSong).filter(DbSong.id.like("album-repo-%")).delete(
+        synchronize_session=False
+    )
+    session.query(DbAlbum).delete()
+    session.commit()
+    session.close()
 
 
 @pytest.fixture
 def repo(db):
-    return AlbumRepository(db=db)
+    return AlbumRepository(db)
 
 
-def test_get_by_itunes_id_returns_album(repo, db):
-    mock_album = MagicMock(spec=DbAlbum)
-    db.query.return_value.filter.return_value.first.return_value = mock_album
-
-    result = repo.get_by_itunes_id(12345)
-
-    assert result is mock_album
-
-
-def test_get_by_itunes_id_returns_none_when_missing(repo, db):
-    db.query.return_value.filter.return_value.first.return_value = None
-
-    result = repo.get_by_itunes_id(99999)
-
-    assert result is None
-
-
-def test_get_or_create_returns_existing_album(repo, db):
-    existing = MagicMock(spec=DbAlbum)
-    db.query.return_value.filter.return_value.first.return_value = existing
-
-    result = repo.get_or_create(
-        title="Abbey Road", itunes_collection_id=111, artist_id=1
+def test_get_or_create_returns_the_album_with_that_source_and_id(repo):
+    first = repo.get_or_create(
+        source="ytmusic", source_id="MPREb_1", title="Toys In The Attic"
     )
+    again = repo.get_or_create(source="ytmusic", source_id="MPREb_1", title="Other")
 
-    assert result is existing
-    db.add.assert_not_called()
-
-
-def test_get_or_create_creates_new_album(repo, db):
-    db.query.return_value.filter.return_value.first.return_value = None
-
-    result = repo.get_or_create(
-        title="Abbey Road",
-        itunes_collection_id=222,
-        artist_id=5,
-        release_date="1969-09-26",
-    )
-
-    db.add.assert_called_once()
-    db.commit.assert_called_once()
-    db.refresh.assert_called_once()
+    assert again.id == first.id
+    assert again.title == "Toys In The Attic"
 
 
-def test_update_cover_sets_path_and_status(repo, db):
-    album = MagicMock(spec=DbAlbum)
+def test_the_same_id_from_another_source_is_another_album(repo):
+    ytmusic = repo.get_or_create(source="ytmusic", source_id="123", title="A")
+    deezer = repo.get_or_create(source="deezer", source_id="123", title="A")
 
-    result = repo.update_cover(album, "covers/222.jpg")
+    assert ytmusic.id != deezer.id
 
-    assert album.cover_path == "covers/222.jpg"
+
+def test_get_or_create_survives_losing_the_race_to_create_it(repo, db):
+    # Another worker inserts the album between the lookup and the insert.
+    other = _TestingSessionLocal()
+    other.add(DbAlbum(source="deezer", source_id="42", title="Rumours"))
+    other.commit()
+    other.close()
+    real_get = repo.get_by_source
+    calls = []
+
+    def get_by_source(source, source_id):
+        calls.append(source_id)
+        return None if len(calls) == 1 else real_get(source, source_id)
+
+    repo.get_by_source = get_by_source
+    album = repo.get_or_create(source="deezer", source_id="42", title="Rumours")
+
+    assert album.title == "Rumours"
+    assert db.query(DbAlbum).filter(DbAlbum.source_id == "42").count() == 1
+
+
+def test_update_cover_sets_path_and_status(repo):
+    album = repo.get_or_create(source="deezer", source_id="7", title="Rumours")
+
+    repo.update_cover(album, "covers/album-7.jpg")
+
+    assert album.cover_path == "covers/album-7.jpg"
     assert album.image_status == "found"
-    db.commit.assert_called_once()
-    db.refresh.assert_called_once_with(album)
+
+
+def test_unlinked_lists_only_albums_no_song_links_to(repo, db):
+    linked = repo.get_or_create(source="deezer", source_id="1", title="Linked")
+    unlinked = repo.get_or_create(source="deezer", source_id="2", title="Unlinked")
+    db.add(DbSong(id="album-repo-song", title="T", artist="A", album_id=linked.id))
+    db.commit()
+
+    assert [album.id for album in repo.unlinked()] == [unlinked.id]

@@ -35,10 +35,8 @@ export interface Song {
   syncedLyrics?: string;
   wordSyncedLyrics?: string | null;
 
-  // iTunes metadata
-  itunesTrackId?: number;
-  itunesExplicit?: boolean;
-  itunesPreviewUrl?: string; // 30-sec preview for "what's this song again?"
+  explicit?: boolean | null; // From the album lookup; null when it couldn't tell
+  albumHandSet?: boolean; // A person set the album name; automatic lookups skip it
 
   // Relational IDs and computed cover URL
   artistId?: number;

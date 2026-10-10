@@ -13,37 +13,30 @@ logger = get_task_logger(__name__)
 
 @celery.task(name="fetch_song_artwork")
 def fetch_song_artwork(song_id: str) -> dict:
-    """Fetch album art via iTunes (falling back to YouTube thumbnail). No audio required."""
+    """Find the song's album and cover, falling back to its YouTube thumbnail."""
     logger.info("[PIPELINE] fetch_song_artwork starting for song %s", song_id)
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
-    from app.services.itunes_service import fetch_and_assign_album_art
+    from app.services.album_service import refresh_song_album
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
         if not song:
             logger.warning("fetch_song_artwork: song %s not found", song_id)
             return {"status": "not_found", "song_id": song_id}
-        song_title = song.title
-        song_artist = song.artist
         video_id = song.video_id
 
-    assigned = False
-    if song_title and song_artist:
-        try:
-            assigned = fetch_and_assign_album_art(song_id, song_title, song_artist)
-            if assigned:
-                logger.info(
-                    "fetch_song_artwork: iTunes art assigned for song %s", song_id
-                )
-        except Exception:
-            logger.warning(
-                "fetch_song_artwork: iTunes lookup failed for song %s",
-                song_id,
-                exc_info=True,
-            )
+    try:
+        outcome = refresh_song_album(song_id)
+    except Exception:
+        logger.warning(
+            "fetch_song_artwork: album lookup failed for song %s",
+            song_id,
+            exc_info=True,
+        )
+        outcome = "error"
 
-    if not assigned and video_id:
+    if outcome != "found" and video_id:
         try:
             from app.services.youtube_service import YouTubeService
 
@@ -58,7 +51,7 @@ def fetch_song_artwork(song_id: str) -> dict:
                 exc_info=True,
             )
 
-    return {"status": "ok", "song_id": song_id}
+    return {"status": "ok", "album": outcome, "song_id": song_id}
 
 
 def detect_and_store_loudness(song_id: str) -> str:

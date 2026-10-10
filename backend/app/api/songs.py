@@ -58,8 +58,6 @@ from app.db.models.artist import DbArtist
 from app.db.models.song import DbSong, in_songbook
 from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
-from app.repositories.album_repository import AlbumRepository
-from app.repositories.artist_repository import ArtistRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
@@ -113,45 +111,6 @@ def get_db() -> Generator[Session, None, None]:
 # ============================================================================
 # Helpers
 # ============================================================================
-
-
-def _download_album_cover(collection_id: int, artwork_urls: list[str]) -> str | None:
-    """Download the highest-res iTunes artwork and cache it locally.
-
-    Returns the relative path 'covers/{collection_id}.jpg' on success, None on failure.
-    """
-    import requests
-
-    config = get_config()
-    covers_dir = config.library_path / "covers"
-    covers_dir.mkdir(exist_ok=True)
-    dest = covers_dir / f"{collection_id}.jpg"
-
-    # Derive 600px URL from the first artwork URL (iTunes URL pattern)
-    url_600 = None
-    for url in artwork_urls:
-        if url:
-            url_600 = url.replace("100x100bb", "600x600bb").replace(
-                "100x100", "600x600"
-            )
-            break
-
-    if not url_600:
-        return None
-
-    try:
-        response = requests.get(
-            url_600, timeout=10, headers={"User-Agent": "curl/8.0.0"}
-        )
-        response.raise_for_status()
-        dest.write_bytes(response.content)
-        logger.info("Downloaded album cover for collection %s", collection_id)
-        return f"covers/{collection_id}.jpg"
-    except Exception as e:
-        logger.warning(
-            "Failed to download album cover for collection %s: %s", collection_id, e
-        )
-        return None
 
 
 # ============================================================================
@@ -1089,12 +1048,6 @@ async def update_song(
         # Build update fields from provided data
         update_dict = update_data.model_dump(exclude_unset=True)
 
-        # Extract itunesCollectionId before mapping — handled separately (album linkage)
-        itunes_collection_id = update_dict.pop("itunesCollectionId", None)
-
-        # Extract itunesArtworkUrls — used below to download album cover, not stored in DB
-        update_dict.pop("itunesArtworkUrls", None)
-
         # Extract lyrics fields for separate handling
         lyrics_data = extract_lyrics_fields(update_dict)
 
@@ -1133,6 +1086,26 @@ async def update_song(
             ):
                 update_fields["acoustid_fingerprint_status"] = "skipped"
 
+        # A person setting the album name keeps automatic lookups off the
+        # song; the cover it had stays linked, so trimming "(Deluxe)" doesn't
+        # lose it. Clearing the name drops the cover too and lets the next
+        # lookup find one.
+        if "album" in update_dict:
+            album = (update_dict["album"] or "").strip() or None
+            if album is None:
+                update_fields.update(
+                    album=None,
+                    album_id=None,
+                    album_hand_set_at=None,
+                    album_checked_at=None,
+                )
+            elif album != db_song.album:
+                update_fields.update(
+                    album=album, album_hand_set_at=datetime.now(timezone.utc)
+                )
+            else:
+                update_fields.pop("album", None)
+
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
             if not updated_song:
@@ -1169,30 +1142,6 @@ async def update_song(
                 from app.jobs.lyrics_dispatch import realign_hand_picked_lyrics
 
                 realign_hand_picked_lyrics(db_song)
-
-        # Handle album + artist linkage when iTunes collection ID is provided
-        if itunes_collection_id is not None:
-            db_song = repo.fetch(song_id)
-            artist_name = update_data.artist or db_song.artist
-            artist = ArtistRepository(db).get_or_create(artist_name)
-
-            album_title = update_data.album or db_song.album or "Unknown Album"
-            album_repo = AlbumRepository(db)
-            album = album_repo.get_or_create(
-                title=album_title,
-                itunes_collection_id=itunes_collection_id,
-                artist_id=artist.id,
-                release_date=update_data.releaseDate or db_song.release_date,
-            )
-
-            if not album.cover_path and update_data.itunesArtworkUrls:
-                cover_path = _download_album_cover(
-                    itunes_collection_id, update_data.itunesArtworkUrls
-                )
-                if cover_path:
-                    album_repo.update_cover(album, cover_path)
-
-            repo.update(song_id, artist_id=artist.id, album_id=album.id)
 
         # Re-fetch to get updated relationships
         db_song = repo.fetch(song_id)
