@@ -23,6 +23,7 @@
   --orange-peel: #fd9a02;
   --dark-cyan: #01928b;
   --pale-warm-beige: #c7b99c;
+  --harvest-gold: #e2b24a;
 
   /* UI Elements */
   --radius: 0.5rem;
@@ -106,6 +107,16 @@
 
   /* Full body background value — themes may use a gradient or a flat color */
   --page-bg: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
+
+  /*
+   * Decoration colors: art, not UI. The audio visualizer cycles through all
+   * four; the progress bar and the wheel's glow use the first two. A theme
+   * with a bigger palette shows more of it here.
+   */
+  --decor-1: var(--dark-cyan);
+  --decor-2: var(--orange-peel);
+  --decor-3: var(--harvest-gold);
+  --decor-4: var(--rust);
 
   /* Glow effects — retro is subtle/warm; neon themes redefine these */
   --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
@@ -196,6 +207,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-decor-1: var(--decor-1);
+  --color-decor-2: var(--decor-2);
+  --color-decor-3: var(--decor-3);
+  --color-decor-4: var(--decor-4);
   --shadow-glow-primary: var(--glow-primary);
   --shadow-glow-accent: var(--glow-accent);
   --font-display: var(--display-font);
@@ -398,16 +413,16 @@
   .wheel-band {
     background: radial-gradient(
       ellipse 50% 50% at 50% 50%,
-      color-mix(in oklab, var(--primary) 28%, transparent),
-      color-mix(in oklab, var(--accent) 8%, transparent) 60%,
+      color-mix(in oklab, var(--decor-2) 28%, transparent),
+      color-mix(in oklab, var(--decor-1) 8%, transparent) 60%,
       transparent 75%
     );
   }
 
   .wheel-row-glow {
     text-shadow:
-      0 0 18px color-mix(in oklab, var(--primary) 70%, transparent),
-      0 0 42px color-mix(in oklab, var(--accent) 35%, transparent);
+      0 0 18px color-mix(in oklab, var(--decor-2) 70%, transparent),
+      0 0 42px color-mix(in oklab, var(--decor-1) 35%, transparent);
   }
 
   /* Over the blurred backdrop: light at the edges, dark behind the wheel. */

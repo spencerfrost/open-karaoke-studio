@@ -3,7 +3,7 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import type { RGB } from "@/lib/themeColor";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 
-const BASE_COLOR_TOKENS = ["accent", "primary"] as const;
+const BASE_COLOR_TOKENS = ["decor-1", "decor-2", "decor-3", "decor-4"] as const;
 
 interface AudioVisualizerProps {
   height?: number;
@@ -52,8 +52,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     positions: number[];
   } | null>(null);
 
-  // The theme's accent and primary — alternated per bar, then hue-shifted
-  // across the row.
+  // The theme's decoration colors — cycled per bar, then hue-shifted across
+  // the row.
   const baseColors = useThemeColors(BASE_COLOR_TOKENS);
 
   // Colors depend only on distance from center, not on audio data — compute
@@ -62,7 +62,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const barColors = useMemo(
     () =>
       Array.from({ length: halfCount }, (_, k) =>
-        adjustColorHue(baseColors[k % 2], (k / halfCount) * 60),
+        adjustColorHue(baseColors[k % baseColors.length], (k / halfCount) * 60),
       ),
     [halfCount, baseColors],
   );
