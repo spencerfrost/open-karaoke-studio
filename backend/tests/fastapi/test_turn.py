@@ -9,8 +9,8 @@ mid-song, and append mode being unaffected by any of it.
 from datetime import datetime, timedelta
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -34,7 +34,7 @@ HOST_USER_ID = 1
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     try:
         yield session
     finally:

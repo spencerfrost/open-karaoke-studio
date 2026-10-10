@@ -39,10 +39,9 @@ if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from tests.fixtures.test_data import create_test_db_song, create_test_song
 
+from app.db.database import SessionLocal as _SessionLocal
 from app.db.database import engine as _global_engine
 from app.db.models import Base, DbSong
 
@@ -77,30 +76,12 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def test_db_session():
-    """
-    Provide a transactional scope for database tests.
-
-    This fixture creates an in-memory SQLite database, begins a transaction,
-    and rolls it back after each test. This ensures that every test starts
-    with a clean database and any changes are discarded, preventing test pollution.
-    """
-    # Create an in-memory SQLite database for testing
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-
-    # Begin a transaction
-    connection = engine.connect()
-    transaction = connection.begin()
-    session.begin_nested()
-
-    yield session
-
-    # Rollback the transaction and close the connection
-    transaction.rollback()
-    connection.close()
-    session.close()
+    """Session on the shared test database; _clean_global_db empties it afterwards."""
+    session = _SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture(scope="function")
@@ -256,34 +237,6 @@ def client(app):
     """
     with TestClient(app) as test_client:
         yield test_client
-
-
-@pytest.fixture(scope="function")
-def db_session():
-    """
-    Provide a transactional scope for database tests.
-
-    This fixture creates an in-memory SQLite database, begins a transaction,
-    and rolls it back after each test. This ensures that every test starts
-    with a clean database and any changes are discarded, preventing test pollution.
-    """
-    # Create an in-memory SQLite database for testing
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-
-    # Begin a transaction
-    connection = engine.connect()
-    transaction = connection.begin()
-    session.begin_nested()
-
-    yield session
-
-    # Rollback the transaction and close the connection
-    transaction.rollback()
-    connection.close()
-    session.close()
 
 
 @pytest.fixture(scope="function")

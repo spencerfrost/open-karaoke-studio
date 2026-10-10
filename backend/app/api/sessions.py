@@ -12,7 +12,7 @@ This module provides REST API endpoints for session management:
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Generator, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
@@ -24,12 +24,12 @@ from app.api.dependencies import (
     RequesterContext,
     _resolve_user,
     get_current_user,
+    get_db,
     optional_security,
     require_host,
     require_host_or_session_member,
     require_session_member,
 )
-from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
 from app.services import turn_service
@@ -221,19 +221,6 @@ class QueueOrderModeResponse(BaseModel):
 # ============================================================================
 # Dependencies
 # ============================================================================
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def get_session_manager(request: Request) -> SessionConnectionManager:

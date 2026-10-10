@@ -2,7 +2,16 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
+from app.db.database import SessionLocal
+from app.db.models import DbAlbum
+
+
+def _add_album(cover_path=None) -> int:
+    with SessionLocal() as db:
+        album = DbAlbum(title="Toys In The Attic", cover_path=cover_path)
+        db.add(album)
+        db.commit()
+        return album.id
 
 
 class TestAlbumCoverEndpoint:
@@ -11,38 +20,35 @@ class TestAlbumCoverEndpoint:
         assert response.status_code == 404
 
     def test_returns_404_when_no_cover_path(self, client):
-        mock_album = MagicMock()
-        mock_album.cover_path = None
+        album_id = _add_album(cover_path=None)
 
-        with patch("app.api.albums.SessionLocal") as mock_session_cls:
-            mock_db = MagicMock()
-            mock_db.query.return_value.filter.return_value.first.return_value = (
-                mock_album
-            )
-            mock_session_cls.return_value = mock_db
-            response = client.get("/api/albums/1/cover")
+        response = client.get(f"/api/albums/{album_id}/cover")
 
         assert response.status_code == 404
+        assert response.json()["detail"] == "Album cover not available"
 
-    def test_serves_cover_with_cache_header(self, client, tmp_path):
-        (tmp_path / "cover.jpg").write_bytes(b"\xff\xd8\xff")
-        mock_album = MagicMock()
-        mock_album.cover_path = "cover.jpg"
+    def test_returns_404_when_cover_file_is_missing(self, client, tmp_path):
+        album_id = _add_album(cover_path="covers/missing.jpg")
         mock_config = MagicMock()
         mock_config.library_path = tmp_path
 
-        with (
-            patch("app.api.albums.SessionLocal") as mock_session_cls,
-            patch("app.api.albums.get_config", return_value=mock_config),
-        ):
-            mock_db = MagicMock()
-            mock_db.query.return_value.filter.return_value.first.return_value = (
-                mock_album
-            )
-            mock_session_cls.return_value = mock_db
-            response = client.get("/api/albums/1/cover")
+        with patch("app.api.albums.get_config", return_value=mock_config):
+            response = client.get(f"/api/albums/{album_id}/cover")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Album cover file not found"
+
+    def test_serves_cover_with_cache_header(self, client, tmp_path):
+        (tmp_path / "cover.jpg").write_bytes(b"\xff\xd8\xff")
+        album_id = _add_album(cover_path="cover.jpg")
+        mock_config = MagicMock()
+        mock_config.library_path = tmp_path
+
+        with patch("app.api.albums.get_config", return_value=mock_config):
+            response = client.get(f"/api/albums/{album_id}/cover")
 
         assert response.status_code == 200
+        assert response.content == b"\xff\xd8\xff"
         # Without it the stage wheel revalidates every cover it scrolls past.
         assert response.headers["cache-control"] == "public, max-age=3600"
 

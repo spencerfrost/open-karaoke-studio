@@ -10,8 +10,8 @@ tests pin that walk; the pointer's movement is covered in test_turn.py.
 from datetime import datetime, timedelta
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -26,7 +26,7 @@ HOST_USER_ID = 1
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     try:
         yield session
     finally:

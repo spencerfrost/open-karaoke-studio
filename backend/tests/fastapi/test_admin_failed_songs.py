@@ -3,15 +3,15 @@
 from datetime import datetime
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import DbSong
 from app.repositories.song_repository import SongRepository
 
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     yield session
     session.close()
 

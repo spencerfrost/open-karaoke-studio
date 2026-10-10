@@ -14,10 +14,10 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
+    get_db,
     require_host,
     require_host_or_session_member,
 )
-from app.db.database import SessionLocal
 from app.db.models import User
 from app.exceptions import ServiceError
 from app.jobs.lyrics_dispatch import enqueue_song_alignment, realign_hand_picked_lyrics
@@ -50,14 +50,6 @@ class LyricsResult(BaseModel):
 
     class Config:
         extra = "allow"
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def _validate_alignment_source(source: Optional[str]) -> Optional[str]:

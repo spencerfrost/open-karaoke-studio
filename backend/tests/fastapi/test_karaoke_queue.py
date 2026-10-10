@@ -7,8 +7,8 @@ timestamp now that karaoke_queue.created_at exists.
 from datetime import datetime, timedelta
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession, SessionPerformer
 
 HOST_USER_ID = 1
@@ -16,7 +16,7 @@ HOST_USER_ID = 1
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     try:
         yield session
     finally:

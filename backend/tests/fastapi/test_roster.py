@@ -6,9 +6,10 @@ Tests for the session roster (unit 3a): resolve_or_create_performer and the
 from datetime import datetime, timedelta
 
 import pytest
-from tests.fastapi.conftest import _get_mock_requester, _TestingSessionLocal
+from tests.fastapi.conftest import _get_mock_requester
 
 from app.api.dependencies import RequesterContext, require_host_or_session_member
+from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionPerformer
 from app.services.roster_service import resolve_or_create_performer
 
@@ -30,7 +31,7 @@ def _reset_overrides(fastapi_app):
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     try:
         yield session
     finally:

@@ -1,15 +1,15 @@
 """Unit tests for app/repositories/album_repository.py."""
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import DbAlbum, DbSong
 from app.repositories.album_repository import AlbumRepository
 
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     yield session
     session.rollback()
     session.query(DbSong).filter(DbSong.id.like("album-repo-%")).delete(
@@ -44,7 +44,7 @@ def test_the_same_id_from_another_source_is_another_album(repo):
 
 def test_get_or_create_survives_losing_the_race_to_create_it(repo, db):
     # Another worker inserts the album between the lookup and the insert.
-    other = _TestingSessionLocal()
+    other = SessionLocal()
     other.add(DbAlbum(source="deezer", source_id="42", title="Rumours"))
     other.commit()
     other.close()

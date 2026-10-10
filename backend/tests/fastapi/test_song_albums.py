@@ -1,12 +1,11 @@
 """Tests for saving a song's album: the lookup's writes, hand-set albums and cleanup."""
 
-from contextlib import contextmanager
 from unittest.mock import Mock, patch
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
 from app.config import get_config
+from app.db.database import SessionLocal, get_db_session
 from app.db.models import DbAlbum, DbSong
 from app.jobs.batch_tasks import batch_fetch_albums
 from app.repositories.batch_run_repository import utc_now
@@ -28,24 +27,9 @@ MATCH = AlbumMatch(
 )
 
 
-@contextmanager
-def _test_db_session():
-    session = _TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
-@pytest.fixture(autouse=True)
-def use_test_db():
-    with patch("app.db.database.get_db_session", _test_db_session):
-        yield
-
-
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     yield session
     session.close()
 
@@ -66,7 +50,7 @@ def _add_song(db, song_id="s1", **fields):
 
 
 def _song(song_id="s1"):
-    with _test_db_session() as session:
+    with get_db_session() as session:
         song = session.get(DbSong, song_id)
         session.expunge(song)
         return song

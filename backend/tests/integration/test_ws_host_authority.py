@@ -14,50 +14,18 @@ from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from tests.conftest import create_test_app
 
-import app.api.sessions as _sessions_api
 import app.db.models as models
-from app.api.dependencies import get_db
-from app.db.models import Base
+from app.db.database import SessionLocal
 from app.services.auth_service import create_access_token
 
 
 @pytest.fixture(scope="function")
 def ws_setup():
-    """SQLite-backed app with factories for users and sessions."""
-    import os
-    import tempfile
-
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-
-    engine = create_engine(
-        f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
-    )
-    Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-    def _get_db():
-        db = TestingSession()
-        try:
-            yield db
-        finally:
-            db.close()
-
+    """App with factories that seed the shared test database."""
     app = create_test_app()
-    app.dependency_overrides[get_db] = _get_db
-    app.dependency_overrides[_sessions_api.get_db] = _get_db
-
-    setup_session = TestingSession()
-
-    # WebSocket handlers bypass DI and use SessionLocal directly
-    import app.db.database as _db_module
-
-    original_SessionLocal = _db_module.SessionLocal
-    _db_module.SessionLocal = TestingSession
+    setup_session = SessionLocal()
 
     def user_factory(username: str) -> models.User:
         user = models.User(username=username, is_host=True, is_admin=False)
@@ -89,12 +57,6 @@ def ws_setup():
             yield client, user_factory, session_factory
     finally:
         setup_session.close()
-        _db_module.SessionLocal = original_SessionLocal
-        engine.dispose()
-        try:
-            os.unlink(db_path)
-        except Exception:
-            pass
 
 
 def _greeting(websocket):

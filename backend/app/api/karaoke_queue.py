@@ -10,7 +10,7 @@ This module provides REST API endpoints for queue management:
 """
 
 import logging
-from typing import Generator, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -18,10 +18,10 @@ from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.api.dependencies import (
     RequesterContext,
+    get_db,
     require_host,
     require_host_or_session_member,
 )
-from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -137,19 +137,6 @@ class QueueStateResponse(BaseModel):
 # ============================================================================
 # Dependencies
 # ============================================================================
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def get_session_code(

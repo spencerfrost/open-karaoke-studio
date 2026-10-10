@@ -2,8 +2,7 @@
 
 import uuid
 
-from tests.integration.conftest import _TestingSessionLocal
-
+from app.db.database import SessionLocal
 from app.db.models import DbSong
 
 
@@ -151,7 +150,7 @@ def test_update_song_with_plain_lyrics(client):
 
 def test_update_song_with_plain_lyrics_clears_alignment(client):
     song = _create_song(client, title="Lyrics Song", artist="Lyrical")
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         db_song = session.get(DbSong, song["id"])
         db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
         session.commit()
@@ -177,7 +176,7 @@ def test_update_song_with_synced_lyrics(client):
 
 def test_update_song_with_synced_lyrics_clears_alignment(client):
     song = _create_song(client, title="Synced Song", artist="SyncedArtist")
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         db_song = session.get(DbSong, song["id"])
         db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
         session.commit()

@@ -4,9 +4,10 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
-from tests.integration.conftest import _get_mock_user, _TestingSessionLocal
+from tests.integration.conftest import _get_mock_user
 
 from app.api.dependencies import require_admin
+from app.db.database import SessionLocal
 from app.db.models import DbSong
 
 
@@ -18,7 +19,7 @@ def _create_song(
     )
     assert resp.status_code in (200, 201)
     song_id = resp.json()["id"]
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         db_song = session.get(DbSong, song_id)
         db_song.status = status
         if status == "error":
@@ -28,7 +29,7 @@ def _create_song(
 
 
 def _status(song_id):
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         song = session.get(DbSong, song_id)
         return song.status, song.error_message
 
@@ -181,7 +182,7 @@ class TestSongbookHidesFailedSongs:
         assert data["pagination"]["total"] == 2
 
     def test_shows(self, client, songs):
-        with _TestingSessionLocal() as session:
+        with SessionLocal() as session:
             for key in ("working", "failed", "only_failed"):
                 session.get(DbSong, songs[key]).show_name = "Hamilton"
             session.commit()

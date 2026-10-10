@@ -202,26 +202,13 @@ class TestNonDemoUnaffected:
         assert kwargs["session_id"] == "REAL"
 
 
-@pytest.fixture
-def override_songs_db(fastapi_app):
-    """songs.py defines its own local get_db; the shared conftest only overrides
-    dependencies.get_db, so create_song would otherwise hit the real database."""
-    from tests.fastapi.conftest import _get_test_db
-
-    import app.api.songs as songs_api
-
-    fastapi_app.dependency_overrides[songs_api.get_db] = _get_test_db
-    yield
-    fastapi_app.dependency_overrides.pop(songs_api.get_db, None)
-
-
 class TestCreateSongQuota:
     """The add-song flow calls POST /api/songs before POST /download, so the
     quota is enforced at song creation too — otherwise an over-quota demo user
     would leave orphaned, track-less songs in the library."""
 
     def test_over_cap_create_song_rejected_and_not_persisted(
-        self, client, user_db, override_requester, override_songs_db
+        self, client, user_db, override_requester
     ):
         demo = _make_demo_user(user_db)
         _make_session(user_db, demo.id, "SESS")
@@ -235,9 +222,7 @@ class TestCreateSongQuota:
         # No orphaned song row was created.
         assert user_db.query(DbSong).count() == 0
 
-    def test_under_cap_create_song_allowed(
-        self, client, user_db, override_requester, override_songs_db
-    ):
+    def test_under_cap_create_song_allowed(self, client, user_db, override_requester):
         demo = _make_demo_user(user_db)
         _make_session(user_db, demo.id, "SESS")
         _make_jobs(user_db, "SESS", 1)

@@ -9,14 +9,12 @@ This module provides REST API endpoints for job management:
 """
 
 import logging
-from typing import Generator, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_host
-from app.db.database import SessionLocal
 from app.db.models import JobStatus, User
 from app.services.jobs_service import JobsService
 
@@ -80,19 +78,6 @@ class JobActionResponse(BaseModel):
 # ============================================================================
 # Dependencies
 # ============================================================================
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def get_jobs_service() -> JobsService:

@@ -259,8 +259,7 @@ def test_post_my_session_ignores_stale_active_sessions(client):
     """
     from datetime import datetime, timedelta
 
-    from tests.integration.conftest import _TestingSessionLocal
-
+    from app.db.database import SessionLocal
     from app.db.models import KaraokeSession
 
     payload = {"device_type": "stage", "display_name": "Host"}
@@ -268,7 +267,7 @@ def test_post_my_session_ignores_stale_active_sessions(client):
     live_session_id = client.post("/api/sessions/my", json=payload).json()["session_id"]
 
     # Insert an older, already-expired session still flagged active for the same host.
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     try:
         db.add(
             KaraokeSession(
@@ -290,7 +289,7 @@ def test_post_my_session_ignores_stale_active_sessions(client):
     assert resp.json()["session_id"] == live_session_id
 
     # The stale row should also have been reconciled rather than left active.
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     try:
         stale = (
             db.query(KaraokeSession).filter(KaraokeSession.session_id == "STLE").first()
@@ -308,13 +307,12 @@ def test_create_session_records_owning_user(client):
     Without it, host authority on the WebSocket - which derives from host_user_id - can
     never be granted for sessions created through this path.
     """
-    from tests.integration.conftest import _TestingSessionLocal
-
+    from app.db.database import SessionLocal
     from app.db.models import KaraokeSession
 
     session_id = _create_session(client)["session_id"]
 
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     try:
         session = (
             db.query(KaraokeSession)

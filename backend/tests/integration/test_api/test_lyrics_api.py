@@ -5,9 +5,8 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from tests.integration.conftest import _TestingSessionLocal
-
 from app.api.dependencies import RequesterContext, require_host_or_session_member
+from app.db.database import SessionLocal
 from app.db.models import DbSong
 
 
@@ -82,7 +81,7 @@ def test_update_plain_lyrics_success(client):
 
 def test_update_plain_lyrics_clears_alignment(client):
     song_id = _create_song(client)
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         song = session.get(DbSong, song_id)
         song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
         session.commit()
@@ -139,7 +138,7 @@ def test_clear_plain_lyrics_clears_alignment(client):
     client.post(
         f"/api/lyrics/songs/{song_id}?type=plain", json={"content": "Delete me"}
     )
-    with _TestingSessionLocal() as session:
+    with SessionLocal() as session:
         song = session.get(DbSong, song_id)
         song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
         session.commit()
@@ -192,7 +191,7 @@ def _song_with_lyrics(
     from datetime import datetime, timezone
 
     song_id = _create_song(client, title="Blackbird", artist="The Beatles")
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     song = db.get(DbSong, song_id)
     song.synced_lyrics = synced
     song.lyrics_hand_picked_at = datetime.now(timezone.utc) if hand_picked else None
@@ -305,7 +304,7 @@ def test_report_was_wrong_puts_the_reported_lyrics_back(client):
             f"/api/lyrics/songs/{song_id}/reports", json={"kind": "words"}
         ).json()["report"]["id"]
     # The fix replaced the lyrics.
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     db.get(DbSong, song_id).synced_lyrics = "[00:01.00]what asr heard"
     db.commit()
     db.close()
@@ -324,7 +323,7 @@ def test_report_was_wrong_puts_the_reported_lyrics_back(client):
     assert client.get("/api/lyrics/reports").json() == []
     from app.repositories.lyrics_report_repository import LyricsReportRepository
 
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     assert LyricsReportRepository(db).rejected_keys(song_id) == set()
     db.close()
 
@@ -333,7 +332,7 @@ def test_report_was_wrong_without_kept_lyrics_still_lifts_the_rejection(client):
     from app.db.models import LyricsReport
 
     song_id = _song_with_lyrics(client)
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     report = LyricsReport(
         song_id=song_id, kind="words", words_key="old-key", report_count=1
     )
@@ -375,7 +374,7 @@ def test_alignment_stats_count_songs_needing_repair_by_reason(client):
     synced_only = _song_with_lyrics(client)
     aligned = _song_with_lyrics(client)
     plain_aligned = _song_with_lyrics(client)
-    db = _TestingSessionLocal()
+    db = SessionLocal()
     db.get(DbSong, aligned).word_synced_lyrics = json.dumps(
         {
             "words": [

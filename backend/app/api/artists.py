@@ -1,5 +1,4 @@
 import logging
-from typing import Generator
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -18,14 +17,6 @@ from app.services.file_service import FileService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/artists", tags=["artists"])
-
-
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 class UpdateArtistRequest(BaseModel):

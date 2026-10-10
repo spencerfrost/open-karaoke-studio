@@ -9,10 +9,11 @@ while the queue survives, and a host can then start a fresh session with a new c
 from datetime import datetime, timedelta
 
 import pytest
-from tests.fastapi.conftest import _get_mock_user, _TestingSessionLocal
+from tests.fastapi.conftest import _get_mock_user
 
 from app.api.dependencies import get_current_user
 from app.api.sessions import purge_stale_sessions
+from app.db.database import SessionLocal
 from app.db.models import (
     HostSettings,
     KaraokeQueueItem,
@@ -27,7 +28,7 @@ HOST_USER_ID = 1
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     try:
         yield session
     finally:

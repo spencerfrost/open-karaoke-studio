@@ -18,7 +18,7 @@ import os
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Generator, List, Optional
+from typing import List, Optional
 from urllib.parse import unquote
 
 from fastapi import (
@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
+    get_db,
     require_admin,
     require_host,
     require_host_or_session_member,
@@ -53,7 +54,6 @@ from app.api.validators import (
 )
 from app.api.youtube import get_session_manager
 from app.config import get_config
-from app.db.database import SessionLocal
 from app.db.models.artist import DbArtist
 from app.db.models.song import DbSong, in_songbook
 from app.db.models.song_artist import DbSongArtist
@@ -89,24 +89,6 @@ from app.ws.jobs import broadcast_job_created
 # ============================================================================
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/songs", tags=["songs"])
-
-# ============================================================================
-# Dependencies
-# ============================================================================
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
 
 # ============================================================================
 # Helpers

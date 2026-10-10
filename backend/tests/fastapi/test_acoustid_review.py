@@ -5,8 +5,8 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import DbSong
 
 SONG_ID = "song-acoustid"
@@ -14,7 +14,7 @@ SONG_ID = "song-acoustid"
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     yield session
     session.close()
 

@@ -1,12 +1,11 @@
 """Tests for the admin background jobs API and batch run progress tracking."""
 
-from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import pytest
-from tests.fastapi.conftest import _TestingSessionLocal
 
+from app.db.database import SessionLocal
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 from app.jobs._batch_runs import RunTracker, tracked_run
 from app.repositories.batch_run_repository import (
@@ -22,7 +21,7 @@ NO_ALIGNMENT = ([], 0)
 
 @pytest.fixture
 def db():
-    session = _TestingSessionLocal()
+    session = SessionLocal()
     yield session
     session.close()
 
@@ -288,21 +287,7 @@ class TestWorkers:
         assert body["brokerReachable"] is False
 
 
-@contextmanager
-def _test_db_session():
-    session = _TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
 class TestRunTracker:
-    @pytest.fixture(autouse=True)
-    def use_test_db(self):
-        with patch("app.db.database.get_db_session", _test_db_session):
-            yield
-
     def test_counts_songs_and_closes_the_run(self, db):
         run = BatchRunRepository(db).create("loudness", "missing")
 
