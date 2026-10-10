@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@/stores/authStore";
+import { useApiMutation } from "@/hooks/api/useApi";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
 import type { FingerprintCandidate, ReplacePanelProps } from "./types";
+import { useApplyRecording } from "./useApplyRecording";
 
 const logger = createLogger("component:FingerprintLookupPanel");
 
@@ -12,25 +12,15 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
   song,
   onDone,
 }) => {
-  const { token } = useAuthStore();
-  const queryClient = useQueryClient();
   const [candidates, setCandidates] = useState<FingerprintCandidate[] | null>(
     null,
   );
   const [selected, setSelected] = useState<FingerprintCandidate | null>(null);
 
-  const lookupMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/songs/${song.id}/fingerprint/lookup`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.detail ?? "Fingerprint lookup failed");
-      }
-      return res.json() as Promise<{ candidates: FingerprintCandidate[] }>;
-    },
+  const lookupMutation = useApiMutation<
+    { candidates: FingerprintCandidate[] },
+    void
+  >(`songs/${song.id}/fingerprint/lookup`, "post", {
     onSuccess: (data) => {
       setCandidates(data.candidates);
       logger.info(
@@ -47,31 +37,7 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyMutation = useMutation({
-    mutationFn: async (candidate: FingerprintCandidate) => {
-      const res = await fetch(`/api/songs/${song.id}/fingerprint/apply`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recording_id: candidate.recordingId,
-          title: candidate.title,
-          artist: candidate.artist,
-          score: candidate.score,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to apply candidate");
-      return res.json();
-    },
-    onSuccess: (_data, candidate) => {
-      toast.success(`Applied: "${candidate.title}" by ${candidate.artist}`);
-      queryClient.invalidateQueries({ queryKey: ["admin-acoustid-songs"] });
-      onDone();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const applyMutation = useApplyRecording(song.id, onDone);
 
   return (
     <div className="space-y-3">
@@ -108,7 +74,7 @@ export const FingerprintLookupPanel: React.FC<ReplacePanelProps> = ({
                       c.score >= 0.85
                         ? "text-success-strong"
                         : c.score >= 0.5
-                          ? "text-amber-500"
+                          ? "text-warning-strong"
                           : "text-destructive-strong"
                     }`}
                   >

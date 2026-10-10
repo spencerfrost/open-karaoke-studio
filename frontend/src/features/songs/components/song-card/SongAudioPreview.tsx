@@ -4,13 +4,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/utils/formatters";
 
+export type PreviewTrack = "original" | "vocals" | "instrumental";
+
 interface SongAudioPreviewProps {
   songId: string;
+  /** Which file to play. Switching it mid-song carries on from the same spot. */
+  track?: PreviewTrack;
   className?: string;
 }
 
 export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   songId,
+  track = "original",
   className,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -22,7 +27,21 @@ export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
-  const audioUrl = `/api/songs/${songId}/download/original`;
+  const audioUrl = `/api/songs/${songId}/download/${track}`;
+
+  // A different track: remember the spot to pick up from once it loads, and
+  // clear the old file's error.
+  const [loadedUrl, setLoadedUrl] = useState(audioUrl);
+  const [resume, setResume] = useState<{
+    time: number;
+    playing: boolean;
+  } | null>(null);
+  if (loadedUrl !== audioUrl) {
+    setLoadedUrl(audioUrl);
+    setResume({ time: currentTime, playing: isPlaying });
+    setError(null);
+    setIsPlaying(false);
+  }
 
   // Stop audio on unmount (e.g. drawer close)
   useEffect(() => {
@@ -38,10 +57,20 @@ export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   const handleLoadedMetadata = useCallback(() => {
     setIsLoading(false);
     setError(null);
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
+    const audio = audioRef.current;
+    if (!audio) return;
+    setDuration(audio.duration);
+
+    if (!resume) return;
+    setResume(null);
+    audio.currentTime = resume.time;
+    if (resume.playing) {
+      audio
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setError("Failed to play audio"));
     }
-  }, []);
+  }, [resume]);
 
   const handleError = useCallback(() => {
     setIsLoading(false);

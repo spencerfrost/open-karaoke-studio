@@ -7,8 +7,17 @@ import SettingsPage from "../pages/Settings";
 import StagePage from "../pages/Stage";
 import PerformanceControlsPage from "../pages/PerformanceControlsPage";
 import Entry from "../pages/Entry";
-import AdminPanel from "../pages/AdminPanel";
 import AdminThreeTrackComparePage from "../pages/AdminThreeTrackComparePage";
+import AdminLayout from "../features/admin/AdminLayout";
+import AdminIndex from "../features/admin/AdminIndex";
+import AdminJobsPage from "../features/admin/AdminJobsPage";
+import AdminUsersPage from "../features/admin/AdminUsersPage";
+import AdminAcoustIdPage from "../features/admin/AdminAcoustIdPage";
+import AdminDiskCheckPage from "../features/admin/AdminDiskCheckPage";
+import AdminDuplicatesPage from "../features/admin/AdminDuplicatesPage";
+import AdminFailedSongsPage from "../features/admin/AdminFailedSongsPage";
+import AdminLyricsReportsPage from "../features/admin/AdminLyricsReportsPage";
+import AdminMetadataPage from "../features/admin/AdminMetadataPage";
 import { RequireAccess, RequireCapability } from "./guards";
 
 const AppRoutes: React.FC = () => (
@@ -39,11 +48,27 @@ const AppRoutes: React.FC = () => (
       </Route>
 
       <Route element={<RequireCapability admin />}>
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route
-          path="/admin/compare-three-track"
-          element={<AdminThreeTrackComparePage />}
-        />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminIndex />} />
+          <Route path="lyrics-reports" element={<AdminLyricsReportsPage />} />
+          <Route path="acoustid" element={<AdminAcoustIdPage />} />
+          <Route path="metadata" element={<AdminMetadataPage />} />
+          <Route path="failed" element={<AdminFailedSongsPage />} />
+          <Route path="duplicates" element={<AdminDuplicatesPage />} />
+          <Route path="disk" element={<AdminDiskCheckPage />} />
+          <Route path="jobs" element={<AdminJobsPage />} />
+          <Route
+            path="alignment"
+            element={<Navigate to="/admin/jobs" replace />}
+          />
+          <Route path="compare" element={<AdminThreeTrackComparePage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route
+            path="compare-three-track"
+            element={<Navigate to="/admin/compare" replace />}
+          />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Route>
       </Route>
     </Route>
 

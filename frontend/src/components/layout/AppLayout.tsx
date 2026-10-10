@@ -6,7 +6,6 @@ import {
   List,
   Sliders,
   ShieldCheck,
-  Waves,
   Settings,
 } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
@@ -59,11 +58,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     if (access.isAdmin) {
       items.push({ name: "Admin", path: "/admin", icon: ShieldCheck });
-      items.push({
-        name: "Compare",
-        path: "/admin/compare-three-track",
-        icon: Waves,
-      });
     }
 
     return items;

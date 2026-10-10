@@ -21,7 +21,7 @@ const AmbiguousMatchBadge: React.FC = () => {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate("/admin?tab=acoustid");
+    navigate("/admin/acoustid");
   };
 
   return (

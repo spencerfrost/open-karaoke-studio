@@ -1,17 +1,14 @@
 import React, { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@/stores/authStore";
+import { useApiQuery } from "@/hooks/api/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 import type { MusicBrainzResult, ReplacePanelProps } from "./types";
+import { useApplyRecording } from "./useApplyRecording";
 
 export const MusicBrainzSearchPanel: React.FC<ReplacePanelProps> = ({
   song,
   onDone,
 }) => {
-  const { token } = useAuthStore();
-  const queryClient = useQueryClient();
   const initialQuery = [
     song.title && `recording:"${song.title}"`,
     song.artist && `artist:"${song.artist}"`,
@@ -29,45 +26,16 @@ export const MusicBrainzSearchPanel: React.FC<ReplacePanelProps> = ({
     timeoutRef.current = setTimeout(() => setDebouncedQuery(value), 400);
   };
 
-  const { data, isFetching } = useQuery<{ results: MusicBrainzResult[] }>({
-    queryKey: ["musicbrainz-search", debouncedQuery],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/musicbrainz/search?query=${encodeURIComponent(debouncedQuery)}&limit=15`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.ok) throw new Error("MusicBrainz search failed");
-      return res.json();
-    },
-    enabled: !!debouncedQuery,
-    staleTime: 60_000,
-  });
+  const { data, isFetching } = useApiQuery<
+    { results: MusicBrainzResult[] },
+    readonly [string, string]
+  >(
+    ["musicbrainz-search", debouncedQuery] as const,
+    `musicbrainz/search?query=${encodeURIComponent(debouncedQuery)}&limit=15`,
+    { enabled: !!debouncedQuery, staleTime: 60_000 },
+  );
 
-  const applyMutation = useMutation({
-    mutationFn: async (candidate: MusicBrainzResult) => {
-      const res = await fetch(`/api/songs/${song.id}/fingerprint/apply`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recording_id: candidate.recordingId,
-          title: candidate.title,
-          artist: candidate.artist,
-          score: candidate.score,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to apply recording");
-      return res.json();
-    },
-    onSuccess: (_data, candidate) => {
-      toast.success(`Applied: "${candidate.title}" by ${candidate.artist}`);
-      queryClient.invalidateQueries({ queryKey: ["admin-acoustid-songs"] });
-      onDone();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const applyMutation = useApplyRecording(song.id, onDone);
 
   const results = data?.results ?? [];
 
@@ -101,7 +69,7 @@ export const MusicBrainzSearchPanel: React.FC<ReplacePanelProps> = ({
                   r.score >= 0.85
                     ? "text-success-strong"
                     : r.score >= 0.5
-                      ? "text-amber-500"
+                      ? "text-warning-strong"
                       : "text-destructive-strong"
                 }`}
               >

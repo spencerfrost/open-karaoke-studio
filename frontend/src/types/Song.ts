@@ -71,6 +71,7 @@ export interface Song {
 
   status: SongStatus;
   errorMessage?: string; // Failure reason when status="error"
+  failedAt?: string | null; // When it last failed (UTC, no zone marker)
 }
 
 export interface SongProcessingRequest {

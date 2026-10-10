@@ -32,13 +32,12 @@ import { toast } from "sonner";
 const logger = createLogger("page:entry");
 
 /** Routes whose capability check is an account, not a session - the sign-in
- * disclosure defaults open when returning here from one of these. */
-const HOST_ROUTES = [
-  "/stage",
-  "/settings",
-  "/admin",
-  "/admin/compare-three-track",
-];
+ * disclosure defaults open when returning here from one of these, or from
+ * anything under them (every /admin/... section). */
+const HOST_ROUTES = ["/stage", "/settings", "/admin"];
+
+const isHostRoute = (path: string) =>
+  HOST_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
 
 /**
  * Entry - the app's one ungated screen (routed at /join and /join/:code).
@@ -124,7 +123,7 @@ const Entry: React.FC = () => {
     return <Navigate to={from} replace />;
   }
 
-  const defaultOpenHostSignIn = HOST_ROUTES.includes(from) ? "host" : undefined;
+  const defaultOpenHostSignIn = isHostRoute(from) ? "host" : undefined;
 
   const handleJoinSession = async () => {
     if (!sessionCode.trim()) {
