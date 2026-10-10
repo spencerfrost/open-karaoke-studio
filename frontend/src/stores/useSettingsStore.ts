@@ -7,11 +7,11 @@ import {
   ProcessingSettings,
   DisplaySettings,
 } from "@/types/Settings";
+import { DEFAULT_THEME, isThemeName } from "@/lib/themes";
 
 // Default settings
 const defaultThemeSettings: ThemeSettings = {
-  darkMode: true,
-  themeName: "vintage",
+  themeName: DEFAULT_THEME,
 };
 
 const defaultAudioSettings: AudioSettings = {
@@ -84,6 +84,20 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "openKaraokeSettings", // localStorage key
+      version: 1,
+      // v0 stored { darkMode, themeName: "vintage" | "synthwave" | "minimal" },
+      // none of which were ever applied. Any theme that isn't a current one
+      // becomes the default.
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<AppSettings>;
+        if (version < 1) {
+          const themeName = state.theme?.themeName;
+          state.theme = {
+            themeName: isThemeName(themeName) ? themeName : DEFAULT_THEME,
+          };
+        }
+        return state as SettingsState;
+      },
     },
   ),
 );

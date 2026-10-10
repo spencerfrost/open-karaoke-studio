@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useThemeColors } from "@/hooks/useThemeColors";
+import type { RGB } from "@/lib/themeColor";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+
+const BASE_COLOR_TOKENS = ["accent", "primary"] as const;
 
 interface AudioVisualizerProps {
   height?: number;
   barCount?: number;
   className?: string;
 }
-
-// legacy accent, primary — alternated per bar, then hue-shifted across the row
-const BASE_COLORS = ["#01928B", "#FD9A02"];
 
 // Auto-leveling: each band scales against its own recently-seen peak rather
 // than a fixed 0-255 ceiling, so quiet songs and quiet frequency ranges
@@ -51,15 +52,19 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     positions: number[];
   } | null>(null);
 
+  // The theme's accent and primary — alternated per bar, then hue-shifted
+  // across the row.
+  const baseColors = useThemeColors(BASE_COLOR_TOKENS);
+
   // Colors depend only on distance from center, not on audio data — compute
   // them once per halfCount instead of re-running the hue math for every
   // bar, every frame. Both mirrored bars at a given distance share a color.
   const barColors = useMemo(
     () =>
       Array.from({ length: halfCount }, (_, k) =>
-        adjustColorHue(BASE_COLORS[k % 2], (k / halfCount) * 60),
+        adjustColorHue(baseColors[k % 2], (k / halfCount) * 60),
       ),
-    [halfCount],
+    [halfCount, baseColors],
   );
 
   useEffect(() => {
@@ -254,11 +259,10 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 };
 
 // Helper function to simulate CSS hue-rotate filter
-function adjustColorHue(hexColor: string, hueShift: number): string {
-  // Convert hex to RGB
-  const r = parseInt(hexColor.slice(1, 3), 16) / 255;
-  const g = parseInt(hexColor.slice(3, 5), 16) / 255;
-  const b = parseInt(hexColor.slice(5, 7), 16) / 255;
+function adjustColorHue([red, green, blue]: RGB, hueShift: number): string {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
 
   // Convert RGB to HSL
   const max = Math.max(r, g, b);

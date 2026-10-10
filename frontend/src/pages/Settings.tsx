@@ -2,6 +2,7 @@ import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
 import { AccountCard, RotationModeCard } from "@/features/session";
+import { THEMES, isThemeName } from "@/lib/themes";
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API
@@ -15,11 +16,6 @@ const SettingsPage: React.FC = () => {
     (state) => state.setDisplaySettings,
   );
   const resetSettings = useSettingsStore((state) => state.resetSettings);
-
-  // Handler for theme settings
-  const handleThemeChange = (setting: string, value: string | boolean) => {
-    setThemeSettings({ [setting]: value });
-  };
 
   // Handler for audio settings
   const handleAudioChange = (setting: string, value: number) => {
@@ -54,26 +50,27 @@ const SettingsPage: React.FC = () => {
           <h2 className="text-xl mb-3">Theme</h2>
           <div className="flex flex-col gap-4">
             <div>
-              <label className="block mb-1">Dark Mode</label>
-              <input
-                type="checkbox"
-                checked={settings.theme.darkMode}
-                onChange={(e) =>
-                  handleThemeChange("darkMode", e.target.checked)
-                }
-                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Theme Style</label>
+              <label htmlFor="theme-name" className="block mb-1">
+                Theme
+              </label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Applies to this screen only.
+              </p>
               <select
+                id="theme-name"
                 value={settings.theme.themeName}
-                onChange={(e) => handleThemeChange("themeName", e.target.value)}
+                onChange={(e) => {
+                  if (isThemeName(e.target.value)) {
+                    setThemeSettings({ themeName: e.target.value });
+                  }
+                }}
                 className="p-2 border border-border bg-card/80 text-card-foreground rounded w-full"
               >
-                <option value="vintage">Vintage</option>
-                <option value="synthwave">Synthwave</option>
-                <option value="minimal">Minimal</option>
+                {THEMES.map((theme) => (
+                  <option key={theme.id} value={theme.id}>
+                    {theme.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

@@ -193,8 +193,8 @@ const StageShell: React.FC<StageShellProps> = ({
             full-viewport repeating-conic-gradient and a tiled SVG - so a
             second copy stacked over the first made every repaint, down to
             expanding an accordion row, visibly slow. */}
-            <div className="vintage-sunburst-pattern" />
-            <div className="vintage-texture-overlay" />
+            <div className="theme-pattern" />
+            <div className="theme-texture" />
             <div className="absolute inset-0 z-[11] bg-overlay/85" />
 
             {/* Always mounted, `hidden` while another screen is up. Same discipline

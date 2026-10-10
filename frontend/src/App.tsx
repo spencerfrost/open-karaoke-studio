@@ -6,10 +6,12 @@ import { SessionProvider } from "./contexts/SessionContext";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
 import { useJobsSync } from "./hooks/useJobsSync";
+import { useApplyTheme } from "./hooks/useApplyTheme";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 
 const App: React.FC = () => {
   useJobsSync(); // Sync jobs to processing indicators store
+  useApplyTheme();
 
   return (
     <>

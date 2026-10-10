@@ -48,8 +48,8 @@ const StageFrame: React.FC<{
     className="relative flex h-screen w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
     style={{ background: "var(--page-bg)" }}
   >
-    <div className="vintage-sunburst-pattern" />
-    <div className="vintage-texture-overlay" />
+    <div className="theme-pattern" />
+    <div className="theme-texture" />
     {/* The scrim that makes stage mode dark. StageShell paints the same one, and
         without it these pre-session screens sit on the raw sunburst - blazing
         orange, and light-on-dark text tokens land on a light ground. */}

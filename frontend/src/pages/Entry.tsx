@@ -155,8 +155,8 @@ const Entry: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="vintage-texture-overlay" />
-      <div className="vintage-sunburst-pattern" />
+      <div className="theme-texture" />
+      <div className="theme-pattern" />
       <Card className="block p-8 rounded-lg shadow-xl border-primary max-w-md w-full relative z-10">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-display font-bold text-primary mb-2">

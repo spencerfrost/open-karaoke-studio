@@ -65,8 +65,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   return (
     <div className="flex flex-col h-screen">
-      <div className="vintage-texture-overlay" />
-      <div className="vintage-sunburst-pattern" />
+      <div className="theme-texture" />
+      <div className="theme-pattern" />
       <main
         className={`flex-1 overflow-auto relative z-10 ${contentClassName}`}
       >
