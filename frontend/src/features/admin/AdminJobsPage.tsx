@@ -55,11 +55,11 @@ const STATUS_LABEL: Record<RunStatus, string> = {
 // Red text is hard to read on the page background, so a failure is a solid
 // pill instead.
 const STATUS_CLASS: Record<RunStatus, string> = {
-  queued: "text-foreground/70",
+  queued: "text-foreground-dim",
   running: "text-primary",
   done: "text-foreground",
   failed: "rounded bg-destructive px-1.5 py-0.5 text-destructive-foreground",
-  cancelled: "text-foreground/70",
+  cancelled: "text-foreground-dim",
 };
 
 function formatWhen(iso: string | null): string {
@@ -108,7 +108,9 @@ const RunButton: React.FC<{
 
   if (mode === "missing" && count === 0) {
     return (
-      <span className="self-center text-sm text-foreground/70">Up to date</span>
+      <span className="self-center text-sm text-foreground-dim">
+        Up to date
+      </span>
     );
   }
 
@@ -173,7 +175,7 @@ const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
       <div className="min-w-0 flex-1 space-y-1">
         <Progress value={percent ?? 0} className="h-1.5" />
-        <p className="text-xs text-foreground/70">
+        <p className="text-xs text-foreground-dim">
           {run.status === "queued"
             ? "Waiting for the worker…"
             : run.total === null
@@ -204,9 +206,9 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
     <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.6fr)] lg:items-center">
       <div className="min-w-0 space-y-1">
         <p className="font-semibold">{info.name}</p>
-        <p className="text-sm text-foreground/70">{info.description}</p>
+        <p className="text-sm text-foreground-dim">{info.description}</p>
         {job.repairReasons && (job.modeCounts.repair ?? 0) > 0 && (
-          <details className="text-xs text-foreground/70">
+          <details className="text-xs text-foreground-dim">
             <summary className="cursor-pointer">
               Why {countOf(job.modeCounts.repair ?? 0, info.unit)} need repair
             </summary>
@@ -229,7 +231,7 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
 
       <div className="space-y-1">
         <Progress value={coveragePercent} className="h-1.5" />
-        <p className="text-xs tabular-nums text-foreground/70">
+        <p className="text-xs tabular-nums text-foreground-dim">
           {have.toLocaleString()} of {countOf(of, info.unit)}
         </p>
       </div>
@@ -245,7 +247,7 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
           </div>
         )}
         {job.lastRun && (
-          <p className="text-xs text-foreground/70 lg:text-right">
+          <p className="text-xs text-foreground-dim lg:text-right">
             Last run{" "}
             <span className={STATUS_CLASS[job.lastRun.status]}>
               {STATUS_LABEL[job.lastRun.status].toLowerCase()}
@@ -254,7 +256,7 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
           </p>
         )}
         {job.lastRun?.error && (
-          <p className="text-xs text-foreground/80 lg:text-right">
+          <p className="text-xs text-foreground lg:text-right">
             {job.lastRun.error}
           </p>
         )}
@@ -283,7 +285,7 @@ const RecentRuns: React.FC = () => {
               <span className={cn("w-20", STATUS_CLASS[run.status])}>
                 {STATUS_LABEL[run.status]}
               </span>
-              <span className="text-foreground/70">
+              <span className="text-foreground-dim">
                 {describeRun(run, info?.unit ?? ["song", "songs"])}
               </span>
             </div>
@@ -301,14 +303,14 @@ const AdminJobsPage: React.FC = () => {
   return (
     <div className="max-w-6xl space-y-6">
       <div className="space-y-3">
-        <p className="text-sm text-foreground/70">
+        <p className="text-sm text-foreground-dim">
           Jobs that work through the whole library. They run in the background,
           one song at a time, so the night can carry on while they do.
         </p>
         <WorkerStrip />
       </div>
 
-      {isLoading && <p className="text-sm text-foreground/70">Loading…</p>}
+      {isLoading && <p className="text-sm text-foreground-dim">Loading…</p>}
       {error && !data && (
         <p className="w-fit rounded bg-destructive px-3 py-1 text-sm text-destructive-foreground">
           Couldn't load jobs: {error.message}

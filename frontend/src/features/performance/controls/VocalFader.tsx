@@ -70,7 +70,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           onClick={onToggleMute}
           aria-label={isMuted ? `Unmute ${label}` : `Mute ${label}`}
           className={cn(
-            "shrink-0 text-foreground/55 hover:text-foreground",
+            "shrink-0 text-foreground-dim hover:text-foreground",
             "size-8",
           )}
         >
@@ -114,7 +114,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span
               className={cn(
-                "max-w-full rounded-sm bg-overlay/70 px-2 py-1 text-center leading-tight text-foreground/70",
+                "max-w-full rounded-sm bg-overlay/70 px-2 py-1 text-center leading-tight text-foreground-dim",
                 isTv ? "text-sm" : "text-xs",
               )}
             >

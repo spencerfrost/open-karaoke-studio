@@ -96,10 +96,10 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
       id={`artist-${artist.name}`}
     >
       {/* Artist Header */}
-      <div className="flex items-center bg-glass/10 text-foreground">
+      <div className="flex items-center bg-surface-raised text-foreground">
         <button
           onClick={() => onToggle(artist.name)}
-          className="flex-1 px-4 py-3 flex items-center text-left hover:bg-glass/5 transition-colors"
+          className="flex-1 px-4 py-3 flex items-center text-left hover:bg-surface-hover transition-colors"
         >
           <div className="flex items-center gap-3">
             {isExpanded ? (
@@ -138,7 +138,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("grid");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-primary" : "text-foreground/30 hover:text-foreground/60"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-primary" : "text-foreground-faint hover:text-foreground-dim"}`}
               aria-label="Grid view"
             >
               <LayoutGrid size={16} />
@@ -148,7 +148,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("table");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-primary" : "text-foreground/30 hover:text-foreground/60"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-primary" : "text-foreground-faint hover:text-foreground-dim"}`}
               aria-label="List view"
             >
               <List size={16} />
@@ -160,7 +160,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
-              className="px-3 py-3 hover:bg-glass/5 transition-colors text-primary/60 hover:text-primary"
+              className="px-3 py-3 hover:bg-surface-hover transition-colors text-primary/60 hover:text-primary"
               aria-label={`Actions for ${artist.name}`}
             >
               <MoreHorizontal size={18} />

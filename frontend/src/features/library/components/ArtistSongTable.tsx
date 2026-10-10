@@ -46,7 +46,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   };
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-glass/5 group">
+    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-surface-hover group">
       {/* Thumbnail */}
       <div className="w-9 h-9 rounded flex-shrink-0 overflow-hidden bg-primary/20 flex items-center justify-center">
         {artworkUrl && !imgError ? (
@@ -68,7 +68,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
       </span>
 
       {/* Duration */}
-      <span className="w-10 text-xs text-foreground/50 text-right shrink-0 tabular-nums">
+      <span className="w-10 text-xs text-foreground-faint text-right shrink-0 tabular-nums">
         {formatDuration(song.duration)}
       </span>
 
@@ -158,10 +158,10 @@ const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(
         {/* Column headers */}
         <div className="flex items-center gap-3 px-3 pb-1 border-b border-glass-border/10">
           <div className="w-9 shrink-0" />
-          <span className="flex-1 text-xs text-foreground/40 uppercase tracking-wide">
+          <span className="flex-1 text-xs text-foreground-faint uppercase tracking-wide">
             Title
           </span>
-          <span className="w-10 text-xs text-foreground/40 uppercase tracking-wide text-right shrink-0">
+          <span className="w-10 text-xs text-foreground-faint uppercase tracking-wide text-right shrink-0">
             Time
           </span>
           <div className="w-[76px] shrink-0" />

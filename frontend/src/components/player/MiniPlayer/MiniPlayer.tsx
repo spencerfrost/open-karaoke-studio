@@ -89,14 +89,14 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ className = "" }) => {
               <div className="text-sm font-medium text-foreground truncate">
                 {songTitle || "Unknown Title"}
               </div>
-              <div className="text-xs text-foreground/60 truncate">
+              <div className="text-xs text-foreground-dim truncate">
                 {songArtist || "Unknown Artist"}
               </div>
             </div>
           </div>
 
           {/* Progress info */}
-          <div className="flex items-center justify-between text-xs text-foreground/50 mb-1">
+          <div className="flex items-center justify-between text-xs text-foreground-faint mb-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>

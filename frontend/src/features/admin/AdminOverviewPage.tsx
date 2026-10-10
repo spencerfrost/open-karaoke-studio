@@ -33,7 +33,7 @@ const CardHead: React.FC<{ title: string; note?: string }> = ({
 }) => (
   <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3">
     <h2 className="font-semibold">{title}</h2>
-    {note && <span className="text-xs text-foreground/70">{note}</span>}
+    {note && <span className="text-xs text-foreground-dim">{note}</span>}
   </div>
 );
 
@@ -103,7 +103,7 @@ const NeedsYou: React.FC<{ overview: AdminOverview }> = ({ overview }) => (
             {tile.count.toLocaleString()}
           </span>
           <span className="font-semibold">{tile.label}</span>
-          <span className="text-sm text-foreground/70">
+          <span className="text-sm text-foreground-dim">
             {clear ? "Nothing to do" : tile.why}
           </span>
           {!clear && (
@@ -127,7 +127,7 @@ const ProgressRow: React.FC<{
   <div className="space-y-1.5 py-2.5">
     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
       <span className="min-w-0 truncate font-medium">{name}</span>
-      <span className="text-xs tabular-nums text-foreground/70">{detail}</span>
+      <span className="text-xs tabular-nums text-foreground-dim">{detail}</span>
     </div>
     <Progress value={percent ?? 0} className="h-1.5" />
   </div>
@@ -149,7 +149,7 @@ const RunningNow: React.FC<{ overview: AdminOverview }> = ({ overview }) => {
     <section className={CARD}>
       <CardHead title="Running now" />
       {separating.length === 0 && runs.length === 0 ? (
-        <p className="text-sm text-foreground/70">
+        <p className="text-sm text-foreground-dim">
           Nothing is running. Songs show up here while they're separated.
         </p>
       ) : (
@@ -196,7 +196,7 @@ const RunningNow: React.FC<{ overview: AdminOverview }> = ({ overview }) => {
 // --- Songs added ---
 
 const SONG_STATUS: Record<string, { label: string; className: string }> = {
-  processed: { label: "Ready", className: "text-foreground/70" },
+  processed: { label: "Ready", className: "text-foreground-dim" },
   error: {
     label: "Failed",
     className: "rounded bg-destructive px-1.5 text-destructive-foreground",
@@ -245,7 +245,7 @@ const SongsAdded: React.FC<{ overview: AdminOverview }> = ({ overview }) => {
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium">{song.title}</p>
-                  <p className="truncate text-xs text-foreground/70">
+                  <p className="truncate text-xs text-foreground-dim">
                     {song.artist} · {formatDay(song.dateAdded)}
                   </p>
                 </div>
@@ -353,7 +353,7 @@ const HandRunScans: React.FC<{ overview: AdminOverview }> = ({ overview }) => (
         >
           <div className="min-w-0">
             <p className="font-medium">{scan.name}</p>
-            <p className="text-xs text-foreground/70">
+            <p className="text-xs text-foreground-dim">
               {describeScan(overview.scans[scan.kind], scan.found)}
             </p>
           </div>
@@ -378,7 +378,7 @@ const AdminOverviewPage: React.FC = () => {
   return (
     <div className="max-w-7xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-foreground/70">
+        <p className="text-sm text-foreground-dim">
           {today}
           {data && ` · ${plural(data.librarySize, "song")} in the library`}
         </p>
@@ -396,7 +396,7 @@ const AdminOverviewPage: React.FC = () => {
       </div>
 
       {!data && !error && (
-        <p className="flex items-center gap-2 text-sm text-foreground/70">
+        <p className="flex items-center gap-2 text-sm text-foreground-dim">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading…
         </p>

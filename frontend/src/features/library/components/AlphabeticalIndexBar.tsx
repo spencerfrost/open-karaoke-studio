@@ -147,7 +147,7 @@ const AlphabeticalIndexBar: React.FC<AlphabeticalIndexBarProps> = ({
                   ? "text-primary font-bold"
                   : available
                     ? "text-primary/80"
-                    : "text-foreground/20"
+                    : "text-foreground-faint"
               }`}
             >
               {letter}

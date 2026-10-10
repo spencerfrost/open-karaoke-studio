@@ -7,7 +7,7 @@ const WorkerStrip: React.FC = () => {
   const { data, isLoading } = useWorkerStatus();
 
   if (isLoading) {
-    return <p className="text-sm text-foreground/70">Checking workers…</p>;
+    return <p className="text-sm text-foreground-dim">Checking workers…</p>;
   }
   if (!data?.brokerReachable) {
     return (

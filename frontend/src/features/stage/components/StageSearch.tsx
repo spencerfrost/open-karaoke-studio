@@ -90,7 +90,7 @@ const StageSearch: React.FC<StageSearchProps> = ({
           placeholder="What do you want to sing?"
           debounceMs={300}
         />
-        <p className="pt-2 text-center text-sm text-foreground/40">
+        <p className="pt-2 text-center text-sm text-foreground-faint">
           {inputFocused ? "Esc" : "Esc or ⌫"} to go back to the wheel
         </p>
       </div>
@@ -110,7 +110,7 @@ const StageSearch: React.FC<StageSearchProps> = ({
               >
                 {artist.isShow && <Theater className="mr-2 size-4" />}
                 {artist.name}
-                <span className="ml-2 text-foreground/40">
+                <span className="ml-2 text-foreground-faint">
                   {artist.songCount}
                 </span>
               </Button>
@@ -129,7 +129,7 @@ const StageSearch: React.FC<StageSearchProps> = ({
         )}
 
         {nothingFound && (
-          <div className="flex flex-col items-center gap-4 pt-12 text-xl text-foreground/60">
+          <div className="flex flex-col items-center gap-4 pt-12 text-xl text-foreground-dim">
             Nothing in the songbook matches "{trimmed}".
             <Button
               variant="accent"

@@ -22,7 +22,7 @@ export const cardClass = (density: Density, className?: string) =>
 /** The small uppercase card heading ("MIX", "LYRICS"). */
 export const cardLabelClass = (density: Density) =>
   cn(
-    "font-semibold uppercase tracking-[0.08em] text-foreground/70",
+    "font-semibold uppercase tracking-[0.08em] text-foreground-dim",
     density === "tv" ? "text-[0.9375rem]" : "text-xs",
   );
 

@@ -46,7 +46,7 @@ const MoreControlsSheet: React.FC<MoreControlsSheetProps> = ({
   const sectionClass =
     "rounded-md border border-glass-border/10 bg-glass/5 p-4 flex flex-col gap-3";
   const sectionLabelClass = cn(
-    "uppercase tracking-wide text-foreground/70",
+    "uppercase tracking-wide text-foreground-dim",
     isTv ? "text-sm" : "text-xs",
   );
 

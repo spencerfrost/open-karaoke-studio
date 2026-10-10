@@ -28,15 +28,32 @@
   --radius: 0.5rem;
   --background: color-mix(in srgb, var(--russet), var(--black) 50%);
   --foreground: var(--lemon-chiffon);
+  /* Text tiers on the page: secondary text, then the quietest labels */
+  --foreground-dim: color-mix(in oklab, var(--lemon-chiffon) 65%, transparent);
+  --foreground-faint: color-mix(
+    in oklab,
+    var(--lemon-chiffon) 45%,
+    transparent
+  );
 
   --card: var(--lemon-chiffon);
   --card-foreground: var(--black);
   --popover: var(--lemon-chiffon);
   --popover-foreground: var(--black);
 
-  /* Raised neutral surface (nav bars, recessed grooves) — distinct from
-     card (opaque cream) and background (the page gradient's dark mix) */
+  /*
+   * Surface ladder: panels on the page, from recessed to most raised.
+   *   --surface-sunk    inputs and wells inside a panel
+   *   --surface         nav bars and panels
+   *   --surface-raised  headers and blocks inside a panel
+   *   --surface-hover   hovered or selected rows
+   * Each theme picks how the steps look. Retro's are tints over the page
+   * gradient (apart from the russet nav surface); a theme may use solid colors.
+   */
+  --surface-sunk: color-mix(in oklab, var(--black) 20%, transparent);
   --surface: var(--russet);
+  --surface-raised: color-mix(in oklab, var(--lemon-chiffon) 10%, transparent);
+  --surface-hover: color-mix(in oklab, var(--lemon-chiffon) 5%, transparent);
   --surface-foreground: var(--lemon-chiffon);
 
   --primary: var(--orange-peel);
@@ -132,6 +149,7 @@
       100% 100%;
     @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
   }
+
 }
 
 @theme inline {
@@ -141,9 +159,14 @@
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-dim: var(--foreground-dim);
+  --color-foreground-faint: var(--foreground-faint);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface-sunk: var(--surface-sunk);
   --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
   --color-surface-foreground: var(--surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);

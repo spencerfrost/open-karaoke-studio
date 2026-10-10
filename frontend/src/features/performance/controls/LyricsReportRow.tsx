@@ -76,7 +76,7 @@ const LyricsReportRow: React.FC<LyricsReportRowProps> = ({
     <div className="flex flex-col gap-2">
       <span
         className={cn(
-          "uppercase tracking-[0.08em] text-foreground/55",
+          "uppercase tracking-[0.08em] text-foreground-dim",
           isTv ? "text-sm" : "text-xs",
         )}
       >

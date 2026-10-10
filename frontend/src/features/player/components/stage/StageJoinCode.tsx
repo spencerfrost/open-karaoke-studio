@@ -56,7 +56,7 @@ const StageJoinCode: React.FC<StageJoinCodeProps> = ({
       >
         <div className="min-h-0 overflow-hidden">
           <div className="flex items-center gap-2 pb-4">
-            <span className="text-base uppercase tracking-[0.08em] text-foreground/60">
+            <span className="text-base uppercase tracking-[0.08em] text-foreground-dim">
               Join Code:
             </span>
             <span className="font-accent text-3xl leading-tight text-primary">

@@ -84,7 +84,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       size="lg"
       onClick={() => openSongSelect()}
       className={cn(
-        "absolute left-0 top-0 z-10 gap-2 text-lg text-foreground/60 transition-opacity duration-500 hover:text-foreground",
+        "absolute left-0 top-0 z-10 gap-2 text-lg text-foreground-dim transition-opacity duration-500 hover:text-foreground",
         chromeCollapsed && "pointer-events-none opacity-0",
       )}
     >
@@ -136,7 +136,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               {song.title}
             </h1>
             <h2
-              className="cursor-pointer pt-1 text-lg text-foreground/55 transition-colors hover:text-primary"
+              className="cursor-pointer pt-1 text-lg text-foreground-dim transition-colors hover:text-primary"
               onClick={() => openSongSelect({ expandArtist: song.artist })}
               role="button"
               tabIndex={0}
@@ -158,7 +158,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           {song && !player.isReady ? (
             // Until the stems are decoded there is nothing to sing along to,
             // and with autoplay on the song starts by itself once they are.
-            <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground/60">
+            <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground-dim">
               <Loader2 className="size-6 animate-spin" />
               Getting the song ready…
             </div>
@@ -184,7 +184,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             </>
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-4">
-              <div className="text-xl font-semibold text-foreground/60">
+              <div className="text-xl font-semibold text-foreground-dim">
                 No songs in the queue
               </div>
               <Button

@@ -128,7 +128,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           >
             {formatLyricsOffset(lyricsOffset)}
           </span>
-          <span className="flex flex-col gap-px text-foreground/40">
+          <span className="flex flex-col gap-px text-foreground-faint">
             <ChevronUp className="size-3" strokeWidth={3} />
             <ChevronDown className="size-3" strokeWidth={3} />
           </span>
@@ -148,7 +148,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
           variant="ghost"
           className={cn(
             flankClass,
-            "border-glass-border/20 text-foreground/70",
+            "border-glass-border/20 text-foreground-dim",
             lyricsOffset === 0 && "opacity-40",
           )}
           disabled={lyricsOffset === 0}

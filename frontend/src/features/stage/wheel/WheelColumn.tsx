@@ -104,8 +104,8 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         }}
         className={cn(
           "absolute inset-x-0 flex items-center overflow-hidden whitespace-nowrap",
-          isCurrent ? "font-semibold text-foreground" : "text-foreground/90",
-          disabled && "text-foreground/40",
+          isCurrent ? "font-semibold text-foreground" : "text-foreground",
+          disabled && "text-foreground-faint",
           isCurrent && active && "wheel-row-glow",
           rowClassName,
         )}
@@ -150,7 +150,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
       <div
         className={cn(
           "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
-          active ? "text-primary" : "text-foreground/60",
+          active ? "text-primary" : "text-foreground-dim",
         )}
       >
         {header ?? label}
@@ -182,7 +182,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         />
         {count === 0 && placeholder ? (
           <div
-            className="absolute inset-x-0 top-0 flex items-center px-7 text-2xl text-foreground/50"
+            className="absolute inset-x-0 top-0 flex items-center px-7 text-2xl text-foreground-faint"
             style={{ height: rowHeight }}
           >
             {placeholder}

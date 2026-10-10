@@ -75,7 +75,7 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
           {getStatusText()}
         </div>
         {status.message && (
-          <div className="text-foreground/80 text-xs mt-1 px-4 text-center">
+          <div className="text-foreground text-xs mt-1 px-4 text-center">
             {status.message}
           </div>
         )}
@@ -101,7 +101,7 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
               {getStatusText()}
             </span>
             {status.message && (
-              <span className="text-foreground/70 ml-2 truncate">
+              <span className="text-foreground-dim ml-2 truncate">
                 {status.message}
               </span>
             )}

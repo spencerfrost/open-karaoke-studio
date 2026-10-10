@@ -33,7 +33,7 @@ const AddSongScreen: React.FC<AddSongScreenProps> = ({
         <Button
           variant="ghost"
           onClick={() => shell?.back()}
-          className="text-foreground/60 hover:text-foreground"
+          className="text-foreground-dim hover:text-foreground"
         >
           <ChevronLeft className="mr-1 size-5" />
           Back to songs

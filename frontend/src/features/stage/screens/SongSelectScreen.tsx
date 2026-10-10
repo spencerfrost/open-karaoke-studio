@@ -88,7 +88,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             <Button
               variant="ghost"
               onClick={() => setSearching(true)}
-              className="text-foreground/50 hover:text-foreground"
+              className="text-foreground-faint hover:text-foreground"
             >
               <Search className="mr-2 size-5" />
               Search
@@ -101,7 +101,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             size="sm"
             onClick={onExitStage}
             aria-label="Exit stage mode"
-            className="text-foreground/35 hover:text-foreground"
+            className="text-foreground-faint hover:text-foreground"
           >
             <LogOut className="mr-2 size-4" />
             Exit stage

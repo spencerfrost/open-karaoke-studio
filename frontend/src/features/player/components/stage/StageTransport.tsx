@@ -45,7 +45,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
   return (
     <div className="flex w-full shrink-0 flex-col gap-4.5 pt-5">
       <div className="flex items-center gap-6">
-        <span className="w-21 font-accent text-[2rem] leading-none text-foreground/70">
+        <span className="w-21 font-accent text-[2rem] leading-none text-foreground-dim">
           {formatTime(currentTime)}
         </span>
         <ProgressBar
@@ -54,7 +54,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
           onSeek={seek}
           className="flex-1"
         />
-        <span className="w-21 text-right font-accent text-[2rem] leading-none text-foreground/70">
+        <span className="w-21 text-right font-accent text-[2rem] leading-none text-foreground-dim">
           {formatTime(duration)}
         </span>
       </div>
@@ -68,7 +68,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="size-16 text-foreground/70 hover:text-foreground"
+            className="size-16 text-foreground-dim hover:text-foreground"
             disabled={!isReady}
             onClick={() => seek(0)}
             aria-label="Restart song"
@@ -92,7 +92,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="size-16 text-foreground/70 hover:text-foreground"
+            className="size-16 text-foreground-dim hover:text-foreground"
             disabled={!onNext}
             onClick={onNext}
             aria-label="Play next song"
@@ -106,7 +106,7 @@ const StageTransport: React.FC<StageTransportProps> = ({
           size="icon"
           onClick={onToggleFullscreen}
           aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          className="size-12 shrink-0 text-foreground/40 hover:text-foreground"
+          className="size-12 shrink-0 text-foreground-faint hover:text-foreground"
         >
           {isFullscreen ? (
             <Minimize className="size-6" />

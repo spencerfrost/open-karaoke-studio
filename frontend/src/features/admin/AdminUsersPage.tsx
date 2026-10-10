@@ -217,13 +217,13 @@ const AdminUsersPage: React.FC = () => {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-foreground/70">
+        <p className="text-sm text-foreground-dim">
           Hosts can start a night from the stage. Admins can do everything.
         </p>
         <AddUserDialog />
       </div>
 
-      {isLoading && <p className="text-sm text-foreground/70">Loading…</p>}
+      {isLoading && <p className="text-sm text-foreground-dim">Loading…</p>}
       {error && (
         <p className="text-sm text-destructive">
           Couldn't load users: {error.message}
@@ -244,7 +244,7 @@ const AdminUsersPage: React.FC = () => {
             <TableBody>
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-foreground/70">
+                  <TableCell colSpan={4} className="text-foreground-dim">
                     No users yet.
                   </TableCell>
                 </TableRow>
@@ -254,7 +254,7 @@ const AdminUsersPage: React.FC = () => {
                   <TableCell className="font-medium">
                     {user.display_name ?? user.username}
                   </TableCell>
-                  <TableCell className="text-foreground/70">
+                  <TableCell className="text-foreground-dim">
                     @{user.username}
                   </TableCell>
                   <TableCell>
@@ -269,7 +269,7 @@ const AdminUsersPage: React.FC = () => {
                         Host
                       </Badge>
                     ) : (
-                      <span className="text-foreground/70">Singer</span>
+                      <span className="text-foreground-dim">Singer</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">

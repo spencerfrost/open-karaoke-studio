@@ -62,7 +62,7 @@ const Tag: React.FC<{ tone: TagTone; children: React.ReactNode }> = ({
       "rounded-full px-3 py-1 font-display text-base font-bold uppercase tracking-[0.08em]",
       tone === "normal" && "bg-primary/15 text-primary",
       tone === "warn" && "bg-accent/20 text-accent",
-      tone === "quiet" && "bg-foreground/10 text-foreground/60",
+      tone === "quiet" && "bg-foreground/10 text-foreground-dim",
     )}
   >
     {children}
@@ -134,11 +134,11 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
         <h3 className="line-clamp-2 text-balance font-display text-[40px] font-extrabold leading-[1.05] text-foreground">
           {song.title}
         </h3>
-        <div className="mt-1 truncate text-2xl text-foreground/85">
+        <div className="mt-1 truncate text-2xl text-foreground">
           {songByline(song)}
         </div>
         {song.album && (
-          <div className="mt-0.5 truncate text-xl text-foreground/60">
+          <div className="mt-0.5 truncate text-xl text-foreground-dim">
             {song.album}
           </div>
         )}
@@ -147,7 +147,7 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
           <dl className="mt-[22px] grid grid-cols-3 gap-3 border-t border-border/30 pt-[18px]">
             {facts.map(([label, value]) => (
               <div key={label} className="min-w-0">
-                <dt className="font-display text-sm uppercase tracking-[0.14em] text-foreground/45">
+                <dt className="font-display text-sm uppercase tracking-[0.14em] text-foreground-faint">
                   {label}
                 </dt>
                 <dd className="mt-0.5 truncate font-display text-[26px] font-bold tabular-nums text-foreground">

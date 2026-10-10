@@ -31,7 +31,7 @@ const RecentlySang: React.FC = () => {
 
   if (total === 0) {
     return (
-      <div className="text-center py-12 text-foreground/50">
+      <div className="text-center py-12 text-foreground-faint">
         No performances yet. Start a session and play some songs!
       </div>
     );
@@ -53,7 +53,7 @@ const RecentlySang: React.FC = () => {
               <ChevronLeft size={16} />
               Previous
             </Button>
-            <span className="text-sm text-foreground/80 px-2">
+            <span className="text-sm text-foreground px-2">
               {currentPage + 1} of {totalPages}
             </span>
             <Button
@@ -74,7 +74,7 @@ const RecentlySang: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-glass-border/20 text-foreground/60">
+            <tr className="border-b border-glass-border/20 text-foreground-dim">
               <th className="text-left pb-2 pr-4 font-medium">Song</th>
               <th className="text-left pb-2 pr-4 font-medium">Artist</th>
               <th className="text-left pb-2 pr-4 font-medium">Singer</th>
@@ -86,23 +86,23 @@ const RecentlySang: React.FC = () => {
             {items.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-glass-border/10 hover:bg-glass/5"
+                className="border-b border-glass-border/10 hover:bg-surface-hover"
               >
                 <td className="py-2 pr-4 text-foreground">
                   {item.song_title ?? (
-                    <span className="text-foreground/40">Deleted song</span>
+                    <span className="text-foreground-faint">Deleted song</span>
                   )}
                 </td>
-                <td className="py-2 pr-4 text-foreground/80">
+                <td className="py-2 pr-4 text-foreground">
                   {item.artist ?? "—"}
                 </td>
-                <td className="py-2 pr-4 text-foreground/80">
+                <td className="py-2 pr-4 text-foreground">
                   {item.singer_name}
                 </td>
-                <td className="py-2 pr-4 text-foreground/60 font-mono text-xs">
+                <td className="py-2 pr-4 text-foreground-dim font-mono text-xs">
                   {item.session_code ?? "—"}
                 </td>
-                <td className="py-2 text-foreground/60 text-xs">
+                <td className="py-2 text-foreground-dim text-xs">
                   {formatRelativeTime(item.performed_at)}
                 </td>
               </tr>

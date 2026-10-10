@@ -14,7 +14,7 @@ import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 const cardClass =
   "flex flex-col gap-2.5 rounded-md border border-glass-border/10 bg-glass/5 p-3.5";
 const railLabelClass =
-  "text-[0.9375rem] font-semibold uppercase tracking-[0.08em] text-foreground/70";
+  "text-[0.9375rem] font-semibold uppercase tracking-[0.08em] text-foreground-dim";
 
 interface StageQueueRailProps {
   current?: KaraokeQueueItemWithSong | null;
@@ -45,7 +45,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
           </span>
         </div>
         {current && (
-          <span className="truncate text-base text-foreground/50">
+          <span className="truncate text-base text-foreground-faint">
             {current.song.title} · {current.song.artist}
           </span>
         )}
@@ -59,7 +59,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
             size="icon"
             onClick={() => openSongSelect()}
             aria-label="Open the songbook"
-            className="text-foreground/40 hover:text-foreground"
+            className="text-foreground-faint hover:text-foreground"
           >
             <Library className="size-4.5" />
           </Button>
@@ -67,7 +67,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
 
         {upcoming.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-            <p className="text-lg text-foreground/60">Nothing queued yet</p>
+            <p className="text-lg text-foreground-dim">Nothing queued yet</p>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
@@ -80,7 +80,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
                   <div className="truncate text-lg font-semibold text-foreground">
                     {item.song.title}
                   </div>
-                  <div className="truncate text-base text-foreground/50">
+                  <div className="truncate text-base text-foreground-faint">
                     {item.singer} · {item.song.artist}
                   </div>
                 </div>

@@ -38,7 +38,7 @@ const NowPlayingProgress: React.FC = () => {
         duration={duration}
         className="min-w-24 flex-1"
       />
-      <span className="w-28 shrink-0 text-right font-accent text-xl tabular-nums text-foreground/70">
+      <span className="w-28 shrink-0 text-right font-accent text-xl tabular-nums text-foreground-dim">
         {formatTime(Math.max(0, duration - currentTime))} left
       </span>
     </>
@@ -87,7 +87,9 @@ const StageNowPlaying: React.FC = () => {
     if (!next) {
       return (
         <footer className={footerClass}>
-          <span className="truncate text-xl text-foreground/70">{message}</span>
+          <span className="truncate text-xl text-foreground-dim">
+            {message}
+          </span>
         </footer>
       );
     }
@@ -98,8 +100,10 @@ const StageNowPlaying: React.FC = () => {
           onClick={() => shell?.openHandoff()}
           className="group flex h-full min-w-0 flex-1 items-center gap-3 text-left"
         >
-          <span className="truncate text-xl text-foreground/70">{message}</span>
-          <ChevronRight className="size-6 shrink-0 text-foreground/40 transition-colors group-hover:text-foreground" />
+          <span className="truncate text-xl text-foreground-dim">
+            {message}
+          </span>
+          <ChevronRight className="size-6 shrink-0 text-foreground-faint transition-colors group-hover:text-foreground" />
         </button>
       </footer>
     );
@@ -113,7 +117,7 @@ const StageNowPlaying: React.FC = () => {
         disabled={!isReady}
         onClick={isPlaying ? userPause : userPlay}
         aria-label={isPlaying ? "Pause" : "Play"}
-        className="size-9 shrink-0 text-foreground/80 hover:text-foreground"
+        className="size-9 shrink-0 text-foreground-dim hover:text-foreground"
       >
         {isPlaying ? (
           <Pause className="size-6" fill="currentColor" />
@@ -133,12 +137,12 @@ const StageNowPlaying: React.FC = () => {
         <span className="flex min-w-0 max-w-[50%] shrink items-center gap-4 text-xl">
           <span className="min-w-0 truncate">
             <span className="text-foreground">{current.song.title}</span>
-            <span className="text-foreground/50">
+            <span className="text-foreground-faint">
               {" · "}
               {current.song.artist}
             </span>
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-foreground/60">
+          <span className="flex shrink-0 items-center gap-1.5 text-foreground-dim">
             <Mic className="size-4" />
             {current.singer}
           </span>
@@ -146,7 +150,7 @@ const StageNowPlaying: React.FC = () => {
         <NowPlayingProgress />
         <ChevronRight
           className={cn(
-            "size-6 shrink-0 text-foreground/40 transition-colors",
+            "size-6 shrink-0 text-foreground-faint transition-colors",
             "group-hover:text-foreground",
           )}
         />

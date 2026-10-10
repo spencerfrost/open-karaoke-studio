@@ -53,7 +53,7 @@ const StageRailIcons: React.FC<StageRailIconsProps> = ({
           <span className="font-accent text-[2rem] leading-none text-primary">
             {queueCount}
           </span>
-          <span className="text-[0.625rem] uppercase tracking-[0.08em] text-foreground/60">
+          <span className="text-[0.625rem] uppercase tracking-[0.08em] text-foreground-dim">
             Queue
           </span>
         </div>

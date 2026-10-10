@@ -35,7 +35,7 @@ const PerformanceControlsPanel: React.FC = () => {
 
       <div className="flex shrink-0 flex-col gap-2.5 pt-0.5">
         <div className="flex items-center gap-3">
-          <span className="font-accent text-2xl leading-none text-foreground/70">
+          <span className="font-accent text-2xl leading-none text-foreground-dim">
             {formatTime(currentTime)}
           </span>
           <ProgressBar
@@ -44,7 +44,7 @@ const PerformanceControlsPanel: React.FC = () => {
             onSeek={seek}
             className="flex-1"
           />
-          <span className="font-accent text-2xl leading-none text-foreground/70">
+          <span className="font-accent text-2xl leading-none text-foreground-dim">
             {formatTime(duration)}
           </span>
         </div>
@@ -53,7 +53,7 @@ const PerformanceControlsPanel: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="size-12 text-foreground/70"
+            className="size-12 text-foreground-dim"
             disabled={!isReady}
             onClick={() => seek(0)}
             aria-label="Restart song"

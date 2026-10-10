@@ -233,7 +233,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
   let body: React.ReactNode;
   if (wheel.isLoading) {
     body = (
-      <div className="absolute inset-0 flex items-center justify-center gap-4 text-3xl text-foreground/60">
+      <div className="absolute inset-0 flex items-center justify-center gap-4 text-3xl text-foreground-dim">
         <Loader2 className="size-9 animate-spin" />
         Loading the songbook…
       </div>
@@ -246,22 +246,22 @@ const SongWheel: React.FC<SongWheelProps> = ({
     );
   } else if (wheel.artists.length === 0) {
     body = (
-      <div className="absolute inset-0 flex items-center justify-center text-3xl text-foreground/60">
+      <div className="absolute inset-0 flex items-center justify-center text-3xl text-foreground-dim">
         No songs yet. Add one with the + button.
       </div>
     );
   } else {
     body = (
       <>
-        <div className="absolute inset-x-16 top-10 flex items-baseline gap-3.5 overflow-hidden whitespace-nowrap font-display text-3xl font-bold uppercase tracking-[0.04em] text-foreground/60">
+        <div className="absolute inset-x-16 top-10 flex items-baseline gap-3.5 overflow-hidden whitespace-nowrap font-display text-3xl font-bold uppercase tracking-[0.04em] text-foreground-dim">
           <span>Artists</span>
-          <span className="text-foreground/30">▸</span>
+          <span className="text-foreground-faint">▸</span>
           <b className="font-extrabold text-foreground">
             {LETTERS[wheel.letterIndex]}
           </b>
           {col >= COLUMN.artist && artist && (
             <>
-              <span className="text-foreground/30">▸</span>
+              <span className="text-foreground-faint">▸</span>
               <b className="truncate font-extrabold text-foreground">
                 {artist.name}
               </b>
@@ -307,7 +307,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
                 return (
                   <>
                     <span className="truncate">{a.name}</span>
-                    <span className="ml-auto flex flex-none items-center gap-2 pl-4 font-display text-[22px] tabular-nums text-foreground/40">
+                    <span className="ml-auto flex flex-none items-center gap-2 pl-4 font-display text-[22px] tabular-nums text-foreground-faint">
                       {a.isShow && (
                         <Theater className="size-5" aria-label="Show" />
                       )}
@@ -360,12 +360,12 @@ const SongWheel: React.FC<SongWheelProps> = ({
                 const song = songs[i];
                 return (
                   <>
-                    <span className="w-11 flex-none font-display text-[22px] tabular-nums text-foreground/40">
+                    <span className="w-11 flex-none font-display text-[22px] tabular-nums text-foreground-faint">
                       {i + 1}
                     </span>
                     <span className="truncate">{song.title}</span>
                     {song.status !== "processed" && (
-                      <span className="ml-auto flex-none pl-4 font-display text-[20px] uppercase tracking-wider text-foreground/40">
+                      <span className="ml-auto flex-none pl-4 font-display text-[20px] uppercase tracking-wider text-foreground-faint">
                         Processing
                       </span>
                     )}
@@ -388,7 +388,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
           )}
         </AnimatePresence>
 
-        <div className="absolute inset-x-0 bottom-11 flex justify-center gap-11 text-[22px] text-foreground/60">
+        <div className="absolute inset-x-0 bottom-11 flex justify-center gap-11 text-[22px] text-foreground-dim">
           {legend.map(([keys, text]) => (
             <div key={text} className="flex items-center gap-3">
               {keys.map((k) => (

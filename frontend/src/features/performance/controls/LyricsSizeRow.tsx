@@ -28,7 +28,7 @@ const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
     <div className="flex items-center gap-3">
       <span
         className={cn(
-          "flex-1 uppercase tracking-[0.08em] text-foreground/55",
+          "flex-1 uppercase tracking-[0.08em] text-foreground-dim",
           isTv ? "text-sm" : "text-xs",
         )}
       >
@@ -49,7 +49,7 @@ const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
                 isTv ? "size-10 text-base" : "size-11 text-sm",
                 isSelected
                   ? "border-glass-border/40 bg-glass/20 text-foreground"
-                  : "border-glass-border/20 text-foreground/70",
+                  : "border-glass-border/20 text-foreground-dim",
               )}
             >
               {label}

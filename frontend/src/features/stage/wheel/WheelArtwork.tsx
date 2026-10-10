@@ -215,7 +215,7 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
                 />
               ) : (
                 <div
-                  className="absolute inset-0 grid place-items-center bg-surface font-display text-[52cqmin] font-extrabold leading-none text-foreground/55 ring-1 ring-inset ring-border/30"
+                  className="absolute inset-0 grid place-items-center bg-surface font-display text-[52cqmin] font-extrabold leading-none text-foreground-dim ring-1 ring-inset ring-border/30"
                   style={
                     l.mounted
                       ? undefined

@@ -46,7 +46,7 @@ import {
  * it (and the near-black `border-input`) with the panel's own glass roles.
  */
 const fieldClass =
-  "h-12 border-glass-border/20 bg-glass/5 text-lg text-foreground placeholder:text-foreground/40";
+  "h-12 border-glass-border/20 bg-glass/5 text-lg text-foreground placeholder:text-foreground-faint";
 
 /**
  * The backend serializes naive UTC datetimes with no offset, which `Date` would
@@ -159,7 +159,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
       <Button
         asChild
         variant="ghost"
-        className="fixed top-4 left-6 text-foreground/60 hover:text-foreground"
+        className="fixed top-4 left-6 text-foreground-dim hover:text-foreground"
       >
         <Link to="/">
           <ChevronLeft className="mr-1 size-5" />
@@ -177,14 +177,14 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
         <div className="flex items-center justify-between gap-6 p-5">
           <div>
             <div className="text-xl text-foreground">Queue order</div>
-            <p className="pt-1 text-base text-foreground/55">
+            <p className="pt-1 text-base text-foreground-dim">
               {isRotation
                 ? "Turns alternate fairly between everyone singing."
                 : "Songs play in the order they were added."}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <span className="text-lg text-foreground/80">
+            <span className="text-lg text-foreground">
               {isRotation ? "Rotation" : "Append"}
             </span>
             <Switch
@@ -198,7 +198,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
         <div className="space-y-3 p-5">
           <div>
             <div className="text-xl text-foreground">Singers</div>
-            <p className="pt-1 text-base text-foreground/55">
+            <p className="pt-1 text-base text-foreground-dim">
               Optional. Names can be added later.
             </p>
           </div>
@@ -238,7 +238,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
                   className="flex items-center gap-2 rounded-full border border-glass-border/20 bg-glass/10 px-4 py-1.5 text-lg text-foreground transition-colors hover:bg-glass/20"
                 >
                   {name}
-                  <X className="size-4 text-foreground/50" />
+                  <X className="size-4 text-foreground-faint" />
                 </button>
               ))}
             </div>
@@ -248,7 +248,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
         <div className="flex items-center justify-between gap-6 p-5">
           <div>
             <div className="text-xl text-foreground">Am I singing?</div>
-            <p className="pt-1 text-base text-foreground/55">
+            <p className="pt-1 text-base text-foreground-dim">
               {includeSelf
                 ? "Your name joins the roster and takes turns."
                 : "You run the night without taking a turn."}
@@ -264,7 +264,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
 
         <Accordion type="single" collapsible>
           <AccordionItem value="advanced" className="border-none">
-            <AccordionTrigger className="px-5 text-base text-foreground/55 hover:no-underline">
+            <AccordionTrigger className="px-5 text-base text-foreground-dim hover:no-underline">
               Advanced
             </AccordionTrigger>
             <AccordionContent className="px-5">
@@ -274,7 +274,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
                   className="text-lg text-foreground"
                 >
                   Session length
-                  <span className="block pt-1 text-base text-foreground/55">
+                  <span className="block pt-1 text-base text-foreground-dim">
                     Hours. Tonight only — your saved default is unchanged.
                   </span>
                 </label>
@@ -303,7 +303,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
             <div className="text-xl text-foreground">
               You already have a session running
             </div>
-            <p className="pt-1 text-base text-foreground/55">
+            <p className="pt-1 text-base text-foreground-dim">
               Code {existing.displayCode}, started{" "}
               {formatStartTime(existing.createdAt)}. Starting this one ends it
               for everyone connected.

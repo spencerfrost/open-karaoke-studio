@@ -133,7 +133,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
         <Button
           variant="ghost"
           onClick={() => shell?.back()}
-          className="text-foreground/60 hover:text-foreground"
+          className="text-foreground-dim hover:text-foreground"
         >
           <ChevronLeft className="mr-1 size-5" />
           Back
@@ -151,7 +151,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
             <h1 className="font-display text-4xl leading-tight text-foreground">
               {song.title}
             </h1>
-            <h2 className="pt-2 text-2xl text-foreground/55">{song.artist}</h2>
+            <h2 className="pt-2 text-2xl text-foreground-dim">{song.artist}</h2>
           </div>
         </div>
 

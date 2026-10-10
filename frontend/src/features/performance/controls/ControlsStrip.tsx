@@ -45,7 +45,7 @@ const ControlsStrip: React.FC<ControlsStripProps> = ({
         variant="ghost"
         onClick={() => setMoreOpen(true)}
         className={cn(
-          "w-full shrink-0 text-foreground/55 hover:text-foreground",
+          "w-full shrink-0 text-foreground-dim hover:text-foreground",
           isTv ? "h-11 text-base" : "h-12 text-sm",
         )}
       >

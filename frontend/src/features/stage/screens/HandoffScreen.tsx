@@ -285,7 +285,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       <div className="text-center">
         {turn.performerName ? (
           <>
-            <p className="text-xl uppercase tracking-[0.2em] text-foreground/45">
+            <p className="text-xl uppercase tracking-[0.2em] text-foreground-faint">
               Up next
             </p>
             <h1 className="font-display text-8xl leading-none text-primary">
@@ -306,7 +306,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             onSubmit={handleInsert}
             className="w-full max-w-xl space-y-4 text-center"
           >
-            <p className="text-xl text-foreground/60">
+            <p className="text-xl text-foreground-dim">
               {turn.performerName
                 ? `They'll sing now, and ${turn.performerName} goes next.`
                 : "They'll sing now."}
@@ -352,7 +352,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                   className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <Music size={64} className="text-foreground/20" />
+                <Music size={64} className="text-foreground-faint" />
               )}
               <div className="absolute inset-0 flex items-center justify-center bg-overlay/40 transition-colors group-hover:bg-overlay/50">
                 <Play
@@ -367,14 +367,14 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               <h2 className="font-display text-5xl leading-tight text-foreground">
                 {nextItem.song.title}
               </h2>
-              <p className="pt-2 text-2xl text-foreground/55">
+              <p className="pt-2 text-2xl text-foreground-dim">
                 {nextItem.song.artist}
               </p>
             </div>
           </button>
         ) : turn.kind === "open" && roster.length === 0 && displayCode ? (
           <div className="flex flex-col items-center gap-5">
-            <p className="text-2xl text-foreground/60">
+            <p className="text-2xl text-foreground-dim">
               Scan to join and pick a song
             </p>
             <QRCodeDisplay
@@ -387,7 +387,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           </div>
         ) : (
           <div className="flex w-full flex-col items-center gap-6">
-            <p className="text-2xl text-foreground/60">
+            <p className="text-2xl text-foreground-dim">
               {turn.performerName
                 ? `${turn.performerName} — check your phone, or pick one here`
                 : "Pick something to keep it going"}
@@ -395,7 +395,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
 
             {suggestions.length > 0 && (
               <div className="w-full">
-                <h3 className="pb-3 text-center text-lg text-foreground/50">
+                <h3 className="pb-3 text-center text-lg text-foreground-faint">
                   {getSuggestionReasonText(suggestions[0].reason)}
                 </h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -414,7 +414,10 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                           />
                         ) : (
                           <div className="flex size-full items-center justify-center bg-primary/20">
-                            <Music size={32} className="text-foreground/30" />
+                            <Music
+                              size={32}
+                              className="text-foreground-faint"
+                            />
                           </div>
                         )}
                       </div>
@@ -422,7 +425,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                         <p className="truncate text-base font-medium text-foreground">
                           {song.title}
                         </p>
-                        <p className="truncate text-sm text-foreground/60">
+                        <p className="truncate text-sm text-foreground-dim">
                           {song.artist}
                         </p>
                       </div>
@@ -433,7 +436,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             )}
 
             {suggestionsLoading && (
-              <p className="text-foreground/50">Finding more songs…</p>
+              <p className="text-foreground-faint">Finding more songs…</p>
             )}
 
             <Button
@@ -475,20 +478,20 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                     setNewName("");
                     setIsAdding(true);
                   }}
-                  className="gap-2 text-foreground/60 hover:text-foreground"
+                  className="gap-2 text-foreground-dim hover:text-foreground"
                 >
                   <UserPlus className="size-5" />
                   Add performer
                 </Button>
                 {turn.performerId !== null && (
                   <>
-                    <span className="text-foreground/20">·</span>
+                    <span className="text-foreground-faint">·</span>
                     <Button
                       variant="ghost"
                       size="lg"
                       onClick={handleRemove}
                       disabled={removePerformer.isPending}
-                      className="gap-2 text-foreground/60 hover:text-foreground"
+                      className="gap-2 text-foreground-dim hover:text-foreground"
                     >
                       <UserMinus className="size-5" />
                       Remove from rotation
@@ -500,16 +503,16 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           )}
 
           {onDeck.length > 0 && (
-            <p className="text-lg text-foreground/40">
+            <p className="text-lg text-foreground-faint">
               On deck:{" "}
-              <span className="text-foreground/70">{onDeck.join(" · ")}</span>
+              <span className="text-foreground-dim">{onDeck.join(" · ")}</span>
             </p>
           )}
 
           {showRibbon && (
             <p
               className={cn(
-                "text-base uppercase tracking-[0.15em] text-foreground/30",
+                "text-base uppercase tracking-[0.15em] text-foreground-faint",
               )}
             >
               {turn.circle.map((p) => p.name).join(" → ")} →{" "}
@@ -518,7 +521,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           )}
 
           {current?.song && (
-            <p className="pt-2 text-sm text-foreground/25">
+            <p className="pt-2 text-sm text-foreground-faint">
               Just played: {current.song.title} — {current.song.artist}
             </p>
           )}

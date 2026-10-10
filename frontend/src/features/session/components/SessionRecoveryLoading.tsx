@@ -10,7 +10,7 @@ const SessionRecoveryLoading: React.FC = () => {
         <h2 className="text-3xl font-bold text-primary mb-4">
           Restoring Session
         </h2>
-        <p className="text-foreground/80 mb-8">
+        <p className="text-foreground mb-8">
           Reconnecting to your previous karaoke session...
         </p>
         {recoveryError && (

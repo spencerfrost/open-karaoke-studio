@@ -24,7 +24,7 @@ const SongResultsSection: React.FC<SongResultsSectionProps> = ({
       <div className="flex items-center gap-3 mb-6">
         <Music2 size={24} className="text-primary" />
         <h2 className="text-xl font-semibold text-primary">Songs</h2>
-        <span className="text-foreground/60 text-sm">
+        <span className="text-foreground-dim text-sm">
           {songs.length} result{songs.length !== 1 ? "s" : ""}
         </span>
       </div>
