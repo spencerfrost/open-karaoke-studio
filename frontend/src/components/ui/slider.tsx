@@ -67,7 +67,7 @@ function Slider({
           className={cn(
             "block shrink-0 border transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50",
             variant === "default" &&
-              "border-primary bg-card ring-ring/50 size-4 rounded-full shadow-sm hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden",
+              "border-primary bg-foreground ring-ring/50 size-4 rounded-full shadow-sm hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden",
             variant === "performance" && [
               "relative h-14 w-24 rounded-sm",
               "bg-gradient-to-b from-primary to-secondary border-primary/60",

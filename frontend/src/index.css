@@ -57,7 +57,7 @@
   --surface-foreground: var(--lemon-chiffon);
 
   --primary: var(--orange-peel);
-  --primary-foreground: var(--lemon-chiffon);
+  --primary-foreground: var(--black);
   --secondary: var(--rust);
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
@@ -69,8 +69,8 @@
    * Status roles. Each status has three parts:
    *   --x            the color itself — fills (bg-x) and text on the dark page
    *   --x-foreground text/icons placed ON an --x fill
-   *   --x-strong     darker variant for text/icons on LIGHT surfaces
-   *                  (card, popover, muted), where the mid tone lacks contrast
+   *   --x-strong     variant for text/icons on the card, popover and muted
+   *                  surfaces, where the mid tone lacks contrast
    * Themes only need to set the base; -strong derives unless overridden.
    */
   --destructive: var(--color-red-500);

@@ -62,7 +62,7 @@ const PerformanceControlsPanel: React.FC = () => {
           </Button>
 
           <Button
-            className="size-16 rounded-full bg-primary text-card-foreground shadow-glow-primary hover:bg-primary/90"
+            className="size-16 rounded-full bg-primary text-primary-foreground shadow-glow-primary hover:bg-primary/90"
             disabled={!isReady}
             onClick={isPlaying ? userPause : userPlay}
             aria-label={isPlaying ? "Pause" : "Play"}
