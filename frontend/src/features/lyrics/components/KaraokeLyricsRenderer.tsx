@@ -196,10 +196,10 @@ const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
   showLeadInHighlight,
   widthClass,
 }) => {
-  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-orange-peel/15";
+  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-primary/15";
   const progressFillClass = isLeadIn
     ? "from-foreground to-primary"
-    : "from-orange-peel to-primary/80";
+    : "from-primary to-primary/80";
   const progressAriaLabel = isLeadIn
     ? "Lead-in progress"
     : "Instrumental progress";
@@ -261,7 +261,7 @@ const LyricContent: React.FC<LyricContentProps> = ({
             key={wIdx}
             className={`transition-[color,opacity] duration-100 ${
               isActive && currentWordIndex !== null && wIdx <= currentWordIndex
-                ? "opacity-100 text-orange-peel"
+                ? "opacity-100 text-primary"
                 : "opacity-60"
             }`}
           >

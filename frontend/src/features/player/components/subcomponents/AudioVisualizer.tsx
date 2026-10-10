@@ -7,7 +7,7 @@ interface AudioVisualizerProps {
   className?: string;
 }
 
-// dark-cyan, orange-peel — alternated per bar, then hue-shifted across the row
+// legacy accent, primary — alternated per bar, then hue-shifted across the row
 const BASE_COLORS = ["#01928B", "#FD9A02"];
 
 // Auto-leveling: each band scales against its own recently-seen peak rather

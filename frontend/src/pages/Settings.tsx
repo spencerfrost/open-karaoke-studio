@@ -44,15 +44,13 @@ const SettingsPage: React.FC = () => {
   return (
     <AppLayout>
       <div>
-        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
-          Settings
-        </h1>
+        <h1 className="text-2xl font-semibold mb-6 text-primary">Settings</h1>
 
         <AccountCard />
         <RotationModeCard />
 
         {/* Theme Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
+        <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Theme</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -63,7 +61,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleThemeChange("darkMode", e.target.checked)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
               />
             </div>
             <div>
@@ -71,7 +69,7 @@ const SettingsPage: React.FC = () => {
               <select
                 value={settings.theme.themeName}
                 onChange={(e) => handleThemeChange("themeName", e.target.value)}
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded w-full"
               >
                 <option value="vintage">Vintage</option>
                 <option value="synthwave">Synthwave</option>
@@ -82,7 +80,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Audio Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
+        <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Audio</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -158,7 +156,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Processing Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
+        <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Processing</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -168,7 +166,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("quality", e.target.value)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded w-full"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -182,7 +180,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("outputFormat", e.target.value)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded w-full"
               >
                 <option value="mp3">MP3</option>
                 <option value="wav">WAV</option>
@@ -196,14 +194,14 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleProcessingChange("autoProcessYouTube", e.target.checked)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
               />
             </div>
           </div>
         </div>
 
         {/* Display Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
+        <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
           <h2 className="text-xl mb-3">Display</h2>
           <div className="flex flex-col gap-4">
             <div>
@@ -213,7 +211,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange("lyricsSize", e.target.value)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded w-full"
               >
                 <option value="small">Small</option>
                 <option value="medium">Medium</option>
@@ -231,7 +229,7 @@ const SettingsPage: React.FC = () => {
                     e.target.checked,
                   )
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
               />
             </div>
             <div>
@@ -242,7 +240,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange("showProgress", e.target.checked)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
               />
             </div>
             <div>
@@ -255,7 +253,7 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) =>
                   handleDisplayChange("songPreviewsEnabled", e.target.checked)
                 }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
+                className="p-2 border border-border bg-card/80 text-card-foreground rounded"
               />
             </div>
           </div>
@@ -264,7 +262,7 @@ const SettingsPage: React.FC = () => {
         {/* Reset Button */}
         <button
           onClick={handleResetSettings}
-          className="bg-rust text-lemon-chiffon px-4 py-2 rounded mt-4"
+          className="bg-secondary text-secondary-foreground px-4 py-2 rounded mt-4"
         >
           Reset All Settings
         </button>
