@@ -79,6 +79,7 @@ class SongResponse(BaseModel):
 
     status: str = "processed"
     errorMessage: Optional[str] = None
+    failedAt: Optional[str] = None
 
     class Config:
         from_attributes = True

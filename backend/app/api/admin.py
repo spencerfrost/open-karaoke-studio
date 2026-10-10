@@ -1,12 +1,16 @@
 """
-Admin endpoints: the background jobs page and worker status.
+Admin endpoints: the background jobs page, worker status and failed songs.
 """
 
 import logging
+from typing import List
+
 from app.api.dependencies import get_db, require_admin
 from app.db.models import User
 from app.jobs.celery_app import celery
 from app.repositories.batch_run_repository import BatchRunRepository
+from app.repositories.song_repository import SongRepository
+from app.schemas.song import SongResponse
 from app.services.batch_jobs import (
     JOBS,
     UnknownJob,
@@ -151,3 +155,14 @@ def worker_status(current_user: User = Depends(require_admin)):
         ]
         queues.append({"queue": queue, "workers": sorted(serving)})
     return {"brokerReachable": True, "workers": workers, "queues": queues}
+
+
+@router.get("/songs/failed", response_model=List[SongResponse])
+def list_failed_songs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Songs whose download or processing failed, most recent first, with
+    the reason (`errorMessage`) and when (`failedAt`). The songbook hides
+    them."""
+    return [song.to_dict() for song in SongRepository(db).fetch_failed()]

@@ -24,6 +24,7 @@ Song repository for managing song records in the database.
 
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.db.models import DbSong
@@ -158,6 +159,21 @@ class SongRepository:
             query = query.limit(limit)
         return query.all()
 
+    def fetch_failed(self) -> List[DbSong]:
+        """Failed songs, the most recent failure first; ones failed before
+        failures were timed come last."""
+        return (
+            self.db.query(DbSong)
+            .options(subqueryload(DbSong.album_rel))
+            .filter(DbSong.status == "error")
+            .order_by(
+                DbSong.failed_at.is_(None),
+                DbSong.failed_at.desc(),
+                DbSong.date_added.desc(),
+            )
+            .all()
+        )
+
     def update(self, song_id: str, **fields) -> Optional[DbSong]:
         """
         Update an existing song record.
@@ -169,7 +185,16 @@ class SongRepository:
         if not song:
             logger.warning("Song %s not found for update", song_id)
             return None
-            
+
+        # failed_at goes with status: stamped when the song fails, cleared
+        # when it's restarted or finishes.
+        if "status" in fields and "failed_at" not in fields:
+            fields["failed_at"] = (
+                datetime.now(timezone.utc).replace(tzinfo=None)
+                if fields["status"] == "error"
+                else None
+            )
+
         for key, value in fields.items():
             setattr(song, key, value)
         self.db.commit()

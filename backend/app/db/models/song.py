@@ -68,6 +68,9 @@ class DbSong(Base):
     status = Column(String, nullable=False, default="processing")
     # Failure reason when status="error" (yt-dlp/demucs error text, truncated)
     error_message = Column(Text, nullable=True)
+    # When it last failed (UTC); set while status="error". SongRepository.update
+    # keeps it in step with status.
+    failed_at = Column(DateTime, nullable=True)
 
     # AcoustID fingerprinting
     musicbrainz_recording_id = Column(String, nullable=True)
@@ -107,6 +110,9 @@ class DbSong(Base):
             "duration": self.duration,  # Duration in seconds
             "status": self.status,
             "errorMessage": self.error_message,
+            "failedAt": (
+                self.failed_at.isoformat() if self.failed_at is not None else None
+            ),
             "dateAdded": (
                 self.date_added.isoformat() if self.date_added is not None else None
             ),
@@ -170,6 +176,6 @@ def in_songbook():
     """SQL filter for the songs the songbook lists: all but failed ones.
 
     A failed song can't be sung. Adding it again restarts the failed row
-    (POST /api/songs/{id}/retry), and admins find it in Library Audit.
+    (POST /api/songs/{id}/retry), and admins find it under Failed songs.
     """
     return DbSong.status != "error"
