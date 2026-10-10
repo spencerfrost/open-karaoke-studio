@@ -6,6 +6,7 @@ This conftest provides FastAPI test fixtures after the Flask to FastAPI migratio
 
 import os
 import random
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -25,6 +26,12 @@ from fastapi.testclient import TestClient
 _TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="okstudio-tests-", suffix=".db")
 os.close(_TEST_DB_FD)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
+
+# Same for the song library: BaseConfig reads LIBRARY_DIR at import time, and
+# endpoints like POST /api/songs create a song folder through FileService. Left
+# unset, every test run leaves empty folders in the real library.
+_TEST_LIBRARY_DIR = tempfile.mkdtemp(prefix="okstudio-tests-library-")
+os.environ["LIBRARY_DIR"] = _TEST_LIBRARY_DIR
 
 # Add the backend path for imports
 backend_path = str(Path(__file__).parent.parent)
@@ -58,12 +65,13 @@ def _clean_global_db():
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Remove the throwaway test database file (and SQLite sidecars)."""
+    """Remove the throwaway test database file (and SQLite sidecars) and library."""
     for suffix in ("", "-wal", "-shm"):
         try:
             os.unlink(_TEST_DB_PATH + suffix)
         except FileNotFoundError:
             pass
+    shutil.rmtree(_TEST_LIBRARY_DIR, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")

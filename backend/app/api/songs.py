@@ -66,7 +66,7 @@ from app.schemas.song import (
 )
 from app.services.batch_jobs import record_scan
 from app.services.demo_service import enforce_demo_download_quota
-from app.services.file_service import FileService
+from app.services.file_service import NON_SONG_DIRS, FileService
 from app.services.lyrics_language import normalize_language
 from app.utils.filing import filing_letter, filing_name
 from app.ws.connection_manager import SessionConnectionManager
@@ -830,8 +830,8 @@ async def delete_orphaned_directory(
     """
     config = get_config()
 
-    # Safety: reject any path traversal attempts
-    if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+    # Safety: reject any path traversal attempts and the shared artwork folders
+    if "/" in dir_name or "\\" in dir_name or ".." in dir_name or dir_name in NON_SONG_DIRS:
         raise HTTPException(status_code=400, detail="Invalid directory name")
 
     # Confirm it's actually on disk
@@ -870,8 +870,8 @@ async def bulk_delete_orphaned_directories(
     skipped = 0
 
     for dir_name in request.dir_names:
-        # Safety: reject any path traversal attempts
-        if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+        # Safety: reject any path traversal attempts and the shared artwork folders
+        if "/" in dir_name or "\\" in dir_name or ".." in dir_name or dir_name in NON_SONG_DIRS:
             logger.warning("Bulk delete skipping invalid dir name: %r", dir_name)
             skipped += 1
             continue

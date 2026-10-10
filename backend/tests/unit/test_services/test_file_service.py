@@ -214,6 +214,10 @@ class TestFileService:
         # Create a hidden directory (should be ignored)
         (self.temp_dir / ".hidden").mkdir(parents=True, exist_ok=True)
 
+        # Shared artwork folders are not songs (should be ignored)
+        (self.temp_dir / "covers").mkdir(parents=True, exist_ok=True)
+        (self.temp_dir / "artists").mkdir(parents=True, exist_ok=True)
+
         result = self.file_service.get_processed_song_ids()
 
         assert len(result) == 3

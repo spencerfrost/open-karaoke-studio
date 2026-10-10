@@ -11,6 +11,9 @@ from .interfaces.file_service import FileServiceInterface
 
 logger = logging.getLogger(__name__)
 
+# Library folders that hold shared artwork rather than one song's files.
+NON_SONG_DIRS = frozenset({"artists", "covers"})
+
 
 class FileService(FileServiceInterface):
     """Handle file system operations for songs"""
@@ -80,7 +83,9 @@ class FileService(FileServiceInterface):
             song_ids = [
                 d.name
                 for d in self.base_library_dir.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
+                if d.is_dir()
+                and not d.name.startswith(".")
+                and d.name not in NON_SONG_DIRS
             ]
 
             logger.debug("Found %s processed song directories", len(song_ids))
