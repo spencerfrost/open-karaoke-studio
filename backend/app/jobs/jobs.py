@@ -30,7 +30,7 @@ from .batch_tasks import (
     batch_fetch_artist_images,
     batch_fingerprint_songs,
 )
-from .enrichment_tasks import cleanup_old_jobs, post_process_song
+from .enrichment_tasks import cleanup_old_jobs
 from .exceptions import AudioProcessingError
 from .lyrics_tasks import align_song_lyrics
 from .metadata_tasks import (
@@ -178,7 +178,6 @@ __all__ = [
     "fetch_song_artwork",
     "fingerprint_single_song",
     "job_repository",
-    "post_process_song",
     "process_audio_job",
     "process_youtube_job",
     "separate_with_clean_backing",

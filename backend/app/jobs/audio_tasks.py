@@ -63,6 +63,26 @@ def _schedule_transient_retry(task, job, job_repository, exc):
     return task.retry(countdown=delay, exc=exc)
 
 
+def _dispatch_vocals_ready_tasks(song_id: str, vocals_path: Path, title: str | None, artist: str | None) -> None:
+    """Queue the steps that need vocals.mp3: vocal range and lyric alignment."""
+    logger.debug(
+        "[PIPELINE] vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
+        vocals_path.stat().st_size if vocals_path.exists() else "missing",
+        song_id,
+    )
+    log_lyrics_event(
+        song_id,
+        "vocals_ready",
+        vocals_path=vocals_path,
+        vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
+        pipeline_progress=70,
+    )
+    _create_lyrics_alignment_job(song_id, title=title, artist=artist)
+    celery.send_task("detect_song_vocal_range", args=[song_id])
+    celery.send_task("align_song_lyrics", args=[song_id])
+    log_lyrics_event(song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id))
+
+
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
 def process_audio_job(self, job_id, engine_type="three_track"):
     """Celery task to process uploaded audio files."""
@@ -140,15 +160,38 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
         update_progress(5, f"Created directory for {job_id}")
 
+        # original.mp3 is already on disk, so everything the YouTube flow
+        # queues after its download can go now. Artwork only falls back to a
+        # YouTube thumbnail when the song has a video_id.
+        celery.send_task("fetch_song_artwork", args=[song_id])
+        celery.send_task("fingerprint_single_song", args=[song_id])
+        celery.send_task("prefetch_song_lyrics", args=[song_id])
+        logger.debug(
+            "[PIPELINE] dispatched fetch_song_artwork + fingerprint_single_song + prefetch_song_lyrics for song %s",
+            song_id,
+        )
+
+        vocals_dispatched = False
+
+        def on_vocals_ready(vocals_path: Path) -> None:
+            nonlocal vocals_dispatched
+            vocals_dispatched = True
+            _dispatch_vocals_ready_tasks(song_id, vocals_path, job.title, job.artist)
+
         success, final_engine_type = run_separation_with_fallback(
             engine_type=engine_type,
             input_path=filepath,
             song_dir=song_dir,
             status_callback=lambda msg: update_progress(20, msg),
             stop_event=stop_event,
+            on_vocals_ready=on_vocals_ready,
         )
         if not success:
             raise AudioProcessingError("Audio separation failed")
+
+        # Only three_track engines report vocals early; the rest finish first.
+        if not vocals_dispatched:
+            on_vocals_ready(song_dir / "vocals.mp3")
 
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
@@ -170,9 +213,9 @@ def process_audio_job(self, job_id, engine_type="three_track"):
 
         _broadcast_job_event(job)
 
-        celery.send_task("post_process_song", args=[song_id])
+        # Loudness is measured on the stems, so it waits for separation.
         celery.send_task("detect_song_loudness", args=[song_id])
-        logger.debug("Dispatched post_process_song + detect_song_loudness for song %s", song_id)
+        logger.debug("[PIPELINE] separation done — dispatched detect_song_loudness for song %s", song_id)
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 
@@ -351,23 +394,12 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             update_fn=lambda prog, msg: update_progress(prog, f"Audio processing: {msg}"),
         )
 
+        vocals_dispatched = False
+
         def on_vocals_ready(vocals_path: Path) -> None:
-            logger.debug(
-                "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
-                vocals_path.stat().st_size if vocals_path.exists() else "missing",
-                song_id,
-            )
-            log_lyrics_event(
-                song_id,
-                "vocals_ready",
-                vocals_path=vocals_path,
-                vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
-                pipeline_progress=70,
-            )
-            _create_lyrics_alignment_job(song_id, title=metadata.get("title"), artist=metadata.get("artist"))
-            celery.send_task("detect_song_vocal_range", args=[song_id])
-            celery.send_task("align_song_lyrics", args=[song_id])
-            log_lyrics_event(song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id))
+            nonlocal vocals_dispatched
+            vocals_dispatched = True
+            _dispatch_vocals_ready_tasks(song_id, vocals_path, metadata.get("title"), metadata.get("artist"))
 
         success, final_engine_type = run_separation_with_fallback(
             engine_type=engine_type,
@@ -379,6 +411,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         )
         if not success:
             raise AudioProcessingError("Audio separation failed")
+
+        # Only three_track engines report vocals early; the rest finish first.
+        if not vocals_dispatched:
+            on_vocals_ready(song_dir / "vocals.mp3")
 
         try:
             with get_db_session() as session:

@@ -64,7 +64,6 @@ celery.conf.update(
         "batch_fetch_artist_images": {"queue": "enrichment"},
         "batch_fetch_album_covers": {"queue": "enrichment"},
         "batch_align_lyrics": {"queue": "enrichment"},
-        "post_process_song": {"queue": "enrichment"},
     },
     task_default_queue="enrichment",
     **celery_logging_config,
