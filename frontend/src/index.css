@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Manrope:wght@400;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -127,6 +128,12 @@
   --display-font: "Syne", system-ui, sans-serif;
   --body-font: "Manrope", system-ui, sans-serif;
   --accent-font: "VT323", monospace;
+  /*
+   * Accent-font sizes in components are set for VT323, which renders small
+   * for its font-size (x-height 0.40em). Themes with a different accent
+   * font set this to 0.4 so it renders at VT323's size.
+   */
+  --accent-font-size-adjust: none;
 }
 
 /*
@@ -212,6 +219,96 @@
   --display-font: "Orbitron", system-ui, sans-serif;
   --body-font: "Rajdhani", system-ui, sans-serif;
   --accent-font: "Share Tech Mono", monospace;
+  --accent-font-size-adjust: 0.4;
+}
+
+/*
+ * Catppuccin Mocha. The palette is fixed and already a ladder, so this is
+ * mapping: Crust < Mantle < Base (the page) < Surface 0–2 < Overlay 0–2.
+ * Text on the pastel fills is Crust.
+ */
+[data-theme="catppuccin"] {
+  --ctp-crust: #11111b;
+  --ctp-mantle: #181825;
+  --ctp-base: #1e1e2e;
+  --ctp-surface0: #313244;
+  --ctp-surface1: #45475a;
+  --ctp-surface2: #585b70;
+  --ctp-overlay0: #6c7086;
+  --ctp-overlay1: #7f849c;
+  --ctp-subtext0: #a6adc8;
+  --ctp-text: #cdd6f4;
+  --ctp-lavender: #b4befe;
+  --ctp-blue: #89b4fa;
+  --ctp-teal: #94e2d5;
+  --ctp-green: #a6e3a1;
+  --ctp-yellow: #f9e2af;
+  --ctp-peach: #fab387;
+  --ctp-red: #f38ba8;
+  --ctp-mauve: #cba6f7;
+  --ctp-pink: #f5c2e7;
+
+  --background: var(--ctp-base);
+  --foreground: var(--ctp-text);
+  --foreground-dim: var(--ctp-subtext0);
+  --foreground-faint: var(--ctp-overlay1);
+
+  --surface-sunk: var(--ctp-mantle);
+  --surface: var(--ctp-surface0);
+  --surface-raised: var(--ctp-surface1);
+  --surface-hover: var(--ctp-surface2);
+  --surface-foreground: var(--ctp-text);
+
+  --card: var(--surface);
+  --card-foreground: var(--ctp-text);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--ctp-text);
+
+  --primary: var(--ctp-mauve);
+  --primary-foreground: var(--ctp-crust);
+  --secondary: var(--ctp-lavender);
+  --secondary-foreground: var(--ctp-crust);
+  --accent: var(--ctp-peach);
+  --accent-foreground: var(--ctp-crust);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--foreground-dim);
+
+  --destructive: var(--ctp-red);
+  --destructive-foreground: var(--ctp-crust);
+  --destructive-strong: color-mix(in oklab, var(--destructive), white 20%);
+  --success: var(--ctp-green);
+  --success-foreground: var(--ctp-crust);
+  --success-strong: color-mix(in oklab, var(--success), white 20%);
+  --warning: var(--ctp-yellow);
+  --warning-foreground: var(--ctp-crust);
+  --warning-strong: color-mix(in oklab, var(--warning), white 20%);
+  --info: var(--ctp-blue);
+  --info-foreground: var(--ctp-crust);
+  --info-strong: color-mix(in oklab, var(--info), white 20%);
+
+  --border: var(--ctp-overlay0);
+  --input: var(--border);
+  --ring: var(--ctp-peach);
+
+  --glass: var(--ctp-text);
+  --glass-border: var(--ctp-text);
+  --overlay: var(--ctp-crust);
+
+  --page-bg: var(--ctp-base);
+
+  --decor-1: var(--ctp-teal);
+  --decor-2: var(--ctp-mauve);
+  --decor-3: var(--ctp-peach);
+  --decor-4: var(--ctp-pink);
+
+  --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
+  --glow-accent: none;
+
+  --radius: 0.5rem;
+  --display-font: "Syne", system-ui, sans-serif;
+  --body-font: "Manrope", system-ui, sans-serif;
+  --accent-font: "JetBrains Mono", monospace;
+  --accent-font-size-adjust: 0.4;
 }
 
 /*
@@ -269,6 +366,12 @@
           transparent 1px
         )
         0 0 / 48px 48px;
+  }
+
+  /* Catppuccin: a flat page, no pattern or texture. */
+  [data-theme="catppuccin"] .theme-texture,
+  [data-theme="catppuccin"] .theme-pattern {
+    display: none;
   }
 }
 
@@ -350,6 +453,10 @@
    * .font-heading / .font-body / .font-retro base classes are gone —
    * .font-body in particular collided with the generated utility.
    */
+
+  .font-accent {
+    font-size-adjust: var(--accent-font-size-adjust);
+  }
 
   /* Custom scrollbar */
   ::-webkit-scrollbar {

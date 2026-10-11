@@ -6,6 +6,7 @@
 export const THEMES = [
   { id: "retro", label: "Retro" },
   { id: "cyberpunk", label: "Cyberpunk" },
+  { id: "catppuccin", label: "Catppuccin" },
 ] as const;
 
 export type ThemeName = (typeof THEMES)[number]["id"];
