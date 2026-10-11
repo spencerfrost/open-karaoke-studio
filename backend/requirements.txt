@@ -41,7 +41,7 @@ git+https://github.com/spencerfrost/demucs.git
 whisperx
 qwen-asr
 # Audio separation experiments - UVR/Roformer models for lead/backing vocal isolation
-audio-separator[gpu]>=0.17.0
+audio-separator[gpu]==0.47.0
 colorlog>=6.0.0
 ytmusicapi>=1.12.3
 gunicorn

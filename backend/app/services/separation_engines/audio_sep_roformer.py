@@ -15,9 +15,10 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 import torch
-from audio_separator.separator import Separator
 
 from app.services import file_management
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +57,11 @@ def separate_with_roformer(
 
         # Initialize audio-separator with song_dir as output directory
         status_callback("Progress: 35% - Initializing Roformer model...")
-        separator = Separator(
-            output_dir=str(song_dir),
-            output_format="mp3",
-        )
-
         # Load the Mel-Band Roformer ViperX model
         # This model auto-downloads on first use
         model_name = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
         status_callback(f"Loading model: {model_name}")
-        separator.load_model(model_filename=model_name)
+        separator = load_separator(model_name, str(song_dir), output_format="mp3")
 
         # Check for stop request
         if stop_event and stop_event.is_set():

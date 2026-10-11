@@ -27,7 +27,6 @@ from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import torch
-from audio_separator.separator import Separator
 from pydub import AudioSegment
 
 from app.config import get_config
@@ -35,6 +34,8 @@ from app.services import file_management
 from app.services.audio import (
     StopProcessingError,
 )
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -117,14 +118,8 @@ def separate_with_three_track(
             "Step 1: Roformer isolation for clean vocal mix and pure instrumental"
         )
 
-        # Initialize the native wrapper for primary isolation
-        primary_separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
-        )
-
         status_callback(f"Progress: 15% - Loading primary model: {PRIMARY_VOCAL_MODEL}")
-        primary_separator.load_model(model_filename=PRIMARY_VOCAL_MODEL)
+        primary_separator = load_separator(PRIMARY_VOCAL_MODEL, str(temp_dir))
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -170,12 +165,8 @@ def separate_with_three_track(
         )
         logger.info("Step 2: Roformer karaoke separation on primary vocal track")
 
-        karaoke_separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
-        )
         status_callback(f"Progress: 55% - Loading model: {KARAOKE_MODEL}")
-        karaoke_separator.load_model(model_filename=KARAOKE_MODEL)
+        karaoke_separator = load_separator(KARAOKE_MODEL, str(temp_dir))
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -258,12 +249,8 @@ def separate_with_three_track(
         cleaned_backing_path = None
 
         try:
-            denoise_separator = Separator(
-                output_dir=str(temp_dir),
-                output_format="wav",
-            )
             status_callback(f"Progress: 76% - Loading model: {DENOISE_MODEL}")
-            denoise_separator.load_model(model_filename=DENOISE_MODEL)
+            denoise_separator = load_separator(DENOISE_MODEL, str(temp_dir))
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")

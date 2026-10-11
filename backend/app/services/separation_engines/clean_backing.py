@@ -35,7 +35,6 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-from audio_separator.separator import Separator
 from demucs.api import Separator as DemucsSeparator
 from pydub import AudioSegment
 
@@ -47,6 +46,8 @@ from app.services.audio import (
     make_progress_callback,
     select_device_and_log,
 )
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +146,8 @@ def separate_with_clean_backing(
         )
         logger.info("Step 2: Roformer karaoke separation")
 
-        karaoke_separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
-        )
         status_callback(f"Progress: 55% - Loading model: {KARAOKE_MODEL}")
-        karaoke_separator.load_model(model_filename=KARAOKE_MODEL)
+        karaoke_separator = load_separator(KARAOKE_MODEL, str(temp_dir))
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -245,12 +242,8 @@ def separate_with_clean_backing(
         cleaned_backing_path = None
 
         try:
-            denoise_separator = Separator(
-                output_dir=str(temp_dir),
-                output_format="wav",
-            )
             status_callback(f"Progress: 73% - Loading model: {DENOISE_MODEL}")
-            denoise_separator.load_model(model_filename=DENOISE_MODEL)
+            denoise_separator = load_separator(DENOISE_MODEL, str(temp_dir))
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")

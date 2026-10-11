@@ -21,7 +21,6 @@ from typing import Callable, Optional, Tuple
 
 import soundfile as sf
 import torch
-from audio_separator.separator import Separator
 from demucs.api import Separator as DemucsSeparator
 
 from app.config import get_config
@@ -32,6 +31,8 @@ from app.services.audio import (
     make_progress_callback,
     select_device_and_log,
 )
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -151,16 +152,10 @@ def separate_with_hybrid(
             "Progress: 60% - Step 2/3: Refining vocals with audio-separator..."
         )
 
-        # Initialize audio-separator
-        separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
-        )
-
         # Load the Mel-Band Roformer ViperX model for lead/backing separation
         model_name = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
         status_callback(f"Loading model: {model_name}")
-        separator.load_model(model_filename=model_name)
+        separator = load_separator(model_name, str(temp_dir))
 
         # Separate the Demucs vocals into lead and backing
         status_callback("Progress: 67% - Splitting vocals into lead and backing...")
