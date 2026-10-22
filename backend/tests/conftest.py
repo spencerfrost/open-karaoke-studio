@@ -91,8 +91,10 @@ def create_test_app():
         host_settings_router,
         jobs_router,
         lyrics_router,
+        musicbrainz_router,
         performance_history_router,
         queue_router,
+        session_playlist_router,
         sessions_router,
         songs_router,
         users_router,
@@ -135,6 +137,8 @@ def create_test_app():
     test_app.include_router(users_router)
     test_app.include_router(performance_history_router)
     test_app.include_router(host_settings_router)
+    test_app.include_router(musicbrainz_router)
+    test_app.include_router(session_playlist_router)
 
     # WebSocket routes
     @test_app.websocket("/ws/jobs")
