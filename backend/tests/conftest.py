@@ -1,21 +1,15 @@
 """
 Pytest configuration and shared fixtures for Open Karaoke Studio backend tests.
-
-This conftest provides FastAPI test fixtures after the Flask to FastAPI migration.
 """
 
 import os
-import random
 import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
-from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 # Point the app's global engine at a throwaway SQLite file BEFORE any app
 # module is imported: app/db/database.py builds its engine from
@@ -38,12 +32,9 @@ backend_path = str(Path(__file__).parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-
-from tests.fixtures.test_data import create_test_db_song, create_test_song
-
 from app.db.database import SessionLocal as _SessionLocal
 from app.db.database import engine as _global_engine
-from app.db.models import Base, DbSong
+from app.db.models import Base
 
 # Alembic manages the real schema, but the throwaway test database needs its
 # tables created directly.
@@ -82,46 +73,6 @@ def test_db_session():
         yield session
     finally:
         session.close()
-
-
-@pytest.fixture(scope="function")
-def populate_test_songs(test_db_session):
-    """
-    Populate the test database with 25 representative songs for integration tests.
-    Songs will have a mix of artists, albums, and special characters.
-    """
-    artists = ["Artist A", "Artist B", "Artist C", "Björk", "李荣浩"]
-    albums = ["Hits 1", "Hits 2", "Classics", "Specials"]
-    for i in range(25):
-        song = DbSong(
-            id=f"song-{i+1}",
-            title=f"Test Song {i+1} {'★' if i % 5 == 0 else ''}",
-            artist=random.choice(artists),
-            album=random.choice(albums),
-            duration=180.0 + i,  # Duration in seconds
-            date_added=None,
-            thumbnail_path=f"/tmp/test_songs/thumb_{i+1}.jpg",
-            cover_art_path=f"/tmp/test_songs/cover_{i+1}.jpg",
-            source="test",
-            source_url=f"http://example.com/song/{i+1}",
-            video_id=f"vid{i+1}",
-            uploader="TestUploader",
-            uploader_id="uploader123",
-            channel="TestChannel",
-            channel_id="channel123",
-            description=f"Description for song {i+1}",
-            upload_date=None,
-            mbid=None,
-            release_id=None,
-            release_date=None,
-            year=2020 + (i % 5),
-            language=random.choice(["English", "Spanish", "Chinese"]),
-            lyrics="La la la...",
-            synced_lyrics=None,
-        )
-        test_db_session.add(song)
-    test_db_session.commit()
-    # No yield or cleanup needed here, as the transaction will be rolled back.
 
 
 def create_test_app():
@@ -222,128 +173,8 @@ def create_test_app():
     return test_app
 
 
-@pytest.fixture(scope="session")
-def app():
-    """Create FastAPI application for testing"""
-    return create_test_app()
-
-
-@pytest.fixture(scope="session")
-def client(app):
-    """
-    Create FastAPI test client.
-
-    FastAPI's TestClient wraps httpx and allows testing async endpoints synchronously.
-    """
-    with TestClient(app) as test_client:
-        yield test_client
-
-
 @pytest.fixture(scope="function")
 def temp_library_dir():
     """Create temporary directory for file operations"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield Path(temp_dir)
-
-
-@pytest.fixture
-def sample_song_data():
-    """Sample song data for testing"""
-    return {
-        "id": "test-song-123",
-        "title": "Test Song",
-        "artist": "Test Artist",
-        "duration": 180,
-        "source": "upload",
-    }
-
-
-@pytest.fixture
-def sample_job_data():
-    """Sample job data for testing"""
-    return {
-        "id": "test-job-123",
-        "filename": "test_file.mp3",
-        "status": "pending",
-        "progress": 0,
-    }
-
-
-@pytest.fixture
-def mock_celery_task():
-    """Mock Celery task for testing"""
-
-    class MockTask:
-        def __init__(self):
-            self.id = "test-job-123"
-            self.state = "PENDING"
-            self.result = None
-
-        def delay(self):
-            return self
-
-        def get(self):
-            return self.result
-
-        def ready(self):
-            return self.state in ["SUCCESS", "FAILURE"]
-
-        def successful(self):
-            return self.state == "SUCCESS"
-
-        def failed(self):
-            return self.state == "FAILURE"
-
-    return MockTask()
-
-
-@pytest.fixture
-def mock_config():
-    """Mock configuration for testing"""
-    config = Mock()
-    config.LIBRARY_DIR = Path("/tmp/test_library")
-    config.UPLOADS_DIR = Path("/tmp/test_uploads")
-    config.DATABASE_URL = "sqlite:///:memory:"
-    return config
-
-
-@pytest.fixture
-def mock_file_service():
-    """Mock file management service"""
-    service = Mock()
-    service.get_song_directory.return_value = Path("/tmp/test_song")
-    service.ensure_song_directory.return_value = Path("/tmp/test_song")
-    service.get_metadata.return_value = {
-        "title": "Test Song",
-        "artist": "Test Artist",
-        "duration": 180,
-    }
-    return service
-
-
-@pytest.fixture
-def mock_audio_service():
-    """Mock audio processing service"""
-    service = Mock()
-    service.separate_audio.return_value = {}
-    return service
-
-
-@pytest.fixture
-def db_song_factory():
-    """Factory for creating test database songs"""
-
-    def _create_db_song(**kwargs):
-        return create_test_db_song(kwargs)
-
-    return _create_db_song
-
-
-@pytest.fixture
-def song_factory():
-    """Factory for creating test songs"""
-
-    def _create_song(**kwargs):
-        return create_test_song(kwargs)
-
-    return _create_song
