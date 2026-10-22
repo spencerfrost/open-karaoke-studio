@@ -6,12 +6,30 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from app.repositories.artist_repository import ArtistRepository
-from app.services.artist_image_service import ArtistImageService, _slugify
+from app.services.artist_image_service import (
+    _DISCOGS_RATE_LIMIT_LOW,
+    _DISCOGS_RATE_LIMIT_SLEEP,
+    ArtistImageService,
+    _discogs_get,
+    _slugify,
+)
 from app.services.file_service import FileService
 
 # Mock config to provide a fake Discogs token
 _MOCK_CONFIG = MagicMock()
 _MOCK_CONFIG.DISCOGS_TOKEN = "test-token"
+
+
+def _discogs_response(body: dict, remaining: int = 60) -> MagicMock:
+    """A mocked Discogs API response with a real rate-limit header.
+
+    A MagicMock header reads as a budget of 1, which makes the service
+    really sleep before returning.
+    """
+    resp = MagicMock()
+    resp.json.return_value = body
+    resp.headers = {"X-Discogs-Ratelimit-Remaining": str(remaining)}
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -119,12 +137,10 @@ async def test_fetches_and_saves_image_when_found(
     """Discogs flow: search → artist detail → download image (3 GET calls)."""
     image_path = file_service.get_artist_image_path.return_value
 
-    mock_search_resp = MagicMock()
-    mock_search_resp.json.return_value = {"results": [{"id": 555}]}
-    mock_detail_resp = MagicMock()
-    mock_detail_resp.json.return_value = {
-        "images": [{"type": "primary", "uri": "https://example.com/queen.jpg"}]
-    }
+    mock_search_resp = _discogs_response({"results": [{"id": 555}]})
+    mock_detail_resp = _discogs_response(
+        {"images": [{"type": "primary", "uri": "https://example.com/queen.jpg"}]}
+    )
     mock_img_resp = MagicMock()
     mock_img_resp.content = b"fake_image_bytes"
 
@@ -150,8 +166,7 @@ async def test_fetches_and_saves_image_when_found(
 @pytest.mark.asyncio
 async def test_creates_notfound_when_no_search_results(svc, artist_repo, mock_artist):
     """Discogs returns empty results list → not_found."""
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = {"results": []}
+    mock_resp = _discogs_response({"results": []})
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
@@ -172,10 +187,8 @@ async def test_creates_notfound_when_no_search_results(svc, artist_repo, mock_ar
 @pytest.mark.asyncio
 async def test_creates_notfound_when_no_images(svc, artist_repo, mock_artist):
     """Discogs artist detail has no images → not_found."""
-    mock_search_resp = MagicMock()
-    mock_search_resp.json.return_value = {"results": [{"id": 999}]}
-    mock_detail_resp = MagicMock()
-    mock_detail_resp.json.return_value = {"images": []}
+    mock_search_resp = _discogs_response({"results": [{"id": 999}]})
+    mock_detail_resp = _discogs_response({"images": []})
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(side_effect=[mock_search_resp, mock_detail_resp])
@@ -208,3 +221,28 @@ async def test_returns_none_on_network_error(svc, artist_repo, mock_artist):
     assert result is None
     # Status stays "not_checked" — transient failures don't poison the cache
     artist_repo.update_image.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _discogs_get rate limiting
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "remaining, sleeps",
+    [(_DISCOGS_RATE_LIMIT_LOW + 1, False), (_DISCOGS_RATE_LIMIT_LOW, True)],
+)
+async def test_discogs_get_sleeps_only_when_budget_is_low(remaining, sleeps):
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_discogs_response({}, remaining=remaining))
+
+    with patch(
+        "app.services.artist_image_service.asyncio.sleep", new=AsyncMock()
+    ) as mock_sleep:
+        await _discogs_get(client, "https://api.discogs.com/database/search")
+
+    if sleeps:
+        mock_sleep.assert_awaited_once_with(_DISCOGS_RATE_LIMIT_SLEEP)
+    else:
+        mock_sleep.assert_not_awaited()
