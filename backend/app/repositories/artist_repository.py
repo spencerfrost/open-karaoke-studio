@@ -94,6 +94,10 @@ class ArtistRepository:
                     self.db.delete(song)
                     deleted_songs += 1
 
+        # Sessions don't autoflush: without this, the query below finds the songs
+        # just deleted and counts them twice.
+        self.db.flush()
+
         # Also handle songs that have artist_id FK directly but no song_artists entries
         orphan_songs = self.db.query(DbSong).filter(DbSong.artist_id == artist.id).all()
         for song in orphan_songs:
