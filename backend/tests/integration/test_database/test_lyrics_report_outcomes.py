@@ -1,7 +1,5 @@
 """Tests for recording what an alignment run did about each lyrics report."""
 
-from unittest.mock import MagicMock, Mock, patch
-
 import pytest
 
 from app.db.models import DbSong, LyricsReport
@@ -26,12 +24,7 @@ def song_with_report(test_db_session):
     )
     test_db_session.add(report)
     test_db_session.commit()
-
-    ctx = MagicMock()
-    ctx.__enter__ = Mock(return_value=test_db_session)
-    ctx.__exit__ = Mock(return_value=False)
-    with patch("app.db.database.get_db_session", return_value=ctx):
-        yield test_db_session, report
+    return test_db_session, report
 
 
 def _outcome(session, report, result, pending=None) -> str | None:

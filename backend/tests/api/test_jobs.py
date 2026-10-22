@@ -3,20 +3,8 @@
 from unittest.mock import MagicMock, Mock
 
 import pytest
-from fastapi.testclient import TestClient
-from tests.conftest import create_test_app
 
-from app.api.dependencies import get_current_user
 from app.db.models import JobStatus
-
-
-def _get_mock_user():
-    mock_user = MagicMock()
-    mock_user.id = 1
-    mock_user.username = "testuser"
-    mock_user.is_admin = True
-    mock_user.is_host = True
-    return mock_user
 
 
 def _make_job(
@@ -43,21 +31,8 @@ def _make_job(
     return job
 
 
-@pytest.fixture(scope="module")
-def app():
-    app = create_test_app()
-    app.dependency_overrides[get_current_user] = _get_mock_user
-    return app
-
-
-@pytest.fixture(scope="module")
-def client(app):
-    with TestClient(app) as c:
-        yield c
-
-
 @pytest.fixture
-def mock_jobs_service(app):
+def mock_jobs_service(fastapi_app):
     svc = MagicMock()
     svc.get_statistics.return_value = {
         "total": 5,
@@ -75,9 +50,9 @@ def mock_jobs_service(app):
 
     from app.api.jobs import get_jobs_service
 
-    app.dependency_overrides[get_jobs_service] = lambda: svc
+    fastapi_app.dependency_overrides[get_jobs_service] = lambda: svc
     yield svc
-    app.dependency_overrides.pop(get_jobs_service, None)
+    fastapi_app.dependency_overrides.pop(get_jobs_service, None)
 
 
 class TestGetJobStatus:

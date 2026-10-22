@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from app.config import get_config
-from app.db.database import SessionLocal, get_db_session
+from app.db.database import get_db_session
 from app.db.models import DbAlbum, DbSong
 from app.jobs.batch_tasks import batch_fetch_albums
 from app.repositories.batch_run_repository import utc_now
@@ -25,13 +25,6 @@ MATCH = AlbumMatch(
     cover_url="https://yt3.googleusercontent.com/abc=w1200-h1200-s-l90-rj",
     explicit=False,
 )
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture

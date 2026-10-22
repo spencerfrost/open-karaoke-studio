@@ -6,21 +6,9 @@ timestamp now that karaoke_queue.created_at exists.
 
 from datetime import datetime, timedelta
 
-import pytest
-
-from app.db.database import SessionLocal
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession, SessionPerformer
 
 HOST_USER_ID = 1
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 def _make_session_with_song(db, session_id="AAAA", song_id="test-song-123"):

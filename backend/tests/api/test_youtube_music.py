@@ -3,9 +3,6 @@ Tests for FastAPI YouTube Music endpoints.
 """
 
 import uuid
-from unittest.mock import Mock
-
-import pytest
 
 from app.db.database import get_db_session
 from app.db.models import DbSong

@@ -3,10 +3,9 @@
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
-from tests.integration.conftest import _get_mock_user
+from tests.api.conftest import _get_mock_user
 
-from app.api.dependencies import require_admin
+from app.api.dependencies import get_current_user
 from app.db.database import SessionLocal
 from app.db.models import DbSong
 
@@ -46,17 +45,15 @@ def youtube_service():
 
 
 @pytest.fixture
-def admin_forbidden(integration_app):
-    """Make admin-only routes refuse, so a 202 proves the route isn't admin-only."""
-
-    def _deny():
-        raise HTTPException(status_code=403, detail="Admin required")
-
-    integration_app.dependency_overrides[require_admin] = _deny
+def admin_forbidden(fastapi_app):
+    """Sign in as a plain host, so a 202 proves the route isn't admin-only."""
+    host = _get_mock_user()
+    host.is_admin = False
+    fastapi_app.dependency_overrides[get_current_user] = lambda: host
     try:
         yield
     finally:
-        integration_app.dependency_overrides[require_admin] = _get_mock_user
+        fastapi_app.dependency_overrides[get_current_user] = _get_mock_user
 
 
 class TestRetryFailedSong:

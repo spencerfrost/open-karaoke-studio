@@ -9,9 +9,6 @@ tests pin that walk; the pointer's movement is covered in test_turn.py.
 
 from datetime import datetime, timedelta
 
-import pytest
-
-from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -22,15 +19,6 @@ from app.services.queue_ordering import get_ordered_queue_items
 from app.services.roster_service import resolve_or_create_performer
 
 HOST_USER_ID = 1
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 def _make_session(db, session_id="AAAA", mode="rotation"):

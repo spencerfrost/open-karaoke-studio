@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.db.database import SessionLocal
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
 from app.jobs._batch_runs import RunTracker, tracked_run
 from app.repositories.batch_run_repository import (
@@ -17,13 +16,6 @@ from app.repositories.batch_run_repository import (
 from app.services.batch_jobs import select_ids
 
 NO_ALIGNMENT = ([], 0)
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture

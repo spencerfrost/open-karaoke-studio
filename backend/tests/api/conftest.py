@@ -1,9 +1,10 @@
 """
-Pytest fixtures for FastAPI tests.
+Pytest fixtures for endpoint tests.
 
 Endpoints run against the shared throwaway database set up in tests/conftest.py,
-so tests can seed and inspect data with app.db.database.SessionLocal directly.
-Only authentication is overridden here.
+so tests can seed and inspect data with the `db` fixture directly. Only identity is
+overridden here: the mock user is an admin and a host, so the real role checks
+(require_host, require_admin) run and pass.
 """
 
 from unittest.mock import MagicMock, Mock, patch
@@ -41,7 +42,7 @@ def _get_mock_requester():
 
 @pytest.fixture(scope="module")
 def fastapi_app():
-    """Create FastAPI application for testing with auth bypassed."""
+    """FastAPI application with the mock admin user signed in."""
     app = create_test_app()
     app.dependency_overrides[get_current_user] = _get_mock_user
     app.dependency_overrides[require_host_or_session_member] = _get_mock_requester
@@ -53,6 +54,27 @@ def client(fastapi_app):
     """FastAPI test client."""
     with TestClient(fastapi_app) as client:
         yield client
+
+
+@pytest.fixture(scope="module")
+def unauthenticated_client():
+    """Test client with *no* auth overrides.
+
+    Used to prove that deliberately public routes stay reachable without an
+    Authorization header. Routes guarded by HTTPBearer will 401 here.
+    """
+    with TestClient(create_test_app()) as client:
+        yield client
+
+
+@pytest.fixture
+def db():
+    """Session on the shared test database, for seeding and inspecting rows."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture
@@ -153,13 +175,3 @@ def mock_db_session():
         session.query.return_value.filter.return_value.first.return_value = None
 
         yield session
-
-
-@pytest.fixture
-def user_db():
-    """Provide a test DB session for direct user creation in tests."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

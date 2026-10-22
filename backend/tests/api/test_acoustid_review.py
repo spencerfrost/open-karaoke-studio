@@ -6,17 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.db.database import SessionLocal
 from app.db.models import DbSong
 
 SONG_ID = "song-acoustid"
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture

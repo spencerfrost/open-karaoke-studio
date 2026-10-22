@@ -1,7 +1,5 @@
 """Tests for performance history endpoint."""
 
-import pytest
-
 
 class TestPerformanceHistoryEndpoint:
     def test_get_performance_history_returns_ok(self, client):

@@ -5,16 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app.db.database import SessionLocal
 from app.db.models import BatchRun, DbSong, LyricsReport
 from app.repositories.batch_run_repository import BatchRunRepository, utc_now
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture(autouse=True)

@@ -24,25 +24,25 @@ def override_requester(fastapi_app):
 
     yield _apply
 
-    from tests.fastapi.conftest import _get_mock_requester
+    from tests.api.conftest import _get_mock_requester
 
     fastapi_app.dependency_overrides[require_host_or_session_member] = (
         _get_mock_requester
     )
 
 
-def _make_demo_user(user_db, username="demo-pool-1"):
+def _make_demo_user(db, username="demo-pool-1"):
     user = User(username=username, display_name="Demo Host")
     user.set_password("secret")
     user.is_host = True
     user.is_demo = True
-    user_db.add(user)
-    user_db.commit()
-    user_db.refresh(user)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user
 
 
-def _make_session(user_db, host_user_id, session_id="AAAA"):
+def _make_session(db, host_user_id, session_id="AAAA"):
     session = KaraokeSession(
         session_id=session_id,
         display_code=session_id,
@@ -51,14 +51,14 @@ def _make_session(user_db, host_user_id, session_id="AAAA"):
         expires_at=datetime.utcnow() + timedelta(minutes=15),
         is_active=True,
     )
-    user_db.add(session)
-    user_db.commit()
+    db.add(session)
+    db.commit()
     return session
 
 
-def _make_jobs(user_db, session_id, count, created_at=None):
+def _make_jobs(db, session_id, count, created_at=None):
     for i in range(count):
-        user_db.add(
+        db.add(
             DbJob(
                 id=f"{session_id}-job-{i}-{datetime.utcnow().timestamp()}",
                 filename="original.mp3",
@@ -67,7 +67,7 @@ def _make_jobs(user_db, session_id, count, created_at=None):
                 created_at=created_at or datetime.utcnow(),
             )
         )
-    user_db.commit()
+    db.commit()
 
 
 def _download(client):
@@ -91,11 +91,11 @@ def _create_song(client):
 
 class TestDemoSessionCap:
     def test_guest_under_cap_succeeds_with_attribution(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "SESS")
-        _make_jobs(user_db, "SESS", 2)
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 2)
 
         override_requester(RequesterContext(session_id="SESS"))
         response = _download(client)
@@ -106,11 +106,11 @@ class TestDemoSessionCap:
         assert kwargs["user_id"] is None
 
     def test_guest_at_cap_returns_429(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "SESS")
-        _make_jobs(user_db, "SESS", 3)
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 3)
 
         override_requester(RequesterContext(session_id="SESS"))
         response = _download(client)
@@ -122,14 +122,14 @@ class TestDemoSessionCap:
 
 class TestDemoDailyCap:
     def test_daily_cap_across_pool_returns_429(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
+        demo = _make_demo_user(db)
         # Spread 20 recent jobs across two demo-hosted sessions.
-        _make_session(user_db, demo.id, "S1")
-        _make_session(user_db, demo.id, "S2")
-        _make_jobs(user_db, "S1", 1)  # target session under its own 3-cap
-        _make_jobs(user_db, "S2", 19)
+        _make_session(db, demo.id, "S1")
+        _make_session(db, demo.id, "S2")
+        _make_jobs(db, "S1", 1)  # target session under its own 3-cap
+        _make_jobs(db, "S2", 19)
 
         override_requester(RequesterContext(session_id="S1"))
         response = _download(client)
@@ -138,15 +138,13 @@ class TestDemoDailyCap:
         assert "daily" in response.json()["detail"].lower()
 
     def test_old_jobs_do_not_count_toward_daily_cap(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "S1")
-        _make_session(user_db, demo.id, "S2")
-        _make_jobs(user_db, "S1", 1)
-        _make_jobs(
-            user_db, "S2", 19, created_at=datetime.utcnow() - timedelta(hours=25)
-        )
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "S1")
+        _make_session(db, demo.id, "S2")
+        _make_jobs(db, "S1", 1)
+        _make_jobs(db, "S2", 19, created_at=datetime.utcnow() - timedelta(hours=25))
 
         override_requester(RequesterContext(session_id="S1"))
         response = _download(client)
@@ -156,10 +154,10 @@ class TestDemoDailyCap:
 
 class TestDemoJwtRequester:
     def test_demo_jwt_with_active_session_attributes_user(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "SESS")
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
 
         override_requester(RequesterContext(user=demo))
         response = _download(client)
@@ -170,9 +168,9 @@ class TestDemoJwtRequester:
         assert kwargs["user_id"] == demo.id
 
     def test_demo_jwt_without_session_returns_403(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
-        demo = _make_demo_user(user_db)
+        demo = _make_demo_user(db)
 
         override_requester(RequesterContext(user=demo))
         response = _download(client)
@@ -183,16 +181,16 @@ class TestDemoJwtRequester:
 
 class TestNonDemoUnaffected:
     def test_non_demo_host_never_counted(
-        self, client, user_db, mock_youtube_service, override_requester
+        self, client, db, mock_youtube_service, override_requester
     ):
         host = User(username="realhost", display_name="Real Host")
         host.set_password("secret")
         host.is_host = True
-        user_db.add(host)
-        user_db.commit()
-        user_db.refresh(host)
-        _make_session(user_db, host.id, "REAL")
-        _make_jobs(user_db, "REAL", 5)  # well over the demo cap
+        db.add(host)
+        db.commit()
+        db.refresh(host)
+        _make_session(db, host.id, "REAL")
+        _make_jobs(db, "REAL", 5)  # well over the demo cap
 
         override_requester(RequesterContext(session_id="REAL"))
         response = _download(client)
@@ -208,11 +206,11 @@ class TestCreateSongQuota:
     would leave orphaned, track-less songs in the library."""
 
     def test_over_cap_create_song_rejected_and_not_persisted(
-        self, client, user_db, override_requester
+        self, client, db, override_requester
     ):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "SESS")
-        _make_jobs(user_db, "SESS", 3)
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 3)
 
         override_requester(RequesterContext(session_id="SESS"))
         response = _create_song(client)
@@ -220,12 +218,12 @@ class TestCreateSongQuota:
         assert response.status_code == 429
         assert "3 new songs" in response.json()["detail"]
         # No orphaned song row was created.
-        assert user_db.query(DbSong).count() == 0
+        assert db.query(DbSong).count() == 0
 
-    def test_under_cap_create_song_allowed(self, client, user_db, override_requester):
-        demo = _make_demo_user(user_db)
-        _make_session(user_db, demo.id, "SESS")
-        _make_jobs(user_db, "SESS", 1)
+    def test_under_cap_create_song_allowed(self, client, db, override_requester):
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 1)
 
         override_requester(RequesterContext(session_id="SESS"))
         response = _create_song(client)

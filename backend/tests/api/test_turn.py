@@ -8,9 +8,6 @@ mid-song, and append mode being unaffected by any of it.
 
 from datetime import datetime, timedelta
 
-import pytest
-
-from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -30,15 +27,6 @@ from app.services.turn_service import (
 )
 
 HOST_USER_ID = 1
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 def _make_session(db, session_id="AAAA", mode="rotation"):

@@ -2,18 +2,8 @@
 
 from datetime import datetime
 
-import pytest
-
-from app.db.database import SessionLocal
 from app.db.models import DbSong
 from app.repositories.song_repository import SongRepository
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 def _add(db, song_id, status="processed", failed_at=None, error=None):

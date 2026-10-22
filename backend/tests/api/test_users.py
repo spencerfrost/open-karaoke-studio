@@ -2,8 +2,6 @@
 Tests for FastAPI users endpoints.
 """
 
-import pytest
-
 from app.db.models import User
 
 
@@ -49,12 +47,12 @@ class TestUserRegistration:
 
         assert response.status_code == 422
 
-    def test_register_username_already_exists(self, client, user_db):
+    def test_register_username_already_exists(self, client, db):
         """Test registration fails when username exists."""
         existing = User(username="existinguser")
         existing.set_password("password123")
-        user_db.add(existing)
-        user_db.commit()
+        db.add(existing)
+        db.commit()
 
         response = client.post(
             "/api/users/register",
@@ -68,14 +66,14 @@ class TestUserRegistration:
 class TestUserLogin:
     """Tests for user login endpoint."""
 
-    def test_login_success(self, client, user_db):
+    def test_login_success(self, client, db):
         """Test successful login with correct credentials."""
         user = User(username="testuser", display_name="Test User")
         user.set_password("correctpassword")
         user.is_admin = False
         user.is_host = False
-        user_db.add(user)
-        user_db.commit()
+        db.add(user)
+        db.commit()
 
         response = client.post(
             "/api/users/login",
@@ -109,12 +107,12 @@ class TestUserLogin:
 
         assert response.status_code == 401
 
-    def test_login_wrong_password(self, client, user_db):
+    def test_login_wrong_password(self, client, db):
         """Test login fails with wrong password."""
         user = User(username="testuser2")
         user.set_password("correctpassword")
-        user_db.add(user)
-        user_db.commit()
+        db.add(user)
+        db.commit()
 
         response = client.post(
             "/api/users/login",
@@ -127,13 +125,13 @@ class TestUserLogin:
 class TestUserUpdate:
     """Tests for user update endpoint."""
 
-    def test_update_display_name(self, client, user_db):
+    def test_update_display_name(self, client, db):
         """Test updating display name."""
         user = User(username="updateuser")
         user.set_password("password123")
-        user_db.add(user)
-        user_db.commit()
-        user_db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response = client.patch(
             f"/api/users/{user.id}", json={"display_name": "New Display Name"}
@@ -141,16 +139,16 @@ class TestUserUpdate:
 
         assert response.status_code == 200
         assert response.json()["success"] is True
-        user_db.refresh(user)
+        db.refresh(user)
         assert user.display_name == "New Display Name"
 
-    def test_update_password(self, client, user_db):
+    def test_update_password(self, client, db):
         """Test updating password."""
         user = User(username="pwupdateuser")
         user.set_password("oldpassword")
-        user_db.add(user)
-        user_db.commit()
-        user_db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response = client.patch(
             f"/api/users/{user.id}", json={"password": "newpassword123"}
@@ -159,25 +157,25 @@ class TestUserUpdate:
         assert response.status_code == 200
         assert response.json()["success"] is True
 
-    def test_update_password_too_short(self, client, user_db):
+    def test_update_password_too_short(self, client, db):
         """Test that updated password must be at least 8 characters."""
         user = User(username="shortpwuser")
         user.set_password("password123")
-        user_db.add(user)
-        user_db.commit()
-        user_db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response = client.patch(f"/api/users/{user.id}", json={"password": "short"})
 
         assert response.status_code == 422
 
-    def test_update_requires_at_least_one_field(self, client, user_db):
+    def test_update_requires_at_least_one_field(self, client, db):
         """Test that at least one field must be provided."""
         user = User(username="emptyupdateuser")
         user.set_password("password123")
-        user_db.add(user)
-        user_db.commit()
-        user_db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response = client.patch(f"/api/users/{user.id}", json={})
 
@@ -189,14 +187,14 @@ class TestUserUpdate:
 
         assert response.status_code == 404
 
-    def test_update_demo_account_forbidden(self, client, user_db):
+    def test_update_demo_account_forbidden(self, client, db):
         """Demo pool accounts can't be modified (prevents password hijack)."""
         user = User(username="demo-pool-x")
         user.set_password("password123")
         user.is_demo = True
-        user_db.add(user)
-        user_db.commit()
-        user_db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
         response = client.patch(
             f"/api/users/{user.id}", json={"password": "newpassword123"}
@@ -218,6 +216,6 @@ class TestUserUpdate:
             response = client.patch("/api/users/1", json={"display_name": "Test"})
             assert response.status_code == 401
         finally:
-            from tests.fastapi.conftest import _get_mock_user
+            from tests.api.conftest import _get_mock_user
 
             fastapi_app.dependency_overrides[get_current_user] = _get_mock_user

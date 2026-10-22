@@ -1,11 +1,8 @@
 """Integration tests for song replacement validation endpoints."""
 
-import json
 import uuid
 from io import BytesIO
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):

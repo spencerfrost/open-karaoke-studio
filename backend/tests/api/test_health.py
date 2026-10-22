@@ -2,8 +2,6 @@
 Tests for FastAPI health endpoint.
 """
 
-import pytest
-
 
 class TestHealthEndpoint:
     """Tests for health check endpoint."""
