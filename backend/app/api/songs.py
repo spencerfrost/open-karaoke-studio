@@ -32,7 +32,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -399,15 +399,12 @@ async def get_songs_by_artist(
 
     try:
         # Subquery to get song IDs for this artist (avoids DISTINCT on JSON columns)
-        song_ids_subq = (
-            db.query(DbSongArtist.song_id)
+        song_ids = (
+            select(DbSongArtist.song_id)
             .join(DbArtist, DbArtist.id == DbSongArtist.artist_id)
-            .filter(DbArtist.name == artist_name.lower().strip())
-            .subquery()
+            .where(DbArtist.name == artist_name.lower().strip())
         )
-        base_query = db.query(DbSong).filter(
-            DbSong.id.in_(song_ids_subq), in_songbook()
-        )
+        base_query = db.query(DbSong).filter(DbSong.id.in_(song_ids), in_songbook())
 
         # Apply sorting
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)

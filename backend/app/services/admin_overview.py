@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.db.models import DbSong, LyricsReport
 from app.db.models.song import in_songbook
-from app.repositories.batch_run_repository import BatchRunRepository, utc_now
+from app.repositories.batch_run_repository import BatchRunRepository
 from app.services.batch_jobs import JOBS, SCAN_KINDS, job_summary, serialize_run
+from app.utils.clock import utc_now
 
 SONGS_ADDED_WEEKS = 12
 RECENT_SONGS = 6

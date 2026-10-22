@@ -12,7 +12,7 @@ member of the session, and a wrong code is indistinguishable from a wrong device
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 import pytest
@@ -23,6 +23,7 @@ from tests.conftest import create_test_app
 import app.db.models as models
 from app.db.database import SessionLocal
 from app.services.auth_service import create_access_token
+from app.utils.clock import utc_now
 
 
 @pytest.fixture(scope="function")
@@ -49,7 +50,7 @@ def ws_setup():
             host_device_id=f"rest_{uuid.uuid4().hex[:12]}",
             host_user_id=host_user_id,
             is_active=True,
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            expires_at=utc_now() + timedelta(hours=1),
         )
         setup_session.add(session)
         setup_session.commit()

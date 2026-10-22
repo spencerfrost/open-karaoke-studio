@@ -5,12 +5,13 @@ Quotas: 3 downloads per demo session, 20/day across all demo sessions.
 Non-demo requesters are never counted and keep their behavior unchanged.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
 from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.db.models import DbJob, DbSong, KaraokeSession, User
+from app.utils.clock import utc_now
 
 
 @pytest.fixture
@@ -48,7 +49,7 @@ def _make_session(db, host_user_id, session_id="AAAA"):
         display_code=session_id,
         host_device_id="demo_device",
         host_user_id=host_user_id,
-        expires_at=datetime.utcnow() + timedelta(minutes=15),
+        expires_at=utc_now() + timedelta(minutes=15),
         is_active=True,
     )
     db.add(session)
@@ -60,11 +61,11 @@ def _make_jobs(db, session_id, count, created_at=None):
     for i in range(count):
         db.add(
             DbJob(
-                id=f"{session_id}-job-{i}-{datetime.utcnow().timestamp()}",
+                id=f"{session_id}-job-{i}-{utc_now().timestamp()}",
                 filename="original.mp3",
                 status="completed",
                 session_id=session_id,
-                created_at=created_at or datetime.utcnow(),
+                created_at=created_at or utc_now(),
             )
         )
     db.commit()
@@ -144,7 +145,7 @@ class TestDemoDailyCap:
         _make_session(db, demo.id, "S1")
         _make_session(db, demo.id, "S2")
         _make_jobs(db, "S1", 1)
-        _make_jobs(db, "S2", 19, created_at=datetime.utcnow() - timedelta(hours=25))
+        _make_jobs(db, "S2", 19, created_at=utc_now() - timedelta(hours=25))
 
         override_requester(RequesterContext(session_id="S1"))
         response = _download(client)

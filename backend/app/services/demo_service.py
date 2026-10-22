@@ -12,7 +12,7 @@ import logging
 import os
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import HTTPException
@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import RequesterContext
 from app.db.models import DbJob, HostSettings, JobStatus, KaraokeSession, User
+from app.utils.clock import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ def _acquire_pool_account(db: Session) -> Optional[User]:
     if not pool:
         return None
 
-    now = datetime.utcnow()
+    now = utc_now()
     busy_rows = (
         db.query(KaraokeSession.host_user_id)
         .filter(
@@ -158,7 +159,7 @@ def enforce_demo_download_quota(
             .filter(
                 KaraokeSession.host_user_id == user.id,
                 KaraokeSession.is_active.is_(True),
-                KaraokeSession.expires_at > datetime.utcnow(),
+                KaraokeSession.expires_at > utc_now(),
             )
             .first()
         )
@@ -199,7 +200,7 @@ def enforce_demo_download_quota(
             ),
         )
 
-    cutoff = datetime.utcnow() - timedelta(hours=24)
+    cutoff = utc_now() - timedelta(hours=24)
     daily_count = (
         db.query(func.count(DbJob.id))
         .join(KaraokeSession, KaraokeSession.session_id == DbJob.session_id)

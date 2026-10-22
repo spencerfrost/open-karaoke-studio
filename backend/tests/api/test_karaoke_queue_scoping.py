@@ -4,7 +4,7 @@ own session (require_queue_access), and only the owning host - or an admin -
 may mutate a session's queue (require_session_owner).
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 from tests.api.conftest import _get_mock_requester
@@ -15,6 +15,7 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession
+from app.utils.clock import utc_now
 
 HOST_A_USER_ID = 1
 HOST_B_USER_ID = 2
@@ -26,7 +27,7 @@ def _make_session_with_song(db, session_id, host_user_id, song_id):
         display_code=session_id,
         host_device_id=f"rest_{session_id.lower()}",
         host_user_id=host_user_id,
-        expires_at=datetime.utcnow() + timedelta(hours=8),
+        expires_at=utc_now() + timedelta(hours=8),
         is_active=True,
     )
     db.add(session)

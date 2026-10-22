@@ -1,7 +1,7 @@
 # backend/tests/integration/test_karaoke_queue_websockets.py
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,6 +16,7 @@ from app.api.dependencies import (
 )
 from app.db.database import SessionLocal
 from app.services.auth_service import create_access_token
+from app.utils.clock import utc_now
 
 
 def _make_mock_user():
@@ -64,7 +65,7 @@ def test_setup():
             host_device_id=host_device_id,
             host_user_id=host_user_id,
             is_active=True,
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            expires_at=utc_now() + timedelta(hours=1),
         )
         setup_session.add(session)
         # Session creation registers the host's device; sockets authenticate with it.

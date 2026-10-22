@@ -3,7 +3,7 @@ Tests for the session roster (unit 3a): resolve_or_create_performer and the
 /api/sessions/{id}/performers endpoints.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from tests.api.conftest import _get_mock_requester
@@ -11,6 +11,7 @@ from tests.api.conftest import _get_mock_requester
 from app.api.dependencies import RequesterContext, require_host_or_session_member
 from app.db.models import KaraokeSession, SessionPerformer
 from app.services.roster_service import resolve_or_create_performer
+from app.utils.clock import utc_now
 
 HOST_USER_ID = 1
 
@@ -34,7 +35,7 @@ def _make_session(db, session_id="AAAA"):
         display_code=session_id,
         host_device_id=f"rest_{session_id.lower()}",
         host_user_id=HOST_USER_ID,
-        expires_at=datetime.utcnow() + timedelta(hours=8),
+        expires_at=utc_now() + timedelta(hours=8),
         is_active=True,
     )
     db.add(session)

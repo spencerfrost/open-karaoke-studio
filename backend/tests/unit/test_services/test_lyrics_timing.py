@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 import pytest
-from pythonjsonlogger.jsonlogger import JsonFormatter
+from pythonjsonlogger.json import JsonFormatter
 
 from app.config.base import BaseConfig
 from app.config.logging import LoggingConfig

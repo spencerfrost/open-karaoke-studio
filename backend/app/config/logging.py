@@ -128,7 +128,7 @@ class LoggingConfig:
                     "timezone": self.timezone,
                 },
                 "json": {
-                    "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                    "()": "pythonjsonlogger.json.JsonFormatter",
                     "format": (
                         "%(asctime)s %(name)s %(levelname)s %(filename)s "
                         "%(lineno)d %(funcName)s %(message)s"

@@ -6,7 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from app.db.models import BatchRun, DbSong, LyricsReport
-from app.repositories.batch_run_repository import BatchRunRepository, utc_now
+from app.repositories.batch_run_repository import BatchRunRepository
+from app.utils.clock import utc_now
 
 
 @pytest.fixture(autouse=True)

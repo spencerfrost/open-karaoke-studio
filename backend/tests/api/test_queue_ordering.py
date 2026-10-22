@@ -7,7 +7,7 @@ start at the pointer, take each person's k-th song on the k-th pass. These
 tests pin that walk; the pointer's movement is covered in test_turn.py.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.db.models import (
     DbSong,
@@ -17,6 +17,7 @@ from app.db.models import (
 )
 from app.services.queue_ordering import get_ordered_queue_items
 from app.services.roster_service import resolve_or_create_performer
+from app.utils.clock import utc_now
 
 HOST_USER_ID = 1
 
@@ -27,7 +28,7 @@ def _make_session(db, session_id="AAAA", mode="rotation"):
         display_code=session_id,
         host_device_id=f"rest_{session_id.lower()}",
         host_user_id=HOST_USER_ID,
-        expires_at=datetime.utcnow() + timedelta(hours=8),
+        expires_at=utc_now() + timedelta(hours=8),
         is_active=True,
         queue_order_mode=mode,
     )

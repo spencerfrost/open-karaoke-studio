@@ -2,23 +2,19 @@
 Batch run repository: the record of every batch job run.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
 from app.db.models import BatchRun
+from app.utils.clock import utc_now
 
 ACTIVE_STATUSES = ("queued", "running")
 
 # A running task reports after every song, and no song takes anywhere near
 # this long. A running row this quiet belongs to a worker that died.
 STALE_AFTER = timedelta(minutes=15)
-
-
-def utc_now() -> datetime:
-    """Now in UTC, without a zone: what the DateTime columns store and return."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class RunNotActive(Exception):

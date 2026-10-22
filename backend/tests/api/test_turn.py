@@ -6,7 +6,7 @@ the pointer, phone joins, remove and undo, songs played out of order, bump
 mid-song, and append mode being unaffected by any of it.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.db.models import (
     DbSong,
@@ -25,6 +25,7 @@ from app.services.turn_service import (
     compute_turn,
     serialize_turn,
 )
+from app.utils.clock import utc_now
 
 HOST_USER_ID = 1
 
@@ -35,7 +36,7 @@ def _make_session(db, session_id="AAAA", mode="rotation"):
         display_code=session_id,
         host_device_id=f"rest_{session_id.lower()}",
         host_user_id=HOST_USER_ID,
-        expires_at=datetime.utcnow() + timedelta(hours=8),
+        expires_at=utc_now() + timedelta(hours=8),
         is_active=True,
         queue_order_mode=mode,
     )

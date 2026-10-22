@@ -8,7 +8,6 @@ from app.config import get_config
 from app.db.database import get_db_session
 from app.db.models import DbAlbum, DbSong
 from app.jobs.batch_tasks import batch_fetch_albums
-from app.repositories.batch_run_repository import utc_now
 from app.services import album_service
 from app.services.album_service import (
     AlbumLookupError,
@@ -16,6 +15,7 @@ from app.services.album_service import (
     delete_unlinked_albums,
     refresh_song_album,
 )
+from app.utils.clock import utc_now
 
 MATCH = AlbumMatch(
     source="ytmusic",

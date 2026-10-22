@@ -5,7 +5,7 @@ Pydantic Schemas for Song objects.
 from datetime import datetime
 from typing import Any, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # Pydantic Models for Songs
@@ -90,8 +90,7 @@ class SongResponse(BaseModel):
     errorMessage: Optional[str] = None
     failedAt: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SongCreateRequest(BaseModel):

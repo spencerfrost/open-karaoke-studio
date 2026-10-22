@@ -5,11 +5,12 @@ The alias (DEMO_LOGIN_USERNAME / DEMO_LOGIN_PASSWORD) resolves to a free
 `is_demo` pool account and eagerly starts that account's karaoke session.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
 from app.db.models import HostSettings, KaraokeSession, User
+from app.utils.clock import utc_now
 
 ALIAS_USERNAME = "demo"
 ALIAS_PASSWORD = "public-demo-pw"
@@ -132,7 +133,7 @@ class TestDemoAliasLogin:
             .filter(KaraokeSession.host_user_id == first_id)
             .first()
         )
-        session.expires_at = datetime.utcnow() - timedelta(minutes=1)
+        session.expires_at = utc_now() - timedelta(minutes=1)
         db.commit()
 
         reused = _login(client, ALIAS_USERNAME, ALIAS_PASSWORD)

@@ -8,7 +8,7 @@ a fresh session with a new code.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from tests.api.conftest import _get_mock_user
 
@@ -22,6 +22,7 @@ from app.db.models import (
     SessionPerformer,
 )
 from app.services.session_service import deactivate_session
+from app.utils.clock import utc_now
 
 HOST_USER_ID = 1
 
@@ -33,7 +34,7 @@ def _make_session(db, session_id="AAAA", host_user_id=HOST_USER_ID, is_active=Tr
         display_code=session_id,
         host_device_id=f"rest_{session_id.lower()}",
         host_user_id=host_user_id,
-        expires_at=datetime.utcnow() + timedelta(hours=8),
+        expires_at=utc_now() + timedelta(hours=8),
         is_active=is_active,
     )
     db.add(session)
@@ -396,8 +397,8 @@ def test_post_my_ignores_stale_active_sessions(client, db):
             host_device_id="rest_stale000000",
             host_user_id=HOST_USER_ID,
             is_active=True,
-            created_at=datetime.utcnow() - timedelta(days=3),
-            expires_at=datetime.utcnow() - timedelta(days=2),
+            created_at=utc_now() - timedelta(days=3),
+            expires_at=utc_now() - timedelta(days=2),
         )
     )
     db.commit()
@@ -668,7 +669,7 @@ def test_purge_removes_long_dead_sessions_only(db):
     _make_session(db, "CCCC", is_active=True)
 
     old = db.query(KaraokeSession).filter(KaraokeSession.session_id == "AAAA").one()
-    old.created_at = datetime.utcnow() - timedelta(days=30)
+    old.created_at = utc_now() - timedelta(days=30)
     db.commit()
 
     assert purge_stale_sessions(db, older_than_days=7) == 1

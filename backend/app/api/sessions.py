@@ -11,7 +11,7 @@ This module provides REST API endpoints for session management:
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -39,6 +39,7 @@ from app.services.roster_service import (
 )
 from app.services.session_service import deactivate_session
 from app.services.turn_service import compute_turn
+from app.utils.clock import utc_now
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
@@ -261,7 +262,7 @@ def deactivate_expired_sessions(db: Session) -> int:
         db.query(KaraokeSession)
         .filter(
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at <= datetime.utcnow(),
+            KaraokeSession.expires_at <= utc_now(),
         )
         .update({KaraokeSession.is_active: False}, synchronize_session=False)
     )
@@ -303,7 +304,7 @@ def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
     use and are deleted outright (cascading to their queue items and playback state).
     Returns the number of sessions removed.
     """
-    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    cutoff = utc_now() - timedelta(days=older_than_days)
 
     stale = (
         db.query(KaraokeSession)
@@ -344,7 +345,7 @@ async def get_my_session(
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at > datetime.utcnow(),
+            KaraokeSession.expires_at > utc_now(),
         )
         .order_by(KaraokeSession.created_at.desc())
         .first()
@@ -414,7 +415,7 @@ async def get_or_create_my_session(
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at > datetime.utcnow(),
+            KaraokeSession.expires_at > utc_now(),
         )
         .order_by(KaraokeSession.created_at.desc())
         .first()
@@ -1006,7 +1007,7 @@ async def validate_session(session_id: str, db: Session = Depends(get_db)):
         )
 
     # Check if session has expired
-    if session.expires_at and session.expires_at < datetime.utcnow():
+    if session.expires_at and session.expires_at < utc_now():
         raise HTTPException(status_code=410, detail="Session has expired")
 
     return SessionValidationResponse(

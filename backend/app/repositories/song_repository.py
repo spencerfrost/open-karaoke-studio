@@ -24,13 +24,14 @@ Song repository for managing song records in the database.
 
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.db.models import DbSong
 from app.db.models.song import in_songbook
+from app.utils.clock import utc_now
 
 
 class SongRepository:
@@ -191,11 +192,7 @@ class SongRepository:
         # failed_at goes with status: stamped when the song fails, cleared
         # when it's restarted or finishes.
         if "status" in fields and "failed_at" not in fields:
-            fields["failed_at"] = (
-                datetime.now(timezone.utc).replace(tzinfo=None)
-                if fields["status"] == "error"
-                else None
-            )
+            fields["failed_at"] = utc_now() if fields["status"] == "error" else None
 
         for key, value in fields.items():
             setattr(song, key, value)

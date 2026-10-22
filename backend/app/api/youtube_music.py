@@ -6,7 +6,7 @@ import logging
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.db.database import get_db_session
 from app.db.models.song import DbSong
@@ -31,8 +31,7 @@ class YoutubeMusicSearchResult(BaseModel):
     existsInLibrary: bool = False
     failedSongId: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class YoutubeMusicArtistSearchResult(BaseModel):
@@ -43,8 +42,7 @@ class YoutubeMusicArtistSearchResult(BaseModel):
     subscribers: Optional[str] = None
     thumbnails: List[dict] = []
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class YoutubeMusicSearchResponse(BaseModel):

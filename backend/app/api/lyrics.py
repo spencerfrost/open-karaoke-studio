@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -48,8 +48,7 @@ class LyricsResult(BaseModel):
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 def _validate_alignment_source(source: Optional[str]) -> Optional[str]:

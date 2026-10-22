@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
+from app.utils.clock import utc_now
+
 from .base import Base
 
 if TYPE_CHECKING:
@@ -30,7 +32,7 @@ class KaraokeSession(Base):
     host_user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # "append" (today's insert-order behaviour) or "rotation" (round-robin over
@@ -141,7 +143,7 @@ class KaraokeSession(Base):
             session_id=display_code,  # Use display_code as session_id for simplicity
             display_code=display_code,
             host_device_id=host_device_id,
-            expires_at=datetime.utcnow() + timedelta(hours=duration_hours),
+            expires_at=utc_now() + timedelta(hours=duration_hours),
         )
         if queue_order_mode is not None:
             session.queue_order_mode = queue_order_mode
@@ -149,7 +151,7 @@ class KaraokeSession(Base):
 
     def is_expired(self) -> bool:
         """Check if the session has expired."""
-        return datetime.utcnow() > self.expires_at
+        return utc_now() > self.expires_at
 
     def get_active_devices(self) -> List["SessionDevice"]:
         """Get all active devices in this session."""
@@ -171,7 +173,7 @@ class SessionDevice(Base):
     )
     device_id: Mapped[str] = mapped_column(String(64), nullable=False)
     device_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -217,11 +219,11 @@ class SessionPlaybackState(Base):
     current_time: Mapped[float] = mapped_column(nullable=False, default=0.0)
     duration: Mapped[float] = mapped_column(nullable=False, default=0.0)
     is_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     session: Mapped["KaraokeSession"] = relationship(

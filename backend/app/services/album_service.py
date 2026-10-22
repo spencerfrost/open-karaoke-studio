@@ -18,12 +18,12 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Literal, Optional
 
 import requests
 
 from app.db.models.song import DbSong
+from app.utils.clock import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +334,7 @@ def assign_album(song_id: str, match: AlbumMatch) -> AlbumOutcome:
             outcome = "error"  # the download failed; a later run tries again
         else:
             outcome = "no_cover"
-        song.album_checked_at = _now() if outcome == "no_cover" else None
+        song.album_checked_at = utc_now() if outcome == "no_cover" else None
         session.commit()
 
     logger.info(
@@ -364,7 +364,7 @@ def refresh_song_album(song_id: str) -> AlbumOutcome:
             logger.warning("Album lookup failed for song %s: %s", song_id, e)
             return "error"
         if match is None:
-            song.album_checked_at = _now()
+            song.album_checked_at = utc_now()
             session.commit()
             logger.info("No album found for song %s", song_id)
             return "not_found"
@@ -411,8 +411,3 @@ def delete_unlinked_albums() -> int:
     if albums:
         logger.info("Deleted %d albums no song links to", len(albums))
     return len(albums)
-
-
-def _now() -> datetime:
-    # Columns hold UTC without a zone.
-    return datetime.now(timezone.utc).replace(tzinfo=None)

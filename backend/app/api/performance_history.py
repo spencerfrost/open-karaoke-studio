@@ -8,7 +8,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, require_host
@@ -27,8 +27,7 @@ class PerformanceHistoryItem(BaseModel):
     session_code: Optional[str]
     performed_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerformanceHistoryResponse(BaseModel):

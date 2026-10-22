@@ -11,9 +11,9 @@ from app.repositories.batch_run_repository import (
     STALE_AFTER,
     BatchRunRepository,
     RunNotActive,
-    utc_now,
 )
 from app.services.batch_jobs import select_ids
+from app.utils.clock import utc_now
 
 NO_ALIGNMENT = ([], 0)
 

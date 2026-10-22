@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Optional
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.utils.clock import utc_now
+
 from .base import Base
 
 if TYPE_CHECKING:
@@ -49,7 +51,7 @@ class SessionPerformer(Base):
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     session: Mapped["KaraokeSession"] = relationship(
         "KaraokeSession", back_populates="performers", foreign_keys=[session_id]
