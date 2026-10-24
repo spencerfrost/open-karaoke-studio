@@ -15,6 +15,7 @@ from app.api.dependencies import (
     get_db,
     require_host_or_session_member,
 )
+from app.db.models import JobStep
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.youtube_service import YouTubeService
@@ -224,6 +225,7 @@ async def download_youtube(
                 "id": job_id,
                 "song_id": body.song_id,
                 "status": "pending",
+                "step": JobStep.DOWNLOAD.value,
                 "progress": 0,
                 "artist": body.artist,
                 "title": body.title,

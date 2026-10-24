@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from app.db.models import Job, JobStatus
+from app.db.models import Job, JobStatus, JobStep
 from app.repositories import JobRepository
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -36,6 +36,7 @@ def _create_lyrics_alignment_job(
         title=title,
         artist=artist,
         engine_type=LYRICS_JOB_ENGINE_TYPE,
+        step=JobStep.ALIGN,
     )
     job_repository.create(lyrics_job)
     log_lyrics_event(
@@ -69,12 +70,14 @@ def _update_lyrics_alignment_job(
             song_id=song_id,
             error=error,
             engine_type=LYRICS_JOB_ENGINE_TYPE,
+            step=JobStep.ALIGN,
         )
     else:
         lyrics_job.status = status
         lyrics_job.progress = progress
         lyrics_job.status_message = message
         lyrics_job.error = error
+        lyrics_job.step = JobStep.ALIGN
 
     if status == JobStatus.PROCESSING and lyrics_job.started_at is None:
         lyrics_job.started_at = datetime.now()

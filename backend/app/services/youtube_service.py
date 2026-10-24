@@ -378,13 +378,14 @@ class YouTubeService(YouTubeServiceInterface):
             job_id = str(uuid.uuid4())
 
             # Create and save job to database FIRST, before queuing Celery task
-            from app.db.models import Job, JobStatus
+            from app.db.models import Job, JobStatus, JobStep
             from app.repositories import JobRepository
 
             job = Job(
                 id=job_id,
                 filename="original.mp3",
                 status=JobStatus.PENDING,
+                step=JobStep.DOWNLOAD,
                 status_message="Queued for YouTube processing",
                 progress=0,
                 song_id=song_id,

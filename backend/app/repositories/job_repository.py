@@ -54,6 +54,7 @@ class JobRepository:
                         engine_type=job.engine_type,
                         session_id=job.session_id,
                         user_id=job.user_id,
+                        step=job.step.value if job.step else None,
                     )
                     session.add(db_job)
                 else:
@@ -71,6 +72,7 @@ class JobRepository:
                     db_job.engine_type = job.engine_type  # type: ignore
                     db_job.session_id = job.session_id  # type: ignore
                     db_job.user_id = job.user_id  # type: ignore
+                    db_job.step = job.step.value if job.step else None  # type: ignore
 
                 session.flush()
                 session.commit()

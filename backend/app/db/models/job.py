@@ -26,6 +26,18 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class JobStep(str, Enum):
+    """The pipeline step a job is on (or waiting for, while pending).
+
+    Separate from `status`, which says whether the job is waiting, running or done.
+    Lyrics alignment runs as its own job, so its step is always `align`.
+    """
+
+    DOWNLOAD = "download"
+    SEPARATE = "separate"
+    ALIGN = "align"
+
+
 @dataclass
 class Job:
     """Data class representing a job with its current status and progress."""
@@ -48,12 +60,15 @@ class Job:
     )
     session_id: Optional[str] = None  # Karaoke session that initiated the job
     user_id: Optional[int] = None  # Account that initiated the job (if any)
+    step: Optional[JobStep] = None  # Pipeline step, see JobStep
 
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now(timezone.utc)
         if isinstance(self.status, str):
             self.status = JobStatus(self.status)
+        if isinstance(self.step, str) and not isinstance(self.step, JobStep):
+            self.step = JobStep(self.step)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the job to its wire form for clients.
@@ -74,6 +89,7 @@ class Job:
                 else:
                     data[key] = data[key].isoformat()
         data["status"] = self.status.value
+        data["step"] = self.step.value if self.step else None
         return data
 
 
@@ -97,6 +113,7 @@ class DbJob(Base):
     engine_type = Column(String, nullable=True)  # Separation engine used
     session_id = Column(String, nullable=True, index=True)  # Initiating karaoke session
     user_id = Column(Integer, nullable=True)  # Initiating account (if any)
+    step = Column(String, nullable=True)  # JobStep value
 
     def to_job(self) -> Job:
         """Convert database job to domain job object."""
@@ -117,4 +134,5 @@ class DbJob(Base):
             engine_type=self.engine_type,  # type: ignore[assignment]
             session_id=self.session_id,  # type: ignore[assignment]
             user_id=self.user_id,  # type: ignore[assignment]
+            step=JobStep(self.step) if self.step else None,  # type: ignore[arg-type]
         )

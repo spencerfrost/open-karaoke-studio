@@ -8,7 +8,7 @@ from pathlib import Path
 import librosa
 from celery.utils.log import get_task_logger
 
-from app.db.models import JobStatus
+from app.db.models import JobStatus, JobStep
 from app.repositories import JobRepository
 from app.services import FileService, audio
 from app.services.audio import create_audio_progress_mapper
@@ -118,6 +118,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
     filename = filepath.name
 
     job.status = JobStatus.PROCESSING
+    job.step = JobStep.SEPARATE
     job.started_at = datetime.now()
     job.engine_type = engine_type
     job_repository.update(job)
@@ -307,6 +308,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         return {"status": "error", "message": f"Song {song_id} not found"}
 
     job.status = JobStatus.DOWNLOADING
+    job.step = JobStep.DOWNLOAD
     job.status_message = "Downloading video from YouTube"
     job.started_at = datetime.now()
     job.progress = 5
@@ -316,17 +318,22 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
     celery.send_task("fetch_song_artwork", args=[song_id])
     logger.debug("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
 
-    def update_progress(progress, message, status=None):
+    def update_progress(progress, message, status=None, step=None):
         last_saved_progress = getattr(update_progress, "_last_saved_progress", 0)
         last_saved_status = getattr(update_progress, "_last_saved_status", None)
+        last_saved_step = getattr(update_progress, "_last_saved_step", job.step)
 
         job.progress = progress
         job.status_message = message
         if status:
             job.status = status
+        if step:
+            job.step = step
 
         progress_diff = abs(progress - last_saved_progress)
-        status_changed = status and status != last_saved_status
+        status_changed = (status and status != last_saved_status) or (
+            step and step != last_saved_step
+        )
         is_milestone = progress in [
             0,
             5,
@@ -349,6 +356,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             job_repository.update(job)
             update_progress._last_saved_progress = progress
             update_progress._last_saved_status = job.status
+            update_progress._last_saved_step = job.step
 
         if hasattr(self, "update_state"):
             self.update_state(
@@ -402,6 +410,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 12,
                 f"Download complete, preparing {engine_type} engine",
                 JobStatus.PROCESSING,
+                JobStep.SEPARATE,
             )
 
             celery.send_task("fingerprint_single_song", args=[song_id])

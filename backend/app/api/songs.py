@@ -1311,7 +1311,7 @@ async def reprocess_song(
     from datetime import datetime, timezone
     from pathlib import Path
 
-    from app.db.models import Job, JobStatus
+    from app.db.models import Job, JobStatus, JobStep
     from app.repositories import JobRepository
 
     logger.info(
@@ -1355,6 +1355,7 @@ async def reprocess_song(
             id=job_id,
             filename="original.mp3",
             status=JobStatus.PENDING,
+            step=JobStep.SEPARATE,
             status_message=f"Queued for reprocessing with {request.engine_type}",
             progress=0,
             song_id=song_id,
@@ -1950,7 +1951,7 @@ async def replace_song_upload(
     """Replace a song's audio source with an uploaded MP3 and reprocess."""
     from datetime import datetime, timezone
 
-    from app.db.models import Job, JobStatus
+    from app.db.models import Job, JobStatus, JobStep
     from app.repositories import JobRepository
 
     song_repo = SongRepository(db)
@@ -2006,6 +2007,7 @@ async def replace_song_upload(
         id=job_id,
         filename="original.mp3",
         status=JobStatus.PENDING,
+        step=JobStep.SEPARATE,
         status_message="Queued for reprocessing with uploaded audio",
         progress=0,
         song_id=song_id,
