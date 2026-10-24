@@ -68,9 +68,10 @@ services:
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - CORS_ORIGINS=${CORS_ORIGINS}
-      # Trust X-Forwarded-For from the bundled nginx (and any proxy on the
-      # Docker bridge) so per-IP rate limits see the visitor, not nginx.
-      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.16.0.0/12,192.168.0.0/16}
+      # Trust X-Forwarded-For from the bundled nginx only (its pinned address
+      # below), so per-IP rate limits see the visitor rather than nginx, and a
+      # direct caller on :15123 can't fake the header.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.30.250.10}
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
@@ -153,7 +154,10 @@ services:
       api:
         condition: service_healthy
     networks:
-      - karaoke-network
+      karaoke-network:
+        # Pinned: the API trusts X-Forwarded-For from this address only
+        # (FORWARDED_ALLOW_IPS on the api service).
+        ipv4_address: 172.30.250.10
 
 volumes:
   redis_data:
@@ -163,3 +167,6 @@ volumes:
 networks:
   karaoke-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24
