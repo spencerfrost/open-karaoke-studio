@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Stage" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorAccent">@color/primary</item>
+        <item name="android:textColorPrimary">@color/foreground</item>
+        <item name="android:textColorSecondary">@color/foreground_dim</item>
+        <item name="alertDialogTheme">@style/Theme.Stage.Dialog</item>
+    </style>
+
+    <style name="Theme.Stage.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="android:textColorPrimary">@color/foreground</item>
+        <item name="android:textColorAlertDialogListItem">@color/foreground</item>
+        <item name="android:listChoiceBackgroundIndicator">@drawable/focus_row</item>
+    </style>
+
+    <!-- A focus ring that reads from across the room -->
+    <style name="TvButton" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/tv_button</item>
+        <item name="android:textColor">@color/tv_button_text</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingStart">32dp</item>
+        <item name="android:paddingEnd">32dp</item>
+        <item name="android:minHeight">64dp</item>
+        <item name="android:focusable">true</item>
+    </style>
+</resources>
