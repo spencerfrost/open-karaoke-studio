@@ -6,6 +6,8 @@ interface AuthSlice {
   user: {
     isAdmin: boolean;
     isHost: boolean;
+    /** Optional: a store persisted before the flag existed has no value. */
+    isDemo?: boolean;
     displayName: string | null;
   } | null;
 }
@@ -24,6 +26,9 @@ export interface Access {
   /** user.isHost || user.isAdmin - admins can do anything a host can. */
   isHost: boolean;
   isAdmin: boolean;
+  /** Signed in to a demo pool account (the public live demo); the guided tour
+   * only runs when this is true. */
+  isDemo: boolean;
   /** The one canonical "am I in a session" check - see hooks/useAccess.ts. */
   inSession: boolean;
   isStageDevice: boolean;
@@ -53,6 +58,7 @@ export function evaluateAccess(auth: AuthSlice, session: SessionSlice): Access {
     isAuthenticated: auth.isAuthenticated,
     isHost,
     isAdmin,
+    isDemo: Boolean(auth.user?.isDemo),
     inSession,
     isStageDevice: session.isStageDevice,
     isSessionOwner: session.isSessionOwner,
