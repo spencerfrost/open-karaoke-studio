@@ -64,7 +64,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - CORS_ORIGINS=${CORS_ORIGINS}
@@ -103,7 +103,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
