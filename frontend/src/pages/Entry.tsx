@@ -16,6 +16,7 @@ import { AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { DemoEntry } from "@/features/demo";
 import {
   SESSION_CODE_LENGTH,
   SessionCodeInput,
@@ -98,7 +99,7 @@ const Entry: React.FC = () => {
     joinSession,
     clearSession,
   } = useSessionStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   // Clear any connection errors when component mounts
   useEffect(() => {
@@ -144,6 +145,12 @@ const Entry: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codeFromUrl, displayName, sessionId, isConnecting]);
+
+  // A demo account's session is already running: straight to the stage,
+  // where its QR code is.
+  if (isAuthenticated && user?.isDemo && !codeFromUrl) {
+    return <Navigate to="/stage" replace />;
+  }
 
   // Once in, leave - unless a code is present in the URL, since that means
   // someone (possibly already signed in) is deliberately joining a session
@@ -228,13 +235,19 @@ const Entry: React.FC = () => {
       <div className="relative z-10 flex w-full flex-1 desktop:grid desktop:max-w-5xl desktop:flex-none desktop:grid-cols-2 desktop:gap-16">
         {isDesktop && (
           <aside className="flex flex-col justify-between gap-10">
-            <div className="space-y-4">
-              <p className="font-display text-5xl font-bold leading-[1.05] text-primary xl:text-6xl">
-                Open Karaoke Studio
-              </p>
-              <p className="text-xl text-foreground-dim">
-                Start a session, run the stage, look after the library.
-              </p>
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <p className="font-display text-5xl font-bold leading-[1.05] text-primary xl:text-6xl">
+                  Open Karaoke Studio
+                </p>
+                <p className="text-xl text-foreground-dim">
+                  A self-hosted karaoke app for a night in with friends. Pick
+                  any song on YouTube: it downloads, AI separates the vocals
+                  from the music, and the lyrics play in time on the TV.
+                  Everyone's phone is the remote.
+                </p>
+              </div>
+              <DemoEntry layout="hero" />
             </div>
 
             {view === "signin" && (
@@ -364,6 +377,8 @@ const Entry: React.FC = () => {
                   </form>
                 </Card>
 
+                {!isDesktop && <DemoEntry layout="compact" className="mt-8" />}
+
                 {!isDesktop && (
                   <SwitchRow
                     prompt="Hosting tonight?"
@@ -386,6 +401,8 @@ const Entry: React.FC = () => {
                 <Card className="mt-7 px-5 sm:px-6 desktop:mt-6">
                   <LoginForm size="lg" autoFocus={isDesktop} />
                 </Card>
+
+                {!isDesktop && <DemoEntry layout="compact" className="mt-8" />}
 
                 {!isDesktop && (
                   <SwitchRow
