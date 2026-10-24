@@ -92,7 +92,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
 
   return (
     <div
-      className="border border-primary rounded-lg overflow-hidden"
+      className="border border-border rounded-lg overflow-hidden"
       id={`artist-${artist.name}`}
     >
       {/* Artist Header */}

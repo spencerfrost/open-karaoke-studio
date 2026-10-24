@@ -69,7 +69,7 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         placeholder={placeholder}
-        className="px-12 py-6 border-primary text-foreground bg-accent/20
+        className="px-12 py-6 border-primary text-foreground bg-tint/20
                    placeholder:text-foreground-dim focus:ring-primary focus:border-primary"
       />
 
