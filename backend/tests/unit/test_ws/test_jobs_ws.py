@@ -60,6 +60,22 @@ async def test_get_current_jobs_list_returns_empty_on_error():
     assert result == []
 
 
+@pytest.mark.asyncio
+async def test_get_current_jobs_list_skips_jobs_without_a_song():
+    """A session's playlist job carries the join code in its id; it never goes out."""
+    song_job = MagicMock(song_id="song-1")
+    song_job.to_dict.return_value = {"id": "job-1"}
+    playlist_job = MagicMock(song_id=None)
+    playlist_job.to_dict.return_value = {"id": "playlist-ABCD"}
+    with patch("app.ws.jobs.JobsService") as MockService:
+        MockService.return_value.get_in_flight_jobs.return_value = [
+            song_job,
+            playlist_job,
+        ]
+        result = await get_current_jobs_list()
+    assert [j["id"] for j in result] == ["job-1"]
+
+
 # ---------------------------------------------------------------------------
 # websocket_jobs_endpoint
 # ---------------------------------------------------------------------------

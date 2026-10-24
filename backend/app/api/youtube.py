@@ -18,6 +18,7 @@ from app.api.dependencies import (
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.youtube_service import YouTubeService
+from app.utils.owner_tag import session_owner_tag
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
 
@@ -226,6 +227,7 @@ async def download_youtube(
                 "progress": 0,
                 "artist": body.artist,
                 "title": body.title,
+                "owner_tag": session_owner_tag(session_id),
             },
         )
 

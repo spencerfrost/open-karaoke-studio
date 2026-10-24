@@ -19,11 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 async def get_current_jobs_list():
-    """Get currently in-flight jobs (pending, downloading, processing)."""
+    """Get currently in-flight song jobs (pending, downloading, processing).
+
+    Only jobs tied to a song go out. Other job rows (a session's playlist export)
+    carry the session's join code in their id and title, and this socket is open to
+    anyone.
+    """
     try:
         jobs_service = JobsService()
         jobs = await asyncio.to_thread(jobs_service.get_in_flight_jobs)
-        return [job.to_dict() for job in jobs]
+        return [job.to_dict() for job in jobs if job.song_id]
     except Exception as e:
         logger.error("Error getting in-flight jobs list: %s", e)
         return []

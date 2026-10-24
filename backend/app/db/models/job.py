@@ -55,10 +55,18 @@ class Job:
         if isinstance(self.status, str):
             self.status = JobStatus(self.status)
 
-    """Convert the job to a dictionary representation for serialization."""
-
     def to_dict(self) -> dict[str, Any]:
+        """Convert the job to its wire form for clients.
+
+        `session_id` is the session's join code and `/ws/jobs` is open to anyone, so
+        neither it nor `user_id` is sent. `owner_tag` stands in for ownership.
+        """
+        from app.utils.owner_tag import session_owner_tag
+
         data = asdict(self)
+        data.pop("session_id", None)
+        data.pop("user_id", None)
+        data["owner_tag"] = session_owner_tag(self.session_id)
         for key in ["created_at", "started_at", "completed_at"]:
             if data[key] is not None and isinstance(data[key], datetime):
                 if data[key].tzinfo is None:
