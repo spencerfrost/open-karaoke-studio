@@ -9,6 +9,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Room for two columns and not a touchscreen: a computer, or a TV driven by a
+ * remote, keyboard or mouse. Width alone can't tell - the Shield's WebView is
+ * 960px wide, a landscape phone nearly as much - but a phone's pointer is
+ * "coarse" while a remote-only TV's is "none". Same query as
+ * hooks/useDesktopLayout.ts. */
+@custom-variant desktop {
+  /* Block form: the one-line form splits on the comma and drops @media from
+   * the second query. */
+  @media (min-width: 48rem) and (pointer: fine), (min-width: 48rem) and (pointer: none) {
+    @slot;
+  }
+}
+
 /*
  * Retro theme. Semantic tokens describe roles, not colors:
  * --background/--foreground are the page itself (dark gradient base, light text);

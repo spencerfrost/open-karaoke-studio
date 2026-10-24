@@ -19,6 +19,10 @@ const buttonVariants = cva(
           "border border-primary text-primary shadow-xs hover:bg-primary hover:text-primary-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         "outline-dark":
           "border border-secondary text-secondary bg-transparent shadow-xs hover:bg-secondary/10",
+        // Outline in the page's text color, for buttons sitting on the page
+        // background rather than on a card.
+        "outline-foreground":
+          "border-2 border-foreground text-foreground bg-transparent hover:bg-surface-hover",
         ghost: "text-primary hover:bg-primary/20",
         icon: "text-primary hover:bg-primary/20 rounded-full",
         link: "text-primary underline-offset-4 hover:underline",

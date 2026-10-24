@@ -31,6 +31,10 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Mock elementFromPoint (not available in jsdom; input-otp calls it to look
+// for password-manager badges over its input)
+document.elementFromPoint = vi.fn(() => null);
+
 // Mock IntersectionObserver (not available in jsdom)
 class IntersectionObserverMock {
   readonly root: Element | null = null;
