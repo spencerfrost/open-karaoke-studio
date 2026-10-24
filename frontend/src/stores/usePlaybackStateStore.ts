@@ -1,7 +1,5 @@
 import { create } from "zustand";
-import * as Tone from "tone";
 import { useAudioControlsStore } from "./useAudioControlsStore";
-import { getGrainParams } from "./shared/audioHelpers";
 
 export interface PlaybackStateState {
   // Audio/track info
@@ -22,14 +20,14 @@ export interface PlaybackStateState {
   // Actions
   setSongId: (id: string, duration?: number, gainDb?: number) => void;
   load: () => Promise<void>;
-  play: (
-    playbackSpeed: number,
-    volumes: { vocal: number; backing: number; instrumental: number },
-  ) => void;
-  pause: (playbackSpeed: number) => void;
+  play: (volumes: {
+    vocal: number;
+    backing: number;
+    instrumental: number;
+  }) => void;
+  pause: () => void;
   seek: (
     timeSeconds: number,
-    playbackSpeed: number,
     volumes: { vocal: number; backing: number; instrumental: number },
   ) => void;
   /**
@@ -53,7 +51,6 @@ export interface PlaybackStateState {
 
   // Lifecycle methods
   startTimeUpdate: (
-    playbackSpeed: number,
     onUpdate: (state: {
       isPlaying: boolean;
       currentTime: number;
@@ -69,10 +66,12 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   let instrumentalBuffer: AudioBuffer | null = null;
   let vocalBuffer: AudioBuffer | null = null;
   let backingVocalBuffer: AudioBuffer | null = null;
-  // Tone.js GrainPlayers for pitch-preserving speed control
-  let instrumentalPlayer: Tone.GrainPlayer | null = null;
-  let vocalPlayer: Tone.GrainPlayer | null = null;
-  let backingVocalPlayer: Tone.GrainPlayer | null = null;
+  // One-shot sources: a buffer source can only be started once, so every
+  // play and seek makes new ones. All three start at the same audio-clock
+  // instant, which keeps the stems sample-locked.
+  let instrumentalSource: AudioBufferSourceNode | null = null;
+  let vocalSource: AudioBufferSourceNode | null = null;
+  let backingVocalSource: AudioBufferSourceNode | null = null;
   let instrumentalGain: GainNode | null = null;
   let vocalGain: GainNode | null = null;
   let backingVocalGain: GainNode | null = null;
@@ -145,19 +144,25 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     }
   }
 
-  function stopPlayers() {
-    for (const player of [
-      instrumentalPlayer,
-      vocalPlayer,
-      backingVocalPlayer,
+  function stopSources() {
+    for (const source of [
+      instrumentalSource,
+      vocalSource,
+      backingVocalSource,
     ]) {
-      if (!player) continue;
+      if (!source) continue;
+      // A deliberate stop is not the song ending.
+      source.onended = null;
       try {
-        player.stop();
+        source.stop();
       } catch {
         // Ignore if already stopped
       }
+      source.disconnect();
     }
+    instrumentalSource = null;
+    vocalSource = null;
+    backingVocalSource = null;
   }
 
   function clearIntervals() {
@@ -168,81 +173,33 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   }
 
   function setupAudioGraph(
-    _startTime: number,
-    offset: number | undefined,
-    playbackSpeed: number,
+    offset: number,
     volumes: { vocal: number; backing: number; instrumental: number },
   ) {
-    // Clean up any previous GrainPlayers
-    if (instrumentalPlayer) {
-      try {
-        instrumentalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      instrumentalPlayer.dispose();
-    }
-    if (vocalPlayer) {
-      try {
-        vocalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      vocalPlayer.dispose();
-    }
-    if (backingVocalPlayer) {
-      try {
-        backingVocalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      backingVocalPlayer.dispose();
-    }
+    stopSources();
 
     if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
+    const ctx = audioContext;
 
-    // Set Tone.js to use our AudioContext
-    Tone.setContext(audioContext);
+    const makeSource = (buffer: AudioBuffer) => {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      return source;
+    };
 
-    // Calculate grain parameters based on current playback speed
-    const { grainSize, overlap } = getGrainParams(playbackSpeed);
-
-    // Create GrainPlayers for pitch-preserving speed control
-    instrumentalPlayer = new Tone.GrainPlayer({
-      url: instrumentalBuffer,
-      loop: false,
-      grainSize,
-      overlap,
-      playbackRate: playbackSpeed,
-    });
-
-    vocalPlayer = new Tone.GrainPlayer({
-      url: vocalBuffer,
-      loop: false,
-      grainSize,
-      overlap,
-      playbackRate: playbackSpeed,
-    });
-
-    // Create backing vocal player if buffer available (three-track songs)
-    if (backingVocalBuffer) {
-      backingVocalPlayer = new Tone.GrainPlayer({
-        url: backingVocalBuffer,
-        loop: false,
-        grainSize,
-        overlap,
-        playbackRate: playbackSpeed,
-      });
-    } else {
-      backingVocalPlayer = null;
-    }
+    instrumentalSource = makeSource(instrumentalBuffer);
+    vocalSource = makeSource(vocalBuffer);
+    // Three-track songs only
+    backingVocalSource = backingVocalBuffer
+      ? makeSource(backingVocalBuffer)
+      : null;
 
     // Create gain nodes for volume control
-    instrumentalGain = audioContext.createGain();
+    instrumentalGain = ctx.createGain();
     instrumentalGain.gain.value = volumes.instrumental;
-    vocalGain = audioContext.createGain();
+    vocalGain = ctx.createGain();
     vocalGain.gain.value = volumes.vocal;
-    backingVocalGain = audioContext.createGain();
+    backingVocalGain = ctx.createGain();
     backingVocalGain.gain.value = volumes.backing;
 
     // Create or reuse the limiter and analyser nodes
@@ -250,91 +207,57 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     setupAnalyser();
 
     // Create normalization gain node (converts dB to linear amplitude)
-    normalizationGainNode = audioContext.createGain();
+    if (normalizationGainNode) normalizationGainNode.disconnect();
+    normalizationGainNode = ctx.createGain();
     normalizationGainNode.gain.value = Math.pow(10, normalizationGainDb / 20);
 
     // A fresh fade node per graph, at full volume: every play and seek starts
     // unfaded.
     if (fadeGainNode) fadeGainNode.disconnect();
-    fadeGainNode = audioContext.createGain();
+    fadeGainNode = ctx.createGain();
     fadeGainNode.gain.value = 1;
 
-    // Connect the graph: GrainPlayer -> VolumeGain -> NormalizationGain -> FadeGain -> Limiter -> Analyser -> Destination
-    instrumentalPlayer.connect(instrumentalGain);
-    vocalPlayer.connect(vocalGain);
+    // Source -> VolumeGain -> NormalizationGain -> FadeGain -> Limiter -> Analyser -> Destination
+    instrumentalSource.connect(instrumentalGain);
+    vocalSource.connect(vocalGain);
     instrumentalGain.connect(normalizationGainNode);
     vocalGain.connect(normalizationGainNode);
-    if (backingVocalPlayer) {
-      backingVocalPlayer.connect(backingVocalGain);
+    if (backingVocalSource) {
+      backingVocalSource.connect(backingVocalGain);
       backingVocalGain.connect(normalizationGainNode);
     }
     normalizationGainNode.connect(fadeGainNode);
     fadeGainNode.connect(limiter!);
     limiter!.connect(analyser!);
-    analyser!.connect(audioContext.destination);
+    analyser!.connect(ctx.destination);
 
-    // Handle playback end - use instrumental track as the reference
-    // GrainPlayer uses onstop callback
-    instrumentalPlayer.onstop = () => {
-      // Check if we're still playing (wasn't manually stopped)
+    // The instrumental is the reference track for the end of the song.
+    // stopSources clears this handler first, so it only fires on a real end.
+    instrumentalSource.onended = () => {
       const { isPlaying, duration } = get();
-      if (isPlaying && playbackStartTime !== null && audioContext) {
-        // Account for playback speed in time calculation
-        const currentTime =
-          playbackOffset +
-          (audioContext.currentTime - playbackStartTime) * playbackSpeed;
-        // Only auto-stop if we're near or past the end of the song
-        if (currentTime >= duration - 0.5) {
-          clearIntervals();
-          playbackStartTime = null;
-          playbackOffset = duration; // Set to exact duration
-          set({ currentTime: duration, isPlaying: false, songEnded: true });
-        }
-      }
+      if (!isPlaying) return;
+      clearIntervals();
+      playbackStartTime = null;
+      playbackOffset = duration;
+      set({ currentTime: duration, isPlaying: false, songEnded: true });
     };
 
-    // Start the GrainPlayers in sync
-    const playOffset = typeof offset === "number" ? offset : 0;
-    instrumentalPlayer.start(Tone.now(), playOffset);
-    vocalPlayer.start(Tone.now(), playOffset);
-    if (backingVocalPlayer) {
-      backingVocalPlayer.start(Tone.now(), playOffset);
-    }
+    // Start every stem at the same instant, slightly ahead so none of them
+    // misses it while the others are being started.
+    const startAt = ctx.currentTime + 0.05;
+    instrumentalSource.start(startAt, offset);
+    vocalSource.start(startAt, offset);
+    backingVocalSource?.start(startAt, offset);
+    playbackStartTime = startAt;
   }
 
   function resetAudioNodes() {
-    if (instrumentalPlayer) {
-      try {
-        instrumentalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      instrumentalPlayer.dispose();
-    }
-    if (vocalPlayer) {
-      try {
-        vocalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      vocalPlayer.dispose();
-    }
-    if (backingVocalPlayer) {
-      try {
-        backingVocalPlayer.stop();
-      } catch {
-        // Ignore if already stopped
-      }
-      backingVocalPlayer.dispose();
-    }
+    stopSources();
     if (audioContext) audioContext.close();
     audioContext = null;
     instrumentalBuffer = null;
     vocalBuffer = null;
     backingVocalBuffer = null;
-    instrumentalPlayer = null;
-    vocalPlayer = null;
-    backingVocalPlayer = null;
     instrumentalGain = null;
     vocalGain = null;
     backingVocalGain = null;
@@ -469,10 +392,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       }
     },
 
-    play: (
-      playbackSpeed: number,
-      volumes: { vocal: number; backing: number; instrumental: number },
-    ) => {
+    play: (volumes) => {
       if (!audioContext) {
         audioContext = new window.AudioContext();
       }
@@ -483,27 +403,23 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       // Reset songEnded flag when starting playback
       set({ songEnded: false });
 
-      setupAudioGraph(
-        audioContext.currentTime,
-        playbackOffset,
-        playbackSpeed,
-        volumes,
-      );
-      playbackStartTime = audioContext.currentTime;
+      setupAudioGraph(playbackOffset, volumes);
       set({ isPlaying: true });
     },
 
-    pause: (playbackSpeed: number) => {
-      stopPlayers();
+    pause: () => {
+      stopSources();
       // After stopping, so restoring the volume can't let a moment of the
       // song through at full level.
       cancelFade();
       clearIntervals();
       if (audioContext && playbackStartTime !== null) {
-        // Calculate how much time has elapsed since playback started, accounting for speed
-        const elapsedRealTime = audioContext.currentTime - playbackStartTime;
-        const elapsedSongTime = elapsedRealTime * playbackSpeed;
-        playbackOffset = playbackOffset + elapsedSongTime;
+        // Clamped: a pause inside the short lead-in before the start would
+        // otherwise step the position backwards.
+        playbackOffset += Math.max(
+          0,
+          audioContext.currentTime - playbackStartTime,
+        );
         playbackStartTime = null;
         set({ currentTime: playbackOffset, isPlaying: false });
       } else {
@@ -511,11 +427,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       }
     },
 
-    seek: (
-      timeSeconds: number,
-      playbackSpeed: number,
-      volumes: { vocal: number; backing: number; instrumental: number },
-    ) => {
+    seek: (timeSeconds, volumes) => {
       if (!audioContext || !instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
       cancelFade();
@@ -525,35 +437,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       set({ songEnded: false });
 
       if (get().isPlaying) {
-        // Stop current players before recreating
-        if (instrumentalPlayer) {
-          try {
-            instrumentalPlayer.stop();
-          } catch {
-            // Ignore if already stopped
-          }
-        }
-        if (vocalPlayer) {
-          try {
-            vocalPlayer.stop();
-          } catch {
-            // Ignore if already stopped
-          }
-        }
-        if (backingVocalPlayer) {
-          try {
-            backingVocalPlayer.stop();
-          } catch {
-            // Ignore if already stopped
-          }
-        }
-        setupAudioGraph(
-          audioContext.currentTime,
-          timeSeconds,
-          playbackSpeed,
-          volumes,
-        );
-        playbackStartTime = audioContext.currentTime;
+        setupAudioGraph(timeSeconds, volumes);
         set({ currentTime: timeSeconds });
       } else {
         playbackStartTime = null;
@@ -626,14 +510,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       set(updates);
     },
 
-    startTimeUpdate: (
-      playbackSpeed: number,
-      onUpdate: (state: {
-        isPlaying: boolean;
-        currentTime: number;
-        duration: number;
-      }) => void,
-    ) => {
+    startTimeUpdate: (onUpdate) => {
       // Cancel any existing animation frame and websocket interval
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (websocketInterval) clearInterval(websocketInterval);
@@ -649,10 +526,9 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
 
         let currentTime = playbackOffset;
         if (isPlaying && playbackStartTime !== null && audioContext) {
-          // Account for playback speed in time calculation
-          const elapsedRealTime = audioContext.currentTime - playbackStartTime;
-          const elapsedSongTime = elapsedRealTime * playbackSpeed;
-          currentTime = playbackOffset + elapsedSongTime;
+          currentTime =
+            playbackOffset +
+            Math.max(0, audioContext.currentTime - playbackStartTime);
         }
         set({ currentTime });
 

@@ -8,7 +8,7 @@
  */
 
 import React from "react";
-import { useKaraokePlayer } from "../hooks";
+import { useKaraokePlayer, useSongPosition } from "../hooks";
 import { PlayerErrorBoundary } from "./subcomponents";
 import { ThrottledLyricsDisplay } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
@@ -17,13 +17,25 @@ import { Button } from "@/components/ui/button";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
 
+type LiveLyricsProps = Omit<
+  React.ComponentProps<typeof ThrottledLyricsDisplay>,
+  "currentTime"
+>;
+
+/**
+ * The lyrics, reading the song position themselves so the rest of the player
+ * doesn't re-render with it. 100ms steps: as often as the lyrics redraw.
+ */
+const LiveLyrics: React.FC<LiveLyricsProps> = (props) => {
+  const currentTime = useSongPosition(0.1);
+  return <ThrottledLyricsDisplay {...props} currentTime={currentTime} />;
+};
+
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
   autoPlay = false,
   onPlay,
   onPause,
-  onEnd,
-  onTimeUpdate,
   onError,
   chromeCollapsed = false,
   className = "",
@@ -52,20 +64,6 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
       onError(err);
     }
   }, [player.error, onError]);
-
-  // Handle time update callback
-  React.useEffect(() => {
-    if (onTimeUpdate) {
-      onTimeUpdate(player.currentTime, player.duration);
-    }
-  }, [player.currentTime, player.duration, onTimeUpdate]);
-
-  // Handle song end callback
-  React.useEffect(() => {
-    if (onEnd && player.duration > 0 && player.currentTime >= player.duration) {
-      onEnd();
-    }
-  }, [player.currentTime, player.duration, onEnd]);
 
   // Hoisted so the header's event handlers close over a narrowed value —
   // TypeScript cannot keep `player.song` narrowed inside a callback.
@@ -165,10 +163,9 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
           ) : song ? (
             <>
               <div className="min-h-0 w-full flex-1">
-                <ThrottledLyricsDisplay
+                <LiveLyrics
                   lyrics={player.lyrics}
                   isSync={player.isLyricsSync}
-                  currentTime={player.currentTime}
                   lyricsSize={player.lyricsSize}
                   lyricsOffset={player.lyricsOffset}
                   onSeek={player.seek}

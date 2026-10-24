@@ -2,7 +2,7 @@
  * Karaoke Player Store - Facade Integration Layer
  *
  * This is a facade that integrates three focused stores:
- * - useAudioControlsStore: Volume and speed controls
+ * - useAudioControlsStore: Volume controls
  * - usePlaybackStateStore: Playback timing and Web Audio API
  * - useUIPreferencesStore: Display preferences and mini-player
  *
@@ -69,7 +69,6 @@ interface KaraokePlayerState {
   vocalVolume: number;
   backingVocalVolume: number;
   instrumentalVolume: number;
-  playbackSpeed: number;
 
   // UI preferences (from uiPreferences)
   lyricsSize: "small" | "medium" | "large";
@@ -108,7 +107,6 @@ interface KaraokePlayerState {
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  setPlaybackSpeed: (speed: number) => void;
   cleanup: () => void;
   getWaveformData: () => number[] | null;
   getFrequencyData: () => number[] | null;
@@ -189,7 +187,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       vocalVolume: state.vocalVolume,
       backingVocalVolume: state.backingVocalVolume,
       instrumentalVolume: state.instrumentalVolume,
-      playbackSpeed: state.playbackSpeed,
     });
   });
 
@@ -240,7 +237,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     vocalVolume: 0,
     backingVocalVolume: 1.0,
     instrumentalVolume: 1.0,
-    playbackSpeed: 1.0,
     lyricsSize: "medium",
     lyricsOffset: 0,
     autoScrollEnabled: true,
@@ -417,13 +413,13 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const audioControls = useAudioControlsStore.getState();
       const playbackState = usePlaybackStateStore.getState();
 
-      playbackState.play(audioControls.playbackSpeed, {
+      playbackState.play({
         vocal: audioControls.vocalVolume,
         backing: audioControls.backingVocalVolume,
         instrumental: audioControls.instrumentalVolume,
       });
 
-      playbackState.startTimeUpdate(audioControls.playbackSpeed, (state) => {
+      playbackState.startTimeUpdate((state) => {
         updatePlayerState(state);
       });
 
@@ -431,10 +427,9 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
 
     pause: () => {
-      const audioControls = useAudioControlsStore.getState();
       const playbackState = usePlaybackStateStore.getState();
 
-      playbackState.pause(audioControls.playbackSpeed);
+      playbackState.pause();
       playbackState.stopTimeUpdate();
       updatePlayerState({
         currentTime: playbackState.currentTime,
@@ -456,14 +451,14 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const audioControls = useAudioControlsStore.getState();
       const playbackState = usePlaybackStateStore.getState();
 
-      playbackState.seek(timeSeconds, audioControls.playbackSpeed, {
+      playbackState.seek(timeSeconds, {
         vocal: audioControls.vocalVolume,
         backing: audioControls.backingVocalVolume,
         instrumental: audioControls.instrumentalVolume,
       });
 
       if (playbackState.isPlaying) {
-        playbackState.startTimeUpdate(audioControls.playbackSpeed, (state) => {
+        playbackState.startTimeUpdate((state) => {
           updatePlayerState(state);
         });
       }
@@ -503,15 +498,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
     setAutoScrollEnabled: (enabled: boolean) => {
       useUIPreferencesStore.getState().setAutoScrollEnabled(enabled);
-    },
-
-    setPlaybackSpeed: (speed: number) => {
-      useAudioControlsStore.getState().setPlaybackSpeed(speed);
-      trackLocalUpdate(lastLocalUpdate, "playback_speed", speed);
-      socketEmit("update_performance_control", {
-        control: "playback_speed",
-        value: speed,
-      });
     },
 
     cleanup: () => {
@@ -575,12 +561,6 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         )
       ) {
         audioControls.setInstrumentalVolume(data.instrumental_volume);
-      }
-      if (
-        data.playback_speed !== undefined &&
-        !shouldIgnore(lastLocalUpdate, "playback_speed", data.playback_speed)
-      ) {
-        audioControls.setPlaybackSpeed(data.playback_speed);
       }
 
       // Handle UI preferences

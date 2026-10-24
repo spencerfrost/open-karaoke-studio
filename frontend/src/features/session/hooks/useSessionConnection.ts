@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/stores/sessionStore";
 
 /**
@@ -8,7 +9,13 @@ import { useSessionStore } from "@/stores/sessionStore";
  */
 export const useSessionConnection = () => {
   const { sessionId, isConnected: sessionConnected } = useSessionStore();
-  const { connect, disconnect, connected } = useKaraokePlayerStore();
+  const { connect, disconnect, connected } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      connect: s.connect,
+      disconnect: s.disconnect,
+      connected: s.connected,
+    })),
+  );
 
   useEffect(() => {
     // Only connect to performance controls if we have a session

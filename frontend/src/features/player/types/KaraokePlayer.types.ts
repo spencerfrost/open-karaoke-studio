@@ -29,8 +29,6 @@ export interface KaraokePlayerProps {
   // Event callbacks
   onPlay?: () => void;
   onPause?: () => void;
-  onEnd?: () => void;
-  onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
 
   // Styling
@@ -60,7 +58,6 @@ export interface KaraokePlayerHook {
   isReady: boolean;
   isPlaying: boolean;
   songEnded: boolean; // True when song finished naturally (not paused)
-  currentTime: number; // In seconds (changed from milliseconds)
   duration: number; // In seconds (changed from milliseconds)
   error: PlayerError | null;
   connectionStatus: "connected" | "disconnected" | "connecting";
@@ -77,10 +74,6 @@ export interface KaraokePlayerHook {
   setInstrumentalVolume: (volume: number) => void;
   vocalVolume: number;
   instrumentalVolume: number;
-
-  // Playback speed (pitch-preserving)
-  playbackSpeed: number;
-  setPlaybackSpeed: (speed: number) => void;
 
   // Lyrics and display
   lyrics: string;

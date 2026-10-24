@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Pause, Play, SkipBack } from "lucide-react";
 import ProgressBar from "@/features/player/components/subcomponents/ProgressBar";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import { formatTime } from "@/utils/formatters";
 import ControlsStrip from "../controls/ControlsStrip";
 
@@ -27,7 +28,17 @@ const PerformanceControlsPanel: React.FC = () => {
     userPlay,
     userPause,
     seek,
-  } = useKaraokePlayerStore();
+  } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      isPlaying: s.isPlaying,
+      isReady: s.isReady,
+      currentTime: s.currentTime,
+      duration: s.duration,
+      userPlay: s.userPlay,
+      userPause: s.userPause,
+      seek: s.seek,
+    })),
+  );
 
   return (
     <div className="flex h-full flex-col gap-2.5 overflow-hidden p-1">

@@ -58,6 +58,7 @@ class AudioContextMock {
   createBufferSource = vi.fn().mockReturnValue({
     buffer: null,
     connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
     onended: null,
@@ -66,6 +67,7 @@ class AudioContextMock {
   createGain = vi.fn().mockReturnValue({
     gain: { value: 1 },
     connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
   });
 
   createDynamicsCompressor = vi.fn().mockReturnValue({

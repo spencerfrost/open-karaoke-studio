@@ -7,20 +7,6 @@ import {
 import { usePlaybackStateStore } from "./usePlaybackStateStore";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 
-// Tone's GrainPlayer needs a real AudioContext. The fade tests only need the
-// players to exist and connect.
-vi.mock("tone", () => ({
-  setContext: vi.fn(),
-  now: () => 0,
-  GrainPlayer: class {
-    onstop: (() => void) | null = null;
-    connect = vi.fn();
-    start = vi.fn();
-    stop = vi.fn();
-    dispose = vi.fn();
-  },
-}));
-
 // Mock the sessionWebSocketService
 const mockListeners = new Map<string, Set<(data: unknown) => void>>();
 

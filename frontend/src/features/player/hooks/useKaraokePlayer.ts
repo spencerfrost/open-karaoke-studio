@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useMemo, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import { useSongs } from "@/hooks/api/useSongs";
 import { getSongDuration } from "@/utils/songUtils";
 import type {
@@ -22,7 +23,6 @@ export const useKaraokePlayer = (
     songId: currentSongId,
     connect,
     connected,
-    currentTime,
     isReady,
     isPlaying,
     songEnded,
@@ -33,7 +33,6 @@ export const useKaraokePlayer = (
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
-    playbackSpeed,
     cleanup,
     seek: storeSeek,
     setSongAndLoad,
@@ -42,11 +41,37 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
-    setPlaybackSpeed,
     userPlay,
     userPause,
     getWaveformData,
-  } = useKaraokePlayerStore();
+  } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      songId: s.songId,
+      connect: s.connect,
+      connected: s.connected,
+      isReady: s.isReady,
+      isPlaying: s.isPlaying,
+      songEnded: s.songEnded,
+      duration: s.duration,
+      error: s.error,
+      isLoading: s.isLoading,
+      vocalVolume: s.vocalVolume,
+      instrumentalVolume: s.instrumentalVolume,
+      lyricsSize: s.lyricsSize,
+      lyricsOffset: s.lyricsOffset,
+      cleanup: s.cleanup,
+      seek: s.seek,
+      setSongAndLoad: s.setSongAndLoad,
+      load: s.load,
+      setVocalVolume: s.setVocalVolume,
+      setInstrumentalVolume: s.setInstrumentalVolume,
+      setLyricsSize: s.setLyricsSize,
+      setLyricsOffset: s.setLyricsOffset,
+      userPlay: s.userPlay,
+      userPause: s.userPause,
+      getWaveformData: s.getWaveformData,
+    })),
+  );
 
   // Song data fetching
   const { useSong } = useSongs();
@@ -236,7 +261,6 @@ export const useKaraokePlayer = (
     isReady,
     isPlaying,
     songEnded,
-    currentTime: currentTime, // Pass in seconds
     duration: durationSeconds,
     error,
     connectionStatus,
@@ -253,10 +277,6 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     vocalVolume,
     instrumentalVolume,
-
-    // Playback speed
-    playbackSpeed,
-    setPlaybackSpeed,
 
     // Lyrics and display
     lyrics,

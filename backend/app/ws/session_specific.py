@@ -37,7 +37,6 @@ PERFORMANCE_CONTROLS = frozenset(
         "instrumental_volume",
         "lyrics_size",
         "lyrics_offset",
-        "playback_speed",
     }
 )
 
@@ -118,7 +117,6 @@ def get_session_performance_state(session_id: str):
             "is_playing": False,
             "current_song_id": None,
             "is_ready": False,
-            "playback_speed": 1.0,
         }
     return session_performance_states[session_id]
 
