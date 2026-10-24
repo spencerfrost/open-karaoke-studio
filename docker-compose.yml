@@ -68,6 +68,9 @@ services:
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - CORS_ORIGINS=${CORS_ORIGINS}
+      # Trust X-Forwarded-For from the bundled nginx (and any proxy on the
+      # Docker bridge) so per-IP rate limits see the visitor, not nginx.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.16.0.0/12,192.168.0.0/16}
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
@@ -138,6 +141,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Link for the entry page's "Watch the demo" button; hidden when empty.
+        VITE_DEMO_RECORDING_URL: ${VITE_DEMO_RECORDING_URL:-}
     container_name: karaoke-frontend-prod
     restart: unless-stopped
     stop_grace_period: 5s
