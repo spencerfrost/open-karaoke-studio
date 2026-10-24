@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
+import { guestWindow } from "@/lib/guestWindow";
 
 const logger = createLogger("store:auth");
 
@@ -78,7 +79,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "karaoke-auth",
-      storage: createJSONStorage(() => localStorage),
+      // localStorage, except in a guest window - see lib/guestWindow.ts.
+      storage: createJSONStorage(() => guestWindow.identityStorage),
     },
   ),
 );

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 import { createLogger } from "@/lib/logger";
+import { guestWindow } from "@/lib/guestWindow";
 import { useAuthStore } from "./authStore";
 import { generateSessionPlaylist } from "@/services/api";
 
@@ -126,10 +127,26 @@ const HOST_SESSION_STORAGE_KEY = "karaoke-host-session";
 // Storage key for performer sessions
 const PERFORMER_SESSION_STORAGE_KEY = "karaoke-performer-session";
 
+// localStorage, except in a guest window - see lib/guestWindow.ts.
+const identityStorage = guestWindow.identityStorage;
+
+/**
+ * Joining as a guest in a browser that runs the stage makes this window a
+ * guest window, so the guest's records can't overwrite the host's and the
+ * host's sign-in doesn't carry over to the guest. Only the in-memory sign-in
+ * is dropped; the host's stored one stays where it is for every other window.
+ */
+function becomeGuestWindowIfBrowserHostsStage(): void {
+  if (guestWindow.isGuestWindow()) return;
+  if (!guestWindow.sharedStorage.getItem(HOST_SESSION_STORAGE_KEY)) return;
+  guestWindow.markGuestWindow();
+  useAuthStore.setState({ token: null, user: null, isAuthenticated: false });
+}
+
 /** The device id this browser last held as the stage, if any. */
 function readStoredHostDeviceId(): string | null {
   try {
-    const stored = localStorage.getItem(HOST_SESSION_STORAGE_KEY);
+    const stored = identityStorage.getItem(HOST_SESSION_STORAGE_KEY);
     return stored ? (JSON.parse(stored).deviceId ?? null) : null;
   } catch {
     return null;
@@ -257,7 +274,7 @@ export const useSessionStore = create<SessionState>()(
 
           registerSessionEndedHandler(get);
 
-          localStorage.setItem(
+          identityStorage.setItem(
             HOST_SESSION_STORAGE_KEY,
             JSON.stringify({
               sessionId: sessionData.session_id,
@@ -339,7 +356,7 @@ export const useSessionStore = create<SessionState>()(
           registerSessionEndedHandler(get);
 
           // Store host session data in localStorage for recovery
-          localStorage.setItem(
+          identityStorage.setItem(
             HOST_SESSION_STORAGE_KEY,
             JSON.stringify({
               sessionId: sessionData.session_id,
@@ -389,6 +406,10 @@ export const useSessionStore = create<SessionState>()(
 
           const sessionData = await response.json();
 
+          // Before connecting: the socket would otherwise claim the host's
+          // authority with the host's token.
+          if (!sessionData.is_host) becomeGuestWindowIfBrowserHostsStage();
+
           set({
             sessionId: sessionData.session_id,
             displayCode: sessionData.display_code,
@@ -409,10 +430,10 @@ export const useSessionStore = create<SessionState>()(
 
           registerSessionEndedHandler(get);
 
-          // Store session data in localStorage for recovery
+          // Store session data for recovery
           if (sessionData.is_host) {
             // Host session
-            localStorage.setItem(
+            identityStorage.setItem(
               HOST_SESSION_STORAGE_KEY,
               JSON.stringify({
                 sessionId: sessionData.session_id,
@@ -422,7 +443,7 @@ export const useSessionStore = create<SessionState>()(
             );
           } else if (displayName) {
             // Performer session
-            localStorage.setItem(
+            identityStorage.setItem(
               PERFORMER_SESSION_STORAGE_KEY,
               JSON.stringify({
                 sessionId: sessionData.session_id,
@@ -446,7 +467,7 @@ export const useSessionStore = create<SessionState>()(
       },
 
       recoverHostSession: async () => {
-        const storedSession = localStorage.getItem(HOST_SESSION_STORAGE_KEY);
+        const storedSession = identityStorage.getItem(HOST_SESSION_STORAGE_KEY);
         if (!storedSession) {
           return; // No stored session to recover
         }
@@ -461,7 +482,7 @@ export const useSessionStore = create<SessionState>()(
             logger.warn(
               "Invalid host session data in localStorage - missing sessionId or deviceId",
             );
-            localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+            identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
@@ -476,7 +497,7 @@ export const useSessionStore = create<SessionState>()(
               validationResponse.status === 410
             ) {
               // Session not found or expired - clear stored data
-              localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+              identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
@@ -488,7 +509,7 @@ export const useSessionStore = create<SessionState>()(
           const validationData = await validationResponse.json();
           if (!validationData.valid) {
             // Session is invalid - clear stored data
-            localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+            identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
@@ -516,7 +537,7 @@ export const useSessionStore = create<SessionState>()(
 
           // Verify we're still the host
           if (!sessionData.is_host) {
-            localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+            identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
@@ -551,7 +572,7 @@ export const useSessionStore = create<SessionState>()(
             isRecovering: false,
           });
           // Clear corrupted stored data
-          localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+          identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
         }
       },
 
@@ -606,7 +627,7 @@ export const useSessionStore = create<SessionState>()(
       },
 
       recoverPerformerSession: async () => {
-        const storedSession = localStorage.getItem(
+        const storedSession = identityStorage.getItem(
           PERFORMER_SESSION_STORAGE_KEY,
         );
         if (!storedSession) {
@@ -624,7 +645,7 @@ export const useSessionStore = create<SessionState>()(
             logger.warn(
               "Invalid performer session data in localStorage - missing sessionId or deviceId",
             );
-            localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+            identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
@@ -639,7 +660,7 @@ export const useSessionStore = create<SessionState>()(
               validationResponse.status === 410
             ) {
               // Session not found or expired - clear stored data
-              localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+              identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
               set({ isRecovering: false });
               return;
             }
@@ -651,7 +672,7 @@ export const useSessionStore = create<SessionState>()(
           const validationData = await validationResponse.json();
           if (!validationData.valid) {
             // Session is invalid - clear stored data
-            localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+            identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
             set({ isRecovering: false });
             return;
           }
@@ -697,7 +718,7 @@ export const useSessionStore = create<SessionState>()(
             isRecovering: false,
           });
           // Clear corrupted stored data
-          localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+          identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
         }
       },
 
@@ -732,9 +753,9 @@ export const useSessionStore = create<SessionState>()(
 
         // Clear stored session data for hosts and performers
         if (isStageDevice) {
-          localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+          identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
         } else {
-          localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+          identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
         }
 
         // Clear local state regardless of server response
@@ -807,9 +828,9 @@ export const useSessionStore = create<SessionState>()(
         // Disconnect WebSocket services before clearing session
         sessionWebSocketService.disconnect();
 
-        // Clear both localStorage keys to prevent stale data
-        localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
-        localStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
+        // Clear both stored records to prevent stale data
+        identityStorage.removeItem(HOST_SESSION_STORAGE_KEY);
+        identityStorage.removeItem(PERFORMER_SESSION_STORAGE_KEY);
 
         set({
           sessionId: null,
@@ -832,7 +853,7 @@ export const useSessionStore = create<SessionState>()(
     }),
     {
       name: "karaoke-zustand-session", // Different key to avoid conflicts with manual localStorage
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => identityStorage),
       // Don't persist anything - we handle persistence manually for recovery
       partialize: () => ({}),
     },
