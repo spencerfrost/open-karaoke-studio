@@ -138,6 +138,22 @@ def test_join_by_code_success(client):
     assert data["is_host"] is False
 
 
+def test_joined_device_gets_the_owner_tag_its_jobs_carry(client):
+    from app.utils.owner_tag import session_owner_tag
+
+    session = _create_session(client)
+    assert session["owner_tag"] == session_owner_tag(session["session_id"])
+
+    resp = client.post(
+        "/api/sessions/join-by-code",
+        json={"code": session["display_code"], "device_type": "performer"},
+    )
+    assert resp.json()["owner_tag"] == session["owner_tag"]
+
+    info = client.get(f"/api/sessions/{session['session_id']}/info").json()
+    assert info["owner_tag"] == session["owner_tag"]
+
+
 def test_join_by_code_not_found(client):
     resp = client.post(
         "/api/sessions/join-by-code",

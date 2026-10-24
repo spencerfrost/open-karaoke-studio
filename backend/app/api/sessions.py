@@ -16,7 +16,7 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,7 @@ from app.services.roster_service import (
 from app.services.session_service import deactivate_session
 from app.services.turn_service import compute_turn
 from app.utils.clock import utc_now
+from app.utils.owner_tag import session_owner_tag
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
@@ -77,6 +78,12 @@ class SessionResponse(BaseModel):
     expires_at: str
     is_active: bool
     queue_order_mode: str
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def owner_tag(self) -> Optional[str]:
+        """Matches `owner_tag` on this session's jobs (see app.utils.owner_tag)."""
+        return session_owner_tag(self.session_id)
 
 
 class SessionCreateRequest(BaseModel):

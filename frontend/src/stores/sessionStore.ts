@@ -27,6 +27,8 @@ interface SessionInfo {
   expires_at: string;
   is_active: boolean;
   queue_order_mode: string;
+  /** Matches `owner_tag` on this session's jobs; the jobs feed never sends the code. */
+  owner_tag?: string | null;
 }
 
 /** Setup a host picks before the night starts. See CreateSessionScreen. */
