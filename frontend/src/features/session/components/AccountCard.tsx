@@ -8,6 +8,7 @@
  */
 
 import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -26,31 +27,34 @@ const AccountCard: React.FC = () => {
   };
 
   return (
-    <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
-      <h2 className="text-xl mb-3">Account</h2>
-
-      {isAuthenticated ? (
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="font-medium">{user?.displayName || "Host"}</div>
-            <p className="text-sm opacity-75">
-              Signed in — you can start a session from the stage.
-            </p>
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-xl">Account</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isAuthenticated ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="font-medium">{user?.displayName || "Host"}</div>
+              <p className="text-sm opacity-75">
+                Signed in — you can start a session from the stage.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Log out
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Log out
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-sm opacity-75">
-            Sign in to host a night — running the stage needs a host account.
-          </p>
-          <LoginForm />
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm opacity-75">
+              Sign in to host a night — running the stage needs a host account.
+            </p>
+            <LoginForm />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
