@@ -1,16 +1,13 @@
 """
-Demo account pool: alias login resolution and download quota enforcement.
+Demo account pool: handing out pool accounts and download quota enforcement.
 
-A pool of `is_demo` host accounts sits behind one published alias credential
-(DEMO_LOGIN_USERNAME / DEMO_LOGIN_PASSWORD env vars; feature disabled when
-unset). Alias logins are resolved to a free pool account and eagerly start
-that account's karaoke session, so concurrent visitors never share a session
-and the (short) session clock starts at login.
+A pool of `is_demo` host accounts backs POST /api/demo/start. Each start picks
+a free pool account and eagerly starts that account's karaoke session, so
+concurrent visitors never share a session and the (short) session clock starts
+straight away. No credential is published: the endpoint issues the token.
 """
 
 import logging
-import os
-import secrets
 import uuid
 from datetime import timedelta
 from typing import Optional
@@ -36,30 +33,25 @@ DEMO_TOKEN_EXPIRE_MINUTES = 30
 DEMO_SESSION_FALLBACK_DURATION_HOURS = 0.25
 
 
-def resolve_demo_login(db: Session, username: str, password: str) -> Optional[User]:
-    """Resolve alias credentials to a free demo pool account.
+def demo_enabled(db: Session) -> bool:
+    """Whether this server offers the live demo: any pool account is seeded."""
+    return db.query(User.id).filter(User.is_demo.is_(True)).first() is not None
 
-    Returns None when the demo feature is disabled or the credentials don't
-    match the alias (the caller falls through to normal login — pool accounts'
-    own passwords keep working). Raises 503 when every pool account is busy.
+
+def start_demo(db: Session) -> User:
+    """Hand a visitor a free demo pool account with its session started.
+
+    Raises 503 when no pool account is free (or none is seeded, which reads
+    the same to a visitor: there's no seat for them right now).
     """
-    alias_username = os.environ.get("DEMO_LOGIN_USERNAME")
-    alias_password = os.environ.get("DEMO_LOGIN_PASSWORD")
-    if not alias_username or not alias_password:
-        return None
-    if username != alias_username or not secrets.compare_digest(
-        password, alias_password
-    ):
-        return None
-
     user = _acquire_pool_account(db)
     if user is None:
-        logger.info("Demo alias login rejected: all pool accounts busy")
+        logger.info("Demo start rejected: no free pool account")
         raise HTTPException(
             status_code=503,
             detail="The demo is busy right now — try again in a few minutes.",
         )
-    logger.info("Demo alias login resolved to pool account %s", user.username)
+    logger.info("Demo started on pool account %s", user.username)
     return user
 
 
@@ -179,7 +171,7 @@ def enforce_demo_download_quota(
         # Demo JWT with no live session (expired or never started).
         raise HTTPException(
             status_code=403,
-            detail="Your demo session has ended — log in again to start a new one.",
+            detail="Your demo session has ended — press Try it live to start a new one.",
         )
 
     session_count = (

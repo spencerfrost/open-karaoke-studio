@@ -13,7 +13,6 @@ from app.api.dependencies import get_current_user, get_db, require_admin
 from app.db.models import User
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
-from app.services.demo_service import DEMO_TOKEN_EXPIRE_MINUTES, resolve_demo_login
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +61,7 @@ class LoginResponse(BaseModel):
     token: str
     is_admin: bool = False
     is_host: bool = False
+    is_demo: bool = False
 
 
 class UpdateResponse(BaseModel):
@@ -115,20 +115,6 @@ async def login_user(
 ):
     """Log in a user."""
     try:
-        demo_user = resolve_demo_login(db, body.username, body.password)
-        if demo_user is not None:
-            token = create_access_token(
-                demo_user, expires_minutes=DEMO_TOKEN_EXPIRE_MINUTES
-            )
-            return LoginResponse(
-                success=True,
-                id=str(demo_user.id),
-                display_name=demo_user.display_name,
-                token=token,
-                is_admin=False,
-                is_host=True,
-            )
-
         user = db.query(User).filter(User.username == body.username).first()
 
         if not user or not user.check_password(body.password):
@@ -143,6 +129,7 @@ async def login_user(
             token=token,
             is_admin=user.is_admin,
             is_host=user.is_host,
+            is_demo=bool(user.is_demo),
         )
 
     except HTTPException:

@@ -87,6 +87,7 @@ def create_test_app():
         admin_router,
         albums_router,
         artists_router,
+        demo_router,
         health_router,
         host_settings_router,
         jobs_router,
@@ -126,6 +127,7 @@ def create_test_app():
     test_app.include_router(admin_router)
     test_app.include_router(albums_router)
     test_app.include_router(artists_router)
+    test_app.include_router(demo_router)
     test_app.include_router(health_router)
     test_app.include_router(songs_router)
     test_app.include_router(jobs_router)
