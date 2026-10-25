@@ -1,8 +1,8 @@
 /**
  * StageProcessingList - the songs getting ready, beside the wheel.
  *
- * Toast-sized on purpose: it sits over a corner of song select and must not
- * crowd the wheel at the TV's ~960×540. It shows every song in the job queue,
+ * Compact on purpose: it gets a column of its own beside the wheel, and the
+ * wheel shrinks to make room at the TV's ~960×540. It shows every song in the job queue,
  * everyone's, so a guest can see why theirs is still waiting. This session's
  * songs are marked as theirs and stay when finished, turning into "Sing this";
  * other sessions' songs drop off when done.
@@ -73,7 +73,7 @@ const StageProcessingList: React.FC<StageProcessingListProps> = ({
       data-tour="processing-list"
       aria-label="Songs getting ready"
       className={cn(
-        "w-72 rounded-xl bg-surface/95 p-1.5 shadow-xl ring-1 ring-border/30",
+        "rounded-xl bg-surface/95 p-1.5 shadow-xl ring-1 ring-border/30",
         className,
       )}
     >

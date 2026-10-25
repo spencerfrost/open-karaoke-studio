@@ -133,7 +133,8 @@ const TourRunner: React.FC<{ sessionId: string; tourKey: string }> = ({
     copy = {
       ...fb,
       targets: ["processing-list"],
-      side: "right",
+      side: "bottom",
+      align: "start",
     };
     content = fallbackSong ? (
       <FallbackSong song={fallbackSong} />
@@ -147,7 +148,13 @@ const TourRunner: React.FC<{ sessionId: string; tourKey: string }> = ({
   }
 
   const ringIds = copy ? [...copy.targets, ...(copy.ringOnly ?? [])] : [];
-  const boxes = useTourTargets(step === "done" || showSound ? [] : ringIds);
+  const measuredIds =
+    copy?.anchor && !ringIds.includes(copy.anchor)
+      ? [...ringIds, copy.anchor]
+      : ringIds;
+  const measured = useTourTargets(
+    step === "done" || showSound ? [] : measuredIds,
+  );
 
   if (step === "done") return null;
 
@@ -163,14 +170,18 @@ const TourRunner: React.FC<{ sessionId: string; tourKey: string }> = ({
 
   if (!copy) return null;
 
+  const onScreen = (id: string) => measured.some((b) => b.id === id);
   const anchorId =
-    copy.targets.find((id) => boxes.some((b) => b.id === id)) ?? null;
+    copy.anchor && onScreen(copy.anchor)
+      ? copy.anchor
+      : (copy.targets.find(onScreen) ?? null);
 
   return (
     <TourLayer
-      rings={boxes}
+      rings={measured.filter((b) => ringIds.includes(b.id))}
       anchorId={anchorId}
       side={copy.side}
+      align={copy.align}
       centered={centered}
       cardKey={showSound ? "sound" : `${step}:${fallback ?? ""}`}
     >

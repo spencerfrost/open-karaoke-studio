@@ -37,6 +37,7 @@ interface TourLayerProps {
   /** The target the card sits beside; corner placement when it isn't on screen. */
   anchorId: string | null;
   side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
   /** A card in the middle of the screen with no anchor (sound prompt, end card). */
   centered?: boolean;
   /** Changes per step, so each step's card animates in. */
@@ -48,13 +49,15 @@ const TourLayer: React.FC<TourLayerProps> = ({
   rings,
   anchorId,
   side = "right",
+  align = "center",
   centered = false,
   cardKey,
   children,
 }) => {
   const reducedMotion = useReducedMotion() ?? false;
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
-  const anchored = anchorId !== null && rings.some((r) => r.id === anchorId);
+  // The caller only names an anchor it found on screen; it needn't be ringed.
+  const anchored = anchorId !== null;
 
   // Read by the popover on every frame: the live box of the target, or a
   // point in the bottom-right corner when there's nothing to sit beside.
@@ -131,7 +134,7 @@ const TourLayer: React.FC<TourLayerProps> = ({
               key={cardKey}
               container={portal}
               side={anchored ? side : "top"}
-              align={anchored ? "center" : "end"}
+              align={anchored ? align : "end"}
               sideOffset={anchored ? 18 : 0}
               collisionPadding={16}
               updatePositionStrategy="always"

@@ -110,40 +110,46 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1">
-        {/* The wheel stays mounted under search, keeping its place. */}
-        <div className={searching ? "hidden" : "h-full"}>
-          <SongWheel
-            active={active && !searching}
-            focusArtist={focusArtist}
-            onPickSong={handlePickSong}
-            onLeave={handleLeave}
-            backdropTarget={backdropEl}
-          />
-        </div>
-        {searching && active && (
-          <div className="absolute inset-0">
-            <StageSearch
-              term={searchTerm}
-              onTermChange={setSearchTerm}
-              onPickArtist={handlePickArtist}
-              onClose={closeSearch}
+      <div className="relative flex min-h-0 flex-1">
+        {/* The songs that guests who just joined are adding, in a column of
+            their own: the wheel is scaled to fit, so it shrinks to make room
+            instead of being covered. On a computer the wheel is limited by
+            height and doesn't shrink at all. The column collapses when
+            nothing is processing, and while searching, which covers the wheel.
+            Wide enough on a computer for the tour's card to sit under it. */}
+        <aside className="relative z-10 w-64 shrink-0 pl-4 pt-2 empty:hidden xl:w-96 xl:pl-6">
+          {!searching && <StageProcessingList className="w-full" />}
+        </aside>
+
+        <div className="relative min-w-0 flex-1">
+          {/* The wheel stays mounted under search, keeping its place. */}
+          <div className={searching ? "hidden" : "h-full"}>
+            <SongWheel
+              active={active && !searching}
+              focusArtist={focusArtist}
+              onPickSong={handlePickSong}
+              onLeave={handleLeave}
+              backdropTarget={backdropEl}
             />
           </div>
-        )}
+          {searching && active && (
+            <div className="absolute inset-0">
+              <StageSearch
+                term={searchTerm}
+                onTermChange={setSearchTerm}
+                onPickArtist={handlePickArtist}
+                onClose={closeSearch}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Inside the wheel area, so both sit above the footer. */}
         {/* Bottom-left, not in the top bar: at TV size the QR code made the bar
             ~150px tall, which the wheel had to shrink to fit under. This corner
-            is empty beside the legend, and it is where guests look to join. */}
+            is empty beside the legend, and it is where guests look to join.
+            With the processing column open it sits at the column's foot. */}
         <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
-
-        {/* Stacked over the QR code, in the same empty corner: the songs that
-            guests who just joined are adding. Off while searching, which
-            covers the wheel. */}
-        {!searching && (
-          <StageProcessingList className="absolute bottom-40 left-6 z-10" />
-        )}
 
         <Button
           variant="accent"

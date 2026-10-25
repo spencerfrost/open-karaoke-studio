@@ -23,8 +23,13 @@ export interface StepCopy {
   targets: string[];
   /** Ringed but never used as the anchor (too big to sit a card beside). */
   ringOnly?: string[];
+  /** Anchors the card in place of `targets`, without a ring of its own:
+   *  for a ringed target too small to sit a card beside. */
+  anchor?: string;
   /** Which side of the anchor the card sits on. */
   side?: "top" | "right" | "bottom" | "left";
+  /** How the card lines up along that side. */
+  align?: "start" | "center" | "end";
 }
 
 export const STEP_COPY: Partial<Record<TourStep, StepCopy>> = {
@@ -47,9 +52,11 @@ export const STEP_COPY: Partial<Record<TourStep, StepCopy>> = {
     body: "It's being downloaded and the singer's voice is being taken out, and you can watch it happen in the corner. Meanwhile, spin the wheel: scroll, or use the arrow keys.",
     how: "A Celery worker downloads the audio, separates the vocals on the GPU with Demucs and Roformer models, then times the lyrics. Progress reaches every screen over a WebSocket.",
     docsPage: "architecture.html#processing-pipeline",
+    // Under the list, in its column: beside it, the card would cover the
+    // wheel the visitor is being asked to spin.
     targets: ["processing-list"],
-    ringOnly: ["song-wheel"],
-    side: "right",
+    side: "bottom",
+    align: "start",
   },
   ready: {
     title: "It's ready",
@@ -57,7 +64,9 @@ export const STEP_COPY: Partial<Record<TourStep, StepCopy>> = {
     how: "The job feed only says a job has left the queue, so the row asks the library whether the song came out playable before offering it.",
     docsPage: "websocket-protocol.html",
     targets: ["sing-this"],
-    side: "right",
+    anchor: "processing-list",
+    side: "bottom",
+    align: "start",
   },
   countdown: {
     title: "Get ready",
