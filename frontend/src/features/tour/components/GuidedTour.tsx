@@ -25,7 +25,7 @@ import {
   useStageShell,
 } from "@/features/stage/StageShellContext";
 import { useSessionStore } from "@/stores/sessionStore";
-import { tourStepFor, useTourStore } from "@/stores/tourStore";
+import { tourKeyFor, tourStepFor, useTourStore } from "@/stores/tourStore";
 import type { Song } from "@/types/Song";
 import {
   FALLBACK_COPY,
@@ -57,23 +57,31 @@ function hasUserActivation(): boolean {
 const GuidedTour: React.FC = () => {
   const { isDemo, isStageDevice } = useAccess();
   const sessionId = useSessionStore((s) => s.sessionId);
-  if (!isDemo || !isStageDevice || !sessionId) return null;
+  const createdAt = useSessionStore((s) => s.sessionInfo?.created_at);
+  // When the demo's time runs out the stage clears the session and signs the
+  // visitor out; sessionId goes null and the tour simply unmounts, leaving
+  // the stage's own "Your demo has ended" and the redirect to /join alone.
+  if (!isDemo || !isStageDevice || !sessionId || !createdAt) return null;
+  const tourKey = tourKeyFor(sessionId, createdAt);
   // Keyed, so a new session starts with fresh readings.
-  return <TourRunner key={sessionId} sessionId={sessionId} />;
+  return <TourRunner key={tourKey} sessionId={sessionId} tourKey={tourKey} />;
 };
 
-const TourRunner: React.FC<{ sessionId: string }> = ({ sessionId }) => {
-  const step = useTourStore((s) => tourStepFor(s.steps, sessionId));
+const TourRunner: React.FC<{ sessionId: string; tourKey: string }> = ({
+  sessionId,
+  tourKey,
+}) => {
+  const step = useTourStore((s) => tourStepFor(s.steps, tourKey));
   const setStoredStep = useTourStore((s) => s.setStep);
   const { signals, fallback, failedSongIds } = useTourSignals(sessionId, step);
 
-  const setStep = (next: TourStep) => setStoredStep(sessionId, next);
+  const setStep = (next: TourStep) => setStoredStep(tourKey, next);
 
   // Follow the app.
   const next = nextStep(step, signals);
   useEffect(() => {
-    if (next !== step) setStoredStep(sessionId, next);
-  }, [next, step, sessionId, setStoredStep]);
+    if (next !== step) setStoredStep(tourKey, next);
+  }, [next, step, tourKey, setStoredStep]);
 
   // The sound card: the first step, and again after a reload until clicked.
   const [activated, setActivated] = useState(hasUserActivation);
