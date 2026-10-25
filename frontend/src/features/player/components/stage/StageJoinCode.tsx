@@ -45,6 +45,7 @@ const StageJoinCode: React.FC<StageJoinCodeProps> = ({
 
   return (
     <div
+      data-tour="join-code"
       className={cn(
         "flex shrink-0 flex-col items-center rounded-md border transition-[background-color,border-color,padding] duration-500 motion-reduce:transition-none",
         collapsed

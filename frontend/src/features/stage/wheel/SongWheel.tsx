@@ -270,6 +270,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
         </div>
 
         <div
+          data-tour="song-wheel"
           className="absolute inset-x-0"
           style={{
             top: STAGE_TOP,

@@ -131,7 +131,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div data-tour="join-code" className={className}>
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <div
