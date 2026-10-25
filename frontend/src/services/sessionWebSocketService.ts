@@ -8,6 +8,7 @@
 
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
+import type { PerformerPresence } from "@/types/Presence";
 
 const logger = createLogger("websocket:session");
 
@@ -15,6 +16,8 @@ interface QueueItem {
   id: string;
   songId: string;
   singer: string;
+  /** The roster seat this song belongs to. */
+  performerId?: number | null;
   position: number;
   addedAt?: string;
   song: {
@@ -49,6 +52,8 @@ interface SessionWebSocketEvents {
     device_id: string;
     is_session_owner: boolean;
     performance_state: PerformanceState;
+    /** Same shape as `presence_updated.performers`. */
+    presence?: PerformerPresence[];
   }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
@@ -75,6 +80,20 @@ interface SessionWebSocketEvents {
   }) => void;
   // Someone joined, left, or came back - the roster list is stale.
   roster_updated: (data: { name: string }) => void;
+
+  // Presence events
+  /** Whose phones are open, per roster seat with a phone linked. Room-wide. */
+  presence_updated: (data: { performers: PerformerPresence[] }) => void;
+  /** Reply to this device's own `presence` report: which seat it is. */
+  presence_acknowledged: (data: { performer_id: number | null }) => void;
+}
+
+/** What this page reports about itself. See setPresence. */
+export interface PagePresence {
+  /** The page is on screen (Page Visibility API). */
+  visible: boolean;
+  /** The page is the performance controls. */
+  onControls: boolean;
 }
 
 type EventData =
@@ -91,6 +110,8 @@ type EventData =
   | { reason: string }
   | { action: string; reason: string }
   | { name: string }
+  | { performers: PerformerPresence[] }
+  | { performer_id: number | null }
   | undefined;
 
 function socketUrl(sessionId: string): string {
@@ -117,6 +138,9 @@ class SessionWebSocketService {
   private memberDeviceId: string | null = null;
   // This socket's ephemeral id, assigned by the server's session_connected greeting.
   private deviceId: string | null = null;
+  // The last presence this page reported. Kept across reconnects and resent on
+  // every open, the same way authentication is.
+  private presence: PagePresence | null = null;
 
   constructor() {
     // Don't initialize connection immediately - wait for session
@@ -162,6 +186,8 @@ class SessionWebSocketService {
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
       this.send({ type: "join_queue_room" });
+
+      if (this.presence) this.sendPresence(this.presence);
     };
 
     this.websocket.onclose = (event) => {
@@ -405,6 +431,36 @@ class SessionWebSocketService {
       currentTime: 0,
       isPlaying: false,
       isReady: true,
+    });
+  }
+
+  // === PRESENCE ===
+
+  /**
+   * Report whether this page is on screen and whether it is the controls.
+   *
+   * Remembered, so a reconnect reports again without being asked. Sent only
+   * when it changes - a phone flips visibility constantly, and each report the
+   * server sees as a change goes out to the whole room.
+   */
+  setPresence(presence: PagePresence) {
+    const previous = this.presence;
+    this.presence = presence;
+    if (
+      previous &&
+      previous.visible === presence.visible &&
+      previous.onControls === presence.onControls
+    ) {
+      return;
+    }
+    if (this.isConnectionActive()) this.sendPresence(presence);
+  }
+
+  private sendPresence(presence: PagePresence) {
+    this.send({
+      type: "presence",
+      visible: presence.visible,
+      on_controls: presence.onControls,
     });
   }
 

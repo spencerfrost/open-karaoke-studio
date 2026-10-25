@@ -4,6 +4,11 @@ export interface KaraokeQueueItem {
   id: string;
   songId: string;
   singer: string;
+  /**
+   * The roster seat this song belongs to. Null for rows that predate the
+   * roster; optional because older payloads did not send it.
+   */
+  performerId?: number | null;
   position: number;
   addedAt: string;
 }
