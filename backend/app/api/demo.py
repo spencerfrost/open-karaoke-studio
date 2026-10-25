@@ -6,6 +6,8 @@ account seeded), so the entry page only shows "Try it live" where it can work.
 POST /api/demo/start hands a visitor a free `is_demo` pool account with its
 session already running, and returns the same payload as a normal login so the
 frontend signs in with it the same way. The token expires with the session.
+GET /api/demo/quota tells a demo session how many new songs it can still add,
+so the guided tour can switch to a library song before a download is refused.
 See app.services.demo_service.
 """
 
@@ -15,13 +17,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
+from app.api.dependencies import (
+    RequesterContext,
+    get_db,
+    require_host_or_session_member,
+)
 from app.api.users import LoginResponse
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
 from app.services.demo_service import (
     demo_enabled,
     demo_token_minutes,
+    get_demo_quota,
     start_demo,
 )
 
@@ -42,10 +49,30 @@ class DemoStatusResponse(BaseModel):
     enabled: bool
 
 
+class DemoQuotaResponse(BaseModel):
+    """New songs a demo session can still add."""
+
+    session_remaining: int
+    daily_remaining: int
+
+
 @router.get("", response_model=DemoStatusResponse)
 async def get_demo_status(db: Session = Depends(get_db)) -> DemoStatusResponse:
     """Report whether any demo pool account exists."""
     return DemoStatusResponse(enabled=demo_enabled(db))
+
+
+@router.get("/quota", response_model=DemoQuotaResponse)
+async def get_demo_quota_status(
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
+) -> DemoQuotaResponse:
+    """Report the requester's remaining demo downloads (403 outside a demo)."""
+    quota = get_demo_quota(db, requester)
+    return DemoQuotaResponse(
+        session_remaining=quota.session_remaining,
+        daily_remaining=quota.daily_remaining,
+    )
 
 
 @router.post("/start", response_model=LoginResponse)

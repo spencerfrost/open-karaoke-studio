@@ -12,6 +12,7 @@ fresh download allowance, is another POST /api/demo/start.
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Optional
 
@@ -137,18 +138,15 @@ def _start_demo_session(db: Session, user: User) -> KaraokeSession:
     raise HTTPException(status_code=500, detail="Failed to create demo session")
 
 
-def enforce_demo_download_quota(
+def _resolve_requester_session(
     db: Session, requester: RequesterContext
-) -> tuple[Optional[str], Optional[int]]:
-    """Enforce demo download quotas; return (session_id, user_id) attribution.
+) -> tuple[Optional[KaraokeSession], bool]:
+    """The requester's session, and whether it falls under demo quotas.
 
-    Attribution is resolved for every requester (demo or not) so jobs can be
-    tied back to the session/account that started them. Quota counting only
-    happens when the resolved session's host — or the requester — is a demo
-    account; everyone else is untouched.
+    Quota counting only happens when the resolved session's host — or the
+    requester — is a demo account; everyone else is untouched.
     """
     user = requester.user
-    user_id = user.id if user else None
 
     session: Optional[KaraokeSession] = None
     if requester.session_id:
@@ -173,42 +171,34 @@ def enforce_demo_download_quota(
     host: Optional[User] = None
     if session is not None and session.host_user_id is not None:
         host = db.get(User, session.host_user_id)
-    session_id = session.session_id if session else None
 
     demo_request = (host is not None and host.is_demo) or (
         user is not None and user.is_demo
     )
-    if not demo_request:
-        return session_id, user_id
+    return session, demo_request
 
-    if session is None:
-        # Demo JWT with no live session (expired or never started).
-        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
-    # Finished download jobs keep their row, so these counts include completed
-    # downloads. Session codes are recycled once a retired session is purged,
-    # so a job only belongs to a session if it started after the session did.
-    session_count = (
+# Finished download jobs keep their row, so these counts include completed
+# downloads. Session codes are recycled once a retired session is purged, so a
+# job only belongs to a session if it started after the session did.
+def _session_download_count(db: Session, session: KaraokeSession) -> int:
+    """Downloads this session has used, failed and cancelled ones excluded."""
+    return (
         db.query(func.count(DbJob.id))
         .filter(
-            DbJob.session_id == session_id,
+            DbJob.session_id == session.session_id,
             DbJob.created_at >= session.created_at,
             DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
         )
         .scalar()
         or 0
     )
-    if session_count >= DEMO_SESSION_DOWNLOAD_LIMIT:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"Demo limit: {DEMO_SESSION_DOWNLOAD_LIMIT} new songs per session. "
-                "You can still queue anything already in the library."
-            ),
-        )
 
+
+def _daily_download_count(db: Session) -> int:
+    """Downloads every demo session together has used in the last 24 hours."""
     cutoff = utc_now() - timedelta(hours=24)
-    daily_count = (
+    return (
         db.query(func.count(DbJob.id))
         .join(
             KaraokeSession,
@@ -226,7 +216,66 @@ def enforce_demo_download_quota(
         .scalar()
         or 0
     )
-    if daily_count >= DEMO_DAILY_DOWNLOAD_LIMIT:
+
+
+@dataclass
+class DemoQuota:
+    """What a demo session can still download."""
+
+    session_remaining: int
+    daily_remaining: int
+
+
+def get_demo_quota(db: Session, requester: RequesterContext) -> DemoQuota:
+    """How many new songs the requester's demo session can still add.
+
+    Read-only, with the same counting as enforce_demo_download_quota: the
+    guided tour on the stage asks this so it can offer a library song before
+    the visitor's phone hits the 429. Raises 403 outside a live demo session.
+    """
+    session, demo_request = _resolve_requester_session(db, requester)
+    if not demo_request or session is None:
+        raise HTTPException(status_code=403, detail="Not in a live demo session")
+    return DemoQuota(
+        session_remaining=max(
+            0, DEMO_SESSION_DOWNLOAD_LIMIT - _session_download_count(db, session)
+        ),
+        daily_remaining=max(0, DEMO_DAILY_DOWNLOAD_LIMIT - _daily_download_count(db)),
+    )
+
+
+def enforce_demo_download_quota(
+    db: Session, requester: RequesterContext
+) -> tuple[Optional[str], Optional[int]]:
+    """Enforce demo download quotas; return (session_id, user_id) attribution.
+
+    Attribution is resolved for every requester (demo or not) so jobs can be
+    tied back to the session/account that started them. Quota counting only
+    happens when the resolved session's host — or the requester — is a demo
+    account; everyone else is untouched.
+    """
+    user = requester.user
+    user_id = user.id if user else None
+
+    session, demo_request = _resolve_requester_session(db, requester)
+    session_id = session.session_id if session else None
+    if not demo_request:
+        return session_id, user_id
+
+    if session is None:
+        # Demo JWT with no live session (expired or never started).
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
+
+    if _session_download_count(db, session) >= DEMO_SESSION_DOWNLOAD_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Demo limit: {DEMO_SESSION_DOWNLOAD_LIMIT} new songs per session. "
+                "You can still queue anything already in the library."
+            ),
+        )
+
+    if _daily_download_count(db) >= DEMO_DAILY_DOWNLOAD_LIMIT:
         raise HTTPException(
             status_code=429,
             detail=(

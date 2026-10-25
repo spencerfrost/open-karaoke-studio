@@ -244,3 +244,54 @@ class TestCreateSongQuota:
         response = _create_song(client)
 
         assert response.status_code == 201
+
+
+class TestDemoQuotaStatus:
+    def test_reports_remaining_for_demo_host(self, client, db, override_requester):
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 1)
+
+        override_requester(RequesterContext(user=demo))
+        response = client.get("/api/demo/quota")
+
+        assert response.status_code == 200
+        assert response.json() == {"session_remaining": 2, "daily_remaining": 19}
+
+    def test_reports_zero_when_daily_budget_used(self, client, db, override_requester):
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        other = _make_demo_user(db, "demo-pool-2")
+        _make_session(db, other.id, "OTHR")
+        _make_jobs(db, "OTHR", 25)
+
+        override_requester(RequesterContext(session_id="SESS"))
+        response = client.get("/api/demo/quota")
+
+        assert response.status_code == 200
+        assert response.json() == {"session_remaining": 3, "daily_remaining": 0}
+
+    def test_forbidden_outside_demo(self, client, db, override_requester):
+        user = User(username="regular-host", display_name="Host")
+        user.set_password("secret")
+        user.is_host = True
+        db.add(user)
+        db.commit()
+        _make_session(db, user.id, "REGL")
+
+        override_requester(RequesterContext(user=user))
+        response = client.get("/api/demo/quota")
+
+        assert response.status_code == 403
+
+    def test_ignores_jobs_from_an_earlier_session_with_the_same_code(
+        self, client, db, override_requester
+    ):
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 3, created_at=utc_now() - timedelta(hours=2))
+
+        override_requester(RequesterContext(user=demo))
+        response = client.get("/api/demo/quota")
+
+        assert response.json()["session_remaining"] == 3
