@@ -48,6 +48,7 @@ import SongConfirmScreen from "./screens/SongConfirmScreen";
 import AddSongScreen from "./screens/AddSongScreen";
 import HandoffScreen from "./screens/HandoffScreen";
 import OpenYourPhonePrompt from "./components/OpenYourPhonePrompt";
+import { GuidedTour } from "@/features/tour";
 import { findTurnItem } from "./turnItem";
 
 interface StageShellProps {
@@ -274,6 +275,10 @@ const StageShell: React.FC<StageShellProps> = ({
               onClose={() => setIsExitPromptOpen(false)}
               onLeaveStage={handleLeaveStage}
             />
+
+            {/* The live demo's guided tour. Renders nothing outside a demo
+                session. Inside the full-screen container, like everything. */}
+            <GuidedTour />
           </div>
         </StageQueueContext.Provider>
       </StageScreenContext.Provider>
