@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Disc, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
+import { SongProcessingTracker } from "../../processing/SongProcessingTracker";
 
 import { useYoutubeMusicAlbumTracks } from "@/hooks/api/useYoutubeMusic";
 import { YoutubeMusicAlbum, YoutubeMusicSearchResult } from "@/types/Youtube";
@@ -11,12 +12,14 @@ interface AlbumTracksExpanderProps {
   album: YoutubeMusicAlbum;
   onSelectTrack: (track: YoutubeMusicSearchResult) => void;
   getSubmissionStatus: (videoId: string) => SongSubmissionStatus;
+  getSubmittedSongId?: (videoId: string) => string | undefined;
 }
 
 export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
   album,
   onSelectTrack,
   getSubmissionStatus,
+  getSubmittedSongId,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -106,15 +109,20 @@ export const AlbumTracksExpander: React.FC<AlbumTracksExpanderProps> = ({
             <div className="divide-y">
               {tracks.map((track, index) => {
                 const status = getSubmissionStatus(track.videoId);
+                const songId = getSubmittedSongId?.(track.videoId);
                 return (
-                  <TrackRow
-                    key={track.videoId || index}
-                    track={track}
-                    trackNumber={track.trackNumber || index + 1}
-                    isLoading={status === "pending"}
-                    isSubmitted={status === "queued"}
-                    onSelect={() => onSelectTrack(track)}
-                  />
+                  <div key={track.videoId || index}>
+                    <TrackRow
+                      track={track}
+                      trackNumber={track.trackNumber || index + 1}
+                      isLoading={status === "pending"}
+                      isSubmitted={status === "queued"}
+                      onSelect={() => onSelectTrack(track)}
+                    />
+                    {songId && (
+                      <SongProcessingTracker songId={songId} className="px-4" />
+                    )}
+                  </div>
                 );
               })}
             </div>

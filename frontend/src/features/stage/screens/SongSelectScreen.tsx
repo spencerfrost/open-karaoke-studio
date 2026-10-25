@@ -21,6 +21,7 @@ import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
 import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
 import StageNowPlaying from "../components/StageNowPlaying";
+import StageProcessingList from "../components/StageProcessingList";
 import StageSearch from "../components/StageSearch";
 import SongWheel from "../wheel/SongWheel";
 import type { WheelFocusRequest } from "../wheel/useSongWheel";
@@ -136,6 +137,13 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             ~150px tall, which the wheel had to shrink to fit under. This corner
             is empty beside the legend, and it is where guests look to join. */}
         <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
+
+        {/* Stacked over the QR code, in the same empty corner: the songs that
+            guests who just joined are adding. Off while searching, which
+            covers the wheel. */}
+        {!searching && (
+          <StageProcessingList className="absolute bottom-40 left-6 z-10" />
+        )}
 
         <Button
           variant="accent"

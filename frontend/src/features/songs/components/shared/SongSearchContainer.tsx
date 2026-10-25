@@ -213,6 +213,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               onBack={handleBackFromArtist}
               onSelectSong={handleYoutubeMusicSelect}
               getSubmissionStatus={songCreation.getSubmissionStatus}
+              getSubmittedSongId={songCreation.getSubmittedSongId}
             />
           </CardContent>
         </Card>
@@ -274,6 +275,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
                     error={youtubeMusicSearch.error}
                     onSelect={handleYoutubeMusicSelect}
                     getSubmissionStatus={songCreation.getSubmissionStatus}
+                    getSubmittedSongId={songCreation.getSubmittedSongId}
                     resultCardComponent={YoutubeMusicResultCard}
                     keyExtractor={(result) => result.videoId}
                     emptyMessage="Search YouTube Music"
@@ -305,6 +307,7 @@ export const SongSearchContainer: React.FC<SongSearchContainerProps> = ({
               error={youtubeSearch.error}
               onSelect={handleYouTubeSelect}
               getSubmissionStatus={songCreation.getSubmissionStatus}
+              getSubmittedSongId={songCreation.getSubmittedSongId}
               resultCardComponent={YouTubeResultCard}
               keyExtractor={(result) => result.id}
               emptyMessage="Search YouTube"

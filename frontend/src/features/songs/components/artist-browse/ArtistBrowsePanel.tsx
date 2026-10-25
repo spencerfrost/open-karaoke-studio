@@ -9,6 +9,7 @@ import {
 } from "@/hooks/api/useYoutubeMusic";
 import { YoutubeMusicSearchResult } from "@/types/Youtube";
 import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
+import { SongProcessingTracker } from "../../processing/SongProcessingTracker";
 import { AlbumTracksExpander } from "./AlbumTracksExpander";
 
 const INITIAL_SONGS_COUNT = 5;
@@ -20,6 +21,7 @@ interface ArtistBrowsePanelProps {
   onBack: () => void;
   onSelectSong: (song: YoutubeMusicSearchResult) => void;
   getSubmissionStatus: (videoId: string) => SongSubmissionStatus;
+  getSubmittedSongId?: (videoId: string) => string | undefined;
 }
 
 export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
@@ -28,6 +30,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
   onBack,
   onSelectSong,
   getSubmissionStatus,
+  getSubmittedSongId,
 }) => {
   const [visibleSongsCount, setVisibleSongsCount] =
     useState(INITIAL_SONGS_COUNT);
@@ -133,15 +136,24 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
             <section>
               <h3 className="text-lg font-semibold mb-3">Top Songs</h3>
               <div className="space-y-2">
-                {visibleTopSongs.map((song) => (
-                  <TopSongCard
-                    key={song.videoId}
-                    song={song}
-                    isLoading={getSubmissionStatus(song.videoId) === "pending"}
-                    isSubmitted={getSubmissionStatus(song.videoId) === "queued"}
-                    onSelect={() => onSelectSong(song)}
-                  />
-                ))}
+                {visibleTopSongs.map((song) => {
+                  const songId = getSubmittedSongId?.(song.videoId);
+                  return (
+                    <div key={song.videoId} className="space-y-1">
+                      <TopSongCard
+                        song={song}
+                        isLoading={
+                          getSubmissionStatus(song.videoId) === "pending"
+                        }
+                        isSubmitted={
+                          getSubmissionStatus(song.videoId) === "queued"
+                        }
+                        onSelect={() => onSelectSong(song)}
+                      />
+                      {songId && <SongProcessingTracker songId={songId} />}
+                    </div>
+                  );
+                })}
               </div>
               {hasMoreSongs && (
                 <Button
@@ -167,6 +179,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     album={album}
                     onSelectTrack={onSelectSong}
                     getSubmissionStatus={getSubmissionStatus}
+                    getSubmittedSongId={getSubmittedSongId}
                   />
                 ))}
               </div>
@@ -202,6 +215,7 @@ export const ArtistBrowsePanel: React.FC<ArtistBrowsePanelProps> = ({
                     album={album}
                     onSelectTrack={onSelectSong}
                     getSubmissionStatus={getSubmissionStatus}
+                    getSubmittedSongId={getSubmittedSongId}
                   />
                 ))}
               </div>

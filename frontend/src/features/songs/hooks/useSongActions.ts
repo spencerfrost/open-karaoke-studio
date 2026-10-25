@@ -47,18 +47,20 @@ export const useSongActions = (
    * On the stage the name comes from the confirm screen. Everywhere else it
    * falls back to the session's display name, which is how it has always
    * worked — and why every stage walk-up used to land in the queue as the host.
+   *
+   * Resolves true once the song has started; failures toast and resolve false.
    */
-  const handlePlayAs = async (singerName?: string) => {
+  const handlePlayAs = async (singerName?: string): Promise<boolean> => {
     // If not host, cannot play now
     if (!access.isStageDevice) {
       toast.error("Only the host device can start playing songs");
-      return;
+      return false;
     }
 
     // If song not processed, cannot play
     if (song.status !== "processed") {
       toast.error("Song is not ready for playback yet");
-      return;
+      return false;
     }
 
     try {
@@ -83,9 +85,11 @@ export const useSongActions = (
       // is already the player and must not remount.
       if (shell) shell.openPerformance();
       else navigate("/stage");
+      return true;
     } catch (error) {
       logger.error("Failed to play song now:", error);
       toast.error("Failed to start playback. Please try again.");
+      return false;
     }
   };
 

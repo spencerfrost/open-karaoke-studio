@@ -2,6 +2,7 @@ import React from "react";
 import { SearchLoadingState } from "./LoadingStates";
 import { EmptySearchState, SearchErrorState } from "./EmptyStates";
 import type { SongSubmissionStatus } from "../../hooks/useSongCreation";
+import { SongProcessingTracker } from "../../processing/SongProcessingTracker";
 
 // Generic search results component that can display any type of result with any result card
 interface SearchResultsProps<TResult> {
@@ -10,6 +11,8 @@ interface SearchResultsProps<TResult> {
   error: Error | null;
   onSelect: (result: TResult) => void;
   getSubmissionStatus: (key: string) => SongSubmissionStatus;
+  /** The library song a result became once added; shows its progress inline. */
+  getSubmittedSongId?: (key: string) => string | undefined;
   resultCardComponent: React.ComponentType<{
     result: TResult;
     isLoading: boolean;
@@ -29,6 +32,7 @@ export const SearchResults = <TResult,>({
   error,
   onSelect,
   getSubmissionStatus,
+  getSubmittedSongId,
   resultCardComponent: ResultCard,
   keyExtractor,
   emptyMessage,
@@ -59,15 +63,18 @@ export const SearchResults = <TResult,>({
         {results.map((result) => {
           const key = keyExtractor(result);
           const status = getSubmissionStatus(key);
+          const songId = getSubmittedSongId?.(key);
           return (
-            <ResultCard
-              key={key}
-              result={result}
-              isLoading={status === "pending"}
-              isSubmitted={status === "queued"}
-              onSelect={() => onSelect(result)}
-              onArtistClick={onArtistClick}
-            />
+            <div key={key} className="space-y-1">
+              <ResultCard
+                result={result}
+                isLoading={status === "pending"}
+                isSubmitted={status === "queued"}
+                onSelect={() => onSelect(result)}
+                onArtistClick={onArtistClick}
+              />
+              {songId && <SongProcessingTracker songId={songId} />}
+            </div>
           );
         })}
       </div>

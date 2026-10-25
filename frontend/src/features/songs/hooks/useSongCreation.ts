@@ -32,6 +32,10 @@ export const useSongCreation = () => {
   const [submissionStates, setSubmissionStates] = useState<
     Record<string, "pending" | "queued">
   >({});
+  // The library song each submitted result became, for the inline tracker.
+  const [submittedSongIds, setSubmittedSongIds] = useState<
+    Record<string, string>
+  >({});
   const inFlightVideoIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -136,6 +140,10 @@ export const useSongCreation = () => {
           ...current,
           [song.videoId]: "queued",
         }));
+        setSubmittedSongIds((current) => ({
+          ...current,
+          [song.videoId]: songId,
+        }));
         logger.debug("Marked song as queued in local submission state", {
           videoId: song.videoId,
           songId,
@@ -172,10 +180,14 @@ export const useSongCreation = () => {
     return "idle";
   };
 
+  const getSubmittedSongId = (videoId: string): string | undefined =>
+    submittedSongIds[videoId];
+
   return {
     // State
     submissionStates,
     getSubmissionStatus,
+    getSubmittedSongId,
 
     // Actions
     createSong,
