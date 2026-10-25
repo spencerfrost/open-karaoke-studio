@@ -20,6 +20,8 @@ COPY . .
 # Build-time settings (.env files are not copied into the image)
 ARG VITE_DEMO_RECORDING_URL=""
 ENV VITE_DEMO_RECORDING_URL=$VITE_DEMO_RECORDING_URL
+ARG VITE_DOCS_URL=""
+ENV VITE_DOCS_URL=$VITE_DOCS_URL
 
 # Build the application
 RUN pnpm run build

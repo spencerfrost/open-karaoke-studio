@@ -145,6 +145,8 @@ services:
       args:
         # Link for the entry page's "Watch the demo" button; hidden when empty.
         VITE_DEMO_RECORDING_URL: ${VITE_DEMO_RECORDING_URL:-}
+        # Docs site the guided tour's "how this works" links point to; hidden when empty.
+        VITE_DOCS_URL: ${VITE_DOCS_URL:-}
     container_name: karaoke-frontend-prod
     restart: unless-stopped
     stop_grace_period: 5s
