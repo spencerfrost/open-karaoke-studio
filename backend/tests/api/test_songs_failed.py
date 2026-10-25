@@ -37,7 +37,7 @@ def _status(song_id):
 def youtube_service():
     with (
         patch("app.services.youtube_service.YouTubeService") as service_cls,
-        patch("app.api.songs.FileService"),
+        patch("app.services.song_intake_service.FileService"),
     ):
         service = service_cls.return_value
         service.download_and_process_async.return_value = "job-123"

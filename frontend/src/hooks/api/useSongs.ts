@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  apiGet,
   getAuthHeaders,
   useApiQuery,
   useApiMutation,
@@ -110,6 +111,19 @@ export function useSongs() {
   };
 
   /**
+   * Fetch a song by ID outside a render, e.g. on a tap that only has its id.
+   * Shares useSong's cache.
+   */
+  const fetchSong = useCallback(
+    (id: string) =>
+      queryClient.fetchQuery({
+        queryKey: QUERY_KEYS.song(id),
+        queryFn: () => apiGet<Song>(`songs/${id}`),
+      }),
+    [queryClient],
+  );
+
+  /**
    * Get song processing status
    */
   const useSongStatus = (id: string, options = {}) => {
@@ -129,44 +143,6 @@ export function useSongs() {
   };
 
   // ===== Mutations =====
-  /**
-   * Create a new song
-   */
-  const useCreateSong = () => {
-    return useApiMutation<Song, Partial<Song>>("songs", "post", {
-      onMutate: async () => {
-        await queryClient.cancelQueries({ queryKey: ["songs"] });
-        return {};
-      },
-      onError: () => {
-        // Invalidate to refetch fresh data on error
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
-      },
-      onSettled: () => {
-        // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
-      },
-      mutationFn: async (data) => {
-        const response = await fetch("/api/songs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify(data),
-          credentials: "include",
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || `Failed to create song: ${response.status}`,
-          );
-        }
-        return response.json();
-      },
-    });
-  };
-
   /**
    * Update a song
    */
@@ -658,7 +634,6 @@ export function useSongs() {
     useRichSongMetadata,
 
     // Mutations
-    useCreateSong,
     useUpdateSong,
     useUpdateSongMetadata,
     useUpdateYoutubeMetadata,
@@ -667,6 +642,7 @@ export function useSongs() {
     useReprocessAllSongs,
 
     // Utility functions
+    fetchSong,
     getAudioUrl,
     uploadSong,
     downloadVocals,

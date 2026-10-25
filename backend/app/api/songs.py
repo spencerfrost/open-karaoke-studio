@@ -31,6 +31,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -76,10 +77,17 @@ from app.schemas.song import (
     SongSearchResponse,
     SongUpdateRequest,
 )
+from app.schemas.youtube import SongFromYouTubeRequest, SongFromYouTubeResponse
 from app.services.batch_jobs import record_scan
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import NON_SONG_DIRS, FileService
 from app.services.lyrics_language import normalize_language
+from app.services.song_intake_service import (
+    add_song_from_youtube,
+    create_song_record,
+    job_created_event,
+    restart_youtube_processing,
+)
 from app.utils.filing import filing_letter, filing_name
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
@@ -947,55 +955,32 @@ async def create_song(
 
     Requires a logged-in account or active session membership.
     """
-    # Enforce demo download quota up front: the add-song flow creates the song
-    # here and then calls POST /api/youtube/download. Blocking only the download
-    # would leave an orphaned, track-less song in the library, so a demo user
-    # over quota must be rejected before anything is persisted. No-op for
-    # non-demo requesters.
+    # Enforce demo download quota up front: a song created here is followed by
+    # POST /api/youtube/download. Blocking only the download would leave an
+    # orphaned, track-less song in the library, so a demo user over quota must
+    # be rejected before anything is persisted. No-op for non-demo requesters.
+    # The add-song flow uses POST /api/songs/from-youtube, which does both.
     enforce_demo_download_quota(db, requester)
 
-    song_id = song_data.id or str(uuid.uuid4())
-    logger.info("Creating new song with ID: %s", song_id)
-
     try:
-        repo = SongRepository(db)
-
-        song_dict = {
-            "id": song_id,
-            "title": song_data.title,
-            "artist": song_data.artist,
-            "album": song_data.album,
-            "show_name": song_data.show_name,
-            "duration": song_data.duration,
-            "source": song_data.source,
-            "video_id": song_data.video_id,
-        }
-
-        song = repo.create(song_dict)
-
-        if not song:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to create song {song_id} in database"
-            )
-
-        # Populate song_artists join table
-        from app.services.song_artist_service import populate_song_artists
-
-        populate_song_artists(db, song, song_data.artist)
-
-        # Create the song directory
-        try:
-            file_service = FileService()
-            song_dir = file_service.get_song_directory(song_id)
-            song_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug("Created directory for song: %s", song_dir)
-        except Exception as e:
-            logger.warning("Error creating directory for song %s: %s", song_id, e)
+        song = create_song_record(
+            db,
+            {
+                "id": song_data.id,
+                "title": song_data.title,
+                "artist": song_data.artist,
+                "album": song_data.album,
+                "show_name": song_data.show_name,
+                "duration": song_data.duration,
+                "source": song_data.source,
+                "video_id": song_data.video_id,
+            },
+        )
 
         response = song.to_dict()
         response["status"] = "pending"
 
-        logger.info("Successfully created song: %s", song_id)
+        logger.info("Successfully created song: %s", song.id)
         return response
 
     except HTTPException:
@@ -1003,6 +988,37 @@ async def create_song(
     except Exception as e:
         logger.error("Error creating song: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create song: {str(e)}")
+
+
+@router.post("/from-youtube", response_model=SongFromYouTubeResponse, status_code=202)
+async def add_song_from_youtube_route(
+    body: SongFromYouTubeRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """
+    Add a YouTube song to the library and queue its processing, in one request.
+
+    When the song's only library copy failed, that copy is restarted instead of
+    adding a duplicate. 409 when a working copy is already there; 429/403 past
+    the demo's download quota.
+    """
+    added = await run_in_threadpool(
+        add_song_from_youtube,
+        db,
+        requester,
+        video_id=body.video_id,
+        title=body.title,
+        artists=body.artists,
+        album=body.album,
+        duration=body.duration,
+        source=body.source,
+    )
+    await broadcast_job_created(manager, added.event)
+    return SongFromYouTubeResponse(
+        songId=added.song_id, jobId=added.job_id, restarted=added.restarted
+    )
 
 
 @router.patch("/{song_id}", response_model=SongResponse)
@@ -1808,60 +1824,6 @@ def _format_validation_message(status: str, score: Optional[float]) -> str:
         return f"? Unknown validation status: {status}"
 
 
-def _restart_youtube_processing(
-    song_repo: SongRepository,
-    song_id: str,
-    *,
-    video_id: str,
-    title: str,
-    artist: str,
-    engine_type: str,
-    session_id: Optional[str] = None,
-    user_id: Optional[int] = None,
-) -> str:
-    """Clear a song's processing results and files, then queue a fresh download.
-
-    Shared by replace-youtube (admin, possibly a new source) and retry (guest,
-    same source). Returns the new job id; 409 if the song already has a job.
-    """
-    from app.repositories import JobRepository
-    from app.services.youtube_service import YouTubeService
-
-    active_jobs = JobRepository().get_in_flight_jobs()
-    if any(j.song_id == song_id for j in active_jobs):
-        raise HTTPException(status_code=409, detail="Song is already being processed")
-
-    song_repo.update(
-        song_id,
-        status="processing",
-        error_message=None,
-        acoustid_fingerprint_status="not_checked",
-        acoustid_score=None,
-        musicbrainz_recording_id=None,
-        acoustid_suggested_recording_id=None,
-        acoustid_suggested_title=None,
-        acoustid_suggested_artist=None,
-        vocal_range_low=None,
-        vocal_range_high=None,
-        loudness_lufs=None,
-        true_peak_dbtp=None,
-        gain_db=None,
-        engine_type=None,
-    )
-
-    FileService().delete_song_files(song_id)
-
-    return YouTubeService().download_and_process_async(
-        video_id_or_url=video_id,
-        song_id=song_id,
-        artist=artist,
-        title=title,
-        engine_type=engine_type,
-        session_id=session_id,
-        user_id=user_id,
-    )
-
-
 @router.post("/{song_id}/replace-youtube", status_code=202)
 async def replace_song_youtube(
     song_id: str,
@@ -1875,7 +1837,7 @@ async def replace_song_youtube(
     if not db_song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    job_id = _restart_youtube_processing(
+    job_id = restart_youtube_processing(
         song_repo,
         song_id,
         video_id=request.video_id,
@@ -1914,7 +1876,7 @@ async def retry_failed_song(
     # Counts against demo download quotas like any other add. No-op otherwise.
     session_id, user_id = enforce_demo_download_quota(db, requester)
 
-    job_id = _restart_youtube_processing(
+    job_id = restart_youtube_processing(
         song_repo,
         song_id,
         video_id=db_song.video_id,
@@ -1928,14 +1890,13 @@ async def retry_failed_song(
 
     await broadcast_job_created(
         manager,
-        {
-            "id": job_id,
-            "song_id": song_id,
-            "status": "pending",
-            "progress": 0,
-            "artist": db_song.artist,
-            "title": db_song.title,
-        },
+        job_created_event(
+            job_id=job_id,
+            song_id=song_id,
+            artist=db_song.artist,
+            title=db_song.title,
+            session_id=session_id,
+        ),
     )
     return {"jobId": job_id, "status": "pending"}
 

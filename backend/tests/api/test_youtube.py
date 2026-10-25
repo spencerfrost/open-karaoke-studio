@@ -4,6 +4,8 @@ Tests for FastAPI YouTube endpoints.
 
 from unittest.mock import patch
 
+from app.db.models import DbSong
+
 
 class TestYouTubeSearch:
     """Tests for YouTube search endpoint."""
@@ -18,6 +20,24 @@ class TestYouTubeSearch:
         assert "data" in data
         assert len(data["data"]) > 0
         mock_youtube_service.search_videos.assert_called_once_with("rick astley", 5)
+
+    def test_search_results_carry_their_library_copy(
+        self, client, db, mock_youtube_service
+    ):
+        db.add(
+            DbSong(
+                id="song-1",
+                title="Never Gonna Give You Up",
+                artist="Rick Astley",
+                video_id="dQw4w9WgXcQ",
+                status="processed",
+            )
+        )
+        db.commit()
+
+        data = client.get("/api/youtube/search?query=rick+astley").json()
+
+        assert data["data"][0]["library"] == {"status": "ready", "songId": "song-1"}
 
     def test_search_requires_query(self, client):
         """Test that search requires a query parameter."""

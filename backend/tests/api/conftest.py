@@ -79,8 +79,15 @@ def db():
 
 @pytest.fixture
 def mock_youtube_service():
-    """Mock YouTube service for testing."""
-    with patch("app.api.youtube.YouTubeService") as mock:
+    """Mock YouTube service for testing.
+
+    Search and preview build it in the route; downloads build it in the song
+    intake service. Both get the same mock.
+    """
+    with (
+        patch("app.api.youtube.YouTubeService") as mock,
+        patch("app.services.youtube_service.YouTubeService", mock),
+    ):
         service_instance = Mock()
         mock.return_value = service_instance
 
@@ -109,30 +116,21 @@ def mock_youtube_music_service():
         mock.return_value = service_instance
 
         # Default mock responses
-        service_instance.search_combined.return_value = {
+        service_instance.search.return_value = {
             "songs": [
                 {
                     "videoId": "utwMHfDZ6SA",
                     "title": "Bohemian Rhapsody",
+                    "artists": [{"name": "Queen", "id": "UCEPMVbUzImPl4p8k4LkGevA"}],
                     "artist": "Queen",
-                    "artistId": "UCEPMVbUzImPl4p8k4LkGevA",
-                    "duration": "5:55",
                     "album": "A Night At The Opera",
+                    "albumId": "MPREb_1",
+                    "durationSeconds": 355,
+                    "isExplicit": False,
                     "thumbnails": [],
                 }
             ],
             "artists": [],
-        }
-        service_instance.get_artist.return_value = {
-            "name": "Queen",
-            "description": "British rock band",
-            "topSongs": [],
-            "albums": [],
-        }
-        service_instance.get_album_tracks.return_value = {
-            "title": "A Night At The Opera",
-            "artist": "Queen",
-            "tracks": [],
         }
 
         yield service_instance
@@ -160,18 +158,3 @@ def mock_lyrics_service():
         ]
 
         yield service_instance
-
-
-@pytest.fixture
-def mock_db_session():
-    """Mock database session for testing."""
-    with patch("app.api.youtube_music.get_db_session") as mock:
-        session = Mock()
-        mock.return_value.__enter__ = Mock(return_value=session)
-        mock.return_value.__exit__ = Mock(return_value=False)
-
-        # Mock query results
-        session.query.return_value.filter.return_value.all.return_value = []
-        session.query.return_value.filter.return_value.first.return_value = None
-
-        yield session

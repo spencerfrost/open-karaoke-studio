@@ -17,7 +17,8 @@
 @custom-variant desktop {
   /* Block form: the one-line form splits on the comma and drops @media from
    * the second query. */
-  @media (min-width: 48rem) and (pointer: fine), (min-width: 48rem) and (pointer: none) {
+  @media (min-width: 48rem) and (pointer: fine),
+    (min-width: 48rem) and (pointer: none) {
     @slot;
   }
 }
@@ -141,6 +142,12 @@
   --decor-2: var(--orange-peel);
   --decor-3: var(--harvest-gold);
   --decor-4: var(--rust);
+  /*
+   * Section headings inside a screen ("Best match", "Popular songs"). Every
+   * theme reads it; a theme that wants its labels in a color of their own
+   * sets it.
+   */
+  --section-label: var(--foreground-dim);
   /*
    * How the visualizer draws them: bar opacity, and the most degrees a bar's
    * hue shifts across the row (0 keeps the colors exact).
@@ -407,6 +414,14 @@
   [data-theme="catppuccin"] .theme-pattern {
     display: none;
   }
+  /*
+   * The decoration under a screen's header (see HeaderDecoration). Not a page
+   * backdrop, so it isn't .theme-pattern's job. No theme draws one yet; a
+   * theme that does gives it a height and a background here.
+   */
+  .header-decoration {
+    display: none;
+  }
 }
 
 @theme inline {
@@ -460,6 +475,7 @@
   --color-decor-2: var(--decor-2);
   --color-decor-3: var(--decor-3);
   --color-decor-4: var(--decor-4);
+  --color-section-label: var(--section-label);
   --shadow-glow-primary: var(--glow-primary);
   --shadow-glow-accent: var(--glow-accent);
   --font-display: var(--display-font);

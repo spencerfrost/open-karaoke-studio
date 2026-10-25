@@ -38,6 +38,10 @@ const buttonVariants = cva(
         "icon-sm": "size-8",
         "icon-lg": "size-10",
         auto: "h-auto px-4 py-3",
+        // A row's action, at a comfortable touch height
+        touch: "h-11 rounded-lg px-4 text-base font-semibold has-[>svg]:px-3",
+        // A screen's one main action, full width on a phone
+        xl: "h-14 rounded-xl px-6 text-lg font-bold has-[>svg]:px-5",
       },
     },
     defaultVariants: {

@@ -34,6 +34,7 @@ import type {
   SessionTurn,
 } from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
+import type { AddFlowStep } from "@/hooks/useAddFlowNavigation";
 import {
   StageShellContext,
   StageScreenContext,
@@ -90,12 +91,30 @@ const StageShell: React.FC<StageShellProps> = ({
     [],
   );
   const openAdd = useCallback(
-    (opts: { query?: string; browseArtist?: boolean } = {}) =>
+    (opts: { query?: string; findArtist?: boolean } = {}) =>
       setScreen({
         name: "add",
-        query: opts.query,
-        browseArtist: opts.browseArtist,
+        stack: [
+          { kind: "search", query: opts.query, findArtist: opts.findArtist },
+        ],
       }),
+    [],
+  );
+  // Both only act inside the add flow; elsewhere there's no stack to change.
+  const pushAdd = useCallback(
+    (step: AddFlowStep) =>
+      setScreen((s) =>
+        s.name === "add" ? { name: "add", stack: [...s.stack, step] } : s,
+      ),
+    [],
+  );
+  const replaceAdd = useCallback(
+    (step: AddFlowStep) =>
+      setScreen((s) =>
+        s.name === "add"
+          ? { name: "add", stack: [...s.stack.slice(0, -1), step] }
+          : s,
+      ),
     [],
   );
   const openHandoff = useCallback(() => setScreen({ name: "handoff" }), []);
@@ -121,7 +140,9 @@ const StageShell: React.FC<StageShellProps> = ({
   queueRef.current = { turn, upcoming };
 
   // Confirm and add are detours off song select; song select falls back to the
-  // player. There is no deeper history to keep, which is the point.
+  // player. The add flow walks back through its own screens (album, artist,
+  // search) first; otherwise there is no deeper history to keep, which is the
+  // point.
   //
   // Unless the song has ended: the player would only show a finished song. If
   // the next singer has a song, their handoff screen is the place to be;
@@ -131,6 +152,9 @@ const StageShell: React.FC<StageShellProps> = ({
   // the new song has loaded, while songEnded still describes the old one.
   const back = useCallback(() => {
     setScreen((current_) => {
+      if (current_.name === "add" && current_.stack.length > 1) {
+        return { name: "add", stack: current_.stack.slice(0, -1) };
+      }
       if (current_.name !== "select") return { name: "select" };
       if (!usePlaybackStateStore.getState().songEnded) {
         return { name: "performance" };
@@ -150,10 +174,21 @@ const StageShell: React.FC<StageShellProps> = ({
       openSelect,
       openConfirm,
       openAdd,
+      pushAdd,
+      replaceAdd,
       openHandoff,
       back,
     }),
-    [openPerformance, openSelect, openConfirm, openAdd, openHandoff, back],
+    [
+      openPerformance,
+      openSelect,
+      openConfirm,
+      openAdd,
+      pushAdd,
+      replaceAdd,
+      openHandoff,
+      back,
+    ],
   );
 
   const stageQueue = useMemo<StageQueue>(
@@ -169,9 +204,8 @@ const StageShell: React.FC<StageShellProps> = ({
   // took seconds to mount. The wheel renders ~40 rows, so that reason may be
   // gone - measure on the TV before relying on remounting it.
   //
-  // Add and confirm stay mount-on-demand: both are cheap, and the add screen
-  // seeds its search box from `query` on mount only, so it has to remount to
-  // pick up a new one.
+  // Add and confirm stay mount-on-demand: both are cheap, and a fresh trip
+  // into the add flow should start from a fresh search.
   const [selectMounted, setSelectMounted] = useState(false);
   if (screen.name === "select" && !selectMounted) setSelectMounted(true);
 
@@ -263,10 +297,7 @@ const StageShell: React.FC<StageShellProps> = ({
 
             {screen.name === "add" && (
               <div className="absolute inset-0 z-20 overflow-hidden">
-                <AddSongScreen
-                  query={screen.query}
-                  browseArtist={screen.browseArtist}
-                />
+                <AddSongScreen step={screen.stack[screen.stack.length - 1]} />
               </div>
             )}
 

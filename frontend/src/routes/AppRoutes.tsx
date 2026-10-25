@@ -30,7 +30,7 @@ const AppRoutes: React.FC = () => (
     <Route element={<RequireAccess />}>
       {/* No further requirement. */}
       <Route path="/" element={<LibraryPage />} />
-      <Route path="/add" element={<AddSongPage />} />
+      <Route path="/add/*" element={<AddSongPage />} />
 
       {/* Any account - the account card is the point. */}
       <Route element={<RequireCapability account />}>

@@ -3,16 +3,19 @@
  *
  * On the phone and desktop that is a route change; on the stage it is a screen
  * change inside the shell, because the player underneath must keep playing.
- * Callers get one function and never have to know which.
+ * Callers get one function and never have to know which. Moving around inside
+ * the flow is useAddFlowNavigation's job.
  */
 
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStageShell } from "@/features/stage";
+import { addFlowPath } from "./useAddFlowNavigation";
 
 export interface OpenAddSongOptions {
   query?: string;
-  browseArtist?: boolean;
+  /** Go straight to the artist whose name matches `query`, if there is one. */
+  findArtist?: boolean;
 }
 
 export const useOpenAddSong = () => {
@@ -25,13 +28,7 @@ export const useOpenAddSong = () => {
         shell.openAdd(opts);
         return;
       }
-
-      const params = new URLSearchParams();
-      if (opts.query) params.set("q", opts.query);
-      if (opts.browseArtist) params.set("browseArtist", "true");
-
-      const search = params.toString();
-      navigate(search ? `/add?${search}` : "/add");
+      navigate(addFlowPath({ kind: "search", ...opts }));
     },
     [navigate, shell],
   );

@@ -33,6 +33,23 @@ def parse_song_artists(artist_str: str) -> tuple[str, list[str]]:
     return primary, featured
 
 
+def artist_credit(names: list[str]) -> str:
+    """The one artist string a song stores for a list of credited artists.
+
+    The inverse of parse_song_artists: the first name is the primary artist,
+    the rest are featured, so "JAY-Z feat. Alicia Keys" parses back to both.
+
+    Examples:
+        ["Queen"]                  → "Queen"
+        ["JAY-Z", "Alicia Keys"]   → "JAY-Z feat. Alicia Keys"
+        []                         → ""
+    """
+    names = [n.strip() for n in names if n and n.strip()]
+    if len(names) <= 1:
+        return names[0] if names else ""
+    return f"{names[0]} feat. {', '.join(names[1:])}"
+
+
 def normalize_artist_name(name: str) -> str:
     """Reduce an artist name to a key for comparing spellings of the same name.
 

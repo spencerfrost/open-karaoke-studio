@@ -13,7 +13,7 @@ export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
   const openAddSong = useOpenAddSong();
 
   const handleClick = () => {
-    openAddSong({ query: artistName, browseArtist: true });
+    openAddSong({ query: artistName, findArtist: true });
   };
 
   return (

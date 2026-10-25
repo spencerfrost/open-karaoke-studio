@@ -16,7 +16,6 @@ Songs whose album a person set (album_hand_set_at) are never looked up.
 
 import logging
 import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Literal, Optional
 
@@ -24,6 +23,13 @@ import requests
 
 from app.db.models.song import DbSong
 from app.utils.clock import utc_now
+from app.utils.song_titles import (
+    STRICT_MARKERS,
+    artist_key,
+    normalize,
+    title_key,
+    version_markers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -203,14 +209,6 @@ def _year(value) -> Optional[str]:
 # Deezer match rules
 # --------------------------------------------------------------------------
 
-# Markers that make a different recording. A song title carrying one needs a
-# Deezer title carrying it too.
-VERSION_MARKERS = frozenset(
-    {"live", "acoustic", "remix", "demo", "edit", "version", "unplugged"}
-)
-# Of those, the ones a Deezer title can't carry unless the song's does: a
-# "Radio Edit" or "Album Version" is the same recording, a live one isn't.
-STRICT_MARKERS = frozenset({"live", "acoustic", "remix", "demo", "unplugged"})
 # Albums that are someone else's recording of the song.
 REJECTED_ALBUM_WORDS = (
     "karaoke",
@@ -222,49 +220,22 @@ REJECTED_ALBUM_WORDS = (
     "8bit",
 )
 
-_FEAT_ARTIST = re.compile(r"\s+(feat\.?|ft\.?|featuring|with)\s.*$", re.IGNORECASE)
-_FEAT_TITLE = re.compile(r"\s+(feat\.?|ft\.?|featuring)\s.*$", re.IGNORECASE)
-_BRACKETED = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
-
-
-def normalize(text: str) -> str:
-    """Lowercase, no accents or punctuation, "&" as "and", single spaces."""
-    text = unicodedata.normalize("NFKD", text or "")
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    text = text.lower().replace("&", " and ")
-    text = re.sub(r"[^\w\s]", " ", text).replace("_", " ")
-    return " ".join(text.split())
-
-
-def _artist_key(artist: str) -> str:
-    key = normalize(_FEAT_ARTIST.sub("", _BRACKETED.sub("", artist or "")))
-    return key[4:] if key.startswith("the ") else key
-
-
-def _title_key(title: str) -> str:
-    return normalize(_FEAT_TITLE.sub("", _BRACKETED.sub("", title or "")))
-
-
-def _markers(title: str) -> set[str]:
-    words = set(normalize(title).split())
-    if "remixed" in words:
-        words.add("remix")
-    return words & VERSION_MARKERS
-
 
 def deezer_result_matches(item: dict, *, title: str, artist: str) -> bool:
     """Whether a Deezer search result is this song on its own release."""
     deezer_artist = (item.get("artist") or {}).get("name") or ""
-    if not _artist_key(artist) or _artist_key(deezer_artist) != _artist_key(artist):
+    if not artist_key(artist) or artist_key(deezer_artist) != artist_key(artist):
         return False
 
     deezer_title = item.get("title") or ""
     deezer_short = item.get("title_short") or deezer_title
-    if _title_key(deezer_short) != _title_key(title):
+    if title_key(deezer_short) != title_key(title):
         return False
 
-    song_markers = _markers(title)
-    deezer_markers = _markers(f"{deezer_title} {item.get('title_version') or ''}")
+    song_markers = version_markers(title)
+    deezer_markers = version_markers(
+        f"{deezer_title} {item.get('title_version') or ''}"
+    )
     if not song_markers <= deezer_markers:
         return False
     if (deezer_markers & STRICT_MARKERS) - song_markers:

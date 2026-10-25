@@ -25,12 +25,17 @@ import type {
   SessionTurn,
 } from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
+import type { AddFlowStep } from "@/hooks/useAddFlowNavigation";
 
 export type StageScreen =
   | { name: "performance" }
   | { name: "select"; expandArtist?: string }
   | { name: "confirm"; song: Song }
-  | { name: "add"; query?: string; browseArtist?: boolean }
+  /**
+   * The add-song flow: search, then maybe an artist, then maybe an album.
+   * `back` walks the stack before leaving it. Never empty.
+   */
+  | { name: "add"; stack: AddFlowStep[] }
   /**
    * Between songs. Entered from `songEnded` rather than a tap, and left when a
    * song starts - the only screen the shell drives itself.
@@ -41,10 +46,15 @@ export interface StageShellApi {
   openPerformance: () => void;
   openSelect: (opts?: { expandArtist?: string }) => void;
   openConfirm: (song: Song) => void;
-  openAdd: (opts?: { query?: string; browseArtist?: boolean }) => void;
+  openAdd: (opts?: { query?: string; findArtist?: boolean }) => void;
+  /** Open an add-flow screen on top of the current one. */
+  pushAdd: (step: AddFlowStep) => void;
+  /** Swap the current add-flow screen for another. */
+  replaceAdd: (step: AddFlowStep) => void;
   openHandoff: () => void;
   /**
-   * One step back along the select-family screens; ends at the performance
+   * One step back along the select-family screens (and the add flow's own
+   * screens, before it returns to song select); ends at the performance
    * screen. After a song has ended, song select leads to the handoff screen
    * when the next singer has a song, and nowhere when they don't.
    */

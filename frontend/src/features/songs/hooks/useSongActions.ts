@@ -11,6 +11,7 @@ import { Song } from "@/types/Song";
 import { toast } from "sonner";
 import { useStageShell } from "@/features/stage";
 import { createLogger } from "@/lib/logger";
+import { useQueueSong } from "./useQueueSong";
 
 const logger = createLogger("hook:song-actions");
 
@@ -40,6 +41,7 @@ export const useSongActions = (
   const addToKaraokeQueue = useAddToKaraokeQueue(currentSessionId);
   const playFromQueueMutation = usePlayFromKaraokeQueue(currentSessionId);
   const deleteSongMutation = useDeleteSong();
+  const { queueSong, addToQueue } = useQueueSong(currentSessionId);
 
   /**
    * Queue this song and start it immediately, under an explicit name.
@@ -110,51 +112,15 @@ export const useSongActions = (
     await handlePlayAs();
   };
 
-  const handleAddToQueue = (singerName: string) => {
-    addToKaraokeQueue.mutate(
-      { songId: song.id, singer: singerName },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: ["karaoke-queue"],
-          });
-        },
-      },
-    );
-  };
+  const handleAddToQueue = (singerName: string) => addToQueue(song, singerName);
 
   const handleDelete = () => {
     return deleteSongMutation.mutate({ id: song.id });
   };
 
-  /**
-   * `pickSinger` opens the caller's QueueSingerDialog. A host's device - the
-   * stage browser, or any device on the account that owns the session - is
-   * shared, so it asks who is singing instead of crediting the host's name.
-   */
-  const handleQueueClick = (pickSinger: () => void) => {
-    // On the stage, queueing goes through the confirm screen so the singer is a
-    // person rather than whoever happens to own the session.
-    if (shell) {
-      shell.openConfirm(song);
-      return true;
-    }
-
-    if (access.inSession && (access.isStageDevice || access.isSessionOwner)) {
-      pickSinger();
-      return true;
-    }
-
-    // Check if user is in an active session
-    if (access.inSession && access.singerName) {
-      // User is in session and has a display name, add directly to queue
-      handleAddToQueue(access.singerName);
-      return true;
-    }
-    // No session to queue into - the gate means this can now only happen to
-    // an account holder (a guest can't reach this screen without a session).
-    return false;
-  };
+  /** See useQueueSong: `pickSinger` opens the caller's QueueSingerDialog. */
+  const handleQueueClick = (pickSinger: () => void) =>
+    queueSong(song, pickSinger);
 
   return {
     handlePlay,

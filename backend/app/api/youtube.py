@@ -15,11 +15,14 @@ from app.api.dependencies import (
     get_db,
     require_host_or_session_member,
 )
-from app.db.models import JobStep
 from app.exceptions import NetworkError, ServiceError, ValidationError
 from app.services.demo_service import enforce_demo_download_quota
+from app.services.song_intake_service import (
+    attach_library_entries,
+    job_created_event,
+    queue_youtube_download,
+)
 from app.services.youtube_service import YouTubeService
-from app.utils.owner_tag import session_owner_tag
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.jobs import broadcast_job_created
 
@@ -111,19 +114,37 @@ class YouTubeDownloadResponse(BaseModel):
     data: dict
 
 
+def _attach_library(db: Session, results: list[dict]) -> None:
+    """Set each video's `library` field; the channel stands in for the artist."""
+    candidates = [
+        {
+            "videoId": r.get("id"),
+            "title": r.get("title"),
+            "artists": [{"name": r["channel"]}] if r.get("channel") else [],
+        }
+        for r in results
+    ]
+    attach_library_entries(db, candidates)
+    for result, candidate in zip(results, candidates):
+        result["library"] = candidate["library"]
+
+
 @router.get("/search", response_model=YouTubeSearchResponse)
-async def search_youtube(
+def search_youtube(
     query: str = Query(..., min_length=1, description="Search query"),
     maxResults: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    db: Session = Depends(get_db),
 ):
     """
     Search YouTube for videos.
 
-    Returns a list of video results matching the query.
+    Returns a list of video results matching the query, each with its library
+    copy's state (`library`, as on YouTube Music results).
     """
     try:
         youtube_service = YouTubeService()
         results = youtube_service.search_videos(query, maxResults)
+        _attach_library(db, results)
 
         return YouTubeSearchResponse(
             success=True,
@@ -155,7 +176,7 @@ async def search_youtube(
 
 
 @router.get("/preview/{video_id}")
-async def preview_youtube(video_id: str):
+def preview_youtube(video_id: str):
     """
     Get a redirect to a direct audio stream URL for previewing a YouTube video.
 
@@ -201,10 +222,9 @@ async def download_youtube(
     session_id, user_id = enforce_demo_download_quota(db, requester)
 
     try:
-        youtube_service = YouTubeService()
-        job_id = youtube_service.download_and_process_async(
+        job_id = queue_youtube_download(
             song_id=body.song_id,
-            video_id_or_url=body.video_id,
+            video_id=body.video_id,
             artist=body.artist or "",
             title=body.title or "",
             engine_type=body.engine_type,
@@ -212,25 +232,15 @@ async def download_youtube(
             user_id=user_id,
         )
 
-        logger.info(
-            "YouTube processing started for song %s, video %s, job %s",
-            body.song_id,
-            body.video_id,
-            job_id,
-        )
-
         await broadcast_job_created(
             manager,
-            {
-                "id": job_id,
-                "song_id": body.song_id,
-                "status": "pending",
-                "step": JobStep.DOWNLOAD.value,
-                "progress": 0,
-                "artist": body.artist,
-                "title": body.title,
-                "owner_tag": session_owner_tag(session_id),
-            },
+            job_created_event(
+                job_id=job_id,
+                song_id=body.song_id,
+                artist=body.artist,
+                title=body.title,
+                session_id=session_id,
+            ),
         )
 
         return YouTubeDownloadResponse(

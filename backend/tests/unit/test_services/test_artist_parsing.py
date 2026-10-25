@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.artist_parsing import normalize_artist_name, parse_song_artists
+from app.services.artist_parsing import (
+    artist_credit,
+    normalize_artist_name,
+    parse_song_artists,
+)
 from app.services.credits_resolver import resolve_artist_credits
 from app.services.musicbrainz_service import _parse_artist_credits
 from app.services.song_artist_service import try_ampersand_split
@@ -308,3 +312,22 @@ class TestResolveArtistCredits:
         mock_search.side_effect = RuntimeError("boom")
         credits = resolve_artist_credits("Kerala", "Bonobo feat. Fink")
         assert credits == [("Bonobo", "primary"), ("Fink", "featured")]
+
+
+@pytest.mark.parametrize(
+    "names, expected",
+    [
+        (["Queen"], "Queen"),
+        (["JAY-Z", "Alicia Keys"], "JAY-Z feat. Alicia Keys"),
+        (["A", "B", "C"], "A feat. B, C"),
+        ([" Queen ", ""], "Queen"),
+        ([], ""),
+    ],
+)
+def test_artist_credit(names, expected):
+    assert artist_credit(names) == expected
+
+
+def test_artist_credit_parses_back_to_the_same_artists():
+    primary, featured = parse_song_artists(artist_credit(["JAY-Z", "Alicia Keys", "X"]))
+    assert (primary, featured) == ("JAY-Z", ["Alicia Keys", "X"])

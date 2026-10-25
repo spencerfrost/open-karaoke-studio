@@ -279,12 +279,8 @@ class YouTubeService(YouTubeServiceInterface):
                 "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
                 "quiet": True,
                 "no_warnings": True,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "web"],
-                        "player_skip": ["js"],
-                    }
-                },
+                # yt-dlp's own choice of player clients: forcing android/web
+                # stopped returning any audio-only formats (2026-10).
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)

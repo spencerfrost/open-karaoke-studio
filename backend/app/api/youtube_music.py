@@ -1,219 +1,222 @@
 """
 FastAPI router for YouTube Music search and browse endpoints.
+
+The routes are plain `def`: ytmusicapi blocks, so FastAPI runs them in its
+threadpool instead of on the event loop every other request shares.
+
+YouTube Music failing is a 502; an unknown artist or album is a 404.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.db.database import get_db_session
-from app.db.models.song import DbSong
-from app.services.youtube_music_service import YoutubeMusicService
+from app.api.dependencies import get_db
+from app.exceptions import NotFoundError
+from app.services.song_intake_service import attach_library_entries
+from app.services.youtube_music_service import (
+    YoutubeMusicService,
+    group_search_songs,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/youtube-music", tags=["youtube-music"])
 
+YOUTUBE_MUSIC_FAILED = "YouTube Music isn't answering right now. Try again in a moment."
 
-class YoutubeMusicSearchResult(BaseModel):
-    """Individual YouTube Music search result."""
+
+class Thumbnail(BaseModel):
+    url: str
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+
+class ArtistCredit(BaseModel):
+    name: str
+    id: Optional[str] = None
+
+
+class LibraryEntry(BaseModel):
+    """A song's copy in the library: ready, still processing, or failed."""
+
+    status: Literal["ready", "processing", "failed"]
+    songId: str
+
+
+class YoutubeMusicSong(BaseModel):
+    """One song, the same shape in search, popular songs and album tracks."""
 
     videoId: Optional[str] = None
     title: Optional[str] = None
+    artists: List[ArtistCredit] = []
+    # The artists as the one credit line the library stores
     artist: Optional[str] = None
-    artistId: Optional[str] = None
     album: Optional[str] = None
     albumId: Optional[str] = None
-    thumbnailUrl: Optional[str] = None
-    duration: Optional[str] = None
-    existsInLibrary: bool = False
-    failedSongId: Optional[str] = None
+    durationSeconds: Optional[int] = None
+    isExplicit: bool = False
+    thumbnails: List[Thumbnail] = []
+    trackNumber: Optional[int] = None
+    library: Optional[LibraryEntry] = None
 
-    model_config = ConfigDict(extra="allow")
 
-
-class YoutubeMusicArtistSearchResult(BaseModel):
-    """Individual YouTube Music artist search result."""
-
+class YoutubeMusicArtistResult(BaseModel):
     browseId: str
     name: str
     subscribers: Optional[str] = None
-    thumbnails: List[dict] = []
-
-    model_config = ConfigDict(extra="allow")
+    thumbnails: List[Thumbnail] = []
 
 
 class YoutubeMusicSearchResponse(BaseModel):
-    """Response model for YouTube Music search."""
+    """Song results sorted by what a guest is looking for."""
 
-    artists: List[YoutubeMusicArtistSearchResult] = []
-    songs: List[dict] = []
-    error: Optional[str] = None
+    bestMatch: Optional[YoutubeMusicSong] = None
+    # The best match's song by other artists, or live, acoustic, remixed...
+    otherVersions: List[YoutubeMusicSong] = []
+    otherSongs: List[YoutubeMusicSong] = []
+    artists: List[YoutubeMusicArtistResult] = []
+    # Set when YouTube Music's top result for the query is this artist
+    topArtistId: Optional[str] = None
+
+
+class YoutubeMusicRelease(BaseModel):
+    browseId: Optional[str] = None
+    title: Optional[str] = None
+    year: Optional[str] = None
+    type: str
+    thumbnails: List[Thumbnail] = []
+
+
+class YoutubeMusicArtistInfo(BaseModel):
+    id: str
+    name: Optional[str] = None
+    thumbnails: List[Thumbnail] = []
+    description: Optional[str] = None
+    subscribers: Optional[str] = None
 
 
 class YoutubeMusicArtistResponse(BaseModel):
-    """Response model for YouTube Music artist details."""
+    artist: YoutubeMusicArtistInfo
+    topSongs: List[YoutubeMusicSong] = []
+    # More popular songs than topSongs: GET /artist/{id}/songs has them all
+    hasMoreSongs: bool = False
+    # Every album, oldest first
+    albums: List[YoutubeMusicRelease] = []
+    # Every single, oldest first
+    singles: List[YoutubeMusicRelease] = []
+    # Remix collections from the albums and singles, oldest first
+    remixes: List[YoutubeMusicRelease] = []
 
-    data: Optional[dict] = None
-    error: Optional[str] = None
+
+class YoutubeMusicAlbumInfo(BaseModel):
+    browseId: str
+    title: Optional[str] = None
+    artists: List[ArtistCredit] = []
+    # "Album", "Single", "EP"
+    type: Optional[str] = None
+    year: Optional[str] = None
+    thumbnails: List[Thumbnail] = []
+    trackCount: int = 0
 
 
 class YoutubeMusicAlbumResponse(BaseModel):
-    """Response model for YouTube Music album tracks."""
-
-    data: Optional[dict] = None
-    error: Optional[str] = None
+    album: YoutubeMusicAlbumInfo
+    tracks: List[YoutubeMusicSong] = []
 
 
-def _add_exists_in_library_flags(songs: List[dict]) -> List[dict]:
-    """Add existsInLibrary and failedSongId to a list of songs.
-
-    A song is in the library only if a matching row (same video_id, or same
-    artist + title, case-insensitive) isn't a failed one. When every match
-    failed, failedSongId names the row to restart instead of adding a
-    duplicate — so a failed copy never blocks adding the song again.
-    """
-    if not songs:
-        return songs
-
-    video_ids = [s.get("videoId") for s in songs if s.get("videoId")]
-    # video_id -> [(song_id, status)], (artist, title) -> [(song_id, status)]
-    rows_by_video_id: dict[str, list[tuple[str, str]]] = {}
-    rows_by_artist_title: dict[tuple[str, str], list[tuple[str, str]]] = {}
-
-    with get_db_session() as session:
-        # Check by video_id for exact YouTube matches
-        if video_ids:
-            for song_id, video_id, status in (
-                session.query(DbSong.id, DbSong.video_id, DbSong.status)
-                .filter(DbSong.video_id.in_(video_ids))
-                .all()
-            ):
-                rows_by_video_id.setdefault(video_id, []).append((song_id, status))
-
-        # Check by artist + title for fuzzy matches (case-insensitive)
-        for song in songs:
-            artist = (song.get("artist") or "").strip()
-            title = (song.get("title") or "").strip()
-            if artist and title:
-                rows_by_artist_title[(artist.lower(), title.lower())] = (
-                    session.query(DbSong.id, DbSong.status)
-                    .filter(DbSong.artist.ilike(artist), DbSong.title.ilike(title))
-                    .all()
-                )
-
-    for song in songs:
-        artist = (song.get("artist") or "").strip().lower()
-        title = (song.get("title") or "").strip().lower()
-        # video_id matches first, so a failed exact match is preferred below
-        matches = rows_by_video_id.get(song.get("videoId"), []) + list(
-            rows_by_artist_title.get((artist, title), [])
-        )
-        working = [song_id for song_id, status in matches if status != "error"]
-        failed = [song_id for song_id, status in matches if status == "error"]
-
-        song["existsInLibrary"] = bool(working)
-        song["failedSongId"] = failed[0] if failed and not working else None
-
-    return songs
+def _youtube_music_failed(what: str, e: Exception) -> HTTPException:
+    logger.error("YouTube Music %s failed: %s", what, e, exc_info=True)
+    return HTTPException(status_code=502, detail=YOUTUBE_MUSIC_FAILED)
 
 
 @router.get("/search", response_model=YoutubeMusicSearchResponse)
-async def search_youtube_music(
+def search_youtube_music(
     q: str = Query(..., min_length=1, description="Search query"),
-    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    limit: int = Query(20, ge=1, le=50, description="Maximum number of songs"),
+    db: Session = Depends(get_db),
 ):
     """
-    Search YouTube Music for artists and songs.
+    Search YouTube Music for songs and artists (up to 3).
 
-    Returns artists (max 3) and songs matching the query, with existsInLibrary flag
-    on songs indicating if they're already in the karaoke library.
+    Songs come back as the best match, other versions of it, and other songs,
+    each with its library copy's state.
     """
     try:
-        service = YoutubeMusicService()
-        combined = service.search_combined(q, limit=limit)
-
-        # Add existsInLibrary flag to songs
-        songs = _add_exists_in_library_flags(combined.get("songs", []))
-
-        return YoutubeMusicSearchResponse(
-            artists=combined.get("artists", []), songs=songs, error=None
-        )
-
+        results = YoutubeMusicService().search(q, limit=limit)
     except Exception as e:
-        logger.error("YouTube Music search failed: %s", e, exc_info=True)
-        return YoutubeMusicSearchResponse(artists=[], songs=[], error=str(e))
+        raise _youtube_music_failed(f"search for {q!r}", e)
+
+    # Copies, so the cached results never carry one request's library state
+    songs = [dict(song) for song in results["songs"]]
+    attach_library_entries(db, songs)
+
+    return YoutubeMusicSearchResponse(
+        **group_search_songs(songs),
+        artists=results["artists"],
+        topArtistId=results.get("topArtistId"),
+    )
+
+
+@router.get("/suggestions", response_model=List[str])
+def get_search_suggestions(
+    q: str = Query(..., min_length=1, description="What's been typed so far"),
+):
+    """Search suggestions for a partly typed query."""
+    try:
+        return YoutubeMusicService().get_suggestions(q)
+    except Exception as e:
+        raise _youtube_music_failed(f"suggestions for {q!r}", e)
 
 
 @router.get("/artist/{artist_id}", response_model=YoutubeMusicArtistResponse)
-async def get_artist(
-    artist_id: str,
-    limit: int = Query(12, ge=1, le=50, description="Number of top songs to return"),
-):
+def get_artist(artist_id: str, db: Session = Depends(get_db)):
     """
-    Get artist details including top songs and albums.
+    An artist's info, first popular songs, and every album, single and remix
+    collection.
 
-    Returns artist information with existsInLibrary flags on top songs.
+    `hasMoreSongs` says whether /artist/{id}/songs has more than these.
     """
     try:
-        service = YoutubeMusicService()
-        result = service.get_artist(artist_id, top_songs_limit=limit)
-
-        # Add existsInLibrary flag to top songs
-        result["topSongs"] = _add_exists_in_library_flags(result.get("topSongs", []))
-
-        return YoutubeMusicArtistResponse(data=result, error=None)
-
+        result = YoutubeMusicService().get_artist(artist_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error("Failed to get artist %s: %s", artist_id, e, exc_info=True)
-        return YoutubeMusicArtistResponse(data=None, error=str(e))
+        raise _youtube_music_failed(f"artist {artist_id}", e)
+
+    result = {**result, "topSongs": [dict(s) for s in result["topSongs"]]}
+    attach_library_entries(db, result["topSongs"])
+    return result
 
 
-@router.get("/artist/{artist_id}/releases")
-async def get_artist_releases(
-    artist_id: str,
-    channel_id: str = Query(
-        ..., description="Artist channel ID from albumsMore/singlesMore"
-    ),
-    params: str = Query(
-        ..., description="Pagination params from albumsMore/singlesMore"
-    ),
-):
-    """
-    Fetch all albums or singles for an artist (load more).
-
-    Called when the initial artist response has albumsMore/singlesMore pagination metadata,
-    indicating YouTube Music has more results than the initial 10.
-    """
+@router.get("/artist/{artist_id}/songs", response_model=List[YoutubeMusicSong])
+def get_artist_songs(artist_id: str, db: Session = Depends(get_db)):
+    """Every one of the artist's popular songs, for "Show all popular songs"."""
     try:
-        service = YoutubeMusicService()
-        releases = service.get_all_artist_releases(channel_id, params)
-        return {"data": releases, "error": None}
+        songs = YoutubeMusicService().get_artist_songs(artist_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(
-            "Failed to get releases for artist %s: %s", artist_id, e, exc_info=True
-        )
-        return {"data": None, "error": str(e)}
+        raise _youtube_music_failed(f"songs for artist {artist_id}", e)
+
+    songs = [dict(s) for s in songs]
+    attach_library_entries(db, songs)
+    return songs
 
 
 @router.get("/album/{album_id}/tracks", response_model=YoutubeMusicAlbumResponse)
-async def get_album_tracks(album_id: str):
-    """
-    Get all tracks from an album.
-
-    Returns album track list with existsInLibrary flags.
-    """
+def get_album_tracks(album_id: str, db: Session = Depends(get_db)):
+    """An album's info and tracks, each with its library copy's state."""
     try:
-        service = YoutubeMusicService()
-        result = service.get_album_tracks(album_id)
-
-        # Add existsInLibrary flag to tracks
-        result["tracks"] = _add_exists_in_library_flags(result.get("tracks", []))
-
-        return YoutubeMusicAlbumResponse(data=result, error=None)
-
+        result = YoutubeMusicService().get_album_tracks(album_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error("Failed to get album tracks %s: %s", album_id, e, exc_info=True)
-        return YoutubeMusicAlbumResponse(data=None, error=str(e))
+        raise _youtube_music_failed(f"album {album_id}", e)
+
+    result = {**result, "tracks": [dict(t) for t in result["tracks"]]}
+    attach_library_entries(db, result["tracks"])
+    return result
