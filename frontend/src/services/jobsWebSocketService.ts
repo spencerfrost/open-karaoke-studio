@@ -20,6 +20,8 @@ interface JobData {
   task_id?: string;
   artist?: string;
   title?: string;
+  step?: string | null;
+  owner_tag?: string | null;
 }
 
 interface JobsWebSocketEvents {

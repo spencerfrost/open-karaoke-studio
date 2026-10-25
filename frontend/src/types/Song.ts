@@ -97,7 +97,19 @@ export interface SongProcessingStatus {
   title?: string;
   engineType?: string; // Separation engine running the job (demucs, lyrics_alignment, ...)
   engine_type?: string; // Snake-case variant as delivered by some websocket payloads
+  /** The pipeline step this job is on, or waiting for while queued. */
+  step?: JobStep | null;
+  /** Which session added it. Compare with the session's own `owner_tag`. */
+  ownerTag?: string | null;
+  createdAt?: string;
 }
+
+/**
+ * A song's pipeline, in order. Lyrics alignment runs as a separate job, so a
+ * song's timeline can span two jobs.
+ */
+export const JOB_STEPS = ["download", "separate", "align"] as const;
+export type JobStep = (typeof JOB_STEPS)[number];
 
 export interface LyricsResult {
   id: string;

@@ -5,7 +5,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { jobsWebSocketService } from "../../services/jobsWebSocketService";
-import { SongProcessingStatus, SongStatus } from "../../types/Song";
+import {
+  JOB_STEPS,
+  JobStep,
+  SongProcessingStatus,
+  SongStatus,
+} from "../../types/Song";
 
 interface JobData {
   id: string;
@@ -23,6 +28,14 @@ interface JobData {
   artist?: string;
   title?: string;
   engine_type?: string;
+  step?: string | null;
+  owner_tag?: string | null;
+}
+
+function parseStep(step: string | null | undefined): JobStep | null {
+  return (JOB_STEPS as readonly string[]).includes(step ?? "")
+    ? (step as JobStep)
+    : null;
 }
 
 /**
@@ -59,6 +72,9 @@ function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
     artist: job.artist,
     title: job.title,
     engineType: job.engine_type,
+    step: parseStep(job.step),
+    ownerTag: job.owner_tag ?? null,
+    createdAt: job.created_at,
   };
 }
 

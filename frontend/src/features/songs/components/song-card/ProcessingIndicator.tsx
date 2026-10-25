@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SongProcessingStatus } from "@/types/Song";
+import { stepLabel, WAITING_LABEL } from "../../processing/stepLabels";
 
 interface ProcessingIndicatorProps {
   status: SongProcessingStatus;
@@ -16,27 +17,13 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({
   const isError = status.status === "error";
   const Icon = isError ? AlertCircle : Loader2;
   const getStatusText = () => {
-    switch (status.rawStatus) {
-      case "pending":
-        return "Queued";
-      case "downloading":
-        return "Downloading";
-      case "processing":
-        return `Separating Audio ${status.progress}%`;
-      case "failed":
-      case "cancelled":
+    switch (status.status) {
+      case "queued":
+        return WAITING_LABEL;
+      case "error":
         return "Failed";
       default:
-        switch (status.status) {
-          case "queued":
-            return "Queued";
-          case "processing":
-            return `Processing ${status.progress}%`;
-          case "error":
-            return "Failed";
-          default:
-            return "Processing";
-        }
+        return `${stepLabel(status.step)} ${status.progress}%`;
     }
   };
 
