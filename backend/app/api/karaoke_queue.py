@@ -71,6 +71,9 @@ class QueueItemResponse(BaseModel):
     id: int
     songId: str
     singer: str
+    # The roster seat this song belongs to. Null only for rows that predate the
+    # roster and never had one backfilled.
+    performerId: Optional[int] = None
     position: int
     addedAt: Optional[str] = None
     song: SongInfo
@@ -221,6 +224,7 @@ def queue_item_to_response(
         id=item.id,
         songId=item.song_id,
         singer=item.singer_name,
+        performerId=item.performer_id,
         position=position_override if position_override is not None else item.position,
         addedAt=item.created_at.isoformat() if item.created_at else None,
         song=song_to_info(item.song),

@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Dict, Optional, Tuple
+from typing import Dict, NamedTuple, Optional, Tuple
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -22,6 +22,11 @@ from app.services.auth_service import verify_token
 from app.services.session_service import deactivate_session, find_session_member
 
 from .connection_manager import SessionConnectionManager
+from .presence import (
+    broadcast_presence_update,
+    build_performer_presence,
+    find_linked_performer_id,
+)
 from .queue import get_current_queue_state
 
 # Session-based performance state - separate state for each session
@@ -189,9 +194,17 @@ def cleanup_session_performance_state(session_id: str):
         logger.debug("🔓 Cleaned up lock for session %s", session_id)
 
 
+class AuthenticatedConnection(NamedTuple):
+    """Who a socket proved itself to be in its opening `authenticate` message."""
+
+    # The session member id minted at join - the same one REST sends as X-Device-ID.
+    device_id: str
+    is_session_owner: bool
+
+
 async def _authenticate_connection(
     websocket: WebSocket, session_id: str
-) -> Optional[bool]:
+) -> Optional[AuthenticatedConnection]:
     """
     Read the connection's opening `authenticate` message and check it.
 
@@ -200,8 +213,9 @@ async def _authenticate_connection(
 
     Returns None when the connection is not a member of this live session - a wrong code
     and a wrong device get the same answer, so the socket can't be used to find live codes.
-    Otherwise returns whether the connection is the session owner. A bad token on a valid
-    device is reported but not fatal: the connection continues as a non-owner.
+    Otherwise returns the member's device id and whether the connection is the session
+    owner. A bad token on a valid device is reported but not fatal: the connection
+    continues as a non-owner.
     """
     try:
         raw = await asyncio.wait_for(
@@ -224,14 +238,14 @@ async def _authenticate_connection(
 
     token = message.get("token")
     if not token:
-        return False
+        return AuthenticatedConnection(device_id, False)
 
     is_session_owner, error = resolve_host_claim(token, session_id)
     if error:
         logger.warning("Session %s host claim failed: %s", session_id, error)
         await websocket.send_text(json.dumps({"type": "auth_failed", "reason": error}))
-        return False
-    return is_session_owner
+        return AuthenticatedConnection(device_id, False)
+    return AuthenticatedConnection(device_id, is_session_owner)
 
 
 async def websocket_unified_session_endpoint(
@@ -250,16 +264,19 @@ async def websocket_unified_session_endpoint(
     await websocket.accept()
 
     try:
-        is_session_owner = await _authenticate_connection(websocket, session_id)
+        connection = await _authenticate_connection(websocket, session_id)
     except WebSocketDisconnect:
         return
 
-    if is_session_owner is None:
+    if connection is None:
         await websocket.send_text(
             json.dumps({"type": "auth_failed", "reason": "not_a_member"})
         )
         await websocket.close(code=1008, reason="Not a member of this session")
         return
+
+    is_session_owner = connection.is_session_owner
+    member_device_id = connection.device_id
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
@@ -300,6 +317,10 @@ async def websocket_unified_session_endpoint(
                     "device_id": ws_connection_id,
                     "is_session_owner": is_session_owner,
                     "performance_state": session_state,
+                    # Same shape as `presence_updated.performers`, so a stage that
+                    # connects mid-song knows whose phone is open without waiting
+                    # for someone's phone to change.
+                    "presence": build_performer_presence(manager, session_id),
                 }
             )
         )
@@ -308,6 +329,48 @@ async def websocket_unified_session_endpoint(
             data = await websocket.receive_text()
             message = json.loads(data)
             message_type = message.get("type")
+
+            # === PRESENCE ===
+            # Sent by every device on open, on each visibility change and on each
+            # route change. Recorded against the device this socket authenticated
+            # as - a socket can only ever speak for itself.
+            if message_type == "presence":
+                visible = message.get("visible")
+                on_controls = message.get("on_controls", False)
+                if not isinstance(visible, bool) or not isinstance(on_controls, bool):
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Malformed presence report",
+                            }
+                        )
+                    )
+                    continue
+
+                changed = manager.set_presence(
+                    session_id, member_device_id, ws_connection_id, visible, on_controls
+                )
+
+                # Personal reply: which roster seat this device is. The phone
+                # compares it with the queue's current item to know its song has
+                # started. Looked up per report, so a seat linked after connect
+                # is picked up on the next one.
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "presence_acknowledged",
+                            "performer_id": find_linked_performer_id(
+                                session_id, member_device_id
+                            ),
+                        }
+                    )
+                )
+
+                if changed:
+                    await broadcast_presence_update(manager, session_id)
+                continue
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
             if message_type == "join_performance":
@@ -527,3 +590,10 @@ async def websocket_unified_session_endpoint(
             )
             task = asyncio.create_task(terminate_session_after_grace())
             session_termination_tasks[session_id] = task
+
+    finally:
+        # However the socket ended - a clean close or an error out of the loop -
+        # it is no longer anyone's open page. A stale "on screen" would hide the
+        # stage's prompt for exactly the phone that needs it.
+        if manager.drop_presence(session_id, ws_connection_id):
+            await broadcast_presence_update(manager, session_id)

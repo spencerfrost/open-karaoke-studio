@@ -65,6 +65,7 @@ async def get_current_queue_state(session_id: str):
                             "id": item.id,
                             "songId": item.song_id,
                             "singer": item.singer_name,
+                            "performerId": item.performer_id,
                             "position": idx,
                             "addedAt": added_at,
                             "song": {
@@ -102,6 +103,9 @@ async def get_current_queue_state(session_id: str):
                     "id": current_item.id,
                     "songId": current_item.song_id,
                     "singer": current_item.singer_name,
+                    # Whose song is playing. A phone matches this against its
+                    # own roster seat to open its controls when its song starts.
+                    "performerId": current_item.performer_id,
                     "position": 0,
                     "addedAt": added_at,
                     "song": {

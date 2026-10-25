@@ -9,11 +9,31 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+
+class ConnectionPresence(NamedTuple):
+    """What one socket last reported about the page it belongs to."""
+
+    # The page is on screen (Page Visibility API), not backgrounded or locked.
+    visible: bool
+    # The page is the performance controls (`/controls`).
+    on_controls: bool
+
+
+class DevicePresence(NamedTuple):
+    """One device's presence, summarised across all of its sockets."""
+
+    connected: bool
+    visible: bool
+    on_controls: bool
+
+
+DISCONNECTED = DevicePresence(connected=False, visible=False, on_controls=False)
 
 
 class SessionConnectionManager:
@@ -24,6 +44,12 @@ class SessionConnectionManager:
         self.rooms: Dict[str, List[WebSocket]] = {}
         self.device_sessions: Dict[str, str] = {}  # device_id -> session_id
         self.sessions: Dict[str, Dict] = {}  # session_id -> session_data
+        # session_id -> device_id -> ws_connection_id -> ConnectionPresence.
+        # A device can hold several sockets (two tabs, a reconnect racing the old
+        # socket's close), so presence is recorded per socket and summarised per
+        # device. `device_id` is the session member id minted at REST join, not
+        # the ephemeral WebSocket connection id.
+        self.presence: Dict[str, Dict[str, Dict[str, ConnectionPresence]]] = {}
 
     async def connect(self, websocket: WebSocket, device_id: Optional[str] = None):
         await websocket.accept()
@@ -209,6 +235,91 @@ class SessionConnectionManager:
             return f"session_{session_id}"
         return f"session_{session_id}_{room_type}"
 
+    # === PRESENCE ===
+    #
+    # Whether each session member's page is open and on screen, so the stage can
+    # tell a singer whose phone is in their pocket to take it out. In memory only:
+    # presence is a property of live sockets, and a restart drops every socket
+    # anyway, so there is nothing a database column would survive that matters.
+
+    def get_device_presence(self, session_id: str, device_id: str) -> DevicePresence:
+        """Summarise one device across its sockets. Any socket counts."""
+        connections = self.presence.get(session_id, {}).get(device_id)
+        if not connections:
+            return DISCONNECTED
+        return DevicePresence(
+            connected=True,
+            visible=any(c.visible for c in connections.values()),
+            on_controls=any(c.visible and c.on_controls for c in connections.values()),
+        )
+
+    def get_session_presence(self, session_id: str) -> Dict[str, DevicePresence]:
+        """Every device in this session with at least one reporting socket."""
+        return {
+            device_id: self.get_device_presence(session_id, device_id)
+            for device_id in self.presence.get(session_id, {})
+        }
+
+    def set_presence(
+        self,
+        session_id: str,
+        device_id: str,
+        connection_id: str,
+        visible: bool,
+        on_controls: bool = False,
+    ) -> bool:
+        """Record what a socket reports about its page.
+
+        Returns True when the device's summary changed - the only case worth a
+        broadcast, since a phone reports on every visibility flip.
+        """
+        session_presence = self.presence.setdefault(session_id, {})
+        before = self.get_device_presence(session_id, device_id)
+
+        # A socket belongs to one device. If it reported as another before,
+        # move it rather than leave a ghost behind.
+        moved_from = None
+        for other_id, connections in list(session_presence.items()):
+            if other_id != device_id and connection_id in connections:
+                moved_from = other_id
+                del connections[connection_id]
+                if not connections:
+                    del session_presence[other_id]
+
+        session_presence.setdefault(device_id, {})[connection_id] = ConnectionPresence(
+            visible=visible, on_controls=on_controls
+        )
+        return (
+            moved_from is not None
+            or self.get_device_presence(session_id, device_id) != before
+        )
+
+    def drop_presence(self, session_id: str, connection_id: str) -> bool:
+        """Forget a closed socket. Returns True if any device's summary changed."""
+        session_presence = self.presence.get(session_id)
+        if not session_presence:
+            return False
+
+        changed = False
+        for device_id, connections in list(session_presence.items()):
+            if connection_id not in connections:
+                continue
+            before = self.get_device_presence(session_id, device_id)
+            del connections[connection_id]
+            if not connections:
+                del session_presence[device_id]
+            changed = changed or (
+                self.get_device_presence(session_id, device_id) != before
+            )
+
+        if not session_presence:
+            del self.presence[session_id]
+        return changed
+
+    def clear_session_presence(self, session_id: str) -> None:
+        """Drop all presence for a session that has ended."""
+        self.presence.pop(session_id, None)
+
     async def force_close_session_connections(
         self, session_id: str, reason: str = "Session ended"
     ):
@@ -247,6 +358,8 @@ class SessionConnectionManager:
 
             # Clean up the room
             self.rooms[session_room] = []
+
+        self.clear_session_presence(session_id)
 
         # Mark the in-memory session inactive, if this is one the legacy endpoint tracks
         session = self.sessions.get(session_id)
