@@ -37,6 +37,8 @@ class SongResponse(BaseModel):
     duration: Optional[float] = None
     dateAdded: Optional[datetime] = None
 
+    # Only three-track songs have a separate backing vocal stem
+    backingVocalPath: Optional[str] = None
     thumbnail: Optional[str] = None
 
     # Source

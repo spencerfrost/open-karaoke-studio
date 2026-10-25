@@ -112,7 +112,7 @@ def get_session_performance_state(session_id: str):
     """Get or create performance state for a specific session."""
     if session_id not in session_performance_states:
         session_performance_states[session_id] = {
-            "vocal_volume": 1.0,
+            "vocal_volume": 0.0,  # Songs start with the lead vocal off
             "backing_vocal_volume": 1.0,
             "instrumental_volume": 1.0,
             "lyrics_size": "medium",

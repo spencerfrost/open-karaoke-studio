@@ -10,7 +10,10 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Captions, FileText, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import {
+  selectCurrentSongId,
+  useKaraokePlayerStore,
+} from "@/stores/useKaraokePlayerStore";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import LyricsFetchDialog from "@/features/lyrics/components/LyricsFetchDialog";
@@ -39,7 +42,7 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
 }) => {
   const isTv = density === "tv";
 
-  const songId = useKaraokePlayerStore((state) => state.songId);
+  const songId = useKaraokePlayerStore(selectCurrentSongId);
   const { useSong, useUpdateSong } = useSongs();
   const { data: song } = useSong(songId ?? "");
   const updateSongMutation = useUpdateSong();

@@ -4,7 +4,11 @@
 
 import React from "react";
 import { Mic, Music, SlidersHorizontal } from "lucide-react";
-import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import {
+  selectCurrentSongId,
+  useKaraokePlayerStore,
+} from "@/stores/useKaraokePlayerStore";
+import { useSongs } from "@/hooks/api/useSongs";
 import { usePerformanceControlsLogic } from "../hooks/usePerformanceControlsLogic";
 import VocalFader from "./VocalFader";
 import {
@@ -30,11 +34,12 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
     setBackingVocalVolume,
   } = usePerformanceControlsLogic();
 
-  // Two-track songs have no separate backing vocal stem.
-  const backingVocalUrl = useKaraokePlayerStore(
-    (state) => state.backingVocalUrl,
-  );
-  const backingAvailable = !!backingVocalUrl;
+  // Only three-track songs have a separate backing vocal stem. Ask the song,
+  // not the audio player: the phone controls the stage without loading audio.
+  const songId = useKaraokePlayerStore(selectCurrentSongId);
+  const { useSong } = useSongs();
+  const { data: song } = useSong(songId ?? "");
+  const backingAvailable = !!song?.backingVocalPath;
 
   return (
     // overflow-hidden: the faders shrink with the card, but on a viewport too

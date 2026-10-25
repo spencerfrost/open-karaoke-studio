@@ -56,6 +56,11 @@ interface KaraokePlayerState {
   duration: number;
   error: string | null;
 
+  // The session's current song as the server reports it. A device that only
+  // controls the stage (the performer's phone) never loads audio, so songId
+  // stays null there; read selectCurrentSongId rather than either field.
+  sessionSongId: string | null;
+
   // Song metadata for display (from uiPreferences)
   songTitle: string | null;
   songArtist: string | null;
@@ -170,6 +175,21 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     });
   }
 
+  // The stage owns the mix it is playing. Push it whenever the server's copy may
+  // differ: after a song load resets it, and after reconnecting (an API restart
+  // forgets it). Otherwise phones show the server's stale values.
+  function pushMixToSession() {
+    const { vocalVolume, backingVocalVolume, instrumentalVolume } =
+      useAudioControlsStore.getState();
+    updatePerformanceControl("vocalVolume", vocalVolume);
+    updatePerformanceControl("backingVocalVolume", backingVocalVolume);
+    updatePerformanceControl("instrumentalVolume", instrumentalVolume);
+    updatePerformanceControl(
+      "lyricsOffset",
+      useUIPreferencesStore.getState().lyricsOffset,
+    );
+  }
+
   function updatePlayerState(
     updates: Partial<
       Pick<KaraokePlayerState, "isPlaying" | "currentTime" | "duration">
@@ -229,6 +249,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     isLoading: false,
     duration: 0,
     error: null,
+    sessionSongId: null,
     songTitle: null,
     songArtist: null,
     isPlaying: false,
@@ -256,6 +277,25 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
             get().updateFromWebSocket(state);
           }
         },
+      );
+
+      // The stage announces each song it loads; the server forwards that to
+      // every other device in the session.
+      const handleSongAnnounced = (data: unknown) => {
+        if (data && typeof data === "object" && "state" in data) {
+          const state = (data as { state: PerformanceState }).state;
+          if (state.current_song_id !== undefined) {
+            set({ sessionSongId: state.current_song_id });
+          }
+        }
+      };
+      const cleanupSongLoaded = sessionWebSocketService.on(
+        "song_loaded",
+        handleSongAnnounced,
+      );
+      const cleanupSongReady = sessionWebSocketService.on(
+        "song_ready",
+        handleSongAnnounced,
       );
 
       const cleanupControlUpdated = sessionWebSocketService.on(
@@ -299,7 +339,19 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
             "[KaraokePlayerStore] Received session_connected event",
             data,
           );
-          set({ connected: true });
+          const connection = data as {
+            is_session_owner?: boolean;
+            performance_state?: Partial<PerformanceState>;
+          };
+          // A phone opened mid-song learns the song here, not from song_loaded.
+          const songId = connection?.performance_state?.current_song_id;
+          set({
+            connected: true,
+            ...(songId !== undefined && { sessionSongId: songId }),
+          });
+          if (connection?.is_session_owner && get().songId) {
+            pushMixToSession();
+          }
         },
       );
 
@@ -321,6 +373,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
 
       window.__playerWebSocketCleanup = [
         cleanupPerformanceState,
+        cleanupSongLoaded,
+        cleanupSongReady,
         cleanupControlUpdated,
         cleanupPlaybackPlay,
         cleanupPlaybackPause,
@@ -380,6 +434,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       usePlaybackStateStore.getState().resetSongEnded();
       useAudioControlsStore.getState().resetAudioControls();
       useUIPreferencesStore.getState().resetLyricsOffset();
+      pushMixToSession();
 
       socketEmit("song_loaded", {
         songId: id,
@@ -535,6 +590,10 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       const audioControls = useAudioControlsStore.getState();
       const uiPreferences = useUIPreferencesStore.getState();
 
+      if (data.current_song_id !== undefined) {
+        set({ sessionSongId: data.current_song_id });
+      }
+
       // Handle audio controls
       if (
         data.vocal_volume !== undefined &&
@@ -593,3 +652,7 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     },
   };
 });
+
+/** The song on stage, whether this device plays it or only controls it. */
+export const selectCurrentSongId = (state: KaraokePlayerState) =>
+  state.songId || state.sessionSongId;

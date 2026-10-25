@@ -16,7 +16,10 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import {
+  selectCurrentSongId,
+  useKaraokePlayerStore,
+} from "@/stores/useKaraokePlayerStore";
 import { useSongs } from "@/hooks/api/useSongs";
 import { applyOffsetToLrc } from "@/utils/lrcUtils";
 import { formatLyricsOffset } from "@/utils/performanceControls";
@@ -34,7 +37,7 @@ interface LyricsOffsetRowProps {
 const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({ density }) => {
   const isTv = density === "tv";
 
-  const songId = useKaraokePlayerStore((state) => state.songId);
+  const songId = useKaraokePlayerStore(selectCurrentSongId);
   const lyricsOffset = useKaraokePlayerStore((state) => state.lyricsOffset);
   const setLyricsOffset = useKaraokePlayerStore(
     (state) => state.setLyricsOffset,
