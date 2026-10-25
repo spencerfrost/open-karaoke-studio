@@ -38,6 +38,10 @@ export class DemoStartError extends Error {
   }
 }
 
+/** Shown when a demo visitor is sent back to the start page. */
+export const DEMO_ENDED_MESSAGE =
+  "Your demo has ended. Press Try it live to start another.";
+
 const signedIn = (data: LoginResponse) => ({
   token: data.token,
   user: {
@@ -60,8 +64,9 @@ interface AuthState {
   startDemo: () => Promise<void>;
   logout: () => void;
   /**
-   * Log out because the server rejected the token (401), telling the user why.
-   * A no-op when already logged out, so a burst of 401s toasts once.
+   * Log out because the server rejected the token (401), or a demo session is
+   * over, telling the user why. A no-op when already logged out, so a burst of
+   * 401s toasts once.
    */
   expireSession: () => void;
 }
@@ -118,8 +123,15 @@ export const useAuthStore = create<AuthState>()(
 
       expireSession: () => {
         if (!get().isAuthenticated) return;
+        // A demo token ends with its demo session, so for a demo visitor this
+        // is the demo running out, not a sign-in to redo.
+        const wasDemo = Boolean(get().user?.isDemo);
         get().logout();
-        toast.error("Session expired. Please log in again.");
+        if (wasDemo) {
+          toast(DEMO_ENDED_MESSAGE);
+        } else {
+          toast.error("Session expired. Please log in again.");
+        }
       },
     }),
     {

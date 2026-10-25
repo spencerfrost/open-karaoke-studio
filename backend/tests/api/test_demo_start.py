@@ -93,13 +93,21 @@ class TestDemoStart:
         # 0.25h session ≈ 15 minutes.
         assert abs(span - timedelta(minutes=15)) < timedelta(minutes=1)
 
-    def test_token_is_short_lived(self, unauthenticated_client, db):
+    def test_token_expires_with_the_session(self, unauthenticated_client, db):
         _seed_pool(db, count=1)
-        token = _start(unauthenticated_client).json()["token"]
-        payload = verify_token(token)
+        data = _start(unauthenticated_client).json()
+        payload = verify_token(data["token"])
         assert payload is not None
-        remaining = payload["exp"] - time.time()
-        assert 0 < remaining <= 30 * 60
+
+        session = (
+            db.query(KaraokeSession)
+            .filter(KaraokeSession.host_user_id == int(data["id"]))
+            .one()
+        )
+        session_left = (session.expires_at - utc_now()).total_seconds()
+        token_left = payload["exp"] - time.time()
+        assert 0 < token_left <= 15 * 60
+        assert abs(token_left - session_left) < 5
 
     def test_second_start_picks_different_account(self, unauthenticated_client, db):
         _seed_pool(db)
@@ -141,6 +149,86 @@ class TestDemoStart:
         reused = _start(unauthenticated_client)
         assert reused.status_code == 200
         assert int(reused.json()["id"]) == first_id
+
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+class TestDemoAccountSessions:
+    """A demo account's only session is the one /api/demo/start opened."""
+
+    def test_stage_joins_the_started_session(self, unauthenticated_client, db):
+        _seed_pool(db, count=1)
+        token = _start(unauthenticated_client).json()["token"]
+        started = db.query(KaraokeSession).one()
+
+        response = unauthenticated_client.post(
+            "/api/sessions/my", json={"device_type": "stage"}, headers=_auth(token)
+        )
+
+        assert response.status_code == 201
+        assert response.json()["session_id"] == started.session_id
+        assert db.query(KaraokeSession).count() == 1
+
+    def test_no_new_session_after_the_demo_session_ends(
+        self, unauthenticated_client, db
+    ):
+        _seed_pool(db, count=1)
+        token = _start(unauthenticated_client).json()["token"]
+        session = db.query(KaraokeSession).one()
+        session.expires_at = utc_now() - timedelta(minutes=1)
+        db.commit()
+
+        response = unauthenticated_client.post(
+            "/api/sessions/my", json={"device_type": "stage"}, headers=_auth(token)
+        )
+
+        assert response.status_code == 403
+        assert "Try it live" in response.json()["detail"]
+        live = db.query(KaraokeSession).filter(KaraokeSession.is_active.is_(True))
+        assert live.count() == 0
+
+    def test_cannot_replace_the_demo_session(self, unauthenticated_client, db):
+        _seed_pool(db, count=1)
+        token = _start(unauthenticated_client).json()["token"]
+        started = db.query(KaraokeSession).one()
+
+        response = unauthenticated_client.post(
+            "/api/sessions/my",
+            json={"device_type": "stage", "on_existing": "replace"},
+            headers=_auth(token),
+        )
+
+        assert response.status_code == 403
+        db.refresh(started)
+        assert started.is_active is True
+        assert db.query(KaraokeSession).count() == 1
+
+    def test_password_login_cannot_create_a_session(self, unauthenticated_client, db):
+        _seed_pool(db, count=1)
+        token = unauthenticated_client.post(
+            "/api/users/login",
+            json={"username": "demo-pool-1", "password": "pool-secret-1"},
+        ).json()["token"]
+
+        response = unauthenticated_client.post(
+            "/api/sessions/my", json={"device_type": "stage"}, headers=_auth(token)
+        )
+
+        assert response.status_code == 403
+        assert db.query(KaraokeSession).count() == 0
+
+    def test_plain_session_create_rejected(self, unauthenticated_client, db):
+        _seed_pool(db, count=1)
+        token = _start(unauthenticated_client).json()["token"]
+
+        response = unauthenticated_client.post(
+            "/api/sessions", json={"device_type": "stage"}, headers=_auth(token)
+        )
+
+        assert response.status_code == 403
+        assert db.query(KaraokeSession).count() == 1
 
 
 class TestDemoStartRateLimit:

@@ -33,6 +33,7 @@ from app.api.dependencies import (
 from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
 from app.services import turn_service
+from app.services.demo_service import DEMO_SESSION_ENDED_DETAIL
 from app.services.roster_service import (
     resolve_or_create_performer,
     resolve_or_create_performer_verbose,
@@ -428,6 +429,17 @@ async def get_or_create_my_session(
         .first()
     )
 
+    # A demo account's only session is the one POST /api/demo/start opened for
+    # it. Devices may join that session, but once it has ended the visitor
+    # goes back through the pool for a new one (and a fresh download quota).
+    if current_user.is_demo and (
+        existing is None or session_data.on_existing == "replace"
+    ):
+        logger.info(
+            "Rejected session create for demo account %s", current_user.username
+        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
+
     if existing and session_data.on_existing == "reject":
         raise HTTPException(
             status_code=409,
@@ -633,6 +645,13 @@ async def create_session(
     """
     device_type = session_data.device_type
     display_name = session_data.display_name
+
+    # Demo sessions come only from POST /api/demo/start - see get_or_create_my_session.
+    if current_user.is_demo:
+        logger.info(
+            "Rejected session create for demo account %s", current_user.username
+        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
     if device_type not in SessionDevice.DEVICE_TYPES:
         raise HTTPException(status_code=400, detail="Invalid device type")

@@ -4,7 +4,10 @@ Demo account pool: handing out pool accounts and download quota enforcement.
 A pool of `is_demo` host accounts backs POST /api/demo/start. Each start picks
 a free pool account and eagerly starts that account's karaoke session, so
 concurrent visitors never share a session and the (short) session clock starts
-straight away. No credential is published: the endpoint issues the token.
+straight away. No credential is published: the endpoint issues the token, and
+the token expires with that session. A demo account never starts or replaces a
+session itself (see app.api.sessions), so the only way to a fresh session, and a
+fresh download allowance, is another POST /api/demo/start.
 """
 
 import logging
@@ -29,8 +32,10 @@ DEMO_DAILY_DOWNLOAD_LIMIT = 20
 # (they back the in-app retry UI) rather than being deleted, so counting every
 # row would let one bad link cost a visitor a third of their session allowance.
 UNCOUNTED_JOB_STATUSES = (JobStatus.FAILED.value, JobStatus.CANCELLED.value)
-DEMO_TOKEN_EXPIRE_MINUTES = 30
 DEMO_SESSION_FALLBACK_DURATION_HOURS = 0.25
+DEMO_SESSION_ENDED_DETAIL = (
+    "Your demo session has ended — press Try it live to start a new one."
+)
 
 
 def demo_enabled(db: Session) -> bool:
@@ -38,24 +43,34 @@ def demo_enabled(db: Session) -> bool:
     return db.query(User.id).filter(User.is_demo.is_(True)).first() is not None
 
 
-def start_demo(db: Session) -> User:
+def start_demo(db: Session) -> tuple[User, KaraokeSession]:
     """Hand a visitor a free demo pool account with its session started.
 
     Raises 503 when no pool account is free (or none is seeded, which reads
     the same to a visitor: there's no seat for them right now).
     """
-    user = _acquire_pool_account(db)
-    if user is None:
+    acquired = _acquire_pool_account(db)
+    if acquired is None:
         logger.info("Demo start rejected: no free pool account")
         raise HTTPException(
             status_code=503,
             detail="The demo is busy right now — try again in a few minutes.",
         )
-    logger.info("Demo started on pool account %s", user.username)
-    return user
+    user, session = acquired
+    logger.info(
+        "Demo started on pool account %s, session %s",
+        user.username,
+        session.session_id,
+    )
+    return user, session
 
 
-def _acquire_pool_account(db: Session) -> Optional[User]:
+def demo_token_minutes(session: KaraokeSession) -> float:
+    """Token lifetime for a demo start: whatever is left of its session."""
+    return max((session.expires_at - utc_now()).total_seconds() / 60, 0)
+
+
+def _acquire_pool_account(db: Session) -> Optional[tuple[User, KaraokeSession]]:
     """Pick a demo account with no live session and start its session."""
     pool = (
         db.query(User)
@@ -81,8 +96,7 @@ def _acquire_pool_account(db: Session) -> Optional[User]:
 
     for user in pool:
         if user.id not in busy:
-            _start_demo_session(db, user)
-            return user
+            return user, _start_demo_session(db, user)
     return None
 
 
@@ -169,10 +183,7 @@ def enforce_demo_download_quota(
 
     if session is None:
         # Demo JWT with no live session (expired or never started).
-        raise HTTPException(
-            status_code=403,
-            detail="Your demo session has ended — press Try it live to start a new one.",
-        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
     # Finished download jobs keep their row, so these counts include completed
     # downloads. Session codes are recycled once a retired session is purged,

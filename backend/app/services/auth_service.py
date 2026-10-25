@@ -35,7 +35,7 @@ def _get_secret_key() -> str:
     return key
 
 
-def create_access_token(user: User, expires_minutes: Optional[int] = None) -> str:
+def create_access_token(user: User, expires_minutes: Optional[float] = None) -> str:
     """Generate a JWT access token for the given user."""
     if expires_minutes is None:
         expires_minutes = ACCESS_TOKEN_EXPIRE_MINUTES

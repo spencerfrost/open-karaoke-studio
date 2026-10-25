@@ -5,7 +5,8 @@ GET /api/demo says whether this server offers the demo at all (any pool
 account seeded), so the entry page only shows "Try it live" where it can work.
 POST /api/demo/start hands a visitor a free `is_demo` pool account with its
 session already running, and returns the same payload as a normal login so the
-frontend signs in with it the same way. See app.services.demo_service.
+frontend signs in with it the same way. The token expires with the session.
+See app.services.demo_service.
 """
 
 import logging
@@ -19,8 +20,8 @@ from app.api.users import LoginResponse
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
 from app.services.demo_service import (
-    DEMO_TOKEN_EXPIRE_MINUTES,
     demo_enabled,
+    demo_token_minutes,
     start_demo,
 )
 
@@ -54,8 +55,10 @@ async def start_demo_session(
 ) -> LoginResponse:
     """Start a demo session on a free pool account and sign the visitor in."""
     try:
-        user = start_demo(db)
-        token = create_access_token(user, expires_minutes=DEMO_TOKEN_EXPIRE_MINUTES)
+        user, session = start_demo(db)
+        # The token ends with the session, so a visitor can't outstay their
+        # seat or come back to it after it has gone to someone else.
+        token = create_access_token(user, expires_minutes=demo_token_minutes(session))
         return LoginResponse(
             success=True,
             id=str(user.id),
