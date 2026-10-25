@@ -25,7 +25,7 @@ from app.api.dependencies import RequesterContext
 from app.db.models import JobStep
 from app.db.models.song import DbSong
 from app.repositories.song_repository import SongRepository
-from app.services.artist_parsing import artist_credit
+from app.services.artist_parsing import ArtistCredit, artist_credit
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import FileService
 from app.utils.owner_tag import session_owner_tag
@@ -112,15 +112,24 @@ def attach_library_entries(db: Session, songs: List[Dict[str, Any]]) -> None:
 # --------------------------------------------------------------------------
 
 
-def create_song_record(db: Session, song_data: Dict[str, Any]) -> DbSong:
-    """Create a library song, link its artists, and make its directory."""
-    from app.services.song_artist_service import populate_song_artists
+def create_song_record(
+    db: Session,
+    song_data: Dict[str, Any],
+    credits: Optional[List[ArtistCredit]] = None,
+) -> DbSong:
+    """Create a library song, link its artists, and make its directory.
+
+    `credits` is the artist list the song came with; without one they're
+    parsed from its artist text and title.
+    """
+    from app.services.song_artist_service import set_song_credits
 
     song_data = {**song_data, "id": song_data.get("id") or str(uuid.uuid4())}
     logger.info("Creating new song with ID: %s", song_data["id"])
 
     song = SongRepository(db).create(song_data)
-    populate_song_artists(db, song, song.artist or "")
+    set_song_credits(db, song, credits)
+    db.commit()
 
     try:
         song_dir = FileService().get_song_directory(song.id)
@@ -260,7 +269,7 @@ def add_song_from_youtube(
     *,
     video_id: str,
     title: str,
-    artists: List[str],
+    artists: List[Dict[str, Optional[str]]],
     album: Optional[str] = None,
     duration: Optional[float] = None,
     source: str = "youtube_music",
@@ -268,18 +277,18 @@ def add_song_from_youtube(
 ) -> YouTubeAdd:
     """Add a YouTube song to the library and queue its processing.
 
+    `artists` is the result's artist list ({name, id}), primary first; the
+    song is credited from it as given. A YouTube Music id is kept only for
+    YouTube Music results: a plain video's channel isn't an artist page.
+
     Restarts the song's failed copy when that's the only one, so trying again
     never makes a duplicate. 409 when a working copy is already there.
     """
     # Counts against demo download quotas once. No-op for everyone else.
     session_id, user_id = enforce_demo_download_quota(db, requester)
 
-    artist = artist_credit(artists)
-    candidate = {
-        "videoId": video_id,
-        "title": title,
-        "artists": [{"name": name} for name in artists],
-    }
+    artist = artist_credit([a["name"] for a in artists])
+    candidate = {"videoId": video_id, "title": title, "artists": artists}
     attach_library_entries(db, [candidate])
     entry = candidate["library"]
 
@@ -312,6 +321,16 @@ def add_song_from_youtube(
                 "source": source,
                 "video_id": video_id,
             },
+            credits=[
+                ArtistCredit(
+                    name=a["name"],
+                    role="primary" if i == 0 else "featured",
+                    youtube_music_id=(
+                        a.get("id") if source == "youtube_music" else None
+                    ),
+                )
+                for i, a in enumerate(artists)
+            ],
         )
         song_id = song.id
         job_id = queue_youtube_download(

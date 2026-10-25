@@ -12,55 +12,66 @@ def repo(test_db_session):
 
 
 def test_get_by_name_ignores_case_and_spaces(repo):
-    queen = repo.get_or_create("Queen")
+    queen = repo.resolve("Queen")
 
     assert repo.get_by_name("  QUEEN ") == queen
     assert repo.get_by_name("Unknown") is None
 
 
-def test_get_or_create_stores_normalized_name_and_given_display_name(repo):
-    artist = repo.get_or_create("  AC/DC ", display_name="AC/DC")
+def test_resolve_stores_normalized_name_and_cased_display_name(repo):
+    artist = repo.resolve("  AC/DC ")
 
     assert artist.name == "ac/dc"
     assert artist.display_name == "AC/DC"
 
 
-def test_get_or_create_returns_the_existing_artist(repo, test_db_session):
-    first = repo.get_or_create("Queen")
+def test_resolve_returns_the_existing_artist(repo, test_db_session):
+    first = repo.resolve("Queen")
 
-    assert repo.get_or_create("queen") == first
+    assert repo.resolve("queen") == first
     assert test_db_session.query(DbArtist).count() == 1
 
 
-def test_get_or_create_upgrades_a_lowercase_display_name(repo):
-    repo.get_or_create("björk", display_name="björk")
+def test_resolve_upgrades_a_lowercase_display_name(repo):
+    repo.resolve("björk")
 
-    artist = repo.get_or_create("Björk", display_name="Björk")
+    artist = repo.resolve("Björk")
 
     assert artist.display_name == "Björk"
 
 
-def test_get_or_create_keeps_a_hand_set_display_name(repo):
-    artist = repo.get_or_create("prince")
+def test_resolve_keeps_a_hand_set_display_name(repo):
+    artist = repo.resolve("prince")
     repo.update_display_name(artist, "Prince & The Revolution")
 
-    artist = repo.get_or_create("Prince", display_name="Prince")
+    artist = repo.resolve("Prince")
 
     assert artist.display_name == "Prince & The Revolution"
 
 
 def test_get_all_with_image_status(repo):
-    found = repo.get_or_create("Queen")
+    found = repo.resolve("Queen")
     repo.update_image(found, image_path="/library/artists/queen.jpg", status="found")
-    repo.get_or_create("Nobody")
+    repo.resolve("Nobody")
 
     assert repo.get_all_with_image_status("found") == [found]
     assert found.image_path == "/library/artists/queen.jpg"
 
 
+def test_delete_if_unused(repo, test_db_session):
+    used = repo.resolve("Queen")
+    unused = repo.resolve("Nobody")
+    test_db_session.add(DbSong(id="s", title="S", artist="Queen", artist_id=used.id))
+    test_db_session.commit()
+
+    assert repo.delete_if_unused(used) is False
+    assert repo.delete_if_unused(unused) is True
+    assert test_db_session.query(DbArtist).all() == [used]
+
+
 def test_delete_removes_songs_credited_only_by_artist_id(repo, test_db_session):
-    artist = repo.get_or_create("Queen")
-    other = repo.get_or_create("David Bowie")
+    artist = repo.resolve("Queen")
+    other = repo.resolve("David Bowie")
     test_db_session.add_all(
         [
             DbSong(id="legacy", title="Legacy", artist="Queen", artist_id=artist.id),

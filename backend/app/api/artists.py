@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -13,7 +14,9 @@ from app.db.models.song_artist import DbSongArtist
 from app.repositories.artist_repository import ArtistRepository
 from app.schemas.song import SplitArtistCreditsRequest
 from app.services.artist_image_service import ArtistImageService
+from app.services.artist_parsing import ArtistCredit, credit_line
 from app.services.file_service import FileService
+from app.services.song_artist_service import set_song_credits
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/artists", tags=["artists"])
@@ -62,11 +65,11 @@ async def delete_artist(
     return result
 
 
-@router.get("/image")
-async def get_artist_image(name: str = Query(...)):
+@router.get("/{artist_id}/image")
+async def get_artist_image(artist_id: int):
     """Fetch and cache artist image from Discogs, served from local disk."""
     service = ArtistImageService(FileService(), SessionLocal)
-    path = await service.get_or_fetch_artist_image(name)
+    path = await service.get_or_fetch_artist_image(artist_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Artist image not found")
     # Cached for an hour so the stage wheel can scroll back over an artist
@@ -126,21 +129,22 @@ async def split_artist_credits(
 ):
     """
     Manually split a combined artist (e.g. "A & B") into separate credits.
-    Applies the provided credits to all songs currently linked to this artist.
-    Requires admin.
+
+    On every song crediting this artist, the given credits take its place and
+    the song's other credits stay. Where it was featured, they're all
+    featured. The artist text is rebuilt from the new credits and the song is
+    confirmed. Requires admin.
     """
     repo = ArtistRepository(db)
     artist = repo.get_by_id(artist_id)
     if artist is None:
         raise HTTPException(status_code=404, detail="Artist not found")
 
-    primary_credits = [c for c in body.credits if c.role == "primary"]
-    if not primary_credits:
+    if not any(c.role == "primary" for c in body.credits):
         raise HTTPException(
             status_code=400, detail="At least one primary credit is required"
         )
 
-    # Find all songs currently credited to this artist
     songs = (
         db.query(DbSong)
         .join(DbSongArtist, DbSongArtist.song_id == DbSong.id)
@@ -148,30 +152,79 @@ async def split_artist_credits(
         .all()
     )
 
-    # Resolve/create all artist records upfront
-    resolved = [
-        (repo.get_or_create(credit.name, display_name=credit.name), credit.role)
-        for credit in body.credits
-    ]
-
+    now = datetime.now(timezone.utc)
     for song in songs:
-        db.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
-        for i, (new_artist, role) in enumerate(resolved):
-            db.add(
-                DbSongArtist(
-                    song_id=song.id,
-                    artist_id=new_artist.id,
-                    role=role,
-                    display_order=i,
+        credits: list[ArtistCredit] = []
+        for link in sorted(song.song_artists, key=lambda c: c.display_order):
+            if link.artist_id != artist_id:
+                credits.append(_credit_of(link))
+                continue
+            credits += [
+                ArtistCredit(
+                    name=c.name,
+                    role=c.role if link.role == "primary" else "featured",
                 )
-            )
-        # Rebuild denormalized artist string from primary credits
-        song.artist = " & ".join(
-            new_artist.display_name or new_artist.name
-            for new_artist, role in resolved
-            if role == "primary"
-        )
-        song.artist_id = resolved[0][0].id  # first primary artist
+                for c in body.credits
+            ]
+        set_song_credits(db, song, credits)
+        song.artist = credit_line([(c.credited_as or c.name, c.role) for c in credits])
+        song.metadata_confirmed_at = now
 
+    # The combined artist usually has nothing left.
+    db.flush()
+    db.expire(artist)
+    repo.delete_if_unused(artist)
     db.commit()
     return {"updated": len(songs)}
+
+
+@router.post("/{artist_id}/merge-into/{target_id}")
+async def merge_artist(
+    artist_id: int,
+    target_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Merge one artist into another: "Jay‐Z" into "Jay-Z".
+
+    Moves every credit to the target, repoints songs and albums, keeps the
+    source's names and ids on the target as aliases, and deletes the source.
+    Songs' artist text is left as it is. Requires admin.
+    """
+    if artist_id == target_id:
+        raise HTTPException(status_code=400, detail="An artist can't merge into itself")
+    repo = ArtistRepository(db)
+    source = repo.get_by_id(artist_id)
+    target = repo.get_by_id(target_id)
+    if source is None or target is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
+
+    source_name = source.display_name or source.name
+    moved = repo.merge_into(source, target)
+    db.commit()
+    logger.info(
+        "Merged artist %s (%s) into %s (%s): %d credits",
+        artist_id,
+        source_name,
+        target_id,
+        target.display_name or target.name,
+        moved,
+    )
+    return {
+        "id": target.id,
+        "name": target.display_name or target.name,
+        "moved": moved,
+    }
+
+
+def _credit_of(link: DbSongArtist) -> ArtistCredit:
+    """A song's existing credit, as set_song_credits takes it."""
+    artist = link.artist_rel
+    return ArtistCredit(
+        name=artist.display_name or artist.name,
+        role=link.role,
+        musicbrainz_id=artist.musicbrainz_artist_id,
+        youtube_music_id=artist.youtube_music_artist_id,
+        credited_as=link.credited_as,
+    )

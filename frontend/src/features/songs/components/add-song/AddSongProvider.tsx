@@ -26,7 +26,10 @@ export const AddSongProvider: React.FC<AddSongProviderProps> = ({
         void addSong({
           videoId: song.videoId,
           title: song.title,
-          artists: song.artists.map((a) => a.name),
+          artists: song.artists.map((a) => ({
+            name: a.name,
+            id: a.id ?? null,
+          })),
           album: song.album,
           durationSeconds: song.durationSeconds,
           source,

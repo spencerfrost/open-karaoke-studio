@@ -286,8 +286,7 @@ def batch_fetch_artist_images(
     """
     import asyncio
 
-    from app.db.database import SessionLocal, get_db_session
-    from app.db.models import DbArtist
+    from app.db.database import SessionLocal
     from app.services.artist_image_service import ArtistImageService
     from app.services.file_service import FileService
 
@@ -295,30 +294,19 @@ def batch_fetch_artist_images(
 
     with tracked_run(run_id) as run:
         artist_ids = _select("artist_images", mode)
-        with get_db_session() as session:
-            names = (
-                [
-                    row[0]
-                    for row in session.query(DbArtist.name)
-                    .filter(DbArtist.id.in_(artist_ids))
-                    .all()
-                ]
-                if artist_ids
-                else []
-            )
-        run.start(len(names))
-        logger.info("batch_fetch_artist_images: processing %d artists", len(names))
+        run.start(len(artist_ids))
+        logger.info("batch_fetch_artist_images: processing %d artists", len(artist_ids))
 
         service = ArtistImageService(FileService(), SessionLocal)
-        for name in names:
+        for artist_id in artist_ids:
             try:
-                path = asyncio.run(service.get_or_fetch_artist_image(name))
+                path = asyncio.run(service.get_or_fetch_artist_image(artist_id))
                 counts["fetched" if path is not None else "not_found"] += 1
                 run.song_done()
             except Exception:
                 logger.warning(
                     "batch_fetch_artist_images: error for artist %s",
-                    name,
+                    artist_id,
                     exc_info=True,
                 )
                 counts["errors"] += 1

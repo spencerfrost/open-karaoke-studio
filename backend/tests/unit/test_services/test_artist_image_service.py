@@ -63,6 +63,8 @@ def test_slugify_lowercases():
 def mock_artist():
     artist = MagicMock()
     artist.id = 42
+    artist.name = "queen"
+    artist.display_name = "Queen"
     artist.image_status = "not_checked"
     artist.image_path = None
     return artist
@@ -71,7 +73,6 @@ def mock_artist():
 @pytest.fixture
 def artist_repo(mock_artist):
     repo = Mock(spec=ArtistRepository)
-    repo.get_or_create.return_value = mock_artist
     repo.get_by_id.return_value = mock_artist
     return repo
 
@@ -108,13 +109,20 @@ def svc(file_service, artist_repo):
 
 
 @pytest.mark.asyncio
+async def test_unknown_artist_is_none(svc, artist_repo):
+    artist_repo.get_by_id.return_value = None
+
+    assert await svc.get_or_fetch_artist_image(7) is None
+
+
+@pytest.mark.asyncio
 async def test_returns_cached_image_if_exists(svc, artist_repo, mock_artist):
     mock_artist.image_status = "found"
     mock_artist.image_path = "/library/artists/queen.jpg"
 
     # The service only trusts the cached path when the file is still on disk.
     with patch.object(Path, "exists", return_value=True):
-        result = await svc.get_or_fetch_artist_image("Queen")
+        result = await svc.get_or_fetch_artist_image(42)
 
     assert result == Path("/library/artists/queen.jpg")
     artist_repo.update_image.assert_not_called()
@@ -124,7 +132,7 @@ async def test_returns_cached_image_if_exists(svc, artist_repo, mock_artist):
 async def test_returns_none_if_notfound_marker_exists(svc, artist_repo, mock_artist):
     mock_artist.image_status = "not_found"
 
-    result = await svc.get_or_fetch_artist_image("Unknown Artist")
+    result = await svc.get_or_fetch_artist_image(42)
 
     assert result is None
     artist_repo.update_image.assert_not_called()
@@ -154,7 +162,7 @@ async def test_fetches_and_saves_image_when_found(
     with patch(
         "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
     ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
-        result = await svc.get_or_fetch_artist_image("Queen")
+        result = await svc.get_or_fetch_artist_image(42)
 
     assert result is image_path
     image_path.write_bytes.assert_called_once_with(b"fake_image_bytes")
@@ -176,7 +184,7 @@ async def test_creates_notfound_when_no_search_results(svc, artist_repo, mock_ar
     with patch(
         "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
     ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
-        result = await svc.get_or_fetch_artist_image("NoArtist")
+        result = await svc.get_or_fetch_artist_image(42)
 
     assert result is None
     artist_repo.update_image.assert_called_once_with(
@@ -198,7 +206,7 @@ async def test_creates_notfound_when_no_images(svc, artist_repo, mock_artist):
     with patch(
         "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
     ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
-        result = await svc.get_or_fetch_artist_image("NoThumb")
+        result = await svc.get_or_fetch_artist_image(42)
 
     assert result is None
     artist_repo.update_image.assert_called_once_with(
@@ -216,7 +224,7 @@ async def test_returns_none_on_network_error(svc, artist_repo, mock_artist):
     with patch(
         "app.services.artist_image_service.httpx.AsyncClient", return_value=mock_client
     ), patch("app.services.artist_image_service.get_config", return_value=_MOCK_CONFIG):
-        result = await svc.get_or_fetch_artist_image("ErrorArtist")
+        result = await svc.get_or_fetch_artist_image(42)
 
     assert result is None
     # Status stays "not_checked" — transient failures don't poison the cache

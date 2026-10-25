@@ -62,7 +62,7 @@ class TestArtistImageEndpoint:
             "app.api.artists.ArtistImageService.get_or_fetch_artist_image",
             return_value=image,
         ):
-            response = client.get("/api/artists/image", params={"name": "ABBA"})
+            response = client.get("/api/artists/1/image")
 
         assert response.status_code == 200
         assert response.headers["cache-control"] == "public, max-age=3600"
@@ -72,6 +72,6 @@ class TestArtistImageEndpoint:
             "app.api.artists.ArtistImageService.get_or_fetch_artist_image",
             return_value=None,
         ):
-            response = client.get("/api/artists/image", params={"name": "Nobody"})
+            response = client.get("/api/artists/999/image")
 
         assert response.status_code == 404

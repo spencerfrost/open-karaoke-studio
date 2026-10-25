@@ -64,13 +64,21 @@ class YouTubeDownloadRequest(BaseModel):
         return v
 
 
+class SongFromYouTubeArtist(BaseModel):
+    """One credited artist, as YouTube Music lists them."""
+
+    name: str = Field(..., max_length=200)
+    # YouTube Music channel id ("UC..."), when the result had one
+    id: Optional[str] = Field(None, max_length=100)
+
+
 class SongFromYouTubeRequest(BaseModel):
     """Add a YouTube song to the library and queue its processing, in one go."""
 
     video_id: str = Field(..., min_length=1, max_length=100)
     title: str = Field(..., min_length=1, max_length=200)
     # Every credited artist, primary first
-    artists: list[str] = Field(..., min_length=1, max_length=10)
+    artists: list[SongFromYouTubeArtist] = Field(..., min_length=1, max_length=10)
     album: Optional[str] = Field(None, max_length=200)
     duration: Optional[float] = Field(None, ge=0, description="Length in seconds")
     source: Literal["youtube_music", "youtube"] = "youtube_music"
@@ -85,13 +93,17 @@ class SongFromYouTubeRequest(BaseModel):
 
     @field_validator("artists")
     @classmethod
-    def strip_artists(cls, v: list[str]) -> list[str]:
-        names = [name.strip() for name in v if name and name.strip()]
-        if not names:
+    def strip_artists(
+        cls, v: list[SongFromYouTubeArtist]
+    ) -> list[SongFromYouTubeArtist]:
+        artists = [
+            SongFromYouTubeArtist(name=a.name.strip(), id=a.id or None)
+            for a in v
+            if a.name.strip()
+        ]
+        if not artists:
             raise ValueError("At least one artist is required")
-        if any(len(name) > 200 for name in names):
-            raise ValueError("Artist names are at most 200 characters")
-        return names
+        return artists
 
     @field_validator("album")
     @classmethod

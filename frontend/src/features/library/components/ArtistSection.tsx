@@ -88,7 +88,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
   const [editOpen, setEditOpen] = useState(false);
   const [collabsOpen, setCollabsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
+  const imageUrl = `/api/artists/${artist.id}/image`;
 
   return (
     <div

@@ -203,6 +203,7 @@ class DbSong(Base):
                         "id": sa.artist_rel.id,
                         "name": sa.artist_rel.display_name or sa.artist_rel.name,
                         "role": sa.role,
+                        "creditedAs": sa.credited_as,
                     }
                     for sa in sorted(self.song_artists, key=lambda x: x.display_order)
                 ]

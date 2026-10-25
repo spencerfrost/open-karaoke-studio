@@ -100,16 +100,16 @@ class TestArtistImage:
         image.write_bytes(b"jpeg bytes")
         image_service.get_or_fetch_artist_image.return_value = image
 
-        response = client.get("/api/artists/image", params={"name": "Queen"})
+        response = client.get("/api/artists/42/image")
 
         assert response.status_code == 200
         assert response.content == b"jpeg bytes"
         assert response.headers["content-type"] == "image/jpeg"
         assert response.headers["cache-control"] == "public, max-age=3600"
-        image_service.get_or_fetch_artist_image.assert_awaited_once_with("Queen")
+        image_service.get_or_fetch_artist_image.assert_awaited_once_with(42)
 
     def test_no_image_is_404(self, client, image_service):
-        response = client.get("/api/artists/image", params={"name": "Nobody"})
+        response = client.get("/api/artists/999/image")
 
         assert response.status_code == 404
 
@@ -173,11 +173,12 @@ class TestSetArtistImage:
 class TestSplitArtistCredits:
     def test_replaces_credits_on_every_song(self, client, db):
         combined = _artist(db, "Simon & Garfunkel")
+        combined_id = combined.id
         _credited_song(db, "boxer", combined)
         _credited_song(db, "mrs-robinson", combined)
 
         response = client.post(
-            f"/api/artists/{combined.id}/split-credits",
+            f"/api/artists/{combined_id}/split-credits",
             json={
                 "credits": [
                     {"name": "Simon", "role": "primary"},
@@ -192,14 +193,48 @@ class TestSplitArtistCredits:
         db.expire_all()
         simon = db.query(DbArtist).filter_by(name="simon").one()
         song = db.get(DbSong, "boxer")
-        assert song.artist == "Simon & Garfunkel"
+        assert song.artist == "Simon & Garfunkel feat. Choir"
         assert song.artist_id == simon.id
+        assert song.metadata_confirmed_at is not None
         credits = sorted(song.song_artists, key=lambda c: c.display_order)
         assert [(c.artist_rel.display_name, c.role) for c in credits] == [
             ("Simon", "primary"),
             ("Garfunkel", "primary"),
             ("Choir", "featured"),
         ]
+        # Nothing refers to the combined artist any more
+        assert db.get(DbArtist, combined_id) is None
+
+    def test_where_it_was_featured_the_split_artists_are_featured(self, client, db):
+        main = _artist(db, "Chase & Status")
+        guests = _artist(db, "Popcaan & IRah")
+        _credited_song(db, "song", main, guests)
+        db.query(DbSongArtist).filter_by(artist_id=guests.id).update(
+            {"role": "featured"}
+        )
+        db.commit()
+
+        response = client.post(
+            f"/api/artists/{guests.id}/split-credits",
+            json={
+                "credits": [
+                    {"name": "Popcaan", "role": "primary"},
+                    {"name": "IRah", "role": "featured"},
+                ]
+            },
+        )
+
+        assert response.status_code == 200
+        db.expire_all()
+        song = db.get(DbSong, "song")
+        credits = sorted(song.song_artists, key=lambda c: c.display_order)
+        assert [(c.artist_rel.display_name, c.role) for c in credits] == [
+            ("Chase & Status", "primary"),
+            ("Popcaan", "featured"),
+            ("IRah", "featured"),
+        ]
+        assert song.artist == "Chase & Status feat. Popcaan, IRah"
+        assert song.artist_id == main.id
 
     def test_requires_a_primary_credit(self, client, db):
         combined = _artist(db, "Simon & Garfunkel")
@@ -217,4 +252,35 @@ class TestSplitArtistCredits:
             json={"credits": [{"name": "Simon", "role": "primary"}]},
         )
 
+        assert response.status_code == 404
+
+
+class TestMergeArtist:
+    def test_moves_credits_and_keeps_the_old_name(self, client, db):
+        old = _artist(db, "Dixie Chicks")
+        new = _artist(db, "The Chicks")
+        old_id = old.id
+        _credited_song(db, "wide-open-spaces", old)
+
+        response = client.post(f"/api/artists/{old_id}/merge-into/{new.id}")
+
+        assert response.status_code == 200
+        assert response.json() == {"id": new.id, "name": "The Chicks", "moved": 1}
+        db.expire_all()
+        assert db.get(DbArtist, old_id) is None
+        song = db.get(DbSong, "wide-open-spaces")
+        assert song.artist_id == new.id
+        assert [c.artist_id for c in song.song_artists] == [new.id]
+        # Song text is left as it is
+        assert song.artist == "Dixie Chicks"
+        assert [a.name for a in db.get(DbArtist, new.id).aliases] == ["Dixie Chicks"]
+
+    def test_into_itself_is_400(self, client, db):
+        artist = _artist(db, "Queen")
+        response = client.post(f"/api/artists/{artist.id}/merge-into/{artist.id}")
+        assert response.status_code == 400
+
+    def test_unknown_artist_is_404(self, client, db):
+        artist = _artist(db, "Queen")
+        response = client.post(f"/api/artists/{artist.id}/merge-into/999")
         assert response.status_code == 404

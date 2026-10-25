@@ -43,11 +43,14 @@ class ArtistImageService:
         db = self._session_factory()
         return db, ArtistRepository(db)
 
-    async def get_or_fetch_artist_image(self, name: str) -> Path | None:
+    async def get_or_fetch_artist_image(self, artist_id: int) -> Path | None:
         # --- Phase 1: quick DB lookup (then release connection) ---
         db, repo = self._repo()
         try:
-            artist = repo.get_or_create(name)
+            artist = repo.get_by_id(artist_id)
+            if artist is None:
+                return None
+            name = artist.display_name or artist.name
             if artist.image_status == "found" and artist.image_path:
                 cached_path = Path(artist.image_path)
                 if cached_path.exists():
@@ -61,7 +64,6 @@ class ArtistImageService:
                 # File is missing entirely — fall through to re-fetch from Discogs
             if artist.image_status == "not_found":
                 return None
-            artist_id = artist.id
         finally:
             db.close()
 

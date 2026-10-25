@@ -104,7 +104,7 @@ def test_get_recording_details_fetches_both_in_one_request(mock_client_cls, _sle
     show_name, credits = get_recording_details("some-mbid")
 
     assert show_name == "Wicked"
-    assert credits == [("Idina Menzel", "primary")]
+    assert [(c.name, c.role) for c in credits] == [("Idina Menzel", "primary")]
     assert client.get.call_count == 1
 
 
@@ -114,3 +114,34 @@ def test_get_recording_details_without_credits(mock_client_cls, _sleep):
     mock_client_cls.return_value = _mock_response({"releases": []})
 
     assert get_recording_details("some-mbid") == (None, None)
+
+
+@patch("app.services.musicbrainz_service.time.sleep", return_value=None)
+@patch("app.services.musicbrainz_service.httpx.Client")
+def test_lookups_are_cached_on_disk(mock_client_cls, _sleep, tmp_path):
+    client = _mock_response({"releases": [], "artist-credit": []})
+    mock_client_cls.return_value = client
+
+    get_recording_details("rec-1", tmp_path)
+    get_recording_details("rec-1", tmp_path)
+
+    assert client.get.call_count == 1
+    assert (tmp_path / "recording-rec-1.json").exists()
+
+
+@patch("app.services.musicbrainz_service.time.sleep", return_value=None)
+@patch("app.services.musicbrainz_service.httpx.Client")
+def test_a_rate_limited_lookup_is_retried(mock_client_cls, sleep, tmp_path):
+    import httpx
+
+    busy = httpx.Response(503, request=httpx.Request("GET", "https://mb"))
+    ok = _mock_response({"releases": []}).get.return_value
+    client = _mock_response({})
+    client.get.side_effect = [busy, ok]
+    mock_client_cls.return_value = client
+
+    show_name, credits = get_recording_details("rec-2", tmp_path)
+
+    assert client.get.call_count == 2
+    assert [c.args[0] for c in sleep.call_args_list] == [1, 4]
+    assert (tmp_path / "recording-rec-2.json").exists()

@@ -111,11 +111,9 @@ describe("holdRate", () => {
 });
 
 describe("artwork", () => {
-  it("asks for artist photos by name, and never for shows", () => {
-    expect(artistImageUrl({ name: "AC/DC" })).toBe(
-      "/api/artists/image?name=AC%2FDC",
-    );
-    expect(artistImageUrl({ name: "Wicked", isShow: true })).toBeNull();
+  it("asks for artist photos by id, and never for shows", () => {
+    expect(artistImageUrl({ id: 42 })).toBe("/api/artists/42/image");
+    expect(artistImageUrl({ id: -1, isShow: true })).toBeNull();
   });
 
   it("leads the hero with the stored still, then YouTube, then the cover", () => {

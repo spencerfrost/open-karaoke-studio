@@ -225,11 +225,8 @@ export function holdRate(heldMs: number): number {
 
 /** The artist photo, fetched from Discogs on first ask. Shows have none. */
 export const artistImageUrl = (
-  artist: Pick<Artist, "name" | "isShow">,
-): string | null =>
-  artist.isShow
-    ? null
-    : `/api/artists/image?name=${encodeURIComponent(artist.name)}`;
+  artist: Pick<Artist, "id" | "isShow">,
+): string | null => (artist.isShow ? null : `/api/artists/${artist.id}/image`);
 
 /**
  * Images for the song card's hero, best first: the video still, then the

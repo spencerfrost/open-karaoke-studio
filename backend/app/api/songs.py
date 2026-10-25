@@ -78,10 +78,12 @@ from app.schemas.song import (
     SongUpdateRequest,
 )
 from app.schemas.youtube import SongFromYouTubeRequest, SongFromYouTubeResponse
+from app.services.artist_parsing import ArtistCredit, credit_line
 from app.services.batch_jobs import record_scan
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.file_service import NON_SONG_DIRS, FileService
 from app.services.lyrics_language import normalize_language
+from app.services.song_artist_service import set_song_credits
 from app.services.song_intake_service import (
     add_song_from_youtube,
     create_song_record,
@@ -1010,7 +1012,7 @@ async def add_song_from_youtube_route(
         requester,
         video_id=body.video_id,
         title=body.title,
-        artists=body.artists,
+        artists=[a.model_dump() for a in body.artists],
         album=body.album,
         duration=body.duration,
         source=body.source,
@@ -1042,6 +1044,15 @@ async def update_song(
 
         # Build update fields from provided data
         update_dict = update_data.model_dump(exclude_unset=True)
+
+        # A credit list replaces the artist text, which is rebuilt from it.
+        credits_given = update_dict.pop("artists", None)
+        if credits_given is not None:
+            update_dict.pop("artist", None)
+            if not any(c["role"] == "primary" for c in credits_given):
+                raise HTTPException(
+                    status_code=422, detail="At least one primary artist is needed"
+                )
 
         # Extract lyrics fields for separate handling
         lyrics_data = extract_lyrics_fields(update_dict)
@@ -1080,6 +1091,17 @@ async def update_song(
                 "no_match",
             ):
                 update_fields["acoustid_fingerprint_status"] = "skipped"
+        artist_text_changed = (
+            "artist" in update_fields and update_fields["artist"] != db_song.artist
+        )
+
+        # Editing the credits confirms them too. The recording stays: a fixed
+        # credit list still describes the same recording.
+        if credits_given is not None:
+            update_fields.update(
+                artist=credit_line([(c["name"], c["role"]) for c in credits_given]),
+                metadata_confirmed_at=datetime.now(timezone.utc),
+            )
 
         # A person setting the album name keeps automatic lookups off the
         # song; the cover it had stays linked, so trimming "(Deluxe)" doesn't
@@ -1108,12 +1130,22 @@ async def update_song(
                     status_code=500, detail="Failed to update song metadata"
                 )
 
-        # Re-populate song_artists join table when artist changes
-        if "artist" in update_dict:
-            from app.services.song_artist_service import populate_song_artists
-
+        # Credits as given, or parsed from retyped artist text
+        if credits_given is not None or artist_text_changed:
             db_song = repo.fetch(song_id)
-            populate_song_artists(db, db_song, db_song.artist)
+            set_song_credits(
+                db,
+                db_song,
+                (
+                    [
+                        ArtistCredit(name=c["name"], role=c["role"])
+                        for c in credits_given
+                    ]
+                    if credits_given is not None
+                    else None
+                ),
+            )
+            db.commit()
 
         # Update lyrics columns directly
         lyrics_text_saved = False
@@ -1514,10 +1546,9 @@ def _apply_picked_recording(
 ) -> None:
     """Set the title, artist and recording a person chose, and confirm them."""
     from app.jobs.celery_app import celery
-    from app.services.song_artist_service import populate_song_artists
 
     song_repo = SongRepository(db)
-    song = song_repo.update(
+    song_repo.update(
         song_id,
         title=title,
         artist=artist,
@@ -1530,9 +1561,6 @@ def _apply_picked_recording(
         metadata_confirmed_at=datetime.now(timezone.utc),
     )
 
-    # Re-populate song_artists join table so artist browse stays in sync
-    populate_song_artists(db, song, artist)
-
     logger.info(
         "Picked recording for song %s → '%s' by '%s' (score=%s, recording=%s)",
         song_id,
@@ -1542,8 +1570,8 @@ def _apply_picked_recording(
         recording_id,
     )
 
-    # Now that the song has a recording a person chose, run MusicBrainz
-    # enrichment (artist credits + soundtrack show_name) from it.
+    # The credits come from the recording a person chose: the enrichment
+    # writes them (and the soundtrack show_name), overriding the lock.
     celery.send_task(
         "enrich_song_artist_credits", args=[song_id], kwargs={"picked": True}
     )

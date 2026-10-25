@@ -19,7 +19,7 @@ from app.utils.owner_tag import session_owner_tag
 BODY = {
     "video_id": "HgzGwKwLmgM",
     "title": "Don't Stop Me Now",
-    "artists": ["Queen"],
+    "artists": [{"name": "Queen", "id": "UC-queen"}],
     "album": "Jazz",
     "duration": 210,
 }
@@ -90,19 +90,40 @@ class TestAddSong:
 
     def test_keeps_every_artist(self, client, youtube_service, broadcast):
         body = {**BODY, "title": "Empire State of Mind"}
-        body["artists"] = ["JAY-Z", "Alicia Keys"]
+        body["artists"] = [{"name": "JAY-Z"}, {"name": "Alicia Keys", "id": "UC-ak"}]
 
         song_id = client.post("/api/songs/from-youtube", json=body).json()["songId"]
 
         with SessionLocal() as session:
             song = session.get(DbSong, song_id)
             assert song.artist == "JAY-Z feat. Alicia Keys"
-            credited = {sa.artist_rel.display_name for sa in song.song_artists}
-        assert credited == {"JAY-Z", "Alicia Keys"}
+            credited = [
+                (
+                    sa.artist_rel.display_name,
+                    sa.role,
+                    sa.artist_rel.youtube_music_artist_id,
+                )
+                for sa in sorted(song.song_artists, key=lambda sa: sa.display_order)
+            ]
+        assert credited == [
+            ("JAY-Z", "primary", None),
+            ("Alicia Keys", "featured", "UC-ak"),
+        ]
+
+    def test_a_plain_video_keeps_no_channel_id(
+        self, client, youtube_service, broadcast
+    ):
+        body = {**BODY, "source": "youtube"}
+
+        song_id = client.post("/api/songs/from-youtube", json=body).json()["songId"]
+
+        with SessionLocal() as session:
+            [credit] = session.get(DbSong, song_id).song_artists
+            assert credit.artist_rel.youtube_music_artist_id is None
 
     def test_rejects_a_missing_artist(self, client, youtube_service, broadcast):
         response = client.post(
-            "/api/songs/from-youtube", json={**BODY, "artists": ["  "]}
+            "/api/songs/from-youtube", json={**BODY, "artists": [{"name": "  "}]}
         )
         assert response.status_code == 422
         assert _songs() == []

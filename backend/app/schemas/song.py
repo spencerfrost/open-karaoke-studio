@@ -18,6 +18,23 @@ class SongArtistRef(BaseModel):
     id: int
     name: str
     role: str  # 'primary' | 'featured'
+    # The name as this recording prints it, when it differs from `name`
+    creditedAs: Optional[str] = None
+
+
+class SongArtistCredit(BaseModel):
+    """One artist credit a person sets: on a song, or splitting a collab."""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    role: Literal["primary", "featured"]
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Artist name cannot be empty")
+        return v
 
 
 class AcoustIdSuggestion(BaseModel):
@@ -135,6 +152,9 @@ class SongUpdateRequest(BaseModel):
     showName: Optional[str] = Field(None, max_length=200)
     # Whisper code ("fr"); an empty string clears it so it's detected again
     language: Optional[str] = Field(None, max_length=8)
+    # The credit list, primaries first. Replaces `artist`: the text is rebuilt
+    # from it.
+    artists: Optional[List[SongArtistCredit]] = Field(None, min_length=1, max_length=20)
 
     # Lyrics
     plainLyrics: Optional[str] = None
@@ -309,13 +329,6 @@ class ReplacementValidationResponse(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     message: str  # Human-readable status message
-
-
-class SongArtistCredit(BaseModel):
-    """A single artist credit for manual collab splitting."""
-
-    name: str = Field(..., min_length=1, max_length=200)
-    role: Literal["primary", "featured"]
 
 
 class SplitArtistCreditsRequest(BaseModel):

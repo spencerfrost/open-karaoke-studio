@@ -1,17 +1,17 @@
-"""Tests for artist name parsing and credit resolution."""
-
-from unittest.mock import MagicMock, patch
+"""Tests for artist name parsing and MusicBrainz credit parsing."""
 
 import pytest
 
 from app.services.artist_parsing import (
+    ArtistCredit,
     artist_credit,
+    clean_artist_name,
+    credit_line,
     normalize_artist_name,
     parse_song_artists,
+    parse_title_featured,
 )
-from app.services.credits_resolver import resolve_artist_credits
-from app.services.musicbrainz_service import _parse_artist_credits
-from app.services.song_artist_service import try_ampersand_split
+from app.services.musicbrainz_service import _parse_artist_credits, artist_aliases_from
 
 
 @pytest.mark.parametrize(
@@ -28,6 +28,18 @@ from app.services.song_artist_service import try_ampersand_split
         ("Bonobo", "Bonobo", []),
         ("  Bonobo  ft  Fink  ", "Bonobo", ["Fink"]),
         ("Artist feat. One, Two, Three", "Artist", ["One", "Two", "Three"]),
+        # Guests grouped with "&", "and" or "with" are separate artists
+        ("Chase & Status feat. Popcaan & IRah", "Chase & Status", ["Popcaan", "IRah"]),
+        ("A feat. B and C", "A", ["B", "C"]),
+        ("A feat. B with C", "A", ["B", "C"]),
+        ("A feat. B, C & D", "A", ["B", "C", "D"]),
+        # ...unless the join is part of a band name
+        ("A feat. Bob Marley & The Wailers", "A", ["Bob Marley & The Wailers"]),
+        ("A feat. Florence and the Machine", "A", ["Florence and the Machine"]),
+        # The primary side is never split here
+        ("Chase & Status and Bou", "Chase & Status and Bou", []),
+        # Unicode hyphens become plain ones
+        ("Jay\u2010Z feat. Ne\u2011Yo", "Jay-Z", ["Ne-Yo"]),
     ],
 )
 def test_parse_song_artists(input_str, expected_primary, expected_featured):
@@ -39,65 +51,52 @@ def test_parse_song_artists(input_str, expected_primary, expected_featured):
 # --- MusicBrainz artist credit parsing ---
 
 
+def _mb(name, joinphrase="", *, credited=None, mbid=None):
+    return {
+        "name": credited or name,
+        "artist": {"name": name, "id": mbid or f"mb-{name}"},
+        "joinphrase": joinphrase,
+    }
+
+
+def _roles(credits):
+    return [(c.name, c.role) for c in credits]
+
+
 class TestParseArtistCredits:
     def test_empty_list(self):
         assert _parse_artist_credits([]) == []
 
     def test_single_artist(self):
-        credits = [{"name": "Bonobo", "artist": {"name": "Bonobo"}, "joinphrase": ""}]
-        assert _parse_artist_credits(credits) == [("Bonobo", "primary")]
+        assert _roles(_parse_artist_credits([_mb("Bonobo")])) == [("Bonobo", "primary")]
 
     def test_ampersand_collaboration(self):
         """Two separate MB artist entities joined by '&' → two primaries."""
-        credits = [
-            {
-                "name": "Amber Mark",
-                "artist": {"name": "Amber Mark"},
-                "joinphrase": " & ",
-            },
-            {
-                "name": "John The Blind",
-                "artist": {"name": "John the Blind"},
-                "joinphrase": "",
-            },
+        credits = [_mb("Amber Mark", " & "), _mb("John the Blind")]
+        assert _roles(_parse_artist_credits(credits)) == [
+            ("Amber Mark", "primary"),
+            ("John the Blind", "primary"),
         ]
-        result = _parse_artist_credits(credits)
-        assert result == [("Amber Mark", "primary"), ("John The Blind", "primary")]
 
     def test_band_name_single_entity(self):
         """A band name is a single MB entity — not split."""
-        credits = [
-            {
-                "name": "Bob Marley & The Wailers",
-                "artist": {"name": "Bob Marley & The Wailers"},
-                "joinphrase": "",
-            }
+        credits = [_mb("Bob Marley & The Wailers")]
+        assert _roles(_parse_artist_credits(credits)) == [
+            ("Bob Marley & The Wailers", "primary")
         ]
-        result = _parse_artist_credits(credits)
-        assert result == [("Bob Marley & The Wailers", "primary")]
 
     def test_featured_via_joinphrase(self):
         """Artists after 'feat.' joinphrase are marked featured."""
-        credits = [
-            {"name": "Bonobo", "artist": {"name": "Bonobo"}, "joinphrase": " feat. "},
-            {"name": "Fink", "artist": {"name": "Fink"}, "joinphrase": ""},
+        credits = [_mb("Bonobo", " feat. "), _mb("Fink")]
+        assert _roles(_parse_artist_credits(credits)) == [
+            ("Bonobo", "primary"),
+            ("Fink", "featured"),
         ]
-        result = _parse_artist_credits(credits)
-        assert result == [("Bonobo", "primary"), ("Fink", "featured")]
 
     def test_collab_plus_featured(self):
         """A & B feat. C → two primaries + one featured."""
-        credits = [
-            {"name": "Artist A", "artist": {"name": "Artist A"}, "joinphrase": " & "},
-            {
-                "name": "Artist B",
-                "artist": {"name": "Artist B"},
-                "joinphrase": " feat. ",
-            },
-            {"name": "Artist C", "artist": {"name": "Artist C"}, "joinphrase": ""},
-        ]
-        result = _parse_artist_credits(credits)
-        assert result == [
+        credits = [_mb("Artist A", " & "), _mb("Artist B", " feat. "), _mb("Artist C")]
+        assert _roles(_parse_artist_credits(credits)) == [
             ("Artist A", "primary"),
             ("Artist B", "primary"),
             ("Artist C", "featured"),
@@ -105,105 +104,62 @@ class TestParseArtistCredits:
 
     def test_multiple_featured(self):
         """Primary feat. A, B → one primary + two featured."""
-        credits = [
-            {"name": "Main", "artist": {"name": "Main"}, "joinphrase": " featuring "},
-            {"name": "Guest A", "artist": {"name": "Guest A"}, "joinphrase": ", "},
-            {"name": "Guest B", "artist": {"name": "Guest B"}, "joinphrase": ""},
-        ]
-        result = _parse_artist_credits(credits)
-        assert result == [
+        credits = [_mb("Main", " featuring "), _mb("Guest A", ", "), _mb("Guest B")]
+        assert _roles(_parse_artist_credits(credits)) == [
             ("Main", "primary"),
             ("Guest A", "featured"),
             ("Guest B", "featured"),
         ]
 
-
-# --- Heuristic ampersand splitting ---
-
-
-def _mock_db_with_artists(*known_names: str):
-    """Create a mock DB session where get_by_name returns truthy for known_names."""
-    known = {n.lower().strip() for n in known_names}
-
-    db = MagicMock()
-
-    # Mock the query chain: db.query(...).filter(...).first()
-    def mock_query_side_effect(*args):
-        chain = MagicMock()
-
-        def mock_filter(*filter_args):
-            inner = MagicMock()
-
-            def mock_first():
-                # Extract the name from the filter expression
-                # We check the bound parameters of the filter
-                for arg in filter_args:
-                    if hasattr(arg, "right") and hasattr(arg.right, "value"):
-                        val = arg.right.value
-                        if val in known:
-                            return MagicMock()  # truthy — artist exists
-                return None
-
-            inner.first = mock_first
-            return inner
-
-        chain.filter = mock_filter
-        return chain
-
-    db.query = mock_query_side_effect
-    return db
-
-
-class TestTryAmpersandSplit:
-    def test_no_ampersand_unchanged(self):
-        credits = [("Bonobo", "primary")]
-        db = MagicMock()
-        assert try_ampersand_split(credits, db) == credits
-
-    def test_already_split_unchanged(self):
-        credits = [("Artist A", "primary"), ("Artist B", "primary")]
-        db = MagicMock()
-        assert try_ampersand_split(credits, db) == credits
-
-    def test_band_name_pattern_not_split(self):
-        """'& The' pattern should NOT be split."""
-        credits = [("Bob Marley & The Wailers", "primary")]
-        db = MagicMock()
-        assert try_ampersand_split(credits, db) == credits
-
-    def test_splits_when_both_known(self):
-        """Splits when both parts exist as known artists."""
-        credits = [("Amber Mark & John The Blind", "primary")]
-        db = _mock_db_with_artists("amber mark", "john the blind")
-        result = try_ampersand_split(credits, db)
-        assert result == [("Amber Mark", "primary"), ("John The Blind", "primary")]
-
-    def test_no_split_when_one_unknown(self):
-        """Doesn't split when only one side is a known artist."""
-        credits = [("Amber Mark & Some Unknown", "primary")]
-        db = _mock_db_with_artists("amber mark")
-        assert try_ampersand_split(credits, db) == credits
-
-    def test_preserves_featured_on_split(self):
-        """Featured artists are preserved after a split."""
-        credits = [
-            ("Amber Mark & John The Blind", "primary"),
-            ("Guest", "featured"),
-        ]
-        db = _mock_db_with_artists("amber mark", "john the blind")
-        result = try_ampersand_split(credits, db)
-        assert result == [
-            ("Amber Mark", "primary"),
-            ("John The Blind", "primary"),
-            ("Guest", "featured"),
+    def test_keeps_id_current_name_and_credited_name(self):
+        credits = [_mb("The Chicks", credited="Dixie Chicks", mbid="mb-chicks")]
+        assert _parse_artist_credits(credits) == [
+            ArtistCredit(
+                name="The Chicks",
+                role="primary",
+                musicbrainz_id="mb-chicks",
+                credited_as="Dixie Chicks",
+            )
         ]
 
-    def test_his_her_their_pattern_not_split(self):
-        """'& His/Her/Their' patterns should NOT be split."""
-        for band in ["Jack & His Band", "Jill & Her Orchestra", "They & Their Crew"]:
-            credits = [(band, "primary")]
-            db = MagicMock()
-            assert try_ampersand_split(credits, db) == credits
+    def test_unicode_hyphens_become_plain(self):
+        [credit] = _parse_artist_credits([_mb("Jay\u2010Z")])
+        assert credit.name == "Jay-Z"
+        assert credit.credited_as == "Jay-Z"
+
+
+def test_artist_aliases_from_lists_name_and_aliases():
+    data = {
+        "name": "The Chicks",
+        "aliases": [{"name": "Dixie Chicks"}, {"name": "The Dixie Chicks"}, {}],
+    }
+    assert artist_aliases_from(data) == [
+        "The Chicks",
+        "Dixie Chicks",
+        "The Dixie Chicks",
+    ]
+
+
+# --- Title featuring ---
+
+
+@pytest.mark.parametrize(
+    "title, expected",
+    [
+        ("Pound Cake (feat. JAY-Z)", ["JAY-Z"]),
+        ("Song [ft. A & B]", ["A", "B"]),
+        ("Song (Featuring A, B)", ["A", "B"]),
+        ("Song (Remix)", []),
+        ("Feather", []),
+        ("", []),
+    ],
+)
+def test_parse_title_featured(title, expected):
+    assert parse_title_featured(title) == expected
+
+
+def test_clean_artist_name():
+    assert clean_artist_name("  Jay\u2010Z   and  co ") == "Jay-Z and co"
 
 
 # --- Artist name normalization ---
@@ -231,87 +187,15 @@ def test_normalize_artist_name_distinguishes_artists():
     )
 
 
+def test_normalize_artist_name_matches_hyphen_and_and_spellings():
+    assert normalize_artist_name("Jay\u2010Z") == normalize_artist_name("Jay-Z")
+    assert normalize_artist_name(
+        "Nahko And Medicine For The People"
+    ) == normalize_artist_name("Nahko & Medicine for the People")
+
+
 def test_normalize_artist_name_keeps_non_latin_letters():
     assert normalize_artist_name("宇多田ヒカル") != ""
-
-
-# --- Credit resolution (MB search step) ---
-
-
-def _search_result(score: float, credits: list[tuple[str, str]]) -> dict:
-    return {"score": score, "recordingId": "rec-id", "artistCredits": credits}
-
-
-class TestResolveArtistCredits:
-    @pytest.fixture
-    def mock_search(self):
-        with patch("app.services.musicbrainz_service.search_recordings") as mock:
-            yield mock
-
-    def test_rejects_top_hit_by_another_artist(self, mock_search):
-        """A cover whose title contains the real artist's name must not win."""
-        mock_search.return_value = [
-            _search_result(1.0, [("Kent Nishimura", "primary")]),
-            _search_result(0.52, [("Norah Jones", "primary")]),
-        ]
-        with patch("app.services.credits_resolver.logger") as mock_logger:
-            credits = resolve_artist_credits(
-                "Norah Jones - Don't Know Why", "Norah Jones"
-            )
-        assert credits == [("Norah Jones", "primary")]
-        assert any(
-            "Rejected MB search result" in call.args[0]
-            for call in mock_logger.info.call_args_list
-        )
-
-    def test_accepts_matching_artist(self, mock_search):
-        mock_search.return_value = [
-            _search_result(1.0, [("Bonobo", "primary"), ("Fink", "featured")]),
-        ]
-        credits = resolve_artist_credits("Kerala", "Bonobo")
-        assert credits == [("Bonobo", "primary"), ("Fink", "featured")]
-
-    def test_accepts_spelling_variant(self, mock_search):
-        mock_search.return_value = [
-            _search_result(0.95, [("CeeLo Green", "primary")]),
-        ]
-        credits = resolve_artist_credits("Crazy", "Cee Lo Green")
-        assert credits == [("CeeLo Green", "primary")]
-
-    def test_accepts_later_result_that_matches(self, mock_search):
-        mock_search.return_value = [
-            _search_result(1.0, [("Kent Nishimura", "primary")]),
-            _search_result(0.92, [("Norah Jones", "primary"), ("Guest", "featured")]),
-        ]
-        credits = resolve_artist_credits("Don't Know Why", "Norah Jones")
-        assert credits == [("Norah Jones", "primary"), ("Guest", "featured")]
-
-    def test_matching_artist_below_threshold_falls_back(self, mock_search):
-        mock_search.return_value = [
-            _search_result(0.85, [("Norah Jones", "primary"), ("Guest", "featured")]),
-        ]
-        credits = resolve_artist_credits("Don't Know Why", "Norah Jones")
-        assert credits == [("Norah Jones", "primary")]
-
-    def test_accepts_collaboration_split_into_two_primaries(self, mock_search):
-        """Song saved as "A & B"; MB credits A and B as separate artists."""
-        mock_search.return_value = [
-            _search_result(
-                0.97, [("Amber Mark", "primary"), ("John The Blind", "primary")]
-            ),
-        ]
-        credits = resolve_artist_credits("Some Song", "Amber Mark & John The Blind")
-        assert credits == [("Amber Mark", "primary"), ("John The Blind", "primary")]
-
-    def test_recording_credits_skip_search(self, mock_search):
-        recording = [("Kent Nishimura", "primary")]
-        assert resolve_artist_credits("x", "Norah Jones", recording) == recording
-        mock_search.assert_not_called()
-
-    def test_search_error_falls_back_to_regex(self, mock_search):
-        mock_search.side_effect = RuntimeError("boom")
-        credits = resolve_artist_credits("Kerala", "Bonobo feat. Fink")
-        assert credits == [("Bonobo", "primary"), ("Fink", "featured")]
 
 
 @pytest.mark.parametrize(
@@ -331,3 +215,17 @@ def test_artist_credit(names, expected):
 def test_artist_credit_parses_back_to_the_same_artists():
     primary, featured = parse_song_artists(artist_credit(["JAY-Z", "Alicia Keys", "X"]))
     assert (primary, featured) == ("JAY-Z", ["Alicia Keys", "X"])
+
+
+@pytest.mark.parametrize(
+    "credits, expected",
+    [
+        ([("Queen", "primary")], "Queen"),
+        ([("A", "primary"), ("B", "primary")], "A & B"),
+        ([("A", "primary"), ("B", "primary"), ("C", "featured")], "A & B feat. C"),
+        ([("A", "primary"), ("C", "featured"), ("D", "featured")], "A feat. C, D"),
+        ([], ""),
+    ],
+)
+def test_credit_line(credits, expected):
+    assert credit_line(credits) == expected

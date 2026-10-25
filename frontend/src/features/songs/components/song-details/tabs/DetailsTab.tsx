@@ -35,6 +35,15 @@ interface DetailsTabProps {
   song: Song;
 }
 
+/** The credits as saved, or the artist line as the one artist for a song without any. */
+const initialCredits = (song: Song): SongArtist[] =>
+  song.artists && song.artists.length > 0
+    ? song.artists
+    : [{ id: -1, name: song.artist, role: "primary" }];
+
+const creditsKey = (credits: SongArtist[]) =>
+  JSON.stringify(credits.map((c) => [c.name, c.role]));
+
 export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
@@ -46,9 +55,8 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
   const [showName, setShowName] = useState(song.showName ?? "");
   const [year, setYear] = useState(song.year?.toString() ?? "");
   const [language, setLanguage] = useState(song.language ?? DETECT_LANGUAGE);
-  const [primaryArtist, setPrimaryArtist] = useState(song.artist);
-  const [featuredArtists, setFeaturedArtists] = useState<SongArtist[]>(
-    song.artists?.filter((a) => a.role === "featured") ?? [],
+  const [credits, setCredits] = useState<SongArtist[]>(() =>
+    initialCredits(song),
   );
 
   const languageOptions = useMemo(
@@ -60,12 +68,15 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
   );
 
   const handleSave = () => {
-    const artistString =
-      featuredArtists.length > 0
-        ? `${primaryArtist} feat. ${featuredArtists.map((a) => a.name).join(", ")}`
-        : primaryArtist;
+    // Only a changed list is sent: saving the credits confirms them.
+    const creditsChanged =
+      creditsKey(credits) !== creditsKey(initialCredits(song));
 
-    logger.debug("Saving song metadata", { id: song.id, title, artistString });
+    logger.debug("Saving song metadata", {
+      id: song.id,
+      title,
+      creditsChanged,
+    });
 
     updateSongMutation.mutate(
       {
@@ -74,7 +85,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
         album: album || undefined,
         showName: showName || undefined,
         year: year ? parseInt(year) : undefined,
-        artist: artistString,
+        ...(creditsChanged && { artists: credits }),
         // An empty string clears it, so it's detected from the vocals again
         language: language === DETECT_LANGUAGE ? "" : language,
       },
@@ -172,12 +183,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
           </p>
         </div>
 
-        <ArtistManager
-          primaryArtist={primaryArtist}
-          featuredArtists={featuredArtists}
-          onPrimaryChange={setPrimaryArtist}
-          onFeaturedChange={setFeaturedArtists}
-        />
+        <ArtistManager credits={credits} onChange={setCredits} />
 
         <Button
           className="w-full"

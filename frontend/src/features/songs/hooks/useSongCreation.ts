@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiSend } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
+import type { ArtistCredit } from "@/types/Youtube";
 
 const logger = createLogger("hook:song-creation");
 
@@ -10,8 +11,8 @@ const logger = createLogger("hook:song-creation");
 export interface SongInput {
   videoId: string;
   title: string;
-  /** Every credited artist, primary first. */
-  artists: string[];
+  /** Every credited artist, primary first, with their YouTube Music id. */
+  artists: ArtistCredit[];
   album?: string | null;
   durationSeconds?: number | null;
   source: "youtube" | "youtube_music";
@@ -73,7 +74,7 @@ export const useSongCreation = () => {
           {
             video_id: string;
             title: string;
-            artists: string[];
+            artists: ArtistCredit[];
             album: string | null;
             duration: number | null;
             source: SongInput["source"];

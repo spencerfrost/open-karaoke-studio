@@ -4,6 +4,8 @@ export interface SongArtist {
   id: number;
   name: string;
   role: "primary" | "featured";
+  /** The name as this recording prints it, when it differs ("Dixie Chicks"). */
+  creditedAs?: string | null;
 }
 
 export interface Song {

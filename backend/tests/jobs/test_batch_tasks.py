@@ -158,12 +158,13 @@ class TestBatchFetchArtistImages:
             ]
         )
         db.commit()
-        images = {"queen": tmp_path / "queen.jpg", "nobody": None}
+        ids = {a.name: a.id for a in db.query(DbArtist).all()}
+        images = {ids["queen"]: tmp_path / "queen.jpg", ids["nobody"]: None}
 
-        async def fetch(name):
-            if name == "broken":
+        async def fetch(artist_id):
+            if artist_id == ids["broken"]:
                 raise RuntimeError("Discogs is down")
-            return images[name]
+            return images[artist_id]
 
         with patch(
             "app.services.artist_image_service.ArtistImageService"
@@ -174,7 +175,7 @@ class TestBatchFetchArtistImages:
 
         assert result == {"fetched": 1, "not_found": 1, "errors": 1}
         fetched = {c.args[0] for c in service.get_or_fetch_artist_image.await_args_list}
-        assert fetched == {"queen", "nobody", "broken"}
+        assert fetched == {ids["queen"], ids["nobody"], ids["broken"]}
 
     def test_no_unchecked_artists_is_an_empty_run(self):
         assert batch_fetch_artist_images(mode="missing") == {

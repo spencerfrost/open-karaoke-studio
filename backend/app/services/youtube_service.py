@@ -366,6 +366,12 @@ class YouTubeService(YouTubeServiceInterface):
                     }
                     created_song = repo.create(song_data)
                     if created_song:
+                        from app.services.song_artist_service import (
+                            set_song_credits,
+                        )
+
+                        set_song_credits(session, created_song, None)
+                        session.commit()
                         logger.info("Created song record %s in database", song_id)
                     else:
                         raise ServiceError(f"Failed to create song record {song_id}")

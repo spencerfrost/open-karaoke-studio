@@ -193,79 +193,54 @@ def fingerprint_single_song(song_id: str) -> dict:
 
 @celery.task(name="enrich_song_artist_credits")
 def enrich_song_artist_credits(song_id: str, picked: bool = False) -> dict:
-    """Re-resolve artist credits for a single song using MB recording -> MB search -> regex."""
+    """Credit a song from its MusicBrainz recording, and fill its show name.
+
+    A confirmed song keeps its credits unless `picked`: a person choosing the
+    recording just now, which is when its credits should be used. With no
+    recording credits the song keeps the ones it has. Never touches the
+    artist text.
+    """
     from app.db.database import get_db_session
-    from app.db.models.song_artist import DbSongArtist
-    from app.repositories.artist_repository import ArtistRepository
     from app.repositories.song_repository import SongRepository
-    from app.services.credits_resolver import resolve_artist_credits
     from app.services.musicbrainz_service import get_recording_details
-    from app.services.song_artist_service import try_ampersand_split
+    from app.services.song_artist_service import set_song_credits
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
         if not song:
             logger.warning("enrich_song_artist_credits: song %s not found", song_id)
             return {"status": "not_found", "song_id": song_id}
+        if not song.musicbrainz_recording_id:
+            return {"status": "no_recording", "song_id": song_id}
 
         # One recording lookup feeds both the show name and the artist credits.
-        recording_credits = None
-        if song.musicbrainz_recording_id:
-            try:
-                show_name, recording_credits = get_recording_details(
-                    song.musicbrainz_recording_id
-                )
-                # Only fill show_name when empty, so a manual override survives.
-                if show_name and not song.show_name:
-                    song.show_name = show_name
-                    logger.info("Set show_name=%r for song %s", show_name, song_id)
-            except Exception:
-                logger.warning(
-                    "MusicBrainz recording lookup failed for song %s",
-                    song_id,
-                    exc_info=True,
-                )
+        try:
+            show_name, recording_credits = get_recording_details(
+                song.musicbrainz_recording_id
+            )
+        except Exception:
+            logger.warning(
+                "MusicBrainz recording lookup failed for song %s",
+                song_id,
+                exc_info=True,
+            )
+            return {"status": "error", "song_id": song_id}
+        # Only fill show_name when empty, so a manual override survives.
+        if show_name and not song.show_name:
+            song.show_name = show_name
+            logger.info("Set show_name=%r for song %s", show_name, song_id)
 
-        # A person confirmed this song's names, so automatic runs leave its
-        # credits alone too. `picked` is a person choosing the recording just
-        # now, which is when its credits should be used.
+        if not recording_credits:
+            session.commit()
+            logger.info("No recording credits for song %s; kept its own", song_id)
+            return {"status": "no_credits", "song_id": song_id}
+
         if song.metadata_confirmed_at and not picked:
             session.commit()
             logger.info("Kept song_artists for confirmed song %s", song_id)
             return {"status": "confirmed", "song_id": song_id}
 
-        credits = resolve_artist_credits(
-            title=song.title,
-            artist_str=song.artist,
-            recording_credits=recording_credits,
-        )
-
-        credits = try_ampersand_split(credits, session)
-
-        artist_repo = ArtistRepository(session)
-
-        session.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
-
-        first_primary_set = False
-        for i, (name, role) in enumerate(credits):
-            artist = artist_repo.get_or_create(name, display_name=name)
-            if not first_primary_set and role == "primary":
-                song.artist_id = artist.id
-                first_primary_set = True
-            session.add(
-                DbSongArtist(
-                    song_id=song.id,
-                    artist_id=artist.id,
-                    role=role,
-                    display_order=i,
-                )
-            )
-
+        set_song_credits(session, song, recording_credits)
         session.commit()
-        logger.info(
-            "Enriched song_artists for song %s: %s",
-            song_id,
-            [(n, r) for n, r in credits],
-        )
 
     return {"status": "ok", "song_id": song_id}
