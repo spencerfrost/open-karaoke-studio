@@ -17,11 +17,17 @@ interface AppLayoutProps {
    * pass "" so nothing frames them with page background.
    */
   contentClassName?: string;
+  /**
+   * Leave out the bottom nav. For a full-screen tool that has its own way out
+   * (the singer's controls), where every pixel goes to the controls.
+   */
+  hideNav?: boolean;
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   contentClassName = "p-2 sm:p-4",
+  hideNav = false,
 }) => {
   const access = useAccess();
 
@@ -64,7 +70,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    // Keep the nav clear of the phone's home indicator
+    <div className="flex flex-col h-dvh pb-[env(safe-area-inset-bottom)]">
       <div className="theme-texture" />
       <div className="theme-pattern" />
       <main
@@ -72,7 +79,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       >
         {children}
       </main>
-      <NavBar items={getNavigationItems()} />
+      {!hideNav && <NavBar items={getNavigationItems()} />}
     </div>
   );
 };

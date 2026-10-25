@@ -4,27 +4,17 @@
 
 import React from "react";
 import { Mic, Music, SlidersHorizontal } from "lucide-react";
-import {
-  selectCurrentSongId,
-  useKaraokePlayerStore,
-} from "@/stores/useKaraokePlayerStore";
-import { useSongs } from "@/hooks/api/useSongs";
+import { useBackingTrackAvailable } from "../hooks/useBackingTrackAvailable";
 import { usePerformanceControlsLogic } from "../hooks/usePerformanceControlsLogic";
 import VocalFader from "./VocalFader";
-import {
-  cardClass,
-  cardIconClass,
-  cardLabelClass,
-  type Density,
-} from "./density";
+import { cardClass, cardIconClass, cardLabelClass } from "./cardStyles";
 import { cn } from "@/lib/utils";
 
 interface MixCardProps {
-  density: Density;
   className?: string;
 }
 
-const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
+const MixCard: React.FC<MixCardProps> = ({ className }) => {
   const {
     vocalVolume,
     backingVocalVolume,
@@ -33,33 +23,18 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
     setVocalVolume,
     setBackingVocalVolume,
   } = usePerformanceControlsLogic();
-
-  // Only three-track songs have a separate backing vocal stem. Ask the song,
-  // not the audio player: the phone controls the stage without loading audio.
-  const songId = useKaraokePlayerStore(selectCurrentSongId);
-  const { useSong } = useSongs();
-  const { data: song } = useSong(songId ?? "");
-  const backingAvailable = !!song?.backingVocalPath;
+  const backingAvailable = useBackingTrackAvailable();
 
   return (
     // overflow-hidden: the faders shrink with the card, but on a viewport too
     // short even for that they must clip rather than draw over the lyrics card.
-    <div
-      className={cardClass(density, cn("min-h-0 overflow-hidden", className))}
-    >
+    <div className={cardClass(cn("min-h-0 overflow-hidden", className))}>
       <div className="flex items-center gap-2.5">
-        <SlidersHorizontal
-          className={cn(cardIconClass(density), "text-primary")}
-        />
-        <span className={cardLabelClass(density)}>Mix</span>
+        <SlidersHorizontal className={cn(cardIconClass, "text-primary")} />
+        <span className={cardLabelClass}>Mix</span>
       </div>
 
-      <div
-        className={cn(
-          "grid min-h-0 flex-1 grid-cols-2",
-          density === "tv" ? "gap-2" : "gap-3.5",
-        )}
-      >
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
         <VocalFader
           label="Vocals"
           tourId="vocal-level"
@@ -67,7 +42,6 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
           volume={vocalVolume}
           onVolumeChange={setVocalVolume}
           onToggleMute={toggleVocalsVolume}
-          density={density}
         />
         <VocalFader
           label="Backing"
@@ -75,7 +49,6 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
           volume={backingAvailable ? backingVocalVolume : 0}
           onVolumeChange={setBackingVocalVolume}
           onToggleMute={toggleBackingVocalsVolume}
-          density={density}
           disabled={!backingAvailable}
           disabledHint="No backing track"
         />

@@ -8,7 +8,7 @@
  *
  *   Space/Enter  play / pause
  *   Up/Down      vocal volume +/- 10%
- *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics earlier)
+ *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics later)
  *   F            toggle fullscreen
  *   L            open the library (Back or L there comes back)
  *
@@ -18,9 +18,9 @@
 
 import { useEffect, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { LYRICS_OFFSET_STEP_MS } from "@/utils/performanceControls";
 
 const VOCAL_STEP = 0.1;
-const OFFSET_STEP_MS = 100;
 
 interface UseStageKeyboardOptions {
   onToggleFullscreen?: () => void;
@@ -124,11 +124,11 @@ export const useStageKeyboard = ({
           return;
         case "ArrowLeft":
           e.preventDefault();
-          setLyricsOffset(lyricsOffset - OFFSET_STEP_MS);
+          setLyricsOffset(lyricsOffset - LYRICS_OFFSET_STEP_MS);
           return;
         case "ArrowRight":
           e.preventDefault();
-          setLyricsOffset(lyricsOffset + OFFSET_STEP_MS);
+          setLyricsOffset(lyricsOffset + LYRICS_OFFSET_STEP_MS);
           return;
         default:
       }

@@ -1,9 +1,8 @@
 /**
  * useLyricsOffsetDrag - drag a readout up/down to nudge a numeric value.
  *
- * Lifted from the old settings-menu LyricsTimingView, which handled mouse and
- * touch with correct global-listener cleanup. Behaviour is unchanged: drag up
- * is positive, one pixel is one step.
+ * Handles mouse and touch with global-listener cleanup. Drag up is positive;
+ * `sensitivity` pixels of travel make one step.
  */
 
 import React, { useCallback, useState } from "react";

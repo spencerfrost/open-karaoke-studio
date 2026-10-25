@@ -86,7 +86,7 @@ export const STEP_COPY: Partial<Record<TourStep, StepCopy>> = {
   },
   mix: {
     title: "Change the mix from your phone",
-    body: "Move the Vocals slider on your phone and listen: the original singer's voice comes in or fades out, right here.",
+    body: "Move the Original singer slider on your phone and listen: the original singer's voice comes in or fades out, right here.",
     how: "The slider sends a performance-control message over the session socket, and the stage moves a Web Audio gain on the vocal track.",
     docsPage: "websocket-protocol.html",
     targets: ["vocal-level"],

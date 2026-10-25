@@ -1,9 +1,8 @@
 /**
- * ControlsStrip - the single channel strip rendered by BOTH the stage's left
- * rail (density="tv") and the performer's phone (density="touch").
- *
- * Same order, same components, same tokens; only the type scale and hit areas
- * differ. Keeping one composition is what stops the two surfaces drifting.
+ * ControlsStrip - the stage's left rail: the channel strip a singer drives
+ * with the mouse on the mic stand. The phone has its own layout
+ * (PerformanceControlsPanel); the two share behaviour through the store and
+ * useLyricsFixes, not layout.
  *
  * Order is control priority: vocals -> backing -> lyrics search -> offset ->
  * size -> everything else, behind More.
@@ -16,48 +15,29 @@ import { cn } from "@/lib/utils";
 import MixCard from "./MixCard";
 import LyricsControlsCard from "./LyricsControlsCard";
 import MoreControlsSheet from "./MoreControlsSheet";
-import type { Density } from "./density";
 
 interface ControlsStripProps {
-  density: Density;
   className?: string;
 }
 
-const ControlsStrip: React.FC<ControlsStripProps> = ({
-  density,
-  className,
-}) => {
-  const isTv = density === "tv";
+const ControlsStrip: React.FC<ControlsStripProps> = ({ className }) => {
   const [moreOpen, setMoreOpen] = useState(false);
 
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-col",
-        isTv ? "gap-3" : "gap-2.5",
-        className,
-      )}
-    >
-      <MixCard density={density} className="flex-1" />
-      <LyricsControlsCard density={density} />
+    <div className={cn("flex min-h-0 flex-col gap-3", className)}>
+      <MixCard className="flex-1" />
+      <LyricsControlsCard />
 
       <Button
         variant="ghost"
         onClick={() => setMoreOpen(true)}
-        className={cn(
-          "w-full shrink-0 text-foreground-dim hover:text-foreground",
-          isTv ? "h-11 text-base" : "h-12 text-sm",
-        )}
+        className="h-11 w-full shrink-0 text-base text-foreground-dim hover:text-foreground"
       >
         <MoreHorizontal className="size-5" />
         More
       </Button>
 
-      <MoreControlsSheet
-        open={moreOpen}
-        onOpenChange={setMoreOpen}
-        density={density}
-      />
+      <MoreControlsSheet open={moreOpen} onOpenChange={setMoreOpen} />
     </div>
   );
 };

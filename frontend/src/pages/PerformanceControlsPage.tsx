@@ -27,13 +27,11 @@ const PerformanceControlsPage: React.FC = () => {
   };
 
   return (
-    <AppLayout>
-      <div
-        className="h-full flex flex-col"
-        style={{ touchAction: "none" }} // Prevent dragging on mobile
-      >
-        {renderContent()}
-      </div>
+    // No nav: the panel has its own Close, and the faders need the height.
+    <AppLayout hideNav>
+      {/* No page-wide touch-action: the faders block scrolling on
+          themselves, and a short phone must still be able to scroll. */}
+      <div className="h-full flex flex-col">{renderContent()}</div>
     </AppLayout>
   );
 };

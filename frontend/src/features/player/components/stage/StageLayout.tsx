@@ -1,9 +1,10 @@
 /**
  * StageLayout - the stage itself: three columns filling the viewport.
  *
- * Left rail is the same ControlsStrip the phone renders; the centre column is
- * the player; the right rail is the queue. The transport sits under the centre
- * column only, so the rails keep the full height.
+ * Left rail is the controls strip (the phone lays out the same controls its
+ * own way); the centre column is the player; the right rail is the queue. The
+ * transport sits under the centre column only, so the rails keep the full
+ * height.
  *
  * While a song plays the rails collapse to icon strips and the chrome dims —
  * but nothing unmounts, so dialogs, drag state and focus all survive. The join
@@ -114,15 +115,12 @@ const StageLayout: React.FC<StageLayoutProps> = ({
           gridTemplateColumns: `${railWidth} minmax(0, 1fr) ${railWidth}`,
         }}
       >
-        {/* Left rail — the same channel strip as the phone */}
+        {/* Left rail — the channel strip */}
         <div className={railClass}>
           <div className={cn(!collapsed && "hidden")}>
             <StageRailIcons side="left" />
           </div>
-          <ControlsStrip
-            density="tv"
-            className={cn("flex-1", collapsed && "hidden")}
-          />
+          <ControlsStrip className={cn("flex-1", collapsed && "hidden")} />
         </div>
 
         {/* Centre — the player, with the transport under it */}

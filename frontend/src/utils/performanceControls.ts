@@ -62,6 +62,9 @@ export function toggleVolume(
   return currentVolume > 0 ? 0 : maxVolume;
 }
 
+/** One press of a lyrics timing control, on every surface. */
+export const LYRICS_OFFSET_STEP_MS = 100;
+
 /**
  * Lyrics offset in milliseconds as a signed readout in seconds: "+0.3s", "-1.2s".
  */
@@ -70,10 +73,11 @@ export function formatLyricsOffset(offsetMs: number): string {
 }
 
 /**
- * Get timing offset description
+ * The offset in words. The renderer adds the offset to the playback time, so
+ * a positive offset shows each line sooner: "Lyrics show 0.3s earlier".
  */
-export function getTimingOffsetDescription(offset: number): string {
-  if (offset === 0) return "Lyrics are synced";
-  if (offset > 0) return "Lyrics appear earlier";
-  return "Lyrics appear later";
+export function describeLyricsOffset(offsetMs: number): string {
+  if (offsetMs === 0) return "Lyrics match the song";
+  const seconds = (Math.abs(offsetMs) / 1000).toFixed(1);
+  return `Lyrics show ${seconds}s ${offsetMs > 0 ? "earlier" : "later"}`;
 }
