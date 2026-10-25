@@ -127,9 +127,17 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 
         {/* Centre — the player, with the transport under it */}
         <div className="flex min-h-0 flex-col items-center">
-          {/* Autoplay: "Sing it now", the queue rail and the handoff screen
-            all mean "start this", so a newly loaded song plays by itself. */}
-          <KaraokePlayer songId={songId} autoPlay chromeCollapsed={collapsed} />
+          {/* Autoplay: "Sing it now", the queue rail, Next and the handoff
+            screen all mean "start this", so a new song counts in 3-2-1 and
+            then plays by itself (useSongStart). The count waits while
+            another screen covers the player. */}
+          <KaraokePlayer
+            songId={songId}
+            autoPlay
+            visible={keyboardEnabled}
+            singer={current?.songId === songId ? current.singer : undefined}
+            chromeCollapsed={collapsed}
+          />
           {/* Fading alone would leave the lyrics stopping where the transport
             used to be. The 1fr -> 0fr row animates the height out too. */}
           <div

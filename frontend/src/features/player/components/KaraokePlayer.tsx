@@ -16,6 +16,8 @@ import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
+import { useSongCountdownStore } from "@/stores/useSongCountdownStore";
+import SongCountdown from "./SongCountdown";
 
 type LiveLyricsProps = Omit<
   React.ComponentProps<typeof ThrottledLyricsDisplay>,
@@ -34,13 +36,16 @@ const LiveLyrics: React.FC<LiveLyricsProps> = (props) => {
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
   autoPlay = false,
+  visible = true,
+  singer,
   onPlay,
   onPause,
   onError,
   chromeCollapsed = false,
   className = "",
 }) => {
-  const player = useKaraokePlayer(songId, { autoPlay });
+  const player = useKaraokePlayer(songId, { autoPlay, visible });
+  const countdown = useSongCountdownStore((s) => s.countdown);
   const openSongSelect = useOpenSongSelect();
 
   // Handle play/pause callbacks
@@ -153,9 +158,14 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             handoff screen - it is a whole screen about a person, not a branch
             inside the lyrics column. */}
         <div className="relative flex min-h-0 w-full flex-1 flex-col">
-          {song && !player.isReady ? (
-            // Until the stems are decoded there is nothing to sing along to,
-            // and with autoplay on the song starts by itself once they are.
+          {countdown.phase !== "idle" && countdown.songId === songId ? (
+            // A new song: the 3-2-1 covers the old song's fade-out and the
+            // load, and the song starts by itself when it ends.
+            <SongCountdown countdown={countdown} singer={singer} />
+          ) : song && !player.isReady ? (
+            // Until the stems are decoded there is nothing to sing along to.
+            // Seen without a count only after a page reload, where the song
+            // waits for a click on play instead of starting by itself.
             <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground-dim">
               <Loader2 className="size-6 animate-spin" />
               Getting the song ready…

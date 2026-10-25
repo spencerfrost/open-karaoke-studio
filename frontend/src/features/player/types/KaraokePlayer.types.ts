@@ -14,7 +14,15 @@ export interface KaraokePlayerProps {
   songId: string;
 
   // Player configuration
+  /** Start a newly loaded song by itself, after the stage's 3-2-1. */
   autoPlay?: boolean;
+  /**
+   * False while another screen covers the player. A new song's count waits
+   * until the player is shown again.
+   */
+  visible?: boolean;
+  /** Who is singing the song, for the countdown. */
+  singer?: string;
 
   // UI options
   controls?: boolean;
@@ -40,6 +48,8 @@ export interface KaraokePlayerProps {
 // Player options for useKaraokePlayer hook
 export interface PlayerOptions {
   autoPlay?: boolean;
+  /** See KaraokePlayerProps.visible. */
+  visible?: boolean;
   preload?: boolean;
 }
 
