@@ -4,7 +4,7 @@ Database models package exports
 
 # Import all models so they can be imported from the package
 from .album import DbAlbum
-from .artist import DbArtist
+from .artist import DbArtist, DbArtistAlias
 from .base import UNKNOWN_ARTIST, Base
 from .batch_run import BatchRun
 from .host_settings import HostSettings
@@ -22,6 +22,7 @@ from .user import User
 __all__ = [
     "DbAlbum",
     "DbArtist",
+    "DbArtistAlias",
     "Base",
     "BatchRun",
     "UNKNOWN_ARTIST",

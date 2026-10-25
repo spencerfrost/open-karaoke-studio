@@ -4,7 +4,8 @@ Batch runs - one row per run of a library-wide maintenance job.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+from sqlalchemy.orm import deferred
 
 from .base import Base
 
@@ -45,6 +46,10 @@ class BatchRun(Base):
     error = Column(Text, nullable=True)
     # Hand-run scans only: how many problems the scan found. None for jobs.
     issues = Column(Integer, nullable=True)
+    # A job's own write-up of what it did (or would do, in a preview run).
+    # Deferred: it can run to hundreds of kilobytes, and only its own endpoint
+    # reads it.
+    report = deferred(Column(JSON, nullable=True))
 
     created_at = Column(DateTime, nullable=False, default=_now)
     started_at = Column(DateTime, nullable=True)
