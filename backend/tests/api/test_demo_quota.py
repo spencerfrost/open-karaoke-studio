@@ -120,6 +120,20 @@ class TestDemoSessionCap:
         assert "3 new songs" in response.json()["detail"]
         mock_youtube_service.download_and_process_async.assert_not_called()
 
+    def test_jobs_from_an_earlier_session_with_a_recycled_code_do_not_count(
+        self, client, db, mock_youtube_service, override_requester
+    ):
+        # Codes are reused once a retired session is purged; the old session's
+        # finished jobs keep its code but predate the new session.
+        demo = _make_demo_user(db)
+        _make_session(db, demo.id, "SESS")
+        _make_jobs(db, "SESS", 3, created_at=utc_now() - timedelta(days=8))
+
+        override_requester(RequesterContext(session_id="SESS"))
+        response = _download(client)
+
+        assert response.status_code == 202
+
 
 class TestDemoDailyCap:
     def test_daily_cap_across_pool_returns_429(

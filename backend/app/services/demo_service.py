@@ -13,7 +13,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -174,10 +174,14 @@ def enforce_demo_download_quota(
             detail="Your demo session has ended — press Try it live to start a new one.",
         )
 
+    # Finished download jobs keep their row, so these counts include completed
+    # downloads. Session codes are recycled once a retired session is purged,
+    # so a job only belongs to a session if it started after the session did.
     session_count = (
         db.query(func.count(DbJob.id))
         .filter(
             DbJob.session_id == session_id,
+            DbJob.created_at >= session.created_at,
             DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
         )
         .scalar()
@@ -195,7 +199,13 @@ def enforce_demo_download_quota(
     cutoff = utc_now() - timedelta(hours=24)
     daily_count = (
         db.query(func.count(DbJob.id))
-        .join(KaraokeSession, KaraokeSession.session_id == DbJob.session_id)
+        .join(
+            KaraokeSession,
+            and_(
+                KaraokeSession.session_id == DbJob.session_id,
+                KaraokeSession.created_at <= DbJob.created_at,
+            ),
+        )
         .join(User, User.id == KaraokeSession.host_user_id)
         .filter(
             User.is_demo.is_(True),

@@ -215,7 +215,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.progress = 100
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
+        # The finished row stays: the demo download quotas count it, and the
+        # in-flight jobs list already leaves completed jobs out.
 
         _broadcast_job_event(job)
 
@@ -499,7 +500,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         job.status_message = "Processing complete"
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
+        # The finished row stays: the demo download quotas count it, and the
+        # in-flight jobs list already leaves completed jobs out.
 
         _broadcast_job_event(job)
 
