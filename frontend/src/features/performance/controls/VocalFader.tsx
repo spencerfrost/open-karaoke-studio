@@ -23,6 +23,8 @@ interface VocalFaderProps {
   disabled?: boolean;
   /** Shown over the track when disabled — explains why the channel is dead. */
   disabledHint?: string;
+  /** `data-tour` target for the guided demo's tour. */
+  tourId?: string;
 }
 
 const VocalFader: React.FC<VocalFaderProps> = ({
@@ -34,12 +36,14 @@ const VocalFader: React.FC<VocalFaderProps> = ({
   density,
   disabled = false,
   disabledHint,
+  tourId,
 }) => {
   const isTv = density === "tv";
   const isMuted = volume === 0;
 
   return (
     <div
+      data-tour={tourId}
       className={cn(
         "flex min-h-0 flex-col items-center gap-2.5",
         disabled && "opacity-50",

@@ -47,6 +47,7 @@ import SongSelectScreen from "./screens/SongSelectScreen";
 import SongConfirmScreen from "./screens/SongConfirmScreen";
 import AddSongScreen from "./screens/AddSongScreen";
 import HandoffScreen from "./screens/HandoffScreen";
+import OpenYourPhonePrompt from "./components/OpenYourPhonePrompt";
 import { findTurnItem } from "./turnItem";
 
 interface StageShellProps {
@@ -216,6 +217,7 @@ const StageShell: React.FC<StageShellProps> = ({
                 ui={ui}
                 keyboardEnabled={isPerforming}
               />
+              <OpenYourPhonePrompt current={current} />
             </div>
 
             {selectMounted && (

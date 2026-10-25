@@ -57,6 +57,7 @@ const MixCard: React.FC<MixCardProps> = ({ density, className }) => {
       >
         <VocalFader
           label="Vocals"
+          tourId="vocal-level"
           icon={<Mic />}
           volume={vocalVolume}
           onVolumeChange={setVocalVolume}

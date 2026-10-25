@@ -41,7 +41,10 @@ const PerformanceControlsPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full flex-col gap-2.5 overflow-hidden p-1">
+    <div
+      data-tour="performance-controls"
+      className="flex h-full flex-col gap-2.5 overflow-hidden p-1"
+    >
       <ControlsStrip density="touch" className="flex-1" />
 
       <div className="flex shrink-0 flex-col gap-2.5 pt-0.5">
