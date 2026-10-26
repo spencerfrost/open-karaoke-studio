@@ -122,6 +122,19 @@ class TestParseArtistCredits:
             )
         ]
 
+    def test_placeholder_artists_file_under_the_printed_name(self):
+        credits = [
+            _mb("Jesse L. Martin", " & "),
+            _mb("[theatre]", "", credited="Cast of Rent", mbid="mb-theatre"),
+        ]
+        assert _parse_artist_credits(credits)[1] == ArtistCredit(
+            name="Cast of Rent", role="primary", credited_as="Cast of Rent"
+        )
+
+    def test_placeholder_artists_printed_as_themselves_are_dropped(self):
+        credits = [_mb("[unknown]"), _mb("Various Artists")]
+        assert _parse_artist_credits(credits) == []
+
     def test_unicode_hyphens_become_plain(self):
         [credit] = _parse_artist_credits([_mb("Jay\u2010Z")])
         assert credit.name == "Jay-Z"

@@ -145,6 +145,24 @@ def test_merges_spellings_and_mb_aliases(db):
     assert db.query(DbAlbum).one().artist_id == chicks.id
 
 
+def test_a_spelling_merge_keeps_the_cased_row(db):
+    lower = _artist(db, "man of la mancha")
+    cased = _artist(db, "Man of La Mancha!")
+    _old_song(db, "a", "x", (lower, "primary"))
+    _old_song(db, "b", "x", (lower, "primary"))
+    db.add(DbSong(id="c", title="c", artist="x", artist_id=cased.id))
+    db.add(
+        DbSongArtist(song_id="c", artist_id=cased.id, role="primary", credited_as="x")
+    )
+    db.flush()
+
+    report = rebuild(db, MusicBrainzData())
+
+    assert ("man of la mancha", "Man of La Mancha!", "spelling") in {
+        (m["from"], m["into"], m["reason"]) for m in report["merges"]
+    }
+
+
 def test_names_from_musicbrainz_and_printed_case(db):
     weeknd = _artist(db, "the weeknd")
     chicks = _artist(db, "Dixie Chicks", musicbrainz_artist_id="mb-chicks")

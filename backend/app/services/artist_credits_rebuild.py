@@ -265,8 +265,16 @@ def _merge_duplicates(
     for rows in groups.values():
         if len(rows) < 2:
             continue
-        # The row most songs already use stays.
-        target = max(rows, key=lambda a: (_link_count(session, a), -a.id))
+        # A properly cased row stays over a lowercase one, then the one most
+        # songs already use.
+        target = max(
+            rows,
+            key=lambda a: (
+                (a.display_name or a.name) != (a.display_name or a.name).lower(),
+                _link_count(session, a),
+                -a.id,
+            ),
+        )
         for artist in rows:
             if artist is not target:
                 merge(artist, target, "spelling")

@@ -25,6 +25,13 @@ _FEAT_JOINPHRASE = re.compile(r"\bfeat\.?\b|\bfeaturing\b|\bft\.?\b", re.IGNOREC
 _BOILERPLATE_PAREN = re.compile(r"\s*\([^)]*\)")
 
 
+def _is_placeholder(name: str) -> bool:
+    """A MusicBrainz special-purpose artist: "[unknown]", "Various Artists"."""
+    return (name.startswith("[") and name.endswith("]")) or (
+        name.casefold() == "various artists"
+    )
+
+
 def _parse_artist_credits(artist_credit_list: list) -> list[ArtistCredit]:
     """Return the credits in a MusicBrainz artist-credit array.
 
@@ -38,6 +45,10 @@ def _parse_artist_credits(artist_credit_list: list) -> list[ArtistCredit]:
 
     Each credit keeps the artist's MusicBrainz id and current name, and the
     name as this recording prints it ("Dixie Chicks" for The Chicks).
+
+    MusicBrainz's placeholder artists ("[theatre]", "[unknown]", "Various
+    Artists") aren't artists: such a credit is filed under the name it
+    prints, without the id, and dropped when that's the placeholder too.
     """
     if not artist_credit_list:
         return []
@@ -49,16 +60,18 @@ def _parse_artist_credits(artist_credit_list: list) -> list[ArtistCredit]:
         artist = ac.get("artist") or {}
         credited = clean_artist_name(ac.get("name") or artist.get("name") or "")
         name = clean_artist_name(artist.get("name") or credited)
-        if not name:
-            continue
-        result.append(
-            ArtistCredit(
-                name=name,
-                role=current_role,
-                musicbrainz_id=artist.get("id"),
-                credited_as=credited or name,
+        mbid = artist.get("id")
+        if _is_placeholder(name):
+            name, mbid = credited, None
+        if name and not _is_placeholder(name):
+            result.append(
+                ArtistCredit(
+                    name=name,
+                    role=current_role,
+                    musicbrainz_id=mbid,
+                    credited_as=credited or name,
+                )
             )
-        )
 
         # Check if joinphrase signals a switch to featured
         joinphrase = ac.get("joinphrase", "")
@@ -220,7 +233,8 @@ def get_recording_details(
         return None, None
 
     raw_credits = data.get("artist-credit", [])
-    credits = _parse_artist_credits(raw_credits) if raw_credits else None
+    # A recording credited only to placeholders has no credits to use.
+    credits = _parse_artist_credits(raw_credits) or None
 
     return _extract_show_name(data), credits
 
