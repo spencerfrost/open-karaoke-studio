@@ -186,35 +186,64 @@ async def search_songs(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
+        term = f"%{query}%"
+        # Songs crediting an artist the query names, under any of their names:
+        # "Dixie Chicks" finds The Chicks, "IRah" finds a song they guest on.
+        credited_artist_ids = select(DbArtist.id).where(
+            or_(
+                DbArtist.display_name.ilike(term),
+                DbArtist.id.in_(
+                    select(DbArtistAlias.artist_id).where(
+                        DbArtistAlias.name.ilike(term)
+                    )
+                ),
+            )
+        )
+        credited_song_ids = select(DbSongArtist.song_id).where(
+            or_(
+                DbSongArtist.artist_id.in_(credited_artist_ids),
+                DbSongArtist.credited_as.ilike(term),
+            )
+        )
         search_filter = or_(
-            DbSong.title.ilike(f"%{query}%"),
-            DbSong.artist.ilike(f"%{query}%"),
-            DbSong.album.ilike(f"%{query}%"),
-            DbSong.show_name.ilike(f"%{query}%"),
+            DbSong.title.ilike(term),
+            DbSong.artist.ilike(term),
+            DbSong.album.ilike(term),
+            DbSong.show_name.ilike(term),
+            DbSong.id.in_(credited_song_ids),
         )
 
         if group_by_artist:
+            # Grouped by each song's primary artist row, not its artist text,
+            # so "Jay-Z" and "JAY-Z feat. X" land together.
             artist_query = (
-                db.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
+                db.query(
+                    DbArtist.id,
+                    DbArtist.display_name,
+                    DbArtist.name,
+                    func.count(DbSong.id).label("song_count"),
+                )
+                .join(DbSong, DbSong.artist_id == DbArtist.id)
                 .filter(search_filter, in_songbook())
-                .group_by(DbSong.artist)
+                .group_by(DbArtist.id)
+                .order_by(DbArtist.display_name)
             )
             total_artists = artist_query.count()
             artist_results = artist_query.offset(offset).limit(limit).all()
 
             artists_data = []
             total_songs = 0
-            for artist, count in artist_results:
+            for artist_id, display_name, name, count in artist_results:
                 songs = (
                     db.query(DbSong)
-                    .filter(DbSong.artist == artist, in_songbook())
+                    .filter(DbSong.artist_id == artist_id, search_filter, in_songbook())
                     .limit(5)
                     .all()
                 )
                 total_songs += count
                 artists_data.append(
                     ArtistInfo(
-                        artist=artist,
+                        artist=display_name or name,
                         songCount=count,
                         songs=[song.to_dict() for song in songs],
                     )

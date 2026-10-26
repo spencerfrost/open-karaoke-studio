@@ -184,6 +184,40 @@ def test_search_songs_group_by_artist(client):
     assert any(a["artist"] == artist for a in data["artists"])
 
 
+def test_search_finds_songs_through_credits_and_aliases(client, db):
+    from app.db.models import DbArtist
+    from app.repositories.artist_repository import ArtistRepository
+
+    guest = _create_song(client, title="Baddadan", artist="Chase & Status feat. IRah")
+    chicks = _create_song(client, title="Landslide", artist="The Chicks")
+    ArtistRepository(db).add_alias(
+        db.query(DbArtist).filter_by(name="the chicks").one(),
+        "Dixie Chicks",
+        "musicbrainz",
+    )
+    db.commit()
+    # The text no longer names the guest: only the credit does
+    with SessionLocal() as session:
+        session.get(DbSong, guest["id"]).artist = "Chase & Status"
+        session.commit()
+
+    def found(q):
+        return {s["id"] for s in client.get(f"/api/songs/search?q={q}").json()["songs"]}
+
+    assert found("IRah") == {guest["id"]}
+    assert found("Dixie") == {chicks["id"]}
+
+
+def test_grouped_search_groups_by_artist_row(client):
+    _create_song(client, title="Run This Town", artist="JAY-Z feat. Rihanna")
+    _create_song(client, title="Run It Back", artist="Jay-Z")
+
+    data = client.get("/api/songs/search?q=Run&group_by_artist=true").json()
+
+    [group] = data["artists"]
+    assert group["songCount"] == 2
+
+
 def test_search_songs_with_limit(client):
     response = client.get("/api/songs/search?q=Song&limit=2")
     assert response.status_code == 200
