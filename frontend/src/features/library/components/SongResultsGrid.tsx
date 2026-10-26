@@ -17,6 +17,8 @@ interface SongResultsGridProps {
   fetchNextPage?: () => void;
   searchTerm?: string;
   artistName?: string;
+  /** With artistName: their YouTube Music channel, for the browse card. */
+  youtubeMusicArtistId?: string | null;
   showArtist?: boolean;
 }
 
@@ -27,6 +29,7 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   fetchNextPage,
   searchTerm,
   artistName,
+  youtubeMusicArtistId,
   showArtist = true,
 }) => {
   const openAddSong = useOpenAddSong();
@@ -53,7 +56,8 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
     );
   }
 
-  if (songs.length === 0) {
+  // An artist with no songs of their own still gets the browse card.
+  if (songs.length === 0 && !artistName) {
     return null;
   }
 
@@ -64,7 +68,12 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
         {songs.filter(Boolean).map((song) => (
           <CardComponent key={song.id} song={song} showArtist={showArtist} />
         ))}
-        {artistName && <BrowseArtistCard artistName={artistName} />}
+        {artistName && (
+          <BrowseArtistCard
+            artistName={artistName}
+            youtubeMusicArtistId={youtubeMusicArtistId}
+          />
+        )}
       </div>
 
       {/* Load More Button */}

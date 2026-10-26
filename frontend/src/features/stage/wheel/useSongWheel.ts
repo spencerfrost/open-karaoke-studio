@@ -12,6 +12,7 @@ import { useArtists } from "@/hooks/api/useArtists";
 import {
   useInfiniteArtistSongs,
   useInfiniteShowSongs,
+  type ArtistSong,
 } from "@/hooks/api/useArtistSongs";
 import type { Song } from "@/types/Song";
 import {
@@ -65,7 +66,8 @@ export interface SongWheel {
   artistIndex: number;
   artist: WheelArtist | null;
   letterIndex: number;
-  songs: Song[];
+  /** Their own songs, then the ones they guest on (`role: "featured"`). */
+  songs: ArtistSong[];
   songsLoading: boolean;
   songIndex: number;
   /** The artist the cursor last rested on; lags `artist` while it moves. */
@@ -168,9 +170,8 @@ export function useSongWheel({
     null;
   const songsArtist = settledArtist;
   const artistSongs = useInfiniteArtistSongs(
-    songsArtist?.name ?? "",
+    songsArtist && !songsArtist.isShow ? songsArtist.id : null,
     SONGS_PAGE_SIZE,
-    { enabled: !!songsArtist && !songsArtist.isShow },
   );
   const showSongs = useInfiniteShowSongs(
     songsArtist?.name ?? "",

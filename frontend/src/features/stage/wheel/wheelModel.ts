@@ -129,9 +129,13 @@ export function listScrollOffset(
   return Math.max(0, Math.min(max, centred));
 }
 
-/** A stable identity for an artist row; shows and artists can share a name. */
-export const artistKey = (artist: Pick<Artist, "name" | "isShow">): string =>
-  `${artist.isShow ? "show" : "artist"}:${artist.name}`;
+/**
+ * A stable identity for an artist row; shows and artists can share a name.
+ * Artists go by id, which survives a rename; shows' ids are made up per list.
+ */
+export const artistKey = (
+  artist: Pick<Artist, "id" | "name" | "isShow">,
+): string => (artist.isShow ? `show:${artist.name}` : `artist:${artist.id}`);
 
 /**
  * Where each column sits on the cylinder, in degrees, with artists at 0.
@@ -256,6 +260,14 @@ export function tileInitial(name: string): string {
 }
 
 /** "Artist feat. Guest", from credits the artist string doesn't already name. */
+/** Who a song is by, from its primary credits ("Rihanna", "A & B"). */
+export function primaryArtists(song: Pick<Song, "artist" | "artists">): string {
+  const primaries = (song.artists ?? [])
+    .filter((a) => a.role === "primary")
+    .map((a) => a.name);
+  return primaries.length > 0 ? primaries.join(" & ") : song.artist;
+}
+
 export function songByline(song: Pick<Song, "artist" | "artists">): string {
   const credited = song.artist.toLowerCase();
   const featured = (song.artists ?? [])

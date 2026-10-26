@@ -24,6 +24,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { Loader2, Theater } from "lucide-react";
 import type { Song } from "@/types/Song";
+import { artistSongTotal } from "@/hooks/api/useArtists";
 import SongInfoCard from "./SongInfoCard";
 import WheelArtwork from "./WheelArtwork";
 import WheelColumn from "./WheelColumn";
@@ -37,6 +38,7 @@ import {
   ROW_HEIGHTS,
   WHEEL_TUNING,
   artistImageUrl,
+  primaryArtists,
   columnBrightness,
   columnSeats,
   ringAngleFor,
@@ -312,7 +314,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
                       {a.isShow && (
                         <Theater className="size-5" aria-label="Show" />
                       )}
-                      {a.songCount}
+                      {artistSongTotal(a)}
                     </span>
                   </>
                 );
@@ -365,6 +367,12 @@ const SongWheel: React.FC<SongWheelProps> = ({
                       {i + 1}
                     </span>
                     <span className="truncate">{song.title}</span>
+                    {/* A song they guest on says whose it is */}
+                    {song.role === "featured" && (
+                      <span className="flex-none truncate pl-4 text-[24px] text-foreground-faint">
+                        {primaryArtists(song)}
+                      </span>
+                    )}
                     {song.status !== "processed" && (
                       <span className="ml-auto flex-none pl-4 font-display text-[20px] uppercase tracking-wider text-foreground-faint">
                         Processing

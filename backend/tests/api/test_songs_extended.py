@@ -78,36 +78,91 @@ def test_get_artists_files_by_name_without_article(client):
     assert artist["sortName"].startswith("wheelwrights")
 
 
+def _artists(client, **params):
+    return {
+        a["name"]: (a["ownCount"], a["featuredCount"])
+        for a in client.get("/api/songs/artists", params=params).json()["artists"]
+    }
+
+
+def test_artist_list_rule(client):
+    # Featured on one primary artist's songs only: files under them
+    _create_song(client, title="Kong", artist="Bonobo feat. Grey Reverend")
+    _create_song(client, title="Eyesdown", artist="Bonobo feat. Grey Reverend")
+    # Featured with two different primary artists: listed
+    _create_song(client, title="SexyBack", artist="Justin Timberlake feat. Jay-Z")
+    _create_song(client, title="Umbrella", artist="Rihanna feat. Jay-Z")
+
+    artists = _artists(client)
+
+    assert artists["Bonobo"] == (2, 0)
+    assert artists["Jay-Z"] == (0, 2)
+    assert "Grey Reverend" not in artists
+    # A search still finds them, and says they aren't listed
+    assert _artists(client, search="Grey") == {"Grey Reverend": (0, 2)}
+    [grey] = client.get("/api/songs/artists?search=Grey").json()["artists"]
+    assert grey["listed"] is False
+
+
+def test_artist_list_search_matches_aliases(client, db):
+    from app.db.models import DbArtist
+    from app.repositories.artist_repository import ArtistRepository
+
+    _create_song(client, title="Not Ready to Make Nice", artist="The Chicks")
+    repo = ArtistRepository(db)
+    repo.add_alias(
+        db.query(DbArtist).filter_by(name="the chicks").one(),
+        "Dixie Chicks",
+        "musicbrainz",
+    )
+    db.commit()
+
+    assert list(_artists(client, search="Dixie")) == ["The Chicks"]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# GET /api/songs/by-artist/{artist_name}
+# GET /api/songs/by-artist/{artist_id}
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 def test_get_songs_by_artist(client):
     artist = f"SoloArtist-{uuid.uuid4().hex[:6]}"
-    _create_song(client, title="Hit 1", artist=artist)
+    artist_id = _create_song(client, title="Hit 1", artist=artist)["artistId"]
     _create_song(client, title="Hit 2", artist=artist)
 
-    response = client.get(f"/api/songs/by-artist/{artist}")
+    response = client.get(f"/api/songs/by-artist/{artist_id}")
     assert response.status_code == 200
     data = response.json()
-    assert "songs" in data
+    assert data["artist"]["name"] == artist
     assert all(s["artist"] == artist for s in data["songs"])
+    assert all(s["role"] == "primary" for s in data["songs"])
     assert len(data["songs"]) == 2
 
 
-def test_get_songs_by_artist_not_found_returns_empty(client):
-    response = client.get("/api/songs/by-artist/CompletelyUnknownArtist999")
-    assert response.status_code == 200
-    assert response.json()["songs"] == []
+def test_get_songs_by_artist_lists_own_songs_before_features(client):
+    guest_id = _create_song(client, title="Z Own Song", artist="Jay-Z")["artistId"]
+    _create_song(client, title="A Feature", artist="Rihanna feat. Jay-Z")
+
+    data = client.get(f"/api/songs/by-artist/{guest_id}").json()
+
+    assert [(s["title"], s["role"]) for s in data["songs"]] == [
+        ("Z Own Song", "primary"),
+        ("A Feature", "featured"),
+    ]
+
+
+def test_get_songs_by_artist_unknown_is_404(client):
+    response = client.get("/api/songs/by-artist/999999")
+    assert response.status_code == 404
 
 
 def test_get_songs_by_artist_pagination(client):
     artist = f"PaginatedArtist-{uuid.uuid4().hex[:6]}"
-    for i in range(5):
+    artist_id = _create_song(client, title="Song 0", artist=artist)["artistId"]
+    for i in range(1, 5):
         _create_song(client, title=f"Song {i}", artist=artist)
 
-    resp = client.get(f"/api/songs/by-artist/{artist}?limit=2")
+    resp = client.get(f"/api/songs/by-artist/{artist_id}?limit=2")
     assert resp.status_code == 200
     assert len(resp.json()["songs"]) == 2
 

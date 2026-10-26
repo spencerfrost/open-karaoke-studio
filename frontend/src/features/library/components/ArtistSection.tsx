@@ -46,37 +46,60 @@ const ArtistSectionBody: React.FC<{ artist: Artist; viewMode: ViewMode }> = ({
   // A show isn't a real artist row, so it has no artist image and no admin
   // edit/collab actions — but it reuses this same accordion row and the same
   // infinite-songs shape, just sourced from a different endpoint.
-  const artistSongs = useInfiniteArtistSongs(artist.name, 200, {
-    enabled: !artist.isShow,
-  });
+  const artistSongs = useInfiniteArtistSongs(
+    artist.isShow ? null : artist.id,
+    200,
+  );
   const showSongs = useInfiniteShowSongs(artist.name, 200, {
     enabled: !!artist.isShow,
   });
   const { songs, hasNextPage, isFetchingNextPage, fetchNextPage } =
     artist.isShow ? showSongs : artistSongs;
 
+  // The API sends their own songs first, so each group keeps its order.
+  const ownSongs = songs.filter((song) => song.role !== "featured");
+  const appearsOn = songs.filter((song) => song.role === "featured");
+  // "Load more" sits under whichever group the next page continues.
+  const more = { hasNextPage, isFetchingNextPage, fetchNextPage };
+  const ownMore = appearsOn.length === 0 ? more : {};
+
   return (
-    <div className="mb-8 px-4 mt-4">
+    <div className="mb-8 px-4 mt-4 space-y-6">
       {viewMode === "grid" ? (
         <ArtistSongGrid
-          songs={songs}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          fetchNextPage={fetchNextPage}
+          songs={ownSongs}
+          {...ownMore}
           artistName={artist.name}
+          youtubeMusicArtistId={artist.youtubeMusicArtistId}
           showArtist={false}
         />
       ) : (
-        <ArtistSongTable
-          songs={songs}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          fetchNextPage={fetchNextPage}
-        />
+        ownSongs.length > 0 && <ArtistSongTable songs={ownSongs} {...ownMore} />
+      )}
+
+      {appearsOn.length > 0 && (
+        <section className="space-y-3">
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-foreground-dim">
+            Appears on
+          </h4>
+          {viewMode === "grid" ? (
+            <ArtistSongGrid songs={appearsOn} {...more} showArtist />
+          ) : (
+            <ArtistSongTable songs={appearsOn} {...more} />
+          )}
+        </section>
       )}
     </div>
   );
 };
+
+/** "12 songs · appears on 3", or "Appears on 2 songs" for a guest. */
+function describeCounts(artist: Artist): string {
+  const songs = (n: number) => `${n} ${n === 1 ? "song" : "songs"}`;
+  if (artist.ownCount === 0) return `Appears on ${songs(artist.featuredCount)}`;
+  if (artist.featuredCount === 0) return songs(artist.ownCount);
+  return `${songs(artist.ownCount)} · appears on ${artist.featuredCount}`;
+}
 
 const ArtistSection: React.FC<ArtistSectionProps> = ({
   artist,
@@ -124,9 +147,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
             </div>
             <div>
               <h3 className="font-semibold text-lg">{artist.name}</h3>
-              <p className="text-sm opacity-75">
-                {artist.songCount} {artist.songCount === 1 ? "song" : "songs"}
-              </p>
+              <p className="text-sm opacity-75">{describeCounts(artist)}</p>
             </div>
           </div>
         </button>

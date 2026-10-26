@@ -26,6 +26,7 @@ import type {
 } from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
 import type { AddFlowStep } from "@/hooks/useAddFlowNavigation";
+import type { OpenAddSongOptions } from "@/hooks/useOpenAddSong";
 
 export type StageScreen =
   | { name: "performance" }
@@ -46,7 +47,7 @@ export interface StageShellApi {
   openPerformance: () => void;
   openSelect: (opts?: { expandArtist?: string }) => void;
   openConfirm: (song: Song) => void;
-  openAdd: (opts?: { query?: string; findArtist?: boolean }) => void;
+  openAdd: (opts?: OpenAddSongOptions) => void;
   /** Open an add-flow screen on top of the current one. */
   pushAdd: (step: AddFlowStep) => void;
   /** Swap the current add-flow screen for another. */

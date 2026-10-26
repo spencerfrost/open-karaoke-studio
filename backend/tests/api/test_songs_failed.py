@@ -162,7 +162,7 @@ class TestSongbookHidesFailedSongs:
 
     def test_artist_list_counts_and_drops(self, client, songs):
         artists = {
-            a["name"]: a["songCount"]
+            a["name"]: a["ownCount"]
             for a in client.get("/api/songs/artists").json()["artists"]
         }
 
@@ -170,7 +170,9 @@ class TestSongbookHidesFailedSongs:
         assert "Hanumankind" not in artists
 
     def test_songs_by_artist(self, client, songs):
-        data = client.get("/api/songs/by-artist/Mixed%20Artist").json()
+        with SessionLocal() as session:
+            artist_id = session.get(DbSong, songs["working"]).artist_id
+        data = client.get(f"/api/songs/by-artist/{artist_id}").json()
 
         assert {s["id"] for s in data["songs"]} == {
             songs["working"],

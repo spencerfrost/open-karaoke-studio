@@ -8,6 +8,7 @@ interface ArtistSongGridProps {
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
   artistName?: string;
+  youtubeMusicArtistId?: string | null;
   showArtist?: boolean;
 }
 

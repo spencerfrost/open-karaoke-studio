@@ -35,6 +35,7 @@ import type {
 } from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
 import type { AddFlowStep } from "@/hooks/useAddFlowNavigation";
+import type { OpenAddSongOptions } from "@/hooks/useOpenAddSong";
 import {
   StageShellContext,
   StageScreenContext,
@@ -91,11 +92,21 @@ const StageShell: React.FC<StageShellProps> = ({
     [],
   );
   const openAdd = useCallback(
-    (opts: { query?: string; findArtist?: boolean } = {}) =>
+    (opts: OpenAddSongOptions = {}) =>
       setScreen({
         name: "add",
         stack: [
-          { kind: "search", query: opts.query, findArtist: opts.findArtist },
+          opts.artistBrowseId
+            ? {
+                kind: "artist",
+                browseId: opts.artistBrowseId,
+                backLabel: "Songbook",
+              }
+            : {
+                kind: "search",
+                query: opts.query,
+                findArtist: opts.findArtist,
+              },
         ],
       }),
     [],

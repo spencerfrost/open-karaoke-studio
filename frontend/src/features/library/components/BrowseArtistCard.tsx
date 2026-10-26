@@ -5,15 +5,22 @@ import { useOpenAddSong } from "@/hooks/useOpenAddSong";
 
 interface BrowseArtistCardProps {
   artistName: string;
+  /** Their YouTube Music channel, when known: opened directly, no search. */
+  youtubeMusicArtistId?: string | null;
 }
 
 export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
   artistName,
+  youtubeMusicArtistId,
 }) => {
   const openAddSong = useOpenAddSong();
 
   const handleClick = () => {
-    openAddSong({ query: artistName, findArtist: true });
+    openAddSong(
+      youtubeMusicArtistId
+        ? { artistBrowseId: youtubeMusicArtistId }
+        : { query: artistName, findArtist: true },
+    );
   };
 
   return (

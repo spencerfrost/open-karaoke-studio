@@ -4,6 +4,7 @@ import {
   COLUMN,
   LETTERS,
   artistImageUrl,
+  primaryArtists,
   columnBrightness,
   columnSeats,
   firstArtistByLetter,
@@ -26,7 +27,8 @@ const artist = (name: string, firstLetter: string, id = 0): Artist => ({
   id,
   name,
   sortName: name.toLowerCase(),
-  songCount: 1,
+  ownCount: 1,
+  featuredCount: 0,
   firstLetter,
 });
 
@@ -171,6 +173,21 @@ describe("artwork", () => {
     expect(songYear({ releaseDate: "1977-02-04T08:00:00Z" })).toBe(1977);
     expect(songYear({ releaseDate: "unknown" })).toBeNull();
     expect(songYear({})).toBeNull();
+  });
+});
+
+describe("primaryArtists", () => {
+  it("names the primary credits, falling back to the artist text", () => {
+    expect(
+      primaryArtists({
+        artist: "Rihanna feat. JAY-Z",
+        artists: [
+          { id: 1, name: "Rihanna", role: "primary" },
+          { id: 2, name: "JAY-Z", role: "featured" },
+        ],
+      }),
+    ).toBe("Rihanna");
+    expect(primaryArtists({ artist: "Queen" })).toBe("Queen");
   });
 });
 

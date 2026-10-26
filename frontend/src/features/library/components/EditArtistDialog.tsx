@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -23,9 +30,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useApiMutation } from "@/hooks/api/useApi";
+import { apiSend, useApiMutation } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
-import { Artist } from "@/hooks/api/useArtists";
+import { Artist, artistSongTotal, useArtists } from "@/hooks/api/useArtists";
 import ArtistImageSearch from "./ArtistImageSearch";
 
 const logger = createLogger("component:EditArtistDialog");
@@ -40,6 +47,55 @@ interface DeleteArtistResponse {
   deleted_songs: number;
   unlinked_songs: number;
 }
+
+interface MergeArtistResponse {
+  id: number;
+  name: string;
+  moved: number;
+}
+
+/**
+ * Pick the artist to merge into. Searches every artist, listed or not, by
+ * name or any other name they go by.
+ */
+const MergeTargetPicker: React.FC<{
+  artist: Artist;
+  onPick: (target: Artist) => void;
+}> = ({ artist, onPick }) => {
+  const [query, setQuery] = useState("");
+  const { artists, isLoading } = useArtists({ search: query });
+  const targets = query.trim()
+    ? artists.filter((a) => !a.isShow && a.id !== artist.id)
+    : [];
+
+  return (
+    <Command shouldFilter={false} className="rounded-lg border">
+      <CommandInput
+        value={query}
+        onValueChange={setQuery}
+        placeholder="Search for the artist to keep…"
+        autoFocus
+      />
+      <CommandList>
+        {query.trim() && !isLoading && (
+          <CommandEmpty>No artist called that.</CommandEmpty>
+        )}
+        {targets.map((target) => (
+          <CommandItem
+            key={target.id}
+            value={String(target.id)}
+            onSelect={() => onPick(target)}
+          >
+            <span className="truncate">{target.name}</span>
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+              {artistSongTotal(target)}
+            </span>
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
+  );
+};
 
 interface EditArtistDialogProps {
   artist: Artist;
@@ -78,7 +134,8 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(artist.name);
-  const [mode, setMode] = useState<"edit" | "image-search">("edit");
+  const [mode, setMode] = useState<"edit" | "image-search" | "merge">("edit");
+  const [mergeTarget, setMergeTarget] = useState<Artist | null>(null);
   const [imageVersion, setImageVersion] = useState(0);
 
   // Reset form when dialog opens
@@ -86,6 +143,7 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
     if (open) {
       setDisplayName(artist.name);
       setMode("edit");
+      setMergeTarget(null);
     }
   }, [open, artist.name]);
 
@@ -146,6 +204,28 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
     },
   });
 
+  const mergeMutation = useApiMutation<MergeArtistResponse, number>(
+    `artists/${artist.id}/merge-into/:targetId`,
+    "post",
+    {
+      mutationFn: (targetId) =>
+        apiSend(`artists/${artist.id}/merge-into/${targetId}`, "post"),
+      onSuccess: (data) => {
+        logger.info("Artist merged", { from: artist.id, into: data.id });
+        queryClient.invalidateQueries({ queryKey: ["artists"] });
+        queryClient.invalidateQueries({ queryKey: ["artist-songs"] });
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        toast.success(`Merged into "${data.name}"`);
+        setMergeTarget(null);
+        onOpenChange(false);
+      },
+      onError: (err) => {
+        logger.error("Failed to merge artist", { error: err.message });
+        toast.error(`Failed to merge: ${err.message}`);
+      },
+    },
+  );
+
   const handleSave = () => {
     const trimmed = displayName.trim();
     if (!trimmed) return;
@@ -159,9 +239,10 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
   const isBusy =
     updateMutation.isPending ||
     deleteMutation.isPending ||
-    setImageMutation.isPending;
+    setImageMutation.isPending ||
+    mergeMutation.isPending;
 
-  const imageUrl = `/api/artists/image?name=${encodeURIComponent(artist.name)}&v=${imageVersion}`;
+  const imageUrl = `/api/artists/${artist.id}/image?v=${imageVersion}`;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isBusy && onOpenChange(o)}>
@@ -172,7 +253,11 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === "image-search" ? "Search Artist Image" : "Edit Artist"}
+            {mode === "image-search"
+              ? "Search Artist Image"
+              : mode === "merge"
+                ? `Merge "${artist.name}" into…`
+                : "Edit Artist"}
           </DialogTitle>
         </DialogHeader>
 
@@ -226,13 +311,12 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       This will permanently delete this artist.
-                      {artist.songCount > 0 && (
+                      {artist.ownCount > 0 && (
                         <>
                           {" "}
-                          {artist.songCount} song
-                          {artist.songCount !== 1 ? "s" : ""} exclusively linked
-                          to this artist will also be removed. Songs credited to
-                          multiple artists will be kept.
+                          Songs credited only to this artist will also be
+                          removed. Songs credited to other artists too will be
+                          kept.
                         </>
                       )}
                     </AlertDialogDescription>
@@ -249,8 +333,15 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                 </AlertDialogContent>
               </AlertDialog>
 
-              {/* Save / Cancel on the right */}
+              {/* Merge, Save, Cancel on the right */}
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setMode("merge")}
+                  disabled={isBusy}
+                >
+                  Merge into…
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => onOpenChange(false)}
@@ -266,6 +357,55 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
                 </Button>
               </div>
             </DialogFooter>
+          </>
+        ) : mode === "merge" ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Pick the artist these songs belong to. Every song credited to "
+              {artist.name}" moves to them, and "{artist.name}" is kept as
+              another name they go by.
+            </p>
+            <MergeTargetPicker artist={artist} onPick={setMergeTarget} />
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setMode("edit")}
+                disabled={isBusy}
+              >
+                ← Back
+              </Button>
+            </DialogFooter>
+            <AlertDialog
+              open={mergeTarget !== null}
+              onOpenChange={(o) => !o && setMergeTarget(null)}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Merge &quot;{artist.name}&quot; into &quot;
+                    {mergeTarget?.name}&quot;?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    &quot;{artist.name}&quot; stops being its own artist. Its
+                    songs, albums and photo move to &quot;{mergeTarget?.name}
+                    &quot;. This can&apos;t be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={mergeMutation.isPending}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() =>
+                      mergeTarget && mergeMutation.mutate(mergeTarget.id)
+                    }
+                    disabled={mergeMutation.isPending}
+                  >
+                    Merge
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         ) : (
           <>

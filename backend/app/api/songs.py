@@ -33,7 +33,7 @@ from fastapi import (
 )
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -55,7 +55,7 @@ from app.api.validators import (
 )
 from app.api.youtube import get_session_manager
 from app.config import get_config
-from app.db.models.artist import DbArtist
+from app.db.models.artist import DbArtist, DbArtistAlias
 from app.db.models.song import DbSong, in_songbook
 from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
@@ -271,19 +271,33 @@ async def get_artists(
     db: Session = Depends(get_db),
 ):
     """
-    Get a list of all unique artists with their song counts.
+    The artist list, with each artist's own and featured song counts.
+
+    Lists an artist with a primary credit, or featured on songs by two or more
+    different primary artists; a one-off guest files under the song's artist.
+    A search finds every artist, by name or alias, with `listed` saying which
+    the full list has.
 
     - **search**: Optional search term to filter artists
     - **limit**: Maximum number of artists to return (default: all)
     - **offset**: Number of artists to skip for pagination
     """
     try:
+        is_primary = DbSongArtist.role == "primary"
+        is_featured = DbSongArtist.role == "featured"
+        own_count = func.count(case((is_primary, 1)))
+        featured_count = func.count(case((is_featured, 1)))
+        # The different primary artists of the songs they're featured on
+        featured_with = func.count(distinct(case((is_featured, DbSong.artist_id))))
         query = (
             db.query(
                 DbArtist.id,
                 DbArtist.display_name,
                 DbArtist.name,
-                func.count(DbSongArtist.song_id).label("song_count"),
+                DbArtist.youtube_music_artist_id,
+                own_count.label("own_count"),
+                featured_count.label("featured_count"),
+                featured_with.label("featured_with"),
             )
             .join(DbSongArtist, DbSongArtist.artist_id == DbArtist.id)
             # Counts only songs the songbook lists, so an artist whose only
@@ -293,15 +307,20 @@ async def get_artists(
             .group_by(DbArtist.id)
         )
 
-        # Apply search filter if provided
         if search and search.strip():
-            search_term = search.strip()
+            term = f"%{search.strip()}%"
+            aliased_ids = select(DbArtistAlias.artist_id).where(
+                DbArtistAlias.name.ilike(term)
+            )
             query = query.filter(
                 or_(
-                    DbArtist.name.ilike(f"%{search_term}%"),
-                    DbArtist.display_name.ilike(f"%{search_term}%"),
+                    DbArtist.name.ilike(term),
+                    DbArtist.display_name.ilike(term),
+                    DbArtist.id.in_(aliased_ids),
                 )
             )
+        else:
+            query = query.having(or_(own_count > 0, featured_with >= 2))
 
         # Sorted here rather than in SQL: filing ignores leading articles and
         # accents (see app.utils.filing), and a few hundred rows is nothing.
@@ -312,10 +331,21 @@ async def get_artists(
                     "id": artist_id,
                     "name": display_name or name,
                     "sortName": filing_name(display_name or name),
-                    "songCount": count,
+                    "ownCount": own,
+                    "featuredCount": featured,
                     "firstLetter": filing_letter(display_name or name),
+                    "youtubeMusicArtistId": ytm_id,
+                    "listed": own > 0 or featured_with_count >= 2,
                 }
-                for artist_id, display_name, name, count in query.all()
+                for (
+                    artist_id,
+                    display_name,
+                    name,
+                    ytm_id,
+                    own,
+                    featured,
+                    featured_with_count,
+                ) in query.all()
                 if display_name or name
             ),
             key=lambda a: a["sortName"],
@@ -375,9 +405,9 @@ async def get_shows(
         raise HTTPException(status_code=500, detail=f"Failed to get shows: {str(e)}")
 
 
-@router.get("/by-artist/{artist_name}")
+@router.get("/by-artist/{artist_id}")
 async def get_songs_by_artist(
-    artist_name: str,
+    artist_id: int,
     limit: int = Query(
         20, ge=1, le=500, description="Maximum number of songs to return"
     ),
@@ -387,18 +417,16 @@ async def get_songs_by_artist(
     db: Session = Depends(get_db),
 ):
     """
-    Get songs for a specific artist with pagination.
+    An artist's songs: their own first, then the ones they're featured on.
 
-    - **artist_name**: The artist name (URL-encoded)
-    - **limit**: Maximum number of songs to return (1-100)
+    Each song carries `role`, the artist's role on it.
+
+    - **artist_id**: The artist's id
+    - **limit**: Maximum number of songs to return (1-500)
     - **offset**: Number of songs to skip
-    - **sort**: Sort field (title, album, year, dateAdded)
+    - **sort**: Sort field within each group (title, album, year, dateAdded)
     - **direction**: Sort direction (asc or desc)
     """
-    # Decode the artist name
-    artist_name = unquote(artist_name)
-
-    # Validate sort field and direction
     if sort not in VALID_ARTIST_SORT_FIELDS:
         raise HTTPException(
             status_code=400,
@@ -407,28 +435,37 @@ async def get_songs_by_artist(
     db_sort_field = CAMEL_TO_SNAKE_CASE.get(sort, sort)
     direction = validate_direction(direction, raise_on_invalid=True)
 
-    try:
-        # Subquery to get song IDs for this artist (avoids DISTINCT on JSON columns)
-        song_ids = (
-            select(DbSongArtist.song_id)
-            .join(DbArtist, DbArtist.id == DbSongArtist.artist_id)
-            .where(DbArtist.name == artist_name.lower().strip())
-        )
-        base_query = db.query(DbSong).filter(DbSong.id.in_(song_ids), in_songbook())
+    artist = db.get(DbArtist, artist_id)
+    if artist is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
 
-        # Apply sorting
+    try:
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
-        if direction.lower() == "desc":
-            base_query = base_query.order_by(sort_column.desc())
-        else:
-            base_query = base_query.order_by(sort_column.asc())
+        base_query = (
+            db.query(DbSong, DbSongArtist.role)
+            .join(DbSongArtist, DbSongArtist.song_id == DbSong.id)
+            .filter(DbSongArtist.artist_id == artist_id, in_songbook())
+            .order_by(
+                # Own songs first
+                case((DbSongArtist.role == "primary", 0), else_=1),
+                (
+                    sort_column.desc()
+                    if direction.lower() == "desc"
+                    else sort_column.asc()
+                ),
+            )
+        )
 
         total_count = base_query.count()
-        songs = base_query.offset(offset).limit(limit).all()
+        rows = base_query.offset(offset).limit(limit).all()
 
         return {
-            "songs": [song.to_dict() for song in songs],
-            "artist": artist_name,
+            "songs": [{**song.to_dict(), "role": role} for song, role in rows],
+            "artist": {
+                "id": artist.id,
+                "name": artist.display_name or artist.name,
+                "youtubeMusicArtistId": artist.youtube_music_artist_id,
+            },
             "pagination": {
                 "total": total_count,
                 "limit": limit,
@@ -437,11 +474,9 @@ async def get_songs_by_artist(
             },
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(
-            f"Error fetching songs for artist '{artist_name}': {e}", exc_info=True
+            "Error fetching songs for artist %s: %s", artist_id, e, exc_info=True
         )
         raise HTTPException(
             status_code=500,

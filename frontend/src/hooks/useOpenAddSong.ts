@@ -16,6 +16,8 @@ export interface OpenAddSongOptions {
   query?: string;
   /** Go straight to the artist whose name matches `query`, if there is one. */
   findArtist?: boolean;
+  /** Open this YouTube Music artist instead, when the library knows them. */
+  artistBrowseId?: string;
 }
 
 export const useOpenAddSong = () => {
@@ -28,7 +30,17 @@ export const useOpenAddSong = () => {
         shell.openAdd(opts);
         return;
       }
-      navigate(addFlowPath({ kind: "search", ...opts }));
+      navigate(
+        addFlowPath(
+          opts.artistBrowseId
+            ? { kind: "artist", browseId: opts.artistBrowseId }
+            : {
+                kind: "search",
+                query: opts.query,
+                findArtist: opts.findArtist,
+              },
+        ),
+      );
     },
     [navigate, shell],
   );

@@ -8,12 +8,27 @@ export interface Artist {
    * lowercased. Computed server-side so every A–Z list agrees.
    */
   sortName: string;
-  songCount: number;
+  /** Songs they're the primary artist on; for a show, its songs. */
+  ownCount: number;
+  /** Songs they're featured on, listed under "Appears on". */
+  featuredCount: number;
   /** "A"–"Z", or "#" for anything else. */
   firstLetter: string;
+  /** Their YouTube Music channel, when a song was added from search. */
+  youtubeMusicArtistId?: string | null;
+  /**
+   * Searches only: whether the full list has them. A guest on one artist's
+   * songs isn't listed; their songs file under that artist.
+   */
+  listed?: boolean;
   /** True for a musical/soundtrack show folded into the artist browse list, not a real artist row. */
   isShow?: boolean;
 }
+
+/** Every song an artist row opens onto: their own, then the ones they guest on. */
+export const artistSongTotal = (
+  artist: Pick<Artist, "ownCount" | "featuredCount">,
+): number => artist.ownCount + artist.featuredCount;
 
 interface Show {
   name: string;
@@ -61,7 +76,8 @@ export function useArtists({
       id: -(i + 1),
       name: show.name,
       sortName: show.sortName,
-      songCount: show.songCount,
+      ownCount: show.songCount,
+      featuredCount: 0,
       firstLetter: show.firstLetter,
       isShow: true,
     }));
