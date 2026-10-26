@@ -1,0 +1,153 @@
+{
+ "id": "8b2628f4-3d10-43ea-abaa-7ae332d94036",
+ "title": "I’ll Cover You (reprise)",
+ "first-release-date": "1996-08-27",
+ "artist-credit": [
+  {
+   "name": "Jesse L. Martin",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "cd1501cc-a3f5-4d41-ad3e-10f15098a968",
+    "name": "Jesse L. Martin"
+   }
+  },
+  {
+   "name": "Fredi Walker",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "dc13ed06-4999-4de7-9bc1-acbd629e69f3",
+    "name": "Fredi Walker"
+   }
+  },
+  {
+   "name": "Anthony Rapp",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "9e9f343e-7002-4f71-809a-7e8c74c1636e",
+    "name": "Anthony Rapp"
+   }
+  },
+  {
+   "name": "Adam Pascal",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "bfb69118-86f5-413d-affd-f12399819a55",
+    "name": "Adam Pascal"
+   }
+  },
+  {
+   "name": "Idina Menzel",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "929ca8c3-5df3-4fe9-bc59-f8d603780bce",
+    "name": "Idina Menzel"
+   }
+  },
+  {
+   "name": "Daphne Rubin‐Vega",
+   "joinphrase": " & ",
+   "artist": {
+    "id": "7a21ce07-44cc-49c0-a35d-6002c851e6e2",
+    "name": "Daphne Rubin‐Vega"
+   }
+  },
+  {
+   "name": "Taye Diggs",
+   "joinphrase": "",
+   "artist": {
+    "id": "7cd76439-8439-411b-9c20-94844af9358c",
+    "name": "Taye Diggs"
+   }
+  }
+ ],
+ "releases": [
+  {
+   "title": "Rent",
+   "artist-credit": [
+    {
+     "name": "Jonathan Larson",
+     "joinphrase": "",
+     "artist": {
+      "id": "2ab30461-12e3-4c97-b716-c39f13015d29",
+      "name": "Jonathan Larson"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "799fe234-9fb0-4e64-bcff-af78ca176c86",
+    "title": "Rent",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1996-08-27"
+   }
+  },
+  {
+   "title": "Selections From Rent",
+   "artist-credit": [
+    {
+     "name": "Jonathan Larson",
+     "joinphrase": "",
+     "artist": {
+      "id": "2ab30461-12e3-4c97-b716-c39f13015d29",
+      "name": "Jonathan Larson"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "799fe234-9fb0-4e64-bcff-af78ca176c86",
+    "title": "Rent",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1996-08-27"
+   }
+  },
+  {
+   "title": "The Best of Rent: Highlights From the Original Cast Album",
+   "artist-credit": [
+    {
+     "name": "Jonathan Larson",
+     "joinphrase": "",
+     "artist": {
+      "id": "2ab30461-12e3-4c97-b716-c39f13015d29",
+      "name": "Jonathan Larson"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "799fe234-9fb0-4e64-bcff-af78ca176c86",
+    "title": "Rent",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1996-08-27"
+   }
+  },
+  {
+   "title": "Rent (Original Broadway Cast Recording)",
+   "artist-credit": [
+    {
+     "name": "Jonathan Larson",
+     "joinphrase": "",
+     "artist": {
+      "id": "2ab30461-12e3-4c97-b716-c39f13015d29",
+      "name": "Jonathan Larson"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "799fe234-9fb0-4e64-bcff-af78ca176c86",
+    "title": "Rent",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1996-08-27"
+   }
+  }
+ ]
+}

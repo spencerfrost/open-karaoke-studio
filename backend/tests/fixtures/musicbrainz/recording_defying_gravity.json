@@ -1,0 +1,539 @@
+{
+ "id": "e6e5f295-733d-4d21-a59b-256d9f85965e",
+ "title": "Defying Gravity",
+ "first-release-date": "2003-12-16",
+ "artist-credit": [
+  {
+   "name": "Kristin Chenoweth",
+   "joinphrase": ", ",
+   "artist": {
+    "id": "9031b393-ced7-4685-9e25-d0b43996158a",
+    "name": "Kristin Chenoweth"
+   }
+  },
+  {
+   "name": "Idina Menzel",
+   "joinphrase": ", Guards of Oz and Citizens of Oz",
+   "artist": {
+    "id": "929ca8c3-5df3-4fe9-bc59-f8d603780bce",
+    "name": "Idina Menzel"
+   }
+  }
+ ],
+ "releases": [
+  {
+   "title": "Wicked: A New Musical",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: A New Musical",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: Original Broadway Cast Recording",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: A New Musical",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: Original Broadway Cast Recording",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    },
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "The Best of Broadway: The American Musical",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "f6f207ce-2b44-3ce8-aafe-a8b9e2efaf66",
+    "title": "Broadway: The American Musical",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2004-10-05"
+   }
+  },
+  {
+   "title": "Broadway: The American Musical",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "f6f207ce-2b44-3ce8-aafe-a8b9e2efaf66",
+    "title": "Broadway: The American Musical",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2004-10-05"
+   }
+  },
+  {
+   "title": "The Best of Broadway: The American Musical",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "f6f207ce-2b44-3ce8-aafe-a8b9e2efaf66",
+    "title": "Broadway: The American Musical",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2004-10-05"
+   }
+  },
+  {
+   "title": "Wicked: A New Musical",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: A New Musical (5th Anniversary Special Edition)",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "You Can't Stop the Beat! Hits From Your Favourite Musicals",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "facbeb07-35cb-4c00-a1c5-ffd38656406c",
+    "title": "You Can't Stop the Beat! Hits From Your Favourite Musicals",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2009-12-28"
+   }
+  },
+  {
+   "title": "Wicked (Original Broadway Cast Recording / Deluxe Edition)",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked: Original Broadway Cast Recording (Deluxe Edition)",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Elaine Paige Presents The Musicals",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "a50f3b14-7c7d-4376-903e-47435fe47cb7",
+    "title": "Elaine Paige Presents The Musicals",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2016-11-25"
+   }
+  },
+  {
+   "title": "Edexcel GCSE (9–1) Anthology of Music",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "792c800e-149c-4e3d-9836-97af963e819d",
+    "title": "Edexcel GCSE (9–1) Anthology of Music",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2016"
+   }
+  },
+  {
+   "title": "Greatest Ever Musicals",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "df495632-f4cc-43c7-8468-53ca210b10cc",
+    "title": "Greatest Ever Musicals",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2016"
+   }
+  },
+  {
+   "title": "The Musicals Album",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "68f49852-a24b-40e4-9057-4d98ea0b469e",
+    "title": "The Musicals Album",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2017-06-02"
+   }
+  },
+  {
+   "title": "Songs From The Musicals (The Ultimate Collection)",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "55a06e8e-e4d5-4f65-9127-15a7dbe93566",
+    "title": "Songs From The Musicals (The Ultimate Collection)",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2017"
+   }
+  },
+  {
+   "title": "Wicked",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "Wicked (15th Anniversary Special Edition)",
+   "artist-credit": [
+    {
+     "name": "Stephen Schwartz",
+     "joinphrase": "",
+     "artist": {
+      "id": "57df78f7-085d-4322-9589-fd41c1e1e869",
+      "name": "Stephen Schwartz"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "76729419-70a3-30d0-b316-515bc24c61e2",
+    "title": "Wicked",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2003-12-16"
+   }
+  },
+  {
+   "title": "The Musicals Album",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "68f49852-a24b-40e4-9057-4d98ea0b469e",
+    "title": "The Musicals Album",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2017-06-02"
+   }
+  }
+ ]
+}

@@ -1,0 +1,103 @@
+{
+ "id": "8e2a859c-e21b-42e9-82b0-10dd43ff9061",
+ "title": "Falling Slowly",
+ "first-release-date": "2006-04-21",
+ "artist-credit": [
+  {
+   "name": "Glen Hansard",
+   "joinphrase": " & ",
+   "artist": {
+    "id": "57f89cad-d2ef-48df-9119-8287b106716a",
+    "name": "Glen Hansard"
+   }
+  },
+  {
+   "name": "Markéta Irglová",
+   "joinphrase": "",
+   "artist": {
+    "id": "be345ce7-4bc4-4f8d-8705-72ee5d0fac01",
+    "name": "Markéta Irglová"
+   }
+  }
+ ],
+ "releases": [
+  {
+   "title": "The Swell Season",
+   "artist-credit": [
+    {
+     "name": "Glen Hansard",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "57f89cad-d2ef-48df-9119-8287b106716a",
+      "name": "Glen Hansard"
+     }
+    },
+    {
+     "name": "Markéta Irglová",
+     "joinphrase": "",
+     "artist": {
+      "id": "be345ce7-4bc4-4f8d-8705-72ee5d0fac01",
+      "name": "Markéta Irglová"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "d157ea02-34f4-476d-827f-91953f6b1e87",
+    "title": "The Swell Season",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "2006-04-21"
+   }
+  },
+  {
+   "title": "The Swell Season",
+   "artist-credit": [
+    {
+     "name": "Glen Hansard",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "57f89cad-d2ef-48df-9119-8287b106716a",
+      "name": "Glen Hansard"
+     }
+    },
+    {
+     "name": "Markéta Irglová",
+     "joinphrase": "",
+     "artist": {
+      "id": "be345ce7-4bc4-4f8d-8705-72ee5d0fac01",
+      "name": "Markéta Irglová"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "d157ea02-34f4-476d-827f-91953f6b1e87",
+    "title": "The Swell Season",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "2006-04-21"
+   }
+  },
+  {
+   "title": "Die ultimative Chart Show: Die erfolgreichsten Singer-Songwriter aller Zeiten",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "c6a5e09b-69fd-301a-9257-ab025e688b3a",
+    "title": "Die ultimative Chart Show: Die erfolgreichsten Singer-Songwriter aller Zeiten",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2008-04-25"
+   }
+  }
+ ]
+}

@@ -275,6 +275,9 @@ class AcoustIdService:
                 candidate["artist"],
             )
             return self._unresolved(song.id, "no_match", score=candidate["score"])
+        fields: dict = {}
+        if song.show_name_hand_set_at is None:
+            fields["show_name"] = None  # It came from the recording dropped here
         self.song_repo.update(
             song.id,
             acoustid_suggested_recording_id=candidate["recordingId"],
@@ -283,6 +286,7 @@ class AcoustIdService:
             acoustid_score=candidate["score"],
             musicbrainz_recording_id=None,
             acoustid_fingerprint_status="suggested",
+            **fields,
         )
         logger.info(
             "AcoustID suggests song %s is '%s' by '%s' (score=%.2f); kept for review",
@@ -308,6 +312,9 @@ class AcoustIdService:
                 status = "matched" if song.musicbrainz_recording_id else "skipped"
         else:
             fields["musicbrainz_recording_id"] = None
+            # The show came from that recording
+            if song and song.show_name_hand_set_at is None:
+                fields["show_name"] = None
         self.song_repo.update(song_id, acoustid_fingerprint_status=status, **fields)
         return status
 

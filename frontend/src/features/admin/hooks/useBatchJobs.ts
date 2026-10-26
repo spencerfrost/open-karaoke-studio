@@ -90,6 +90,8 @@ export interface LibraryNumbers {
   groupedGuestCredits: number;
   featInTitle: number;
   aliases: number;
+  /** Missing from reports saved before shows were part of the run. */
+  songsWithShow?: number;
 }
 
 /** What an artist credits run changed, or would change in a preview. */
@@ -124,6 +126,17 @@ export interface ArtistCreditsReport {
   deleted: { count: number; names: string[] };
   unsure: { count: number; songs: ReportSong[] };
   disagree: { count: number; songs: ReportSong[] };
+  /** Missing from reports saved before shows were part of the run. */
+  shows?: {
+    counts: Partial<Record<"changed" | "hand_set", number>>;
+    changed: {
+      songId: string;
+      title: string;
+      artist: string;
+      before: string | null;
+      after: string | null;
+    }[];
+  };
 }
 
 const JOBS_KEY = ["admin-jobs"] as const;

@@ -193,16 +193,17 @@ def fingerprint_single_song(song_id: str) -> dict:
 
 @celery.task(name="enrich_song_artist_credits")
 def enrich_song_artist_credits(song_id: str, picked: bool = False) -> dict:
-    """Credit a song from its MusicBrainz recording, and fill its show name.
+    """Credit a song from its MusicBrainz recording, and set its show name.
 
     A confirmed song keeps its credits unless `picked`: a person choosing the
     recording just now, which is when its credits should be used. With no
     recording credits the song keeps the ones it has. Never touches the
-    artist text.
+    artist text. The show follows the recording unless a person set it.
     """
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
     from app.services.musicbrainz_service import get_recording_details
+    from app.services.show_name_service import store_detected_show
     from app.services.song_artist_service import set_song_credits
 
     with get_db_session() as session:
@@ -211,13 +212,14 @@ def enrich_song_artist_credits(song_id: str, picked: bool = False) -> dict:
             logger.warning("enrich_song_artist_credits: song %s not found", song_id)
             return {"status": "not_found", "song_id": song_id}
         if not song.musicbrainz_recording_id:
+            # The recording it was linked to may have been taken away
+            store_detected_show(song, None)
+            session.commit()
             return {"status": "no_recording", "song_id": song_id}
 
         # One recording lookup feeds both the show name and the artist credits.
         try:
-            show_name, recording_credits = get_recording_details(
-                song.musicbrainz_recording_id
-            )
+            details = get_recording_details(song.musicbrainz_recording_id)
         except Exception:
             logger.warning(
                 "MusicBrainz recording lookup failed for song %s",
@@ -225,10 +227,11 @@ def enrich_song_artist_credits(song_id: str, picked: bool = False) -> dict:
                 exc_info=True,
             )
             return {"status": "error", "song_id": song_id}
-        # Only fill show_name when empty, so a manual override survives.
-        if show_name and not song.show_name:
-            song.show_name = show_name
-            logger.info("Set show_name=%r for song %s", show_name, song_id)
+        if details is None:
+            logger.warning("MusicBrainz recording lookup failed for song %s", song_id)
+            return {"status": "error", "song_id": song_id}
+        show_name, recording_credits = details
+        store_detected_show(song, show_name)
 
         if not recording_credits:
             session.commit()

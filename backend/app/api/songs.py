@@ -1037,6 +1037,10 @@ async def create_song(
                 "artist": song_data.artist,
                 "album": song_data.album,
                 "show_name": song_data.show_name,
+                # A show given here is a person's, not the recording's
+                "show_name_hand_set_at": (
+                    datetime.now(timezone.utc) if song_data.show_name else None
+                ),
                 "duration": song_data.duration,
                 "source": song_data.source,
                 "video_id": song_data.video_id,
@@ -1133,6 +1137,7 @@ async def update_song(
         update_fields = map_fields_to_db(update_dict)
         if language_set:
             update_fields["language"] = language
+        update_fields.pop("show_name", None)  # Handled below with its marker
 
         # A person changing the title or artist confirms them, so AcoustID
         # leaves them alone. The recording linked under the old names no
@@ -1148,6 +1153,8 @@ async def update_song(
                 acoustid_suggested_title=None,
                 acoustid_suggested_artist=None,
             )
+            if db_song.show_name_hand_set_at is None:
+                update_fields["show_name"] = None  # It came from that recording
             if db_song.acoustid_fingerprint_status in (
                 "matched",
                 "suggested",
@@ -1186,6 +1193,16 @@ async def update_song(
                 )
             else:
                 update_fields.pop("album", None)
+
+        # A person setting or clearing the show takes it off the recording
+        # for good: cleared, the song stays out of every show.
+        if "showName" in update_dict:
+            show_name = (update_dict["showName"] or "").strip() or None
+            if show_name != db_song.show_name:
+                update_fields.update(
+                    show_name=show_name,
+                    show_name_hand_set_at=datetime.now(timezone.utc),
+                )
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)

@@ -39,6 +39,9 @@ class DbSong(Base):
     release_date = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     show_name = Column(String, nullable=True)  # Musical/soundtrack, e.g. "Wicked"
+    # When a person last set or cleared the show name. While set, the show
+    # isn't taken from the recording any more; cleared, the song has no show.
+    show_name_hand_set_at = Column(DateTime, nullable=True)
     # Sung language as a Whisper code ("en", "fr"); None until detected or set
     language = Column(String, nullable=True)
 

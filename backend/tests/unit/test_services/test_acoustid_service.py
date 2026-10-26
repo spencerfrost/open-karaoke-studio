@@ -47,6 +47,7 @@ def _song(
     album=None,
     confirmed=False,
     recording_id=None,
+    show_hand_set=False,
 ):
     return SimpleNamespace(
         id="song-1",
@@ -55,6 +56,7 @@ def _song(
         album=album,
         metadata_confirmed_at=datetime(2026, 10, 1) if confirmed else None,
         musicbrainz_recording_id=recording_id,
+        show_name_hand_set_at=datetime(2026, 10, 1) if show_hand_set else None,
     )
 
 
@@ -105,6 +107,7 @@ def test_no_api_key_marks_failed(svc, song_repo):
         acoustid_fingerprint_status="failed",
         acoustid_score=None,
         musicbrainz_recording_id=None,
+        show_name=None,
         **NO_SUGGESTION,
     )
 
@@ -139,6 +142,7 @@ def test_no_results_marks_no_match_and_drops_the_old_recording(
         acoustid_fingerprint_status="no_match",
         acoustid_score=None,
         musicbrainz_recording_id=None,
+        show_name=None,
         **NO_SUGGESTION,
     )
 
@@ -230,6 +234,7 @@ def test_disagreeing_match_becomes_a_suggestion(svc, song_repo, mock_config):
         acoustid_suggested_artist="Kidz Bop",
         acoustid_score=1.0,
         musicbrainz_recording_id=None,
+        show_name=None,
         acoustid_fingerprint_status="suggested",
     )
     assert "title" not in song_repo.update.call_args.kwargs
@@ -300,6 +305,7 @@ def test_disagreeing_ties_without_album_are_ambiguous(svc, song_repo, mock_confi
         acoustid_fingerprint_status="ambiguous",
         acoustid_score=0.98,
         musicbrainz_recording_id=None,
+        show_name=None,
         **NO_SUGGESTION,
     )
 
@@ -390,3 +396,11 @@ def test_agrees(song_title, song_artist, title, artist):
 )
 def test_disagrees(song_title, song_artist, title, artist):
     assert not _agrees(song_title, song_artist, title, artist)
+
+
+def test_a_hand_set_show_survives_losing_the_recording(svc, song_repo, mock_config):
+    song_repo.fetch.return_value = _song(recording_id="mbid-old", show_hand_set=True)
+    _run(svc, mock_config, raw={"status": "ok", "results": []})
+    kwargs = song_repo.update.call_args.kwargs
+    assert kwargs["musicbrainz_recording_id"] is None
+    assert "show_name" not in kwargs

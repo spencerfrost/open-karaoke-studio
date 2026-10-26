@@ -11,7 +11,8 @@ One pass over the whole library, run from the admin Jobs page. It
    normalized ("Jay‐Z" and "Jay-Z", "&" and "and", case);
 4. names artists with MusicBrainz's current name, and lowercase rows with the
    spelling their credits print;
-5. deletes artists nothing refers to.
+5. deletes artists nothing refers to;
+6. sets every song's show from its recording (app.services.show_name_service).
 
 It returns a report of what changed. The MusicBrainz lookups happen first, in
 fetch_musicbrainz, so the database work runs in one transaction that a
@@ -35,6 +36,7 @@ from app.services.artist_parsing import (
     parse_song_artists,
     parse_title_featured,
 )
+from app.services.show_name_service import store_detected_show
 from app.services.song_artist_service import set_song_credits
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,8 @@ class MusicBrainzData:
 
     # Recording id → its credits; None where the lookup failed.
     recordings: dict[str, Optional[list[ArtistCredit]]] = field(default_factory=dict)
+    # Recording id → the show it's from, or None; missing where the lookup failed.
+    shows: dict[str, Optional[str]] = field(default_factory=dict)
     # MB artist id → [current name, aliases...]; None where the lookup failed.
     artists: dict[str, Optional[list[str]]] = field(default_factory=dict)
 
@@ -80,8 +84,11 @@ def fetch_musicbrainz(
     on_total(len(recording_ids))
     for recording_id in recording_ids:
         if recording_id and recording_id not in data.recordings:
-            _show, credits = get_recording_details(recording_id, cache_dir)
-            data.recordings[recording_id] = credits
+            details = get_recording_details(recording_id, cache_dir)
+            if details is None:
+                data.recordings[recording_id] = None
+            else:
+                data.shows[recording_id], data.recordings[recording_id] = details
         on_step()
 
     mbids = {
@@ -118,6 +125,7 @@ def rebuild(session: Session, mb: MusicBrainzData) -> dict:
     session.expire_all()
     report["renames"] = _rename_artists(session, repo, mb)
     report["deleted"] = _delete_unused(session, repo)
+    report["shows"] = _reshow_songs(session, mb)
     session.expire_all()
     report["unsure"] = _unsure_songs(session)
     report["disagree"] = _disagreeing_songs(session)
@@ -431,4 +439,45 @@ def library_numbers(session: Session) -> dict:
         "groupedGuestCredits": grouped_guests,
         "featInTitle": feat_in_title,
         "aliases": session.query(DbArtistAlias).count(),
+        "songsWithShow": session.query(DbSong)
+        .filter(DbSong.show_name.isnot(None))
+        .count(),
     }
+
+
+# ---------------------------------------------------------------------------
+# 6. Shows
+# ---------------------------------------------------------------------------
+
+
+def _reshow_songs(session: Session, mb: MusicBrainzData) -> dict:
+    """Set each song's show from its recording; a song without one has none.
+
+    Hand-set shows stay, and so does the show of a song whose lookup failed.
+    """
+    changed: list[dict] = []
+    counts = Counter()
+    for song in session.query(DbSong).order_by(DbSong.id):
+        if song.show_name_hand_set_at is not None:
+            counts["hand_set"] += 1
+            continue
+        recording_id = song.musicbrainz_recording_id
+        if recording_id and recording_id not in mb.shows:
+            continue
+        before = song.show_name
+        if store_detected_show(
+            song, mb.shows.get(recording_id) if recording_id else None
+        ):
+            counts["changed"] += 1
+            if len(changed) < REPORT_LIMIT:
+                changed.append(
+                    {
+                        "songId": song.id,
+                        "title": song.title,
+                        "artist": song.artist,
+                        "before": before,
+                        "after": song.show_name,
+                    }
+                )
+    session.flush()
+    return {"counts": dict(counts), "changed": changed}

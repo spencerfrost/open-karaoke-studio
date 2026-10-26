@@ -18,11 +18,34 @@ _TIMEOUT = 10.0
 # Seconds before each try: the first keeps to 1 request/sec, the rest back off.
 _RETRY_WAITS = (1, 4, 10)
 
+_VARIOUS_ARTISTS_ID = "89ad4ac3-39f7-470e-963a-56509c546377"
+
 _FEAT_JOINPHRASE = re.compile(r"\bfeat\.?\b|\bfeaturing\b|\bft\.?\b", re.IGNORECASE)
 
 # Strips trailing/inline parenthetical boilerplate from soundtrack titles,
 # e.g. "Wicked (Original Broadway Cast Recording)" -> "Wicked".
 _BOILERPLATE_PAREN = re.compile(r"\s*\([^)]*\)")
+
+# A subtitle after ": " or " - " that only says what kind of album it is:
+# "The Lion King: Original Motion Picture Soundtrack" -> "The Lion King".
+# Only these phrases go; "Spider-Man: Turn Off the Dark" keeps its colon.
+_ALBUM_KIND = (
+    r"(?:the\s+)?"
+    r"(?:(?:original|motion\s+picture|film|movie|television|tv|broadway|"
+    r"off-broadway|london|west\s+end|cast|studio|musical|\d{4}|season\s+\w+)"
+    r"\s+)*"
+    r"(?:cast\s+)?(?:soundtrack|recording|album|score|cast)(?:\s+album)?"
+)
+_BOILERPLATE_SUBTITLE = re.compile(
+    r"\s*(?::|\s-)\s+(?:"
+    + _ALBUM_KIND
+    + r"|(?:original\s+)?(?:music|songs|soundtrack)(?:\s+album)?\s+from\s+"
+    r"(?:and\s+inspired\s+by\s+)?"
+    r"the\s+(?:original\s+)?(?:motion\s+picture|film|movie|musical)"
+    r"(?:\s+soundtrack)?"
+    r")\s*$",
+    re.IGNORECASE,
+)
 
 
 def _is_placeholder(name: str) -> bool:
@@ -148,24 +171,70 @@ def search_recordings(query: str, limit: int = 10) -> list[dict]:
 
 
 def _strip_show_name_boilerplate(title: str) -> str:
-    """Remove parenthetical boilerplate from a soundtrack/show title."""
-    return _BOILERPLATE_PAREN.sub("", title).strip()
+    """Remove the parentheticals and album-kind subtitle from a soundtrack title."""
+    title = _BOILERPLATE_PAREN.sub("", title).strip()
+    return _BOILERPLATE_SUBTITLE.sub("", title).strip()
+
+
+def _various_artists(artist_credit_list: list) -> bool:
+    """A release credited to MusicBrainz's "Various Artists"."""
+    return any(
+        (ac.get("artist") or {}).get("id") == _VARIOUS_ARTISTS_ID
+        or _is_placeholder(ac.get("name") or "")
+        for ac in artist_credit_list
+    )
 
 
 def _extract_show_name(data: dict) -> str | None:
-    """Pull a show/soundtrack name out of a recording's releases, if any.
+    """The show a recording was written for, from its releases; None if none.
 
-    If any release-group carries a "Soundtrack" secondary type, returns its
-    title with boilerplate parentheticals stripped (e.g. "Wicked").
+    A recording is from a show when it first came out on the show's album: a
+    soundtrack album (MusicBrainz files Broadway cast albums as soundtracks
+    too) that came out the year the recording first did. A licensed song was
+    released years earlier on the artist's own album, so a later movie
+    soundtrack doesn't count. Years rather than dates, so a lead single out
+    weeks before the album still counts.
+
+    Not every soundtrack is a show's. Singles are named after the song, and
+    compilations and "Various Artists" albums gather songs for a film, game
+    or TV series rather than from a musical; those don't count. A musical's
+    album is credited to its composer or cast. Some film musicals are
+    credited to Various Artists and are missed; their show is set by hand.
+
+    Of the albums that qualify, the one out on the recording's first release
+    date wins (the original over a same-year translated edition), then the
+    earliest.
     """
+    first_released = data.get("first-release-date") or ""
+    if len(first_released) < 4:
+        return None
+
+    candidates = {}
     for release in data.get("releases", []):
         rg = release.get("release-group") or {}
         secondary_types = rg.get("secondary-types") or []
-        if "Soundtrack" in secondary_types:
-            title = rg.get("title") or release.get("title") or ""
-            show_name = _strip_show_name_boilerplate(title)
-            if show_name:
-                return show_name
+        rg_date = rg.get("first-release-date") or ""
+        if (
+            rg.get("primary-type") == "Album"
+            and "Soundtrack" in secondary_types
+            and "Compilation" not in secondary_types
+            and rg_date[:4] == first_released[:4]
+            and not _various_artists(release.get("artist-credit") or [])
+        ):
+            candidates[rg.get("id") or rg.get("title")] = rg
+
+    def preference(rg: dict) -> tuple:
+        rg_date = rg.get("first-release-date") or ""
+        return (
+            rg_date != first_released,
+            # A date without a month or day sorts after the dated ones
+            rg_date.ljust(10, "~"),
+        )
+
+    for rg in sorted(candidates.values(), key=preference):
+        show_name = _strip_show_name_boilerplate(rg.get("title") or "")
+        if show_name:
+            return show_name
 
     return None
 
@@ -216,13 +285,14 @@ def _fetch(path: str, params: dict, cache_dir: Path | None) -> dict | None:
 
 def get_recording_details(
     recording_id: str, cache_dir: Path | None = None
-) -> tuple[str | None, list[ArtistCredit] | None]:
+) -> tuple[str | None, list[ArtistCredit] | None] | None:
     """Return (show_name, artist_credits) for a recording in a single request.
 
     Both values come off the same /recording resource, so they are fetched
     together — asking twice would double both the round trips and the
     rate-limit sleep for no benefit. Either element is None when absent
-    from the response; both are None if the lookup fails.
+    from the response. The whole result is None if the lookup fails, so a
+    failure isn't mistaken for a recording from no show.
     """
     data = _fetch(
         f"recording/{recording_id}",
@@ -230,7 +300,7 @@ def get_recording_details(
         cache_dir,
     )
     if data is None:
-        return None, None
+        return None
 
     raw_credits = data.get("artist-credit", [])
     # A recording credited only to placeholders has no credits to use.

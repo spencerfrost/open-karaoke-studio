@@ -19,6 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useRunReport,
+  type ArtistCreditsReport,
   type LibraryNumbers,
   type ReportCredit,
   type ReportSong,
@@ -45,6 +46,7 @@ const NUMBER_LABEL: Record<keyof LibraryNumbers, string> = {
   groupedGuestCredits: "Featured credits naming two artists (“A & B”)",
   featInTitle: "Songs with “(feat. …)” in the title",
   aliases: "Other names artists go by",
+  songsWithShow: "Songs from a show",
 };
 
 const Count: React.FC<{ n: number }> = ({ n }) => (
@@ -91,6 +93,50 @@ const SongList: React.FC<{
       </Table>
     </>
   );
+
+/** Songs whose show the run changes. */
+const ShowChanges: React.FC<{
+  shows: NonNullable<ArtistCreditsReport["shows"]>;
+}> = ({ shows }) => (
+  <TabsContent value="shows" className="space-y-2">
+    <p className="text-sm text-muted-foreground">
+      Songs whose show changes to the one their recording first came out on.
+      Shows set by hand stay as they are
+      {(shows.counts.hand_set ?? 0) > 0 && ` (${shows.counts.hand_set})`}; fix a
+      wrong one from the song's details.
+    </p>
+    <Shown shown={shows.changed.length} of={shows.counts.changed ?? 0} />
+    {shows.changed.length === 0 ? (
+      <p className="text-sm text-muted-foreground">No changes.</p>
+    ) : (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Song</TableHead>
+            <TableHead>Show before</TableHead>
+            <TableHead>Show after</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shows.changed.map((song) => (
+            <TableRow key={song.songId}>
+              <TableCell>
+                <div>{song.title}</div>
+                <div className="text-xs text-muted-foreground">
+                  {song.artist}
+                </div>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {song.before ?? "None"}
+              </TableCell>
+              <TableCell>{song.after ?? "None"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    )}
+  </TabsContent>
+);
 
 /**
  * What an artist credits run changed, or would change: a preview's report is
@@ -152,6 +198,12 @@ const ArtistCreditsReportDialog: React.FC<{
                 Disagree
                 <Count n={report.disagree.count} />
               </TabsTrigger>
+              {report.shows && (
+                <TabsTrigger value="shows">
+                  Shows
+                  <Count n={report.shows.counts.changed ?? 0} />
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="numbers" className="space-y-3">
@@ -169,10 +221,10 @@ const ArtistCreditsReportDialog: React.FC<{
                       <TableRow key={key}>
                         <TableCell>{NUMBER_LABEL[key]}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {report.before[key].toLocaleString()}
+                          {report.before[key]?.toLocaleString() ?? "–"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {report.after[key].toLocaleString()}
+                          {report.after[key]?.toLocaleString() ?? "–"}
                         </TableCell>
                       </TableRow>
                     ),
@@ -325,6 +377,8 @@ const ArtistCreditsReportDialog: React.FC<{
                 empty="None."
               />
             </TabsContent>
+
+            {report.shows && <ShowChanges shows={report.shows} />}
           </Tabs>
         )}
       </DialogContent>

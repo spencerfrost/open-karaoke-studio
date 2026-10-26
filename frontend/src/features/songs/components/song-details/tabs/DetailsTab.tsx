@@ -83,7 +83,8 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
         id: song.id,
         title,
         album: album || undefined,
-        showName: showName || undefined,
+        // An empty string clears it and keeps the song out of every show
+        showName,
         year: year ? parseInt(year) : undefined,
         ...(creditsChanged && { artists: credits }),
         // An empty string clears it, so it's detected from the vocals again

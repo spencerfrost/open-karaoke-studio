@@ -1,0 +1,703 @@
+{
+ "id": "246a439f-5218-4e1c-bf7b-56151f9a1833",
+ "title": "Circle of Life",
+ "first-release-date": "1994-05-31",
+ "artist-credit": [
+  {
+   "name": "Elton John",
+   "joinphrase": "",
+   "artist": {
+    "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+    "name": "Elton John"
+   }
+  }
+ ],
+ "releases": [
+  {
+   "title": "The Lion King",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King: Original Motion Picture Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King: Original Motion Picture Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King: Original Motion Picture Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King (Original Motion Picture Soundtrack)",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "Circle of Life",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "a8489bce-d5e9-3833-957c-4e9a0e77d95a",
+    "title": "Circle of Life",
+    "primary-type": "Single",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994"
+   }
+  },
+  {
+   "title": "Circle of Life",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "a8489bce-d5e9-3833-957c-4e9a0e77d95a",
+    "title": "Circle of Life",
+    "primary-type": "Single",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994"
+   }
+  },
+  {
+   "title": "O Rei Leão",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "f5cba723-d527-4784-84d4-24fdc8aeef4e",
+    "title": "O Rei Leão",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994"
+   }
+  },
+  {
+   "title": "The Lion King",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King: Circle of Life",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "fa9c0651-cf5d-4522-b532-f0224a0824ae",
+    "title": "The Lion King: Circle of Life",
+    "primary-type": "Single",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994"
+   }
+  },
+  {
+   "title": "The Lion King: Original Motion Picture Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "The Lion King: Original Motion Picture Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": ", ",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    },
+    {
+     "name": "Tim Rice",
+     "joinphrase": " & ",
+     "artist": {
+      "id": "0226e802-58d9-4e2e-9b02-f46711bcbf93",
+      "name": "Tim Rice"
+     }
+    },
+    {
+     "name": "Hans Zimmer",
+     "joinphrase": "",
+     "artist": {
+      "id": "e6de1f3b-6484-491c-88dd-6d619f142abc",
+      "name": "Hans Zimmer"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "2221ed36-10e5-31a4-bd39-782a65f4fc99",
+    "title": "The Lion King: Original Motion Picture Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1994-05-31"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "狮子王 国际中文版电影原声带",
+   "artist-credit": [
+    {
+     "name": "原声带",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "394f7681-b415-4f28-a9c6-347b6f47abf9",
+    "title": "狮子王 国际中文版电影原声带",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "The Awards 1995",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "58f38c03-85e6-4297-8bbb-9f5e05ad06b1",
+    "title": "The Awards 1995",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  },
+  {
+   "title": "Love Songs",
+   "artist-credit": [
+    {
+     "name": "Elton John",
+     "joinphrase": "",
+     "artist": {
+      "id": "b83bc61f-8451-4a5d-8b8e-7e9ed295e822",
+      "name": "Elton John"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "cb5fd5f2-5f22-362b-b4d2-9371b8632d12",
+    "title": "Love Songs",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "1995-11-01"
+   }
+  }
+ ]
+}

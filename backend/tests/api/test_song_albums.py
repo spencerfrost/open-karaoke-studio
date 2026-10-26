@@ -232,3 +232,54 @@ class TestHandEditedAlbum:
         assert song.album_id is None
         assert song.album_hand_set_at is None
         assert song.album_checked_at is None
+
+
+class TestHandEditedShow:
+    def test_setting_a_show_is_a_hand_edit(self, client, db):
+        _add_song(db, musicbrainz_recording_id="rec")
+
+        resp = client.patch("/api/songs/s1", json={"showName": " Once "})
+
+        assert resp.status_code == 200
+        song = _song()
+        assert song.show_name == "Once"
+        assert song.show_name_hand_set_at is not None
+
+    def test_clearing_a_show_keeps_the_song_out_of_shows(self, client, db):
+        _add_song(db, show_name="Trailer Park Boys")
+
+        client.patch("/api/songs/s1", json={"showName": ""})
+
+        song = _song()
+        assert song.show_name is None
+        assert song.show_name_hand_set_at is not None
+
+    def test_saving_the_same_show_isnt_a_hand_edit(self, client, db):
+        _add_song(db, show_name="Rent")
+
+        client.patch("/api/songs/s1", json={"title": "Seasons", "showName": "Rent"})
+
+        assert _song().show_name_hand_set_at is None
+
+    def test_renaming_drops_a_show_from_the_old_recording(self, client, db):
+        _add_song(db, musicbrainz_recording_id="rec", show_name="Rent")
+
+        client.patch(
+            "/api/songs/s1", json={"title": "Something Else", "showName": "Rent"}
+        )
+
+        song = _song()
+        assert song.musicbrainz_recording_id is None
+        assert song.show_name is None
+
+    def test_renaming_keeps_a_hand_set_show(self, client, db):
+        _add_song(
+            db,
+            musicbrainz_recording_id="rec",
+            show_name="Once",
+            show_name_hand_set_at=utc_now(),
+        )
+
+        client.patch("/api/songs/s1", json={"title": "Something Else"})
+
+        assert _song().show_name == "Once"
