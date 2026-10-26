@@ -12,7 +12,7 @@ from .interfaces.file_service import FileServiceInterface
 logger = logging.getLogger(__name__)
 
 # Library folders that hold shared artwork rather than one song's files.
-NON_SONG_DIRS = frozenset({"artists", "covers"})
+NON_SONG_DIRS = frozenset({"artists", "covers", "cache"})
 
 
 class FileService(FileServiceInterface):

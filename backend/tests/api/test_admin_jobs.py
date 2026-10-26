@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
+from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong, DbSongArtist
 from app.jobs._batch_runs import RunTracker, tracked_run
 from app.repositories.batch_run_repository import (
     STALE_AFTER,
@@ -147,7 +147,29 @@ class TestListJobs:
             "fingerprint",
             "artist_images",
             "lyrics_alignment",
+            "artist_credits",
         }
+
+    def test_artist_credits_counts_songs_with_old_credits(self, client, db):
+        db.add_all(
+            [
+                DbArtist(id=1, name="a", display_name="A"),
+                DbSong(id="old", title="Old", artist="A"),
+                DbSong(id="new", title="New", artist="A"),
+                DbSong(id="none", title="None", artist="A"),
+                DbSongArtist(song_id="old", artist_id=1, role="primary"),
+                DbSongArtist(
+                    song_id="new", artist_id=1, role="primary", credited_as="A"
+                ),
+            ]
+        )
+        db.commit()
+
+        job = _jobs_by_kind(client)["artist_credits"]
+
+        assert job["modes"] == ["preview", "apply"]
+        assert job["coverage"] == {"have": 1, "of": 3}
+        assert job["modeCounts"]["preview"] == 3
 
     def test_a_running_row_that_stopped_reporting_is_closed(self, client, db):
         run = BatchRunRepository(db).create("loudness", "missing")
@@ -352,3 +374,22 @@ class TestRunTracker:
 
         with pytest.raises(RunNotActive):
             repo.advance(run.id, ok=True)
+
+
+class TestRunReport:
+    def test_returns_the_saved_report(self, client, db):
+        run = BatchRunRepository(db).create("artist_credits", "preview")
+        run.status = "done"
+        run.report = {"mode": "preview"}
+        db.commit()
+
+        resp = client.get(f"/api/admin/jobs/runs/{run.id}/report")
+
+        assert resp.status_code == 200
+        assert resp.json()["report"] == {"mode": "preview"}
+        assert resp.json()["run"]["hasReport"] is True
+
+    def test_a_run_without_one_is_404(self, client, db):
+        run = BatchRunRepository(db).create("loudness", "missing")
+
+        assert client.get(f"/api/admin/jobs/runs/{run.id}/report").status_code == 404

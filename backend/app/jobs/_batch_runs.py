@@ -28,6 +28,9 @@ class RunTracker:
     def song_done(self, ok: bool = True) -> None:
         self._write(lambda repo: repo.advance(self.run_id, ok=ok))
 
+    def report(self, report: dict) -> None:
+        self._write(lambda repo: repo.set_report(self.run_id, report))
+
     def finish(self, error: Optional[str] = None) -> None:
         self._write(lambda repo: repo.finish(self.run_id, error))
 

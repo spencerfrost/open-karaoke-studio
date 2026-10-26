@@ -26,6 +26,7 @@ import {
   type RunMode,
   type RunStatus,
 } from "./hooks/useBatchJobs";
+import ArtistCreditsReportDialog from "./ArtistCreditsReportDialog";
 import { JOB_INFO, countOf, type JobInfo } from "./jobInfo";
 import WorkerStrip from "./WorkerStrip";
 
@@ -34,6 +35,8 @@ const MODE_LABEL: Record<RunMode, string> = {
   repair: "needing repair",
   retry: "not yet matched",
   all: "all",
+  preview: "preview",
+  apply: "apply",
 };
 
 const REPAIR_REASON_LABEL: Record<RepairReason, string> = {
@@ -78,6 +81,8 @@ function describeRun(run: BatchRun, unit: JobInfo["unit"]): string {
   if (run.mode === "all") parts.push("re-ran all");
   if (run.mode === "repair") parts.push("ones needing repair");
   if (run.mode === "retry") parts.push("retried ones not yet matched");
+  if (run.mode === "preview") parts.push("preview");
+  if (run.mode === "apply") parts.push("applied");
   if (run.total !== null) parts.push(countOf(run.total, unit));
   if (run.failed > 0) parts.push(`${run.failed.toLocaleString()} failed`);
   return parts.join(" · ");
@@ -93,7 +98,11 @@ const RunButton: React.FC<{
   const label =
     mode === "all"
       ? "Re-run all"
-      : `Run on ${count.toLocaleString()} ${MODE_LABEL[mode]}`;
+      : mode === "preview"
+        ? "Preview"
+        : mode === "apply"
+          ? "Apply"
+          : `Run on ${count.toLocaleString()} ${MODE_LABEL[mode]}`;
 
   const start = () =>
     runJob.mutate(
@@ -111,6 +120,36 @@ const RunButton: React.FC<{
       <span className="self-center text-sm text-foreground-dim">
         Up to date
       </span>
+    );
+  }
+
+  // Apply rewrites the library's credits, so it asks first.
+  if (mode === "apply") {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button size="sm" variant="outline" disabled={disabled}>
+            {label}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Apply {info.name.toLowerCase()}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This re-credits {countOf(count, info.unit)}, merges duplicate
+              artists and deletes unused ones, as the last preview's report
+              describes. Take a database backup (pg_dump) first: it can't be
+              undone from here.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={start}>Apply</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     );
   }
 
@@ -146,7 +185,7 @@ const RunButton: React.FC<{
   return (
     <Button
       size="sm"
-      variant={mode === "missing" ? "default" : "outline"}
+      variant={mode === "missing" || mode === "preview" ? "default" : "outline"}
       disabled={disabled}
       onClick={start}
     >
@@ -197,7 +236,10 @@ const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
   );
 };
 
-const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
+const JobRow: React.FC<{
+  job: BatchJob;
+  onOpenReport: (runId: number) => void;
+}> = ({ job, onOpenReport }) => {
   const info = JOB_INFO[job.kind];
   const { have, of } = job.coverage;
   const coveragePercent = of > 0 ? (have / of) * 100 : 100;
@@ -253,6 +295,19 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
               {STATUS_LABEL[job.lastRun.status].toLowerCase()}
             </span>{" "}
             {describeRun(job.lastRun, info.unit)}
+            {job.lastRun.hasReport && (
+              <>
+                {" · "}
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => onOpenReport(job.lastRun!.id)}
+                >
+                  View report
+                </Button>
+              </>
+            )}
           </p>
         )}
         {job.lastRun?.error && (
@@ -265,7 +320,9 @@ const JobRow: React.FC<{ job: BatchJob }> = ({ job }) => {
   );
 };
 
-const RecentRuns: React.FC = () => {
+const RecentRuns: React.FC<{ onOpenReport: (runId: number) => void }> = ({
+  onOpenReport,
+}) => {
   const { data } = useRecentRuns();
   const runs = data?.runs ?? [];
   if (runs.length === 0) return null;
@@ -288,6 +345,16 @@ const RecentRuns: React.FC = () => {
               <span className="text-foreground-dim">
                 {describeRun(run, info?.unit ?? ["song", "songs"])}
               </span>
+              {run.hasReport && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() => onOpenReport(run.id)}
+                >
+                  View report
+                </Button>
+              )}
             </div>
           );
         })}
@@ -299,6 +366,7 @@ const RecentRuns: React.FC = () => {
 /** Every library-wide batch job in one place, with its coverage and runs. */
 const AdminJobsPage: React.FC = () => {
   const { data, isLoading, error } = useBatchJobs();
+  const [reportRunId, setReportRunId] = React.useState<number | null>(null);
 
   return (
     <div className="max-w-6xl space-y-6">
@@ -319,12 +387,17 @@ const AdminJobsPage: React.FC = () => {
       {data && (
         <div className="divide-y divide-border/30 rounded-lg border border-border/40">
           {data.jobs.map((job) => (
-            <JobRow key={job.kind} job={job} />
+            <JobRow key={job.kind} job={job} onOpenReport={setReportRunId} />
           ))}
         </div>
       )}
 
-      <RecentRuns />
+      <RecentRuns onOpenReport={setReportRunId} />
+
+      <ArtistCreditsReportDialog
+        runId={reportRunId}
+        onOpenChange={(open) => !open && setReportRunId(null)}
+      />
     </div>
   );
 };

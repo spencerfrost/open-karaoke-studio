@@ -8,9 +8,16 @@ export type JobKind =
   | "song_albums"
   | "fingerprint"
   | "artist_images"
-  | "lyrics_alignment";
+  | "lyrics_alignment"
+  | "artist_credits";
 
-export type RunMode = "missing" | "repair" | "retry" | "all";
+export type RunMode =
+  | "missing"
+  | "repair"
+  | "retry"
+  | "all"
+  | "preview"
+  | "apply";
 
 export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
@@ -33,6 +40,8 @@ export interface BatchRun {
   error: string | null;
   /** Hand-run scans only: how many problems the scan found. */
   issues: number | null;
+  /** A finished run that saved a report (the artist credits rebuild). */
+  hasReport: boolean;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -54,6 +63,67 @@ export interface WorkerStatus {
   brokerReachable: boolean;
   workers: string[];
   queues: { queue: string; workers: string[] }[];
+}
+
+/** One song's credits, as the artist credits report lists them. */
+export interface ReportCredit {
+  name: string;
+  role: "primary" | "featured";
+}
+
+export interface ReportSong {
+  songId: string;
+  title: string;
+  artist: string;
+  credits: ReportCredit[];
+}
+
+/** The numbers the artist credits rebuild counts, before and after. */
+export interface LibraryNumbers {
+  songs: number;
+  songsWithRecording: number;
+  artists: number;
+  artistsLinked: number;
+  artistsLinkedToNothing: number;
+  featuredOnly: number;
+  featuredOnlyOnOneSong: number;
+  groupedGuestCredits: number;
+  featInTitle: number;
+  aliases: number;
+}
+
+/** What an artist credits run changed, or would change in a preview. */
+export interface ArtistCreditsReport {
+  mode: "preview" | "apply";
+  before: LibraryNumbers;
+  after: LibraryNumbers;
+  songs: {
+    counts: Partial<
+      Record<
+        "recording" | "parsed" | "kept" | "changed" | "lookup_failed",
+        number
+      >
+    >;
+    changed: {
+      songId: string;
+      title: string;
+      artist: string;
+      confirmed: boolean;
+      source: "recording" | "parsed";
+      before: ReportCredit[];
+      after: ReportCredit[];
+    }[];
+  };
+  merges: {
+    from: string;
+    into: string;
+    reason: "musicbrainz" | "spelling";
+    credits: number;
+  }[];
+  renames: { from: string; to: string }[];
+  deleted: { count: number; names: string[] };
+  unsure: { count: number; songs: ReportSong[] };
+  disagree: { count: number; songs: ReportSong[] };
 }
 
 const JOBS_KEY = ["admin-jobs"] as const;
@@ -92,6 +162,21 @@ export function useWorkerStatus() {
     WORKERS_KEY,
     "admin/workers",
     { refetchInterval: IDLE_POLL_MS },
+  );
+}
+
+export function useRunReport(runId: number | null) {
+  return useApiQuery<
+    { run: BatchRun; report: ArtistCreditsReport },
+    readonly ["admin-jobs", "report", number | null]
+  >(
+    ["admin-jobs", "report", runId] as const,
+    `admin/jobs/runs/${runId}/report`,
+    {
+      enabled: runId !== null,
+      // A finished run's report never changes.
+      staleTime: Infinity,
+    },
   );
 }
 

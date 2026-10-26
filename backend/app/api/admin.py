@@ -117,6 +117,19 @@ def run_job(
     return {"run": serialize_run(run)}
 
 
+@router.get("/jobs/runs/{run_id}/report")
+def run_report(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """The report a run wrote (the artist credits rebuild writes one)."""
+    run = BatchRunRepository(db).get(run_id)
+    if run is None or run.report is None:
+        raise HTTPException(status_code=404, detail="This run has no report")
+    return {"run": serialize_run(run), "report": run.report}
+
+
 @router.post("/jobs/runs/{run_id}/cancel")
 def cancel_run(
     run_id: int,

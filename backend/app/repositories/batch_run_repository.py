@@ -145,6 +145,13 @@ class BatchRunRepository:
         run.updated_at = utc_now()
         self.db.commit()
 
+    def set_report(self, run_id: int, report: dict) -> None:
+        run = self.get(run_id)
+        if run is None:
+            return
+        run.report = report
+        self.db.commit()
+
     def finish(self, run_id: int, error: Optional[str] = None) -> None:
         run = self.get(run_id)
         if run is None or run.status not in ACTIVE_STATUSES:

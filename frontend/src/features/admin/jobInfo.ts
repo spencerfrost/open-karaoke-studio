@@ -44,6 +44,12 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
     description: "Fetches a photo of each artist from Discogs.",
     unit: ["artist", "artists"],
   },
+  artist_credits: {
+    name: "Artist credits",
+    description:
+      "Credits every song from its MusicBrainz recording (or re-reads the artist line of older songs without one), merges duplicate artists and fixes their names. Preview changes nothing and writes a report; Apply makes the changes. Take a database backup before applying.",
+    unit: ["song", "songs"],
+  },
   lyrics_alignment: {
     name: "Lyrics alignment",
     description:

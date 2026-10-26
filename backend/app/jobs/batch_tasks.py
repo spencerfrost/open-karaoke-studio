@@ -373,3 +373,55 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
         "reasons": reason_counts,
         "results": results,
     }
+
+
+@celery.task(name="batch_rebuild_artist_credits")
+def batch_rebuild_artist_credits(
+    mode: str = "preview", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: re-credit every song and tidy the artist list.
+
+    Looks up every linked recording and its artists on MusicBrainz (cached on
+    disk, so the apply after a preview asks nothing again), then makes the
+    changes in one transaction. "preview" rolls it back, "apply" commits it;
+    both save the same report on the run. See app.services.artist_credits_rebuild.
+    """
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.services.artist_credits_rebuild import fetch_musicbrainz, rebuild
+
+    cache_dir = get_config().LIBRARY_DIR / "cache" / "musicbrainz"
+
+    with tracked_run(run_id) as run:
+        with get_db_session() as session:
+            mb = fetch_musicbrainz(
+                session, cache_dir, on_total=run.start, on_step=run.song_done
+            )
+        logger.info(
+            "batch_rebuild_artist_credits: %d recordings, %d artists looked up",
+            len(mb.recordings),
+            len(mb.artists),
+        )
+
+        with get_db_session() as session:
+            try:
+                report = rebuild(session, mb)
+            except Exception:
+                session.rollback()
+                raise
+            report["mode"] = mode
+            if mode == "apply":
+                session.commit()
+            else:
+                session.rollback()
+        run.report(report)
+
+    summary = {
+        "mode": mode,
+        "songs_changed": report["songs"]["counts"].get("changed", 0),
+        "merges": len(report["merges"]),
+        "renames": len(report["renames"]),
+        "deleted": report["deleted"]["count"],
+    }
+    logger.info("batch_rebuild_artist_credits: done — %s", summary)
+    return summary

@@ -13,7 +13,7 @@ from typing import Any, Callable, Optional
 from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
 
-from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong
+from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong, DbSongArtist
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ class BatchJob:
     missing: Callable[[Session], Query]
     # Rows for modes other than "missing" and "all".
     others: dict[str, Callable[[Session], Query]] = field(default_factory=dict)
+    # Whether a finished run saves a report (GET /admin/jobs/runs/{id}/report).
+    reports: bool = False
 
     def rows(self, session: Session, mode: str) -> Query:
         """The rows a run in `mode` works through: "all" is every covered row."""
@@ -45,6 +47,16 @@ def _songs(session: Session) -> Query:
 
 def _artists(session: Session) -> Query:
     return session.query(DbArtist.id)
+
+
+def _songs_with_old_credits(session: Session) -> Query:
+    """Songs credited before credits came as lists: no credits, or a credit
+    without the name it was printed as."""
+    has_list = session.query(DbSongArtist.song_id).filter(
+        DbSongArtist.song_id == DbSong.id
+    )
+    old = has_list.filter(DbSongArtist.credited_as.is_(None))
+    return _songs(session).filter(or_(~has_list.exists(), old.exists()))
 
 
 def _songs_without_hand_set_album(session: Session) -> Query:
@@ -121,6 +133,16 @@ JOBS: dict[str, BatchJob] = {
             missing=lambda s: _artists(s).filter(
                 DbArtist.image_status == "not_checked"
             ),
+        ),
+        BatchJob(
+            kind="artist_credits",
+            task_name="batch_rebuild_artist_credits",
+            # Both run over the whole library; "preview" changes nothing.
+            modes=("preview", "apply"),
+            covered=_songs,
+            missing=_songs_with_old_credits,
+            others={"preview": _songs, "apply": _songs},
+            reports=True,
         ),
         # Alignment counts come from lyrics_repair instead; see alignment_summary.
         BatchJob(
@@ -226,6 +248,10 @@ def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
         "failed": run.failed,
         "error": run.error,
         "issues": run.issues,
+        # Read off the job, not the column: reports are large.
+        "hasReport": run.status == "done"
+        and run.kind in JOBS
+        and JOBS[run.kind].reports,
         "createdAt": _iso(run.created_at),
         "startedAt": _iso(run.started_at),
         "finishedAt": _iso(run.finished_at),
