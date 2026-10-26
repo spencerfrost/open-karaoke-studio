@@ -1,11 +1,13 @@
 /**
  * wheelModel - the song wheel's rules, with no React in them.
  *
- * Three columns (letter → artist → song) on a cylinder. The part worth keeping
- * out of components is the cursor: **the letter column has no cursor of its
- * own.** It is read off the artist cursor every time, so sitting on Fleetwood
- * Mac and turning left always lands on F. Two stored cursors would disagree
- * the first time one of them scrolled without the other.
+ * Columns on a cylinder, in groups called sources. Every source starts with
+ * the source column (the list of sources); Artists A–Z follows it with letter
+ * → artist → song, Recently added with one list of songs. The part worth
+ * keeping out of components is the A–Z cursor: **the letter column has no
+ * cursor of its own.** It is read off the artist cursor every time, so sitting
+ * on Fleetwood Mac and turning left always lands on F. Two stored cursors
+ * would disagree the first time one of them scrolled without the other.
  */
 
 import type { Artist } from "@/hooks/api/useArtists";
@@ -14,12 +16,69 @@ import type { Song } from "@/types/Song";
 /** Every letter, always, so the column's geometry never shifts. */
 export const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"] as const;
 
-export const COLUMN = { letter: 0, artist: 1, song: 2 } as const;
-export type ColumnIndex = 0 | 1 | 2;
+export type ColumnKind = "source" | "letter" | "artist" | "song" | "recent";
 
-/** Widths in design pixels, on the 1600×900 frame the wheel is scaled from. */
-export const COLUMN_WIDTHS = [130, 560, 620] as const;
-export const ROW_HEIGHTS = [72, 64, 66] as const;
+export interface ColumnSpec {
+  /** Design pixels, on the 1600×900 frame the wheel is scaled from. */
+  width: number;
+  rowHeight: number;
+  /** Pixels from the top of the column where its list starts, below its
+   *  header (the songs heading has the artist photo in it). */
+  listTop: number;
+  /** Too narrow to turn to the front: it grows in place and the ring turns to
+   *  the next column instead. Also hidden once two steps behind the front,
+   *  where it would show through the columns between. */
+  narrow?: boolean;
+}
+
+export const COLUMN_SPECS: Record<ColumnKind, ColumnSpec> = {
+  source: { width: 300, rowHeight: 72, listTop: 60 },
+  letter: { width: 130, rowHeight: 72, listTop: 60, narrow: true },
+  artist: { width: 560, rowHeight: 64, listTop: 60 },
+  song: { width: 620, rowHeight: 66, listTop: 128 },
+  recent: { width: 620, rowHeight: 84, listTop: 60 },
+};
+
+export type SourceId = "az" | "recent";
+
+export interface SourceDef {
+  id: SourceId;
+  label: string;
+  /** Left to right. The source column is always first. */
+  columns: readonly ColumnKind[];
+}
+
+export const SOURCES: readonly SourceDef[] = [
+  {
+    id: "az",
+    label: "Artists A–Z",
+    columns: ["source", "letter", "artist", "song"],
+  },
+  { id: "recent", label: "Recently added", columns: ["source", "recent"] },
+];
+
+/** The source the wheel opens on, with its artists in front. */
+export const INITIAL_SOURCE: SourceId = "az";
+export const INITIAL_COLUMN = 2;
+
+export const sourceIndexOf = (id: SourceId): number =>
+  SOURCES.findIndex((s) => s.id === id);
+
+/** Position of a column kind within a source, or -1 when it has none. */
+export const columnIndexOf = (source: SourceDef, kind: ColumnKind): number =>
+  source.columns.indexOf(kind);
+
+/** What ▲▼ and Enter do in each column, for the legend. */
+export const COLUMN_LEGEND: Record<
+  ColumnKind,
+  { move: string; enter: string }
+> = {
+  source: { move: "Pick a list", enter: "Open list" },
+  letter: { move: "Jump letter", enter: "Go to artists" },
+  artist: { move: "Browse artists", enter: "See songs" },
+  song: { move: "Browse songs", enter: "Pick song" },
+  recent: { move: "Browse songs", enter: "Pick song" },
+};
 
 /**
  * Starting values from the prototype. The plan says to tune these on the real
@@ -45,8 +104,8 @@ export const WHEEL_TUNING = {
    * on the column the gesture started on (see routeWheelScroll).
    */
   scrollGestureGapMs: 250,
-  /** The letter column grows this much while active instead of turning to
-   *  the front. */
+  /** A narrow column grows this much while active instead of turning to the
+   *  front. */
   letterActiveScale: 1.15,
 } as const;
 
@@ -138,41 +197,51 @@ export const artistKey = (
 ): string => (artist.isShow ? `show:${artist.name}` : `artist:${artist.id}`);
 
 /**
- * Where each column sits on the cylinder, in degrees, with artists at 0.
+ * Where each column of a source sits on the cylinder, in degrees, with the
+ * source column at 0.
  *
  * Neighbours are spaced by their real widths plus the gap, measured along the
- * curve, so the narrow letter column sits close to the artists instead of
- * taking an equal slice of the circle.
+ * curve, so a narrow column sits close to its neighbour instead of taking an
+ * equal slice of the circle. The source column is the same place in every
+ * source, so it stays put when the source changes.
  */
 export function columnSeats(
+  kinds: readonly ColumnKind[],
   radiusPx: number = WHEEL_TUNING.radiusPx,
   gapPx: number = WHEEL_TUNING.gapPx,
-): [number, number, number] {
+): number[] {
   const deg = (px: number) => (px / radiusPx) * (180 / Math.PI);
-  const [letterW, artistW, songW] = COLUMN_WIDTHS;
-  return [
-    -deg(letterW / 2 + artistW / 2 + gapPx),
-    0,
-    deg(artistW / 2 + songW / 2 + gapPx),
-  ];
+  let centre = 0;
+  return kinds.map((kind, i) => {
+    if (i > 0) {
+      centre +=
+        COLUMN_SPECS[kinds[i - 1]].width / 2 +
+        gapPx +
+        COLUMN_SPECS[kind].width / 2;
+    }
+    return deg(centre);
+  });
 }
 
 /**
- * The ring's angle with `col` active. The letter column never turns the ring:
- * it is narrow, and bringing it to the middle shoved the whole wheel into the
- * left half of the screen. With letters active the ring stays where it is
- * with artists in front, and the letter column grows in place instead.
+ * The ring's angle with column `col` active. A narrow column never turns the
+ * ring: bringing the letters to the middle shoved the whole wheel into the
+ * left half of the screen. The ring turns to the next column on its right and
+ * the narrow column grows in place instead.
  */
 export function ringAngleFor(
-  col: ColumnIndex,
-  seats: [number, number, number],
+  col: number,
+  seats: readonly number[],
+  kinds: readonly ColumnKind[],
 ): number {
-  return -seats[Math.max(col, COLUMN.artist)];
+  let front = col;
+  while (front < kinds.length - 1 && COLUMN_SPECS[kinds[front]].narrow) front++;
+  return -seats[front];
 }
 
 /** One mouse-wheel gesture: the column it went to, and its last event. */
 export interface WheelScrollLock {
-  col: ColumnIndex;
+  col: number;
   at: number;
 }
 
@@ -192,11 +261,11 @@ export interface WheelScrollLock {
  */
 export function routeWheelScroll(
   lock: WheelScrollLock | null,
-  hovered: ColumnIndex | null,
+  hovered: number | null,
   now: number,
   gapMs: number = WHEEL_TUNING.scrollGestureGapMs,
 ):
-  | { target: ColumnIndex; lock: WheelScrollLock; started: boolean }
+  | { target: number; lock: WheelScrollLock; started: boolean }
   | { target: null; lock: null; started: false } {
   if (lock && now - lock.at < gapMs) {
     return {
@@ -212,6 +281,14 @@ export function routeWheelScroll(
 /** Opacity for a column `steps` away from the front: compounds per step. */
 export const columnBrightness = (steps: number): number =>
   Math.pow(WHEEL_TUNING.sideBrightness, steps);
+
+/**
+ * Whether a column `steps` away from the front is not drawn at all. A narrow
+ * column turns in behind the ones in front of it and would show through; any
+ * column this far back is too dim to read anyway.
+ */
+export const isColumnHidden = (kind: ColumnKind, steps: number): boolean =>
+  steps >= 3 || (!!COLUMN_SPECS[kind].narrow && steps >= 2);
 
 /**
  * Rows per second after holding ▲▼ for `heldMs` past the first repeat: a

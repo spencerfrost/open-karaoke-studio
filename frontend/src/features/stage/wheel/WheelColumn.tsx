@@ -13,7 +13,7 @@
  * the selected row while this column is at the front.
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { WHEEL_TUNING, listScrollOffset } from "./wheelModel";
 
@@ -78,6 +78,14 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
   onRowClick,
   placeholder,
 }) => {
+  // A column that turns up when the source changes fades in rather than
+  // appearing: it mounts at no opacity and takes its own a frame later.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const viewportPx = COLUMN_HEIGHT - listTop;
   const offset = listScrollOffset(cursor, count, rowHeight, viewportPx);
   const moreAbove = offset > 0;
@@ -141,7 +149,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         left: -width / 2,
         width,
         transform,
-        opacity: brightness,
+        opacity: shown ? brightness : 0,
         // Same duration and easing as the ring, so the counter-rotation that
         // keeps the text facing forward stays in step with the turn.
         transition: `transform ${turnMs}ms ${WHEEL_TUNING.turnEasing}, opacity ${turnMs}ms`,

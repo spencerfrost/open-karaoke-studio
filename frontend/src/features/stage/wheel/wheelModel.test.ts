@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Artist } from "@/hooks/api/useArtists";
 import {
-  COLUMN,
+  COLUMN_LEGEND,
+  COLUMN_SPECS,
   LETTERS,
+  SOURCES,
   artistImageUrl,
   primaryArtists,
   columnBrightness,
   columnSeats,
   firstArtistByLetter,
   holdRate,
+  isColumnHidden,
+  columnIndexOf,
   listScrollOffset,
   ringAngleFor,
   routeWheelScroll,
@@ -84,17 +88,55 @@ describe("stepLetter", () => {
   });
 });
 
-describe("geometry", () => {
-  it("puts artists at the front, letters left and songs right", () => {
-    const [l, a, s] = columnSeats();
-    expect(a).toBe(0);
-    expect(l).toBeLessThan(0);
-    expect(s).toBeGreaterThan(0);
+const AZ = SOURCES[0];
+const RECENT = SOURCES[1];
+const ARTIST = columnIndexOf(AZ, "artist");
+const LETTER = columnIndexOf(AZ, "letter");
+const SONG = columnIndexOf(AZ, "song");
+
+describe("sources", () => {
+  it("starts every source with the source column", () => {
+    for (const source of SOURCES) expect(source.columns[0]).toBe("source");
   });
 
-  it("seats the narrow letter column closer than the wide song column", () => {
-    const [l, , s] = columnSeats();
-    expect(Math.abs(l)).toBeLessThan(Math.abs(s));
+  it("gives every column kind a spec", () => {
+    for (const source of SOURCES)
+      for (const kind of source.columns)
+        expect(COLUMN_SPECS[kind].width).toBeGreaterThan(0);
+  });
+
+  it("has legend text for every column kind", () => {
+    for (const source of SOURCES)
+      for (const kind of source.columns)
+        expect(COLUMN_LEGEND[kind].enter).not.toBe("");
+  });
+});
+
+describe("geometry", () => {
+  it("puts the source column at 0 and every column to its right further on", () => {
+    for (const source of SOURCES) {
+      const seats = columnSeats(source.columns);
+      expect(seats).toHaveLength(source.columns.length);
+      expect(seats[0]).toBe(0);
+      seats
+        .slice(1)
+        .forEach((seat, i) => expect(seat).toBeGreaterThan(seats[i]));
+    }
+  });
+
+  it("seats the narrow letter column closer to its neighbour than the wide song column", () => {
+    const seats = columnSeats(AZ.columns);
+    expect(seats[ARTIST] - seats[LETTER]).toBeLessThan(
+      seats[SONG] - seats[ARTIST],
+    );
+  });
+
+  it("seats the recent list by its own width", () => {
+    const [source, recent] = columnSeats(RECENT.columns);
+    const px = (COLUMN_SPECS.source.width + COLUMN_SPECS.recent.width) / 2;
+    expect(recent - source).toBeGreaterThan(
+      (px / WHEEL_TUNING.radiusPx) * (180 / Math.PI),
+    );
   });
 
   it("compounds dimming per step back", () => {
@@ -218,17 +260,33 @@ describe("listScrollOffset", () => {
 });
 
 describe("ringAngleFor", () => {
-  const seats = columnSeats();
+  const seats = columnSeats(AZ.columns);
 
-  it("turns the active artist or song column to the front", () => {
-    expect(ringAngleFor(COLUMN.artist, seats)).toBeCloseTo(-seats[1]);
-    expect(ringAngleFor(COLUMN.song, seats)).toBeCloseTo(-seats[2]);
+  it("turns the active column to the front", () => {
+    for (const col of [0, ARTIST, SONG])
+      expect(ringAngleFor(col, seats, AZ.columns)).toBeCloseTo(-seats[col]);
   });
 
   it("leaves the ring on the artists when letters are active", () => {
-    expect(ringAngleFor(COLUMN.letter, seats)).toBe(
-      ringAngleFor(COLUMN.artist, seats),
+    expect(ringAngleFor(LETTER, seats, AZ.columns)).toBe(
+      ringAngleFor(ARTIST, seats, AZ.columns),
     );
+  });
+
+  it("turns a one-column source's list to the front", () => {
+    const recentSeats = columnSeats(RECENT.columns);
+    expect(ringAngleFor(1, recentSeats, RECENT.columns)).toBeCloseTo(
+      -recentSeats[1],
+    );
+  });
+});
+
+describe("isColumnHidden", () => {
+  it("hides a narrow column two steps back, and any column three", () => {
+    expect(isColumnHidden("letter", 1)).toBe(false);
+    expect(isColumnHidden("letter", 2)).toBe(true);
+    expect(isColumnHidden("artist", 2)).toBe(false);
+    expect(isColumnHidden("source", 3)).toBe(true);
   });
 });
 
@@ -236,30 +294,28 @@ describe("routeWheelScroll", () => {
   const gap = WHEEL_TUNING.scrollGestureGapMs;
 
   it("starts a gesture on the hovered column", () => {
-    expect(routeWheelScroll(null, COLUMN.artist, 1000).target).toBe(
-      COLUMN.artist,
-    );
+    expect(routeWheelScroll(null, ARTIST, 1000).target).toBe(ARTIST);
   });
 
   it("keeps a gesture on its column when another turns in under the pointer", () => {
-    const first = routeWheelScroll(null, COLUMN.artist, 1000);
-    const next = routeWheelScroll(first.lock, COLUMN.letter, 1000 + gap - 1);
-    expect(next.target).toBe(COLUMN.artist);
+    const first = routeWheelScroll(null, ARTIST, 1000);
+    const next = routeWheelScroll(first.lock, LETTER, 1000 + gap - 1);
+    expect(next.target).toBe(ARTIST);
   });
 
   it("stays locked through a long continuous scroll", () => {
-    let { lock } = routeWheelScroll(null, COLUMN.artist, 0);
+    let { lock } = routeWheelScroll(null, ARTIST, 0);
     for (let t = 100; t <= 2000; t += 100) {
-      const step = routeWheelScroll(lock, COLUMN.letter, t);
-      expect(step.target).toBe(COLUMN.artist);
+      const step = routeWheelScroll(lock, LETTER, t);
+      expect(step.target).toBe(ARTIST);
       lock = step.lock;
     }
   });
 
   it("keeps going once the pointer is left over empty space", () => {
-    const first = routeWheelScroll(null, COLUMN.artist, 1000);
+    const first = routeWheelScroll(null, ARTIST, 1000);
     const next = routeWheelScroll(first.lock, null, 1100);
-    expect(next.target).toBe(COLUMN.artist);
+    expect(next.target).toBe(ARTIST);
     expect(next.started).toBe(false);
   });
 
@@ -268,15 +324,15 @@ describe("routeWheelScroll", () => {
   });
 
   it("marks only the first event of a gesture as started", () => {
-    const first = routeWheelScroll(null, COLUMN.song, 1000);
+    const first = routeWheelScroll(null, SONG, 1000);
     expect(first.started).toBe(true);
-    expect(routeWheelScroll(first.lock, COLUMN.song, 1050).started).toBe(false);
+    expect(routeWheelScroll(first.lock, SONG, 1050).started).toBe(false);
   });
 
   it("frees the lock after a pause", () => {
-    const first = routeWheelScroll(null, COLUMN.artist, 1000);
-    expect(routeWheelScroll(first.lock, COLUMN.letter, 1000 + gap).target).toBe(
-      COLUMN.letter,
+    const first = routeWheelScroll(null, ARTIST, 1000);
+    expect(routeWheelScroll(first.lock, LETTER, 1000 + gap).target).toBe(
+      LETTER,
     );
   });
 });

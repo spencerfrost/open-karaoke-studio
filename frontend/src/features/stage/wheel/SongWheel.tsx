@@ -1,12 +1,14 @@
 /**
- * SongWheel - song select as a DDR-style wheel: Letter → Artist → Song.
+ * SongWheel - song select as a DDR-style wheel: a list of sources, then the
+ * source's own columns (Artists A–Z: Letter → Artist → Song; Recently added:
+ * one list of songs).
  *
  * Built for the four keys a numpad on a mic stand will have (arrows, Enter,
  * Back), with the mouse still first-class: its scroll wheel spins the column
  * under the pointer. An accordion of ~600 artists cannot be driven by
  * up/down/enter/back; this can.
  *
- * The three columns sit on a cylinder whose axis is behind the middle of the
+ * The columns sit on a cylinder whose axis is behind the middle of the
  * screen. Left/Right turns it. Each column rides the cylinder and then turns
  * back by its own angle, so text always faces the room - side columns read as
  * further away, never tilted.
@@ -32,29 +34,32 @@ import { useSongWheel, type WheelFocusRequest } from "./useSongWheel";
 import { useWheelKeys } from "./useWheelKeys";
 import { useWheelPreview } from "./useWheelPreview";
 import {
-  COLUMN,
-  COLUMN_WIDTHS,
+  COLUMN_LEGEND,
+  COLUMN_SPECS,
   LETTERS,
-  ROW_HEIGHTS,
+  SOURCES,
   WHEEL_TUNING,
   artistImageUrl,
   primaryArtists,
   columnBrightness,
+  columnIndexOf,
   columnSeats,
+  isColumnHidden,
   ringAngleFor,
   routeWheelScroll,
+  songByline,
   songHeroSources,
   tileInitial,
-  type ColumnIndex,
+  type ColumnKind,
+  type SourceId,
   type WheelScrollLock,
 } from "./wheelModel";
 
 const FRAME_W = 1600;
 const FRAME_H = 900;
-const SEATS = columnSeats();
-/** Where each column's list starts, below its header (the songs heading has
- *  the artist photo in it). */
-const LIST_TOP = [60, 60, 128] as const;
+const SEATS_BY_SOURCE = Object.fromEntries(
+  SOURCES.map((source) => [source.id, columnSeats(source.columns)]),
+) as Record<SourceId, number[]>;
 /** The ring's area on the frame; the song card centres on it. */
 const STAGE_TOP = 110;
 const STAGE_BOTTOM = 120;
@@ -107,7 +112,7 @@ function useFitScale(ref: React.RefObject<HTMLDivElement | null>) {
  */
 function useMouseWheel(
   ref: React.RefObject<HTMLDivElement | null>,
-  scrollColumn: (col: ColumnIndex, dir: -1 | 1, steps: number) => void,
+  scrollColumn: (col: number, dir: -1 | 1, steps: number) => void,
 ) {
   const latest = useRef(scrollColumn);
   latest.current = scrollColumn;
@@ -121,9 +126,7 @@ function useMouseWheel(
       const over = (e.target as Element | null)?.closest<HTMLElement>(
         "[data-wheel-column]",
       );
-      const hovered = over
-        ? (Number(over.dataset.wheelColumn) as ColumnIndex)
-        : null;
+      const hovered = over ? Number(over.dataset.wheelColumn) : null;
       const route = routeWheelScroll(lock, hovered, performance.now());
       lock = route.lock;
       if (route.target === null) return;
@@ -181,72 +184,235 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const turnMs = reducedMotion ? 0 : WHEEL_TUNING.turnMs;
   const scrollMs = reducedMotion ? 0 : (heldScrollMs ?? WHEEL_TUNING.scrollMs);
 
+  const { source, columns, col, az, recent, settledSong } = wheel;
+  const kinds = source.columns;
+  const frontKind = kinds[col];
+  const seats = SEATS_BY_SOURCE[source.id];
+
   // Pull the ring back by its radius so the front column sits at z=0 (true
-  // size), then turn it so the active column faces the room - except the
-  // letter column, which grows where it is instead (see ringAngleFor).
+  // size), then turn it so the active column faces the room - except a narrow
+  // column, which grows where it is instead (see ringAngleFor).
   const { radiusPx } = WHEEL_TUNING;
-  const ringAngle = ringAngleFor(wheel.col, SEATS);
-  const columnTransform = (i: ColumnIndex) => {
-    const seat = `rotateY(${SEATS[i]}deg) translateZ(${radiusPx}px) rotateY(${-(SEATS[i] + ringAngle)}deg)`;
-    const grow = i === COLUMN.letter && wheel.col === COLUMN.letter;
+  const ringAngle = ringAngleFor(col, seats, kinds);
+  const columnTransform = (i: number) => {
+    const seat = `rotateY(${seats[i]}deg) translateZ(${radiusPx}px) rotateY(${-(seats[i] + ringAngle)}deg)`;
+    const grow = i === col && !!COLUMN_SPECS[kinds[i]].narrow;
     return `${seat} scale(${grow ? WHEEL_TUNING.letterActiveScale : 1})`;
   };
 
-  const { artist, songs, col, settledArtist, settledSong } = wheel;
-  const settledArtistImage = settledArtist
-    ? artistImageUrl(settledArtist)
+  const settledArtistImage = az.settledArtist
+    ? artistImageUrl(az.settledArtist)
     : null;
-  const songInFront = col === COLUMN.song && settledSong !== null;
+  const songInFront =
+    (frontKind === "song" || frontKind === "recent") && settledSong !== null;
   useWheelPreview(
     active && songInFront && !wheel.songPending ? settledSong : null,
   );
+  // The artist photo only stands for the A–Z lists; Recently added has no
+  // artist to show until a song rests under the cursor.
   const backdropSources =
     songInFront && settledSong
       ? songHeroSources(settledSong)
-      : [settledArtistImage];
+      : [source.id === "az" ? settledArtistImage : null];
 
+  const legendText = COLUMN_LEGEND[frontKind];
   const legend: [string[], string][] = [
-    [["▲", "▼"], ["Jump letter", "Browse artists", "Browse songs"][col]],
+    [["▲", "▼"], legendText.move],
     [["◀", "▶"], "Change column"],
-    [["⏎"], ["Go to artists", "See songs", "Pick song"][col]],
+    [["⏎"], legendText.enter],
   ];
-  if (col === COLUMN.song) legend.push([["⌫"], "Back to artists"]);
+  if (frontKind === "song") legend.push([["⌫"], "Back to artists"]);
   else if (onLeave) legend.push([["⌫"], "Back to the song"]);
 
-  const shared = (i: ColumnIndex) => ({
-    width: COLUMN_WIDTHS[i],
-    rowHeight: ROW_HEIGHTS[i],
-    listTop: LIST_TOP[i],
-    active: col === i,
-    // The narrow letter column turns in behind the artists while songs are
-    // in front and would show through them, so it is hidden there.
-    brightness:
-      i === COLUMN.letter && col === COLUMN.song
-        ? 0
-        : columnBrightness(Math.abs(i - col)),
-    transform: columnTransform(i),
-    turnMs,
-    scrollMs,
-    onActivate: () => wheel.focusColumn(i),
-    onRowClick: (index: number) => wheel.pickRow(i, index),
-    column: i,
-  });
+  const shared = (i: number) => {
+    const kind = kinds[i];
+    const spec = COLUMN_SPECS[kind];
+    const steps = Math.abs(i - col);
+    return {
+      key: `${source.id}:${kind}`,
+      width: spec.width,
+      rowHeight: spec.rowHeight,
+      listTop: spec.listTop,
+      active: col === i,
+      // A narrow column turns in behind the ones in front of it and would show
+      // through them, so far-back columns are not drawn.
+      brightness: isColumnHidden(kind, steps) ? 0 : columnBrightness(steps),
+      transform: columnTransform(i),
+      turnMs,
+      scrollMs,
+      onActivate: () => wheel.focusColumn(i),
+      onRowClick: (index: number) => wheel.pickRow(i, index),
+      column: i,
+      count: columns[i].count,
+      cursor: columns[i].cursor,
+    };
+  };
+
+  const processingTag = (
+    <span className="ml-auto flex-none pl-4 font-display text-[20px] uppercase tracking-wider text-foreground-faint">
+      Processing
+    </span>
+  );
+
+  const renderColumn = (kind: ColumnKind, i: number) => {
+    switch (kind) {
+      case "source":
+        return (
+          <WheelColumn
+            {...shared(i)}
+            label="Lists"
+            rowClassName="px-6 text-[28px]"
+            renderRow={(row) => (
+              <span className="truncate">{SOURCES[row].label}</span>
+            )}
+          />
+        );
+
+      case "letter":
+        return (
+          <WheelColumn
+            {...shared(i)}
+            label="A–Z"
+            isRowDisabled={(row) => az.firstByLetter[row] === -1}
+            rowClassName="justify-center font-display text-5xl font-extrabold"
+            renderRow={(row) => LETTERS[row]}
+          />
+        );
+
+      case "artist":
+        return (
+          <WheelColumn
+            {...shared(i)}
+            label="Artists"
+            rowClassName="px-7 text-[32px]"
+            renderRow={(row) => {
+              const a = az.artists[row];
+              return (
+                <>
+                  <span className="truncate">{a.name}</span>
+                  <span className="ml-auto flex flex-none items-center gap-2 pl-4 font-display text-[22px] tabular-nums text-foreground-faint">
+                    {a.isShow && (
+                      <Theater className="size-5" aria-label="Show" />
+                    )}
+                    {artistSongTotal(a)}
+                  </span>
+                </>
+              );
+            }}
+          />
+        );
+
+      case "song":
+        return (
+          <WheelColumn
+            {...shared(i)}
+            label="Songs"
+            header={
+              <div className="flex items-center gap-[18px]">
+                {/* Follows the settled artist and dims while the cursor
+                    moves, so it never claims a photo for the wrong name. */}
+                <WheelArtwork
+                  shape="round"
+                  sources={[settledArtistImage]}
+                  fallback={
+                    az.settledArtist
+                      ? tileInitial(az.settledArtist.name)
+                      : undefined
+                  }
+                  pending={az.artistPending}
+                  staleOpacity={0.25}
+                  className="size-[84px] flex-none shadow-[0_8px_30px_rgba(0,0,0,.45)]"
+                />
+                <div className="min-w-0">
+                  Songs
+                  <span className="mt-0.5 block truncate text-[40px] font-extrabold normal-case tracking-[0.02em] text-foreground">
+                    {az.artist?.name}
+                  </span>
+                </div>
+              </div>
+            }
+            placeholder={
+              az.songsLoading ? (
+                <Loader2 className="size-7 animate-spin" />
+              ) : (
+                "No songs"
+              )
+            }
+            isRowDisabled={(row) => az.songs[row]?.status !== "processed"}
+            rowClassName="px-7 text-[32px]"
+            renderRow={(row) => {
+              const song = az.songs[row];
+              return (
+                <>
+                  <span className="w-11 flex-none font-display text-[22px] tabular-nums text-foreground-faint">
+                    {row + 1}
+                  </span>
+                  <span className="truncate">{song.title}</span>
+                  {/* A song they guest on says whose it is */}
+                  {song.role === "featured" && (
+                    <span className="flex-none truncate pl-4 text-[24px] text-foreground-faint">
+                      {primaryArtists(song)}
+                    </span>
+                  )}
+                  {song.status !== "processed" && processingTag}
+                </>
+              );
+            }}
+          />
+        );
+
+      case "recent":
+        return (
+          <WheelColumn
+            {...shared(i)}
+            label="Recently added"
+            placeholder={
+              recent.isLoading ? (
+                <Loader2 className="size-7 animate-spin" />
+              ) : (
+                "No songs yet"
+              )
+            }
+            isRowDisabled={(row) => recent.songs[row]?.status !== "processed"}
+            rowClassName="px-7"
+            renderRow={(row) => {
+              const song = recent.songs[row];
+              return (
+                <>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <span className="block truncate text-[32px]">
+                      {song.title}
+                    </span>
+                    <span className="block truncate text-[22px] font-normal text-foreground-faint">
+                      {songByline(song)}
+                    </span>
+                  </div>
+                  {song.status !== "processed" && processingTag}
+                </>
+              );
+            }}
+          />
+        );
+    }
+  };
+
+  const artistColumn = columnIndexOf(source, "artist");
 
   let body: React.ReactNode;
-  if (wheel.isLoading) {
+  if (source.id === "az" && az.isLoading) {
     body = (
       <div className="absolute inset-0 flex items-center justify-center gap-4 text-3xl text-foreground-dim">
         <Loader2 className="size-9 animate-spin" />
         Loading the songbook…
       </div>
     );
-  } else if (wheel.error) {
+  } else if (source.id === "az" && az.error) {
     body = (
       <div className="absolute inset-0 flex items-center justify-center text-3xl text-destructive">
         Couldn't load the songbook.
       </div>
     );
-  } else if (wheel.artists.length === 0) {
+  } else if (source.id === "az" && az.artists.length === 0) {
     body = (
       <div className="absolute inset-0 flex items-center justify-center text-3xl text-foreground-dim">
         No songs yet. Add one with the + button.
@@ -256,17 +422,33 @@ const SongWheel: React.FC<SongWheelProps> = ({
     body = (
       <>
         <div className="absolute inset-x-16 top-10 flex items-baseline gap-3.5 overflow-hidden whitespace-nowrap font-display text-3xl font-bold uppercase tracking-[0.04em] text-foreground-dim">
-          <span>Artists</span>
-          <span className="text-foreground-faint">▸</span>
-          <b className="font-extrabold text-foreground">
-            {LETTERS[wheel.letterIndex]}
-          </b>
-          {col >= COLUMN.artist && artist && (
+          {/* The way back to the list of sources for the mouse, which can't
+              ◀ its way there. */}
+          <button
+            type="button"
+            onClick={() => wheel.focusColumn(0)}
+            className={
+              col === 0
+                ? "font-extrabold uppercase text-foreground"
+                : "uppercase hover:text-foreground"
+            }
+          >
+            {source.label}
+          </button>
+          {source.id === "az" && (
             <>
               <span className="text-foreground-faint">▸</span>
-              <b className="truncate font-extrabold text-foreground">
-                {artist.name}
+              <b className="font-extrabold text-foreground">
+                {LETTERS[az.letterIndex]}
               </b>
+              {col >= artistColumn && az.artist && (
+                <>
+                  <span className="text-foreground-faint">▸</span>
+                  <b className="truncate font-extrabold text-foreground">
+                    {az.artist.name}
+                  </b>
+                </>
+              )}
             </>
           )}
         </div>
@@ -289,99 +471,11 @@ const SongWheel: React.FC<SongWheelProps> = ({
               transition: `transform ${turnMs}ms ${WHEEL_TUNING.turnEasing}`,
             }}
           >
-            <WheelColumn
-              {...shared(COLUMN.letter)}
-              label="A–Z"
-              count={LETTERS.length}
-              cursor={wheel.letterIndex}
-              isRowDisabled={(i) => wheel.firstByLetter[i] === -1}
-              rowClassName="justify-center font-display text-5xl font-extrabold"
-              renderRow={(i) => LETTERS[i]}
-            />
-
-            <WheelColumn
-              {...shared(COLUMN.artist)}
-              label="Artists"
-              count={wheel.artists.length}
-              cursor={wheel.artistIndex}
-              rowClassName="px-7 text-[32px]"
-              renderRow={(i) => {
-                const a = wheel.artists[i];
-                return (
-                  <>
-                    <span className="truncate">{a.name}</span>
-                    <span className="ml-auto flex flex-none items-center gap-2 pl-4 font-display text-[22px] tabular-nums text-foreground-faint">
-                      {a.isShow && (
-                        <Theater className="size-5" aria-label="Show" />
-                      )}
-                      {artistSongTotal(a)}
-                    </span>
-                  </>
-                );
-              }}
-            />
-
-            <WheelColumn
-              {...shared(COLUMN.song)}
-              label="Songs"
-              header={
-                <div className="flex items-center gap-[18px]">
-                  {/* Follows the settled artist and dims while the cursor
-                      moves, so it never claims a photo for the wrong name. */}
-                  <WheelArtwork
-                    shape="round"
-                    sources={[settledArtistImage]}
-                    fallback={
-                      settledArtist
-                        ? tileInitial(settledArtist.name)
-                        : undefined
-                    }
-                    pending={wheel.artistPending}
-                    staleOpacity={0.25}
-                    className="size-[84px] flex-none shadow-[0_8px_30px_rgba(0,0,0,.45)]"
-                  />
-                  <div className="min-w-0">
-                    Songs
-                    <span className="mt-0.5 block truncate text-[40px] font-extrabold normal-case tracking-[0.02em] text-foreground">
-                      {artist?.name}
-                    </span>
-                  </div>
-                </div>
-              }
-              count={songs.length}
-              cursor={wheel.songIndex}
-              placeholder={
-                wheel.songsLoading ? (
-                  <Loader2 className="size-7 animate-spin" />
-                ) : (
-                  "No songs"
-                )
-              }
-              isRowDisabled={(i) => songs[i]?.status !== "processed"}
-              rowClassName="px-7 text-[32px]"
-              renderRow={(i) => {
-                const song = songs[i];
-                return (
-                  <>
-                    <span className="w-11 flex-none font-display text-[22px] tabular-nums text-foreground-faint">
-                      {i + 1}
-                    </span>
-                    <span className="truncate">{song.title}</span>
-                    {/* A song they guest on says whose it is */}
-                    {song.role === "featured" && (
-                      <span className="flex-none truncate pl-4 text-[24px] text-foreground-faint">
-                        {primaryArtists(song)}
-                      </span>
-                    )}
-                    {song.status !== "processed" && (
-                      <span className="ml-auto flex-none pl-4 font-display text-[20px] uppercase tracking-wider text-foreground-faint">
-                        Processing
-                      </span>
-                    )}
-                  </>
-                );
-              }}
-            />
+            {kinds.map((kind, i) => (
+              <React.Fragment key={`${source.id}:${kind}`}>
+                {renderColumn(kind, i)}
+              </React.Fragment>
+            ))}
           </div>
         </div>
 
