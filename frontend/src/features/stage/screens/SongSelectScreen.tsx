@@ -6,12 +6,14 @@
  * mouse on the mic stand, or arrow keys, Enter and Back (see SongWheel). The
  * phone keeps LibraryScreen - the two share data hooks, not components.
  *
- * One slim bar at the top for the things that are not "pick a song": a quiet
- * search for whoever has the keyboard, and leaving stage mode - which the
- * arrow keys can never reach, so nobody walking up to sing ends the night by
- * pressing Back one too many times. The join QR code sits bottom-left rather
- * than in the bar. The now-playing footer, which is also the way back to the
- * song, runs along the bottom.
+ * One slim bar at the top for the things that are not "pick a song": adding a
+ * song (also a row of the wheel's first column, for the arrow keys; up here
+ * it is always on screen for the mouse), a quiet search for whoever has the
+ * keyboard, and leaving stage mode - which the arrow keys can never reach, so
+ * nobody walking up to sing ends the night by pressing Back one too many
+ * times. The join QR code sits bottom-right, where the performance screen has
+ * it, rather than in the bar. The now-playing footer, which is also the way
+ * back to the song, runs along the bottom.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -74,6 +76,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
     setSearching(false);
   }, []);
   const closeSearch = useCallback(() => setSearching(false), []);
+  const handleAddSong = useCallback(() => shell?.openAdd(), [shell]);
   // State, not a ref: the wheel has to re-render once the layer exists.
   const [backdropEl, setBackdropEl] = useState<HTMLDivElement | null>(null);
 
@@ -85,6 +88,14 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
 
       <div className="relative flex shrink-0 items-center justify-end gap-4 px-6 pt-4">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            onClick={handleAddSong}
+            className="text-foreground-faint hover:text-foreground"
+          >
+            <Plus className="mr-2 size-5" />
+            Add a song
+          </Button>
           {!searching && (
             <Button
               variant="ghost"
@@ -128,6 +139,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
               active={active && !searching}
               focusArtist={focusArtist}
               onPickSong={handlePickSong}
+              onAddSong={handleAddSong}
               onLeave={handleLeave}
               backdropTarget={backdropEl}
             />
@@ -144,22 +156,12 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
           )}
         </div>
 
-        {/* Inside the wheel area, so both sit above the footer. */}
-        {/* Bottom-left, not in the top bar: at TV size the QR code made the bar
-            ~150px tall, which the wheel had to shrink to fit under. This corner
-            is empty beside the legend, and it is where guests look to join.
-            With the processing column open it sits at the column's foot. */}
-        <SessionInfoDisplay className="absolute bottom-6 left-6 z-10" />
-
-        <Button
-          variant="accent"
-          size="lg"
-          onClick={() => shell?.openAdd()}
-          className="absolute bottom-8 right-8 z-10 size-16 rounded-full shadow-xl"
-          aria-label="Add a song to the songbook"
-        >
-          <Plus className="size-8" />
-        </Button>
+        {/* Inside the wheel area, so it sits above the footer. Bottom-right,
+            not in the top bar: at TV size the QR code made the bar ~150px
+            tall, which the wheel had to shrink to fit under. This corner is
+            empty beside the legend, and it is where the performance screen
+            keeps its code, so guests look for it in one place. */}
+        <SessionInfoDisplay className="absolute bottom-6 right-6 z-10" />
       </div>
 
       {/* Reads the store and the shell's queue itself, so the playing song

@@ -8,6 +8,8 @@
  *
  * A source's columns always start with the source column, so column 0 is the
  * list of sources and moving in it swaps the columns to its right at once.
+ * Under the sources it has action rows (Add a song), which swap nothing: the
+ * cursor can rest on one only while the source column is in front.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,10 +26,13 @@ import {
   INITIAL_SOURCE,
   LETTERS,
   SOURCES,
+  SOURCE_ACTIONS,
+  SOURCE_ROWS,
   clampIndex,
   columnIndexOf,
   sourceIndexOf,
   type ColumnKind,
+  type SourceActionId,
   type SourceDef,
   type SourceId,
 } from "./wheelModel";
@@ -39,6 +44,8 @@ interface UseSongWheelOptions {
   focusArtist?: WheelFocusRequest;
   /** Enter on a song. */
   onPickSong: (song: Song) => void;
+  /** Enter on (or a click on) an action row of the source column. */
+  onAction: (id: SourceActionId) => void;
   /** Back from any column but the songs. */
   onLeave: () => void;
 }
@@ -57,6 +64,8 @@ export interface SongWheel {
   col: number;
   az: AzSource;
   recent: RecentSource;
+  /** The action row the source column's cursor is on, if it is on one. */
+  sourceAction: SourceActionId | null;
   /**
    * The song the cursor last rested on while a song column was in front.
    * Kept while the cursor moves on, so artwork can stay until the next loads.
@@ -79,7 +88,8 @@ export interface SongWheel {
   /** Bring a column to the front (a click or a scroll over a side column). */
   focusColumn: (col: number) => void;
   /**
-   * A click on a row in the front column. A source row switches to it. A
+   * A click on a row in the front column. A source row switches to it, an
+   * action row does its action. A
    * letter or an artist moves to it and on to the next column. A song: the
    * centred one acts like Enter, any other moves to it.
    */
@@ -92,6 +102,7 @@ const NO_SONGS: Song[] = [];
 export function useSongWheel({
   focusArtist,
   onPickSong,
+  onAction,
   onLeave,
 }: UseSongWheelOptions): SongWheel {
   const [sourceId, setSourceId] = useState<SourceId>(INITIAL_SOURCE);
@@ -100,6 +111,24 @@ export function useSongWheel({
   const source = SOURCES[sourceIndex];
   const col = Math.min(colState, source.columns.length - 1);
   const frontKind = source.columns[col];
+  // Index into SOURCE_ACTIONS while the cursor rests on an action row. Turning
+  // away drops it, so the source column behind shows the source on screen.
+  const [actionIndex, setActionIndex] = useState<number | null>(null);
+  if (actionIndex !== null && col !== 0) setActionIndex(null);
+  const sourceRow =
+    actionIndex !== null ? SOURCES.length + actionIndex : sourceIndex;
+  const sourceAction =
+    actionIndex !== null ? SOURCE_ACTIONS[actionIndex].id : null;
+
+  /** Move the source column's cursor to a row: a source or an action. */
+  const setSourceRow = useCallback((row: number) => {
+    if (row < SOURCES.length) {
+      setSourceId(SOURCES[row].id);
+      setActionIndex(null);
+    } else {
+      setActionIndex(row - SOURCES.length);
+    }
+  }, []);
 
   // A requested artist is an A–Z thing, wherever the wheel was.
   const handleFocused = useCallback(() => {
@@ -122,7 +151,7 @@ export function useSongWheel({
       source.columns.map((kind): WheelColumnState => {
         switch (kind) {
           case "source":
-            return { kind, count: SOURCES.length, cursor: sourceIndex };
+            return { kind, count: SOURCE_ROWS, cursor: sourceRow };
           case "letter":
             return { kind, count: LETTERS.length, cursor: az.letterIndex };
           case "artist":
@@ -137,7 +166,7 @@ export function useSongWheel({
             };
         }
       }),
-    [source, sourceIndex, az, recent],
+    [source, sourceRow, az, recent],
   );
 
   // The song the cursor rests on, for the info card. Only in a song column:
@@ -170,12 +199,11 @@ export function useSongWheel({
   const moveIn = useCallback(
     (c: number, dir: -1 | 1, steps: number) => {
       switch (source.columns[c]) {
-        case "source": {
-          const next =
-            SOURCES[clampIndex(sourceIndex + dir * steps, SOURCES.length)];
-          setSourceId(next.id);
+        case "source":
+          // Scrolling a side source column brings it to the front, so landing
+          // on an action row here is fine.
+          setSourceRow(clampIndex(sourceRow + dir * steps, SOURCE_ROWS));
           break;
-        }
         case "letter":
           az.moveIn("letter", dir, steps);
           break;
@@ -190,7 +218,7 @@ export function useSongWheel({
           break;
       }
     },
-    [source, sourceIndex, az, recent],
+    [source, sourceRow, setSourceRow, az, recent],
   );
 
   const move = useCallback(
@@ -214,10 +242,20 @@ export function useSongWheel({
   const enter = useCallback(() => {
     if (frontKind === "song" || frontKind === "recent") {
       if (cursorSong) onPickSong(cursorSong);
+    } else if (frontKind === "source" && sourceAction) {
+      onAction(sourceAction);
     } else if (frontKind === "source" || az.artist) {
       setCol(col + 1);
     }
-  }, [frontKind, cursorSong, onPickSong, az.artist, col]);
+  }, [
+    frontKind,
+    cursorSong,
+    onPickSong,
+    sourceAction,
+    onAction,
+    az.artist,
+    col,
+  ]);
 
   const back = useCallback(() => {
     if (frontKind === "song") setCol(col - 1);
@@ -233,11 +271,10 @@ export function useSongWheel({
         return;
       }
       switch (frontKind) {
-        case "source": {
-          const picked = SOURCES[index];
-          if (picked) setSourceId(picked.id);
+        case "source":
+          if (index < SOURCES.length) setSourceRow(index);
+          else onAction(SOURCE_ACTIONS[index - SOURCES.length].id);
           break;
-        }
         case "letter": {
           const target = az.firstByLetter[index];
           if (target === undefined || target === -1) return;
@@ -261,7 +298,7 @@ export function useSongWheel({
           break;
       }
     },
-    [col, frontKind, az, recent, enter],
+    [col, frontKind, setSourceRow, onAction, az, recent, enter],
   );
 
   return {
@@ -270,6 +307,7 @@ export function useSongWheel({
     col,
     az,
     recent,
+    sourceAction,
     settledSong,
     songPending: cursorSongId !== settledSongId,
     move,

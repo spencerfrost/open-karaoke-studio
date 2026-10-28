@@ -24,7 +24,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
-import { Loader2, Theater } from "lucide-react";
+import { Loader2, Plus, Theater } from "lucide-react";
 import type { Song } from "@/types/Song";
 import { artistSongTotal } from "@/hooks/api/useArtists";
 import SongInfoCard from "./SongInfoCard";
@@ -38,6 +38,7 @@ import {
   COLUMN_SPECS,
   LETTERS,
   SOURCES,
+  SOURCE_ACTIONS,
   WHEEL_TUNING,
   artistImageUrl,
   primaryArtists,
@@ -77,6 +78,8 @@ interface SongWheelProps {
   active: boolean;
   focusArtist?: WheelFocusRequest;
   onPickSong: (song: Song) => void;
+  /** The source column's "Add a song" row. */
+  onAddSong: () => void;
   /** Back from the letter or artist column; null when there is nowhere to go. */
   onLeave: (() => void) | null;
   /**
@@ -155,6 +158,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
   active,
   focusArtist,
   onPickSong,
+  onAddSong,
   onLeave,
   backdropTarget,
 }) => {
@@ -166,6 +170,8 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const wheel = useSongWheel({
     focusArtist,
     onPickSong,
+    // The only action so far.
+    onAction: onAddSong,
     onLeave: () => onLeave?.(),
   });
 
@@ -190,14 +196,20 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const seats = SEATS_BY_SOURCE[source.id];
 
   // Pull the ring back by its radius so the front column sits at z=0 (true
-  // size), then turn it so the active column faces the room - except a narrow
-  // column, which grows where it is instead (see ringAngleFor).
+  // size), then turn it so the active column faces the room - except the
+  // source and letter columns, which grow where they are (see ringAngleFor).
+  //
+  // The ring is in each column's own transform rather than on a parent
+  // element: Chrome hit-tests a 3D child through its parent's plane, and with
+  // the ring turned near edge-on (the song column in front), clicks on the
+  // left-hand columns never reached them.
   const { radiusPx } = WHEEL_TUNING;
   const ringAngle = ringAngleFor(col, seats, kinds);
   const columnTransform = (i: number) => {
-    const seat = `rotateY(${seats[i]}deg) translateZ(${radiusPx}px) rotateY(${-(seats[i] + ringAngle)}deg)`;
-    const grow = i === col && !!COLUMN_SPECS[kinds[i]].narrow;
-    return `${seat} scale(${grow ? WHEEL_TUNING.letterActiveScale : 1})`;
+    const ring = `translateZ(${-radiusPx}px) rotateY(${ringAngle}deg)`;
+    const seat = `${ring} rotateY(${seats[i]}deg) translateZ(${radiusPx}px) rotateY(${-(seats[i] + ringAngle)}deg)`;
+    const grow = i === col && !!COLUMN_SPECS[kinds[i]].staysPut;
+    return `${seat} scale(${grow ? WHEEL_TUNING.inPlaceActiveScale : 1})`;
   };
 
   const settledArtistImage = az.settledArtist
@@ -219,7 +231,12 @@ const SongWheel: React.FC<SongWheelProps> = ({
   const legend: [string[], string][] = [
     [["▲", "▼"], legendText.move],
     [["◀", "▶"], "Change column"],
-    [["⏎"], legendText.enter],
+    [
+      ["⏎"],
+      (frontKind === "source" &&
+        SOURCE_ACTIONS.find((a) => a.id === wheel.sourceAction)?.label) ||
+        legendText.enter,
+    ],
   ];
   if (frontKind === "song") legend.push([["⌫"], "Back to artists"]);
   else if (onLeave) legend.push([["⌫"], "Back to the song"]);
@@ -260,11 +277,22 @@ const SongWheel: React.FC<SongWheelProps> = ({
         return (
           <WheelColumn
             {...shared(i)}
+            // Lists and actions both, so no heading over them.
             label="Lists"
+            labelHidden
             rowClassName="px-6 text-[28px]"
-            renderRow={(row) => (
-              <span className="truncate">{SOURCES[row].label}</span>
-            )}
+            renderRow={(row) =>
+              row < SOURCES.length ? (
+                <span className="truncate">{SOURCES[row].label}</span>
+              ) : (
+                <>
+                  <Plus className="mr-3 size-7 flex-none text-accent" />
+                  <span className="truncate">
+                    {SOURCE_ACTIONS[row - SOURCES.length].label}
+                  </span>
+                </>
+              )
+            }
           />
         );
 
@@ -415,7 +443,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
   } else if (source.id === "az" && az.artists.length === 0) {
     body = (
       <div className="absolute inset-0 flex items-center justify-center text-3xl text-foreground-dim">
-        No songs yet. Add one with the + button.
+        No songs yet. Press Add a song, up top, to add one.
       </div>
     );
   } else {
@@ -465,11 +493,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
         >
           <div
             className="absolute left-1/2 top-1/2 size-0"
-            style={{
-              transformStyle: "preserve-3d",
-              transform: `translateZ(${-radiusPx}px) rotateY(${ringAngle}deg)`,
-              transition: `transform ${turnMs}ms ${WHEEL_TUNING.turnEasing}`,
-            }}
+            style={{ transformStyle: "preserve-3d" }}
           >
             {kinds.map((kind, i) => (
               <React.Fragment key={`${source.id}:${kind}`}>

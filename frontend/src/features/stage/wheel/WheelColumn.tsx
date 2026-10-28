@@ -30,6 +30,9 @@ interface WheelColumnProps {
    *  mouse wheel. */
   column: number;
   label: string;
+  /** Keep the label for screen readers only. The list still starts at
+   *  `listTop`, so its rows line up with the other columns'. */
+  labelHidden?: boolean;
   /** Replaces the plain label - the song column puts the artist's name there. */
   header?: React.ReactNode;
   /** Pixels from the top where the list starts, below the header. */
@@ -60,6 +63,7 @@ interface WheelColumnProps {
 const WheelColumn: React.FC<WheelColumnProps> = ({
   column,
   label,
+  labelHidden = false,
   header,
   listTop,
   width,
@@ -150,19 +154,21 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         width,
         transform,
         opacity: shown ? brightness : 0,
-        // Same duration and easing as the ring, so the counter-rotation that
-        // keeps the text facing forward stays in step with the turn.
+        // The ring's turn and the counter-rotation that keeps the text facing
+        // forward are functions of one transform list, so they animate in step.
         transition: `transform ${turnMs}ms ${WHEEL_TUNING.turnEasing}, opacity ${turnMs}ms`,
       }}
     >
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
-          active ? "text-primary" : "text-foreground-dim",
-        )}
-      >
-        {header ?? label}
-      </div>
+      {!labelHidden && (
+        <div
+          className={cn(
+            "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
+            active ? "text-primary" : "text-foreground-dim",
+          )}
+        >
+          {header ?? label}
+        </div>
+      )}
 
       {/* The list starts below the header so rows do not scroll up behind
           it, and fades out only at an end with more list past it. */}

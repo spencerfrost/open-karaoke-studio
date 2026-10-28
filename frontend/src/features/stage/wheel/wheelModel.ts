@@ -25,15 +25,24 @@ export interface ColumnSpec {
   /** Pixels from the top of the column where its list starts, below its
    *  header (the songs heading has the artist photo in it). */
   listTop: number;
-  /** Too narrow to turn to the front: it grows in place and the ring turns to
-   *  the next column instead. Also hidden once two steps behind the front,
-   *  where it would show through the columns between. */
+  /** Never turned to the front: it grows in place while active, and the ring
+   *  turns to the next column on its right instead. */
+  staysPut?: boolean;
+  /** Hidden once two steps behind the front, where it would show through the
+   *  columns between. */
   narrow?: boolean;
 }
 
 export const COLUMN_SPECS: Record<ColumnKind, ColumnSpec> = {
-  source: { width: 300, rowHeight: 72, listTop: 60 },
-  letter: { width: 130, rowHeight: 72, listTop: 60, narrow: true },
+  // In the middle, the first column had nothing to its left but empty space.
+  source: { width: 300, rowHeight: 72, listTop: 60, staysPut: true },
+  letter: {
+    width: 130,
+    rowHeight: 72,
+    listTop: 60,
+    staysPut: true,
+    narrow: true,
+  },
   artist: { width: 560, rowHeight: 64, listTop: 60 },
   song: { width: 620, rowHeight: 66, listTop: 128 },
   recent: { width: 620, rowHeight: 84, listTop: 60 },
@@ -57,6 +66,19 @@ export const SOURCES: readonly SourceDef[] = [
   { id: "recent", label: "Recently added", columns: ["source", "recent"] },
 ];
 
+export type SourceActionId = "add";
+
+/**
+ * Rows under the sources in the source column that do something instead of
+ * opening a list. They have no columns of their own: while the cursor rests
+ * on one, the source it came from stays showing to the right.
+ */
+export const SOURCE_ACTIONS: readonly { id: SourceActionId; label: string }[] =
+  [{ id: "add", label: "Add a song" }];
+
+/** Rows in the source column: every source, then every action. */
+export const SOURCE_ROWS = SOURCES.length + SOURCE_ACTIONS.length;
+
 /** The source the wheel opens on, with its artists in front. */
 export const INITIAL_SOURCE: SourceId = "az";
 export const INITIAL_COLUMN = 2;
@@ -74,6 +96,7 @@ export const COLUMN_LEGEND: Record<
   { move: string; enter: string }
 > = {
   source: { move: "Pick a list", enter: "Open list" },
+  // ...unless the cursor is on an action row, whose Enter is its own label.
   letter: { move: "Jump letter", enter: "Go to artists" },
   artist: { move: "Browse artists", enter: "See songs" },
   song: { move: "Browse songs", enter: "Pick song" },
@@ -104,9 +127,9 @@ export const WHEEL_TUNING = {
    * on the column the gesture started on (see routeWheelScroll).
    */
   scrollGestureGapMs: 250,
-  /** A narrow column grows this much while active instead of turning to the
-   *  front. */
-  letterActiveScale: 1.15,
+  /** A column that stays put grows this much while active instead of turning
+   *  to the front. */
+  inPlaceActiveScale: 1.15,
 } as const;
 
 export interface WheelArtist extends Artist {
@@ -224,10 +247,10 @@ export function columnSeats(
 }
 
 /**
- * The ring's angle with column `col` active. A narrow column never turns the
- * ring: bringing the letters to the middle shoved the whole wheel into the
- * left half of the screen. The ring turns to the next column on its right and
- * the narrow column grows in place instead.
+ * The ring's angle with column `col` active. The source and letter columns
+ * never turn the ring: bringing either to the middle shoved the whole wheel
+ * into the left half of the screen. The ring turns to the first column on
+ * their right that doesn't stay put, and they grow in place instead.
  */
 export function ringAngleFor(
   col: number,
@@ -235,7 +258,8 @@ export function ringAngleFor(
   kinds: readonly ColumnKind[],
 ): number {
   let front = col;
-  while (front < kinds.length - 1 && COLUMN_SPECS[kinds[front]].narrow) front++;
+  while (front < kinds.length - 1 && COLUMN_SPECS[kinds[front]].staysPut)
+    front++;
   return -seats[front];
 }
 

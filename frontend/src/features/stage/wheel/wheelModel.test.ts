@@ -263,21 +263,23 @@ describe("ringAngleFor", () => {
   const seats = columnSeats(AZ.columns);
 
   it("turns the active column to the front", () => {
-    for (const col of [0, ARTIST, SONG])
+    for (const col of [ARTIST, SONG])
       expect(ringAngleFor(col, seats, AZ.columns)).toBeCloseTo(-seats[col]);
   });
 
-  it("leaves the ring on the artists when letters are active", () => {
-    expect(ringAngleFor(LETTER, seats, AZ.columns)).toBe(
-      ringAngleFor(ARTIST, seats, AZ.columns),
-    );
+  it("leaves the ring on the artists when the sources or letters are active", () => {
+    for (const col of [0, LETTER])
+      expect(ringAngleFor(col, seats, AZ.columns)).toBe(
+        ringAngleFor(ARTIST, seats, AZ.columns),
+      );
   });
 
-  it("turns a one-column source's list to the front", () => {
+  it("turns a one-column source's list to the front, sources active or not", () => {
     const recentSeats = columnSeats(RECENT.columns);
-    expect(ringAngleFor(1, recentSeats, RECENT.columns)).toBeCloseTo(
-      -recentSeats[1],
-    );
+    for (const col of [0, 1])
+      expect(ringAngleFor(col, recentSeats, RECENT.columns)).toBeCloseTo(
+        -recentSeats[1],
+      );
   });
 });
 
