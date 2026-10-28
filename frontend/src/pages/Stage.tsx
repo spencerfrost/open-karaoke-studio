@@ -45,7 +45,7 @@ const StageFrame: React.FC<{
   contentClassName?: string;
 }> = ({ children, contentClassName = "max-w-md" }) => (
   <div
-    className="relative flex h-screen w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
+    className="relative flex h-dvh w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
     style={{ background: "var(--page-bg)" }}
   >
     <div className="theme-pattern" />
@@ -295,7 +295,7 @@ const Stage: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden">
+    <div className="h-dvh w-full overflow-hidden">
       <StageShell
         songId={currentSong?.id || ""}
         current={currentQueueItem}

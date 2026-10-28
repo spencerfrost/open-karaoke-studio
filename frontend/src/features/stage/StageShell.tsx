@@ -63,6 +63,15 @@ interface StageShellProps {
   turn: SessionTurn;
 }
 
+/** How far into a song, as a fraction, before song select opens fresh. */
+const WHEEL_FRESH_AT = 0.1;
+/** Song select and the detours off it: the wheel is in someone's hands. */
+const BROWSING_SCREENS = new Set<StageScreen["name"]>([
+  "select",
+  "confirm",
+  "add",
+]);
+
 const StageShell: React.FC<StageShellProps> = ({
   songId,
   current,
@@ -212,13 +221,39 @@ const StageShell: React.FC<StageShellProps> = ({
   // Song select is mounted once and then only ever hidden, so the wheel keeps
   // its place across a trip to confirm and back. This used to be forced: the
   // old accordion was ~600 artist rows with two React Query observers each and
-  // took seconds to mount. The wheel renders ~40 rows, so that reason may be
-  // gone - measure on the TV before relying on remounting it.
+  // took seconds to mount. The wheel renders ~40 rows, so remounting it once
+  // per singer (below) is cheap.
   //
   // Add and confirm stay mount-on-demand: both are cheap, and a fresh trip
   // into the add flow should start from a fresh search.
   const [selectMounted, setSelectMounted] = useState(false);
   if (screen.name === "select" && !selectMounted) setSelectMounted(true);
+
+  // The wheel's place belongs to one singer. Until the song is a little way in,
+  // whoever comes back to song select is most likely the singer who picked it,
+  // after a different song by the same artist, so the place is kept. Past that
+  // mark the next person is the one browsing, and song select opens fresh.
+  //
+  // Not while the wheel is in use: someone already browsing when the mark
+  // passes is the next singer, and keeps their place.
+  const pastFreshMark = usePlaybackStateStore(
+    (state) =>
+      state.duration > 0 &&
+      state.currentTime >= state.duration * WHEEL_FRESH_AT,
+  );
+  const [seenPastFreshMark, setSeenPastFreshMark] = useState(pastFreshMark);
+  const [wheelStale, setWheelStale] = useState(false);
+  const [selectKey, setSelectKey] = useState(0);
+  if (pastFreshMark !== seenPastFreshMark) {
+    setSeenPastFreshMark(pastFreshMark);
+    if (pastFreshMark && !BROWSING_SCREENS.has(screen.name)) {
+      setWheelStale(true);
+    }
+  }
+  if (screen.name === "select" && wheelStale) {
+    setWheelStale(false);
+    setSelectKey((key) => key + 1);
+  }
 
   // Stable so the memoized select screen is not re-rendered by an inline arrow.
   const handleExitStage = useCallback(() => setIsExitPromptOpen(true), []);
@@ -274,6 +309,7 @@ const StageShell: React.FC<StageShellProps> = ({
                 )}
               >
                 <SongSelectScreen
+                  key={selectKey}
                   active={screen.name === "select"}
                   expandArtist={
                     screen.name === "select" ? screen.expandArtist : undefined
