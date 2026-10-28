@@ -1,5 +1,6 @@
 import React, { ReactNode } from "react";
 import NavBar, { type NavItem } from "./NavBar";
+import { AccountMenu } from "@/features/session";
 import {
   Music,
   Upload,
@@ -18,8 +19,9 @@ interface AppLayoutProps {
    */
   contentClassName?: string;
   /**
-   * Leave out the bottom nav. For a full-screen tool that has its own way out
-   * (the singer's controls), where every pixel goes to the controls.
+   * Leave out the bottom nav and the account menu. For a full-screen tool that
+   * has its own way out (the singer's controls), where every pixel goes to the
+   * controls.
    */
   hideNav?: boolean;
 }
@@ -56,8 +58,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       items.push({ name: "Controls", path: "/controls", icon: Sliders });
     }
 
-    // Settings is where the account lives - so any account holder needs it
-    // reachable, not just a host.
+    // Settings belongs to any account holder, not just a host.
     if (access.isAuthenticated) {
       items.push({ name: "Settings", path: "/settings", icon: Settings });
     }
@@ -77,6 +78,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       <main
         className={`flex-1 overflow-auto relative z-10 ${contentClassName}`}
       >
+        {/* In the page's flow until there's a margin wide enough to float in. */}
+        {!hideNav && (
+          <AccountMenu className="lg:absolute lg:top-2 lg:right-3 lg:z-30" />
+        )}
         {children}
       </main>
       {!hideNav && <NavBar items={getNavigationItems()} />}

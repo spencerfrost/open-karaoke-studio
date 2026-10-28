@@ -4,7 +4,7 @@
  */
 
 // Component exports
-export { default as AccountCard } from "./components/AccountCard";
+export { default as AccountMenu } from "./components/AccountMenu";
 export { default as RotationModeCard } from "./components/RotationModeCard";
 export { default as EndSessionButton } from "./components/EndSessionButton";
 export { default as SessionRecoveryLoading } from "./components/SessionRecoveryLoading";

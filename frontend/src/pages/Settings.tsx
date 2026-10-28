@@ -1,7 +1,7 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
-import { AccountCard, RotationModeCard } from "@/features/session";
+import { RotationModeCard } from "@/features/session";
 import { THEMES, isThemeName } from "@/lib/themes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,7 +134,6 @@ const SettingsPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-semibold mb-6 text-primary">Settings</h1>
 
-        <AccountCard />
         <RotationModeCard />
 
         {/* Theme Settings */}

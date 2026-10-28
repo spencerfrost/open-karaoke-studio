@@ -38,7 +38,7 @@ export const RequireAccess: React.FC = () => {
 };
 
 export interface CapabilityRequirement {
-  /** Any signed-in account - the account card is the point. */
+  /** Any signed-in account, host or not. */
   account?: boolean;
   /** A host or admin account. Does not require a session. */
   host?: boolean;

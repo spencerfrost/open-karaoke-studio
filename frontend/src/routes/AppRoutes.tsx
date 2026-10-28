@@ -32,7 +32,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/" element={<LibraryPage />} />
       <Route path="/add/*" element={<AddSongPage />} />
 
-      {/* Any account - the account card is the point. */}
+      {/* Any account, host or not. A session guest has no settings. */}
       <Route element={<RequireCapability account />}>
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AccountMenu } from "@/features/session";
 import { useLyricsReports } from "@/hooks/api/useLyricsReports";
 import { useBatchJobs } from "./hooks/useBatchJobs";
 import {
@@ -268,7 +269,8 @@ const AdminLayout: React.FC = () => {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-auto p-4 md:p-8">
+      <main className="relative min-w-0 flex-1 overflow-auto p-4 md:p-8">
+        <AccountMenu className="lg:absolute lg:top-2 lg:right-3 lg:z-30" />
         {current && (
           <h1 className="mb-6 text-2xl font-bold">{current.label}</h1>
         )}
