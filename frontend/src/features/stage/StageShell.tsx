@@ -26,6 +26,7 @@ import React, {
 import { StageLayout } from "@/features/player/components/stage";
 import { usePlayerUI } from "@/features/player/hooks";
 import { useRoster } from "@/hooks/api/useRoster";
+import { useJobTrackerStore } from "@/stores/jobTrackerStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { usePlaybackStateStore } from "@/stores/usePlaybackStateStore";
 import { cn } from "@/lib/utils";
@@ -215,6 +216,16 @@ const StageShell: React.FC<StageShellProps> = ({
     () => ({ current: current ?? null, upcoming, turn }),
     [current, upcoming, turn],
   );
+
+  // A finished song that reaches the queue by any route - "Sing this", the
+  // wheel, a phone - has done its job in the processing list. Watched here
+  // rather than in the list, which is only mounted on song select.
+  const dismissFinished = useJobTrackerStore((s) => s.dismissFinished);
+  useEffect(() => {
+    const queued = upcoming.map((item) => item.songId);
+    if (current) queued.push(current.songId);
+    dismissFinished(queued);
+  }, [current, upcoming, dismissFinished]);
 
   const isPerforming = screen.name === "performance";
 

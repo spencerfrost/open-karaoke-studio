@@ -36,7 +36,10 @@ export interface TrackedSong {
 export type TrackedSongs = Record<string, TrackedSong>;
 
 /** How long a finished song of ours keeps its row if nobody acts on it. */
-export const FINISHED_TTL_MS = 60 * 60 * 1000;
+export const FINISHED_TTL_MS = 15 * 60 * 1000;
+
+const isExpired = (song: TrackedSong, now: number) =>
+  song.finishedAt !== null && now - song.finishedAt > FINISHED_TTL_MS;
 
 const isInFlight = (job: SongProcessingStatus) =>
   job.status === "queued" || job.status === "processing";
@@ -91,12 +94,26 @@ export function mergeJobs(
     if (next[songId]) continue;
     // Nobody can claim an untagged song, so it has no finished row to show.
     if (!before.ownerTag) continue;
-    const finishedAt = before.finishedAt ?? now;
-    if (now - finishedAt > FINISHED_TTL_MS) continue;
+    if (isExpired(before, now)) continue;
     next[songId] =
-      before.finishedAt === null ? { ...before, jobs: [], finishedAt } : before;
+      before.finishedAt === null
+        ? { ...before, jobs: [], finishedAt: now }
+        : before;
   }
 
+  return next;
+}
+
+/**
+ * Drop finished songs past their TTL. mergeJobs does this too, but only runs
+ * when the feed sends something, and a quiet feed would keep them forever.
+ * Returns `songs` itself when nothing expired, so the store can skip the update.
+ */
+export function pruneFinished(songs: TrackedSongs, now: number): TrackedSongs {
+  const expired = Object.values(songs).filter((s) => isExpired(s, now));
+  if (expired.length === 0) return songs;
+  const next = { ...songs };
+  for (const s of expired) delete next[s.songId];
   return next;
 }
 

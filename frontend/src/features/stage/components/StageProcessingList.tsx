@@ -5,7 +5,9 @@
  * wheel shrinks to make room at the TV's ~960×540. It shows every song in the job queue,
  * everyone's, so a guest can see why theirs is still waiting. This session's
  * songs are marked as theirs and stay when finished, turning into "Sing this";
- * other sessions' songs drop off when done.
+ * other sessions' songs drop off when done. A finished song leaves when it is
+ * queued by any route (StageShell watches the queue), when someone taps
+ * "Not now", or when it goes untouched past its TTL (see jobTimeline).
  *
  * Reads the stores itself, so the memoized song select screen never re-renders
  * on a progress tick.
@@ -86,10 +88,19 @@ const StageProcessingList: React.FC<StageProcessingListProps> = ({
             key={row.songId}
             row={row}
             renderReady={(song) => (
-              <SingThisButton
-                song={song}
-                onStarted={() => dismiss(row.songId)}
-              />
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => dismiss(row.songId)}
+                >
+                  Not now
+                </Button>
+                <SingThisButton
+                  song={song}
+                  onStarted={() => dismiss(row.songId)}
+                />
+              </>
             )}
             renderFailed={() => (
               <Button

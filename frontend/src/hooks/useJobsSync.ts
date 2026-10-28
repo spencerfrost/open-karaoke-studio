@@ -5,6 +5,9 @@ import { useJobTrackerStore } from "@/stores/jobTrackerStore";
 import { primaryJob } from "@/features/songs/processing/jobTimeline";
 import type { SongProcessingStatus } from "@/types/Song";
 
+/** How often finished processing rows are checked against their TTL. */
+const PRUNE_INTERVAL_MS = 60 * 1000;
+
 /**
  * Syncs job updates from the jobs WebSocket into the two stores that read them.
  * Should be used once at app level.
@@ -14,6 +17,7 @@ import type { SongProcessingStatus } from "@/types/Song";
  *   before separation ends), so the card gets the earlier step - the one that
  *   decides whether the song can play yet.
  * - jobTrackerStore: the whole timeline per song, for the processing lists.
+ *   Finished rows expire on a timer, since the feed can go quiet for hours.
  */
 export function useJobsSync() {
   const { jobs } = useJobsWebSocket();
@@ -22,6 +26,12 @@ export function useJobsSync() {
     (state) => state.removeProcessing,
   );
   const syncTracker = useJobTrackerStore((state) => state.sync);
+  const pruneTracker = useJobTrackerStore((state) => state.prune);
+
+  useEffect(() => {
+    const timer = setInterval(pruneTracker, PRUNE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [pruneTracker]);
 
   useEffect(() => {
     syncTracker(jobs);

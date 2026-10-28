@@ -4,6 +4,7 @@ import {
   FINISHED_TTL_MS,
   buildTrackerRows,
   mergeJobs,
+  pruneFinished,
   primaryJob,
   type TrackedSongs,
 } from "./jobTimeline";
@@ -79,6 +80,24 @@ describe("mergeJobs", () => {
     expect(Object.keys(songs)).toEqual(["b"]);
     songs = mergeJobs(songs, [], 2 + FINISHED_TTL_MS);
     expect(songs).toEqual({});
+  });
+});
+
+describe("pruneFinished", () => {
+  it("expires finished songs without waiting for the feed", () => {
+    let songs: TrackedSongs = mergeJobs(
+      {},
+      [
+        job({ song_id: "done", ownerTag: MINE }),
+        job({ song_id: "busy", ownerTag: MINE }),
+      ],
+      0,
+    );
+    songs = mergeJobs(songs, [job({ song_id: "busy", ownerTag: MINE })], 1);
+    expect(pruneFinished(songs, 1 + FINISHED_TTL_MS)).toBe(songs);
+    expect(Object.keys(pruneFinished(songs, 2 + FINISHED_TTL_MS))).toEqual([
+      "busy",
+    ]);
   });
 });
 
