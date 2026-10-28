@@ -16,6 +16,7 @@ from app.api.dependencies import (
     require_host_or_session_member,
 )
 from app.exceptions import NetworkError, ServiceError, ValidationError
+from app.limiter import limiter
 from app.services.demo_service import enforce_demo_download_quota
 from app.services.song_intake_service import (
     attach_library_entries,
@@ -129,8 +130,14 @@ def _attach_library(db: Session, results: list[dict]) -> None:
         result["library"] = candidate["library"]
 
 
-@router.get("/search", response_model=YouTubeSearchResponse)
+@router.get(
+    "/search",
+    response_model=YouTubeSearchResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("30/minute")
 def search_youtube(
+    request: Request,
     query: str = Query(..., min_length=1, description="Search query"),
     maxResults: int = Query(10, ge=1, le=50, description="Maximum number of results"),
     db: Session = Depends(get_db),
@@ -176,7 +183,8 @@ def search_youtube(
 
 
 @router.get("/preview/{video_id}")
-def preview_youtube(video_id: str):
+@limiter.limit("30/minute")
+def preview_youtube(request: Request, video_id: str):
     """
     Get a redirect to a direct audio stream URL for previewing a YouTube video.
 

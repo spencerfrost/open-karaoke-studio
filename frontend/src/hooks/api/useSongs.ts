@@ -60,6 +60,7 @@ export function useSongs() {
     // Use a custom query function that handles different response formats
     const queryFn = async () => {
       const response = await fetch(`/api/${queryString}`, {
+        headers: { ...getAuthHeaders() },
         credentials: "include",
       });
 

@@ -15,17 +15,14 @@ from datetime import timedelta
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, computed_field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     RequesterContext,
-    _resolve_user,
-    get_current_user,
+    ensure_session_access,
     get_db,
-    optional_security,
     require_host,
     require_host_or_session_member,
     require_session_member,
@@ -240,15 +237,14 @@ def get_session_manager(request: Request) -> SessionConnectionManager:
 def require_roster_access(
     session_id: str,
     requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
 ) -> str:
     """The session id this caller may read or add roster entries for.
 
-    Mirrors karaoke_queue.py's require_queue_access: an account holder may
-    address any session, an anonymous session guest is confined to the
-    session their device credential names.
+    Same rule as karaoke_queue.py's require_queue_access - see
+    ensure_session_access.
     """
-    if requester.user is None and requester.session_id != session_id:
-        raise HTTPException(status_code=403, detail="Not a member of that session")
+    ensure_session_access(requester, session_id, db)
     return session_id
 
 
@@ -638,10 +634,11 @@ def create_session(
     session_data: SessionCreateRequest = SessionCreateRequest(),
     user_agent: Optional[str] = Header(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """
-    Create a new karaoke session.
+    Create a new karaoke session. Hosting needs a host account, as for
+    POST /api/sessions/my - registration is open, so "signed in" isn't enough.
     """
     device_type = session_data.device_type
     display_name = session_data.display_name
@@ -937,19 +934,18 @@ def join_session_by_id(
 @router.get("/{session_id}/info", response_model=SessionResponse)
 def get_session_info(
     session_id: str,
-    request: Request,
-    device_id: Optional[str] = None,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    requester: RequesterContext = Depends(require_host_or_session_member),
     db: Session = Depends(get_db),
 ):
     """
-    Get information about a specific session.
+    Get information about a specific session, including its device roster.
 
-    `is_host` comes from the bearer token when one is supplied, since ownership lives on
-    `host_user_id` - the same source the session WebSocket uses. Anonymous callers fall
-    back to comparing `host_device_id`, so pass `device_id` as a query parameter for that
-    path (host_device_id is a 'rest_xxx' token, not an IP address).
+    Only a member device, the hosting account or an admin may read it (see
+    ensure_session_access). `is_host` comes from the account, since ownership lives on
+    `host_user_id` - the same source the session WebSocket uses.
     """
+    ensure_session_access(requester, session_id, db)
+
     # Find session
     session = (
         db.query(KaraokeSession)
@@ -966,16 +962,13 @@ def get_session_info(
     if session.is_expired():
         raise HTTPException(status_code=410, detail="Session has expired")
 
-    # Use provided device_id for identity if supplied, otherwise fall back to IP
-    client_identity = device_id or (
-        request.client.host if request.client else "unknown"
+    is_host = requester.user is not None and requester.user.id == session.host_user_id
+    own_device_id = (
+        requester.device.device_id
+        if requester.device is not None
+        and requester.device.session_id == session.session_id
+        else None
     )
-
-    # Ownership lives on host_user_id; the device comparison is only for anonymous callers.
-    if credentials is not None:
-        is_host = _resolve_user(credentials.credentials, db).id == session.host_user_id
-    else:
-        is_host = client_identity == session.host_device_id
 
     # Get all active devices in the session
     active_devices = (
@@ -992,7 +985,7 @@ def get_session_info(
             device_id=d.device_id,
             device_type=d.device_type,
             joined_at=d.joined_at.isoformat(),
-            is_self=d.device_id == client_identity,
+            is_self=d.device_id == own_device_id,
             display_name=d.display_name,
         )
         for d in active_devices

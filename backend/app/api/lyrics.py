@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -15,12 +15,13 @@ from app.api.dependencies import (
     RequesterContext,
     get_current_user,
     get_db,
-    require_host,
+    require_admin,
     require_host_or_session_member,
 )
 from app.db.models import User
 from app.exceptions import ServiceError
 from app.jobs.lyrics_dispatch import enqueue_song_alignment, realign_hand_picked_lyrics
+from app.limiter import limiter
 from app.repositories.lyrics_report_repository import LyricsReportRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
@@ -33,6 +34,9 @@ from app.services.syncedlyrics_service import SyncedLyricsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
+
+# Each alignment is a GPU job, and any account can ask for one.
+ALIGN_RATE_LIMIT = "10/minute"
 
 
 class LyricsResult(BaseModel):
@@ -90,7 +94,11 @@ def _validate_db_alignment_request(song, source: Optional[str]) -> None:
         )
 
 
-@router.get("/languages", response_model=List[str])
+@router.get(
+    "/languages",
+    response_model=List[str],
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def list_lyrics_languages():
     """Language codes a song can be set to: every language Whisper knows."""
     return whisper_language_codes()
@@ -101,8 +109,14 @@ def list_lyrics_languages():
 # ============================================================================
 
 
-@router.get("/search", response_model=List[dict])
+@router.get(
+    "/search",
+    response_model=List[dict],
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("20/minute")
 def search_lyrics(
+    request: Request,
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
     album_name: Optional[str] = Query(None, description="Album name (optional)"),
@@ -136,8 +150,14 @@ def search_lyrics(
         )
 
 
-@router.get("/search-synced", response_model=List[dict])
+@router.get(
+    "/search-synced",
+    response_model=List[dict],
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("20/minute")
 def search_lyrics_synced(
+    request: Request,
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
     album_name: Optional[str] = Query(None, description="Album name (optional)"),
@@ -170,7 +190,11 @@ def search_lyrics_synced(
 # ============================================================================
 
 
-@router.get("/songs/{song_id}", response_model=dict)
+@router.get(
+    "/songs/{song_id}",
+    response_model=dict,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
     """Get the current lyrics for a song (plain, synced, and whether alignment exists)."""
     song = SongRepository(db).fetch(song_id)
@@ -245,7 +269,11 @@ def clear_song_lyrics(
 # ============================================================================
 
 
-@router.get("/songs/{song_id}/analyze", response_model=dict)
+@router.get(
+    "/songs/{song_id}/analyze",
+    response_model=dict,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def analyze_song_lyrics(
     song_id: str,
     min_confidence: float = Query(0.3, ge=0.0, le=1.0),
@@ -296,7 +324,11 @@ def apply_analysis(
 # ============================================================================
 
 
-@router.get("/songs/{song_id}/analyze/offset", response_model=dict)
+@router.get(
+    "/songs/{song_id}/analyze/offset",
+    response_model=dict,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
     """Analyze global LRC timestamp offset against the vocals audio. Read-only."""
     song = SongRepository(db).fetch(song_id)
@@ -365,7 +397,11 @@ def apply_offset_correction(
 # ============================================================================
 
 
-@router.get("/songs/{song_id}/alignment", response_model=dict)
+@router.get(
+    "/songs/{song_id}/alignment",
+    response_model=dict,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
     """Return stored word-level alignment data for this song."""
     song = SongRepository(db).fetch(song_id)
@@ -387,7 +423,9 @@ def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/songs/{song_id}/align", response_model=dict, status_code=200)
+@limiter.limit(ALIGN_RATE_LIMIT)
 def align_song_lyrics(
+    request: Request,
     song_id: str,
     language: Optional[str] = Query(
         None,
@@ -418,7 +456,9 @@ def align_song_lyrics(
 
 
 @router.post("/songs/{song_id}/align-db", response_model=dict, status_code=200)
+@limiter.limit(ALIGN_RATE_LIMIT)
 def align_song_lyrics_from_database(
+    request: Request,
     song_id: str,
     language: Optional[str] = Query(
         None,
@@ -551,7 +591,7 @@ def report_song_lyrics(
 @router.get("/reports", response_model=List[dict])
 def list_lyrics_reports(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """Open lyrics reports, most recently reported first."""
     return [
@@ -563,7 +603,7 @@ def list_lyrics_reports(
 def resolve_lyrics_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """Mark a report as dealt with. Lyrics reported as wrong stay rejected."""
     report = LyricsReportRepository(db).resolve(report_id, user_id=current_user.id)
@@ -578,7 +618,7 @@ def resolve_lyrics_report(
 def undo_lyrics_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     The report was wrong: put back the lyrics it was about and forget it.
@@ -625,7 +665,10 @@ def undo_lyrics_report(
 
 
 @router.get("/batch/align", response_model=dict)
-def batch_align_status(db: Session = Depends(get_db)):
+def batch_align_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     """
     Return library-wide alignment statistics without running any processing.
 

@@ -126,17 +126,24 @@ export interface SessionPlaylistStatus {
 export async function generateSessionPlaylist(
   sessionId: string,
 ): Promise<ApiResponse<SessionPlaylistStatus>> {
+  // Only the session's host may create it; the session itself has just ended.
+  const token = useAuthStore.getState().token;
   return apiRequest<SessionPlaylistStatus>(
     `/api/sessions/${sessionId}/playlist`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
   );
 }
 
 export async function getSessionPlaylist(
   sessionId: string,
 ): Promise<ApiResponse<SessionPlaylistStatus>> {
+  const token = useAuthStore.getState().token;
   return apiRequest<SessionPlaylistStatus>(
     `/api/sessions/${sessionId}/playlist`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
   );
 }
 

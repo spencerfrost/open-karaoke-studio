@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.api.dependencies import (
     RequesterContext,
+    ensure_session_access,
     get_db,
     require_host,
     require_host_or_session_member,
@@ -156,16 +157,11 @@ def get_session_code(
 def require_queue_access(
     session_code: str = Depends(get_session_code),
     requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
 ) -> str:
-    """The session code this caller is allowed to touch.
-
-    An account holder may address any session - hosts run them, and the
-    planned performer tier is scoped by its own membership anyway. An
-    anonymous session guest is confined to the session their device
-    credential names.
-    """
-    if requester.user is None and requester.session_id != session_code:
-        raise HTTPException(status_code=403, detail="Not a member of that session")
+    """The session code this caller is allowed to touch: one their device is a
+    member of, one their account hosts, or any for an admin."""
+    ensure_session_access(requester, session_code, db)
     return session_code
 
 

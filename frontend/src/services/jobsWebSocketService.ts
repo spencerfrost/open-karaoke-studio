@@ -4,8 +4,38 @@
  */
 
 import { createLogger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/authStore";
+import { useSessionStore } from "@/stores/sessionStore";
 
 const logger = createLogger("websocket:jobs");
+
+/** Close code the server uses when the opening `authenticate` is refused. */
+const POLICY_VIOLATION = 1008;
+
+interface JobsCredentials {
+  token: string | null;
+  sessionId: string | null;
+  deviceId: string | null;
+}
+
+/** What the opening `authenticate` sends: an account token, a session membership, or both. */
+function currentCredentials(): JobsCredentials {
+  const { token } = useAuthStore.getState();
+  const { sessionId, deviceId } = useSessionStore.getState();
+  return { token, sessionId, deviceId };
+}
+
+function hasCredentials({ token, sessionId, deviceId }: JobsCredentials) {
+  return Boolean(token || (sessionId && deviceId));
+}
+
+function sameCredentials(a: JobsCredentials, b: JobsCredentials) {
+  return (
+    a.token === b.token &&
+    a.sessionId === b.sessionId &&
+    a.deviceId === b.deviceId
+  );
+}
 
 interface JobData {
   id: string;
@@ -39,12 +69,48 @@ class JobsWebSocketService {
   private isConnected = false;
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private credentials: JobsCredentials = currentCredentials();
 
   constructor() {
+    // The server only admits an account or a session member. Signing in,
+    // joining or leaving changes what this socket can prove, so reconnect
+    // with the new credentials - this is also what opens it after the first
+    // sign-in or join.
+    const onCredentialsChange = () => {
+      const next = currentCredentials();
+      if (sameCredentials(next, this.credentials)) return;
+      this.credentials = next;
+      this.restart();
+    };
+    useAuthStore.subscribe(onCredentialsChange);
+    useSessionStore.subscribe(onCredentialsChange);
+
+    this.initializeConnection();
+  }
+
+  /** Drop the current socket (keeping listeners) and open a fresh one. */
+  private restart() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    if (this.websocket) {
+      const old = this.websocket;
+      this.websocket = null;
+      old.onclose = null;
+      old.close(1000, "Credentials changed");
+    }
+    this.isConnected = false;
+    this.reconnectAttempts = 0;
     this.initializeConnection();
   }
 
   private initializeConnection() {
+    if (!hasCredentials(this.credentials)) {
+      logger.debug("No account or session yet - jobs WebSocket waits");
+      return;
+    }
+
     try {
       // Use the WebSocket URL that goes through Vite proxy in development
       // or directly to FastAPI in production
@@ -87,6 +153,16 @@ class JobsWebSocketService {
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
+      // The server ignores everything until this arrives.
+      const { token, sessionId, deviceId } = this.credentials;
+      this.send({
+        type: "authenticate",
+        ...(token ? { token } : {}),
+        ...(sessionId && deviceId
+          ? { session_id: sessionId, device_id: deviceId }
+          : {}),
+      });
+
       // Subscribe to job updates
       this.send({ type: "subscribe_to_jobs" });
     };
@@ -99,6 +175,12 @@ class JobsWebSocketService {
       );
       this.isConnected = false;
       this.websocket = null;
+
+      // Refused credentials won't pass on a retry; wait for them to change.
+      if (event.code === POLICY_VIOLATION) {
+        logger.warn("Jobs WebSocket refused these credentials");
+        return;
+      }
 
       // Attempt to reconnect if it wasn't a manual disconnect
       if (event.code !== 1000) {
@@ -124,6 +206,10 @@ class JobsWebSocketService {
 
           case "subscribed":
             logger.debug("Subscribed to job updates:", data);
+            break;
+
+          case "auth_failed":
+            logger.warn("Jobs WebSocket authentication failed:", data.reason);
             break;
 
           case "jobs_list":

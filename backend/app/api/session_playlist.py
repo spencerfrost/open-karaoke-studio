@@ -14,8 +14,21 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
-from app.db.models import DbSong, Job, JobStatus, KaraokeSession, PerformanceHistory
+from app.api.dependencies import (
+    RequesterContext,
+    ensure_session_access,
+    get_db,
+    require_host,
+    require_host_or_session_member,
+)
+from app.db.models import (
+    DbSong,
+    Job,
+    JobStatus,
+    KaraokeSession,
+    PerformanceHistory,
+    User,
+)
 from app.repositories.job_repository import JobRepository
 from app.services.youtube_music_service import YoutubeMusicService
 
@@ -27,6 +40,25 @@ PlaylistStatus = Literal["pending", "processing", "ready", "failed"]
 
 def _playlist_job_id(session_id: str) -> str:
     return f"playlist-{session_id}"
+
+
+def _naive_utc(value: datetime) -> datetime:
+    """Compare-ready: DateTime columns hold naive UTC, Job dataclasses may be aware."""
+    return (
+        value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    )
+
+
+def _belongs_to(job: Job, session: KaraokeSession) -> bool:
+    """Whether a playlist job was made for this session and not an earlier one.
+
+    The job id is keyed by the 4-letter code, and a code is reused once
+    purge_stale_sessions frees it, so an older row with the same id is some
+    other night's playlist - possibly another host's.
+    """
+    if job.created_at is None or session.created_at is None:
+        return False
+    return _naive_utc(job.created_at) >= _naive_utc(session.created_at)
 
 
 class SessionPlaylistResponse(BaseModel):
@@ -145,23 +177,34 @@ def generate_session_playlist(
     session_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
 ) -> SessionPlaylistResponse:
     """
     Trigger YouTube Music playlist generation for the session.
     Returns immediately; poll GET /{session_id}/playlist for status.
+
+    The playlist is created on the server's YouTube Music account, so only the
+    session's host (or an admin) may ask for one. The stage asks right after
+    ending the session, so an ended session is fine here.
     """
     session = (
         db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
     )
-    if not session:
+    # Someone else's session gets the same 404 as a missing one.
+    if not session or (
+        session.host_user_id != current_user.id and not current_user.is_admin
+    ):
         raise HTTPException(status_code=404, detail="Session not found")
 
     job_id = _playlist_job_id(session_id)
     job_repo = JobRepository()
     existing = job_repo.get_job(job_id)
 
-    if existing:
+    if existing and _belongs_to(existing, session):
         return _job_to_response(existing)
+    if existing:
+        # An earlier session's playlist under a recycled code - start over.
+        job_repo.delete_job(job_id)
 
     now = datetime.now(timezone.utc)
     job = Job(
@@ -186,13 +229,21 @@ def generate_session_playlist(
 
 
 @router.get("/{session_id}/playlist", response_model=SessionPlaylistResponse)
-def get_session_playlist(session_id: str) -> SessionPlaylistResponse:
+def get_session_playlist(
+    session_id: str,
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
+) -> SessionPlaylistResponse:
     """
     Poll for the status of the playlist generation for a session.
     """
+    ensure_session_access(requester, session_id, db)
+    session = (
+        db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
+    )
     job_id = _playlist_job_id(session_id)
     job_repo = JobRepository()
     job = job_repo.get_job(job_id)
-    if not job:
+    if not job or session is None or not _belongs_to(job, session):
         raise HTTPException(status_code=404, detail="Playlist generation not started")
     return _job_to_response(job)

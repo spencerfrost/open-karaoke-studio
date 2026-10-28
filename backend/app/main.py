@@ -10,10 +10,8 @@ CLEAN ARCHITECTURE: Only two WebSocket endpoints - jobs (global) and session (se
 All karaoke functionality (performance controls, queue, player state) handled through sessions.
 """
 
-import asyncio
 import logging
 import os
-import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -168,24 +166,6 @@ async def unified_session_ws(websocket: WebSocket, session_id: str):
     Handles all session-related communication: performance controls, player state, and queue management.
     """
     await websocket_unified_session_endpoint(websocket, session_id, manager)
-
-
-# Performance testing endpoint
-@app.get("/api/performance-test")
-async def performance_test():
-    """
-    Endpoint for performance testing.
-    """
-    start_time = time.time()
-    await asyncio.sleep(0.01)  # 10ms of "work"
-    end_time = time.time()
-
-    return {
-        "framework": "fastapi",
-        "response_time_ms": round((end_time - start_time) * 1000, 2),
-        "async_capable": True,
-        "concurrent_ready": True,
-    }
 
 
 # Error handlers

@@ -10,12 +10,13 @@ YouTube Music failing is a 502; an unknown artist or album is a 404.
 import logging
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, require_host_or_session_member
 from app.exceptions import NotFoundError
+from app.limiter import limiter
 from app.services.song_intake_service import attach_library_entries
 from app.services.youtube_music_service import (
     YoutubeMusicService,
@@ -133,8 +134,14 @@ def _youtube_music_failed(what: str, e: Exception) -> HTTPException:
     return HTTPException(status_code=502, detail=YOUTUBE_MUSIC_FAILED)
 
 
-@router.get("/search", response_model=YoutubeMusicSearchResponse)
+@router.get(
+    "/search",
+    response_model=YoutubeMusicSearchResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("30/minute")
 def search_youtube_music(
+    request: Request,
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(20, ge=1, le=50, description="Maximum number of songs"),
     db: Session = Depends(get_db),
@@ -161,8 +168,14 @@ def search_youtube_music(
     )
 
 
-@router.get("/suggestions", response_model=List[str])
+@router.get(
+    "/suggestions",
+    response_model=List[str],
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("120/minute")
 def get_search_suggestions(
+    request: Request,
     q: str = Query(..., min_length=1, description="What's been typed so far"),
 ):
     """Search suggestions for a partly typed query."""
@@ -172,8 +185,13 @@ def get_search_suggestions(
         raise _youtube_music_failed(f"suggestions for {q!r}", e)
 
 
-@router.get("/artist/{artist_id}", response_model=YoutubeMusicArtistResponse)
-def get_artist(artist_id: str, db: Session = Depends(get_db)):
+@router.get(
+    "/artist/{artist_id}",
+    response_model=YoutubeMusicArtistResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("30/minute")
+def get_artist(request: Request, artist_id: str, db: Session = Depends(get_db)):
     """
     An artist's info, first popular songs, and every album, single and remix
     collection.
@@ -192,8 +210,13 @@ def get_artist(artist_id: str, db: Session = Depends(get_db)):
     return result
 
 
-@router.get("/artist/{artist_id}/songs", response_model=List[YoutubeMusicSong])
-def get_artist_songs(artist_id: str, db: Session = Depends(get_db)):
+@router.get(
+    "/artist/{artist_id}/songs",
+    response_model=List[YoutubeMusicSong],
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("30/minute")
+def get_artist_songs(request: Request, artist_id: str, db: Session = Depends(get_db)):
     """Every one of the artist's popular songs, for "Show all popular songs"."""
     try:
         songs = YoutubeMusicService().get_artist_songs(artist_id)
@@ -207,8 +230,13 @@ def get_artist_songs(artist_id: str, db: Session = Depends(get_db)):
     return songs
 
 
-@router.get("/album/{album_id}/tracks", response_model=YoutubeMusicAlbumResponse)
-def get_album_tracks(album_id: str, db: Session = Depends(get_db)):
+@router.get(
+    "/album/{album_id}/tracks",
+    response_model=YoutubeMusicAlbumResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+@limiter.limit("30/minute")
+def get_album_tracks(request: Request, album_id: str, db: Session = Depends(get_db)):
     """An album's info and tracks, each with its library copy's state."""
     try:
         result = YoutubeMusicService().get_album_tracks(album_id)

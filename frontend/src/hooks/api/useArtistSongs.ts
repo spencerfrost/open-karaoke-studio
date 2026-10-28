@@ -1,17 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Song, SongArtist } from "../../types/Song";
-
-// Helper function for API calls
-const apiGet = async <T>(url: string): Promise<T> => {
-  const response = await fetch(`/api/${url}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
-  }
-  return response.json();
-};
+import { apiGet } from "./useApi";
 
 interface PaginationInfo {
   total: number;

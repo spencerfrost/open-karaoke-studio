@@ -10,7 +10,7 @@ import { Search, FileText, Mic2, Loader2 } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useApiMutation } from "@/hooks/api/useApi";
+import { getAuthHeaders, useApiMutation } from "@/hooks/api/useApi";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
@@ -79,6 +79,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
 
         const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
           method: "POST",
+          headers: { ...getAuthHeaders() },
           credentials: "include",
         });
 

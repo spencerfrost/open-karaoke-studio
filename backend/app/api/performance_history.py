@@ -45,13 +45,22 @@ def get_performance_history(
     current_user: User = Depends(require_host),
 ):
     """
-    Get paginated list of all performances, most recent first.
+    Get paginated list of performances, most recent first.
+
+    Admins see every session's; a host sees only the sessions they ran. Hosts
+    include the public demo accounts, and other sessions' rows carry singer
+    names and join codes.
     """
-    total = db.query(PerformanceHistory).count()
+    query = db.query(PerformanceHistory)
+    if not current_user.is_admin:
+        query = query.join(
+            KaraokeSession, KaraokeSession.session_id == PerformanceHistory.session_id
+        ).filter(KaraokeSession.host_user_id == current_user.id)
+
+    total = query.count()
 
     rows = (
-        db.query(PerformanceHistory)
-        .order_by(PerformanceHistory.performed_at.desc())
+        query.order_by(PerformanceHistory.performed_at.desc())
         .offset(offset)
         .limit(limit)
         .all()

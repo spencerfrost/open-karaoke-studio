@@ -150,7 +150,7 @@ def _resolve_requester_session(
 
     session: Optional[KaraokeSession] = None
     if requester.session_id:
-        # Anonymous session guest — membership already verified upstream.
+        # A session device — membership already verified upstream.
         session = (
             db.query(KaraokeSession)
             .filter(KaraokeSession.session_id == requester.session_id)

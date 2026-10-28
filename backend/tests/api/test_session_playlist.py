@@ -126,7 +126,7 @@ def test_fails_with_the_youtube_music_error(client, db, karaoke_session, youtube
     assert polled["error_message"] == "not signed in"
 
 
-def test_unreadable_status_message_still_reports_status(client):
+def test_unreadable_status_message_still_reports_status(client, karaoke_session):
     JobRepository().create(
         Job(
             id=f"playlist-{SESSION_ID}",
@@ -143,3 +143,30 @@ def test_unreadable_status_message_still_reports_status(client):
     assert polled["status"] == "processing"
     assert polled["youtube_music_url"] is None
     assert polled["song_count"] == 0
+
+
+def test_a_recycled_codes_old_playlist_is_not_handed_over(
+    client, db, karaoke_session, youtube_music
+):
+    """Codes are reused after a purge; last month's playlist under it isn't this one's."""
+    JobRepository().create(
+        Job(
+            id=f"playlist-{SESSION_ID}",
+            filename=f"playlist-{SESSION_ID}",
+            status=JobStatus.COMPLETED,
+            status_message='{"youtube_music_url": "https://old", "song_count": 9}',
+            engine_type="playlist_generation",
+            created_at=utc_now() - timedelta(days=30),
+        )
+    )
+
+    assert client.get(f"/api/sessions/{SESSION_ID}/playlist").status_code == 404
+
+    _perform(db, "song", "vid-1", minutes_ago=1)
+    client.post(f"/api/sessions/{SESSION_ID}/playlist")
+
+    polled = client.get(f"/api/sessions/{SESSION_ID}/playlist").json()
+    assert (
+        polled["youtube_music_url"] == "https://music.youtube.com/playlist?list=PL123"
+    )
+    assert polled["song_count"] == 1

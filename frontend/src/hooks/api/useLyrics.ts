@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLogger } from "@/lib/logger";
+import { getAuthHeaders } from "./useApi";
 
 const logger = createLogger("hook:lyrics");
 
@@ -57,7 +58,9 @@ export function useLyricsSearch() {
       }).toString();
       let response;
       try {
-        response = await fetch(`${endpoint}?${queryString}`);
+        response = await fetch(`${endpoint}?${queryString}`, {
+          headers: { ...getAuthHeaders() },
+        });
       } catch (fetchError) {
         const errorMessage =
           fetchError instanceof Error ? fetchError.message : String(fetchError);

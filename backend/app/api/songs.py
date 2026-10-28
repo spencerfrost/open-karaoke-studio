@@ -41,7 +41,6 @@ from app.api.dependencies import (
     get_current_user,
     get_db,
     require_admin,
-    require_host,
     require_host_or_session_member,
 )
 from app.api.validators import (
@@ -110,7 +109,11 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 # ============================================================================
 
 
-@router.get("", response_model=List[SongResponse])
+@router.get(
+    "",
+    response_model=List[SongResponse],
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def get_songs(
     limit: Optional[int] = Query(
         None, ge=1, le=500, description="Maximum number of songs to return"
@@ -153,7 +156,11 @@ def get_songs(
         )
 
 
-@router.get("/search", response_model=SongSearchResponse | ArtistSearchResponse)
+@router.get(
+    "/search",
+    response_model=SongSearchResponse | ArtistSearchResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def search_songs(
     q: str = Query("", description="Search query"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results"),
@@ -292,7 +299,7 @@ def search_songs(
         raise HTTPException(status_code=500, detail=f"Failed to search songs: {str(e)}")
 
 
-@router.get("/artists")
+@router.get("/artists", dependencies=[Depends(require_host_or_session_member)])
 def get_artists(
     search: Optional[str] = Query(None, description="Search term to filter artists"),
     limit: Optional[int] = Query(None, ge=1, le=500),
@@ -398,7 +405,7 @@ def get_artists(
         raise HTTPException(status_code=500, detail=f"Failed to get artists: {str(e)}")
 
 
-@router.get("/shows")
+@router.get("/shows", dependencies=[Depends(require_host_or_session_member)])
 def get_shows(
     search: Optional[str] = Query(None, description="Search term to filter shows"),
     db: Session = Depends(get_db),
@@ -434,7 +441,9 @@ def get_shows(
         raise HTTPException(status_code=500, detail=f"Failed to get shows: {str(e)}")
 
 
-@router.get("/by-artist/{artist_id}")
+@router.get(
+    "/by-artist/{artist_id}", dependencies=[Depends(require_host_or_session_member)]
+)
 def get_songs_by_artist(
     artist_id: int,
     limit: int = Query(
@@ -513,7 +522,9 @@ def get_songs_by_artist(
         )
 
 
-@router.get("/by-show/{show_name}")
+@router.get(
+    "/by-show/{show_name}", dependencies=[Depends(require_host_or_session_member)]
+)
 def get_songs_by_show(
     show_name: str,
     limit: int = Query(
@@ -584,7 +595,7 @@ def get_songs_by_fingerprint_status(
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """Return songs filtered by acoustid_fingerprint_status."""
     valid = {
@@ -611,7 +622,7 @@ def get_songs_by_fingerprint_status(
 @router.get("/library-audit")
 def get_library_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Audit the karaoke library by cross-referencing filesystem directories with DB records.
@@ -802,7 +813,7 @@ def _check_song_metadata(song: DbSong) -> list:
 @router.get("/metadata-audit", response_model=MetadataAuditResponse)
 def get_metadata_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Scan all songs for metadata quality issues.
@@ -954,7 +965,7 @@ def bulk_delete_ghost_records(
 @router.get("/duplicates")
 def get_duplicate_songs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Return clusters of songs that share the same case-insensitive title+artist.
@@ -987,7 +998,11 @@ def get_duplicate_songs(
     }
 
 
-@router.get("/{song_id}", response_model=SongResponse)
+@router.get(
+    "/{song_id}",
+    response_model=SongResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
 def get_song_details(song_id: str, db: Session = Depends(get_db)):
     """
     Get detailed information about a specific song.

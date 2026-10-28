@@ -14,7 +14,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
-from app.api.dependencies import require_host
+from app.api.dependencies import require_admin
 from app.db.models import JobStatus, User
 from app.services.jobs_service import JobsService
 
@@ -92,7 +92,7 @@ def get_jobs_service() -> JobsService:
 @router.get("/status", response_model=JobStatisticsResponse)
 def get_job_status(
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Get the overall status of job processing with statistics.
@@ -112,7 +112,7 @@ def get_job_status(
 def get_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     List all jobs with their status.
@@ -142,7 +142,7 @@ def get_jobs(
 def get_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Get detailed information about a specific job.
@@ -159,7 +159,7 @@ def get_job(
 def cancel_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Cancel a pending or in-progress job.

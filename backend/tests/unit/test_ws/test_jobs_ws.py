@@ -7,6 +7,7 @@ import pytest
 from fastapi import WebSocketDisconnect
 
 from app.ws.jobs import (
+    _credentials_valid,
     broadcast_all_jobs,
     broadcast_job_cancelled,
     broadcast_job_completed,
@@ -20,6 +21,8 @@ from app.ws.jobs import (
 
 def _make_ws():
     ws = MagicMock()
+    ws.accept = AsyncMock()
+    ws.close = AsyncMock()
     ws.send_text = AsyncMock()
     ws.receive_text = AsyncMock()
     return ws
@@ -28,6 +31,7 @@ def _make_ws():
 def _make_manager():
     m = MagicMock()
     m.connect = AsyncMock()
+    m.register = MagicMock()
     m.disconnect = MagicMock()
     m.join_room = AsyncMock()
     m.leave_room = AsyncMock()
@@ -81,8 +85,53 @@ async def test_get_current_jobs_list_skips_jobs_without_a_song():
 # ---------------------------------------------------------------------------
 
 
+AUTHENTICATE = {"type": "authenticate", "token": "a-valid-token"}
+
+
 def _msg(*msgs):
-    return [json.dumps(m) for m in msgs] + [WebSocketDisconnect()]
+    """An authenticated connection: the opening authenticate, then `msgs`."""
+    return [json.dumps(m) for m in (AUTHENTICATE, *msgs)] + [WebSocketDisconnect()]
+
+
+@pytest.fixture(autouse=True)
+def credentials_valid():
+    """Accept the opening authenticate; the credential check has its own tests."""
+    with patch("app.ws.jobs._credentials_valid", return_value=True) as check:
+        yield check
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "first",
+    [
+        {"type": "subscribe_to_jobs"},
+        {"type": "authenticate"},
+        {"type": "authenticate", "token": "not-a-jwt"},
+        {"type": "authenticate", "session_id": "ABCD", "device_id": "nobody"},
+    ],
+    ids=["no-authenticate", "no-credentials", "bad-token", "not-a-member"],
+)
+async def test_endpoint_rejects_an_unauthenticated_connection(first):
+    ws = _make_ws()
+    manager = _make_manager()
+    ws.receive_text.side_effect = [json.dumps(first), WebSocketDisconnect()]
+
+    with (
+        patch("app.ws.jobs._credentials_valid", _credentials_valid),
+        patch("app.ws.jobs.verify_token", return_value=None),
+        patch("app.ws.jobs.find_session_member", return_value=None),
+        patch("app.ws.jobs.get_db_session"),
+        patch("app.ws.jobs.get_current_jobs_list") as jobs_list,
+    ):
+        await websocket_jobs_endpoint(ws, manager)
+
+    sent = [json.loads(c[0][0]) for c in ws.send_text.call_args_list]
+    assert sent == [{"type": "auth_failed", "reason": "not_authenticated"}]
+    ws.close.assert_awaited_once()
+    assert ws.close.call_args.kwargs["code"] == 1008
+    manager.register.assert_not_called()
+    manager.join_room.assert_not_called()
+    jobs_list.assert_not_called()
 
 
 @pytest.mark.asyncio

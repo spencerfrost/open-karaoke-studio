@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { getAuthHeaders } from "./useApi";
 
 export interface Artist {
   id: number;
@@ -56,8 +57,12 @@ export function useArtists({
     if (search.trim()) params.set("search", search);
 
     const [artistsRes, showsRes] = await Promise.all([
-      fetch(`/api/songs/artists?${params.toString()}`),
-      fetch(`/api/songs/shows?${params.toString()}`),
+      fetch(`/api/songs/artists?${params.toString()}`, {
+        headers: { ...getAuthHeaders() },
+      }),
+      fetch(`/api/songs/shows?${params.toString()}`, {
+        headers: { ...getAuthHeaders() },
+      }),
     ]);
     if (!artistsRes.ok) throw new Error("Failed to fetch artists");
     if (!showsRes.ok) throw new Error("Failed to fetch shows");

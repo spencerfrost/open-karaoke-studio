@@ -155,6 +155,26 @@ function readStoredHostDeviceId(): string | null {
   }
 }
 
+/**
+ * Credentials for reading a session: the member device, plus the account token
+ * when signed in (the server derives is_host from it). Built from explicit ids
+ * because recovery calls this before the store holds them. hooks/api/useApi's
+ * getAuthHeaders does the same from the store, but useApi imports this store.
+ */
+function sessionMemberHeaders(
+  sessionId: string,
+  deviceId: string | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = useAuthStore.getState().token;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (deviceId) {
+    headers["X-Session-ID"] = sessionId;
+    headers["X-Device-ID"] = deviceId;
+  }
+  return headers;
+}
+
 // Module-level reference to the active session_ended listener cleanup function.
 // Ensures only one listener is registered at a time regardless of how many times
 // createSession/joinSession/recoverSession is called.
@@ -516,19 +536,11 @@ export const useSessionStore = create<SessionState>()(
             return;
           }
 
-          // Get full session info, passing device_id so is_host is computed correctly
-          // (host_device_id is a 'rest_xxx' token, not an IP address)
-          // With a token the server derives is_host from the account. The
-          // device-id fallback alone wrongly says "not host" once any other
-          // stage has resumed the session, which cleared this record and sent
-          // the host back to the create screen.
-          const token = useAuthStore.getState().token;
-          const response = await fetch(
-            `/api/sessions/${sessionId}/info?device_id=${encodeURIComponent(deviceId)}`,
-            token
-              ? { headers: { Authorization: `Bearer ${token}` } }
-              : undefined,
-          );
+          // Get full session info. The server derives is_host from the
+          // account token, so a host whose token is gone is told "not host".
+          const response = await fetch(`/api/sessions/${sessionId}/info`, {
+            headers: sessionMemberHeaders(sessionId, deviceId),
+          });
           if (!response.ok) {
             throw new Error(
               `Failed to get session info: ${response.statusText}`,
@@ -680,7 +692,9 @@ export const useSessionStore = create<SessionState>()(
           }
 
           // Get full session info
-          const response = await fetch(`/api/sessions/${sessionId}/info`);
+          const response = await fetch(`/api/sessions/${sessionId}/info`, {
+            headers: sessionMemberHeaders(sessionId, deviceId),
+          });
           if (!response.ok) {
             throw new Error(
               `Failed to get session info: ${response.statusText}`,
@@ -804,11 +818,13 @@ export const useSessionStore = create<SessionState>()(
       },
 
       refreshSessionInfo: async () => {
-        const { sessionId } = get();
+        const { sessionId, deviceId } = get();
         if (!sessionId) return;
 
         try {
-          const response = await fetch(`/api/sessions/${sessionId}/info`);
+          const response = await fetch(`/api/sessions/${sessionId}/info`, {
+            headers: sessionMemberHeaders(sessionId, deviceId),
+          });
           if (!response.ok) {
             throw new Error(
               `Failed to get session info: ${response.statusText}`,
