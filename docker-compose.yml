@@ -103,7 +103,11 @@ services:
       - ./karaoke_library:/app/karaoke_library
       - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
+      # Demucs weights (torch hub) and the torch.compile kernel cache; without it a
+      # recreated container re-downloads the weights and recompiles the Roformers
+      - torch_cache:/root/.cache/torch
     environment:
+      - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torch/inductor
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
@@ -165,6 +169,7 @@ volumes:
   redis_data:
   postgres_data:
   backend_logs:
+  torch_cache:
 
 networks:
   karaoke-network:
