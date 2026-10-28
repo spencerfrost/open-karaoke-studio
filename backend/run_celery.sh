@@ -34,37 +34,46 @@ fi
 # not a cluster, so cross-worker discovery isn't needed — and gossip's heartbeat
 # checks are what were logging "missed heartbeat" warnings whenever a heavy
 # synchronous task (e.g. batch_align_lyrics) starved the GIL on this shared box.
+#
+# Each worker runs in a restart loop. A native crash (a segfault in CUDA code)
+# kills the process outright, and without the loop its queue would sit unserved
+# until someone noticed. On start, a worker fails the jobs its last run was
+# holding (see app/utils/cleanup_jobs.py).
+run_worker() {
+    local name="$1"
+    shift
+    while true; do
+        celery -A app.jobs.celery_app.celery worker \
+            --loglevel=info \
+            --pool=threads \
+            --hostname="$name@%h" \
+            --without-gossip \
+            --without-mingle \
+            "$@"
+        echo "Celery worker '$name' exited with status $?; restarting in 5s..."
+        sleep 5
+    done
+}
+
+# Ctrl-C or SIGTERM stops everything: the restart loops and the workers, which
+# share this script's process group. The loops die before the workers finish
+# their warm shutdown, so nothing restarts.
+shutdown() {
+    trap '' INT TERM
+    kill -TERM 0 2>/dev/null
+    wait
+}
+trap shutdown INT TERM
 
 # Worker 1: heavy audio processing — concurrency=1 ensures only one separation job runs at a time
-celery -A app.jobs.celery_app.celery worker \
-    --loglevel=info \
-    --concurrency=1 \
-    --pool=threads \
-    --queues=audio \
-    --hostname=audio@%h \
-    --without-gossip \
-    --without-mingle &
+run_worker audio --concurrency=1 --queues=audio &
 
 # Worker 2: enrichment tasks — concurrency=3 allows parallel post-processing
 # while leaving room for a dedicated lyrics worker.
-celery -A app.jobs.celery_app.celery worker \
-    --loglevel=info \
-    --concurrency=3 \
-    --pool=threads \
-    --queues=enrichment \
-    --hostname=enrichment@%h \
-    --without-gossip \
-    --without-mingle &
+run_worker enrichment --concurrency=3 --queues=enrichment &
 
 # Worker 3: lyrics alignment gets dedicated capacity so it cannot sit behind
 # artwork, fingerprinting, or chord detection.
-celery -A app.jobs.celery_app.celery worker \
-    --loglevel=info \
-    --concurrency=1 \
-    --pool=threads \
-    --queues=lyrics \
-    --hostname=lyrics@%h \
-    --without-gossip \
-    --without-mingle &
+run_worker lyrics --concurrency=1 --queues=lyrics &
 
 wait

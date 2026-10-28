@@ -3,6 +3,7 @@ import logging
 import multiprocessing
 
 from celery import Celery  # type: ignore
+from celery.signals import worker_ready  # type: ignore
 from dotenv import load_dotenv
 
 from app.config import get_config
@@ -68,3 +69,14 @@ celery.conf.update(
     task_default_queue="enrichment",
     **celery_logging_config,
 )
+
+
+@worker_ready.connect
+def _fail_interrupted_jobs(sender, **kwargs):
+    """A worker starting means its previous run is gone, along with any job it held."""
+    from app.utils.cleanup_jobs import fail_interrupted_jobs
+
+    try:
+        fail_interrupted_jobs(sender.app.amqp.queues.consume_from.keys())
+    except Exception:
+        logger.error("Could not fail interrupted jobs", exc_info=True)

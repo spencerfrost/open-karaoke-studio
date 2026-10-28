@@ -51,9 +51,6 @@ from app.config import get_config
 from app.config.logging import setup_logging
 from app.limiter import limiter
 
-# Import the cleanup utility
-from app.utils.cleanup_jobs import cleanup_stuck_jobs
-
 # Import WebSocket modules
 from app.ws import (
     SessionConnectionManager,
@@ -71,7 +68,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     logger.info("Open Karaoke Studio backend starting")
-    cleanup_stuck_jobs()
     if not os.environ.get("JWT_SECRET_KEY"):
         logger.error(
             "JWT_SECRET_KEY is not set — a random key was generated. "
