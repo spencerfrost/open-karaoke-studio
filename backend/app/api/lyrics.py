@@ -91,7 +91,7 @@ def _validate_db_alignment_request(song, source: Optional[str]) -> None:
 
 
 @router.get("/languages", response_model=List[str])
-async def list_lyrics_languages():
+def list_lyrics_languages():
     """Language codes a song can be set to: every language Whisper knows."""
     return whisper_language_codes()
 
@@ -102,7 +102,7 @@ async def list_lyrics_languages():
 
 
 @router.get("/search", response_model=List[dict])
-async def search_lyrics(
+def search_lyrics(
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
     album_name: Optional[str] = Query(None, description="Album name (optional)"),
@@ -137,7 +137,7 @@ async def search_lyrics(
 
 
 @router.get("/search-synced", response_model=List[dict])
-async def search_lyrics_synced(
+def search_lyrics_synced(
     track_name: str = Query(..., min_length=1, description="Song title (required)"),
     artist_name: str = Query(..., min_length=1, description="Artist name (required)"),
     album_name: Optional[str] = Query(None, description="Album name (optional)"),
@@ -171,7 +171,7 @@ async def search_lyrics_synced(
 
 
 @router.get("/songs/{song_id}", response_model=dict)
-async def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
+def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
     """Get the current lyrics for a song (plain, synced, and whether alignment exists)."""
     song = SongRepository(db).fetch(song_id)
     if not song:
@@ -184,7 +184,7 @@ async def get_song_lyrics(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/songs/{song_id}", response_model=dict, status_code=200)
-async def update_song_lyrics(
+def update_song_lyrics(
     song_id: str,
     type: str = Query(..., description="Lyrics type: 'plain' or 'synced'"),
     db: Session = Depends(get_db),
@@ -215,7 +215,7 @@ async def update_song_lyrics(
 
 
 @router.delete("/songs/{song_id}/{type}", status_code=204)
-async def clear_song_lyrics(
+def clear_song_lyrics(
     song_id: str,
     type: str,
     db: Session = Depends(get_db),
@@ -246,7 +246,7 @@ async def clear_song_lyrics(
 
 
 @router.get("/songs/{song_id}/analyze", response_model=dict)
-async def analyze_song_lyrics(
+def analyze_song_lyrics(
     song_id: str,
     min_confidence: float = Query(0.3, ge=0.0, le=1.0),
     db: Session = Depends(get_db),
@@ -263,7 +263,7 @@ async def analyze_song_lyrics(
 
 
 @router.post("/songs/{song_id}/analyze/apply", response_model=dict, status_code=200)
-async def apply_analysis(
+def apply_analysis(
     song_id: str,
     min_confidence: float = Query(0.3, ge=0.0, le=1.0),
     db: Session = Depends(get_db),
@@ -297,7 +297,7 @@ async def apply_analysis(
 
 
 @router.get("/songs/{song_id}/analyze/offset", response_model=dict)
-async def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
+def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
     """Analyze global LRC timestamp offset against the vocals audio. Read-only."""
     song = SongRepository(db).fetch(song_id)
     if not song:
@@ -320,7 +320,7 @@ async def analyze_song_offset(song_id: str, db: Session = Depends(get_db)):
 @router.post(
     "/songs/{song_id}/analyze/offset/apply", response_model=dict, status_code=200
 )
-async def apply_offset_correction(
+def apply_offset_correction(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -366,7 +366,7 @@ async def apply_offset_correction(
 
 
 @router.get("/songs/{song_id}/alignment", response_model=dict)
-async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
+def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
     """Return stored word-level alignment data for this song."""
     song = SongRepository(db).fetch(song_id)
     if not song:
@@ -387,7 +387,7 @@ async def get_song_alignment(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/songs/{song_id}/align", response_model=dict, status_code=200)
-async def align_song_lyrics(
+def align_song_lyrics(
     song_id: str,
     language: Optional[str] = Query(
         None,
@@ -418,7 +418,7 @@ async def align_song_lyrics(
 
 
 @router.post("/songs/{song_id}/align-db", response_model=dict, status_code=200)
-async def align_song_lyrics_from_database(
+def align_song_lyrics_from_database(
     song_id: str,
     language: Optional[str] = Query(
         None,
@@ -502,7 +502,7 @@ def _report_to_dict(report) -> dict:
 
 
 @router.post("/songs/{song_id}/reports", response_model=dict, status_code=200)
-async def report_song_lyrics(
+def report_song_lyrics(
     song_id: str,
     body: LyricsReportRequest,
     db: Session = Depends(get_db),
@@ -549,7 +549,7 @@ async def report_song_lyrics(
 
 
 @router.get("/reports", response_model=List[dict])
-async def list_lyrics_reports(
+def list_lyrics_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -560,7 +560,7 @@ async def list_lyrics_reports(
 
 
 @router.post("/reports/{report_id}/resolve", response_model=dict, status_code=200)
-async def resolve_lyrics_report(
+def resolve_lyrics_report(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
@@ -575,7 +575,7 @@ async def resolve_lyrics_report(
 
 
 @router.post("/reports/{report_id}/undo", response_model=dict, status_code=200)
-async def undo_lyrics_report(
+def undo_lyrics_report(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
@@ -625,7 +625,7 @@ async def undo_lyrics_report(
 
 
 @router.get("/batch/align", response_model=dict)
-async def batch_align_status(db: Session = Depends(get_db)):
+def batch_align_status(db: Session = Depends(get_db)):
     """
     Return library-wide alignment statistics without running any processing.
 

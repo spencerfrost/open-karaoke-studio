@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/albums", tags=["albums"])
 
 
 @router.get("/{album_id}/cover")
-async def get_album_cover(album_id: int, db: Session = Depends(get_db)):
+def get_album_cover(album_id: int, db: Session = Depends(get_db)):
     """Serve the cached album cover art."""
     album = db.query(DbAlbum).filter(DbAlbum.id == album_id).first()
 

@@ -111,7 +111,7 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 
 
 @router.get("", response_model=List[SongResponse])
-async def get_songs(
+def get_songs(
     limit: Optional[int] = Query(
         None, ge=1, le=500, description="Maximum number of songs to return"
     ),
@@ -154,7 +154,7 @@ async def get_songs(
 
 
 @router.get("/search", response_model=SongSearchResponse | ArtistSearchResponse)
-async def search_songs(
+def search_songs(
     q: str = Query("", description="Search query"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Results to skip"),
@@ -293,7 +293,7 @@ async def search_songs(
 
 
 @router.get("/artists")
-async def get_artists(
+def get_artists(
     search: Optional[str] = Query(None, description="Search term to filter artists"),
     limit: Optional[int] = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -399,7 +399,7 @@ async def get_artists(
 
 
 @router.get("/shows")
-async def get_shows(
+def get_shows(
     search: Optional[str] = Query(None, description="Search term to filter shows"),
     db: Session = Depends(get_db),
 ):
@@ -435,7 +435,7 @@ async def get_shows(
 
 
 @router.get("/by-artist/{artist_id}")
-async def get_songs_by_artist(
+def get_songs_by_artist(
     artist_id: int,
     limit: int = Query(
         20, ge=1, le=500, description="Maximum number of songs to return"
@@ -514,7 +514,7 @@ async def get_songs_by_artist(
 
 
 @router.get("/by-show/{show_name}")
-async def get_songs_by_show(
+def get_songs_by_show(
     show_name: str,
     limit: int = Query(
         20, ge=1, le=500, description="Maximum number of songs to return"
@@ -579,7 +579,7 @@ async def get_songs_by_show(
 
 
 @router.get("/by-fingerprint-status", response_model=List[SongResponse])
-async def get_songs_by_fingerprint_status(
+def get_songs_by_fingerprint_status(
     status: str = Query(..., description="acoustid_fingerprint_status value"),
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
@@ -609,7 +609,7 @@ async def get_songs_by_fingerprint_status(
 
 
 @router.get("/library-audit")
-async def get_library_audit(
+def get_library_audit(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -800,7 +800,7 @@ def _check_song_metadata(song: DbSong) -> list:
 
 
 @router.get("/metadata-audit", response_model=MetadataAuditResponse)
-async def get_metadata_audit(
+def get_metadata_audit(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -841,7 +841,7 @@ async def get_metadata_audit(
 
 
 @router.delete("/orphan/{dir_name}", status_code=200)
-async def delete_orphaned_directory(
+def delete_orphaned_directory(
     dir_name: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -880,7 +880,7 @@ async def delete_orphaned_directory(
 
 
 @router.delete("/orphan-bulk", status_code=200)
-async def bulk_delete_orphaned_directories(
+def bulk_delete_orphaned_directories(
     request: BulkDeleteOrphansRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -926,7 +926,7 @@ async def bulk_delete_orphaned_directories(
 
 
 @router.delete("/ghost-bulk", status_code=200)
-async def bulk_delete_ghost_records(
+def bulk_delete_ghost_records(
     request: BulkDeleteGhostsRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -952,7 +952,7 @@ async def bulk_delete_ghost_records(
 
 
 @router.get("/duplicates")
-async def get_duplicate_songs(
+def get_duplicate_songs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -988,7 +988,7 @@ async def get_duplicate_songs(
 
 
 @router.get("/{song_id}", response_model=SongResponse)
-async def get_song_details(song_id: str, db: Session = Depends(get_db)):
+def get_song_details(song_id: str, db: Session = Depends(get_db)):
     """
     Get detailed information about a specific song.
     """
@@ -1011,7 +1011,7 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=SongResponse, status_code=201)
-async def create_song(
+def create_song(
     song_data: SongCreateRequest,
     db: Session = Depends(get_db),
     requester: RequesterContext = Depends(require_host_or_session_member),
@@ -1092,7 +1092,7 @@ async def add_song_from_youtube_route(
 
 
 @router.patch("/{song_id}", response_model=SongResponse)
-async def update_song(
+def update_song(
     song_id: str,
     update_data: SongUpdateRequest,
     db: Session = Depends(get_db),
@@ -1263,7 +1263,7 @@ async def update_song(
 
 
 @router.delete("/{song_id}")
-async def delete_song(
+def delete_song(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1303,7 +1303,7 @@ async def delete_song(
 
 
 @router.get("/{song_id}/thumbnail")
-async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
+def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
     """
     Serve the thumbnail image for a song, auto-detecting format.
     """
@@ -1353,7 +1353,7 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{song_id}/download/{track_type}")
-async def download_song_track(
+def download_song_track(
     song_id: str,
     track_type: str,
     db: Session = Depends(get_db),
@@ -1422,7 +1422,7 @@ async def download_song_track(
 
 
 @router.post("/{song_id}/reprocess", status_code=202)
-async def reprocess_song(
+def reprocess_song(
     song_id: str,
     request: SongReprocessRequest,
     db: Session = Depends(get_db),
@@ -1527,7 +1527,7 @@ async def reprocess_song(
 
 
 @router.post("/{song_id}/fingerprint/lookup")
-async def lookup_song_fingerprint(
+def lookup_song_fingerprint(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1570,7 +1570,7 @@ async def lookup_song_fingerprint(
 
 
 @router.post("/{song_id}/fingerprint/apply")
-async def apply_song_fingerprint(
+def apply_song_fingerprint(
     song_id: str,
     request: FingerprintApplyRequest,
     db: Session = Depends(get_db),
@@ -1593,7 +1593,7 @@ async def apply_song_fingerprint(
 
 
 @router.post("/{song_id}/fingerprint/suggestion/accept")
-async def accept_fingerprint_suggestion(
+def accept_fingerprint_suggestion(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1659,7 +1659,7 @@ def _apply_picked_recording(
 
 
 @router.post("/{song_id}/skip-fingerprint", status_code=200)
-async def skip_fingerprint(
+def skip_fingerprint(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1730,7 +1730,7 @@ async def analyze_vocal_range(
 
 
 @router.post("/{song_id}/fingerprint", status_code=202)
-async def fingerprint_single_song_endpoint(
+def fingerprint_single_song_endpoint(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1745,7 +1745,7 @@ async def fingerprint_single_song_endpoint(
 
 
 @router.post("/{song_id}/validate-youtube-replacement", status_code=200)
-async def validate_youtube_replacement(
+def validate_youtube_replacement(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),
@@ -1934,7 +1934,7 @@ def _format_validation_message(status: str, score: Optional[float]) -> str:
 
 
 @router.post("/{song_id}/replace-youtube", status_code=202)
-async def replace_song_youtube(
+def replace_song_youtube(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),

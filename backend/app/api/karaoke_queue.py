@@ -319,7 +319,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
 
 
 @router.get("", response_model=QueueStateResponse)
-async def get_queue(
+def get_queue(
     session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
 ):

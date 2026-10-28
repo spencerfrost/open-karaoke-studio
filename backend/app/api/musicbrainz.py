@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/musicbrainz", tags=["musicbrainz"])
 
 
 @router.get("/search")
-async def musicbrainz_search(
+def musicbrainz_search(
     query: str = Query(..., min_length=1, description="Free-text search query"),
     limit: int = Query(10, ge=1, le=25),
     current_user: User = Depends(get_current_user),

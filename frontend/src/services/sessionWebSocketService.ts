@@ -170,7 +170,6 @@ class SessionWebSocketService {
     this.websocket.onopen = () => {
       logger.debug("Connected to unified session WebSocket");
       this.isConnected = true;
-      this.reconnectAttempts = 0;
 
       // The server ignores everything until this arrives: the device id proves session
       // membership, and the token (if we hold one) claims host authority. The server
@@ -223,6 +222,9 @@ class SessionWebSocketService {
         // Hydrate the ephemeral WebSocket device ID from the server's greeting
         if (data.type === "session_connected" && data.device_id) {
           this.deviceId = data.device_id;
+          // Reset backoff only once the server has admitted us. Resetting on open
+          // turns a socket that opens and then drops into a ~1s reconnect loop.
+          this.reconnectAttempts = 0;
         }
 
         // Never let an authority failure pass silently - this class of bug went

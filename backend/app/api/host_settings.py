@@ -35,7 +35,7 @@ def _get_or_create_settings(db: Session, user_id: int) -> HostSettings:
 
 
 @router.get("", response_model=HostSettingsResponse)
-async def get_host_settings(
+def get_host_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -45,7 +45,7 @@ async def get_host_settings(
 
 
 @router.put("", response_model=HostSettingsResponse)
-async def update_host_settings(
+def update_host_settings(
     update: HostSettingsUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),

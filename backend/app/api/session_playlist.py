@@ -141,7 +141,7 @@ def _generate_playlist(session_id: str, job_id: str) -> None:
 
 
 @router.post("/{session_id}/playlist", status_code=202)
-async def generate_session_playlist(
+def generate_session_playlist(
     session_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -186,7 +186,7 @@ async def generate_session_playlist(
 
 
 @router.get("/{session_id}/playlist", response_model=SessionPlaylistResponse)
-async def get_session_playlist(session_id: str) -> SessionPlaylistResponse:
+def get_session_playlist(session_id: str) -> SessionPlaylistResponse:
     """
     Poll for the status of the playlist generation for a session.
     """

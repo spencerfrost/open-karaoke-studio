@@ -31,7 +31,7 @@ class SetArtistImageRequest(BaseModel):
 
 
 @router.patch("/{artist_id}")
-async def update_artist(
+def update_artist(
     artist_id: int,
     body: UpdateArtistRequest,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ async def update_artist(
 
 
 @router.delete("/{artist_id}")
-async def delete_artist(
+def delete_artist(
     artist_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -121,7 +121,7 @@ async def set_artist_image(
 
 
 @router.post("/{artist_id}/split-credits")
-async def split_artist_credits(
+def split_artist_credits(
     artist_id: int,
     body: SplitArtistCreditsRequest,
     db: Session = Depends(get_db),
@@ -179,7 +179,7 @@ async def split_artist_credits(
 
 
 @router.post("/{artist_id}/merge-into/{target_id}")
-async def merge_artist(
+def merge_artist(
     artist_id: int,
     target_id: int,
     db: Session = Depends(get_db),

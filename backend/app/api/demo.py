@@ -57,13 +57,13 @@ class DemoQuotaResponse(BaseModel):
 
 
 @router.get("", response_model=DemoStatusResponse)
-async def get_demo_status(db: Session = Depends(get_db)) -> DemoStatusResponse:
+def get_demo_status(db: Session = Depends(get_db)) -> DemoStatusResponse:
     """Report whether any demo pool account exists."""
     return DemoStatusResponse(enabled=demo_enabled(db))
 
 
 @router.get("/quota", response_model=DemoQuotaResponse)
-async def get_demo_quota_status(
+def get_demo_quota_status(
     requester: RequesterContext = Depends(require_host_or_session_member),
     db: Session = Depends(get_db),
 ) -> DemoQuotaResponse:
@@ -77,7 +77,7 @@ async def get_demo_quota_status(
 
 @router.post("/start", response_model=LoginResponse)
 @limiter.limit(DEMO_START_RATE_LIMIT)
-async def start_demo_session(
+def start_demo_session(
     request: Request, db: Session = Depends(get_db)
 ) -> LoginResponse:
     """Start a demo session on a free pool account and sign the visitor in."""

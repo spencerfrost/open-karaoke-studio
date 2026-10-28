@@ -82,7 +82,7 @@ class UserListItem(BaseModel):
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 @limiter.limit("3/minute")
-async def register_user(
+def register_user(
     request: Request, body: RegisterUserRequest, db: Session = Depends(get_db)
 ):
     """Register a new user."""
@@ -110,9 +110,7 @@ async def register_user(
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
-async def login_user(
-    request: Request, body: LoginUserRequest, db: Session = Depends(get_db)
-):
+def login_user(request: Request, body: LoginUserRequest, db: Session = Depends(get_db)):
     """Log in a user."""
     try:
         user = db.query(User).filter(User.username == body.username).first()
@@ -140,7 +138,7 @@ async def login_user(
 
 
 @router.patch("/{user_id}", response_model=UpdateResponse)
-async def update_user(
+def update_user(
     user_id: int,
     body: UpdateUserRequest,
     db: Session = Depends(get_db),
@@ -190,7 +188,7 @@ async def update_user(
 
 
 @router.get("", response_model=List[UserListItem])
-async def list_users(
+def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -209,7 +207,7 @@ async def list_users(
 
 
 @router.post("/{user_id}/set-host", response_model=UpdateResponse)
-async def set_user_host(
+def set_user_host(
     user_id: int,
     is_host: bool,
     db: Session = Depends(get_db),

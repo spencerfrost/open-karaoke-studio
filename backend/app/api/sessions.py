@@ -339,7 +339,7 @@ def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
 
 
 @router.get("/my", response_model=Optional[SessionResponse])
-async def get_my_session(
+def get_my_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -633,7 +633,7 @@ async def get_or_create_my_session(
 
 
 @router.post("", response_model=SessionResponse, status_code=201)
-async def create_session(
+def create_session(
     request: Request,
     session_data: SessionCreateRequest = SessionCreateRequest(),
     user_agent: Optional[str] = Header(None),
@@ -723,7 +723,7 @@ async def create_session(
 
 @router.post("/join-by-code", response_model=SessionResponse)
 @limiter.limit("10/minute")
-async def join_session_by_code(
+def join_session_by_code(
     request: Request,
     join_data: SessionJoinByCodeRequest,
     user_agent: Optional[str] = Header(None),
@@ -823,7 +823,7 @@ async def join_session_by_code(
 
 @router.post("/join-by-id", response_model=SessionResponse)
 @limiter.limit("10/minute")
-async def join_session_by_id(
+def join_session_by_id(
     request: Request,
     join_data: SessionJoinByIdRequest,
     user_agent: Optional[str] = Header(None),
@@ -935,7 +935,7 @@ async def join_session_by_id(
 
 
 @router.get("/{session_id}/info", response_model=SessionResponse)
-async def get_session_info(
+def get_session_info(
     session_id: str,
     request: Request,
     device_id: Optional[str] = None,
@@ -1012,7 +1012,7 @@ async def get_session_info(
 
 
 @router.get("/{session_id}/validate", response_model=SessionValidationResponse)
-async def validate_session(session_id: str, db: Session = Depends(get_db)):
+def validate_session(session_id: str, db: Session = Depends(get_db)):
     """
     Validate if a session exists and is active.
     Used by frontend to check session validity before connecting to WebSocket.
@@ -1047,7 +1047,7 @@ async def validate_session(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{session_id}/leave", response_model=SessionLeaveResponse)
-async def leave_session(
+def leave_session(
     session_id: str,
     device: SessionDevice = Depends(require_session_member),
     db: Session = Depends(get_db),
@@ -1110,7 +1110,7 @@ async def end_session(
 
 
 @router.get("/{session_id}/performers", response_model=List[PerformerResponse])
-async def list_performers(
+def list_performers(
     session_id: str = Depends(require_roster_access),
     db: Session = Depends(get_db),
 ):
@@ -1387,7 +1387,7 @@ async def restore_performer(
 
 
 @router.patch("/{session_id}/queue-order-mode", response_model=QueueOrderModeResponse)
-async def set_queue_order_mode(
+def set_queue_order_mode(
     session_id: str,
     mode_data: QueueOrderModeUpdateRequest,
     db: Session = Depends(get_db),

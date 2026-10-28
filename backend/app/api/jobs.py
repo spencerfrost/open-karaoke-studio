@@ -90,7 +90,7 @@ def get_jobs_service() -> JobsService:
 
 
 @router.get("/status", response_model=JobStatisticsResponse)
-async def get_job_status(
+def get_job_status(
     jobs_service: JobsService = Depends(get_jobs_service),
     current_user: User = Depends(require_host),
 ):
@@ -109,7 +109,7 @@ async def get_job_status(
 
 
 @router.get("", response_model=JobListResponse)
-async def get_jobs(
+def get_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
     jobs_service: JobsService = Depends(get_jobs_service),
     current_user: User = Depends(require_host),
@@ -139,7 +139,7 @@ async def get_jobs(
 
 
 @router.get("/{job_id}")
-async def get_job(
+def get_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
     current_user: User = Depends(require_host),
@@ -156,7 +156,7 @@ async def get_job(
 
 
 @router.post("/{job_id}/cancel", response_model=JobActionResponse)
-async def cancel_job(
+def cancel_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
     current_user: User = Depends(require_host),

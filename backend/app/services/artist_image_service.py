@@ -43,29 +43,56 @@ class ArtistImageService:
         db = self._session_factory()
         return db, ArtistRepository(db)
 
-    async def get_or_fetch_artist_image(self, artist_id: int) -> Path | None:
-        # --- Phase 1: quick DB lookup (then release connection) ---
+    def _lookup_cached_image(self, artist_id: int) -> tuple[Path | None, str | None]:
+        """Return ``(cached_path, None)`` when there is nothing to fetch, or
+        ``(None, name)`` when the image should be fetched from Discogs."""
         db, repo = self._repo()
         try:
             artist = repo.get_by_id(artist_id)
             if artist is None:
-                return None
+                return None, None
             name = artist.display_name or artist.name
             if artist.image_status == "found" and artist.image_path:
                 cached_path = Path(artist.image_path)
                 if cached_path.exists():
-                    return cached_path
+                    return cached_path, None
                 # Cached path may be stale (e.g. after project relocation).
                 # Check if the image already exists at the current expected location.
                 _slug = _slugify(name)
                 current_path = self.file_service.get_artist_image_path(_slug)
                 if current_path.exists():
-                    return current_path
+                    return current_path, None
                 # File is missing entirely — fall through to re-fetch from Discogs
             if artist.image_status == "not_found":
-                return None
+                return None, None
+            return None, name
         finally:
             db.close()
+
+    def _save_image_result(
+        self, artist_id: int, image_path: Path | None, status: str
+    ) -> None:
+        db, repo = self._repo()
+        try:
+            artist = repo.get_by_id(artist_id)
+            if artist is not None:
+                repo.update_image(
+                    artist,
+                    image_path=str(image_path) if image_path else None,
+                    status=status,
+                )
+        finally:
+            db.close()
+
+    async def get_or_fetch_artist_image(self, artist_id: int) -> Path | None:
+        # The DB phases run in a worker thread: a blocking pool checkout on the
+        # event loop stalls every request when the pool is busy.
+        # --- Phase 1: quick DB lookup (then release connection) ---
+        cached_path, name = await asyncio.to_thread(
+            self._lookup_cached_image, artist_id
+        )
+        if name is None:
+            return cached_path
 
         # --- Phase 2: Discogs HTTP fetch (no DB connection held) ---
         slug = _slugify(name)
@@ -128,17 +155,9 @@ class ArtistImageService:
             return None
 
         # --- Phase 3: persist result (short-lived DB session) ---
-        db, repo = self._repo()
-        try:
-            artist = repo.get_by_id(artist_id)
-            if artist is not None:
-                repo.update_image(
-                    artist,
-                    image_path=str(fetched_path) if fetched_path else None,
-                    status=status,
-                )
-        finally:
-            db.close()
+        await asyncio.to_thread(
+            self._save_image_result, artist_id, fetched_path, status
+        )
 
         return fetched_path
 
