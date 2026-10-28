@@ -12,6 +12,7 @@ from app.db.models import (
     DbSong,
     KaraokeQueueItem,
     KaraokeSession,
+    PerformanceHistory,
     SessionPerformer,
     SessionPlaybackState,
 )
@@ -88,6 +89,14 @@ def _play(db, session, item):
     elif state.current_queue_item_id is not None:
         previous = db.get(KaraokeQueueItem, state.current_queue_item_id)
         if previous is not None and previous.id != item.id:
+            db.add(
+                PerformanceHistory(
+                    song_id=previous.song_id,
+                    singer_name=previous.singer_name,
+                    session_id="AAAA",
+                    performer_id=previous.performer_id,
+                )
+            )
             db.delete(previous)
     state.current_queue_item_id = item.id
     turn_service.record_play(db, session, item)
@@ -237,43 +246,93 @@ def test_solo_singer_comes_straight_back_round(db):
     assert turn.performer.id == spencer.id
 
 
-def test_playing_out_of_order_moves_nobody_else(db):
-    """The old lap model jumped the room forward here. Dan borrows his next
-    turn instead; Patrick, who has nothing queued, keeps his."""
+def test_playing_out_of_order_moves_the_turn_past_the_singer(db):
+    """From the queue rail, the host plays Patrick's song while it's Spencer's
+    turn. Patrick has had his turn, so Sarah is next; Spencer and Dan wait."""
     session = _make_session(db)
     _make_song(db)
     spencer, dan, patrick, sarah = _people(db, "Spencer", "Dan", "Patrick", "Sarah")
-    _add_item(db, session, spencer)
-    dans = _add_item(db, session, dan)
-    _add_item(db, session, dan)
-    _add_item(db, session, sarah)
-    session.turn_performer_id = patrick.id
-    db.commit()
+    for p in (spencer, dan, patrick, sarah):
+        _add_item(db, session, p)
+        _add_item(db, session, p)
+    assert _singers(db, session, 4) == ["Spencer", "Dan", "Patrick", "Sarah"]
 
-    # From the queue rail, the host plays Dan's song while it's Patrick's turn.
-    _play(db, session, dans)
+    patricks = next(
+        i for i in get_ordered_queue_items(db, "AAAA") if i.performer_id == patrick.id
+    )
+    _play(db, session, patricks)
 
-    assert _holder(db).id == patrick.id
-    turn_service.skip(db, session, compute_turn(db, "AAAA"))
-    db.commit()
-    # Sarah, Spencer, then the pointer steps over Dan once and it's Patrick.
-    assert _singers(db, session, 2) == ["Sarah", "Spencer"]
-    assert _holder(db).id == patrick.id
-    assert dan.turns_borrowed == 0
-    # Next lap nobody but Dan has a song; walking the empty seats reaches him.
-    for _ in range(3):  # Patrick, Sarah, Spencer
-        turn_service.skip(db, session, compute_turn(db, "AAAA"))
-        db.commit()
-    assert _singers(db, session, 1) == ["Dan"]
+    assert _singers(db, session, 3) == ["Sarah", "Spencer", "Dan"]
+    turn = compute_turn(db, "AAAA")
+    assert turn.kind == KIND_EMPTY_SEAT
+    assert turn.performer.id == patrick.id
+
+
+def test_songs_taken_out_of_order_leave_no_debt(db):
+    """Prod 2026-10-27: after the first lap, Dan and Sarah kept singing out of
+    order. Each pick used to cost a later turn that the screen never showed;
+    the debt reached 4 and the pointer stepped over people lap after lap."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    for p in (spencer, dan, sarah):
+        _add_item(db, session, p)
+    assert _singers(db, session, 3) == ["Spencer", "Dan", "Sarah"]
+
+    for _ in range(4):
+        _play(db, session, _add_item(db, session, dan))
+        _play(db, session, _add_item(db, session, sarah))
+        assert _holder(db).id == spencer.id
+
+    for p in (spencer, dan, sarah):
+        _add_item(db, session, p)
+        _add_item(db, session, p)
+    order = ["Spencer", "Dan", "Sarah"]
+    assert _singers(db, session, 6) == order + order
+
+
+def test_walk_ups_first_song_seats_them_at_the_turn(db):
+    """A "Someone else…" walk-up joins at the end of the circle. Their first
+    song, out of turn, seats them ahead of the holder, who is still up."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    for p in (spencer, dan, sarah):
+        _add_item(db, session, p)
+        _add_item(db, session, p)
+    assert _singers(db, session, 1) == ["Spencer"]
+
+    (jess,) = _people(db, "Jess")
+    _play(db, session, _add_item(db, session, jess))
+
+    assert _holder(db).id == dan.id
+    _add_item(db, session, jess)
+    assert _singers(db, session, 4) == ["Dan", "Sarah", "Spencer", "Jess"]
+
+
+def test_first_song_of_the_night_out_of_turn_keeps_the_holder(db):
+    """No song has moved the pointer yet, so the holder is the first seat - and
+    reseating Dan ahead of Spencer must not hand Dan the turn."""
+    session = _make_session(db)
+    _make_song(db)
+    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
+    _play(db, session, _add_item(db, session, dan))
+
+    assert _holder(db).id == spencer.id
+    for p in (spencer, sarah, dan):
+        _add_item(db, session, p)
+    assert _singers(db, session, 3) == ["Spencer", "Sarah", "Dan"]
 
 
 def test_bump_during_a_song_then_the_pointer_resumes(db):
+    """A bump on someone else's song is an extra song: nobody's turn moves."""
     session = _make_session(db)
     _make_song(db)
     spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
     spencers = _add_item(db, session, spencer)
     _add_item(db, session, dan)
     sarahs = _add_item(db, session, sarah)
+    _add_item(db, session, sarah)
 
     _play_next(db, session)  # Spencer is singing; Dan is up next.
     session.bumped_item_id = sarahs.id
@@ -285,11 +344,9 @@ def test_bump_during_a_song_then_the_pointer_resumes(db):
 
     _play_next(db, session)
     assert session.bumped_item_id is None
-    # The pointer never left Dan; Sarah's borrowed turn is spent when it
-    # reaches her, so Spencer follows Dan.
     assert _holder(db).id == dan.id
     _add_item(db, session, spencer)
-    assert _singers(db, session, 2) == ["Dan", "Spencer"]
+    assert _singers(db, session, 3) == ["Dan", "Sarah", "Spencer"]
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +505,6 @@ def test_removing_the_last_person_leaves_the_floor_open(db):
 def test_rejoining_by_name_goes_to_the_end_of_the_circle(db):
     session = _make_session(db)
     spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
-    dan.turns_borrowed = 1
     turn_service.remove(db, session, dan)
     db.commit()
 
@@ -457,7 +513,6 @@ def test_rejoining_by_name_goes_to_the_end_of_the_circle(db):
 
     assert dan.is_active
     assert dan.seat == 3
-    assert dan.turns_borrowed == 0
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +539,6 @@ def test_append_mode_plays_touch_no_rotation_state(db):
     _play(db, session, dans)
 
     assert session.turn_performer_id is None
-    assert dan.turns_borrowed == 0
 
 
 # ---------------------------------------------------------------------------

@@ -93,9 +93,9 @@ def project_upcoming(
     Walk the circle from the holder, lap by lap, taking each person's k-th song
     on the k-th pass. Someone with nothing queued still has their turn - it is
     just not a song, so it is not in this list (the turn says `empty_seat`).
-    A bumped song goes first. The walk steps over borrowed turns exactly the way
-    `turn_service.advance_pointer` spends them, on a copy, so reading the queue
-    never writes.
+    A bumped song goes first. If it is the holder's, it is their turn and the
+    walk starts at the next seat; anyone else's is an extra song and the walk
+    starts at the holder (see `turn_service.record_play`).
 
     Pure: it touches no database. Songs of anyone outside the circle - removed
     for the night - are hidden, not deleted. Rows with no performer at all
@@ -125,30 +125,14 @@ def project_upcoming(
     if not circle:
         return ordered + orphans
 
-    borrowed = {p.id: p.turns_borrowed for p in circle}
     index = circle.index(holder) if holder in circle else 0
-    # The pointer has already arrived at the holder, so their turn is not
-    # stepped over; every later arrival is.
-    arrived = True
-
-    if bumped is not None and bumped.performer_id is not None:
-        if holder is not None and bumped.performer_id == holder.id:
-            # The holder's own song, bumped, is their real turn: the walk
-            # continues from the next seat.
-            index += 1
-            arrived = False
-        else:
-            borrowed[bumped.performer_id] += 1
+    if bumped is not None and holder is not None and bumped.performer_id == holder.id:
+        index += 1
 
     remaining = sum(len(queue) for queue in songs.values())
     while remaining:
-        performer = circle[index % len(circle)]
+        queue = songs[circle[index % len(circle)].id]
         index += 1
-        if not arrived and borrowed[performer.id] > 0:
-            borrowed[performer.id] -= 1
-            continue
-        arrived = False
-        queue = songs[performer.id]
         if queue:
             ordered.append(queue.pop(0))
             remaining -= 1

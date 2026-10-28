@@ -43,10 +43,6 @@ class SessionPerformer(Base):
     # Part of the night. Only "Remove from rotation" clears it; their songs are
     # hidden rather than deleted while it is off.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # Turns already sung out of order (a bump, or a song played from the rail
-    # early). The pointer steps over this person once per borrowed turn - see
-    # turn_service.advance_pointer, the only place it is spent.
-    turns_borrowed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True

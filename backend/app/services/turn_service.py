@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     KaraokeQueueItem,
     KaraokeSession,
+    PerformanceHistory,
     SessionPerformer,
     SessionPlaybackState,
 )
@@ -151,31 +152,6 @@ def serialize_turn(turn: Turn) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _arrive(
-    session: KaraokeSession, circle: List[SessionPerformer], index: int
-) -> Optional[SessionPerformer]:
-    """Move the pointer to `circle[index]`, or past it if they owe turns.
-
-    The only place borrowed turns are spent: the pointer steps over anyone with
-    `turns_borrowed > 0`, decrementing it as it goes. Spending on arrival rather
-    than at play time means a borrowed turn always costs exactly the *next*
-    turn, even if the circle changes in between. Terminates because every step
-    over decrements a counter.
-    """
-    if not circle:
-        session.turn_performer_id = None
-        return None
-
-    while True:
-        candidate = circle[index % len(circle)]
-        if candidate.turns_borrowed > 0:
-            candidate.turns_borrowed -= 1
-            index += 1
-            continue
-        session.turn_performer_id = candidate.id
-        return candidate
-
-
 def advance_pointer(db: Session, session: KaraokeSession) -> None:
     """Move the turn to the next active seat, wrapping at the end of the lap."""
     circle = queue_ordering.get_circle(db, session)
@@ -183,34 +159,80 @@ def advance_pointer(db: Session, session: KaraokeSession) -> None:
     if holder is None:
         session.turn_performer_id = None
         return
-    _arrive(session, circle, circle.index(holder) + 1)
+    _point_after(session, circle, holder)
+
+
+def _point_after(
+    session: KaraokeSession,
+    circle: List[SessionPerformer],
+    performer: SessionPerformer,
+) -> None:
+    index = circle.index(performer) + 1
+    session.turn_performer_id = circle[index % len(circle)].id
+
+
+def _has_sung(
+    db: Session, session: KaraokeSession, performer: SessionPerformer
+) -> bool:
+    """Whether `performer` has finished a song in this session.
+
+    History is written when the *next* song starts, so the caller must have
+    added the previous song's row first; it is flushed here so the query sees it.
+    """
+    db.flush()
+    return (
+        db.query(PerformanceHistory.id)
+        .filter(
+            PerformanceHistory.session_id == session.session_id,
+            PerformanceHistory.performer_id == performer.id,
+        )
+        .first()
+        is not None
+    )
 
 
 def record_play(db: Session, session: KaraokeSession, item: KaraokeQueueItem) -> None:
     """Record that `item` has started. Called by `/play`, and nowhere else.
 
-    - The holder's song (bumped or not) is their real turn: the pointer moves on.
-    - Anyone else's song is a borrowed turn (model A): it counts as their next
-      one, nobody else moves, and the pointer steps over them once later.
-    - A bump is cleared when its song starts.
+    The turn follows whoever sings, so the circle never holds a debt that the
+    screen doesn't show:
+
+    - The holder's song (bumped or not) is their turn: the pointer moves on.
+    - A bump on anyone else's song is an extra song ("Grandma's leaving, let her
+      sing now"): the pointer stays on the holder.
+    - Anyone else's song is their turn, taken early: the pointer moves to the
+      seat after them. Whoever was between the holder and them waits a lap.
+    - Except a first song of the night: a walk-up is seated at the end of the
+      circle, so following them would skip everyone from the holder to the end.
+      They're seated at the turn instead, just ahead of the holder, who is
+      still up next.
 
     Append mode has no circle, so there is nothing to record.
     """
     if session.queue_order_mode != "rotation":
         return
 
-    if session.bumped_item_id == item.id:
+    was_bumped = session.bumped_item_id == item.id
+    if was_bumped:
         session.bumped_item_id = None
 
     performer = item.performer
     if performer is None or not performer.is_active:
         return
 
-    holder = queue_ordering.current_holder(db, session)
-    if holder is not None and holder.id == performer.id:
+    circle = queue_ordering.get_circle(db, session)
+    holder = queue_ordering.holder_in(db, session, circle)
+    if holder is None or holder.id == performer.id:
         advance_pointer(db, session)
+    elif was_bumped:
+        return
+    elif not _has_sung(db, session, performer):
+        _seat_before(db, session, performer, holder)
+        # Pinned: an unset pointer falls back to the first seat, which may
+        # now be theirs.
+        session.turn_performer_id = holder.id
     else:
-        performer.turns_borrowed += 1
+        _point_after(session, circle, performer)
 
 
 def skip(db: Session, session: KaraokeSession, turn: Turn) -> None:
@@ -234,32 +256,41 @@ def insert_at_turn(
 ) -> None:
     """Seat `performer` at the pointer: they're up now, whoever was up is next.
 
-    Every seat at or after the holder's moves up one - inactive rows included,
-    so a removed person's undo still lands in the right place. The new seat is
-    kept for the rest of the night.
+    The new seat is kept for the rest of the night.
     """
     circle = [p for p in queue_ordering.get_circle(db, session) if p.id != performer.id]
     holder = queue_ordering.holder_in(db, session, circle)
 
     performer.is_active = True
-    performer.turns_borrowed = 0
-
     if holder is not None:
-        seat = holder.seat
-        others = (
-            db.query(SessionPerformer)
-            .filter(
-                SessionPerformer.session_id == session.session_id,
-                SessionPerformer.id != performer.id,
-                SessionPerformer.seat >= seat,
-            )
-            .all()
-        )
-        for other in others:
-            other.seat += 1
-        performer.seat = seat
-
+        _seat_before(db, session, performer, holder)
     session.turn_performer_id = performer.id
+
+
+def _seat_before(
+    db: Session,
+    session: KaraokeSession,
+    performer: SessionPerformer,
+    holder: SessionPerformer,
+) -> None:
+    """Give `performer` the seat just ahead of `holder`.
+
+    Every seat at or after the holder's moves up one - inactive rows included,
+    so a removed person's undo still lands in the right place.
+    """
+    seat = holder.seat
+    others = (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.session_id == session.session_id,
+            SessionPerformer.id != performer.id,
+            SessionPerformer.seat >= seat,
+        )
+        .all()
+    )
+    for other in others:
+        other.seat += 1
+    performer.seat = seat
 
 
 def remove(db: Session, session: KaraokeSession, performer: SessionPerformer) -> None:
@@ -282,8 +313,11 @@ def remove(db: Session, session: KaraokeSession, performer: SessionPerformer) ->
         return
 
     rest = [p for p in circle if p.id != performer.id]
-    after = next((i for i, p in enumerate(rest) if p.seat > performer.seat), 0)
-    _arrive(session, rest, after)
+    if not rest:
+        session.turn_performer_id = None
+        return
+    after = next((p for p in rest if p.seat > performer.seat), rest[0])
+    session.turn_performer_id = after.id
 
 
 def restore(

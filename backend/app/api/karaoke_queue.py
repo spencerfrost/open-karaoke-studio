@@ -512,9 +512,9 @@ async def bump_queue_item(
 
     Sets the session's one-off bump, which takes precedence over the pointer
     for a single turn and clears when that song starts. Works mid-song, since
-    nothing plays until `/play`. If it isn't the holder's song, it counts as
-    that person's next turn (a borrowed turn - see turn_service.record_play),
-    so nobody else in the circle moves. Rotation mode only.
+    nothing plays until `/play`. If it isn't the holder's song, it is an extra
+    song: the turn stays with the holder (see turn_service.record_play).
+    Rotation mode only.
     """
     if session.queue_order_mode != "rotation":
         raise HTTPException(
@@ -612,7 +612,7 @@ async def play_queue_item(
     playback_state.is_ready = False
 
     # Starting a song is the only thing that moves the pointer on its own: the
-    # holder's song passes the turn, anyone else's is a borrowed turn.
+    # turn follows whoever sings. Needs the previous song's history row above.
     record_play(db, session, item)
 
     reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)

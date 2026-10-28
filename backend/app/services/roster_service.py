@@ -49,9 +49,6 @@ def mark_active(db: Session, performer: SessionPerformer) -> None:
         return
     performer.is_active = True
     performer.seat = next_seat(db, performer.session_id)
-    # A fresh seat is a fresh start: turns borrowed before they left were
-    # already paid for by the laps they missed.
-    performer.turns_borrowed = 0
 
 
 def resolve_or_create_performer(

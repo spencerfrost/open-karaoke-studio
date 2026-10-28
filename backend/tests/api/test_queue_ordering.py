@@ -140,22 +140,7 @@ def test_the_playing_item_leads_and_is_not_projected(db):
     assert _order(db) == [playing.id, spencers.id]
 
 
-def test_borrowed_turn_is_stepped_over_once(db):
-    session = _make_session(db)
-    _make_song(db)
-    spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
-    s1, s2 = _add_item(db, session, spencer), _add_item(db, session, spencer)
-    d1, d2 = _add_item(db, session, dan), _add_item(db, session, dan)
-    r1, r2 = _add_item(db, session, sarah), _add_item(db, session, sarah)
-
-    dan.turns_borrowed = 1
-    db.commit()
-
-    # Lap 1 skips Dan; lap 2 is everyone; Dan's second song trails on its own.
-    assert _order(db) == [s1.id, r1.id, s2.id, d1.id, r2.id, d2.id]
-
-
-def test_bumped_song_goes_first_and_costs_that_persons_next_turn(db):
+def test_someone_elses_bumped_song_goes_first_and_moves_nobody(db):
     session = _make_session(db)
     _make_song(db)
     spencer, dan, sarah = _people(db, "Spencer", "Dan", "Sarah")
@@ -166,8 +151,8 @@ def test_bumped_song_goes_first_and_costs_that_persons_next_turn(db):
     session.bumped_item_id = d2.id
     db.commit()
 
-    # d2 now, then the pointer resumes at Spencer and steps over Dan once.
-    assert _order(db) == [d2.id, s1.id, r1.id, s2.id, d1.id]
+    # d2 now, then the circle from Spencer as if nothing happened.
+    assert _order(db) == [d2.id, s1.id, d1.id, r1.id, s2.id]
 
 
 def test_holders_own_bump_is_their_real_turn(db):
