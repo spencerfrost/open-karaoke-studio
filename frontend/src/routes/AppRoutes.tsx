@@ -16,6 +16,7 @@ import AdminAcoustIdPage from "../features/admin/AdminAcoustIdPage";
 import AdminDiskCheckPage from "../features/admin/AdminDiskCheckPage";
 import AdminDuplicatesPage from "../features/admin/AdminDuplicatesPage";
 import AdminFailedSongsPage from "../features/admin/AdminFailedSongsPage";
+import AdminLyricsFeedbackPage from "../features/admin/AdminLyricsFeedbackPage";
 import AdminLyricsReportsPage from "../features/admin/AdminLyricsReportsPage";
 import AdminMetadataPage from "../features/admin/AdminMetadataPage";
 import { RequireAccess, RequireCapability } from "./guards";
@@ -51,6 +52,7 @@ const AppRoutes: React.FC = () => (
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminIndex />} />
           <Route path="lyrics-reports" element={<AdminLyricsReportsPage />} />
+          <Route path="lyrics-feedback" element={<AdminLyricsFeedbackPage />} />
           <Route path="acoustid" element={<AdminAcoustIdPage />} />
           <Route path="metadata" element={<AdminMetadataPage />} />
           <Route path="failed" element={<AdminFailedSongsPage />} />

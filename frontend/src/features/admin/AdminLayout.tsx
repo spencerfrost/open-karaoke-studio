@@ -7,6 +7,7 @@ import {
   HardDrive,
   LayoutDashboard,
   ListChecks,
+  MessageSquareHeart,
   MessageSquareWarning,
   ShieldAlert,
   ShieldCheck,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "@/features/session";
+import { useLyricsFeedback } from "@/hooks/api/useLyricsFeedback";
 import { useLyricsReports } from "@/hooks/api/useLyricsReports";
 import { useBatchJobs } from "./hooks/useBatchJobs";
 import {
@@ -50,6 +52,12 @@ function useNoCount() {
 
 function useLyricsReportCount() {
   return useLyricsReports().data?.length;
+}
+
+/** Songs someone said were off, counting only the lyrics they show now. */
+function useLyricsFeedbackCount() {
+  return useLyricsFeedback().data?.filter((e) => e.wayOff + e.aBitOff > 0)
+    .length;
 }
 
 function useAcoustIdCount() {
@@ -105,6 +113,12 @@ const ADMIN_SECTION_GROUPS: AdminSectionGroup[] = [
         label: "Lyrics reports",
         icon: MessageSquareWarning,
         useCount: useLyricsReportCount,
+      },
+      {
+        path: "lyrics-feedback",
+        label: "Lyrics feedback",
+        icon: MessageSquareHeart,
+        useCount: useLyricsFeedbackCount,
       },
       {
         path: "acoustid",

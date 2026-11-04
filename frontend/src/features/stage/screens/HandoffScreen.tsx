@@ -70,6 +70,7 @@ import {
   useSongSuggestions,
   getSuggestionReasonText,
 } from "@/features/player/hooks/useSongSuggestions";
+import LyricsFeedbackRow from "../components/LyricsFeedbackRow";
 import { useStageShell } from "../StageShellContext";
 import { findTurnItem } from "../turnItem";
 
@@ -280,15 +281,17 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const showRibbon = turn.circle.length >= 2;
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-10 overflow-auto p-10">
+    // Short screens (the Shield's 960x540) get a tighter layout. Centering is
+    // "safe": anything that still doesn't fit falls off the bottom, not the top.
+    <div className="flex h-full w-full flex-col items-center justify-center-safe gap-10 overflow-auto p-10 [@media(max-height:600px)]:gap-5 [@media(max-height:600px)]:p-6">
       {/* ---- Slot 1: who's up ------------------------------------------- */}
       <div className="text-center">
         {turn.performerName ? (
           <>
-            <p className="text-xl uppercase tracking-[0.2em] text-foreground-faint">
+            <p className="text-xl uppercase tracking-[0.2em] text-foreground-faint [@media(max-height:600px)]:text-base">
               Up next
             </p>
-            <h1 className="font-display text-8xl leading-none text-primary">
+            <h1 className="font-display text-8xl leading-none text-primary [@media(max-height:600px)]:text-6xl">
               {turn.performerName}
             </h1>
           </>
@@ -344,7 +347,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             className="group flex items-center gap-8 rounded-xl p-2 text-left"
             aria-label={`Play ${nextItem.song.title}`}
           >
-            <div className="relative flex size-48 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-overlay/60 shadow-2xl">
+            <div className="relative flex size-48 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-overlay/60 shadow-2xl [@media(max-height:600px)]:size-32">
               {getArtworkUrl(nextItem.song, "large") ? (
                 <img
                   src={getArtworkUrl(nextItem.song, "large") ?? undefined}
@@ -364,7 +367,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               </div>
             </div>
             <div className="min-w-0">
-              <h2 className="font-display text-5xl leading-tight text-foreground">
+              <h2 className="font-display text-5xl leading-tight text-foreground [@media(max-height:600px)]:text-4xl">
                 {nextItem.song.title}
               </h2>
               <p className="pt-2 text-2xl text-foreground-dim">
@@ -454,7 +457,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
 
       {/* ---- Slot 3: how to change either -------------------------------- */}
       {!isAdding && (
-        <div className="flex w-full max-w-4xl flex-col items-center gap-4">
+        <div className="flex w-full max-w-4xl flex-col items-center gap-4 [@media(max-height:600px)]:gap-2">
           {/* The circle is empty in append mode, which has no turns to change. */}
           {turn.circle.length > 0 && (
             <div className="flex flex-col items-center gap-2">
@@ -525,6 +528,11 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               Just played: {current.song.title} — {current.song.artist}
             </p>
           )}
+
+          {current?.song &&
+            (current.song.syncedLyrics || current.song.plainLyrics) && (
+              <LyricsFeedbackRow queueItemId={Number(current.id)} />
+            )}
         </div>
       )}
     </div>

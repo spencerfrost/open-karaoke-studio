@@ -13,15 +13,20 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     RequesterContext,
+    ensure_session_access,
     get_current_user,
     get_db,
     require_admin,
     require_host_or_session_member,
 )
-from app.db.models import User
+from app.db.models import KaraokeQueueItem, User
 from app.exceptions import ServiceError
 from app.jobs.lyrics_dispatch import enqueue_song_alignment, realign_hand_picked_lyrics
 from app.limiter import limiter
+from app.repositories.lyrics_feedback_repository import (
+    LyricsFeedbackRepository,
+    LyricsRating,
+)
 from app.repositories.lyrics_report_repository import LyricsReportRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
@@ -657,6 +662,92 @@ def undo_lyrics_report(
         )
     logger.info("Lyrics report %s undone (restored=%s)", report_id, restored)
     return {"restored": restored, "alignment": alignment}
+
+
+# ============================================================================
+# Lyrics feedback: "How were the lyrics?" after each song
+# ============================================================================
+
+
+class LyricsFeedbackRequest(BaseModel):
+    queue_item_id: int
+    rating: LyricsRating
+
+
+@router.post("/feedback", response_model=dict, status_code=200)
+def answer_lyrics_feedback(
+    body: LyricsFeedbackRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+):
+    """
+    Say how the lyrics went for the song that just finished.
+
+    Asked on the stage between songs, while the finished song is still the
+    session's current queue item. Answering again replaces the answer. Nothing
+    is fixed automatically: this only records which songs need work.
+    """
+    from app.services.lyrics_retiming import shown_lyrics_key
+
+    item = db.get(KaraokeQueueItem, body.queue_item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="That song has left the queue")
+    ensure_session_access(requester, item.session_id, db)
+    song = item.song
+    words_key = shown_lyrics_key(song.synced_lyrics, song.plain_lyrics)
+    if words_key is None:
+        raise HTTPException(status_code=422, detail="This song has no lyrics")
+
+    feedback = LyricsFeedbackRepository(db).answer(
+        queue_item_id=item.id,
+        song=song,
+        rating=body.rating,
+        words_key=words_key,
+        singer_name=item.singer_name,
+        answered_by=_reporter_name(requester),
+        user_id=requester.user.id if requester.user else None,
+        session_id=item.session_id,
+    )
+    logger.info("Lyrics feedback for song %s: %s", song.id, body.rating)
+    return {"queueItemId": feedback.queue_item_id, "rating": feedback.rating}
+
+
+@router.get("/feedback", response_model=List[dict])
+def list_lyrics_feedback(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Every song with answers, worst first: most "way off", then most
+    "a bit off", then most sung. Counts cover the lyrics and word timings
+    the song shows now; answers about replaced ones are only counted.
+    """
+    entries = LyricsFeedbackRepository(db).by_song()
+    entries.sort(
+        key=lambda e: (
+            -e.current.get("way_off", 0),
+            -e.current.get("a_bit_off", 0),
+            -e.plays,
+        )
+    )
+    return [
+        {
+            "songId": e.song.id,
+            "title": e.song.title,
+            "artist": e.song.artist,
+            "spotOn": e.current.get("spot_on", 0),
+            "aBitOff": e.current.get("a_bit_off", 0),
+            "wayOff": e.current.get("way_off", 0),
+            "earlier": e.earlier,
+            "plays": e.plays,
+            "lastAnsweredAt": (
+                e.last_answered_at.isoformat() if e.last_answered_at else None
+            ),
+            "lyricsSource": _lyrics_source(e.song),
+            "lyricsHandPicked": e.song.lyrics_hand_picked_at is not None,
+        }
+        for e in entries
+    ]
 
 
 # ============================================================================
