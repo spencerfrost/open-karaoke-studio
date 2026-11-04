@@ -14,7 +14,8 @@ What's left in this folder:
   - `repair_acoustid_mislabels.py` + `review_mislabels.py`/`.html`: the 2026-09-25 repair of
     68 songs mislabelled by AcoustID.
 - `experiments/`: research code (separation-engine comparisons, ASR and lyric-alignment
-  trials). Not maintained.
+  trials). Not maintained, except `experiments/lyrics_benchmark/`: the scored ASR and
+  alignment benchmark against the library's own lyrics (see its README).
 
 Run anything here from `backend/` with the venv active, e.g.
 `python scripts/manage_users.py list`.
