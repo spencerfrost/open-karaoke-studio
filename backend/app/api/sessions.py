@@ -30,7 +30,7 @@ from app.api.dependencies import (
 from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
 from app.services import turn_service
-from app.services.demo_service import DEMO_SESSION_ENDED_DETAIL
+from app.services.demo_service import DEMO_SESSION_ENDED_DETAIL, is_demo_session
 from app.services.roster_service import (
     resolve_or_create_performer,
     resolve_or_create_performer_verbose,
@@ -76,6 +76,9 @@ class SessionResponse(BaseModel):
     expires_at: str
     is_active: bool
     queue_order_mode: str
+    # Hosted by a demo pool account. Phones read it to send a guest straight
+    # to adding a song, which the guided tour waits on.
+    is_demo: bool
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -386,6 +389,7 @@ def get_my_session(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
@@ -525,6 +529,7 @@ async def get_or_create_my_session(
             expires_at=existing.expires_at.isoformat(),
             is_active=existing.is_active,
             queue_order_mode=existing.queue_order_mode,
+            is_demo=is_demo_session(db, existing),
         )
 
     # Get host settings for session duration. A duration_hours in the request is a
@@ -615,6 +620,7 @@ async def get_or_create_my_session(
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
                 queue_order_mode=session.queue_order_mode,
+                is_demo=is_demo_session(db, session),
             )
 
         except IntegrityError:
@@ -705,6 +711,7 @@ def create_session(
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
                 queue_order_mode=session.queue_order_mode,
+                is_demo=is_demo_session(db, session),
             )
 
         except IntegrityError:
@@ -815,6 +822,7 @@ def join_session_by_code(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
@@ -928,6 +936,7 @@ def join_session_by_id(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
@@ -1001,6 +1010,7 @@ def get_session_info(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 

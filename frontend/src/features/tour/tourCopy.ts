@@ -41,11 +41,18 @@ export const STEP_COPY: Partial<Record<TourStep, StepCopy>> = {
   },
   scan: {
     title: "Scan the code with your phone",
-    body: "Your phone is the remote. Scan the code, search for any song you like and add it. No phone handy? Press “No phone? Open a phone view” under the code.",
+    body: "Your phone is the remote. Scan the code and type your name to join. No phone handy? Press “No phone? Open a phone view” under the code.",
     how: "Each phone joins this session over its own WebSocket, and everything the stage shows is kept per session.",
     docsPage: "architecture.html#session-management",
     targets: ["join-code"],
     side: "left",
+  },
+  add: {
+    title: "You're in. Now pick a song",
+    body: "On your phone, search for any song you like and add it. It shows up here while it gets ready.",
+    how: "The stage saw your phone join: each phone reports over the session socket whether it's connected and on screen.",
+    docsPage: "architecture.html#websocket-architecture",
+    targets: [],
   },
   wheel: {
     title: "Your song is getting ready",

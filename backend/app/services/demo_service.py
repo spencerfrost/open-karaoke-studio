@@ -168,14 +168,18 @@ def _resolve_requester_session(
             .first()
         )
 
-    host: Optional[User] = None
-    if session is not None and session.host_user_id is not None:
-        host = db.get(User, session.host_user_id)
-
-    demo_request = (host is not None and host.is_demo) or (
-        user is not None and user.is_demo
+    demo_request = (session is not None and is_demo_session(db, session)) or (
+        user is not None and bool(user.is_demo)
     )
     return session, demo_request
+
+
+def is_demo_session(db: Session, session: KaraokeSession) -> bool:
+    """Whether a demo pool account hosts this session."""
+    if session.host_user_id is None:
+        return False
+    host = db.get(User, session.host_user_id)
+    return host is not None and bool(host.is_demo)
 
 
 # Finished download jobs keep their row, so these counts include completed

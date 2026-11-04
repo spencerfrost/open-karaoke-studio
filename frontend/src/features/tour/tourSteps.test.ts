@@ -14,6 +14,7 @@ import {
 } from "./tourSteps";
 
 const idle: TourSignals = {
+  phoneJoined: false,
   hasMyJob: false,
   myReadySong: false,
   countingDown: false,
@@ -40,9 +41,21 @@ describe("nextStep", () => {
     expect(nextStep("sound", { ...idle, hasMyJob: true })).toBe("sound");
   });
 
-  it("waits on the scan step until a job of ours shows up", () => {
+  it("waits on the scan step until a phone joins", () => {
     expect(nextStep("scan", idle)).toBe("scan");
+    expect(nextStep("scan", { ...idle, phoneJoined: true })).toBe("add");
+  });
+
+  it("waits on the add step until a job of ours shows up", () => {
+    const joined = { ...idle, phoneJoined: true };
+    expect(nextStep("add", joined)).toBe("add");
+    expect(nextStep("add", { ...joined, hasMyJob: true })).toBe("wheel");
+    // A song added from the stage itself skips the phone entirely.
     expect(nextStep("scan", { ...idle, hasMyJob: true })).toBe("wheel");
+  });
+
+  it("stays on add if the phone drops off", () => {
+    expect(nextStep("add", idle)).toBe("add");
   });
 
   it("moves to ready once our song comes out playable", () => {
@@ -131,6 +144,7 @@ describe("afterSoundOn", () => {
   });
 
   it("picks up wherever the app already is", () => {
+    expect(afterSoundOn({ ...idle, phoneJoined: true })).toBe("add");
     expect(afterSoundOn({ ...idle, hasMyJob: true })).toBe("wheel");
   });
 });

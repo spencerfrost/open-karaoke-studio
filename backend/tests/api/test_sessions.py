@@ -136,6 +136,7 @@ def test_join_by_code_success(client):
     data = resp.json()
     assert data["session_id"] == session["session_id"]
     assert data["is_host"] is False
+    assert data["is_demo"] is False
 
 
 def test_joined_device_gets_the_owner_tag_its_jobs_carry(client):

@@ -1,8 +1,8 @@
 /**
  * useTourSignals - reads what the app is doing for the tour.
  *
- * Every signal comes from state the stage already has: the jobs feed, the
- * countdown, the player, presence and the mix. Job and presence updates reach
+ * Every signal comes from state the stage already has: presence, the jobs
+ * feed, the countdown, the player and the mix. Job and presence updates reach
  * the stage over the server, so the tour advances the same whether the
  * visitor used a real phone or the stage's phone-view window.
  */
@@ -118,6 +118,11 @@ export function useTourSignals(
     performerId === null ? undefined : s.performers[performerId],
   );
   const singerOnControls = presence ? presence.onControls : null;
+  // Presence only lists seats with a phone linked, and joining always takes
+  // a name, so any connected entry is a phone (or phone view) in the session.
+  const phoneJoined = usePresenceStore((s) =>
+    Object.values(s.performers).some((p) => p.connected),
+  );
 
   // --- The mix, against where it was when the song started.
   const vocal = useAudioControlsStore((s) => s.vocalVolume);
@@ -136,6 +141,7 @@ export function useTourSignals(
     );
 
   const signals: TourSignals = {
+    phoneJoined,
     hasMyJob: myRows.length > 0,
     myReadySong: myFinishedOutcome === "ready",
     countingDown,

@@ -171,6 +171,25 @@ class TestDemoAccountSessions:
         assert response.json()["session_id"] == started.session_id
         assert db.query(KaraokeSession).count() == 1
 
+    def test_guest_joining_the_demo_session_is_told_so(
+        self, unauthenticated_client, db
+    ):
+        _seed_pool(db, count=1)
+        _start(unauthenticated_client)
+        started = db.query(KaraokeSession).one()
+
+        response = unauthenticated_client.post(
+            "/api/sessions/join-by-code",
+            json={
+                "code": started.display_code,
+                "device_type": "performer",
+                "display_name": "Guest",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["is_demo"] is True
+
     def test_no_new_session_after_the_demo_session_ends(
         self, unauthenticated_client, db
     ):

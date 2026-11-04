@@ -86,14 +86,19 @@ const Entry: React.FC = () => {
     return "signin";
   });
   const [sessionCode, setSessionCode] = useState(() => codeFromUrl || "");
-  const [displayName, setDisplayName] = useState(
-    () => localStorage.getItem(NAME_STORAGE_KEY) || "",
+  // The name this browser remembered on arrival. Only this one may
+  // auto-join: a name being typed must wait for the Join button.
+  const [rememberedName] = useState(
+    () => localStorage.getItem(NAME_STORAGE_KEY)?.trim() || "",
   );
+  const [displayName, setDisplayName] = useState(rememberedName);
   const [joinFailed, setJoinFailed] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
 
   const {
     sessionId,
+    sessionInfo,
+    isStageDevice,
     isConnecting,
     connectionError,
     joinSession,
@@ -135,16 +140,16 @@ const Entry: React.FC = () => {
     if (hasAutoJoined.current) return;
     if (
       codeFromUrl?.length === SESSION_CODE_LENGTH &&
-      displayName.trim() &&
+      rememberedName &&
       !sessionId &&
       !isConnecting
     ) {
       hasAutoJoined.current = true;
       logger.info("Auto-joining session from QR code", { code: codeFromUrl });
-      void join(codeFromUrl, displayName.trim());
+      void join(codeFromUrl, rememberedName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeFromUrl, displayName, sessionId, isConnecting]);
+  }, [codeFromUrl, rememberedName, sessionId, isConnecting]);
 
   // A demo account's session is already running: straight to the stage,
   // where its QR code is.
@@ -159,7 +164,10 @@ const Entry: React.FC = () => {
   // actually joined from this screen, justJoined overrides it so they
   // proceed like everyone else.
   if ((isAuthenticated || sessionId) && (!codeFromUrl || justJoined)) {
-    return <Navigate to={from} replace />;
+    // A guest joining the live demo goes straight to adding a song: the
+    // stage's guided tour is waiting on one. Normal sessions land as usual.
+    const demoGuest = justJoined && sessionInfo?.is_demo && !isStageDevice;
+    return <Navigate to={demoGuest ? "/add" : from} replace />;
   }
 
   const codeComplete = sessionCode.length === SESSION_CODE_LENGTH;

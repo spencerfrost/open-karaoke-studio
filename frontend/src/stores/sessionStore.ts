@@ -27,6 +27,8 @@ interface SessionInfo {
   expires_at: string;
   is_active: boolean;
   queue_order_mode: string;
+  /** Hosted by a demo pool account: a guest who joins goes straight to adding a song. */
+  is_demo: boolean;
   /** Matches `owner_tag` on this session's jobs; the jobs feed never sends the code. */
   owner_tag?: string | null;
 }

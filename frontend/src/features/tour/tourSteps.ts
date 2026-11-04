@@ -2,7 +2,8 @@
  * tourSteps - the guided demo's steps and what moves it from one to the next.
  *
  * The tour never moves on a "Next" click. Each step waits on something the app
- * does: a job from this session shows up, the song comes out ready, the count
+ * does: a phone joins, a job from this session shows up, the song comes out
+ * ready, the count
  * starts, the song plays, the singer's phone opens its controls, the mix moves.
  * The one click it asks for is the first one, "Sound is on", because a browser
  * needs a click before it lets a page play sound.
@@ -19,8 +20,10 @@ import type { TrackerRow } from "@/features/songs/processing/jobTimeline";
 export const TOUR_STEPS = [
   /** Turn the sound on. The click is the gesture that lets audio play. */
   "sound",
-  /** Scan the QR code and add a song from the phone. */
+  /** Scan the QR code (or open the stage's phone view). */
   "scan",
+  /** A phone has joined: search for a song on it and add it. */
+  "add",
   /** The song is processing; spin the wheel meanwhile. */
   "wheel",
   /** Their song is ready: Sing this. */
@@ -47,6 +50,8 @@ export const isTourStep = (value: unknown): value is TourStep =>
 
 /** What the app is doing right now, as far as the tour cares. */
 export interface TourSignals {
+  /** A phone has joined this session and is connected. */
+  phoneJoined: boolean;
   /** A song from this session is in the processing list. */
   hasMyJob: boolean;
   /** A song from this session finished and came out playable. */
@@ -75,6 +80,7 @@ function reachedStep(signals: TourSignals): TourStep {
   if (signals.countingDown) return "countdown";
   if (signals.myReadySong) return "ready";
   if (signals.hasMyJob) return "wheel";
+  if (signals.phoneJoined) return "add";
   return "scan";
 }
 
@@ -107,7 +113,7 @@ export function afterSoundOn(signals: TourSignals): TourStep {
 
 /** Steps where the visitor is still waiting on a song of their own. */
 export const isWaitingForSong = (step: TourStep) =>
-  step === "scan" || step === "wheel";
+  step === "scan" || step === "add" || step === "wheel";
 
 // --- Fallback --------------------------------------------------------------
 
