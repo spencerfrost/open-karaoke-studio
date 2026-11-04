@@ -532,6 +532,13 @@
   }
 }
 
+/* Registered so the lyric sweep can glide between player time updates. */
+@property --lyric-sweep {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 @layer utilities {
   /* Lyrics fade — both ends, so scrolling text never ends on a hard edge */
   .mask-image-fade-y {
@@ -572,6 +579,22 @@
 
   .instrumental-progress-fill {
     transition: width 120ms ease-out;
+  }
+
+  /* A crammed line's highlight: the lit color sweeps across the text. It sits
+     on an inline span so a wrapped line fills row by row. The player sets
+     --lyric-sweep ten times a second; the transition fills in between. */
+  .lyric-sweep {
+    color: transparent;
+    text-shadow: none;
+    background-image: linear-gradient(
+      to right,
+      var(--primary) calc(var(--lyric-sweep) - 2%),
+      transparent calc(var(--lyric-sweep) + 2%)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    transition: --lyric-sweep 100ms linear;
   }
 
   .instrumental-progress-leadin {

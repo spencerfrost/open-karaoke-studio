@@ -17,7 +17,12 @@ import React, {
   useCallback,
 } from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
-import { getActiveLineIndex, lineHasWordTiming } from "./activeLineTiming";
+import {
+  getActiveLineIndex,
+  getLineRenderMode,
+  getSweepProgress,
+  type LineRenderMode,
+} from "./activeLineTiming";
 
 type ParsedLine = ParsedLrcData["lines"][number];
 type InstrumentalInterval = NonNullable<
@@ -233,12 +238,13 @@ const InstrumentalSeparator = React.memo(function InstrumentalSeparator({
 
 interface LyricContentProps {
   line: ParsedLine;
-  renderMode: "content" | "words";
+  renderMode: LineRenderMode;
   isActive: boolean;
   opacity: string;
   isClickable: boolean;
   seekProps: SeekableSpanProps;
   currentWordIndex: number | null;
+  sweepProgress: number | null;
 }
 
 const LyricContent: React.FC<LyricContentProps> = ({
@@ -249,7 +255,33 @@ const LyricContent: React.FC<LyricContentProps> = ({
   isClickable,
   seekProps,
   currentWordIndex,
+  sweepProgress,
 }) => {
+  if (renderMode === "sweep" && isActive && sweepProgress !== null) {
+    // Two copies in one grid cell wrap identically: the dim one underneath
+    // keeps the line's glow, the lit one on top is filled by the sweep.
+    return (
+      <span
+        className={`${opacity} transition-opacity duration-300 inline-grid ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
+        {...seekProps}
+      >
+        <span className="[grid-area:1/1] opacity-60">{line.content}</span>
+        <span className="[grid-area:1/1]" aria-hidden="true">
+          <span
+            className="lyric-sweep"
+            style={
+              {
+                "--lyric-sweep": `${sweepProgress * 100}%`,
+              } as React.CSSProperties
+            }
+          >
+            {line.content}
+          </span>
+        </span>
+      </span>
+    );
+  }
+
   if (renderMode === "words" && line.words && line.words.length > 0) {
     const words = line.words.map((w) => w.word);
 
@@ -289,8 +321,11 @@ interface LyricLineProps {
   line: ParsedLine;
   index: number;
   isActive: boolean;
+  renderMode: LineRenderMode;
   /** The active line's highlighted word; null on every other line. */
   currentWordIndex: number | null;
+  /** How far the active sweep line is lit, 0–1; null on every other line. */
+  sweepProgress: number | null;
   activeFontClass: string;
   inactiveFontClass: string;
   onSeek?: (timeSeconds: number) => void;
@@ -306,7 +341,9 @@ const LyricLine = React.memo(function LyricLine({
   line,
   index,
   isActive,
+  renderMode,
   currentWordIndex,
+  sweepProgress,
   activeFontClass,
   inactiveFontClass,
   onSeek,
@@ -352,12 +389,13 @@ const LyricLine = React.memo(function LyricLine({
         <div className="text-center">
           <LyricContent
             line={line}
-            renderMode={lineHasWordTiming(line) ? "words" : "content"}
+            renderMode={renderMode}
             isActive={isActive}
             opacity={opacity}
             isClickable={isClickable}
             seekProps={seekProps}
             currentWordIndex={currentWordIndex}
+            sweepProgress={sweepProgress}
           />
         </div>
       </div>
@@ -486,6 +524,19 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     }
     return idx;
   }, [parsedData.lines, currentLineIndex, currentTimeSec]);
+
+  const renderModes = useMemo(
+    () => parsedData.lines.map(getLineRenderMode),
+    [parsedData.lines],
+  );
+
+  const sweepProgress = useMemo(() => {
+    if (currentLineIndex === -1 || renderModes[currentLineIndex] !== "sweep")
+      return null;
+    const words = parsedData.lines[currentLineIndex].words;
+    if (!words || words.length === 0) return null;
+    return getSweepProgress(words, currentTimeSec);
+  }, [parsedData.lines, renderModes, currentLineIndex, currentTimeSec]);
 
   const activeInstrumentalDisplay = useMemo(() => {
     const interval = parsedData.instrumentalIntervals?.find((candidate) => {
@@ -693,7 +744,9 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
           line={line}
           index={index}
           isActive={isActive}
+          renderMode={renderModes[index]}
           currentWordIndex={isActive ? currentWordIndex : null}
+          sweepProgress={isActive ? sweepProgress : null}
           activeFontClass={fontSizes.active}
           inactiveFontClass={fontSizes.inactive}
           onSeek={onSeek}
