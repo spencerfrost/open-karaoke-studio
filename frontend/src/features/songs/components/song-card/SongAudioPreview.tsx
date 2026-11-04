@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useImperativeHandle,
+} from "react";
 import { Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -6,16 +12,30 @@ import { formatTime } from "@/utils/formatters";
 
 export type PreviewTrack = "original" | "vocals" | "instrumental";
 
+/** Lets something shown alongside the player move it, e.g. a clicked lyric. */
+export interface SongAudioPreviewHandle {
+  /** Jump to a spot (seconds) and play from there. */
+  playFrom: (seconds: number) => void;
+}
+
 interface SongAudioPreviewProps {
   songId: string;
   /** Which file to play. Switching it mid-song carries on from the same spot. */
   track?: PreviewTrack;
+  /**
+   * The playing position (seconds): every frame while playing, and after any
+   * seek. For something that has to keep in step with the audio.
+   */
+  onTimeChange?: (seconds: number) => void;
+  ref?: React.Ref<SongAudioPreviewHandle>;
   className?: string;
 }
 
 export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   songId,
   track = "original",
+  onTimeChange,
+  ref,
   className,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -81,23 +101,30 @@ export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   const handleTimeUpdate = useCallback(() => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
+      onTimeChange?.(audioRef.current.currentTime);
     }
-  }, []);
+  }, [onTimeChange]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
-  }, []);
+    onTimeChange?.(0);
+  }, [onTimeChange]);
 
-  const handlePlayPause = () => {
+  // timeupdate fires only a few times a second: too coarse for a word sweep.
+  useEffect(() => {
+    if (!isPlaying || !onTimeChange) return;
+    let frame = 0;
+    const tick = () => {
+      if (audioRef.current) onTimeChange(audioRef.current.currentTime);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, onTimeChange]);
+
+  const startPlaying = () => {
     if (!audioRef.current) return;
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     audioRef.current
@@ -112,6 +139,27 @@ export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
         setIsPlaying(false);
       });
   };
+
+  const handlePlayPause = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    startPlaying();
+  };
+
+  useImperativeHandle(ref, () => ({
+    playFrom: (seconds: number) => {
+      if (!audioRef.current) return;
+      audioRef.current.currentTime = seconds;
+      setCurrentTime(seconds);
+      if (!isPlaying) startPlaying();
+    },
+  }));
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !progressRef.current || duration === 0) return;

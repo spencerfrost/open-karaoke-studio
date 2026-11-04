@@ -1,20 +1,11 @@
-import React, { useState } from "react";
+import React from "react";
 import { ExternalLink, Music } from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSongs } from "@/hooks/api/useSongs";
 import { cn } from "@/lib/utils";
-import {
-  SongAudioPreview,
-  type PreviewTrack,
-} from "@/features/songs/components/song-card/SongAudioPreview";
 import { formatTime } from "@/utils/formatters";
 import type { Song } from "@/types/Song";
-
-const TRACKS: { value: PreviewTrack; label: string }[] = [
-  { value: "original", label: "Original" },
-  { value: "vocals", label: "Vocals" },
-  { value: "instrumental", label: "Instrumental" },
-];
+import { KaraokePreview } from "./KaraokePreview";
+import { StemPreview } from "./StemPreview";
 
 /** "Oct 2, 2026"; null for a missing or unreadable date. */
 function formatDay(iso: string | null | undefined): string | null {
@@ -112,44 +103,27 @@ export const SongSummary: React.FC<{
   );
 };
 
-/** Play the song, switching between the original and its stems. */
-export const StemPreview: React.FC<{ songId: string }> = ({ songId }) => {
-  const [track, setTrack] = useState<PreviewTrack>("original");
-  return (
-    <div className="space-y-2">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        value={track}
-        onValueChange={(value) => value && setTrack(value as PreviewTrack)}
-        aria-label="Which audio to play"
-      >
-        {TRACKS.map(({ value, label }) => (
-          <ToggleGroupItem key={value} value={value}>
-            {label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <SongAudioPreview songId={songId} track={track} />
-    </div>
-  );
-};
-
 /**
  * The right side of a review list: the song, a listen, then what this list
- * knows about it (`details`) and what can be done (`children`).
+ * knows about it (`details`) and what can be done (`children`). Given
+ * `lyrics`, the listen plays them along like the stage does.
  */
 export const SongPanel: React.FC<{
   basics: SongBasics;
   /** False when the song has no audio files to play. */
   hasAudio?: boolean;
+  lyrics?: { syncedLyrics?: string; plainLyrics?: string };
   details?: React.ReactNode;
   children?: React.ReactNode;
-}> = ({ basics, hasAudio = true, details, children }) => (
+}> = ({ basics, hasAudio = true, lyrics, details, children }) => (
   <div className="space-y-5">
     <SongSummary basics={basics} />
-    {hasAudio && <StemPreview songId={basics.id} />}
+    {hasAudio &&
+      (lyrics ? (
+        <KaraokePreview songId={basics.id} {...lyrics} />
+      ) : (
+        <StemPreview songId={basics.id} />
+      ))}
     {details}
     {children && (
       <div className="space-y-4 border-t border-border/60 pt-4">{children}</div>

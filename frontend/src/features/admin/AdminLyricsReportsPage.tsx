@@ -12,8 +12,6 @@ import {
   type LyricsReportKind,
   type LyricsReportOutcome,
 } from "@/hooks/api/useLyricsReports";
-import { parseLrc } from "@/utils/lrcParser";
-import { formatTime } from "@/utils/formatters";
 import {
   FilterChips,
   ReviewEmpty,
@@ -22,6 +20,7 @@ import {
 } from "./review/ReviewLayout";
 import { SongPanel } from "./review/SongPanel";
 import { LyricsFixButtons } from "./review/SongActions";
+import { describeWhen } from "./review/describeWhen";
 import { useReviewSong } from "./review/useReviewSong";
 
 const KIND_LABEL: Record<LyricsReportKind, string> = {
@@ -37,53 +36,6 @@ const OUTCOME_LABEL: Record<LyricsReportOutcome, string> = {
 };
 
 type KindFilter = "all" | LyricsReportKind;
-
-function describeWhen(iso: string | null): string {
-  if (!iso) return "";
-  // Stored as UTC without a zone marker.
-  const when = new Date(
-    iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`,
-  );
-  return when.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-/** The lyrics as they are now: timed lines when there are some. */
-const LyricsPreview: React.FC<{
-  syncedLyrics?: string;
-  plainLyrics?: string;
-}> = ({ syncedLyrics, plainLyrics }) => {
-  const timed = syncedLyrics
-    ? parseLrc(syncedLyrics).filter((line) => !line.isBlank)
-    : [];
-
-  if (!timed.length && !plainLyrics) {
-    return <p className="text-sm text-muted-foreground">No lyrics.</p>;
-  }
-
-  return (
-    <div className="max-h-80 overflow-y-auto rounded-md border border-border/60 bg-muted/30 p-3 text-sm leading-relaxed">
-      {timed.length ? (
-        <ol className="space-y-0.5">
-          {timed.map((line, index) => (
-            <li key={index} className="flex gap-3">
-              <span className="w-10 shrink-0 text-right font-mono text-xs leading-relaxed text-muted-foreground">
-                {formatTime(line.timestamp / 1000)}
-              </span>
-              <span>{line.content}</span>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="whitespace-pre-line">{plainLyrics}</p>
-      )}
-    </div>
-  );
-};
 
 const ReportDetail: React.FC<{
   report: LyricsReport;
@@ -126,6 +78,10 @@ const ReportDetail: React.FC<{
   return (
     <SongPanel
       basics={basics}
+      lyrics={{
+        syncedLyrics: song.syncedLyrics,
+        plainLyrics: song.plainLyrics,
+      }}
       details={
         <div className="space-y-3">
           <div className="space-y-1 text-sm">
@@ -157,10 +113,6 @@ const ReportDetail: React.FC<{
               )}
             </p>
           </div>
-          <LyricsPreview
-            syncedLyrics={song.syncedLyrics}
-            plainLyrics={song.plainLyrics}
-          />
         </div>
       }
     >
