@@ -15,6 +15,7 @@ vi.mock("@/services/sessionWebSocketService", () => ({
 }));
 
 import {
+  isPromptSong,
   needsPhoneOpened,
   shouldOpenControls,
   usePresenceStore,
@@ -116,6 +117,29 @@ describe("needsPhoneOpened", () => {
   });
 });
 
+describe("isPromptSong", () => {
+  const base = {
+    performerId: 3,
+    itemId: "12",
+    promptedFor: {},
+    usedControls: {},
+  };
+
+  it("allows a singer who hasn't been asked yet", () => {
+    expect(isPromptSong(base)).toBe(true);
+  });
+
+  it("allows the song they were asked during, and no other", () => {
+    const promptedFor = { 3: "12" };
+    expect(isPromptSong({ ...base, promptedFor })).toBe(true);
+    expect(isPromptSong({ ...base, promptedFor, itemId: "13" })).toBe(false);
+  });
+
+  it("never asks a singer who has used the controls", () => {
+    expect(isPromptSong({ ...base, usedControls: { 3: true } })).toBe(false);
+  });
+});
+
 describe("usePresenceStore", () => {
   beforeEach(() => {
     usePresenceStore.getState().reset();
@@ -165,5 +189,26 @@ describe("usePresenceStore", () => {
     const { autoOpenedItemId, autoOpenedAt } = usePresenceStore.getState();
     expect(autoOpenedItemId).toBe("12");
     expect(autoOpenedAt).toEqual(expect.any(Number));
+  });
+
+  it("asks each singer once, keeping only the first song", () => {
+    const { markPrompted } = usePresenceStore.getState();
+    markPrompted(3, "12");
+    markPrompted(3, "13");
+    expect(usePresenceStore.getState().promptedFor).toEqual({ 3: "12" });
+  });
+
+  it("remembers who has been on the controls, until the session changes", () => {
+    emit("session_connected", { session_id: "ABCD", presence: [sarah] });
+    emit("presence_updated", {
+      performers: [{ ...sarah, onControls: true }],
+    });
+    emit("presence_updated", { performers: [{ ...sarah, visible: false }] });
+    expect(usePresenceStore.getState().usedControls).toEqual({ 3: true });
+
+    usePresenceStore.getState().markPrompted(3, "12");
+    emit("session_connected", { session_id: "WXYZ", presence: [] });
+    expect(usePresenceStore.getState().usedControls).toEqual({});
+    expect(usePresenceStore.getState().promptedFor).toEqual({});
   });
 });
