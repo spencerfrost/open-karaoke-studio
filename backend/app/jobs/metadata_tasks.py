@@ -99,6 +99,42 @@ def detect_song_loudness(song_id: str) -> dict:
     return {"status": detect_and_store_loudness(song_id), "song_id": song_id}
 
 
+def detect_and_store_singing_map(song_id: str) -> str:
+    """Measure when the lead and backing vocals are singing and save the map.
+
+    Returns "ok", "no_audio" (no lead vocal stem yet) or "error". Shared by the
+    per-song pipeline task, the library-wide backfill and the admin review
+    page (which measures a song on request).
+    """
+    import json
+
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.singing_map import measure_singing_map
+
+    song_dir = Path(get_config().BASE_LIBRARY_DIR) / song_id
+    try:
+        singing_map = measure_singing_map(song_dir)
+    except FileNotFoundError:
+        logger.warning("singing map: vocals.mp3 not found for song %s", song_id)
+        return "no_audio"
+    except Exception:
+        logger.warning("singing map: failed for song %s", song_id, exc_info=True)
+        return "error"
+
+    with get_db_session() as session:
+        SongRepository(session).update(song_id, singing_map=json.dumps(singing_map))
+    return "ok"
+
+
+@celery.task(name="detect_song_singing_map")
+def detect_song_singing_map(song_id: str) -> dict:
+    """Measure when the separated lead and backing vocals are singing."""
+    logger.info("[PIPELINE] detect_song_singing_map starting for song %s", song_id)
+    return {"status": detect_and_store_singing_map(song_id), "song_id": song_id}
+
+
 def detect_and_store_vocal_range(song_id: str) -> str:
     """Detect a song's vocal range from vocals.mp3 and save it.
 

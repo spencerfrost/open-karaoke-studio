@@ -13,6 +13,7 @@ import AdminIndex from "../features/admin/AdminIndex";
 import AdminJobsPage from "../features/admin/AdminJobsPage";
 import AdminUsersPage from "../features/admin/AdminUsersPage";
 import AdminAcoustIdPage from "../features/admin/AdminAcoustIdPage";
+import AdminCompareBreaksPage from "../features/admin/AdminCompareBreaksPage";
 import AdminDiskCheckPage from "../features/admin/AdminDiskCheckPage";
 import AdminDuplicatesPage from "../features/admin/AdminDuplicatesPage";
 import AdminFailedSongsPage from "../features/admin/AdminFailedSongsPage";
@@ -64,6 +65,7 @@ const AppRoutes: React.FC = () => (
             element={<Navigate to="/admin/jobs" replace />}
           />
           <Route path="compare" element={<AdminThreeTrackComparePage />} />
+          <Route path="compare-breaks" element={<AdminCompareBreaksPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route
             path="compare-three-track"

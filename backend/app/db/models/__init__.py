@@ -7,6 +7,7 @@ from .album import DbAlbum
 from .artist import DbArtist, DbArtistAlias
 from .base import UNKNOWN_ARTIST, Base
 from .batch_run import BatchRun
+from .break_check import BreakCheck
 from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus, JobStep
 from .lyrics_feedback import LyricsFeedback
@@ -34,6 +35,7 @@ __all__ = [
     "HostSettings",
     "KaraokeSession",
     "KaraokeQueueItem",
+    "BreakCheck",
     "LyricsFeedback",
     "LyricsReport",
     "PerformanceHistory",

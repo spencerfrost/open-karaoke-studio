@@ -10,9 +10,13 @@ const TRACKS: { value: PreviewTrack; label: string }[] = [
   { value: "original", label: "Original" },
   { value: "vocals", label: "Vocals" },
   { value: "instrumental", label: "Instrumental" },
+  { value: "backing-vocals", label: "Backing" },
 ];
 
-/** Play the song, switching between the original and its stems. */
+/**
+ * Play the song, switching between the original and its stems. "Backing" is
+ * the backing vocals alone; a song separated without them can't play it.
+ */
 export const StemPreview: React.FC<{
   songId: string;
   onTimeChange?: (seconds: number) => void;

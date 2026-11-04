@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import {
   ArrowLeft,
+  AudioLines,
   Copy,
   Fingerprint,
   HardDrive,
@@ -165,6 +166,12 @@ const ADMIN_SECTION_GROUPS: AdminSectionGroup[] = [
         path: "compare",
         label: "Compare stems",
         icon: Waves,
+        useCount: useNoCount,
+      },
+      {
+        path: "compare-breaks",
+        label: "Compare breaks",
+        icon: AudioLines,
         useCount: useNoCount,
       },
     ],

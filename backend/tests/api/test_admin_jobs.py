@@ -142,6 +142,7 @@ class TestListJobs:
         assert set(_jobs_by_kind(client)) == {
             "duration",
             "loudness",
+            "singing_map",
             "vocal_range",
             "song_albums",
             "fingerprint",

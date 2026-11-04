@@ -81,6 +81,13 @@ JOBS: dict[str, BatchJob] = {
             missing=lambda s: _songs(s).filter(DbSong.loudness_lufs.is_(None)),
         ),
         BatchJob(
+            kind="singing_map",
+            task_name="batch_backfill_singing_map",
+            modes=("missing", "all"),
+            covered=_songs,
+            missing=lambda s: _songs(s).filter(DbSong.singing_map.is_(None)),
+        ),
+        BatchJob(
             kind="vocal_range",
             task_name="batch_backfill_vocal_range",
             modes=("missing", "all"),

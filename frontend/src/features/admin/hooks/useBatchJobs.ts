@@ -4,6 +4,7 @@ import { apiSend, useApiMutation, useApiQuery } from "@/hooks/api/useApi";
 export type JobKind =
   | "duration"
   | "loudness"
+  | "singing_map"
   | "vocal_range"
   | "song_albums"
   | "fingerprint"

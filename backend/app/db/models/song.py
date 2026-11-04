@@ -81,6 +81,9 @@ class DbSong(Base):
     loudness_lufs = Column(Float, nullable=True)  # EBU R128 integrated loudness
     true_peak_dbtp = Column(Float, nullable=True)  # Loudest instant, in dB true peak
     gain_db = Column(Float, nullable=True)  # Correction the player applies
+    # When the lead and backing vocals are singing, from the stems; JSON, see
+    # services/singing_map.py. Null until measured.
+    singing_map = Column(Text, nullable=True)
 
     # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")

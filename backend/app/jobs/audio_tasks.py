@@ -226,6 +226,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
             song_id,
         )
+        # So is the singing map: when the lead and backing vocals are singing.
+        celery.send_task("detect_song_singing_map", args=[song_id])
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 

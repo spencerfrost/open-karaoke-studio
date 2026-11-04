@@ -1,16 +1,17 @@
 """
-Admin endpoints: the overview, the background jobs page, worker status and
-failed songs.
+Admin endpoints: the overview, the background jobs page, worker status,
+failed songs and the Compare breaks page.
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, require_admin
-from app.db.models import User
+from app.db.models import DbSong, User
 from app.jobs.celery_app import celery
 from app.repositories.batch_run_repository import BatchRunRepository
 from app.repositories.song_repository import SongRepository
@@ -193,3 +194,107 @@ def list_failed_songs(
     the reason (`errorMessage`) and when (`failedAt`). The songbook hides
     them."""
     return [song.to_dict() for song in SongRepository(db).fetch_failed()]
+
+
+# ---------------------------------------------------------------------------
+# Compare breaks: instrumental breaks from the singing map vs from word gaps
+# ---------------------------------------------------------------------------
+
+
+@router.get("/singing-map/songs")
+def list_singing_map_songs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Every processed song with synced lyrics (no lyrics, no bars), with how
+    many breaks each method finds, how many they disagree on and how many
+    moments are still to check, plus a tally of every answer so far. Songs
+    with the most still to check come first, songs not measured yet last."""
+    from app.repositories.break_check_repository import BreakCheckRepository
+    from app.services.singing_map_review import summarize, tally
+
+    songs = (
+        db.query(DbSong)
+        .filter(DbSong.status == "processed", DbSong.synced_lyrics.isnot(None))
+        .all()
+    )
+    answers = BreakCheckRepository(db).all_answers()
+    rows = [summarize(song, answers.get(song.id, {})) for song in songs]
+    rows.sort(
+        key=lambda r: (
+            r["disagreements"] is None,
+            r["toCheck"] == 0,
+            -(r["disagreements"] or 0),
+            r["title"].lower(),
+        )
+    )
+    return {"songs": rows, "tally": tally(rows)}
+
+
+@router.get("/singing-map/songs/{song_id}")
+def get_singing_map_song(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """One song's singing map, its lyric lines, both sets of breaks and the
+    moments worth a listen. A song with no map yet is measured now (a second
+    or two) and the map saved."""
+    from app.jobs.metadata_tasks import detect_and_store_singing_map
+    from app.repositories.break_check_repository import BreakCheckRepository
+    from app.services.singing_map_review import detail
+
+    song = SongRepository(db).fetch(song_id)
+    if song is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if song.singing_map is None:
+        outcome = detect_and_store_singing_map(song_id)
+        if outcome != "ok":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This song has no vocals track to measure"
+                    if outcome == "no_audio"
+                    else "Measuring this song failed; see the API log"
+                ),
+            )
+        db.expire(song)
+    return detail(song, BreakCheckRepository(db).answers_for_song(song_id))
+
+
+class BreakCheckAnswer(BaseModel):
+    key: str
+    # None clears the answer.
+    answer: Optional[str] = None
+
+
+class BreakCheckAnswers(BaseModel):
+    answers: List[BreakCheckAnswer]
+
+
+@router.put("/singing-map/songs/{song_id}/checks")
+def save_singing_map_checks(
+    song_id: str,
+    body: BreakCheckAnswers,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Answer moments by ear: whether the map or today's bar was right. Each
+    item names a moment by its `key` from the song's moments; `answer` null
+    clears it. All or nothing: a key the song no longer shows, or an answer
+    that doesn't fit its moment, is a 400 and saves nothing. Returns the song
+    as GET does."""
+    from app.repositories.break_check_repository import BreakCheckRepository
+    from app.services.singing_map_review import BadAnswer, detail, save_answers
+
+    song = SongRepository(db).fetch(song_id)
+    if song is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+    try:
+        save_answers(
+            db, song, [item.model_dump() for item in body.answers], current_user.id
+        )
+    except BadAnswer as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    logger.info("Break checks for song %s: %d answer(s)", song_id, len(body.answers))
+    return detail(song, BreakCheckRepository(db).answers_for_song(song_id))

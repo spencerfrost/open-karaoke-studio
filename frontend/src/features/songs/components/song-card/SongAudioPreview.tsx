@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/utils/formatters";
 
-export type PreviewTrack = "original" | "vocals" | "instrumental";
+export type PreviewTrack =
+  | "original"
+  | "vocals"
+  | "instrumental"
+  | "backing-vocals";
 
 /** Lets something shown alongside the player move it, e.g. a clicked lyric. */
 export interface SongAudioPreviewHandle {

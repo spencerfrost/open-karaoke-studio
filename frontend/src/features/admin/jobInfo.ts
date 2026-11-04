@@ -16,6 +16,12 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
       "Measures how loud each song plays, so the volume evens out between songs. A second or two per song.",
     unit: ["song", "songs"],
   },
+  singing_map: {
+    name: "Singing map",
+    description:
+      "Finds when the lead and the backing vocals are singing, from the separated stems. Compare breaks uses it. A second or two per song.",
+    unit: ["song", "songs"],
+  },
   vocal_range: {
     name: "Vocal range",
     description:

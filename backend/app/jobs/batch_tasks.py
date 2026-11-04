@@ -276,6 +276,50 @@ def batch_backfill_loudness(
     }
 
 
+@celery.task(name="batch_backfill_singing_map")
+def batch_backfill_singing_map(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: measure when each song's lead and backing vocals are singing.
+
+    One song after another inside this task (a second or two each), like the
+    loudness backfill. Each map is saved as it finishes, so re-running with
+    mode="missing" resumes; mode="all" re-measures after a threshold change.
+    """
+    from .metadata_tasks import detect_and_store_singing_map
+
+    counts = {"ok": 0, "no_audio": 0, "error": 0}
+
+    with tracked_run(run_id) as run:
+        song_ids = _select("singing_map", mode)
+        run.start(len(song_ids))
+        logger.info(
+            "batch_backfill_singing_map: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
+
+        for i, song_id in enumerate(song_ids, 1):
+            outcome = detect_and_store_singing_map(song_id)
+            counts[outcome] += 1
+            run.song_done(ok=outcome != "error")
+            if i % 25 == 0:
+                logger.info(
+                    "batch_backfill_singing_map: %d/%d done %s",
+                    i,
+                    len(song_ids),
+                    counts,
+                )
+
+    logger.info("batch_backfill_singing_map: done — %s", counts)
+    return {
+        "processed": sum(counts.values()),
+        "success": counts["ok"],
+        "skipped": counts["no_audio"] + counts["error"],
+        **counts,
+    }
+
+
 @celery.task(name="batch_fetch_artist_images")
 def batch_fetch_artist_images(
     mode: str = "missing", run_id: Optional[int] = None
