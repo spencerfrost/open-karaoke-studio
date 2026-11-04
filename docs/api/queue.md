@@ -40,6 +40,7 @@ Returns explicit queue state:
     "id": 7,
     "songId": "song-123",
     "singer": "Alex",
+    "performerId": 3,
     "position": 0,
     "addedAt": "2026-03-05T12:34:56Z",
     "song": {
@@ -58,6 +59,7 @@ Returns explicit queue state:
       "id": 8,
       "songId": "song-456",
       "singer": "Jordan",
+      "performerId": 5,
       "position": 1,
       "addedAt": "2026-03-05T12:35:20Z",
       "song": {
@@ -77,6 +79,7 @@ Returns explicit queue state:
       "id": 7,
       "songId": "song-123",
       "singer": "Alex",
+      "performerId": 3,
       "position": 0,
       "addedAt": "2026-03-05T12:34:56Z",
       "song": {
@@ -94,6 +97,7 @@ Returns explicit queue state:
       "id": 8,
       "songId": "song-456",
       "singer": "Jordan",
+      "performerId": 5,
       "position": 1,
       "addedAt": "2026-03-05T12:35:20Z",
       "song": {
@@ -113,6 +117,7 @@ Returns explicit queue state:
 
 Notes:
 - `current` is nullable.
+- `performerId` is the roster seat the item belongs to. It's `null` only for rows that predate the roster. A phone compares `current.performerId` with its own seat to open its controls when its song starts.
 - `upcoming` never includes the current loaded item.
 - `items` is retained for compatibility and includes `current` first (if present), then `upcoming`.
 - The response also includes a `pending` array of items awaiting host approval (see [Approval Flow](#approval-flow)).

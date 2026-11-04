@@ -12,7 +12,7 @@ Complete API documentation for background job management and monitoring.
 
 The Jobs API manages background processing tasks for audio separation, YouTube downloads, and other long-running operations. Jobs are processed asynchronously using Celery workers and updates are broadcast via WebSocket.
 
-**All Jobs API endpoints require host authentication** (a logged-in user with host permission).
+**All Jobs API endpoints require an admin account.** They cover every session's jobs, and host accounts include the public demo ones. Guests and the stage follow their own jobs over `/ws/jobs` instead.
 
 ## Job Status Values
 
@@ -25,6 +25,25 @@ The Jobs API manages background processing tasks for audio separation, YouTube d
 | `completed`  | Job finished successfully                    |
 | `failed`     | Job encountered an error                     |
 | `cancelled`  | Job was cancelled                            |
+
+## Job Steps
+
+`step` says which part of the pipeline a job is on. It's separate from `status`, which says whether
+the job is waiting, running or done. While a job is `pending`, its step is the one it's waiting for.
+
+| Step       | Description                                                     |
+|------------|-----------------------------------------------------------------|
+| `download` | Downloading audio from YouTube                                  |
+| `separate` | AI vocal/instrumental separation                                |
+| `align`    | Lyrics alignment. Runs as its own job (`engine_type: "lyrics_alignment"`), so its step is always `align` |
+
+## Job Fields
+
+Every endpoint and WebSocket message serializes jobs the same way. A job never carries the session
+ID (the session's join code) or the user that started it. In their place it has `owner_tag`, an
+opaque per-session tag: an HMAC-SHA256 of the session ID keyed with `SECRET_KEY`, truncated to 16
+hex characters. A device compares it with `owner_tag` on its [session response](sessions.md) to
+tell which jobs its session started. Jobs started outside a session have `null`.
 
 ## Endpoints
 
@@ -85,7 +104,8 @@ GET /api/jobs
       "started_at": "2026-01-28T10:00:05",
       "completed_at": null,
       "error": null,
-      "session_id": "session-uuid"
+      "step": "separate",
+      "owner_tag": "3f9a1c0e7b2d4a68"
     }
   ]
 }
@@ -95,7 +115,7 @@ GET /api/jobs
 
 ### Get Job Details
 
-Get detailed information about a specific job.
+Get detailed information about a specific job. `expected_completion` is only present while the job is `processing`.
 
 ```http
 GET /api/jobs/{job_id}
@@ -125,7 +145,9 @@ GET /api/jobs/{job_id}
   "started_at": "2026-01-28T10:00:05Z",
   "completed_at": null,
   "error": null,
-  "session_id": "session-uuid"
+  "step": "separate",
+  "owner_tag": "3f9a1c0e7b2d4a68",
+  "expected_completion": "2026-01-28T10:03:00"
 }
 ```
 
@@ -228,37 +250,31 @@ Jobs broadcast real-time updates via the `/ws/jobs` WebSocket endpoint.
 
 **Server Broadcasts:**
 
-**Job Updated:**
+Every broadcast wraps one job in the shape shown above. The full catalog is in the
+[WebSocket Protocol](/websocket-protocol#ws-jobs-job-broadcasting).
+
 ```json
 {
   "type": "job_updated",
-  "job_id": "job-uuid",
-  "status": "processing",
-  "progress": 45,
-  "status_message": "Separating vocals..."
+  "job": {
+    "id": "job-uuid",
+    "song_id": "song-uuid",
+    "status": "processing",
+    "step": "separate",
+    "progress": 45,
+    "status_message": "Separating: Model 1/2",
+    "owner_tag": "3f9a1c0e7b2d4a68"
+  }
 }
 ```
 
-**Job Completed:**
-```json
-{
-  "type": "job_completed",
-  "job_id": "job-uuid",
-  "song_id": "song-uuid",
-  "status": "completed",
-  "progress": 100
-}
-```
+The other broadcasts are `job_created`, `job_completed`, `job_failed` and `job_cancelled`, each
+with the same `job` payload. `jobs_list` (`{"type": "jobs_list", "jobs": [...]}`) lists the
+in-flight jobs (`pending`, `downloading`, `processing`) that belong to a song.
 
-**Job Failed:**
-```json
-{
-  "type": "job_failed",
-  "job_id": "job-uuid",
-  "status": "failed",
-  "error": "Error message"
-}
-```
+`/ws/jobs` admits any account or session member (its first message must be `authenticate`; see
+[WebSocket Protocol](../websocket-protocol.md#jobs-websocket-ws-jobs)). Every session shares the
+feed, which is why job payloads carry `owner_tag` rather than the join code.
 
 ---
 
@@ -336,13 +352,13 @@ ws.onmessage = (event) => {
   
   switch(data.type) {
     case 'job_updated':
-      console.log(`Job ${data.job_id}: ${data.progress}%`);
+      console.log(`Job ${data.job.id} (${data.job.step}): ${data.job.progress}%`);
       break;
     case 'job_completed':
-      console.log(`Job ${data.job_id} completed!`);
+      console.log(`Job ${data.job.id} completed!`);
       break;
     case 'job_failed':
-      console.error(`Job ${data.job_id} failed: ${data.error}`);
+      console.error(`Job ${data.job.id} failed: ${data.job.error}`);
       break;
   }
 };
@@ -353,5 +369,5 @@ ws.onmessage = (event) => {
 ## Related Documentation
 
 - [Songs API](songs.md) - Song management endpoints
-- [Architecture: Processing Pipeline](/architecture#processing-pipeline) - Audio processing details
+- [Ingestion & Processing Pipeline](/domains/ingestion-pipeline) - Audio processing details
 - [Error Handling Guide](error-handling.md) - Error codes and handling

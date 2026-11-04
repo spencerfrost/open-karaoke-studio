@@ -1,1052 +1,141 @@
-# Open Karaoke Studio - Architecture
+# Architecture
 
-Technical deep-dive into the system architecture, design decisions, and implementation details.
+Open Karaoke Studio is a self-hosted karaoke app for a small gathering (5–10 people): one TV that
+plays the music, a phone for each singer, and a server that turns YouTube videos into karaoke
+tracks. This page is the map. How each part works is in its domain doc.
 
-## Table of Contents
+## The big picture
 
-1. [System Overview](#system-overview)
-2. [Tech Stack](#tech-stack)
-3. [Processing Pipeline](#processing-pipeline)
-4. [WebSocket Architecture](#websocket-architecture)
-5. [Session Management](#session-management)
-6. [Database Schema](#database-schema)
-7. [API Design](#api-design)
-8. [State Management](#state-management)
-9. [File Organization](#file-organization)
-10. [Critical Design Decisions](#critical-design-decisions)
+```mermaid
+flowchart LR
+    subgraph Devices
+        TV["The TV<br/><i>/stage, full screen<br/>the only device that plays sound</i>"]
+        Phones["Phones<br/><i>join with a 4-letter code<br/>add songs, run their own controls</i>"]
+    end
 
----
+    subgraph Server
+        API["FastAPI<br/><i>REST + two WebSockets</i>"]
+        Celery["Celery workers<br/><i>audio · enrichment · lyrics queues</i>"]
+        Redis[("Redis<br/><i>Celery broker</i>")]
+        DB[("PostgreSQL")]
+        Disk[("karaoke_library/<br/><i>stems, covers, thumbnails</i>")]
+    end
 
-## System Overview
+    Ext(["YouTube · YouTube Music · Deezer<br/>AcoustID · MusicBrainz · Discogs<br/>LRCLIB and other lyrics sources"])
 
-Open Karaoke Studio is a **self-hosted AI-powered karaoke application** designed for small gatherings (5-10 users). The architecture prioritizes:
-
-- **Real-time synchronization** across multiple devices
-- **Background audio processing** without blocking UI
-- **Session isolation** for multiple concurrent karaoke sessions
-- **Simple deployment** (single server, no distributed systems)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Frontend                             │
-│  React 19 + TypeScript + Vite + Tailwind CSS v4            │
-│  TanStack Query + Zustand + React Router                    │
-└─────────────────┬───────────────────────────────────────────┘
-                  │
-                  │ HTTP REST + WebSockets
-                  │
-┌─────────────────▼───────────────────────────────────────────┐
-│                         Backend                              │
-│              FastAPI + Uvicorn + SQLAlchemy                 │
-└─────────────────┬────────────────┬────────────────┬─────────┘
-                  │                │                │
-        ┌─────────▼────┐  ┌────────▼──────┐  ┌────▼─────┐
-        │ PostgreSQL   │  │ Redis         │  │ Celery   │
-        │ (Database)   │  │ (Broker)      │  │ Worker   │
-        └──────────────┘  └───────────────┘  └──────────┘
-                                                     │
-                                            ┌────────▼────────┐
-                                            │ yt-dlp + Demucs │
-                                            │ Audio Processing│
-                                            └─────────────────┘
+    TV & Phones <-->|"REST · /ws/session/{id} · /ws/jobs"| API
+    API --> DB
+    API -->|send_task| Redis --> Celery
+    Celery --> DB & Disk
+    Celery --> Ext
+    API --> Ext
+    TV -->|stems| API
+    API --> Disk
 ```
 
----
-
-## Tech Stack
-
-### Frontend
-- **React 19** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Tailwind CSS v4** - Styling
-- **TanStack Query** - Server state management
-- **Zustand** - Client state management
-- **React Router** - Routing
-- **Shadcn/UI** - Component library
-- **React Hook Form + Zod** - Form validation
-
-### Backend
-- **FastAPI 2.0** - Web framework
-- **Uvicorn** - ASGI server
-- **SQLAlchemy** - ORM
-- **Alembic** - Database migrations
-- **Celery** - Background job queue
-- **Redis** - Message broker
-- **PostgreSQL** - Database (SQLite for dev)
-
-### Audio Processing
-- **yt-dlp** - YouTube downloader
-- **Demucs** - AI vocal separation (PyTorch)
-- **Audio-Sep** - Roformer model integration
-- **librosa** - Audio analysis (BPM, chord detection, vocal range via pyin)
-- **pydub** - Loudness measurement (RMS dBFS)
-
----
-
-## Processing Pipeline
-
-### Flow: YouTube → Karaoke Tracks
-
-```
-User Input (YouTube URL + Metadata)
-    │
-    ├─→ [YouTube Music Search] - Validate & get metadata
-    │
-    ├─→ [Create Song Record] - Status: "processing"
-    │
-    ├─→ [Create Job Record] - Link to song
-    │
-    └─→ [Celery Task: process_youtube_job]
-            │
-            ├─→ [Phase 1: Download] (0-30% progress)
-            │   └─→ yt-dlp downloads audio as original.mp3
-            │
-            ├─→ [Phase 2: Separation] (30-90% progress)
-            │   ├─→ Select engine (Three-Track/Demucs/Roformer/Hybrid)
-            │   ├─→ PyTorch processes audio (GPU or CPU)
-            │   └─→ Generate vocals.mp3 + instrumental.mp3 (+ backing_vocals.mp3 for three-track)
-            │
-            ├─→ [Phase 3: Analysis & Finalization] (90-100% progress)
-            │   ├─→ BPM detection (librosa beat tracking)
-            │   ├─→ Chord detection (librosa chroma + beat sync)
-            │   ├─→ Vocal range detection (librosa pyin on vocals.mp3)
-            │   ├─→ Loudness measurement (pydub RMS on instrumental.mp3)
-            │   ├─→ Duration measurement (librosa)
-            │   ├─→ Update song record (bpm, chords_data, vocal_range_low/high, loudness_dbfs, gain_db, duration)
-            │   └─→ Update job status → COMPLETED
-            │
-            └─→ [WebSocket Broadcast] - Notify all clients
-```
-
-### Separation Engines
-
-**1. Three-Track** ([three_track.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/three_track.py)) — **Default**
-- Pipeline: Demucs (htdemucs_ft) → Roformer Karaoke → De-Noise
-- Produces 3 independent tracks: lead vocals, backing vocals, instrumental
-- Roformer runs on vocals-only audio, eliminating instrumental bleed-through
-- Best overall separation quality
-
-**2. Demucs Standard** ([demucs_standard.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/demucs_standard.py))
-- Model: `htdemucs_ft`
-- 2-stem separation (vocals + instrumental)
-- Fast, balanced quality
-
-**3. Audio-Sep Roformer** ([audio_sep_roformer.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/audio_sep_roformer.py))
-- Model: Roformer architecture
-- Better vocal isolation than Demucs alone
-- Slower, higher quality
-
-**4. Hybrid Sequential** ([hybrid_sequential.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/hybrid_sequential.py))
-- Multi-stage: Roformer → Demucs
-- Highest 2-stem quality, slowest
-
-**5. Clean Backing** ([clean_backing.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/clean_backing.py))
-- 3-stage advanced processing
-- Experimental
-
-### File Storage
-
-```
-karaoke_library/
-  └── {song_id}/
-      ├── original.mp3         # Downloaded audio
-      ├── vocals.mp3           # Lead vocals (isolated)
-      ├── instrumental.mp3     # Isolated backing track
-      └── backing_vocals.mp3   # Backing vocals (three-track engine only)
-```
-
-### Performance
-
-- **GPU (CUDA):** 2-5 minutes per song
-- **CPU:** 10-20 minutes per song
-- **Model Memory:** ~2GB GPU RAM (Demucs)
-- **Storage:** ~30-50MB per song (3 files)
-
----
-
-## WebSocket Architecture
-
-### Critical Design: TWO Endpoints Only
-
-**Why only two?** Simplifies session isolation and prevents global state bugs.
-
-### Endpoint 1: `/ws/jobs` (Global Job Updates)
-
-**Purpose:** Broadcast job processing status to all connected clients
-
-**File:** [jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
-
-**Message Types:**
-- `subscribe_to_jobs` - Client subscribes
-- `request_jobs_list` - Get current snapshot
-- `job_updated` - Progress update (server → clients)
-- `job_completed` - Job finished (server → clients)
-- `job_failed` - Job error (server → clients)
-
-**Room:** `jobs_updates` (global, not session-specific)
-
-**Connection:**
-```
-ws://server:5123/ws/jobs
-```
-
----
-
-### Endpoint 2: `/ws/session/{session_id}` (Unified Session)
-
-**Purpose:** All karaoke functionality for a specific session
-
-**File:** [session_specific.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
-
-**Connection:**
-```
-ws://server:5123/ws/session/{session_id}?device_id={uuid}
-```
-
-**Handles:**
-1. **Performance Controls** - Volume, lyrics offset, lyrics size
-2. **Player State** - Play/pause, seek, current time
-3. **Queue Management** - Queue updates, song changes
-4. **Session Lifecycle** - Connection, disconnection, termination
-
-**Message Types:**
-
-**Performance (any client):**
-- `update_performance_control` - Client updates setting (volume, lyrics size, etc.)
-- `control_updated` - Broadcast to all (server → clients)
-- `join_performance` - Subscribe to performance updates
-
-**Player (host only):**
-- `playback_play` - Start playback
-- `playback_pause` - Pause playback
-- `update_player_state` - Sync player state
-- `song_loaded` - New song loaded
-- `song_ready` - Audio ready to play
-- `reset_player_state` - Reset to beginning
-
-**Queue (any client):**
-- `request_queue_update` - Get current queue
-- `queue_updated` - Queue state snapshot broadcast (`current`, `upcoming`, `items`)
-- `queue_changed` - Notify other devices after an API mutation
-
-**Session:**
-- `session_connected` - Connection established (includes initial performance state)
-- `session_ended` - Session terminated (grace period expired or explicit leave)
-- `permission_denied` - Non-host attempted a host-only action (`action`, `reason` fields)
-
----
-
-### Session State Structure
-
-**Per-session runtime state** (in-memory dictionary keyed by `session_id`):
-
-```python
-session_performance_states[session_id] = {
-    "vocal_volume": 1.0,          # 0.0 - 2.0 (multiplier)
-    "instrumental_volume": 1.0,   # 0.0 - 2.0 (multiplier)
-    "lyrics_size": "medium",      # "small", "medium", "large", "x-large"
-    "lyrics_offset": 0,           # Milliseconds offset (+/-)
-    "current_time": 0,            # Playback position (seconds)
-    "duration": 0,                # Track duration (seconds)
-    "is_playing": False,          # Playback state
-    "current_song_id": None,      # Active song ID
-    "is_ready": False,            # Audio loaded & ready
-}
-```
-
-**Persisted playback state** (`session_playback_states` table):
-- `current_queue_item_id`
-- `current_song_id`
-- `is_playing`
-- `current_time`
-- `duration`
-- `is_ready`
-
-In-memory runtime state is hydrated from persisted playback state on reconnect.
-
-**CRITICAL:** State is **session-isolated** by `session_id`.
-
----
-
-### Connection Manager
-
-**File:** [connection_manager.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/connection_manager.py)
-
-**Class:** `SessionConnectionManager`
-
-**Responsibilities:**
-- WebSocket lifecycle (connect/disconnect)
-- Room-based broadcasting (session isolation)
-- Session membership tracking
-- Device management (host vs. performer)
-
-**Key Methods:**
-
-```python
-# Broadcast to specific session
-manager.broadcast_to_room(
-    room=f"session_{session_id}",
-    message={"type": "queue_updated", ...},
-    exclude=[sender_id]  # Don't echo to sender
-)
-
-# Join session room
-manager.join_session(
-    session_id="ABCD",
-    device_id="uuid-123",
-    device_type="stage"  # or "performer" or "controller"
-)
-```
-
----
-
-### Host Disconnect Behavior
-
-**Sequence (grace period model):**
-1. Detect host WebSocket disconnect
-2. Start a 30-second grace timer (`asyncio.Task`)
-3. If host reconnects within grace window:
-   - Cancel pending termination task (transparent to performers)
-   - Re-register as host (same `device_id` required)
-4. If grace period expires:
-   - Acquire session-specific cleanup lock
-   - Broadcast `session_ended` to all devices
-   - Force close all WebSocket connections
-   - Delete session from database (recycle code)
-   - Clean up in-memory state: `del session_performance_states[session_id]`
-
-**Why grace period?** A normal browser refresh or brief network interruption previously terminated the session immediately, evicting all performers. The 30-second window survives refreshes and temporary drops without visible impact.
-
-**Explicit termination** (host choosing to leave) is handled via `POST /api/sessions/{session_id}/leave`, which does NOT go through this path and terminates immediately.
-
----
-
-## Session Management
-
-### Database Schema
-
-**Table:** `karaoke_sessions`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER (PK) | Auto-increment ID |
-| session_id | VARCHAR(4) | Unique 4-char code (e.g., "ABCD") |
-| display_code | VARCHAR(4) | Same as session_id |
-| host_device_id | VARCHAR(64) | Host's device UUID |
-| created_at | DATETIME | Creation timestamp |
-| expires_at | DATETIME | Expiration (default: 24h) |
-| is_active | BOOLEAN | Active flag |
-
-**Table:** `session_devices`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER (PK) | Auto-increment ID |
-| session_id | VARCHAR(4) | FK → karaoke_sessions |
-| device_id | VARCHAR(64) | Device UUID |
-| device_type | VARCHAR(20) | 'stage', 'performer', 'controller' |
-| joined_at | DATETIME | Join timestamp |
-| is_active | BOOLEAN | Active flag |
-| user_agent | TEXT | Browser info |
-| display_name | VARCHAR(100) | User's name (optional) |
-
----
-
-### Session Lifecycle
-
-**1. Create Session**
-
-```
-POST /api/sessions
-{
-  "device_type": "stage",
-  "device_id": "uuid-123"
-}
-
-Response:
-{
-  "session_id": "ABCD",
-  "display_code": "ABCD",
-  "device_id": "uuid-123",
-  "is_host": true
-}
-```
-
-- Generates 4-character code (A-Z, no confusing chars like O/0)
-- Creates `KaraokeSession` record
-- Sets device as host
-
-**2. Join Session**
-
-```
-POST /api/sessions/join/code
-{
-  "code": "ABCD",
-  "device_type": "performer",
-  "device_id": "uuid-456"
-}
-
-Response:
-{
-  "session": { ... },
-  "is_host": false,
-  "devices": [...]
-}
-```
-
-- Validates session exists & active
-- Creates `SessionDevice` record
-- Returns session info
-
-**3. WebSocket Connection**
-
-```javascript
-const ws = new WebSocket(
-  `ws://server/ws/session/ABCD?device_id=uuid-123`
-);
-```
-
-- Verify session validity
-- Check if device is host (`device_id == host_device_id`)
-- Cancel any pending host-disconnect termination task if host reconnects
-- Join session room: `session_ABCD`
-- Send `session_connected` with current performance state to joining device
-
-**Host identity:** The `device_id` query parameter is the `rest_xxx` token issued by the REST API at session creation. Passing it to `GET /api/sessions/{id}/info?device_id=xxx` correctly determines `is_host` (the endpoint falls back to client IP only if the parameter is absent).
-
-**Role enforcement:** Host-only WebSocket actions (`playback_play`, `playback_pause`, `update_player_state`, `song_loaded`, `song_ready`, `reset_player_state`) are rejected with a `permission_denied` event for non-host clients.
-
-**4. Session Termination**
-
-Triggers:
-- Host disconnects (30-second grace period before termination)
-- 24-hour expiration (configurable)
-- Manual leave (`POST /api/sessions/{session_id}/leave` — immediate)
-
-Actions:
-- Broadcast `session_ended` to all devices
-- Close all WebSocket connections
-- Delete session from database
-- Clean up in-memory state
-
----
-
-### Session Isolation Strategy
-
-**Why Session Isolation Matters:**
-
-Multiple karaoke sessions can run simultaneously on the same server. If one session's state affects another, you get:
-- Volume changes leaking between sessions
-- Queue items appearing in wrong session
-- Player state synchronized incorrectly
-- Security/privacy issues
-
-**How We Enforce It:**
-
-1. **WebSocket Rooms:** `session_{session_id}` naming
-2. **Dictionary Keys:** All in-memory state keyed by `session_id`
-3. **Database FK:** `karaoke_queue.session_id` foreign key
-4. **API Headers:** `X-Session-ID` header required for queue operations
-
-**Example (Correct):**
-
-```python
-# CORRECT - Session-isolated
-def get_performance_state(session_id: str):
-    return session_performance_states.get(session_id, default_state)
-
-def update_volume(session_id: str, volume: float):
-    session_performance_states[session_id]["vocal_volume"] = volume
-```
-
-**Example (Wrong - DO NOT DO THIS):**
-
-```python
-# WRONG - Global state
-global_performance_state = {"vocal_volume": 1.0}  # BAD!
-
-def update_volume(volume: float):
-    global_performance_state["vocal_volume"] = volume  # Affects ALL sessions!
-```
-
----
-
-## Database Schema
-
-### Core Tables
-
-**songs** - Song Library
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | String (UUID) | Primary key |
-| title | String | Song title |
-| artist | String | Artist name (default: "Unknown Artist") |
-| album | String (nullable) | Album name |
-| duration | Float | Duration in seconds |
-| date_added | DateTime | When added to library |
-| vocals_path | String | Relative path to vocals.mp3 |
-| instrumental_path | String | Relative path to instrumental.mp3 |
-| original_path | String | Relative path to original.mp3 |
-| thumbnail_path | String (nullable) | Artwork path |
-| source | String | "youtube" or "upload" |
-| source_url | String (nullable) | YouTube URL |
-| video_id | String (nullable) | YouTube video ID |
-| plain_lyrics | Text (nullable) | Plain text lyrics |
-| synced_lyrics | Text (nullable) | LRC format lyrics |
-| explicit | Boolean (nullable) | Explicit flag from the album lookup |
-| album_hand_set_at | DateTime (nullable) | A person set the album; lookups skip the song |
-| album_checked_at | DateTime (nullable) | The album lookup found no cover |
-| youtube_thumbnail_urls | Text (nullable) | JSON array of thumbnails |
-| engine_type | String | "three_track", "demucs", "roformer", "hybrid", "clean_backing" |
-| bpm | Float | Beats per minute |
-| chords_data | JSON (nullable) | Chord event list (time + chord label) |
-| vocal_range_low | String (nullable) | Lowest sung note, e.g. "G2" |
-| vocal_range_high | String (nullable) | Highest sung note, e.g. "E5" |
-| loudness_dbfs | Float (nullable) | RMS loudness in dBFS (e.g. -20.0) |
-| gain_db | Float (nullable) | Gain correction to reach -14 dBFS target |
-| year | Integer | Release year |
-| genre | String (nullable) | Music genre |
-| release_date | String (nullable) | Full release date |
-
-**jobs** - Background Processing
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | String (UUID) | Primary key |
-| filename | String | Job identifier |
-| status | String | pending/downloading/processing/finalizing/completed/failed/cancelled |
-| progress | Integer | 0-100 |
-| status_message | Text (nullable) | Human-readable status |
-| task_id | String | Celery task ID |
-| song_id | String | FK → songs.id |
-| title | String (nullable) | Song title |
-| artist | String (nullable) | Artist name |
-| created_at | DateTime | Job creation time |
-| started_at | DateTime (nullable) | Job start time |
-| completed_at | DateTime (nullable) | Job completion time |
-| error | Text (nullable) | Error message |
-| notes | Text (nullable) | Additional notes |
-| dismissed | Boolean | UI dismissal flag |
-| engine_type | String | Separation engine used |
-
-**karaoke_queue** - Queue Items
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | Integer (PK) | Auto-increment ID |
-| singer_name | String | Who's singing |
-| song_id | String | FK → songs.id |
-| position | Integer | Queue order |
-| session_id | String | FK → karaoke_sessions.session_id (SESSION ISOLATION!) |
-| created_at | DateTime (nullable) | When queued |
-
----
-
-### Relationships
-
-```
-KaraokeSession (1) ←→ (N) SessionDevice
-KaraokeSession (1) ←→ (N) KaraokeQueueItem
-Song (1) ←→ (N) KaraokeQueueItem
-Song (1) ←→ (N) Job
-```
-
-**Critical:** Queue items MUST be filtered by `session_id`:
-
-```python
-# Get queue for session
-queue = db.query(KaraokeQueueItem)\
-    .filter(KaraokeQueueItem.session_id == session_id)\
-    .order_by(KaraokeQueueItem.position)\
-    .all()
-```
-
----
-
-### Repository Pattern
-
-**Files:** `/backend/app/repositories/`
-
-**Purpose:** Separate data access from business logic
-
-**Example:** [song_repository.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/repositories/song_repository.py)
-
-```python
-class SongRepository:
-    def create(self, db: Session, song: Song) -> Song:
-        db.add(song)
-        db.commit()
-        db.refresh(song)
-        return song
-
-    def get_by_id(self, db: Session, song_id: str) -> Optional[Song]:
-        return db.query(Song).filter(Song.id == song_id).first()
-
-    def delete(self, db: Session, song_id: str):
-        db.query(Song).filter(Song.id == song_id).delete()
-        db.commit()
-```
-
-**Key Feature:** `JobRepository.update()` accepts `skip_events=True` to throttle database writes during high-frequency progress updates.
-
----
-
-## API Design
-
-### REST Endpoints
-
-**Songs** - `/api/songs` ([full docs](/api/songs))
-- `GET /api/songs` - List songs (pagination, sorting)
-- `GET /api/songs/search` - Fuzzy search with pagination / artist grouping
-- `GET /api/songs/artists`, `GET /api/songs/by-artist/{artist_name}` - Artist browsing
-- `GET /api/songs/{song_id}` - Get song details
-- `POST /api/songs` - Create song
-- `PATCH /api/songs/{song_id}` - Update metadata
-- `DELETE /api/songs/{song_id}` - Delete song + files
-- `GET /api/songs/{song_id}/download/{track_type}` - Stream audio (`vocals`/`instrumental`/`backing-vocals`/`original`)
-- `POST /api/songs/{song_id}/reprocess` - Reprocess with different engine
-- Plus library-maintenance routes (audits, duplicates, fingerprinting, replace) — see Swagger
-
-**Sessions** - `/api/sessions` ([full docs](/api/sessions))
-- `GET|POST /api/sessions/my` - Get / get-or-create the host's session
-- `POST /api/sessions` - Create session
-- `POST /api/sessions/join-by-code` - Join by 4-char code (rate-limited)
-- `POST /api/sessions/join-by-id` - Join by session ID (rate-limited)
-- `GET /api/sessions/{session_id}/info` - Get session info
-- `GET /api/sessions/{session_id}/validate` - Check validity
-- `POST /api/sessions/{session_id}/leave` - Leave session
-- `POST|GET /api/sessions/{session_id}/playlist` - Generate / poll YouTube Music playlist
-
-**Queue** - `/api/karaoke-queue` ([full docs](/api/queue))
-- `GET /api/karaoke-queue` - Get queue state (`current`, `upcoming`, `items`, `pending`)
-- `POST /api/karaoke-queue` - Add song to queue (host settings enforced)
-- `DELETE /api/karaoke-queue/{queue_id}` - Remove from queue
-- `PUT /api/karaoke-queue/reorder` - Reorder queue
-- `POST /api/karaoke-queue/{queue_id}/play` - Load specific item as current (does not auto-play)
-- `POST /api/karaoke-queue/{item_id}/approve`, `DELETE .../{item_id}/reject` - Moderate pending items (host)
-- `POST /api/karaoke-queue/skip` - Skip current song (host)
-
-**Jobs** - `/api/jobs` ([full docs](/api/jobs), host-only)
-- `GET /api/jobs/status` - Job statistics
-- `GET /api/jobs` - List all jobs
-- `GET /api/jobs/{job_id}` - Get job details
-- `POST /api/jobs/{job_id}/cancel` - Cancel job (revokes Celery task)
-
-**YouTube** - `/api/youtube` ([full docs](/api/youtube))
-- `GET /api/youtube/search` - Search YouTube videos
-- `GET /api/youtube/preview/{video_id}` - Redirect to audio preview stream
-- `POST /api/youtube/download` - Download & process video (session member or account)
-
-**YouTube Music** - `/api/youtube-music`
-- `GET /api/youtube-music/search` - Search YouTube Music (artists + songs)
-- `GET /api/youtube-music/artist/{artist_id}`, `.../releases`, `/api/youtube-music/album/{album_id}/tracks`
-
-**MusicBrainz** - `/api/musicbrainz`
-- `GET /api/musicbrainz/search` - Search MusicBrainz recordings
-
-**Lyrics** - `/api/lyrics` ([full docs](/api/lyrics))
-- `GET /api/lyrics/search`, `GET /api/lyrics/search-synced` - Search external lyric providers
-- `GET|POST /api/lyrics/songs/{song_id}`, `DELETE .../{type}` - Song lyrics CRUD
-- Analysis + word-level alignment routes (`/analyze`, `/align`, `/batch/align`)
-
-**Artists & Albums** - `/api/artists`, `/api/albums` ([full docs](/api/library))
-- `PATCH|DELETE /api/artists/{artist_id}` - Rename / delete artist (admin)
-- Artist image endpoints; `POST /api/artists/{artist_id}/split-credits` (admin)
-- `GET /api/albums/{album_id}/cover` - Album cover image
-
-**Users / Auth** - `/api/users` ([full docs](/api/authentication))
-- `POST /api/users/register` - Create user account (rate-limited)
-- `POST /api/users/login` - Authenticate and receive JWT token (rate-limited)
-- `PATCH /api/users/{user_id}` - Update user (display name, password)
-- `GET /api/users`, `POST /api/users/{user_id}/set-host` - Admin user management
-
-**Misc** - `GET /api/health`, `GET|PUT /api/host-settings` (host), `GET /api/performance-history`
-
----
-
-### Authorization: Permission Ladder
-
-All endpoint auth decisions align to this ladder. Gate new endpoints against a tier, never ad hoc.
-
-| Tier | Authenticated by | Can do |
-|---|---|---|
-| Random request | nothing | public reads only (login, register, join session) |
-| **Session member** (anon guest) | server-minted `device_id` + `session_id` headers (from session join) | browse library, queue songs, download/create new songs in their session |
-| Performer (future) | account JWT | session member + favourites, own history |
-| Host | account JWT, `is_host` | run sessions, playback, queue moderation |
-| Admin | account JWT, `is_admin` | library maintenance, user management |
-
-Session membership is verified by `require_session_member` / `require_host_or_session_member` in `backend/app/api/dependencies.py`: the `X-Session-ID`/`X-Device-ID` headers must match an active `SessionDevice` in a live, unexpired session. The `device_id` is an unguessable credential minted server-side at join time; revocation is deactivating the device or expiring the session. `join-by-code`/`join-by-id` are rate-limited (per-IP) since the 4-char display code is the entry gate for the anonymous tier.
-
----
-
-### API Conventions
-
-**Headers:**
-```
-X-Session-ID: {session_id}      # Session membership (with X-Device-ID); also queue operations
-X-Device-ID: {device_id}        # Session membership credential minted at join
-Authorization: Bearer {token}   # Required for account-gated endpoints (host/admin tiers)
-Content-Type: application/json
-```
-
-**Error Responses:**
-```json
-{
-  "detail": "Error message",
-  "code": "ERROR_CODE"
-}
-```
-
-**Pagination:**
-```
-GET /api/songs?page=1&per_page=50&sort_by=date_added&order=desc
-```
-
-**Search:**
-```
-GET /api/songs/search?q=artist+title&filter_by=artist
-```
-
----
-
-## State Management
-
-### Frontend State Layers
-
-**1. Server State** (TanStack Query)
-- Songs, queue, jobs, sessions
-- Cached, auto-refetching, optimistic updates
-- Managed by [useApiQuery](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useApi.ts), [useApiMutation](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useApi.ts)
-
-**2. Client State** (Zustand)
-- Player state ([useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts))
-- Session state ([sessionStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/sessionStore.ts))
-- Processing indicators ([processingIndicatorsStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/processingIndicatorsStore.ts))
-
-**3. Form State** (React Hook Form)
-- Form inputs, validation
-- Local to form components
-
-**4. URL State** (React Router)
-- Current page, route params
-- Search params for filters
-
----
-
-### State Flow Examples
-
-**Adding Song to Queue:**
-
-```
-User clicks "Add to Queue"
-    ↓
-[useSongActions.ts] - Call addToQueueMutation
-    ↓
-[useApiMutation] - POST /api/karaoke-queue
-    ↓
-Backend creates queue item
-    ↓
-Backend broadcasts via WebSocket: {"type": "queue_updated", "current": ..., "upcoming": ...}
-    ↓
-Frontend WebSocket receives event
-    ↓
-[sessionWebSocketService.ts] - Handle queue_updated
-    ↓
-[TanStack Query] - Invalidate queue cache
-    ↓
-UI re-renders with updated queue
-```
-
-**Volume Control:**
-
-```
-User drags volume slider
-    ↓
-[PerformanceControlsPanel.tsx] - Update local state
-    ↓
-Send WebSocket: {"type": "update_performance_control", "control": "vocal_volume", "value": 0.5}
-    ↓
-Backend updates session_performance_states[session_id]
-    ↓
-Backend broadcasts: {"type": "control_updated", "control": "vocal_volume", "value": 0.5}
-    ↓
-All other devices receive update
-    ↓
-[useKaraokePlayerStore] - Update volume
-    ↓
-Web Audio API applies gain
-```
-
----
-
-## File Organization
-
-### Backend Structure
-
-```
-backend/app/
-├── api/               # REST endpoints (FastAPI routers)
-│   ├── songs.py
-│   ├── sessions.py
-│   ├── karaoke_queue.py
-│   ├── jobs.py
-│   ├── youtube.py
-│   ├── youtube_music.py
-│   ├── lyrics.py
-│   └── metadata.py
-│
-├── ws/                # WebSocket handlers
-│   ├── connection_manager.py  # WebSocket lifecycle
-│   ├── jobs.py                # Job updates
-│   ├── session_specific.py    # Unified session endpoint (CRITICAL)
-│   └── queue.py               # Queue helpers
-│
-├── services/          # Business logic
-│   ├── youtube_service.py     # yt-dlp wrapper
-│   ├── audio.py               # Audio separation
-│   ├── lyrics_service.py      # Lyrics fetching
-│   ├── album_service.py       # Album + cover (YouTube Music, Deezer)
-│   └── separation_engines/    # Audio processing engines
-│       ├── demucs_standard.py
-│       ├── audio_sep_roformer.py
-│       └── hybrid_sequential.py
-│
-├── repositories/      # Data access layer
-│   ├── song_repository.py
-│   └── job_repository.py
-│
-├── db/                # Database layer
-│   ├── database.py            # SQLAlchemy session
-│   └── models/                # ORM models
-│       ├── song.py
-│       ├── job.py
-│       ├── session.py
-│       └── queue.py
-│
-├── jobs/              # Celery tasks
-│   ├── celery_app.py          # Celery config
-│   └── jobs.py                # Task definitions
-│
-├── schemas/           # Pydantic validation
-│   ├── song.py
-│   └── youtube.py
-│
-└── main.py            # FastAPI app entry point
-```
-
-### Frontend Structure
-
-```
-frontend/src/
-├── components/        # Shared UI components
-│   ├── layout/            # AppLayout, NavBar
-│   ├── player/            # MiniPlayer
-│   └── SessionGuard.tsx   # Route protection
-│
-├── features/          # Feature-based organization
-│   ├── library/           # Library browsing
-│   ├── lyrics/            # Lyrics system
-│   ├── player/            # Main player
-│   ├── performance/       # Performance controls
-│   ├── queue/             # Queue management
-│   ├── session/           # Session management
-│   └── songs/             # Song management
-│
-├── hooks/             # Custom hooks
-│   ├── api/               # API hooks (useKaraokeQueue, etc.)
-│   ├── useApi.ts          # Base API hooks
-│   └── useSessionContext.ts
-│
-├── stores/            # Zustand stores
-│   ├── useKaraokePlayerStore.ts
-│   ├── sessionStore.ts
-│   └── processingIndicatorsStore.ts
-│
-├── services/          # External services
-│   ├── sessionWebSocketService.ts
-│   └── jobsWebSocketService.ts
-│
-├── pages/             # Page components
-│   ├── Library.tsx
-│   ├── AddSong.tsx
-│   ├── Stage.tsx
-│   └── PerformanceControlsPage.tsx
-│
-└── App.tsx            # Root component
-```
-
----
-
-## Critical Design Decisions
-
-### 1. Session Isolation is Non-Negotiable
-
-**Decision:** All performance/player state uses `session_id` as dictionary key
-
-**Rationale:**
-- Multiple karaoke sessions can run simultaneously
-- Each session has independent settings (volume, lyrics, queue)
-- Host disconnect terminates only their session
-- Prevents cross-session bugs and security issues
-
-**Implementation:**
-- WebSocket rooms: `session_{session_id}`
-- Dictionary keys: `session_performance_states[session_id]`
-- Database FK: `karaoke_queue.session_id`
-
-**Trade-off:** More complex state management, but worth it for correctness
-
----
-
-### 2. Two WebSocket Endpoints Strategy
-
-**Decision:** Split WebSockets into global (`/ws/jobs`) and session-specific (`/ws/session/{id}`)
-
-**Rationale:**
-- **Jobs:** Global system events, not session-specific
-- **Session:** All karaoke functionality isolated per session
-- Prevents global state pollution
-- Clean session lifecycle management
-
-**Alternative Considered:** Single unified WebSocket
-- **Rejected:** Would require complex routing and session filtering at every message
-
----
-
-### 3. Client-Side Audio Processing
-
-**Decision:** Volume/pitch/tempo manipulation happens in frontend (Web Audio API)
-
-**Rationale:**
-- Backend provides separated tracks (vocals + instrumental)
-- Real-time audio effects require low latency
-- Streaming audio effects over network would add latency
-- Reduces backend complexity and load
-
-**Trade-off:** More frontend complexity, but better user experience
-
----
-
-### 4. Celery for Background Jobs
-
-**Decision:** Use Celery for audio processing instead of FastAPI background tasks
-
-**Rationale:**
-- Audio processing is CPU/GPU intensive (2-20 minutes)
-- Need job persistence across server restarts
-- Need progress tracking
-- Need job cancellation (planned)
-
-**Trade-off:** Extra complexity (Redis broker), but necessary for reliability
-
-**Known Issue:** Celery doesn't hot-reload, requires manual restart
-
----
-
-### 5. PostgreSQL for Production
-
-**Decision:** PostgreSQL required for production, SQLite for dev only
-
-**Rationale:**
-- Concurrent writes (multiple sessions, job updates)
-- Better JSON support for metadata
-- Production reliability
-- Alembic migrations
-
-**Trade-off:** Can't use SQLite for multi-user deployments
-
----
-
-### 6. Repository Pattern
-
-**Decision:** Separate data access (repositories) from business logic (services)
-
-**Rationale:**
-- Testability (mock repositories)
-- Reusability (same repository used by API and WebSocket)
-- Clear separation of concerns
-
-**Example:**
-```
-API → Service → Repository → Database
-WebSocket → Service → Repository → Database
-```
-
----
-
-### 7. TanStack Query for Server State
-
-**Decision:** Use TanStack Query instead of Redux/Zustand for server state
-
-**Rationale:**
-- Automatic caching and refetching
-- Optimistic updates out of the box
-- Loading/error states handled automatically
-- Less boilerplate than Redux
-
-**Trade-off:** Learning curve, but much less code
-
----
-
-### 8. Feature-Based Frontend Organization
-
-**Decision:** Organize by feature (`features/player/`, `features/lyrics/`) not by type (`components/`, `hooks/`)
-
-**Rationale:**
-- Easier to find related code
-- Better scalability
-- Reduces cognitive load
-- Co-location of related files
-
----
-
-## Architecture Strengths
-
-1. **Clean Separation of Concerns** - API → Services → Repositories → Models
-2. **Session Isolation** - Multiple sessions coexist safely
-3. **Flexible Audio Engines** - Easy to add new separation algorithms
-4. **Real-Time Sync** - WebSockets keep all devices synchronized
-5. **Background Processing** - Non-blocking audio processing via Celery
-6. **Type Safety** - Pydantic + SQLAlchemy + TypeScript
-
----
-
-## Architecture Weaknesses
-
-1. **In-Memory WebSocket State** - Not horizontally scalable (single server only)
-2. **No Distributed Celery** - Single worker bottleneck
-3. **Manual Celery Restart** - Developer experience friction
-4. **Client-Side Performance Controls** - Backend doesn't provide pitch/tempo API
-5. **PostgreSQL Required** - No lightweight SQLite option for production
-
----
-
-## Scale Limits
-
-**Designed for:** 5-10 concurrent users
-
-**Why these limits?**
-- In-memory WebSocket state (not distributed)
-- Single Celery worker (CPU-bound processing)
-- PostgreSQL sufficient for small-scale
-
-**Not suitable for:**
-- 100+ concurrent users
-- Multi-server deployment
-- Cloud-scale SaaS
-
----
-
-## Related Documentation
-
-- [FEATURES.md](/features) - What the app can do
-- [TECH-DEBT.md](/tech-debt) - Known issues
-- [ROADMAP.md](/roadmap) - Future plans
-- [CLAUDE.md](https://github.com/spencerfrost/open-karaoke-studio/blob/master/CLAUDE.md) - AI assistant context
-
----
-
-**Last Updated:** 2026-03-16
+Three things shape everything else:
+
+1. **The TV makes all the sound.** The browser on the TV downloads a song's stems (instrumental,
+   lead vocals, backing vocals) and mixes them with the Web Audio API. Every other screen is a
+   remote control.
+2. **The API process and the Celery workers share no memory.** Workers write progress to the
+   `jobs` table, and browsers learn about it by asking the API, which reads that table.
+3. **Everything that happens during a night belongs to one session**, and nothing about one
+   session can reach another.
+
+## Domain docs
+
+Each of these covers one slice end to end, backend and frontend, with diagrams, known debt and
+dead code.
+
+| Doc | Covers |
+|---|---|
+| [Ingestion & Processing Pipeline](domains/ingestion-pipeline.md) | YouTube search and download, source separation, the Celery queues, job progress |
+| [Song & Library Metadata](domains/song-library.md) | Titles, artists and credits, albums and covers, AcoustID and MusicBrainz, browsing and search, the admin data-quality pages |
+| [Lyrics System](domains/lyrics-system.md) | Plain, synced and word-synced lyrics, alignment, reports and feedback, the lyrics display |
+| [Sessions, Queue & Realtime](domains/sessions-realtime.md) | Session lifecycle, joining, the roster and rotation, both WebSockets |
+| [Player, Stage & Performance](domains/player-stage.md) | The stage screens, the audio engine, the phone controls, the song wheel, the guided tour |
+| [Platform Foundations](domains/platform-foundations.md) | Routes and access gates, accounts and the JWT, the demo, settings, the API clients |
+
+Reference pages sit beside them: the [API reference](api-reference.md), the
+[WebSocket protocol](websocket-protocol.md), [Tech debt](tech-debt.md) and
+[Demo accounts](demo-accounts.md).
+
+## Tech stack
+
+| Layer | Tools |
+|---|---|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, shadcn/ui, TanStack Query (server state), Zustand (client state), React Router |
+| Backend | FastAPI on Uvicorn, SQLAlchemy 2.0, Alembic, Pydantic, slowapi (rate limits) |
+| Background work | Celery with a Redis broker |
+| Database | PostgreSQL (`DATABASE_URL` is required; the backend tests use a throwaway SQLite file) |
+| Audio | yt-dlp, Demucs and Roformer models (audio-separator) for separation, ffmpeg `loudnorm` for loudness, librosa for vocal range |
+| Lyrics | WhisperX / faster-whisper for alignment and transcription |
+| Deployment | Docker Compose: `postgres`, `redis`, `api`, `celery`, and `frontend` (nginx serving the build and proxying `/api`) |
+
+## Rules that cut across every slice
+
+**Session isolation.** All session state (player state, performance controls, presence, the
+queue) is keyed by `session_id`. There are no global dictionaries of session state. WebSocket
+broadcasts go to the room `session_{session_id}`, and queue, roster and playback rows carry a
+`session_id` foreign key. On the REST side, `ensure_session_access` admits only a member device
+of that session, the account that hosts it, or an admin.
+
+**Two WebSockets.** `/ws/session/{session_id}` carries one session's player state, performance
+controls, presence and "something changed" notices. `/ws/jobs` is shared by every session and
+carries the in-flight processing jobs, each tagged with an opaque `owner_tag` instead of the join
+code. Both make the first message `authenticate`. Changes themselves go through REST; the socket
+tells everyone to look. Details:
+[Sessions, Queue & Realtime § The two WebSockets](domains/sessions-realtime.md#the-two-websockets).
+
+**Who may do what.** Three kinds of caller: a guest phone (a session device, from joining with
+the code), an account (a host runs nights, an admin also maintains the library), and the demo
+pool. The frontend's gates decide what's shown; the backend's dependency ladder decides what's
+allowed. Details:
+[Platform Foundations § Who gets in](domains/platform-foundations.md#who-gets-in-two-layers-of-gate)
+and [Authentication](api/authentication.md).
+
+**Layers.** Backend: `api/` (routes) → `services/` (logic) → `repositories/` (queries) →
+`db/models/`. Celery tasks live in `jobs/` and call the same services. Frontend code is grouped
+by feature under `features/`, with shared stores in `stores/` and API hooks in `hooks/api/`.
+
+## Where the tables live
+
+| Tables | Doc |
+|---|---|
+| `songs`, `artists`, `artist_aliases`, `song_artists`, `albums` | [Song & Library Metadata](domains/song-library.md#the-data-model) |
+| Lyrics columns on `songs`, `lyrics_reports`, `lyrics_feedback` | [Lyrics System](domains/lyrics-system.md) |
+| `jobs`, `batch_runs` | [Ingestion Pipeline](domains/ingestion-pipeline.md), [Admin API](api/admin.md) |
+| `karaoke_sessions`, `session_devices`, `session_performers`, `karaoke_queue`, `session_playback_states` | [Sessions, Queue & Realtime](domains/sessions-realtime.md#the-data-model) |
+| `performance_history` | [Player, Stage & Performance](domains/player-stage.md#performance-history) |
+| `users`, `host_settings` | [Platform Foundations](domains/platform-foundations.md#accounts-and-the-jwt) |
+
+## Design decisions
+
+- **Separation in Celery, not in the request.** Downloading and separating a song takes minutes
+  on a GPU. Celery keeps that work out of the API process, survives API restarts, and lets jobs be
+  cancelled and retried. The cost is a Redis broker and workers that don't hot-reload. Only one
+  separation runs at a time so two never share the GPU: in development the `audio` queue has its
+  own single-slot worker, and in Docker one single-slot worker takes all three queues.
+- **Mixing in the browser.** The backend stores stems; the TV mixes them. Faders, the song-change
+  fade and loudness normalization all happen in Web Audio with no round trip, so a fader moved on
+  a phone is heard as soon as the TV gets the message.
+- **REST for changes, sockets for notices.** Every queue, roster and session change is a REST call
+  that is authorized and tested like any other, and the socket only rings the doorbell. The
+  player's own state (play, pause, position, the mix) is the exception and travels over the
+  session socket.
+- **Polling job progress.** Workers can't reach the API's sockets, so the browser asks for the
+  job list every 3 seconds while anything is processing. A Redis pub/sub channel would remove the
+  poll; at this scale it hasn't been worth it.
+
+## Scale limits
+
+Built for one server and 5–10 people at a time.
+
+- WebSocket rooms and performance state live in the API process's memory. Run two API workers and
+  a broadcast only reaches the sockets held by the worker that handled the request. A restart
+  resets the performance controls (the playback position is persisted).
+- One GPU separation at a time. A second song waits in the `audio` queue, and in Docker,
+  enrichment and lyrics jobs wait behind it too.
+- External services (YouTube Music, MusicBrainz, AcoustID, Discogs) are called at their own rate
+  limits, so library-wide maintenance jobs take a while.

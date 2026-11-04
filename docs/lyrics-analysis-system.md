@@ -2,6 +2,12 @@
 
 Detecting where section breaks belong in synced lyrics and inserting them — so karaoke display has proper verse/chorus separation instead of a wall of text.
 
+::: info
+This is the thinking behind section breaks and offset detection. What the code does today (breaks
+inserted before alignment, the shift sweep, the three lyrics layers) is in
+[Lyrics System](domains/lyrics-system.md).
+:::
+
 ---
 
 ## The Problem
@@ -156,11 +162,11 @@ Structure labeling isn't a separate system — it's the next layer on top of bre
 
 The codebase has several building blocks that apply directly:
 
-- **Vocal separation** — Demucs already produces isolated vocal and instrumental tracks for every processed song. This is the key upstream asset that makes vocal analysis possible without building anything new.
+- **Vocal separation** — every processed song has isolated vocal and instrumental tracks ([Ingestion Pipeline](domains/ingestion-pipeline.md)). This is the key upstream asset that makes vocal analysis possible without building anything new.
 - **Onset detection** — A 4-method consensus system (energy, spectral, complex domain, vocal frequency band) with confidence scoring based on agreement. Currently finds the first vocal onset; the same approach extends to finding all vocal re-entries.
 - **Vocal energy analysis** — RMS energy computation, pitch tracking, and loudness measurement are all in production services.
-- **Instrumental gap detection** — The frontend already detects timing gaps ≥ 2 seconds in LRC files for triggering count-in displays. The same logic applies to section break detection.
-- **Lyrics versioning** — The lyrics system supports multiple versions per song with an active/inactive flag. Analysis-produced lyrics can be saved as a new version while preserving the original — making all changes reversible.
+- **Instrumental gap detection** — alignment derives `instrumental_intervals` (gaps ≥ 6 seconds between sung lines, the intro included) from the word timings, and the player draws a progress bar across them. The same gaps are section-break candidates.
+- **No lyrics versioning** — a song has one plain, one synced and one word-synced column, overwritten in place. The closest thing to a history is a lyrics report keeping the text it was about, so Undo can restore it. Analysis that rewrites lyrics can't keep the original beside them.
 
 ---
 
@@ -214,10 +220,7 @@ Validated on 7 known-good songs pushed off by −6…+9s: the sweep found the co
 within 0.5s in 35/35 cases and never moved an already-correct file. A real offset gained
 ≥ 0.058 in score, a correct file ≤ 0.006, hence the 0.03 threshold.
 
-The estimator it replaced read offsets from where WhisperX placed words inside padded
-windows. It confused the padding with an offset (hence corrections of exactly −8.0s and
-−3.0s) and applied its result with the wrong sign. It also discarded word timings on
-every correction. **Sign conventions differ between the two estimators**: the RMS
+**Sign conventions differ between the two estimators**: the RMS
 method reports LRC − audio (apply negated); the sweep reports the correction itself
 (apply as-is).
 
@@ -229,10 +232,10 @@ Global offset correction handles the *easy majority* of misaligned lyrics. The r
 
 ## Open Questions
 
-1. **Should analysis run automatically on song import, or on-demand?** The cheap text/timing analysis could run automatically. Audio analysis is heavier — maybe triggered from the admin panel or as a batch job.
+1. **Should the audio analysis run automatically?** The text/timing section breaks already run whenever synced lyrics are stored for alignment. Audio analysis is heavier — maybe triggered from the admin panel or as a batch job.
 
 2. **How should results surface in the admin panel?** A dedicated "Lyrics Review" tab? Inline indicators on song cards showing which songs have low-confidence or missing section breaks?
 
-3. **Auto-apply or require approval?** High-confidence breaks could be applied automatically (saved as a new lyrics version, original preserved). But should even high-confidence results require a human to approve them first?
+3. **Auto-apply or require approval?** High-confidence breaks could be applied automatically (there's no versioning, so the original would be overwritten). But should even high-confidence results require a human to approve them first?
 
 4. **What about songs that already have section breaks?** Some LRC files arrive with breaks that may be in the wrong places. Should the system validate existing breaks, or only add breaks to songs that have none?
