@@ -25,6 +25,7 @@ from typing import Literal, Optional
 import numpy as np
 
 from .audio import compute_rms_curve, load_vocals
+from .gpu_memory import is_cuda_out_of_memory
 from .lyrics_analysis import (
     LrcLine,
     SectionBreakCandidate,
@@ -521,7 +522,10 @@ def sweep_lrc_offset(
             ]
             if word_scores:
                 scores[shift] = sum(word_scores) / len(word_scores)
-    except Exception:
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
         logger.error("LRC offset sweep failed for %s", vocals_path, exc_info=True)
         return None
     finally:

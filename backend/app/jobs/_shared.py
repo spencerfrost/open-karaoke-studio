@@ -9,6 +9,10 @@ from app.services.lyrics_timing import log_lyrics_event
 
 LYRICS_JOB_ENGINE_TYPE = "lyrics_alignment"
 
+# Waits before each automatic retry of a transient failure (full GPU, network
+# blip): ~21 minutes in all, long enough for another job to let go of VRAM.
+TRANSIENT_RETRY_DELAYS = (60, 300, 900)
+
 # Keep a single repository instance shared by task modules.
 job_repository = JobRepository()
 

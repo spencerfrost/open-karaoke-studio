@@ -9,6 +9,7 @@ from time import perf_counter
 from typing import Any, Literal, TypedDict
 
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
+from app.services.gpu_memory import is_cuda_out_of_memory
 from app.services.lyrics_alignment import (
     _build_instrumental_intervals,
     _is_cuda_device,
@@ -436,7 +437,10 @@ def _transcribe_with_whisperx(
             provider="whisperx",
             elapsed_ms=round((perf_counter() - transcribe_started_at) * 1000, 1),
         )
-    except Exception:
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
         logger.error(
             "WhisperX ASR transcription failed for %s", vocals_path, exc_info=True
         )
@@ -481,7 +485,10 @@ def _transcribe_with_whisperx(
             segment_count=len(raw_segments),
             language=align_language,
         )
-    except Exception:
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
         logger.warning(
             "WhisperX ASR alignment failed for %s; using segment timestamps only",
             vocals_path,
@@ -585,7 +592,10 @@ def _transcribe_with_qwen3(
             provider="qwen3",
             elapsed_ms=round((perf_counter() - transcribe_started_at) * 1000, 1),
         )
-    except Exception:
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
         logger.error(
             "Qwen3 ASR transcription failed for %s", vocals_path, exc_info=True
         )

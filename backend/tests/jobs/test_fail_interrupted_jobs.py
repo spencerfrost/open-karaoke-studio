@@ -83,3 +83,10 @@ def test_leaves_finished_jobs_alone(add_song, fetch_song):
     assert jobs.get_job("failed").status == JobStatus.FAILED
     assert jobs.get_job("cancelled").status == JobStatus.CANCELLED
     assert fetch_song("song-1").status == "processed"
+
+
+def test_the_lyrics_worker_fails_alignments_from_either_of_its_queues():
+    _add_job("aligning", JobStatus.PROCESSING, JobStep.ALIGN, "song-1")
+
+    assert fail_interrupted_jobs(["lyrics_backfill"]) == 1
+    assert JobRepository().get_job("aligning").status == JobStatus.FAILED

@@ -21,7 +21,7 @@ flowchart TB
 
     subgraph Worker["Celery"]
         Prefetch["prefetch_song_lyrics<br/><i>enrichment queue</i>"]
-        Align["align_song_lyrics<br/><i>lyrics queue, concurrency 1</i>"]
+        Align["align_song_lyrics<br/><i>lyrics worker, concurrency 1:<br/>lyrics queue, then lyrics_backfill</i>"]
         Batch["batch_align_lyrics<br/><i>enrichment queue</i>"]
     end
 
@@ -218,14 +218,22 @@ flowchart LR
     Report["POST /lyrics/songs/{id}/reports"] -->|include_remote=True| Enq
     Button["Song dialog: language change<br/>POST /lyrics/songs/{id}/align"] --> Enq
     AlignDb["POST …/align-db<br/><i>no UI caller</i>"] -->|include_remote=False| Enq
-    BatchBtn["Admin → Background jobs<br/>Lyrics alignment: Missing · Needs repair · All"] --> Batch["batch_align_lyrics"] -->|per song, include_remote=True| Enq
+    BatchBtn["Admin → Background jobs<br/>Lyrics alignment: Missing · Needs repair · All"] --> Batch["batch_align_lyrics"] -->|per song, include_remote=True,<br/>background=True| Enq
     Enq --> Align
     Align -->|lyrics changed mid-run| Enq
 ```
 
 [lyrics_dispatch.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lyrics_dispatch.py) is the one entry point that
 deduplicates: it creates the `lyrics_alignment` job row and refuses to queue a second run while
-one is pending or processing. Ingestion's `_dispatch_vocals_ready_tasks`
+one is pending or processing.
+
+It also picks the queue. Runs someone is waiting on (a fix, a language change, a fresh run after
+lyrics changed mid-run) go on `lyrics`. A library run passes `background=True` and goes on
+`lyrics_backfill`. The lyrics worker serves both and always empties `lyrics` first, so a guest's
+fix waits for at most the one backfill song already running. When a waiting run finds the song
+still pending (likely sitting in a library run), it revokes that queued task and queues itself on
+`lyrics` in its place. A run that has already started is never replaced; the run token handles
+lyrics that change under it. Ingestion's `_dispatch_vocals_ready_tasks`
 ([audio_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/audio_tasks.py)) bypasses it. It creates the job row and
 calls `send_task` directly. In practice this is harmless, because nothing else has a reason to
 align a song that is still being separated.
@@ -330,6 +338,19 @@ against the one taken at the start. The token is `(lyrics_hand_picked_at, [(repo
 report_count)…])`. If it changed, the task raises `LyricsChangedDuringRun`, stops without writing,
 and queues a fresh run with the same arguments. A change that lands after the last write is caught
 by a final `_lyrics_changed_since` check, which also queues a fresh run.
+
+### A full GPU: wait and retry
+
+The lyrics worker and the separation worker can be on the GPU at once, so running out of GPU
+memory says nothing about the song. Every GPU step (language detection, transcription and its
+word timing, forced alignment, the offset sweep) catches its own failures and carries on with
+less, but lets an out-of-memory error through. `is_cuda_out_of_memory`
+([gpu_memory.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_memory.py)) recognises torch's error and the plain
+`RuntimeError`s faster-whisper, cuDNN and cuBLAS raise, including when another error wraps one.
+`align_song_lyrics` then parks the job as `PENDING` ("The server is busy — trying again in N min")
+and retries after 1, 5, then 15 minutes, on the queue it came from. Nothing is stored and the run
+doesn't fall back to transcribing. After the last wait the job fails with "the GPU stayed full"
+and the song keeps the lyrics it had.
 
 ### Language
 
@@ -455,7 +476,8 @@ run, and why:
 
 `batch_align_lyrics` ([batch_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py)) runs in mode
 `missing`, `repair` or `all`. It aligns nothing itself. It queues one `align_song_lyrics` per
-selected song, so a batch song goes through exactly the waterfall above. The admin control is the **Lyrics alignment** card on the
+selected song on the low-priority `lyrics_backfill` queue, so a batch song goes through exactly
+the waterfall above, but only when no new song or fix is waiting. The admin control is the **Lyrics alignment** card on the
 Background jobs page ([jobInfo.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/jobInfo.ts)). Its counts come
 from `alignment_summary` in [batch_jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/batch_jobs.py).
 
@@ -618,7 +640,9 @@ documented in [Lyrics API](../api/lyrics.md). Several of them skip the hand-pick
 Every step of a lyrics run emits a structured event through `log_lyrics_event`
 ([lyrics_timing.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_timing.py)) into `logs/lyrics_timing.jsonl`:
 attempts built, each candidate's score, sweep results, re-time match ratios, report outcomes.
-When a song's lyrics look wrong, grep that file for the song id first.
+When a song's lyrics look wrong, grep that file for the song id first. A full GPU shows there as
+`lyrics_gpu_full`, and each run logs one `[GPU]` line with how full the card got (see
+[ingestion](./ingestion-pipeline.md)).
 
 Environment knobs: `LYRICS_ALIGNMENT_DEVICE` (`auto`/`cuda`/`cpu`), `LYRICS_ASR_PROVIDER`
 (`whisperx` default, or `qwen3`), `LYRICS_ASR_MODEL` (faster-whisper size, default `small`),

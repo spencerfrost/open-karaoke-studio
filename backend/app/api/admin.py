@@ -29,9 +29,9 @@ from app.services.batch_jobs import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-# The queues run_celery.sh starts a worker for. A queue no worker answers for
-# means its jobs sit waiting.
-EXPECTED_QUEUES = ("audio", "enrichment", "lyrics")
+# The queues celery_workers.sh starts a worker for. A queue no worker answers
+# for means its jobs sit waiting.
+EXPECTED_QUEUES = ("audio", "enrichment", "lyrics", "lyrics_backfill")
 WORKER_PING_TIMEOUT_SECONDS = 1.0
 
 

@@ -12,11 +12,16 @@ from app.db.models import JobStatus, JobStep
 from app.repositories import JobRepository
 from app.services import FileService, audio
 from app.services.audio import create_audio_progress_mapper
+from app.services.gpu_memory import track_gpu_memory
 from app.services.lyrics_timing import log_lyrics_event
 
 from ._events import broadcast_job_event as _broadcast_job_event
 from ._events import setup_event_subscriptions as _setup_event_subscriptions
-from ._shared import _create_lyrics_alignment_job, _get_lyrics_job_id
+from ._shared import (
+    TRANSIENT_RETRY_DELAYS,
+    _create_lyrics_alignment_job,
+    _get_lyrics_job_id,
+)
 from .celery_app import celery
 from .exceptions import AudioProcessingError, is_transient_processing_error
 from .separation import run_separation_with_fallback
@@ -25,10 +30,6 @@ logger = get_task_logger(__name__)
 
 _setup_event_subscriptions()
 
-# Waits before each automatic retry of a transient failure (full GPU, network
-# blip): ~21 minutes in all, long enough for another job to let go of VRAM.
-TRANSIENT_RETRY_DELAYS = (60, 300, 900)
-
 
 def _schedule_transient_retry(task, job, job_repository, exc):
     """Park the job as pending with a reason and return the Retry to raise.
@@ -36,14 +37,13 @@ def _schedule_transient_retry(task, job, job_repository, exc):
     The song row stays "processing" — from the outside the song is just
     taking longer, not broken.
     """
-    import torch
+    from app.services.gpu_memory import free_cached_gpu_memory, is_cuda_out_of_memory
 
     retries = task.request.retries
     delay = TRANSIENT_RETRY_DELAYS[min(retries, len(TRANSIENT_RETRY_DELAYS) - 1)]
-    if isinstance(exc, torch.cuda.OutOfMemoryError):
+    if is_cuda_out_of_memory(exc):
         reason = "The server is busy"
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        free_cached_gpu_memory()
     else:
         reason = "Couldn't reach YouTube"
 
@@ -181,14 +181,15 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             vocals_dispatched = True
             _dispatch_vocals_ready_tasks(song_id, vocals_path, job.title, job.artist)
 
-        success, final_engine_type = run_separation_with_fallback(
-            engine_type=engine_type,
-            input_path=filepath,
-            song_dir=song_dir,
-            status_callback=lambda msg: update_progress(20, msg),
-            stop_event=stop_event,
-            on_vocals_ready=on_vocals_ready,
-        )
+        with track_gpu_memory("separation", song_id):
+            success, final_engine_type = run_separation_with_fallback(
+                engine_type=engine_type,
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+                on_vocals_ready=on_vocals_ready,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
@@ -456,14 +457,15 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 song_id, vocals_path, metadata.get("title"), metadata.get("artist")
             )
 
-        success, final_engine_type = run_separation_with_fallback(
-            engine_type=engine_type,
-            input_path=original_file,
-            song_dir=song_dir,
-            status_callback=audio_progress_callback,
-            stop_event=stop_event,
-            on_vocals_ready=on_vocals_ready,
-        )
+        with track_gpu_memory("separation", song_id):
+            success, final_engine_type = run_separation_with_fallback(
+                engine_type=engine_type,
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+                on_vocals_ready=on_vocals_ready,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
 

@@ -59,7 +59,8 @@ def test_each_selected_song_is_queued_as_its_own_alignment_job(add_song, db):
 
     assert [call.args[0].id for call in mock_enqueue.call_args_list] == ["a", "b"]
     assert all(
-        call.kwargs == {"include_remote": True} for call in mock_enqueue.call_args_list
+        call.kwargs == {"include_remote": True, "background": True}
+        for call in mock_enqueue.call_args_list
     )
     assert result["selected"] == 2
     assert result["queued"] == 2

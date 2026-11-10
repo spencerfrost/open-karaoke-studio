@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 QUEUE_STEPS: dict[str, set[Optional[JobStep]]] = {
     "audio": {JobStep.DOWNLOAD, JobStep.SEPARATE, None},
     "lyrics": {JobStep.ALIGN},
+    "lyrics_backfill": {JobStep.ALIGN},
 }
 
 STARTED_STATUSES = {JobStatus.DOWNLOADING, JobStatus.PROCESSING}

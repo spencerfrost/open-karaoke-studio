@@ -98,7 +98,8 @@ services:
     container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
-    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment,lyrics
+    # Three workers (audio, lyrics, enrichment), each in a restart loop; see the script
+    command: ./celery_workers.sh
     volumes:
       - ./karaoke_library:/app/karaoke_library
       - ./secrets:/app/secrets:ro
@@ -114,6 +115,7 @@ services:
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
+      - CELERY_LOG_LEVEL=warning
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1

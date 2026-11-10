@@ -45,8 +45,13 @@ celery.conf.update(
     enable_utc=True,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
-    # Route heavy GPU/CPU audio jobs to their own queue so enrichment tasks
-    # never compete with or block a separation job.
+    # A worker on more than one queue always checks them in sorted order, so
+    # "lyrics" is emptied before "lyrics_backfill" (the default round-robin
+    # would interleave them).
+    broker_transport_options={"queue_order_strategy": "sorted"},
+    # What a song needs before it can be sung (separation, lyrics) has a queue
+    # and a worker of its own; everything else waits on "enrichment" and can
+    # never hold them up. See celery_workers.sh.
     task_routes={
         "process_youtube_job": {"queue": "audio"},
         "process_audio_job": {"queue": "audio"},

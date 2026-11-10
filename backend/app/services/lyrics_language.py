@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import TypedDict
 
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
+from app.services.gpu_memory import is_cuda_out_of_memory
 from app.services.lyrics_alignment import _is_cuda_device, _resolve_alignment_device
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -91,7 +92,9 @@ def detect_vocals_language(
             vad_filter=True,
             language_detection_segments=_DETECTION_WINDOWS,
         )
-    except Exception:
+    except Exception as exc:
+        if is_cuda_out_of_memory(exc):
+            raise
         # Includes a stem with no detectable singing at all.
         logger.warning("Language detection failed for song %s", song_id, exc_info=True)
         log_lyrics_event(song_id, "lyrics_language_detection_failed", model=model_name)

@@ -53,10 +53,6 @@ In no particular order.
   makes it a sum of song durations.
 - **Repair the 54 AcoustID mislabels on prod.** Left over from the old tie bug. AcoustID no
   longer renames songs (`fc96274cf`), but it doesn't fix the ones it already got wrong.
-- **Prod runs one Celery worker, one task at a time.** `docker-compose.yml` starts a single
-  worker with `--concurrency=1` on the audio, enrichment and lyrics queues. A backfill or a
-  library-wide lyrics run holds up every new song and every lyrics-report fix until it's done,
-  which is a problem if one is running on a party night. Dev and prod also share one GPU.
 - **Lyrics alignment runs say "done" too early.** A "Missing" or "Needs repair" run only queues
   one `align_song_lyrics` job per song, then marks itself done with every song counted, while
   the alignments themselves take hours. The Background jobs page should count a song as done

@@ -10,11 +10,17 @@ from typing import TYPE_CHECKING, Any, Optional
 from celery.utils.log import get_task_logger
 
 from app.db.models import JobStatus
+from app.services.gpu_memory import (
+    free_cached_gpu_memory,
+    is_cuda_out_of_memory,
+    track_gpu_memory,
+)
 from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
 
 from ._shared import (
+    TRANSIENT_RETRY_DELAYS,
     _complete_lyrics_alignment_job,
     _get_lyrics_job_id,
     _update_lyrics_alignment_job,
@@ -833,8 +839,55 @@ def prefetch_song_lyrics(
     }
 
 
-@celery.task(name="align_song_lyrics")
+def _retry_when_gpu_frees_up(task, song_id: str, exc: BaseException) -> dict:
+    """The GPU was full: park the job and retry later, or give up after the last wait.
+
+    Raises celery's Retry while retries remain. The song keeps whatever lyrics
+    it already has either way.
+    """
+    retries = task.request.retries
+    free_cached_gpu_memory()
+    if retries >= task.max_retries:
+        logger.error(
+            "align_song_lyrics: GPU still full for song %s after %s attempts",
+            song_id,
+            retries + 1,
+        )
+        log_lyrics_event(song_id, "lyrics_gpu_full", attempt=retries + 1, gave_up=True)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics timing failed: the GPU stayed full",
+            error=str(exc),
+        )
+        return {"status": "gpu_full", "song_id": song_id}
+
+    delay = TRANSIENT_RETRY_DELAYS[min(retries, len(TRANSIENT_RETRY_DELAYS) - 1)]
+    logger.warning(
+        "align_song_lyrics: GPU full for song %s, retry %s/%s in %ss: %s",
+        song_id,
+        retries + 1,
+        task.max_retries,
+        delay,
+        exc,
+    )
+    log_lyrics_event(
+        song_id, "lyrics_gpu_full", attempt=retries + 1, retry_in_seconds=delay
+    )
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PENDING,
+        progress=0,
+        message=f"The server is busy — trying again in {max(1, delay // 60)} min",
+    )
+    raise task.retry(countdown=delay, exc=exc)
+
+
+@celery.task(
+    bind=True, name="align_song_lyrics", max_retries=len(TRANSIENT_RETRY_DELAYS)
+)
 def align_song_lyrics(
+    self,
     song_id: str,
     include_remote: bool = True,
     source: Optional[str] = None,
@@ -848,13 +901,14 @@ def align_song_lyrics(
     """
     run: dict[str, Any] = {}
     try:
-        result = _align_song_lyrics(
-            song_id,
-            include_remote=include_remote,
-            source=source,
-            language=language,
-            run=run,
-        )
+        with track_gpu_memory("lyrics", song_id):
+            result = _align_song_lyrics(
+                song_id,
+                include_remote=include_remote,
+                source=source,
+                language=language,
+                run=run,
+            )
     except LyricsChangedDuringRun:
         log_lyrics_event(song_id, "lyrics_changed_during_run", stopped=True)
         _complete_lyrics_alignment_job(
@@ -863,6 +917,10 @@ def align_song_lyrics(
             message="Lyrics changed while aligning; starting again",
         )
         result = {"status": "superseded", "song_id": song_id}
+    except Exception as exc:
+        if not is_cuda_out_of_memory(exc):
+            raise
+        return _retry_when_gpu_frees_up(self, song_id, exc)
     else:
         _record_report_outcomes(song_id, result, run.get("pending_reports", []))
         if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):
@@ -1280,7 +1338,9 @@ def _align_song_lyrics(
                 vocals_path=vocals_path,
                 language=language,
             )
-        except Exception:
+        except Exception as exc:
+            if is_cuda_out_of_memory(exc):
+                raise
             align_error_count += 1
             log_lyrics_event(
                 song_id,

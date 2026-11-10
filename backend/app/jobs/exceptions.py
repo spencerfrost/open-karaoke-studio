@@ -25,10 +25,9 @@ def is_transient_processing_error(exc: BaseException) -> bool:
     network-level download errors. Anything else — an unavailable or
     age-restricted video, a corrupt file — would fail the same way again.
     """
-    # Imported here so the API process doesn't pull in torch for this check.
-    import torch
+    from app.services.gpu_memory import is_cuda_out_of_memory
 
-    if isinstance(exc, torch.cuda.OutOfMemoryError):
+    if is_cuda_out_of_memory(exc):
         return True
     if isinstance(exc, ServiceError):
         return bool(_TRANSIENT_DOWNLOAD_PATTERN.search(str(exc)))

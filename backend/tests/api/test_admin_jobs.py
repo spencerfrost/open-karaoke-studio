@@ -284,6 +284,7 @@ class TestWorkers:
             {"queue": "audio", "workers": ["audio@box"]},
             {"queue": "enrichment", "workers": ["enrichment@box"]},
             {"queue": "lyrics", "workers": []},
+            {"queue": "lyrics_backfill", "workers": []},
         ]
 
     def test_no_workers_answering(self, client):

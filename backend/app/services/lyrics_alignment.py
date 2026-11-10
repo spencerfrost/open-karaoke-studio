@@ -20,6 +20,7 @@ import numpy as np
 
 from app.services.audio import load_vocals
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
+from app.services.gpu_memory import is_cuda_out_of_memory
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -539,6 +540,9 @@ def _align_segments(
             segment_count=len(segments),
         )
     except Exception as e:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(e):
+            raise
         logger.error("WhisperX alignment failed: %s", e, exc_info=True)
         log_lyrics_event(
             song_id, "lyrics_whisperx_align_failed", alignment_mode=alignment_mode

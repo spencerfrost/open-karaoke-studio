@@ -29,7 +29,7 @@ flowchart TB
     subgraph Broker["Redis"]
         QA(["queue: audio"])
         QE(["queue: enrichment"])
-        QL(["queue: lyrics"])
+        QL(["queue: lyrics<br/>then lyrics_backfill"])
     end
 
     subgraph Worker["Celery workers (separate processes)"]
@@ -166,23 +166,33 @@ event in this pipeline, because it happens inside the API process.
 
 ### Workers and queues
 
-Three workers, defined in [run_celery.sh](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/run_celery.sh), consuming three queues
-routed by task name in [jobs/celery_app.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/celery_app.py):
+Three workers, started by [celery_workers.sh](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/celery_workers.sh) in dev (via `run_celery.sh`) and in the prod
+`celery` container alike, consuming queues routed by task name in
+[jobs/celery_app.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/celery_app.py):
 
-| Queue | Concurrency | Tasks |
-|---|---|---|
-| `audio` | 1 | `process_youtube_job`, `process_audio_job` |
-| `enrichment` | 3 | artwork, loudness, singing map, vocal range, fingerprint, artist credits, all `batch_*`, and — by falling through to the default queue — `prefetch_song_lyrics` |
-| `lyrics` | 1 | `align_song_lyrics` |
+| Worker | Concurrency | Queues | Tasks |
+|---|---|---|---|
+| `audio` | 1 | `audio` | `process_youtube_job`, `process_audio_job` |
+| `lyrics` | 1 | `lyrics`, then `lyrics_backfill` | `align_song_lyrics`: a new song's or a person's on `lyrics`, a library run's on `lyrics_backfill` |
+| `enrichment` | 3 | `enrichment` | artwork, loudness, singing map, vocal range, fingerprint, artist credits, all `batch_*`, and — by falling through to the default queue — `prefetch_song_lyrics` |
 
-That's the development setup. The Docker `celery` service runs one worker with `--concurrency=1
---pool=threads` over all three queues, so there everything runs one at a time.
+The split follows one rule: what a song needs before it can be sung (separation, then lyrics)
+has a worker to itself, and everything that can finish after the song is playable waits on
+`enrichment`. A new song's alignment starts as soon as `vocals.mp3` exists, while separation is
+still writing the backing vocals, and never queues behind a slow vocal range check.
 
-`audio` is pinned to `concurrency=1` so only one GPU separation runs at a time; the split exists
-so that artwork fetches and fingerprinting can never sit behind a 5-minute separation. All three
-run `--without-gossip --without-mingle` (single box, and gossip heartbeats were producing false
-"missed heartbeat" warnings when a heavy task starved the GIL). Celery also forces the `spawn`
-multiprocessing start method, which CUDA requires.
+Two settings make the lyrics worker's queue order a real priority:
+
+- `queue_order_strategy: "sorted"` (a broker transport option) makes a worker check its queues
+  in name order on every fetch, so `lyrics` is always tried before `lyrics_backfill`. Celery's
+  default rotates between them.
+- `--disable-prefetch` makes a worker fetch only when it has a free slot. Otherwise it would
+  hold the next backfill task in reserve, ahead of anything that arrives later.
+
+`audio` and `lyrics` are pinned to `concurrency=1` so at most one separation and one alignment
+share the GPU. All workers run `--without-gossip --without-mingle` (single box, and gossip
+heartbeats were producing false "missed heartbeat" warnings when a heavy task starved the GIL).
+Celery also forces the `spawn` multiprocessing start method, which CUDA requires.
 
 ### When a worker dies
 
@@ -190,17 +200,16 @@ Native code in the GPU tasks (PyTorch's CUDA library) can segfault, which kills 
 process outright: no Python exception, no task failure, nothing in the Celery log. The kernel log
 (`journalctl -k`) and `coredumpctl` show it. Two things recover from it:
 
-- **The worker restarts.** In dev, `run_celery.sh` runs each worker in its own restart loop, five
-  seconds after it exits; Ctrl-C stops the loops and the workers together. In prod the single
-  worker is the `celery` container's main process, so `restart: unless-stopped` brings the
-  container back.
+- **The worker restarts.** `celery_workers.sh` runs each worker in its own restart loop, five
+  seconds after it exits; Ctrl-C (or the container stopping) stops the loops and the workers
+  together.
 - **Its jobs fail.** The task a dead worker was running had already left the broker, so nothing
   would ever finish its job row. When a worker starts, a `worker_ready` handler in
   [jobs/celery_app.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/celery_app.py)
   calls `fail_interrupted_jobs` in
   [utils/cleanup_jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/utils/cleanup_jobs.py)
   for the queues it consumes. It fails started jobs (`downloading`, `processing`) whose step runs
-  on those queues: `download` and `separate` on `audio`, `align` on `lyrics`. A failed download or
+  on those queues: `download` and `separate` on `audio`, `align` on `lyrics` and `lyrics_backfill`. A failed download or
   separation marks the song `error` too; a failed alignment leaves the song playable with the
   lyrics it already had. Pending jobs are left alone, since their messages are still in the broker.
 
@@ -290,7 +299,7 @@ would hit the same full GPU) and reaches the task.
 
 **Transient failures retry.** In both `process_youtube_job` and `process_audio_job`, a failure that
 `is_transient_processing_error` ([jobs/exceptions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/exceptions.py))
-recognises — GPU out of memory, or a network-level download error (DNS, timeouts, resets, HTTP
+recognises — GPU out of memory (`is_cuda_out_of_memory`, shared with lyrics alignment), or a network-level download error (DNS, timeouts, resets, HTTP
 5xx) — parks the job as `PENDING` with a "trying again in N min" message and calls `self.retry`
 after 1, 5, then 15 minutes. The song stays `processing` throughout. A retry reuses the
 already-downloaded `original.mp3`; first attempts always download. Only once retries run out does
@@ -298,6 +307,20 @@ the song become `error`, with the real cause in `error_message`. The whole call 
 `begin_gpu_activity` / `end_gpu_activity` ([services/gpu_idle_cleanup.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_idle_cleanup.py)),
 a refcount + generation-counter guard that releases VRAM (`gc.collect`, `empty_cache`,
 `ipc_collect`) after `GPU_IDLE_CLEANUP_SECONDS` (default 30 min) of no GPU work.
+
+**How full the card gets.** Separation and each lyrics run are wrapped in `track_gpu_memory`
+([services/gpu_memory.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_memory.py)), which reads the whole card's used
+memory through NVML every half second (no CUDA context needed) and logs one line when the task
+ends:
+
+```
+[GPU] separation for song …: card peaked at 7400 of 12288 MiB (2900 MiB at start, 4888 MiB free at the tightest) over 25.8s; torch peak in this process 3100 MiB
+```
+
+The card numbers include every other process on it (the other worker, dev's workers, the
+desktop), which is what decides whether the next allocation fits. The torch number is this
+process's own peak, and misses faster-whisper's models. Under 1 GiB free at the tightest moment
+logs as a warning.
 
 In practice new songs never pick an engine: `POST /api/songs/from-youtube` sends none, so
 `download_and_process_async` uses its `"three_track"` default. The other six are reachable only

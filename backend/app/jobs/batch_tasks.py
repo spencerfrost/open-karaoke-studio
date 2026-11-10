@@ -364,8 +364,9 @@ def batch_fetch_artist_images(
 def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> dict:
     """Batch task: queue align_song_lyrics for every song a `mode` run selects.
 
-    Each song runs as its own job on the lyrics queue, exactly like a new
-    song's alignment: in its own language, with remote candidates, the offset
+    Each song runs as its own job on the low-priority lyrics_backfill queue, so
+    new songs and fixes people ask for go first. Otherwise it's exactly like a
+    new song's alignment: in its own language, with remote candidates, the offset
     sweep and ASR re-timing, and respecting hand-picked and rejected lyrics.
     The run row records how many were queued; alignment progress after that
     shows in the alignment counts as each song finishes.
@@ -386,7 +387,9 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
             reason_counts = count_reasons(selected)
             run.start(len(selected))
             for song, reasons in selected:
-                dispatch = enqueue_song_alignment(song, include_remote=True)
+                dispatch = enqueue_song_alignment(
+                    song, include_remote=True, background=True
+                )
                 queued += int(dispatch["dispatched"])
                 run.song_done()
                 results.append(
