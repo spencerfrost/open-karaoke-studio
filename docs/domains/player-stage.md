@@ -522,11 +522,14 @@ flowchart TB
   That comes from the song itself (`backingVocalPath`, through
   [useBackingTrackAvailable](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/performance/hooks/useBackingTrackAvailable.ts)),
   not from loaded audio, since the phone loads none.
+- **A fader card never scrolls the page.** The whole card blocks touch scrolling, and the slider
+  spans the card's width, so a press anywhere in the column moves the fader. The page also has no
+  overscroll bounce or pull-to-refresh.
 - **Lyrics timing** says in words what the offset does. A positive offset shows the lyrics
   earlier.
 - **Progress is display only**, so a stray touch can't jump the song for the whole room.
 - **Nothing appears or disappears during a song**, so the layout never shifts under a thumb. On a
-  phone too short for everything, the page scrolls.
+  phone too short for everything, the page scrolls from anywhere outside the fader cards.
 - Lyrics saves and reports go through [useLyricsFixes](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/performance/hooks/useLyricsFixes.ts),
   the same hook the TV's rail uses.
 

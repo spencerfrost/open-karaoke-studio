@@ -49,11 +49,13 @@ const PhoneFader: React.FC<PhoneFaderProps> = ({
   const isMuted = volume === 0;
 
   return (
+    // touch-none on the whole card: a thumb that lands beside the fader, or
+    // on the label above it, holds the page still instead of scrolling it.
     <div
       data-tour={tourId}
       className={cn(
         phonePanelClass,
-        "flex min-h-0 flex-col items-center gap-1.5 p-2.5",
+        "flex min-h-0 touch-none flex-col items-center gap-1.5 p-2.5",
       )}
     >
       <span className="text-base font-semibold leading-tight text-foreground">
@@ -87,8 +89,9 @@ const PhoneFader: React.FC<PhoneFaderProps> = ({
       </div>
 
       <div className="flex min-h-0 w-full flex-1 justify-center">
-        {/* The slider sets touch-action: none on itself, so dragging it never
-            scrolls the page, and nothing else on the page needs to. */}
+        {/* The slider spans the card's full width, so a press anywhere in
+            the column grabs the fader, not only on the 80 px handle. The
+            track and handle stay centred. */}
         <Slider
           value={[volume]}
           min={0}
@@ -99,7 +102,7 @@ const PhoneFader: React.FC<PhoneFaderProps> = ({
           onValueChange={([v]) => onVolumeChange(v)}
           // A thumb-height handle (44 px) rather than the stage's 56 px, so
           // more of a short track is travel.
-          className="h-full data-[orientation=vertical]:min-h-24"
+          className="h-full data-[orientation=vertical]:min-h-24 data-[orientation=vertical]:w-full"
           thumbClassName="h-11 w-20"
           aria-label={`${label} volume`}
         />
