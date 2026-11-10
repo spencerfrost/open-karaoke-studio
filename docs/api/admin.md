@@ -1,6 +1,6 @@
 # Admin API
 
-Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs** and **Compare breaks** pages. All of them are **admin only**.
+Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs**, **Compare breaks** and **Compare word timing** pages. All of them are **admin only**.
 
 A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it.
 
@@ -203,3 +203,20 @@ One song measures its map first if it has none (a second or two) and saves it; a
 A moment's `key` is built from its exact times, so re-measuring with other settings gives a moved moment a new key and no answer, while unchanged moments keep theirs.
 
 `PUT …/checks` answers moments by ear, as `{"answers": [{"key": "…", "answer": "map_right"}]}`; `"answer": null` clears one. A break takes `map_right`, `today_right`, `both_wrong` or `either_fine`; backing singing with no lyrics on screen `bar_fine` or `no_bar`; with lyrics on screen `lyrics_match` or `lyrics_dont_match`. All or nothing: a key the song no longer shows, or an answer that doesn't fit its moment, is a `400` and saves nothing. Each answer is a `break_checks` row, one per song and moment key, holding the moment and the map's settings as they were. Returns the song as `GET` does.
+
+### Compare word timing
+
+```http
+GET /api/admin/word-timing/experiments
+GET /api/admin/word-timing/experiments/{experiment_id}/songs
+GET /api/admin/word-timing/experiments/{experiment_id}/songs/{song_id}
+PUT /api/admin/word-timing/experiments/{experiment_id}/songs/{song_id}/answers
+```
+
+Two experimental word timings of the same songs, for saying by ear which follows the singing. The timings come from an experiment script's output folder on the machine the API runs on (`backend/scripts/experiments/word_timing/results/`, or `WORD_TIMING_EXPERIMENTS_DIR`), not from the database, and never reach the TV. Where no experiment was run the list is empty.
+
+Each experiment is `{id, name, description, a, b, groups}`: `a` and `b` name its two timings (`{key, label}`), and `groups` the kinds of test song in the order to check them. The songs list returns `{experiment, songs, tally}`. Each song row has `group`, `a` and `b` (`bad` lines by the crammed-lines sweep, `lines`, `meanScore`), `moments` (lines whose timing differs) and `answered`. Songs still to check come first, then by group, then most moments.
+
+One song returns its `moments` in song order. A moment is a line whose word starts are 0.25 s or more apart on average, or that has different words timed each way: `key` (`line:<index>`), `lineIndex`, `start`, `end`, `meanShift` (`null` for different words), the words both ways as `a` and `b` in the word timing shape, and `answer`.
+
+`PUT …/answers` takes `{"answers": [{"key": "line:12", "answer": "b_right"}]}`, with `b_right`, `a_right`, `both_wrong` or `cant_tell`; `null` clears one. All or nothing: an unknown key or answer is a `400` and saves nothing. Answers are saved in the experiment's folder (`answers.json`). Returns the song as `GET` does. An unknown experiment or song is a `404`.

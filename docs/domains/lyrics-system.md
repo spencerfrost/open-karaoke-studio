@@ -428,6 +428,18 @@ wrong, either fine; for backing alone, whether a bar is fine or the lyrics match
 keyed by its exact times, so a re-measure that moves it asks again. The TV still shows the
 word-gap breaks.
 
+The admin page **Compare word timing**
+([AdminCompareWordTimingPage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/AdminCompareWordTimingPage.tsx),
+route `/admin/compare-word-timing`) checks alignment experiments by ear. An experiment script
+aligns test songs two ways and writes both timings to a gitignored folder on the machine it runs
+on; [word_timing_experiments.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/word_timing_experiments.py)
+reads that folder, never the database. Each song lists the lines whose two timings differ, each
+shown both ways as word blocks on one time axis and as words that light up while it plays, with
+the TV's crammed-line rule marking lines the TV would sweep. Answers (which timing is right, both
+wrong, can't tell) are saved in the experiment's folder. The first experiment,
+[align_on_mix.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/experiments/align_on_mix.py),
+aligns against the lead stem alone and against the lead and backing stems mixed.
+
 ## Library-wide repair
 
 [lyrics_repair.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_repair.py) decides which songs need another

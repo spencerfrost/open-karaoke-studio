@@ -1,6 +1,6 @@
 """
 Admin endpoints: the overview, the background jobs page, worker status,
-failed songs and the Compare breaks page.
+failed songs, the Compare breaks page and the Compare word timing page.
 """
 
 import logging
@@ -298,3 +298,83 @@ def save_singing_map_checks(
         raise HTTPException(status_code=400, detail=str(error)) from error
     logger.info("Break checks for song %s: %d answer(s)", song_id, len(body.answers))
     return detail(song, BreakCheckRepository(db).answers_for_song(song_id))
+
+
+# ---------------------------------------------------------------------------
+# Compare word timing: two experimental alignments of the same songs, by ear
+# ---------------------------------------------------------------------------
+
+
+@router.get("/word-timing/experiments")
+def list_word_timing_experiments(current_user: User = Depends(require_admin)):
+    """Experiments found in the experiments folder, newest name last. Empty
+    where none were run: the folder exists only on the machine that ran them."""
+    from app.services.word_timing_experiments import list_experiments
+
+    return {"experiments": list_experiments()}
+
+
+@router.get("/word-timing/experiments/{experiment_id}/songs")
+def list_word_timing_songs(
+    experiment_id: str, current_user: User = Depends(require_admin)
+):
+    """The experiment's songs, each with how many lines differ between its two
+    timings and how many of those are answered, plus a tally of answers."""
+    from app.services.word_timing_experiments import NotFound, list_songs
+
+    try:
+        return list_songs(experiment_id)
+    except NotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/word-timing/experiments/{experiment_id}/songs/{song_id}")
+def get_word_timing_song(
+    experiment_id: str, song_id: str, current_user: User = Depends(require_admin)
+):
+    """One song's moments: each line whose two timings differ, with both sets
+    of words and any answer given."""
+    from app.services.word_timing_experiments import NotFound, song_detail
+
+    try:
+        return song_detail(experiment_id, song_id)
+    except NotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+class WordTimingAnswer(BaseModel):
+    key: str
+    # "b_right", "a_right", "both_wrong" or "cant_tell"; None clears it.
+    answer: Optional[str] = None
+
+
+class WordTimingAnswers(BaseModel):
+    answers: List[WordTimingAnswer]
+
+
+@router.put("/word-timing/experiments/{experiment_id}/songs/{song_id}/answers")
+def save_word_timing_answers(
+    experiment_id: str,
+    song_id: str,
+    body: WordTimingAnswers,
+    current_user: User = Depends(require_admin),
+):
+    """Say which timing followed the singing, by moment key. All or nothing:
+    an unknown key or answer is a 400 and saves nothing. Returns the song as
+    GET does."""
+    from app.services.word_timing_experiments import (
+        BadAnswer,
+        NotFound,
+        save_answers,
+        song_detail,
+    )
+
+    try:
+        save_answers(
+            experiment_id, song_id, [item.model_dump() for item in body.answers]
+        )
+        return song_detail(experiment_id, song_id)
+    except NotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except BadAnswer as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error

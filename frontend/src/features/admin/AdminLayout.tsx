@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import {
   ArrowLeft,
   AudioLines,
+  Highlighter,
   Copy,
   Fingerprint,
   HardDrive,
@@ -172,6 +173,12 @@ const ADMIN_SECTION_GROUPS: AdminSectionGroup[] = [
         path: "compare-breaks",
         label: "Compare breaks",
         icon: AudioLines,
+        useCount: useNoCount,
+      },
+      {
+        path: "compare-word-timing",
+        label: "Compare word timing",
+        icon: Highlighter,
         useCount: useNoCount,
       },
     ],

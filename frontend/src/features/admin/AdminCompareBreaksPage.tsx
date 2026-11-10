@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import React, { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AudioLines, Check, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +24,13 @@ import {
 } from "./review/ReviewLayout";
 import { SongSummary } from "./review/SongPanel";
 import { StemPreview } from "./review/StemPreview";
+import { clock } from "./review/clock";
+import {
+  usePlayhead,
+  usePlayheadInside,
+  usePlayheadTime,
+  type Playhead,
+} from "./review/usePlayhead";
 
 type Filter =
   | "to-check"
@@ -47,13 +49,6 @@ const FILTERS: Record<Filter, (row: SingingMapSongRow) => boolean> = {
   "no-breaks-today": (row) => row.hasWordTiming && row.wordGapBreaks === 0,
   all: () => true,
 };
-
-/** "1:16.4" */
-function clock(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const rest = (seconds - minutes * 60).toFixed(1).padStart(4, "0");
-  return `${minutes}:${rest}`;
-}
 
 const span = ([start, end]: Span) => `${clock(start)}–${clock(end)}`;
 
@@ -155,39 +150,6 @@ function describeMoment(moment: BreaksMoment): {
     listen:
       "The map hears singing here. If someone is singing, the map is right.",
   };
-}
-
-/**
- * The playing position, read by the parts that move with it (the timeline's
- * playhead, the moment being played) without re-rendering the whole panel
- * every frame.
- */
-function usePlayhead() {
-  const time = useRef(0);
-  const listeners = useRef(new Set<() => void>());
-  const set = useCallback((seconds: number) => {
-    time.current = seconds;
-    listeners.current.forEach((listener) => listener());
-  }, []);
-  const subscribe = useCallback((listener: () => void) => {
-    listeners.current.add(listener);
-    return () => listeners.current.delete(listener);
-  }, []);
-  const get = useCallback(() => time.current, []);
-  return { set, subscribe, get };
-}
-
-type Playhead = ReturnType<typeof usePlayhead>;
-
-function usePlayheadTime(playhead: Playhead): number {
-  return useSyncExternalStore(playhead.subscribe, playhead.get);
-}
-
-function usePlayheadInside(playhead: Playhead, start: number, end: number) {
-  return useSyncExternalStore(playhead.subscribe, () => {
-    const t = playhead.get();
-    return t >= start && t <= end;
-  });
 }
 
 const MomentRow: React.FC<{
