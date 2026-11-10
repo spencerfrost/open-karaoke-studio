@@ -11,6 +11,7 @@ They also guard membership: the opening `authenticate` must carry the device id 
 member of the session, and a wrong code is indistinguishable from a wrong device.
 """
 
+import time
 import uuid
 from datetime import timedelta
 from typing import Optional
@@ -311,3 +312,77 @@ def test_host_only_action_allowed_for_owner(ws_setup):
     assert not any(
         m.get("type") == "permission_denied" for m in seen
     ), "authenticated host must not be refused playback control"
+
+
+def _connect_owner(client, session_id, device_id, token):
+    websocket = client.websocket_connect(f"/ws/session/{session_id}")
+    ws = websocket.__enter__()
+    ws.send_json({"type": "authenticate", "device_id": device_id, "token": token})
+    assert _greeting(ws)[0]["is_session_owner"] is True
+    return websocket, ws
+
+
+def _session_is_active(session_id: str) -> bool:
+    db = SessionLocal()
+    try:
+        return (
+            db.query(models.KaraokeSession.is_active)
+            .filter(models.KaraokeSession.session_id == session_id)
+            .scalar()
+        )
+    finally:
+        db.close()
+
+
+GRACE = 0.2
+
+
+def test_closing_one_of_two_host_devices_keeps_the_session(ws_setup, monkeypatch):
+    """The stage stays up when the host closes their phone; only the last device counts."""
+    import app.ws.session_specific as session_specific
+
+    monkeypatch.setattr(session_specific, "HOST_DISCONNECT_GRACE_SECONDS", GRACE)
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    token = create_access_token(host)
+
+    stage_cm, stage = _connect_owner(
+        client, session.session_id, device_factory(session.session_id), token
+    )
+    try:
+        phone_cm, _phone = _connect_owner(
+            client, session.session_id, device_factory(session.session_id), token
+        )
+        phone_cm.__exit__(None, None, None)
+
+        time.sleep(GRACE * 3)
+
+        # The stage is still connected and still answered, not sent session_ended.
+        stage.send_json({"type": "join_performance"})
+        seen = _collect_until(stage, "performance_state")
+        assert not any(m.get("type") == "session_ended" for m in seen)
+        assert _session_is_active(session.session_id) is True
+    finally:
+        stage_cm.__exit__(None, None, None)
+
+
+def test_closing_the_last_host_device_ends_the_session(ws_setup, monkeypatch):
+    import app.ws.session_specific as session_specific
+
+    monkeypatch.setattr(session_specific, "HOST_DISCONNECT_GRACE_SECONDS", GRACE)
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    token = create_access_token(host)
+
+    for _ in range(2):
+        cm, _ws = _connect_owner(
+            client, session.session_id, device_factory(session.session_id), token
+        )
+        cm.__exit__(None, None, None)
+
+    deadline = time.monotonic() + GRACE * 20
+    while _session_is_active(session.session_id) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert _session_is_active(session.session_id) is False

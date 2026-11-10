@@ -144,7 +144,7 @@ stateDiagram-v2
 
     state Active {
         [*] --> OwnerConnected
-        OwnerConnected --> Grace: an owner socket closes
+        OwnerConnected --> Grace: the last open owner socket closes
         Grace --> OwnerConnected: an owner socket authenticates<br/>within 30 s (task cancelled)
     }
 
@@ -223,7 +223,7 @@ phone's whole credential.
 |---|---|---|
 | Host ends the night | `DELETE /api/sessions/{id}` → [`_retire_session`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py) | Owner-only. Deactivates rows, broadcasts `session_ended`, closes every socket in the room, cancels any pending grace task. The client then fires `POST /{id}/playlist` for the recap. |
 | Host replaces it | `POST /my` with `on_existing: "replace"` | Same `_retire_session`, then a new session is created. |
-| Owner's socket gone 30 s | [`terminate_session_after_grace`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py) | `deactivate_session` + `force_close_session_connections`. See [the grace period](#the-host-disconnect-grace-period). |
+| Every owner socket gone 30 s | [`terminate_session_after_grace`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py) | `deactivate_session` + `force_close_session_connections`. See [the grace period](#the-host-disconnect-grace-period). |
 | Expiry passes | `deactivate_expired_sessions` | Lazy: runs only at the start of `POST /my`. Meanwhile join, validate, info, the WebSocket and the member credential check each test `is_expired()` themselves (410, 403 or a closed socket), so guests never see an expired-but-flagged row. Account holders hitting the queue endpoints skip that check. |
 
 **Leaving is not ending.** [`POST /{id}/leave`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py)
@@ -237,9 +237,11 @@ singleton stays open and the session never notices.
 Sessions survive the TV's socket dropping. The rule is in the `except WebSocketDisconnect`
 branch of the session endpoint:
 
-- If the connection that closed had authenticated as the session owner, start an `asyncio.Task`
-  that sleeps `HOST_DISCONNECT_GRACE_SECONDS = 30`, stored in
-  `session_termination_tasks[session_id]`.
+- The host can be signed in on several devices at once (the TV and their own phone), and every
+  one of them authenticates as the owner. Open owner connections are tracked per session in
+  `session_owner_connections[session_id]`. Closing one while another is still open does nothing.
+- When the last open owner connection closes, start an `asyncio.Task` that sleeps
+  `HOST_DISCONNECT_GRACE_SECONDS = 30`, stored in `session_termination_tasks[session_id]`.
 - If any connection authenticates as the owner before the 30 seconds run out, the task is
   cancelled. The client re-sends `authenticate` on every socket open, and its reconnect backoff
   starts at 1 s, so a page refresh or a Wi-Fi blip is covered.
@@ -248,8 +250,8 @@ branch of the session endpoint:
 
 "Survives" means up to 30 seconds. Past that, the night is retired. The data is kept for the
 recap and the history, but the session can't be resumed: `GET`/`POST /my`, `validate`, `info`
-and the WebSocket all filter on `is_active`. See also the
-[multi-owner-device bug](#bug-any-one-owner-device-dropping-ends-the-night) below.
+and the WebSocket all filter on `is_active`. The grace period is covered in
+[test_ws_host_authority.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/tests/integration/test_ws_host_authority.py).
 
 ## Roles: `isStageDevice` vs `isSessionOwner`
 
@@ -389,7 +391,7 @@ sequenceDiagram
         Note over C: no reconnect
     else socket drops
         WS->>M: disconnect, drop_presence (broadcasts presence_updated if it changed)
-        opt connection was an owner
+        opt connection was the session's last open owner connection
             WS->>WS: start 30 s grace task
         end
         Note over C: reconnect (1 s × 1.5ⁿ, capped at 30 s) → authenticate again → cancels the task
@@ -675,23 +677,6 @@ job.
 ## Known debt
 
 The bugs below were found by reading the code. None has been reproduced in the app.
-
-### Bug: any one owner device dropping ends the night
-
-The grace task is started whenever *a* connection that authenticated as the owner closes. It's
-cancelled only when an owner connection *authenticates*. Nothing checks whether another owner
-connection is still open.
-
-So with the TV on stage and the host's own phone signed in and in the session, both connections
-are owners. When the phone locks, its socket closes, the 30-second timer starts, and nothing
-cancels it: the TV is already connected and never re-authenticates. Thirty seconds later the
-session is deactivated and every screen, the TV included, gets `session_ended` and is bounced to
-`/`. The reverse (the TV dropping while the phone stays) does the same.
-
-The data survives (the session is deactivated, not deleted), but the night is over. A fix would check the room
-for another owner connection before starting the timer, and again when it fires. That needs the
-manager to remember which connections are owners, which it doesn't today. No test covers the
-grace period at all (`test_ws_host_authority.py` covers authentication only).
 
 ### Two queue serializers, and one of them is thrown away
 

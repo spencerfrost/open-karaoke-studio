@@ -334,7 +334,7 @@ sequenceDiagram
 
 - **Reconnect on disconnect**: Clients should attempt to reconnect with exponential backoff (max 30s)
 - **Session recovery**: On reconnect, clients re-send `join_performance` and `join_queue_room`
-- **Grace period**: Host disconnect triggers 30-second grace period before session termination
+- **Grace period**: When the host's last open device disconnects, a 30-second grace period starts before session termination
 
 ---
 

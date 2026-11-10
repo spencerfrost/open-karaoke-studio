@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Dict, NamedTuple, Optional, Tuple
+from typing import Dict, NamedTuple, Optional, Set, Tuple
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -55,6 +55,27 @@ HOST_DISCONNECT_GRACE_SECONDS = 30
 # How long a new connection has to send its `authenticate` message before it is dropped
 AUTH_TIMEOUT_SECONDS = 10
 session_termination_tasks: Dict[str, asyncio.Task] = {}
+
+# Open owner connections per session. A host can be signed in on several devices at
+# once (the stage plus their phone), and each one is an owner connection - the session
+# only ends when the last of them goes away.
+session_owner_connections: Dict[str, Set[str]] = {}
+
+
+def _register_owner_connection(session_id: str, ws_connection_id: str) -> None:
+    session_owner_connections.setdefault(session_id, set()).add(ws_connection_id)
+
+
+def _release_owner_connection(session_id: str, ws_connection_id: str) -> bool:
+    """Forget an owner connection. Returns True if no owner connection is left open."""
+    owners = session_owner_connections.get(session_id)
+    if owners is None:
+        return True
+    owners.discard(ws_connection_id)
+    if owners:
+        return False
+    del session_owner_connections[session_id]
+    return True
 
 
 def get_session_cleanup_lock(session_id: str) -> asyncio.Lock:
@@ -295,6 +316,9 @@ async def websocket_unified_session_endpoint(
         ws_connection_id,
         is_session_owner,
     )
+
+    if is_session_owner:
+        _register_owner_connection(session_id, ws_connection_id)
 
     # Host reconnecting within the grace period - cancel pending termination
     if is_session_owner and session_id in session_termination_tasks:
@@ -543,10 +567,11 @@ async def websocket_unified_session_endpoint(
         manager.disconnect(websocket)
         manager.leave_session(ws_connection_id, session_id)
 
-        # If host disconnected, start a grace period before terminating the session.
-        # This allows the host to survive a page refresh or brief network interruption
-        # without destroying the session for all connected performers.
-        if is_session_owner:
+        # If the host's last open device disconnected, start a grace period before
+        # terminating the session. This allows the host to survive a page refresh or
+        # brief network interruption without destroying the session for all connected
+        # performers. Closing one of several host devices leaves the session alone.
+        if is_session_owner and _release_owner_connection(session_id, ws_connection_id):
 
             async def terminate_session_after_grace():
                 try:
@@ -592,6 +617,9 @@ async def websocket_unified_session_endpoint(
             session_termination_tasks[session_id] = task
 
     finally:
+        if is_session_owner:
+            _release_owner_connection(session_id, ws_connection_id)
+
         # However the socket ended - a clean close or an error out of the loop -
         # it is no longer anyone's open page. A stale "on screen" would hide the
         # stage's prompt for exactly the phone that needs it.

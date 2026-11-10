@@ -8,11 +8,11 @@ items take the next free number.
 
 | Severity | Open items |
 |----------|-----------|
-| 🟠 Important | #21, #31, #33 |
+| 🟠 Important | #21, #33 |
 | 🟢 Low | #5, #8, #10, #11, #14, #16, #17, #18, #19 |
 
-The access-gate audit items (#23–#37) are all fixed except #31 and #33, which are robustness issues,
-not holes. [Authentication](/api/authentication) has the rules they settled on.
+The access-gate audit items (#23–#37) are all fixed except #33, which is a robustness issue,
+not a hole. [Authentication](/api/authentication) has the rules they settled on.
 
 The 4-letter room code is the intended gate, Jackbox-style: anyone with the code may join. What
 the audit items guard against is a path *around* the join step — something that accepts a code
@@ -61,26 +61,6 @@ per-word highlighting) for songs with duplicate-timestamp LRC data or repeated l
 - For (2): investigate giving WhisperX position/context hints to disambiguate repeated phrases,
   or only auto-apply alignment above a stricter per-song confidence threshold.
 - Keep both out of unrelated lyrics-rendering work — this is alignment/data quality, not rendering.
-
----
-
-### 31. Host-Disconnect Session Teardown Is Keyed on the Socket, Not the User
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** `backend/app/ws/session_specific.py` (the `WebSocketDisconnect` handler)
-
-**Problem:** Found 2026-08-30. When a connection with `is_session_owner=True` disconnects, a grace
-timer starts; when it expires, `deactivate_session` + `force_close_session_connections` end the
-session for everyone. The timer is cancelled only when *some* connection re-authenticates as
-owner — but it's armed per socket, not per user, so a host with two tabs open who closes one of
-them starts the countdown even though the other tab is still connected and still the owner.
-
-**Impact:** IMPORTANT — a host can lose their live session (and kick every performer) by closing
-a duplicate tab, with no warning.
-
-**Recommendation:** Track whether the owning user is still connected on *any* socket before
-arming or honoring the grace timer.
 
 ---
 
