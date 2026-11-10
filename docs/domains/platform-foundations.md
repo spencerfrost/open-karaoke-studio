@@ -454,7 +454,7 @@ Red cards are saved but never read. Of the 12 settings on the page, three do any
 
 | Setting | Read by |
 |---|---|
-| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are retro (the default), cyberpunk and Catppuccin; the list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
+| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are cyberpunk (the default, also set on `<html>` in `index.html`), retro and Catppuccin; the list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
 | Lyrics Size | Seeds `useUIPreferencesStore.lyricsSize` when the app loads. Changing lyrics size from the player controls writes it back here, so it survives a reload. |
 | Preview Songs on Hover | `useSongPreview` |
 | All four Audio values, all three Processing values, Show Audio Visualizations, Show Progress Bar | nothing |
