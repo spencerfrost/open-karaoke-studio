@@ -15,6 +15,7 @@ import AdminUsersPage from "../features/admin/AdminUsersPage";
 import AdminAcoustIdPage from "../features/admin/AdminAcoustIdPage";
 import AdminCompareBreaksPage from "../features/admin/AdminCompareBreaksPage";
 import AdminCompareWordTimingPage from "../features/admin/AdminCompareWordTimingPage";
+import AdminCheckVocalRangePage from "../features/admin/AdminCheckVocalRangePage";
 import AdminDiskCheckPage from "../features/admin/AdminDiskCheckPage";
 import AdminDuplicatesPage from "../features/admin/AdminDuplicatesPage";
 import AdminFailedSongsPage from "../features/admin/AdminFailedSongsPage";
@@ -71,6 +72,7 @@ const AppRoutes: React.FC = () => (
             path="compare-word-timing"
             element={<AdminCompareWordTimingPage />}
           />
+          <Route path="vocal-range" element={<AdminCheckVocalRangePage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route
             path="compare-three-track"

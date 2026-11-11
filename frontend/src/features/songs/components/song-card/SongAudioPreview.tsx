@@ -18,8 +18,11 @@ export type PreviewTrack =
 
 /** Lets something shown alongside the player move it, e.g. a clicked lyric. */
 export interface SongAudioPreviewHandle {
-  /** Jump to a spot (seconds) and play from there. */
+  /** Jump to a spot (seconds) and play from there. Called just after the
+   * track changes, it plays the new track from that spot. */
   playFrom: (seconds: number) => void;
+  /** Stop where it is, e.g. at the end of a clip. */
+  pause: () => void;
 }
 
 interface SongAudioPreviewProps {
@@ -159,9 +162,21 @@ export const SongAudioPreview: React.FC<SongAudioPreviewProps> = ({
   useImperativeHandle(ref, () => ({
     playFrom: (seconds: number) => {
       if (!audioRef.current) return;
+      if (resume) {
+        // The track is switching: start the new one here, not where the old
+        // one was.
+        setResume({ time: seconds, playing: true });
+        setCurrentTime(seconds);
+        return;
+      }
       audioRef.current.currentTime = seconds;
       setCurrentTime(seconds);
       if (!isPlaying) startPlaying();
+    },
+    pause: () => {
+      if (!audioRef.current || !isPlaying) return;
+      audioRef.current.pause();
+      setIsPlaying(false);
     },
   }));
 

@@ -21,8 +21,22 @@ export const StemPreview: React.FC<{
   songId: string;
   onTimeChange?: (seconds: number) => void;
   playerRef?: React.Ref<SongAudioPreviewHandle>;
-}> = ({ songId, onTimeChange, playerRef }) => {
-  const [track, setTrack] = useState<PreviewTrack>("original");
+  /** The audio it starts on; the original song unless a page needs a stem. */
+  initialTrack?: PreviewTrack;
+  /** Set both to choose the track from outside, e.g. per-moment play buttons. */
+  track?: PreviewTrack;
+  onTrackChange?: (track: PreviewTrack) => void;
+}> = ({
+  songId,
+  onTimeChange,
+  playerRef,
+  initialTrack = "original",
+  track: controlledTrack,
+  onTrackChange,
+}) => {
+  const [ownTrack, setOwnTrack] = useState<PreviewTrack>(initialTrack);
+  const track = controlledTrack ?? ownTrack;
+  const setTrack = onTrackChange ?? setOwnTrack;
   return (
     <div className="space-y-2">
       <ToggleGroup

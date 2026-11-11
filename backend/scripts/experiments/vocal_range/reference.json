@@ -1,0 +1,48 @@
+{
+  "_about": "Published sheet-music vocal ranges in the original key, plus song kinds. THE OCTAVE IS NOT TRUSTED: male vocals are usually written an octave above how they sound, and listings mix conventions (Glycerine: Musicnotes C4-F5, Singing Carrots C3-F4). score.py compares note names modulo the octave, and widths; octaves are checked by ear. confidence: 'page' = read on the product page; 'search' = from a search listing, not opened; 'conflicting' = listings disagree, the original-key one picked; 'knowledge' = the kind, from knowing the song.",
+
+  "test-thumbnail-auto": {
+    "low": "A4", "high": "A5", "kind": "sung", "confidence": "page",
+    "source": "Musicnotes PVG MN0071259, D major",
+    "url": "https://www.musicnotes.com/sheetmusic/rick-astley/never-gonna-give-you-up/MN0071259"
+  },
+  "a4880f8e-12e6-4af4-ae06-f2acfeb82e20": {
+    "low": "E3", "high": "A4", "kind": "sung", "confidence": "page",
+    "source": "Musicnotes PVG MN0138331, E minor",
+    "url": "https://www.musicnotes.com/sheetmusic/the-cranberries/zombie/MN0138331",
+    "notes": "Other Musicnotes listings give F#4-A5 in the same key"
+  },
+  "ecb67804-402e-438b-be7e-2132f79f7e8f": {
+    "low": "E4", "high": "A5", "kind": "sung", "confidence": "search",
+    "source": "Musicnotes PVG, A major",
+    "url": "https://www.musicnotes.com/sheetmusic/radiohead/fake-plastic-trees/MN0127405"
+  },
+  "79a8bea8-9f34-4cdc-b5d6-8cbeddce0137": {
+    "low": "C4", "high": "F5", "kind": "sung", "confidence": "search",
+    "source": "Musicnotes PVC, F major (Singing Carrots: C3-F4)",
+    "url": "https://www.musicnotes.com/sheetmusic/bush/glycerine/MN0128082"
+  },
+  "d75c2501-9a96-4714-8316-c1bdfad30766": {
+    "low": "E4", "high": "E5", "kind": "sung", "confidence": "search",
+    "source": "Musicnotes guitar/vocal TAB MN0099774, A major",
+    "url": "https://www.musicnotes.com/sheetmusic/aerosmith/sweet-emotion/MN0099774"
+  },
+  "99710d3c-cc14-4409-b537-40619ac0fc36": {
+    "low": "G#3", "high": "G#4", "kind": "sung", "confidence": "conflicting",
+    "source": "Musicnotes lead sheet MN0246913, G# minor; the PVG edition lists A4-A5 in A minor",
+    "url": "https://www.musicnotes.com/sheetmusic/nirvana/heart-shaped-box/MN0067115"
+  },
+  "af4bfed5-7d55-4196-9ba3-7bbb3511692b": {
+    "low": "C4", "high": "Bb5", "kind": "sung", "confidence": "search",
+    "source": "Musicnotes One-X album listing, D minor",
+    "url": "https://www.musicnotes.com/sheet-music/album/three-days-grace---one-x",
+    "notes": "The listed range includes backup vocals"
+  },
+
+  "0fe64307-5c14-4c87-8959-4562121517fb": {"kind": "rapped", "confidence": "knowledge"},
+  "d61a2650-da0d-4ac7-a16f-538312059db2": {"kind": "rapped", "confidence": "knowledge"},
+  "8f122f1d-91bf-4e5a-a775-729d917a518e": {"kind": "mixed", "confidence": "knowledge", "notes": "Rapped verses, sung hook"},
+  "264dad0e-42fd-4f8d-bdc6-902216f593e8": {"kind": "mixed", "confidence": "knowledge", "notes": "Rapped verses, sung hook"},
+  "1cec647f-21cb-4b70-a30b-939922a79d30": {"kind": "mixed", "confidence": "knowledge", "notes": "Rapped verses, sung chorus"},
+  "59eb76d6-1bdc-40c2-adf7-5cb0baceabb0": {"kind": "instrumental", "confidence": "knowledge", "notes": "Check by ear: believed to be an instrumental"}
+}

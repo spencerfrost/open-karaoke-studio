@@ -1,6 +1,7 @@
 """
 Admin endpoints: the overview, the background jobs page, worker status,
-failed songs, the Compare breaks page and the Compare word timing page.
+failed songs, the Compare breaks page, the Compare word timing page and the
+Check vocal range page.
 """
 
 import logging
@@ -485,6 +486,86 @@ def save_word_timing_answers(
             experiment_id, song_id, [item.model_dump() for item in body.answers], db
         )
         return song_detail(experiment_id, song_id, db)
+    except NotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except BadAnswer as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+# ---------------------------------------------------------------------------
+# Check vocal range: the vocal range benchmark's moments, by ear
+# ---------------------------------------------------------------------------
+
+
+def _method_list(methods: Optional[str]) -> Optional[List[str]]:
+    """`?methods=a,b` -> ["a", "b"]; absent means every method."""
+    if methods is None:
+        return None
+    return [m for m in methods.split(",") if m]
+
+
+@router.get("/vocal-range/songs")
+def list_vocal_range_songs(
+    methods: Optional[str] = Query(None, description="Comma-separated method names"),
+    current_user: User = Depends(require_admin),
+):
+    """The benchmark's test songs with each method's range and how many of
+    their primary moments are answered, plus each method's verdicts so far.
+    `methods` narrows it to those methods. Empty where the benchmark wasn't
+    run: its results exist only on that machine."""
+    from app.services.vocal_range_review import list_songs
+
+    return list_songs(_method_list(methods))
+
+
+@router.get("/vocal-range/songs/{song_id}")
+def get_vocal_range_song(
+    song_id: str,
+    methods: Optional[str] = Query(None, description="Comma-separated method names"),
+    current_user: User = Depends(require_admin),
+):
+    """One test song: each method's range, its sheet-music reference, and the
+    moments that set each end, with the pitch track around each."""
+    from app.services.vocal_range_review import NotFound, song_detail
+
+    try:
+        return song_detail(song_id, _method_list(methods))
+    except NotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+class VocalRangeAnswer(BaseModel):
+    # A moment's key, or "kind" for what kind of song it is.
+    key: str
+    # None clears it.
+    answer: Optional[str] = None
+
+
+class VocalRangeAnswers(BaseModel):
+    answers: List[VocalRangeAnswer]
+    # The methods the page shows, so the reply matches its GET.
+    methods: Optional[List[str]] = None
+
+
+@router.put("/vocal-range/songs/{song_id}/answers")
+def save_vocal_range_answers(
+    song_id: str,
+    body: VocalRangeAnswers,
+    current_user: User = Depends(require_admin),
+):
+    """Answer moments by ear (is this the note the lead sings here?) and the
+    song's kind. All or nothing: an unknown key or answer is a 400 and saves
+    nothing. Returns the song as GET does."""
+    from app.services.vocal_range_review import (
+        BadAnswer,
+        NotFound,
+        save_answers,
+        song_detail,
+    )
+
+    try:
+        save_answers(song_id, [item.model_dump() for item in body.answers])
+        return song_detail(song_id, body.methods)
     except NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except BadAnswer as error:

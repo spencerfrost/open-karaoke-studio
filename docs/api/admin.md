@@ -1,6 +1,6 @@
 # Admin API
 
-Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs**, **Compare breaks** and **Compare word timing** pages. All of them are **admin only**.
+Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs**, **Compare breaks**, **Compare word timing** and **Check vocal range** pages. All of them are **admin only**.
 
 A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it. A run whose worker stops partway is `interrupted` and carries on from where it got to when the enrichment worker starts again (see [Ingestion pipeline](../domains/ingestion-pipeline.md#when-a-worker-stops)). A run can also be paused and resumed by hand, to free the GPU ([Pause a Run](#pause-a-run)).
 
@@ -233,3 +233,21 @@ Each experiment is `{id, name, description, a, b, groups}`: `a` and `b` name its
 One song returns its `moments` in song order. A moment is a line whose word starts are 0.25 s or more apart on average, or that has different words timed each way: `key` (`line:<index>`), `lineIndex`, `start`, `end`, `meanShift` (`null` for different words), the words both ways as `a` and `b` in the word timing shape, and `answer`.
 
 `PUT …/answers` takes `{"answers": [{"key": "line:12", "answer": "b_right"}]}`, with `b_right`, `a_right`, `both_wrong` or `cant_tell`; `null` clears one. All or nothing: an unknown key or answer is a `400` and saves nothing. Answers are saved in the experiment's folder (`answers.json`); the LRC offset sweep's are saved on each song's sweep. Returns the song as `GET` does. An unknown experiment or song is a `404`.
+
+### Check vocal range
+
+```http
+GET /api/admin/vocal-range/songs?methods=baseline,notes+lead
+GET /api/admin/vocal-range/songs/{song_id}?methods=baseline,notes+lead
+PUT /api/admin/vocal-range/songs/{song_id}/answers
+```
+
+The vocal range benchmark's test songs, for checking range methods by ear. The results come from the benchmark's output folder on the machine the API runs on (`backend/scripts/experiments/vocal_range/results/`, or `VOCAL_RANGE_RESULTS_DIR`), not from the database, and never reach the TV. Where the benchmark wasn't run the list is empty. `methods` (comma-separated, optional) narrows everything to those methods; without it every method counts.
+
+A **moment** is a stretch of the lead a method says sets one end of the range: `key` (`<note>@<start>`, e.g. `A6@131.73`), `note`, `midi`, `start`, `duration`, `sets` (`{method, end, rank}` for each method it's an end for; rank 0 is that end's longest stretch), `primary` (rank 0 for some method: it decides that end; the others stand in when it can't be told), `answer`, and `contour` (`{start, end, points}`, each point `[time, midi, confident 0/1]`, two seconds either side) or `null`. Two methods pointing at the same moment share it and its answer.
+
+The songs list returns `{methods, allMethods, groups, songs, verdicts, kinds}`. Each song row has `group` (why it's in the test set), `stored` (the range the app stores), `results` (per method `{low, high, label}`; `label` is set instead of a range, e.g. `rapped`), `moments` and `answered` (primary moments only), `kind` and `referenceKind`. Songs still to check come first, then by group. `verdicts` counts, per method, how its ends were judged: an end's verdict is the answer to its first answered moment, skipping `cant_tell`. `kinds` counts the kind answers.
+
+One song returns `stored`, `reference` (its sheet-music range and source, whose octave isn't trusted), `kind`, `methods` (each with `result` and its two `verdicts`) and `moments`: those setting a lowest note first, then a highest, each longest first.
+
+`PUT …/answers` takes `{"answers": [{"key": "A6@131.73", "answer": "octave_high"}], "methods": [...]}`. A moment takes `right`, `octave_high` (the note shown is an octave above what's sung), `octave_low`, `wrong_note`, `not_singer`, `no_note` (the singer, rapping or speaking), `screamed` (screaming or yelling, no clear note) or `cant_tell`; the key `kind` takes `sung`, `mixed`, `rapped`, `spoken` or `instrumental`. `null` clears one. All or nothing: an unknown key or answer is a `400` and saves nothing. Answers are saved in the results folder (`answers.json`). Returns the song as `GET` does, for `methods`. An unknown song is a `404`.
