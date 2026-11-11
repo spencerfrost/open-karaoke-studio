@@ -369,25 +369,45 @@ def store_offset_corrected_lrc(
 
 
 def _resolve_song_language(
-    song_id: str, *, requested: str | None, stored: str | None, vocals_path: Path
+    song_id: str,
+    *,
+    requested: str | None,
+    stored: str | None,
+    lyrics: str | None,
+    vocals_path: Path,
 ) -> str:
-    """The language to align in: the one asked for, the song's, or detected from the vocals.
+    """The language to align in.
 
-    A confident detection is stored on the song; an unsure one is used for this
-    run only, falling back to English, so the next run tries again.
+    In order: the one asked for, the song's, the language `lyrics` (the text
+    this run aligns) are written in, a guess from the singing, English. The
+    aligner times the lyrics' words, so their text decides; a confident reading
+    of it is stored on the song. The singing is listened to only for a song
+    with no lyrics (its language feeds transcription), and that guess is used
+    for this run only: Whisper hears accented English as other languages.
     """
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
     from app.services.lyrics_language import (
         DEFAULT_LANGUAGE,
         MIN_DETECTION_PROBABILITY,
+        MIN_LYRICS_PROBABILITY,
+        detect_lyrics_language,
         detect_vocals_language,
     )
 
+    from_lyrics = None if requested or stored else detect_lyrics_language(lyrics)
     if requested:
         language, language_source = requested, "requested"
     elif stored:
         language, language_source = stored, "song"
+    elif from_lyrics and from_lyrics["probability"] >= MIN_LYRICS_PROBABILITY:
+        language, language_source = from_lyrics["language"], "lyrics"
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, language=language)
+    elif lyrics and lyrics.strip():
+        # Too little text, or text that reads as no one language: English is a
+        # safer guess for the words than one from the singing.
+        language, language_source = DEFAULT_LANGUAGE, "default"
     else:
         _update_lyrics_alignment_job(
             song_id,
@@ -398,8 +418,6 @@ def _resolve_song_language(
         detected = detect_vocals_language(song_id, vocals_path)
         if detected and detected["probability"] >= MIN_DETECTION_PROBABILITY:
             language, language_source = detected["language"], "detected"
-            with get_db_session() as session:
-                SongRepository(session).update(song_id, language=language)
         else:
             language, language_source = DEFAULT_LANGUAGE, "default"
 
@@ -408,6 +426,7 @@ def _resolve_song_language(
         "lyrics_language_resolved",
         language=language,
         language_source=language_source,
+        lyrics_detection=from_lyrics,
     )
     return language
 
@@ -1162,10 +1181,6 @@ def _align_song_lyrics(
     if retime_only:
         include_remote = False
 
-    language = _resolve_song_language(
-        song_id, requested=language, stored=stored_language, vocals_path=vocals_path
-    )
-
     log_lyrics_event(
         song_id,
         "lyrics_source_snapshot",
@@ -1178,7 +1193,6 @@ def _align_song_lyrics(
         title=song_data["title"],
         include_remote=include_remote,
         requested_source=source,
-        language=language,
         hand_picked=state["hand_picked_at"] is not None,
         rejected_count=len(rejected_keys),
     )
@@ -1191,6 +1205,14 @@ def _align_song_lyrics(
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
     attempts = _format_synced_attempts(attempts)
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
+    # Every attempt is the same song's words, so the first one's text decides.
+    language = _resolve_song_language(
+        song_id,
+        requested=language,
+        stored=stored_language,
+        lyrics=attempts[0]["content"] if attempts else None,
+        vocals_path=vocals_path,
+    )
     logger.info(
         "align_song_lyrics: built %d attempts for song %s in %.2fs",
         len(attempts),

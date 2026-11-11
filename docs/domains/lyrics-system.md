@@ -69,7 +69,7 @@ consistent.
 | `synced_lyrics` | LRC text: `[mm:ss.xx]line` | Provider fetch, edit, offset save, alignment (it rewrites this) |
 | `word_synced_lyrics` | JSON blob in a `Text` column (shape [below](#the-word-synced-payload)) | Only `align_song_lyrics` |
 | `lyrics_hand_picked_at` | When a person last saved lyrics. While set, automatic runs only *time* the stored lyrics and never replace them | Every save path that a person triggers |
-| `language` | Whisper language code ("en", "fr"), or null until detected | Detection inside the alignment task, or the song dialog |
+| `language` | Whisper language code ("en", "fr"), or null until detected | Detection from the lyrics text inside the alignment task, or the song dialog |
 
 A separate `lyrics_reports` table
 ([lyrics_report.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/lyrics_report.py)) records "these lyrics are
@@ -284,9 +284,9 @@ flowchart TB
     Start(["align_song_lyrics(song_id)"]) --> Vocals{"vocals.mp3<br/>exists?"}
     Vocals -->|no| NoAudio["no_audio"]
     Vocals -->|yes| State["Load lyrics state<br/><i>hand-picked? rejected keys?<br/>open reports? run token</i>"]
-    State --> Lang["Resolve language<br/><i>requested → song.language →<br/>detect (stored if p ≥ 0.5) → 'en'</i>"]
-    Lang --> Cands["Build candidates, then format every synced one<br/>(section-break blank lines inserted)"]
-    Cands --> Initial["Store top remote candidate<br/>into empty columns"]
+    State --> Cands["Build candidates, then format every synced one<br/>(section-break blank lines inserted)"]
+    Cands --> Lang["Resolve language<br/><i>requested → song.language →<br/>first candidate's text (stored if p ≥ 0.9) →<br/>no lyrics: the singing (this run only) → 'en'</i>"]
+    Lang --> Initial["Store top remote candidate<br/>into empty columns"]
     Initial --> Any{"any<br/>candidates?"}
     Any -->|no| ASR["ASR transcript becomes the lyrics<br/><i>_run_asr_fallback</i>"]
     ASR --> ASRok["ok, source asr:*"]
@@ -370,9 +370,16 @@ and the song keeps the lyrics it had.
 [lyrics_language.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_language.py). Language picks both the
 wav2vec2 alignment model and the ASR language:
 
-- Detection runs faster-whisper's language ID on up to three 30-second windows of singing. A
-  detection with probability ≥ 0.5 is stored on the song. A less certain one is used for this run
-  only, falling back to `en`, so the next run tries again.
+- A song with no stored language takes the language its lyrics are written in: `langdetect` on
+  the text of the run's first candidate, with LRC timestamps and `[Chorus]`-style tags removed
+  and a fixed seed so the same text always gives the same answer. An answer with probability
+  ≥ 0.9 is used and stored on the song. Less than 200 letters of text, or a less certain answer,
+  aligns in `en` without storing.
+- Only a song with no lyrics at all (its language feeds ASR transcription) is listened to:
+  faster-whisper's language ID on up to three 30-second windows of singing. An answer with
+  probability ≥ 0.5 is used for this run only, and never stored. Whisper hears accented English
+  as other languages often enough (Muse as Danish at 0.52, reggae as Yoruba at 0.74) while real
+  French and Spanish songs can score lower, so no threshold separates them.
 - `supports_word_alignment` returns false for Japanese and Chinese. WhisperX aligns those per
   character, but stored words are checked against space-split lyrics. Those songs end as
   `no_alignment_model` and scroll line by line.
