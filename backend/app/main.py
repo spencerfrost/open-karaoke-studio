@@ -199,5 +199,12 @@ if __name__ == "__main__":
     print(f"❤️  Health Check: http://localhost:{port}/api/health")
 
     uvicorn.run(
-        "app.main:app", host="0.0.0.0", port=port, reload=True, log_level="info"
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        log_level="info",
+        # A reload waits for open connections (browser WebSockets) to close;
+        # without a limit it can wait forever and the API stops answering.
+        timeout_graceful_shutdown=5,
     )
