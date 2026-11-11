@@ -15,6 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { useApiMutation } from "@/hooks/api/useApi";
 import { useSongs } from "@/hooks/api/useSongs";
+import {
+  type VocalRangeAnalysis,
+  vocalRangeMessage,
+} from "@/features/songs/utils/vocalRange";
 import LyricsFetchDialog, {
   type LyricsResult,
 } from "@/features/lyrics/components/LyricsFetchDialog";
@@ -205,18 +209,17 @@ export const AnalyzeVocalRangeButton: React.FC<{
   songId: string;
   onDone: () => void;
 }> = ({ songId, onDone }) => {
-  const analyze = useApiMutation<
-    { vocal_range_low: string; vocal_range_high: string },
-    void
-  >(`songs/${songId}/analyze-vocal-range`, "post", {
-    onSuccess: (data) => {
-      toast.success(
-        `Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`,
-      );
-      onDone();
+  const analyze = useApiMutation<VocalRangeAnalysis, void>(
+    `songs/${songId}/analyze-vocal-range`,
+    "post",
+    {
+      onSuccess: (data) => {
+        toast.success(vocalRangeMessage(data));
+        onDone();
+      },
+      onError: (error) => toast.error(error.message),
     },
-    onError: (error) => toast.error(error.message),
-  });
+  );
 
   return (
     <Button

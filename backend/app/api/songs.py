@@ -18,7 +18,7 @@ import os
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, cast
 from urllib.parse import unquote
 
 from fastapi import (
@@ -798,7 +798,12 @@ def _check_song_metadata(song: DbSong) -> list:
         issues.append(
             {"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"}
         )
-    if not song.vocal_range_low and not song.vocal_range_high:
+    # A song measured with no sung range (rapped, say) has its answer.
+    if (
+        not song.vocal_range_low
+        and not song.vocal_range_high
+        and song.vocal_range_detail is None
+    ):
         issues.append(
             {
                 "type": "missing_vocal_range",
@@ -1700,48 +1705,59 @@ def skip_fingerprint(
 
 
 @router.post("/{song_id}/analyze-vocal-range", status_code=200)
-async def analyze_vocal_range(
+def analyze_vocal_range(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Detect vocal range from the isolated vocals stem and persist the result."""
-    import asyncio
-    from pathlib import Path
+    """Measure the lead singer's range now and save it, as the backfill would.
 
-    from app.config import get_config
-    from app.services.audio import detect_vocal_range
+    Measures the singing map first when the song has none, since the range
+    reads it. Answers with the range, or with nulls and the label saying why
+    there's no sung range ("rapped", ...).
+    """
+    import json
+
+    from app.jobs.metadata_tasks import (
+        detect_and_store_singing_map,
+        detect_and_store_vocal_range,
+    )
 
     repo = SongRepository(db)
-    if not repo.fetch(song_id):
+    song = repo.fetch(song_id)
+    if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    config = get_config()
-    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
-    if not vocals_path.exists():
+    if song.singing_map is None and detect_and_store_singing_map(song_id) != "ok":
         raise HTTPException(
             status_code=404,
             detail="Vocals stem not found — song may not be processed yet",
         )
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: detect_vocal_range(
-            vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
-        ),
-    )
-
-    if result is None:
+    outcome = detect_and_store_vocal_range(song_id)
+    if outcome == "no_audio":
         raise HTTPException(
             status_code=404,
-            detail="Could not detect vocal range (insufficient voiced frames)",
+            detail="Vocals stem not found — song may not be processed yet",
         )
+    if outcome in ("error", "waiting"):
+        logger.error("Vocal range analysis failed for song %s (%s)", song_id, outcome)
+        raise HTTPException(status_code=500, detail="Vocal range analysis failed")
 
-    low, high = result
-    repo.update(song_id, vocal_range_low=low, vocal_range_high=high)
-    logger.info("Vocal range detected for song %s: %s – %s", song_id, low, high)
-    return {"vocal_range_low": low, "vocal_range_high": high}
+    db.expire_all()
+    measured = repo.fetch(song_id)
+    if measured is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+    stored = cast(Optional[str], measured.vocal_range_detail)
+    label = json.loads(stored).get("label") if stored else None
+    low = cast(Optional[str], measured.vocal_range_low)
+    high = cast(Optional[str], measured.vocal_range_high)
+    logger.info("Vocal range for song %s: %s – %s (%s)", song_id, low, high, label)
+    return {
+        "vocal_range_low": low,
+        "vocal_range_high": high,
+        "vocal_range_label": label,
+    }
 
 
 @router.post("/{song_id}/fingerprint", status_code=202)

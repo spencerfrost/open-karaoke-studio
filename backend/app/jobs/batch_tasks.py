@@ -234,14 +234,21 @@ def batch_backfill_vocal_range(
 ) -> dict:
     """Batch task: detect vocal range from each song's vocals stem.
 
-    Runs songs one after another inside this single task (~10-30s each) rather
+    Runs songs one after another inside this single task (about a minute each) rather
     than fanning out per-song tasks, so a long backfill occupies one enrichment
     slot and new downloads can still post-process alongside it. Each song is
     saved as it finishes, so re-running with mode="missing" resumes.
     """
     from .metadata_tasks import detect_and_store_vocal_range
 
-    counts = {"ok": 0, "no_range": 0, "no_audio": 0, "error": 0}
+    counts = {
+        "ok": 0,
+        "labelled": 0,
+        "no_range": 0,
+        "waiting": 0,
+        "no_audio": 0,
+        "error": 0,
+    }
 
     with tracked_run(run_id) as run:
         song_ids = run.begin(lambda: _select("vocal_range", mode))
@@ -266,8 +273,9 @@ def batch_backfill_vocal_range(
     logger.info("batch_backfill_vocal_range: done — %s", counts)
     return {
         "processed": sum(counts.values()),
-        "success": counts["ok"],
-        "skipped": counts["no_range"] + counts["no_audio"] + counts["error"],
+        # A label ("rapped") is an answer as much as a range is.
+        "success": counts["ok"] + counts["labelled"],
+        "skipped": sum(counts.values()) - counts["ok"] - counts["labelled"],
         **counts,
     }
 

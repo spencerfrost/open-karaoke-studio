@@ -25,7 +25,7 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
   vocal_range: {
     name: "Vocal range",
     description:
-      "Finds the lowest and highest sung note from the vocals track. 10–30 seconds per song.",
+      "Finds the lowest and highest note the lead singer holds while a lyric line is on screen, or marks the song rapped. Needs the singing map first. About a minute per song.",
     unit: ["song", "songs"],
   },
   duration: {

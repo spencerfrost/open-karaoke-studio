@@ -1,6 +1,7 @@
 """Metadata and enrichment Celery tasks."""
 
 from pathlib import Path
+from typing import Optional, cast
 
 from celery.utils.log import get_task_logger
 
@@ -142,55 +143,128 @@ def detect_and_store_singing_map(song_id: str) -> str:
 def detect_song_singing_map(song_id: str) -> dict:
     """Measure when the separated lead and backing vocals are singing."""
     logger.info("[PIPELINE] detect_song_singing_map starting for song %s", song_id)
-    return {"status": detect_and_store_singing_map(song_id), "song_id": song_id}
+    status = detect_and_store_singing_map(song_id)
+    if status == "ok":
+        queue_vocal_range_if_ready(song_id)
+    return {"status": status, "song_id": song_id}
 
 
 def detect_and_store_vocal_range(song_id: str) -> str:
-    """Detect a song's vocal range from vocals.mp3 and save it.
+    """Measure a song's vocal range from vocals.mp3 and save it.
 
-    Returns "ok", "no_range" (too few voiced frames), "no_audio", or "error".
-    Shared by the per-song pipeline task and the library-wide backfill. "ok"
-    and "no_range" are answers, and save the version that reached them.
+    Returns "ok" (a range), "labelled" (no sung range, and why: rapped, no
+    lead found, one note), "no_range" (no note held long enough), "waiting"
+    (no singing map yet: the map's task queues this once it's measured),
+    "no_audio", or "error". Shared by the per-song pipeline task, the
+    library-wide backfill and the admin "analyze" endpoint. "ok", "labelled"
+    and "no_range" are answers: they replace the stored range, even with
+    none, and save the version that reached them.
     """
+    import json
+    from datetime import datetime, timezone
+
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
     from app.services.processing_versions import VOCAL_RANGE_VERSION
+    from app.services.vocal_range import context_for, lyrics_md5
 
     vocals_path = Path(get_config().BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
     if not vocals_path.exists():
         logger.warning("detect_vocal_range: vocals.mp3 not found for song %s", song_id)
         return "no_audio"
 
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if song is None:
+            return "no_audio"
+        context = context_for(song)
+        measured_lyrics = lyrics_md5(cast(Optional[str], song.synced_lyrics))
+    if context is None:
+        logger.info("detect_vocal_range: song %s has no singing map yet", song_id)
+        return "waiting"
+
     try:
         result = detect_vocal_range(
-            vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
+            vocals_path, context, lambda msg: logger.debug("VocalRange: %s", msg)
         )
     except Exception:
         logger.warning("detect_vocal_range: failed for song %s", song_id, exc_info=True)
         return "error"
 
-    if not result:
-        with get_db_session() as session:
-            SongRepository(session).update(
-                song_id, vocal_range_version=VOCAL_RANGE_VERSION
-            )
-        return "no_range"
-
+    detail = {
+        **result["detail"],
+        "label": result["label"],
+        "lyrics_md5": measured_lyrics,
+        "measured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
     with get_db_session() as session:
         SongRepository(session).update(
             song_id,
-            vocal_range_low=result[0],
-            vocal_range_high=result[1],
+            vocal_range_low=result["low"],
+            vocal_range_high=result["high"],
+            vocal_range_detail=json.dumps(detail),
             vocal_range_version=VOCAL_RANGE_VERSION,
         )
-    logger.info("detect_vocal_range: %s-%s for song %s", result[0], result[1], song_id)
-    return "ok"
+
+    if result["low"] is not None:
+        logger.info(
+            "detect_vocal_range: %s-%s for song %s",
+            result["low"],
+            result["high"],
+            song_id,
+        )
+        return "ok"
+    logger.info(
+        "detect_vocal_range: no range for song %s (%s)",
+        song_id,
+        result["label"] or "no held notes",
+    )
+    return "labelled" if result["label"] else "no_range"
+
+
+def queue_vocal_range_if_ready(song_id: str) -> bool:
+    """Queue the song's vocal range once both its inputs are in.
+
+    The range reads the singing map and the synced lyrics' line times, which
+    two other tasks produce; each calls this when it finishes, and whichever
+    finishes second queues the range. Lyrics count as in once alignment has
+    reached an answer (word_timing_version is set), "no lyrics" included. A
+    range that's already up to date for these lyrics isn't measured again.
+
+    Never raises: the caller's own result is already saved, and a song left
+    without a range is caught by the queue-time update or the backfill.
+    """
+    try:
+        return _queue_vocal_range_if_ready(song_id)
+    except Exception:
+        logger.warning(
+            "Couldn't queue the vocal range for song %s", song_id, exc_info=True
+        )
+        return False
+
+
+def _queue_vocal_range_if_ready(song_id: str) -> bool:
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.vocal_range import is_out_of_date
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        ready = (
+            song is not None
+            and song.singing_map is not None
+            and song.word_timing_version is not None
+            and is_out_of_date(song)
+        )
+    if ready:
+        celery.send_task("detect_song_vocal_range", args=[song_id])
+    return ready
 
 
 @celery.task(name="detect_song_vocal_range")
 def detect_song_vocal_range(song_id: str) -> dict:
-    """Detect vocal pitch range from vocals.mp3 and store note names."""
+    """Measure the lead singer's range from vocals.mp3 and store it."""
     logger.info("[PIPELINE] detect_song_vocal_range starting for song %s", song_id)
     return {"status": detect_and_store_vocal_range(song_id), "song_id": song_id}
 

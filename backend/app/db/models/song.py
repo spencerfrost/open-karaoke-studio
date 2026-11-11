@@ -81,6 +81,11 @@ class DbSong(Base):
     )  # Separation engine used (demucs, roformer, hybrid, clean_backing)
     vocal_range_low = Column(String, nullable=True)  # Lowest sung note, e.g. "G2"
     vocal_range_high = Column(String, nullable=True)  # Highest sung note, e.g. "E5"
+    # How the range was decided, JSON (see services/vocal_range_child.py): the
+    # method, "label" when there's no sung range ("rapped", "no lead found",
+    # "one note"), the moments that set each end, and the md5 of the synced
+    # lyrics it read. Null until measured.
+    vocal_range_detail = Column(Text, nullable=True)
     # Measured on the stems as played by default (no lead vocal); see services/audio.py
     loudness_lufs = Column(Float, nullable=True)  # EBU R128 integrated loudness
     true_peak_dbtp = Column(Float, nullable=True)  # Loudest instant, in dB true peak

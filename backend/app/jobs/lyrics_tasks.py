@@ -28,6 +28,7 @@ from ._shared import (
 )
 from .celery_app import celery
 from .lyrics_support import build_alignment_attempts_for_song, run_alignment_attempt
+from .metadata_tasks import queue_vocal_range_if_ready
 
 if TYPE_CHECKING:
     from app.services.lyrics_offset import LrcOffsetSweep
@@ -974,6 +975,8 @@ def align_song_lyrics(
         _record_report_outcomes(song_id, result, run.get("pending_reports", []))
         if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):
             _save_word_timing_version(song_id, result)
+            # The vocal range reads the lyrics' line times, so it waits for them.
+            queue_vocal_range_if_ready(song_id)
             return result
         log_lyrics_event(
             song_id,

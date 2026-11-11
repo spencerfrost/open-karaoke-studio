@@ -4,6 +4,7 @@ import math
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -188,56 +189,103 @@ def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]
     return vocals_path, instrumental_path
 
 
-def detect_vocal_range(
-    vocals_path: Path,
-    status_callback: Callable[[str], None],
-) -> Optional[Tuple[str, str]]:
+_VOCAL_RANGE_CHILD = Path(__file__).with_name("vocal_range_child.py")
+# A full song takes about a minute; a long one with a slow CPU a few.
+_VOCAL_RANGE_TIMEOUT_SECONDS = 600
+
+
+class VocalRangeContext(NamedTuple):
+    """What the range method reads besides the audio.
+
+    lead: the singing map's lead intervals (seconds). lyric_lines: when each
+    synced-lyrics line is on screen, or None for a song without synced lyrics.
     """
-    Detect the vocal range (lowest and highest note) from a vocals audio file.
 
-    Uses probabilistic YIN (pyin) pitch detection on the isolated vocal track.
-    Returns note names in scientific pitch notation (e.g., "G2", "E5").
+    lead: list[tuple[float, float]]
+    lyric_lines: Optional[list[tuple[float, float]]]
 
-    Args:
-        vocals_path: Path to the vocals audio file (ideally isolated by Demucs)
-        status_callback: Function to call with status updates
 
-    Returns:
-        Tuple of (low_note, high_note) strings, or None if detection fails
+def _run_vocal_range_child(
+    vocals_path: Path, context: VocalRangeContext
+) -> Dict[str, Any]:
+    """Run vocal_range_child.py on one file and return its reply.
+
+    The reply is {"low", "high", "label", "detail"}; the song's context goes in
+    on stdin. -I keeps the child's imports to installed packages: without it
+    the script's own folder (app/services) would come first on its import
+    path. A timeout kills the child. Raises RuntimeError when the child fails
+    or replies with something unreadable.
     """
     try:
-        status_callback("Detecting vocal range...")
-        y, sr = librosa.load(str(vocals_path), sr=22050, mono=True)
-
-        f0, voiced_flag, voiced_probs = librosa.pyin(
-            y,
-            fmin=librosa.note_to_hz("C2"),  # ~65 Hz, below bass vocal range
-            fmax=librosa.note_to_hz("C7"),  # ~2093 Hz, above soprano range
-            sr=sr,
+        completed = subprocess.run(
+            [sys.executable, "-I", str(_VOCAL_RANGE_CHILD), str(vocals_path)],
+            input=json.dumps(
+                {"lead": context.lead, "lyric_lines": context.lyric_lines}
+            ),
+            capture_output=True,
+            text=True,
+            timeout=_VOCAL_RANGE_TIMEOUT_SECONDS,
+            check=False,
+            # Out of the terminal's process group: Ctrl-C stopping the worker
+            # lets this song finish, rather than killing it mid-song.
+            start_new_session=True,
         )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"vocal range analysis took over {_VOCAL_RANGE_TIMEOUT_SECONDS}s"
+        ) from e
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"vocal range analysis failed ({completed.returncode}): "
+            f"{completed.stderr[-500:]}"
+        )
+    try:
+        reply = json.loads(completed.stdout.strip().splitlines()[-1])
+        return {
+            "low": reply["low"],
+            "high": reply["high"],
+            "label": reply["label"],
+            "detail": dict(reply["detail"]),
+        }
+    except (IndexError, KeyError, TypeError, ValueError) as e:
+        raise RuntimeError(
+            f"vocal range analysis gave an unreadable reply: {completed.stdout[-500:]!r}"
+        ) from e
 
-        # Filter: only voiced frames with high confidence, no NaN
-        mask = voiced_flag & (voiced_probs > 0.75) & ~np.isnan(f0)
-        confident_f0 = f0[mask]
 
-        if len(confident_f0) < 10:
-            status_callback(
-                "Warning: insufficient voiced frames for vocal range detection"
-            )
-            return None
+def detect_vocal_range(
+    vocals_path: Path,
+    context: VocalRangeContext,
+    status_callback: Callable[[str], None],
+) -> Dict[str, Any]:
+    """
+    Measure the lead singer's range (lowest and highest held note) from the
+    isolated lead vocal.
 
-        midi_notes = librosa.hz_to_midi(confident_f0)
-        low_note = librosa.midi_to_note(int(np.percentile(midi_notes, 5)))
-        high_note = librosa.midi_to_note(int(np.percentile(midi_notes, 95)))
+    The pitch comes from probabilistic YIN (pyin), in a child process
+    (vocal_range_child.py, which describes the method): pyin holds the GIL for
+    as long as it runs, which would freeze every other thread in this process.
 
-        status_callback(f"Vocal range detected: {low_note} – {high_note}")
-        logger.info("Vocal range: %s – %s", low_note, high_note)
-        return low_note, high_note
+    Returns {"low", "high", "label", "detail"}. low and high are note names in
+    scientific pitch notation (e.g. "G2", "E5"), or both None when there's no
+    sung range; label then says why ("rapped", "no lead found", "one note"),
+    or is None when no note was held long enough. detail holds the method,
+    the moments that set each end and the measures the label came from.
 
-    except Exception as e:
-        logger.error("Vocal range detection failed: %s", e, exc_info=True)
-        status_callback(f"Warning: vocal range detection failed: {e}")
-        return None
+    Raises:
+        RuntimeError: the analysis failed (unreadable file, crash, timeout), so
+            the song has no answer yet rather than no range.
+    """
+    status_callback("Detecting vocal range...")
+    result = _run_vocal_range_child(vocals_path, context)
+
+    if result["low"] is None or result["high"] is None:
+        status_callback(f"No sung range: {result['label'] or 'no held notes'}")
+        return result
+
+    status_callback(f"Vocal range detected: {result['low']} – {result['high']}")
+    logger.info("Vocal range: %s – %s", result["low"], result["high"])
+    return result
 
 
 # Loudness is measured on the stems the player plays by default: lead vocal off,

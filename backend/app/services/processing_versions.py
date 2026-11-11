@@ -14,8 +14,9 @@ from sqlalchemy import or_
 LOUDNESS_VERSION = 1
 # services/singing_map.py measure_singing_map
 SINGING_MAP_VERSION = 1
-# services/audio.py detect_vocal_range
-VOCAL_RANGE_VERSION = 1
+# services/vocal_range_child.py. 2: held notes while the lead sings a lyric line
+# ("lyrics-v2"), with labels for rapped songs.
+VOCAL_RANGE_VERSION = 2
 # jobs/lyrics_tasks.py align_song_lyrics. 1: aligns on the lead + backing mix.
 WORD_TIMING_VERSION = 1
 # services/lrc_offset_layer.py, the LRC offset sweep job. 1: ±12 s in 1 s steps,

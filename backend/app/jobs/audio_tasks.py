@@ -64,9 +64,13 @@ def _schedule_transient_retry(task, job, job_repository, exc):
 def _dispatch_vocals_ready_tasks(
     song_id: str, vocals_path: Path, title: str | None, artist: str | None
 ) -> None:
-    """Queue the steps that need vocals.mp3: vocal range and lyric alignment."""
+    """Queue the step that needs vocals.mp3 alone: lyric alignment.
+
+    The vocal range also reads the singing map and the lyrics' line times, so
+    it's queued when the later of those two finishes (queue_vocal_range_if_ready).
+    """
     logger.debug(
-        "[PIPELINE] vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
+        "[PIPELINE] vocals.mp3 ready (%s bytes), dispatching lyric alignment for song %s",
         vocals_path.stat().st_size if vocals_path.exists() else "missing",
         song_id,
     )
@@ -78,7 +82,6 @@ def _dispatch_vocals_ready_tasks(
         pipeline_progress=70,
     )
     _create_lyrics_alignment_job(song_id, title=title, artist=artist)
-    celery.send_task("detect_song_vocal_range", args=[song_id])
     celery.send_task("align_song_lyrics", args=[song_id])
     log_lyrics_event(
         song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id)
