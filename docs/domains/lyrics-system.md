@@ -318,7 +318,9 @@ The rules behind those boxes:
   (`load_sung_vocals` in [audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py)),
   scaled down only if the sum clips. Lines the backing vocals sing would otherwise be aligned
   against silence. A song separated without backing vocals is aligned on its lead alone. ASR
-  transcription and language detection still listen to `vocals.mp3`.
+  transcription and language detection from the singing still listen to `vocals.mp3`. Where
+  the backing stem is mostly echoes and doubles of the lead (a heavily delayed vocal, such as
+  Grimes' Delicate Weapon), the mix can pull a line's words late or early.
 - **Forced alignment only works on synced text.** WhisperX's aligner searches for each line's
   words in the window between its LRC timestamp and the next one
   ([lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) `_lrc_lines_to_segments`).
