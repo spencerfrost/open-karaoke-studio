@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.jobs.jobs import select_and_run_separation_engine
+from app.jobs.separation import select_and_run_separation_engine
 
 
-@patch("app.jobs.jobs.separate_with_roformer")
+@patch("app.jobs.separation.separate_with_roformer")
 def test_select_roformer_engine(mock_roformer):
     mock_roformer.return_value = True
 
@@ -23,7 +23,7 @@ def test_select_roformer_engine(mock_roformer):
     mock_roformer.assert_called_once()
 
 
-@patch("app.jobs.jobs.separate_with_hybrid")
+@patch("app.jobs.separation.separate_with_hybrid")
 def test_select_hybrid_engine(mock_hybrid):
     mock_hybrid.return_value = True
 
@@ -39,7 +39,7 @@ def test_select_hybrid_engine(mock_hybrid):
     mock_hybrid.assert_called_once()
 
 
-@patch("app.jobs.jobs.separate_with_demucs")
+@patch("app.jobs.separation.separate_with_demucs")
 def test_default_to_demucs_for_unknown_engine(mock_demucs):
     mock_demucs.return_value = True
 
@@ -55,7 +55,7 @@ def test_default_to_demucs_for_unknown_engine(mock_demucs):
     mock_demucs.assert_called_once()
 
 
-@patch("app.jobs.jobs.separate_with_clean_backing")
+@patch("app.jobs.separation.separate_with_clean_backing")
 def test_select_clean_backing_engine(mock_clean):
     mock_clean.return_value = False
 
@@ -71,7 +71,7 @@ def test_select_clean_backing_engine(mock_clean):
     mock_clean.assert_called_once()
 
 
-@patch("app.jobs.jobs.separate_with_demucs")
+@patch("app.jobs.separation.separate_with_demucs")
 def test_default_to_demucs_for_demucs_engine_type(mock_demucs):
     mock_demucs.return_value = True
 
@@ -87,7 +87,7 @@ def test_default_to_demucs_for_demucs_engine_type(mock_demucs):
     mock_demucs.assert_called_once()
 
 
-@patch("app.jobs.jobs.separate_with_roformer")
+@patch("app.jobs.separation.separate_with_roformer")
 def test_passes_all_arguments_correctly(mock_roformer):
     mock_roformer.return_value = True
     mock_callback = Mock()
