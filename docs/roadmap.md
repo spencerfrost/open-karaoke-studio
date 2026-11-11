@@ -6,7 +6,7 @@ What's left to do. Built around how the app actually gets used: a living-room ni
 The working plans behind these tasks are in `docs/plans/` in the repo, indexed by
 `docs/plans/README.md`. They are internal and not part of this site.
 
-**Last updated:** 2026-10-26
+**Last updated:** 2026-11-09
 
 ---
 
@@ -68,6 +68,22 @@ In no particular order.
 - **New retro theme, vintage, cyberpunk as default.** The orange-gradient look becomes the
   "vintage" theme. "Retro" becomes a near-black page with cream text, orange buttons and three
   stripes under each header. Cyberpunk becomes the default. *(Plan: new retro theme)*
+- **Stop blocking the event loop.** The login checks every protected route runs, the queue and
+  session routes, the queue broadcast and the session WebSocket still make blocking database
+  calls on the API's one event loop: the same cause as the October prod freezes. Make every
+  route that uses the database plain `def`, send broadcasts from them through anyio, and keep
+  one queue payload builder instead of two. A test fails when an async route takes the
+  database. *(Plan: stop blocking the event loop)*
+- **Make the database match the models.** About 50 differences between the models and the real
+  Postgres schema, left by the SQLite conversion: columns the code treats as required that
+  the database doesn't require, three unused columns, time-zone types. The tests run on
+  SQLite, so they never see it. Read prod, fix the models where the database is right, write one
+  migration for the rest, add a Postgres test that fails on new drift, and close
+  [tech-debt](tech-debt.md) #33.
+  *(Plan: database matches models)*
+- **Backend file layout.** Group `services/` by domain, split `api/songs.py` and
+  `api/sessions.py`, delete the unused interfaces, the job event chain and `jobs/jobs.py`. No
+  behaviour changes. Waits for the singing map's commit. *(Plan: backend file layout)*
 
 ---
 

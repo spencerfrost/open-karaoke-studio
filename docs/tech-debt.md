@@ -4,12 +4,12 @@ Known issues and cleanup work, grouped by severity. Item numbers are stable — 
 link to them — so closed items keep their number in the [Resolved](#resolved) table and new
 items take the next free number.
 
-**Last checked against the code:** 2026-10-28.
+**Last checked against the code:** 2026-11-09.
 
 | Severity | Open items |
 |----------|-----------|
-| 🟠 Important | #21, #33 |
-| 🟢 Low | #5, #8, #10, #11, #14, #16, #17, #18, #19 |
+| 🟠 Important | #21, #33, #38, #39 |
+| 🟢 Low | #5, #8, #10, #11, #14, #16, #17, #18, #19, #40, #41, #42, #43 |
 
 The access-gate audit items (#23–#37) are all fixed except #33, which is a robustness issue,
 not a hole. [Authentication](/api/authentication) has the rules they settled on.
@@ -68,8 +68,8 @@ per-word highlighting) for songs with duplicate-timestamp LRC data or repeated l
 
 **Severity:** 🟠 IMPORTANT
 
-**Location:** `backend/app/db/models/session.py:30`; the bypass is in
-`backend/app/api/karaoke_queue.py:198`.
+**Location:** `backend/app/db/models/session.py` (`KaraokeSession.host_user_id`); the bypass is
+`require_session_owner` in `backend/app/api/karaoke_queue.py`.
 
 **Problem:** Found 2026-08-30. Because `host_user_id` can be `NULL` on legacy rows, a strict
 "only the owner may mutate" rule would make those sessions unmutable by anyone — so
@@ -80,7 +80,52 @@ ownership check on `KaraokeSession` needs the same escape hatch until this is cl
 each copy is a place it could go wrong.
 
 **Recommendation:** Backfill `host_user_id` for any `NULL` rows (or confirm none exist in prod),
-migrate the column to `NOT NULL`, then drop the admin bypass.
+migrate the column to `NOT NULL`, then drop the admin bypass. Dev has none. Do it with the rest of
+the model/schema reconciliation, since that migration makes the other `NOT NULL` changes too.
+
+---
+
+### 38. Errors Reach the Browser as Raw Exception Text
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** `backend/app/main.py`, routes across `backend/app/api/` (most in `songs.py`,
+`youtube.py`, `lyrics.py`, `users.py`)
+
+**Problem:** Nothing turns the `app.exceptions` types (`NotFoundError`, `ValidationError`,
+`ServiceError`…) into HTTP responses. Each route has its own `try`/`except`: there are 40 `except
+Exception` blocks in `app/api/`, and 29 routes answer `500` with the exception's text in `detail`
+(`f"Failed to retrieve songs: {str(e)}"`). That text can be a SQL error, a file path or a
+yt-dlp message. Each route also decides for itself which errors become 404s or 400s, so the
+same failure gets different status codes on different routes.
+
+**Impact:** MEDIUM — internal details shown to any caller, and the frontend can't rely on
+status codes.
+
+**Recommendation:** Register one exception handler per `app.exceptions` type in `main.py`
+(`NotFoundError` → 404, `ValidationError` → 400, anything else → 500 with a fixed message, and
+the traceback logged with `exc_info=True`). Then remove the per-route `except Exception` blocks.
+Routes raise the typed error, or nothing.
+
+---
+
+### 39. Unpinned Dependencies, Unmaintained JWT Library
+
+**Severity:** 🟠 IMPORTANT
+
+**Location:** `backend/requirements.txt`, `backend/app/services/auth_service.py`
+
+**Problem:** 32 of the 33 requirements are `>=` ranges, so every Docker build installs whatever
+was released most recently. Nothing records which versions prod is running, and a release
+upstream can break a build that changed nothing. `python-jose`, which signs and checks every
+login token, has gone years between releases, and FastAPI's own docs moved to PyJWT.
+
+**Impact:** MEDIUM — prod builds aren't reproducible, and auth depends on an abandoned library.
+
+**Recommendation:** Keep `requirements.txt` as the list of direct dependencies. Generate a
+locked `requirements.lock` from it with `uv pip compile`, and install the lock in the
+Dockerfile and `setup.sh`. Swap `python-jose` for PyJWT: HS256 tokens are the same format, so
+existing logins survive.
 
 ---
 
@@ -214,6 +259,113 @@ The rest of the original item is done: the BPM experiments were removed (2026-09
 
 **Recommendation:** Rewrite the docstring to say which engines production uses; move
 benchmark-only engines to `scripts/experiments/` if any are unused.
+
+---
+
+### 40. No One Layer Owns Database Transactions
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/` throughout
+
+**Problem:** `commit()` is called from routes (36 calls), repositories (27), Celery jobs (12),
+services (8) and the session WebSocket (1). `JobRepository`, `album_service` and
+`youtube_service` open their own sessions instead of using the caller's. When one action
+writes through two of these and the second fails, the first write is already committed.
+
+**Impact:** LOW today — no known bug traced to it — but every new multi-step write can leave
+half its work saved.
+
+**Recommendation:** One rule: the route or Celery task that starts the work commits.
+Repositories and services `flush()` and take the caller's session. Apply it file by file as
+code is touched, rather than in one sweep.
+
+---
+
+### 41. Config Checks the Wrong Secrets
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/config/`, `backend/app/services/auth_service.py`
+
+**Problem:**
+- Production requires `SECRET_KEY`, which nothing reads.
+- It doesn't check `JWT_SECRET_KEY`, the key that signs logins. When that is unset,
+  `auth_service` makes a random one per process and logs an error, so a restart signs everyone
+  out.
+- An `ENVIRONMENT` value that isn't recognised silently runs as development.
+- `BaseConfig` carries Flask-era aliases (`FLASK_ENV`, `SQLALCHEMY_*`, `BASE_LIBRARY_DIR`,
+  `library_path`, `PROJECT_ROOT`, `DEFAULT_MODEL`, `DEFAULT_MP3_BITRATE`).
+- `get_config()` builds a new config object on every call.
+
+Prod's `docker-compose.yml` sets both secrets, so nothing is broken today.
+
+**Impact:** LOW — a missing or mistyped variable fails late and quietly instead of at startup.
+
+**Recommendation:** One `pydantic-settings` class, built once: required fields with no
+default, `ENVIRONMENT` limited to the three known values, and `JWT_SECRET_KEY` required in
+production. Rename the alias uses to the real names and delete the aliases.
+
+---
+
+### 42. The Health Check Doesn't Check Anything
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/api/health.py`
+
+**Problem:** `GET /api/health` sleeps 1 ms and returns `ok`, with a docstring comparing it to
+Flask. It touches neither Postgres nor Redis, so it says `ok` while the pool is exhausted or the
+broker is down: the two failures that have taken prod down.
+
+**Impact:** LOW — nothing alerts on it yet, but it can't be used to tell a stall from a healthy
+server.
+
+**Recommendation:** Run `SELECT 1` through the pool (in a thread, with a short timeout) and
+ping Redis. Return `503` with which one failed.
+
+---
+
+### 43. Cancelling a Running Job Doesn't Stop It
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/services/jobs_service.py` (`cancel_job`),
+`backend/app/jobs/audio_tasks.py`, `backend/app/repositories/job_repository.py`
+
+**Problem:** `cancel_job` revokes the Celery task with `terminate=True`, then marks the row
+`cancelled`. The workers run `--pool=threads` (`celery_workers.sh`), and the thread pool can't
+terminate a running task, so a job that has started carries on:
+
+1. The row says `cancelled`.
+2. The worker keeps separating on the GPU.
+3. Its next progress save (every 5%) writes its in-memory copy of the job back, `processing`
+   included.
+4. The song finishes as if nothing happened.
+
+`process_audio_job` and `process_youtube_job` each pass a `stop_event` to separation, but
+nothing ever sets it, so their `StopProcessingError` cleanup never runs. Revoking does still
+stop a job that hasn't started.
+
+The overwrite comes from how `JobRepository` saves:
+
+- every save copies every field of the row, so the last writer wins whatever the other side
+  changed;
+- every save also runs a SQLite-only `force_db_sync`, re-reads the row to "verify" the commit,
+  and publishes a job event nobody acts on.
+
+**Impact:** LOW today — no screen calls `POST /api/jobs/{id}/cancel` (the `uploadService.ts`
+hook for it is unused), so only a direct API call hits this. Fix it before a Cancel button is
+added: as things stand, the job would look cancelled while the GPU stays busy and the song still
+lands in the library.
+
+**Recommendation:**
+- Have the worker's progress callback read the row's status and set `stop_event` when it is
+  `cancelled`. Separation already checks the event between stages.
+- Make status changes conditional (`UPDATE ... WHERE status NOT IN ('completed', 'failed',
+  'cancelled')`) and progress saves write only progress, so a finished state can't be undone.
+- Drop the sync call and the verification re-read. The event publishing is already set for
+  removal with the rest of the unused job event chain.
 
 ---
 
