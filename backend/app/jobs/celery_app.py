@@ -33,6 +33,7 @@ celery = Celery(
         "app.jobs.lyrics_tasks",
         "app.jobs.batch_tasks",
         "app.jobs.metadata_tasks",
+        "app.jobs.lyrics_dispatch",
     ],
 )
 
@@ -72,6 +73,8 @@ celery.conf.update(
         "batch_fetch_albums": {"queue": "enrichment"},
         "batch_align_lyrics": {"queue": "enrichment"},
         "batch_rebuild_artist_credits": {"queue": "enrichment"},
+        # Runs on the worker that aligned lyrics, after the song it's on.
+        "release_gpu_memory": {"queue": "lyrics"},
     },
     task_default_queue="enrichment",
     **celery_logging_config,
@@ -79,11 +82,21 @@ celery.conf.update(
 
 
 @worker_ready.connect
-def _fail_interrupted_jobs(sender, **kwargs):
-    """A worker starting means its previous run is gone, along with any job it held."""
+def _recover_interrupted_work(sender, **kwargs):
+    """A worker starting means its previous run is gone, along with what it held.
+
+    Single-song jobs it was running are failed; library-wide batch runs carry
+    on from where they got to.
+    """
+    from app.jobs._batch_runs import resume_interrupted_runs
     from app.utils.cleanup_jobs import fail_interrupted_jobs
 
+    queues = list(sender.app.amqp.queues.consume_from.keys())
     try:
-        fail_interrupted_jobs(sender.app.amqp.queues.consume_from.keys())
+        fail_interrupted_jobs(queues)
     except Exception:
         logger.error("Could not fail interrupted jobs", exc_info=True)
+    try:
+        resume_interrupted_runs(queues)
+    except Exception:
+        logger.error("Could not resume interrupted batch runs", exc_info=True)

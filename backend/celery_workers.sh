@@ -27,10 +27,15 @@ cd "$(dirname "$0")" || exit 1
 
 LOG_LEVEL="${CELERY_LOG_LEVEL:-info}"
 
+# Runs in its own background subshell. SIGTERM ends the loop, but the subshell
+# waits for its worker to exit first, so the script's own wait lasts as long
+# as the workers do and a second Ctrl-C still reaches force_stop.
 run_worker() {
     local name="$1"
     shift
-    while true; do
+    local stopping=""
+    trap 'stopping=1' TERM
+    while [ -z "$stopping" ]; do
         celery -A app.jobs.celery_app.celery worker \
             --loglevel="$LOG_LEVEL" \
             --pool=threads \
@@ -38,17 +43,39 @@ run_worker() {
             --without-gossip \
             --without-mingle \
             --disable-prefetch \
-            "$@"
-        echo "Celery worker '$name' exited with status $?; restarting in 5s..."
+            "$@" &
+        local pid=$! status
+        # A trapped signal cuts `wait` short while the worker is still up;
+        # once `wait` has reaped it, kill -0 finds nothing.
+        while true; do
+            wait "$pid"
+            status=$?
+            kill -0 "$pid" 2>/dev/null || break
+        done
+        [ -n "$stopping" ] && break
+        echo "Celery worker '$name' exited with status $status; restarting in 5s..."
         sleep 5
     done
 }
 
 # Ctrl-C or SIGTERM stops everything: the restart loops and the workers, which
-# share this script's process group. The loops die before the workers finish
-# their warm shutdown, so nothing restarts.
-shutdown() {
+# share this script's process group. Each loop ends once its worker has.
+#
+# A warm shutdown waits for every running task: the thread pool can't stop one
+# part-way. Library-wide batch runs stop between songs and resume on the next
+# start (app/jobs/_batch_runs.py), so the wait is one song. A second Ctrl-C
+# kills the workers outright; the next start fails the single-song jobs they
+# held and resumes their batch runs.
+force_stop() {
     trap '' INT TERM
+    echo "Killing the Celery workers now."
+    kill -KILL 0
+}
+
+shutdown() {
+    trap force_stop INT
+    trap '' TERM
+    echo "Stopping the Celery workers once their current tasks finish (Ctrl-C again to kill them now)..."
     kill -TERM 0 2>/dev/null
     wait
 }

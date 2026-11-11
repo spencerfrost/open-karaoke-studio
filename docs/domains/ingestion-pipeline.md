@@ -194,7 +194,7 @@ share the GPU. All workers run `--without-gossip --without-mingle` (single box, 
 heartbeats were producing false "missed heartbeat" warnings when a heavy task starved the GIL).
 Celery also forces the `spawn` multiprocessing start method, which CUDA requires.
 
-### When a worker dies
+### When a worker stops
 
 Native code in the GPU tasks (PyTorch's CUDA library) can segfault, which kills the worker
 process outright: no Python exception, no task failure, nothing in the Celery log. The kernel log
@@ -202,7 +202,7 @@ process outright: no Python exception, no task failure, nothing in the Celery lo
 
 - **The worker restarts.** `celery_workers.sh` runs each worker in its own restart loop, five
   seconds after it exits; Ctrl-C (or the container stopping) stops the loops and the workers
-  together.
+  together. Each loop waits for its worker to exit, so the script runs until the workers are gone.
 - **Its jobs fail.** The task a dead worker was running had already left the broker, so nothing
   would ever finish its job row. When a worker starts, a `worker_ready` handler in
   [jobs/celery_app.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/celery_app.py)
@@ -212,6 +212,40 @@ process outright: no Python exception, no task failure, nothing in the Celery lo
   on those queues: `download` and `separate` on `audio`, `align` on `lyrics` and `lyrics_backfill`. A failed download or
   separation marks the song `error` too; a failed alignment leaves the song playable with the
   lyrics it already had. Pending jobs are left alone, since their messages are still in the broker.
+- **Its batch runs carry on.** The same handler calls `resume_interrupted_runs` in
+  [jobs/_batch_runs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/_batch_runs.py)
+  when the worker consumes `enrichment`, where every `batch_*` task runs. Each run that is
+  `interrupted`, or still `running` (its task died with the old worker), has its task queued
+  again. A run saves the ids it works through (`batch_runs.item_ids`) when it starts, and a
+  resumed task skips the first `done + failed` of them. Runs that don't go song by song save no
+  ids and start over: lyrics alignment's queueing step, and the artist credits rebuild (one
+  transaction, its MusicBrainz lookups cached on disk). A lyrics alignment run already waiting on
+  its songs' jobs has nothing to resume and is skipped. This assumes one enrichment worker: a
+  second one started alongside would queue the first one's running runs again.
+
+A stop on purpose goes through Celery's warm shutdown, which waits for every running task:
+the thread pool can't stop a task part-way. A batch task is one task for the whole library,
+so between songs it checks Celery's shutdown flags (`worker_stopping`). Once they are set, it
+stops and marks its run `interrupted`, and the wait is one song. The loudness `ffmpeg` starts
+in its own session, so a Ctrl-C in the terminal lets the current song finish instead of killing it. A second Ctrl-C makes `celery_workers.sh` kill the workers
+outright (`SIGKILL`); that is the same as a crash, and the next start recovers it the same way.
+In prod, `docker stop` sends `SIGKILL` after its grace period, with the same result.
+
+A run's row is the only sign its worker died, so reading the admin job lists marks a `running`
+run that hasn't reported for 15 minutes `interrupted`. If its worker turns out to be alive, its
+next progress write marks it `running` again.
+
+**Pause** uses the same stop between songs, on purpose, to free the GPU (say, for a game).
+Pausing a running run marks it `pausing`; before its next song the task sees that (`run.each`
+reads the row), marks it `paused`, and gives back the GPU memory it used
+(`release_gpu_memory_now` in
+[gpu_idle_cleanup.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_idle_cleanup.py)
+instead of the 30-minute idle timeout; the CUDA context stays with the worker). A paused run
+isn't resumed when a worker starts, and a `pausing` run whose worker restarted is marked
+`paused`. **Resume** queues the task again and it carries on from its saved ids. A lyrics
+alignment run waiting on its songs pauses by taking the queued ones off the queue, and the
+`release_gpu_memory` task on the `lyrics` queue frees the lyrics worker's memory after the song
+it's aligning; Resume queues those songs again.
 
 ::: tip Operational gotcha
 Celery does not hot-reload — restart it after editing anything under `backend/app/jobs/` or the

@@ -3,6 +3,10 @@
 Each task takes the mode it runs in and the id of the batch_runs row the API
 created for it, and reports its progress there after every song. Which songs a
 mode selects is defined once, in app.services.batch_jobs.
+
+The song-by-song tasks take their ids from run.begin and loop over run.each,
+which is what lets a worker shutdown stop them between songs and a restarted
+worker resume them (see _batch_runs).
 """
 
 from typing import Optional
@@ -45,15 +49,14 @@ def batch_fingerprint_songs(
     counts = {"ok": 0, "no_audio": 0, "error": 0}
 
     with tracked_run(run_id) as run:
-        song_ids = _select("fingerprint", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("fingerprint", mode))
         logger.info(
             "batch_fingerprint_songs: processing %d songs (mode=%s)",
             len(song_ids),
             mode,
         )
 
-        for song_id in song_ids:
+        for song_id in run.each(song_ids):
             song_dir = config.BASE_LIBRARY_DIR / song_id
             original_path = song_dir / "original.mp3"
             instrumental_path = song_dir / "instrumental.mp3"
@@ -113,13 +116,12 @@ def batch_fetch_albums(mode: str = "missing", run_id: Optional[int] = None) -> d
     counts = {"found": 0, "no_cover": 0, "not_found": 0, "hand_set": 0, "error": 0}
 
     with tracked_run(run_id) as run:
-        song_ids = _select("song_albums", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("song_albums", mode))
         logger.info(
             "batch_fetch_albums: processing %d songs (mode=%s)", len(song_ids), mode
         )
 
-        for i, song_id in enumerate(song_ids):
+        for i, song_id in enumerate(run.each(song_ids)):
             if i > 0:
                 time.sleep(ALBUM_LOOKUP_GAP_SECONDS)
             try:
@@ -156,15 +158,14 @@ def batch_backfill_duration(
     skipped = 0
 
     with tracked_run(run_id) as run:
-        song_ids = _select("duration", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("duration", mode))
         logger.info(
             "batch_backfill_duration: processing %d songs (mode=%s)",
             len(song_ids),
             mode,
         )
 
-        for song_id in song_ids:
+        for song_id in run.each(song_ids):
             audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
             if not audio_path.exists():
                 skipped += 1
@@ -205,15 +206,14 @@ def batch_backfill_vocal_range(
     counts = {"ok": 0, "no_range": 0, "no_audio": 0, "error": 0}
 
     with tracked_run(run_id) as run:
-        song_ids = _select("vocal_range", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("vocal_range", mode))
         logger.info(
             "batch_backfill_vocal_range: processing %d songs (mode=%s)",
             len(song_ids),
             mode,
         )
 
-        for i, song_id in enumerate(song_ids, 1):
+        for i, song_id in enumerate(run.each(song_ids), 1):
             outcome = detect_and_store_vocal_range(song_id)
             counts[outcome] += 1
             run.song_done(ok=outcome != "error")
@@ -250,15 +250,14 @@ def batch_backfill_loudness(
     counts = {"ok": 0, "silent": 0, "no_audio": 0, "error": 0}
 
     with tracked_run(run_id) as run:
-        song_ids = _select("loudness", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("loudness", mode))
         logger.info(
             "batch_backfill_loudness: processing %d songs (mode=%s)",
             len(song_ids),
             mode,
         )
 
-        for i, song_id in enumerate(song_ids, 1):
+        for i, song_id in enumerate(run.each(song_ids), 1):
             outcome = detect_and_store_loudness(song_id)
             counts[outcome] += 1
             run.song_done(ok=outcome != "error")
@@ -291,15 +290,14 @@ def batch_backfill_singing_map(
     counts = {"ok": 0, "no_audio": 0, "error": 0}
 
     with tracked_run(run_id) as run:
-        song_ids = _select("singing_map", mode)
-        run.start(len(song_ids))
+        song_ids = run.begin(lambda: _select("singing_map", mode))
         logger.info(
             "batch_backfill_singing_map: processing %d songs (mode=%s)",
             len(song_ids),
             mode,
         )
 
-        for i, song_id in enumerate(song_ids, 1):
+        for i, song_id in enumerate(run.each(song_ids), 1):
             outcome = detect_and_store_singing_map(song_id)
             counts[outcome] += 1
             run.song_done(ok=outcome != "error")
@@ -337,12 +335,11 @@ def batch_fetch_artist_images(
     counts = {"fetched": 0, "not_found": 0, "errors": 0}
 
     with tracked_run(run_id) as run:
-        artist_ids = _select("artist_images", mode)
-        run.start(len(artist_ids))
+        artist_ids = run.begin(lambda: _select("artist_images", mode))
         logger.info("batch_fetch_artist_images: processing %d artists", len(artist_ids))
 
         service = ArtistImageService(FileService(), SessionLocal)
-        for artist_id in artist_ids:
+        for artist_id in run.each(artist_ids):
             try:
                 path = asyncio.run(service.get_or_fetch_artist_image(artist_id))
                 counts["fetched" if path is not None else "not_found"] += 1
@@ -368,8 +365,10 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     new songs and fixes people ask for go first. Otherwise it's exactly like a
     new song's alignment: in its own language, with remote candidates, the offset
     sweep and ASR re-timing, and respecting hand-picked and rejected lyrics.
-    The run row records how many were queued; alignment progress after that
-    shows in the alignment counts as each song finishes.
+    While queuing, the run counts songs queued. Then it hands off to the
+    queued jobs and stays running, counting them as they finish, until the
+    last one does (BatchRunRepository.refresh_handed_off). A song already
+    aligning isn't queued again and isn't waited on.
     """
     from app.db.database import get_db_session
     from app.jobs.lyrics_dispatch import enqueue_song_alignment
@@ -380,6 +379,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     reason_counts: dict = {}
     results: list = []
     queued = 0
+    queued_job_ids: list[str] = []
 
     with tracked_run(run_id) as run:
         with get_db_session() as session:
@@ -391,6 +391,8 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
                     song, include_remote=True, background=True
                 )
                 queued += int(dispatch["dispatched"])
+                if dispatch["dispatched"]:
+                    queued_job_ids.append(dispatch["jobId"])
                 run.song_done()
                 results.append(
                     {
@@ -402,6 +404,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
                         "reasons": reasons,
                     }
                 )
+            run.hand_off(queued_job_ids)
 
     logger.info(
         "batch_align_lyrics: mode=%s, queued %d of %d selected songs (%d with vocals), reasons=%s",

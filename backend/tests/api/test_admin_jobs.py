@@ -172,7 +172,7 @@ class TestListJobs:
         assert job["coverage"] == {"have": 1, "of": 3}
         assert job["modeCounts"]["preview"] == 3
 
-    def test_a_running_row_that_stopped_reporting_is_closed(self, client, db):
+    def test_a_running_row_that_stopped_reporting_is_interrupted(self, client, db):
         run = BatchRunRepository(db).create("loudness", "missing")
         run.status = "running"
         run.updated_at = utc_now() - STALE_AFTER - timedelta(minutes=1)
@@ -180,9 +180,9 @@ class TestListJobs:
 
         loudness = _jobs_by_kind(client)["loudness"]
 
-        assert loudness["activeRun"] is None
-        assert loudness["lastRun"]["status"] == "failed"
-        assert "Stopped reporting" in loudness["lastRun"]["error"]
+        # Still active: it carries on when the enrichment worker starts.
+        assert loudness["activeRun"]["status"] == "interrupted"
+        assert "Stopped reporting" in loudness["activeRun"]["error"]
 
 
 class TestRunJob:
@@ -395,3 +395,110 @@ class TestRunReport:
         run = BatchRunRepository(db).create("loudness", "missing")
 
         assert client.get(f"/api/admin/jobs/runs/{run.id}/report").status_code == 404
+
+
+class TestPauseRun:
+    def _run(self, db, status, **fields):
+        repo = BatchRunRepository(db)
+        run = repo.create("loudness", "missing")
+        run.status = status
+        run.celery_task_id = "task-0"
+        for name, value in fields.items():
+            setattr(run, name, value)
+        db.commit()
+        return run.id
+
+    def test_a_running_run_pauses_after_its_song(self, client, db, mock_celery):
+        run_id = self._run(db, "running")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/pause")
+
+        assert resp.status_code == 200
+        assert resp.json()["run"]["status"] == "pausing"
+        mock_celery.control.revoke.assert_not_called()
+
+    def test_a_queued_run_pauses_now_and_its_task_is_dropped(
+        self, client, db, mock_celery
+    ):
+        run_id = self._run(db, "queued")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/pause")
+
+        assert resp.json()["run"]["status"] == "paused"
+        mock_celery.control.revoke.assert_called_once_with("task-0")
+
+    def test_resume_queues_the_task_again(self, client, db, mock_celery):
+        run_id = self._run(db, "paused")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/resume")
+
+        assert resp.status_code == 200
+        assert resp.json()["run"]["status"] == "queued"
+        mock_celery.send_task.assert_called_once_with(
+            "batch_backfill_loudness", kwargs={"mode": "missing", "run_id": run_id}
+        )
+        db.expire_all()
+        assert db.get(BatchRun, run_id).celery_task_id == "task-1"
+
+    def test_resume_while_pausing_lets_the_task_carry_on(self, client, db, mock_celery):
+        run_id = self._run(db, "pausing")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/resume")
+
+        assert resp.json()["run"]["status"] == "running"
+        mock_celery.send_task.assert_not_called()
+
+    def test_a_finished_run_cannot_be_paused_or_resumed(self, client, db, mock_celery):
+        run_id = self._run(db, "done")
+
+        assert client.post(f"/api/admin/jobs/runs/{run_id}/pause").status_code == 409
+        assert client.post(f"/api/admin/jobs/runs/{run_id}/resume").status_code == 409
+
+    def test_a_paused_run_can_be_stopped(self, client, db, mock_celery):
+        run_id = self._run(db, "paused")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/cancel")
+
+        assert resp.json()["run"]["status"] == "cancelled"
+
+    def test_a_handed_off_run_takes_its_queued_songs_off_and_queues_them_on_resume(
+        self, client, db, mock_celery
+    ):
+        db.add_all([DbSong(id="s1", title="One"), DbSong(id="s2", title="Two")])
+        db.commit()
+        run_id = self._run(
+            db,
+            "running",
+            kind="lyrics_alignment",
+            mode="retime",
+            total=3,
+            report={"waitingOnJobs": ["j0", "j1", "j2"]},
+        )
+
+        with patch(
+            "app.jobs.lyrics_dispatch.take_queued_alignments_off",
+            return_value=["s1", "s2"],
+        ) as take_off:
+            resp = client.post(f"/api/admin/jobs/runs/{run_id}/pause")
+
+        take_off.assert_called_once_with(["j0", "j1", "j2"])
+        assert resp.json()["run"]["status"] == "paused"
+        # The worker that aligned gives its GPU memory back after its song.
+        mock_celery.send_task.assert_called_once_with(
+            "release_gpu_memory", kwargs={"reason": f"batch run {run_id} paused"}
+        )
+
+        with patch("app.jobs.lyrics_dispatch.enqueue_song_alignment") as enqueue:
+            resp = client.post(f"/api/admin/jobs/runs/{run_id}/resume")
+
+        assert resp.json()["run"]["status"] == "running"
+        assert sorted(call.args[0].id for call in enqueue.call_args_list) == [
+            "s1",
+            "s2",
+        ]
+        assert all(
+            call.kwargs == {"include_remote": False, "background": True}
+            for call in enqueue.call_args_list
+        )
+        db.expire_all()
+        assert db.get(BatchRun, run_id).report == {"waitingOnJobs": ["j0", "j1", "j2"]}

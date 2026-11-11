@@ -328,6 +328,9 @@ def detect_loudness(song_dir: Path) -> Optional[LoudnessResult]:
         text=True,
         timeout=_LOUDNESS_FFMPEG_TIMEOUT_SECONDS,
         check=False,
+        # Out of the terminal's process group: Ctrl-C stopping the worker lets
+        # this song finish, rather than killing ffmpeg mid-song.
+        start_new_session=True,
     )
     if completed.returncode != 0:
         raise RuntimeError(

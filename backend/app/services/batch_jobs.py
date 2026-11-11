@@ -242,6 +242,16 @@ def _iso(value) -> Optional[str]:
     return f"{value.isoformat()}Z" if value else None
 
 
+def _waiting(run: BatchRun) -> Optional[int]:
+    from app.repositories.batch_run_repository import BatchRunRepository
+
+    if run.status != "running" or run.kind != "lyrics_alignment":
+        return None  # Don't load the (deferred, possibly large) report for nothing.
+    if BatchRunRepository.waiting_on(run) is None:
+        return None
+    return max(0, (run.total or 0) - run.done)
+
+
 def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
     if run is None:
         return None
@@ -255,6 +265,8 @@ def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
         "failed": run.failed,
         "error": run.error,
         "issues": run.issues,
+        # Runs waiting on their songs' own jobs: how many haven't finished.
+        "waiting": _waiting(run),
         # Read off the job, not the column: reports are large.
         "hasReport": run.status == "done"
         and run.kind in JOBS

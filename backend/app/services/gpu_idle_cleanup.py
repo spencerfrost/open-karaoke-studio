@@ -129,6 +129,36 @@ def _run_idle_cleanup_if_still_idle(
     _release_gpu_resources(idle_for)
 
 
+def release_gpu_memory_now(reason: str) -> bool:
+    """Give the GPU memory this process holds back now, instead of after the
+    idle timeout. Used when a batch run pauses so the GPU is free for something
+    else. Skipped while other GPU work in this process is still running.
+    Returns whether it released.
+
+    Models aren't kept between tasks, so this frees everything but the CUDA
+    context, which stays with the process (a few hundred MB).
+    """
+    global _cleanup_timer
+
+    if not torch.cuda.is_available():
+        return False
+    with _lock:
+        if _active_gpu_users > 0:
+            logger.info(
+                "Not releasing GPU memory (%s): %d GPU jobs still running",
+                reason,
+                _active_gpu_users,
+            )
+            return False
+        if _cleanup_timer is not None:
+            _cleanup_timer.cancel()
+            _cleanup_timer = None
+        idle_for = time.monotonic() - _last_gpu_activity_monotonic
+    logger.info("Releasing GPU memory now (%s)", reason)
+    _release_gpu_resources(idle_for)
+    return True
+
+
 def _release_gpu_resources(idle_for_seconds: float) -> None:
     if not torch.cuda.is_available():
         return

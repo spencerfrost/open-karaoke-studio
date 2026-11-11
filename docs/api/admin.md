@@ -2,7 +2,7 @@
 
 Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs**, **Compare breaks** and **Compare word timing** pages. All of them are **admin only**.
 
-A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it.
+A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it. A run whose worker stops partway is `interrupted` and carries on from where it got to when the enrichment worker starts again (see [Ingestion pipeline](../domains/ingestion-pipeline.md#when-a-worker-stops)). A run can also be paused and resumed by hand, to free the GPU ([Pause a Run](#pause-a-run)).
 
 | Kind | What it does | Modes |
 |------|--------------|-------|
@@ -70,7 +70,7 @@ Counts for the admin landing page. Nothing here scans the library, so the page p
 GET /api/admin/jobs
 ```
 
-Before answering, any `running` row that hasn't reported progress for 15 minutes is closed as `failed` (its worker died).
+Before answering, any `running` row that hasn't reported progress for 15 minutes is marked `interrupted` (its worker died), with an `error` saying so, and a `pausing` row that quiet is marked `paused`. A lyrics alignment run waiting on its songs is left alone.
 
 #### Response
 
@@ -91,7 +91,7 @@ Before answering, any `running` row that hasn't reported progress for 15 minutes
 
 `lyrics_alignment` also has `repairReasons`: how many songs needing repair have each reason (see [Lyrics API](lyrics.md#library-alignment-stats)).
 
-Run `status` is `queued`, `running`, `done`, `failed` or `cancelled`. `total` is `null` until the task has selected its rows. `hasReport` is `true` on a finished run of a job that saves a report.
+Run `status` is `queued`, `running`, `interrupted`, `pausing`, `paused`, `done`, `failed` or `cancelled`; the first five are active, and a job with an active run can't start another. `total` is `null` until the task has selected its rows. `hasReport` is `true` on a finished run of a job that saves a report. A lyrics alignment run queues one alignment job per song and then waits on them: it stays `running`, `total` is the songs it queued, `done` how many have finished, and `waiting` how many haven't (`null` on every other run). It closes as `done` when the last one finishes. Reading the jobs list, recent runs or the overview brings these counts up to date.
 
 ### Recent Runs
 
@@ -123,7 +123,18 @@ The report a run saved, as `{ "run": {...}, "report": {...} }`; `404` if it has 
 POST /api/admin/jobs/runs/{run_id}/cancel
 ```
 
-Marks the run `cancelled` and revokes its task. A queued task never starts; a running one stops before its next song. `409` if the run already finished.
+Marks an active run `cancelled` and revokes its task. A queued task never starts; a running one stops before its next song; an interrupted one doesn't resume. A lyrics alignment run that is waiting on its songs takes the ones still queued off the queue; the one aligning now finishes. `409` if the run already finished. A paused run can be stopped too.
+
+### Pause a Run
+
+```http
+POST /api/admin/jobs/runs/{run_id}/pause
+POST /api/admin/jobs/runs/{run_id}/resume
+```
+
+Pause stops an active run without ending it, to free the GPU. A `running` run becomes `pausing`: its task finishes the song it's on, marks the run `paused` and gives back the GPU memory it used (the worker keeps its CUDA context, a few hundred MB). A `queued` or `interrupted` run is `paused` straight away and its task, if any, revoked. A lyrics alignment run waiting on its songs takes the ones still queued off the queue (kept in its `report` as `pausedSongIds`), is `paused` straight away, and asks the lyrics worker to give back its GPU memory after the song it's aligning. A paused run stays paused across worker restarts.
+
+Resume carries a paused run on from where it stopped: its task is queued again (`queued`), or an alignment run's paused songs are queued again under the same job ids (`running`). Resuming a `pausing` run before it stopped just marks it `running`, and its task carries on. Both return `{ "run": {...} }`; `409` if the run already finished (pause) or isn't paused (resume).
 
 ### Worker Status
 

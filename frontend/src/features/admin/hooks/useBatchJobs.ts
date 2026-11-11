@@ -20,7 +20,20 @@ export type RunMode =
   | "preview"
   | "apply";
 
-export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+/**
+ * "interrupted": the worker stopped mid-run; it carries on when the worker starts.
+ * "pausing": Pause was pressed; it stops after the song it's on.
+ * "paused": stopped by Pause, GPU memory given back; it waits for Resume.
+ */
+export type RunStatus =
+  | "queued"
+  | "running"
+  | "interrupted"
+  | "pausing"
+  | "paused"
+  | "done"
+  | "failed"
+  | "cancelled";
 
 export type RepairReason =
   | "no_word_timing"
@@ -41,6 +54,9 @@ export interface BatchRun {
   error: string | null;
   /** Hand-run scans only: how many problems the scan found. */
   issues: number | null;
+  /** A run that queued one job per song and waits on them (lyrics
+   * alignment): how many haven't finished. null for any other run. */
+  waiting: number | null;
   /** A finished run that saved a report (the artist credits rebuild). */
   hasReport: boolean;
   createdAt: string;
@@ -207,6 +223,23 @@ export function useRunJob() {
     },
   );
 }
+
+/** Pause or Resume a run; invalidates the jobs list and recent runs. */
+function useRunAction(action: "pause" | "resume") {
+  const queryClient = useQueryClient();
+  return useApiMutation<{ run: BatchRun }, number>(
+    `admin/jobs/runs/:id/${action}`,
+    "post",
+    {
+      mutationFn: (runId) =>
+        apiSend(`admin/jobs/runs/${runId}/${action}`, "post"),
+      onSettled: () => queryClient.invalidateQueries({ queryKey: JOBS_KEY }),
+    },
+  );
+}
+
+export const usePauseRun = () => useRunAction("pause");
+export const useResumeRun = () => useRunAction("resume");
 
 export function useCancelRun() {
   const queryClient = useQueryClient();

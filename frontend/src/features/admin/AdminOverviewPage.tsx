@@ -176,9 +176,15 @@ const RunningNow: React.FC<{ overview: AdminOverview }> = ({ overview }) => {
                 detail={
                   run.status === "queued"
                     ? "Waiting for the worker"
-                    : run.total === null
-                      ? "Starting"
-                      : `${handled.toLocaleString()} of ${countOf(run.total, info.unit)}`
+                    : run.status === "interrupted"
+                      ? `Stopped with the worker at ${handled.toLocaleString()} of ${countOf(run.total ?? 0, info.unit)}`
+                      : run.status === "pausing"
+                        ? "Pausing after this song"
+                        : run.status === "paused"
+                          ? `Paused at ${handled.toLocaleString()} of ${countOf(run.total ?? 0, info.unit)}`
+                          : run.total === null
+                            ? "Starting"
+                            : `${handled.toLocaleString()} of ${countOf(run.total, info.unit)}`
                 }
                 percent={run.total ? (handled / run.total) * 100 : undefined}
               />

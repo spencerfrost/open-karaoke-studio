@@ -16,7 +16,10 @@ def _run_with(*, vocals, dispatched):
         patch("app.services.lyrics_repair.FileService") as mock_files,
         patch(
             "app.jobs.lyrics_dispatch.enqueue_song_alignment",
-            side_effect=lambda song, **_: {"dispatched": dispatched[song.id]},
+            side_effect=lambda song, **_: {
+                "dispatched": dispatched[song.id],
+                "jobId": f"lyrics-align:{song.id}",
+            },
         ) as mock_enqueue,
     ):
         mock_files.return_value.get_vocals_path.side_effect = (

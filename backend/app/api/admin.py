@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_db, require_admin
 from app.db.models import DbSong, User
 from app.jobs.celery_app import celery
-from app.repositories.batch_run_repository import BatchRunRepository
+from app.repositories.batch_run_repository import (
+    ACTIVE_STATUSES,
+    BatchRunRepository,
+)
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import SongResponse
 from app.services.admin_overview import build_overview
@@ -54,7 +57,8 @@ def list_jobs(
     """Every batch job: what it covers, how many each mode would run on, its
     last finished run and any run queued or in progress."""
     repo = BatchRunRepository(db)
-    repo.close_stale()
+    repo.refresh_handed_off()
+    repo.interrupt_stale()
     jobs = []
     for job in JOBS.values():
         jobs.append(
@@ -76,11 +80,10 @@ def list_runs(
     current_user: User = Depends(require_admin),
 ):
     """Recent runs of every job, newest first."""
+    repo = BatchRunRepository(db)
+    repo.refresh_handed_off()
     return {
-        "runs": [
-            serialize_run(run)
-            for run in BatchRunRepository(db).recent(limit, kinds=JOBS.keys())
-        ]
+        "runs": [serialize_run(run) for run in repo.recent(limit, kinds=JOBS.keys())]
     }
 
 
@@ -100,7 +103,7 @@ def run_job(
         raise HTTPException(status_code=400, detail=str(e))
 
     repo = BatchRunRepository(db)
-    repo.close_stale()
+    repo.interrupt_stale()
     if repo.active(kind) is not None:
         raise HTTPException(status_code=409, detail="This job is already running")
 
@@ -137,15 +140,23 @@ def cancel_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Stop a queued or running run. A running one stops before its next song."""
+    """Stop an active run (queued, running or interrupted). A running one stops
+    before its next song; an interrupted one won't resume;
+    one waiting on its songs' own jobs takes the ones still queued off the
+    queue, and the one aligning now finishes."""
+    from app.jobs.lyrics_dispatch import cancel_queued_alignments
+
     repo = BatchRunRepository(db)
     run = repo.get(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="No such run")
-    if run.status not in ("queued", "running"):
+    if run.status not in ACTIVE_STATUSES:
         raise HTTPException(status_code=409, detail="This run has already finished")
 
+    waiting_on = repo.waiting_on(run)
     repo.cancel(run)
+    if waiting_on:
+        cancel_queued_alignments(waiting_on)
     if run.celery_task_id:
         # Drops it if it hasn't started. A started task notices the
         # cancelled row itself, so there's no need to kill the worker.
@@ -154,6 +165,97 @@ def cancel_run(
         except Exception:
             logger.warning("Couldn't revoke task %s", run.celery_task_id, exc_info=True)
     logger.info("Cancelled batch run %s (%s)", run.id, run.kind)
+    return {"run": serialize_run(run)}
+
+
+@router.post("/jobs/runs/{run_id}/pause")
+def pause_run(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Pause an active run, to free the GPU. A running one stops after the song
+    it's on and gives back its GPU memory; one waiting on its songs' own jobs
+    takes the queued ones off the queue, and the one aligning now finishes. A
+    paused run stays paused, even across worker restarts, until Resume."""
+    from app.jobs.lyrics_dispatch import take_queued_alignments_off
+
+    repo = BatchRunRepository(db)
+    run = repo.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="No such run")
+    if run.status not in ACTIVE_STATUSES:
+        raise HTTPException(status_code=409, detail="This run has already finished")
+
+    waiting_on = repo.waiting_on(run)
+    if waiting_on is not None:
+        repo.pause_handed_off(run, take_queued_alignments_off(waiting_on))
+        try:
+            celery.send_task(
+                "release_gpu_memory", kwargs={"reason": f"batch run {run.id} paused"}
+            )
+        except Exception:
+            logger.warning("Couldn't queue the GPU memory release", exc_info=True)
+    else:
+        was_queued = run.status == "queued"
+        repo.pause(run)
+        if was_queued and run.celery_task_id:
+            # Not started: drop it, and Resume queues a new one. One that
+            # starts anyway sees the paused row and stops.
+            try:
+                celery.control.revoke(run.celery_task_id)
+            except Exception:
+                logger.warning(
+                    "Couldn't revoke task %s", run.celery_task_id, exc_info=True
+                )
+    logger.info("Paused batch run %s (%s)", run.id, run.kind)
+    return {"run": serialize_run(run)}
+
+
+@router.post("/jobs/runs/{run_id}/resume")
+def resume_run(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Carry on a paused run from where it stopped."""
+    from app.jobs.lyrics_dispatch import enqueue_song_alignment
+    from app.repositories.batch_run_repository import CannotPause
+
+    repo = BatchRunRepository(db)
+    run = repo.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="No such run")
+    job = JOBS.get(run.kind)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"No batch job called {run.kind}")
+
+    paused_songs = repo.paused_song_ids(run) if run.status == "paused" else None
+    try:
+        needs_task = repo.unpause(run)
+    except CannotPause as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if not needs_task:
+        return {"run": serialize_run(run)}
+
+    if paused_songs is not None:
+        # A handed-off run: queue its songs' jobs again, under the same job
+        # ids it's waiting on.
+        for song in db.query(DbSong).filter(DbSong.id.in_(paused_songs)).all():
+            enqueue_song_alignment(
+                song, include_remote=run.mode != "retime", background=True
+            )
+    else:
+        try:
+            task = celery.send_task(
+                job.task_name, kwargs={"mode": run.mode, "run_id": run.id}
+            )
+        except Exception as e:
+            logger.error("Couldn't queue batch run %s: %s", run.id, e, exc_info=True)
+            repo.pause(run)
+            raise HTTPException(status_code=503, detail="Couldn't reach the job queue")
+        repo.set_task_id(run, task.id)
+    logger.info("Resumed batch run %s (%s)", run.id, run.kind)
     return {"run": serialize_run(run)}
 
 

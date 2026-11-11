@@ -21,6 +21,11 @@ class BatchRun(Base):
     admin page shows it straight away; the task moves it to "running",
     counts songs as it goes and closes it as "done" or "failed".
 
+    A run whose worker stops (shutting down between songs, or dying) is
+    "interrupted". It is still active: the next enrichment worker to start
+    queues its task again, and the task carries on from `item_ids` after the
+    done + failed it had already handled (see app/jobs/_batch_runs.py).
+
     The hand-run scans (disk check, metadata, duplicates) run inside their
     request, so they write one finished row with `issues` once they're done.
     """
@@ -30,9 +35,9 @@ class BatchRun(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     # Which job: a key of app.services.batch_jobs.JOBS.
     kind = Column(String, nullable=False, index=True)
-    # "missing", "all", or a job's own mode (alignment has "repair").
+    # "missing", "all", or a job's own mode (alignment has "repair" and "retime").
     mode = Column(String, nullable=False)
-    # "queued" | "running" | "done" | "failed"
+    # "queued" | "running" | "interrupted" | "done" | "failed" | "cancelled"
     status = Column(String, nullable=False, default="queued", index=True)
     celery_task_id = Column(String, nullable=True)
 
@@ -42,6 +47,11 @@ class BatchRun(Base):
     done = Column(Integer, nullable=False, default=0)
     # Hit an error.
     failed = Column(Integer, nullable=False, default=0)
+    # The ids the run works through, in order, saved when it starts: it has
+    # handled the first done + failed of them. None for runs that don't work
+    # song by song (lyrics alignment queues jobs; the credits rebuild is one
+    # transaction), which start over when resumed.
+    item_ids = deferred(Column(JSON, nullable=True))
     # Why the whole run stopped, when it did.
     error = Column(Text, nullable=True)
     # Hand-run scans only: how many problems the scan found. None for jobs.

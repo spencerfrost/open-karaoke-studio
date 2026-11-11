@@ -1,6 +1,6 @@
 import React from "react";
 import { toast } from "sonner";
-import { Loader2, Square } from "lucide-react";
+import { Loader2, Pause, Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -18,7 +18,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   useBatchJobs,
   useCancelRun,
+  usePauseRun,
   useRecentRuns,
+  useResumeRun,
   useRunJob,
   type BatchJob,
   type BatchRun,
@@ -50,6 +52,9 @@ const REPAIR_REASON_LABEL: Record<RepairReason, string> = {
 const STATUS_LABEL: Record<RunStatus, string> = {
   queued: "Waiting",
   running: "Running",
+  interrupted: "Interrupted",
+  pausing: "Pausing",
+  paused: "Paused",
   done: "Finished",
   failed: "Failed",
   cancelled: "Stopped",
@@ -60,6 +65,9 @@ const STATUS_LABEL: Record<RunStatus, string> = {
 const STATUS_CLASS: Record<RunStatus, string> = {
   queued: "text-foreground-dim",
   running: "text-primary",
+  interrupted: "text-foreground-dim",
+  pausing: "text-foreground-dim",
+  paused: "text-foreground-dim",
   done: "text-foreground",
   failed: "rounded bg-destructive px-1.5 py-0.5 text-destructive-foreground",
   cancelled: "text-foreground-dim",
@@ -199,7 +207,10 @@ const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
   info,
 }) => {
   const cancelRun = useCancelRun();
+  const pauseRun = usePauseRun();
+  const resumeRun = useResumeRun();
   const handled = run.done + run.failed;
+  const paused = run.status === "paused" || run.status === "pausing";
   const percent =
     run.total && run.total > 0 ? (handled / run.total) * 100 : undefined;
 
@@ -209,20 +220,52 @@ const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
       onError: (error) => toast.error(error.message),
     });
 
+  const togglePause = () =>
+    (paused ? resumeRun : pauseRun).mutate(run.id, {
+      onSuccess: () =>
+        toast.success(`${info.name}: ${paused ? "resuming" : "pausing"}`),
+      onError: (error) => toast.error(error.message),
+    });
+
   return (
     <div className="flex items-center gap-3">
-      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+      {run.status === "interrupted" || paused ? (
+        <Pause className="h-4 w-4 shrink-0 text-foreground-dim" />
+      ) : (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+      )}
       <div className="min-w-0 flex-1 space-y-1">
         <Progress value={percent ?? 0} className="h-1.5" />
         <p className="text-xs text-foreground-dim">
           {run.status === "queued"
             ? "Waiting for the worker…"
-            : run.total === null
-              ? "Starting…"
-              : `${handled.toLocaleString()} of ${countOf(run.total, info.unit)}`}
+            : run.status === "interrupted"
+              ? `Stopped with the worker at ${handled.toLocaleString()} of ${countOf(run.total ?? 0, info.unit)} · carries on when the worker starts`
+              : run.status === "pausing"
+                ? `Pausing after this song · ${handled.toLocaleString()} of ${countOf(run.total ?? 0, info.unit)} done`
+                : run.status === "paused"
+                  ? `Paused at ${handled.toLocaleString()} of ${countOf(run.total ?? 0, info.unit)} · GPU free until you resume`
+                  : run.total === null
+                    ? "Starting…"
+                    : run.waiting !== null
+                      ? `${handled.toLocaleString()} of ${countOf(run.total, info.unit)} done · ${run.waiting.toLocaleString()} waiting their turn`
+                      : `${handled.toLocaleString()} of ${countOf(run.total, info.unit)}`}
           {run.failed > 0 && ` · ${run.failed.toLocaleString()} failed`}
         </p>
       </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={togglePause}
+        disabled={pauseRun.isPending || resumeRun.isPending}
+      >
+        {paused ? (
+          <Play className="mr-1.5 h-3 w-3" />
+        ) : (
+          <Pause className="mr-1.5 h-3 w-3" />
+        )}
+        {paused ? "Resume" : "Pause"}
+      </Button>
       <Button
         size="sm"
         variant="ghost"

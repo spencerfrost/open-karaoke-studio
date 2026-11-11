@@ -81,7 +81,8 @@ def _songs_added(db: Session) -> dict:
 
 def build_overview(db: Session) -> dict:
     repo = BatchRunRepository(db)
-    repo.close_stale()
+    repo.refresh_handed_off()
+    repo.interrupt_stale()
 
     jobs = []
     alignment_repair = 0
