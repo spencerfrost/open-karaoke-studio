@@ -173,13 +173,16 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
         )}
 
         {facts.length > 0 && (
-          <dl className="mt-[22px] grid grid-cols-3 gap-3 border-t border-border/30 pt-[18px]">
+          // Each fact takes its own width: a range ("C♯4–F♯5") is twice a
+          // length or a year, and equal thirds cut it off. They wrap rather
+          // than truncate if they ever don't fit.
+          <dl className="mt-[22px] flex flex-wrap gap-x-8 gap-y-3 border-t border-border/30 pt-[18px]">
             {facts.map(([label, value]) => (
-              <div key={label} className="min-w-0">
+              <div key={label}>
                 <dt className="font-display text-sm uppercase tracking-[0.14em] text-foreground-faint">
                   {label}
                 </dt>
-                <dd className="mt-0.5 truncate font-display text-[26px] font-bold tabular-nums text-foreground">
+                <dd className="mt-0.5 whitespace-nowrap font-display text-[26px] font-bold tabular-nums text-foreground">
                   {value}
                 </dd>
               </div>
