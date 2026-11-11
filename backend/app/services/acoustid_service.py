@@ -1,12 +1,14 @@
 import logging
 import re
 from pathlib import Path
+from typing import cast
 
 import acoustid
 
 from app.config import get_config
 from app.repositories.song_repository import SongRepository
 from app.services.artist_parsing import normalize_artist_name, parse_song_artists
+from app.utils.song_titles import same_length
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,8 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
     Each candidate contains:
       score, recordingId, title, artist, releases (list of all album titles),
       year (earliest release year), release_type_priority (0=LP, 1=EP, 2=Single, 3=unknown),
-      album (title from the best-typed release)
+      album (title from the best-typed release),
+      duration (recording length in seconds, None if MusicBrainz has none)
     """
     candidates = []
     if raw_data.get("status") != "ok" or "results" not in raw_data:
@@ -65,6 +68,7 @@ def _parse_candidates(raw_data: dict) -> list[dict]:
                     "year": year,
                     "release_type_priority": best_priority,
                     "album": best_album,
+                    "duration": recording.get("duration"),
                 }
             )
 
@@ -160,6 +164,10 @@ class AcoustIdService:
           as a suggestion for a person to accept or turn down ("suggested");
         - tied candidates that don't agree are narrowed by album, else "ambiguous".
 
+        A candidate whose length is far from the song's is another version of
+        it (the original and an extended remake share most of a fingerprint),
+        so it's never linked or suggested.
+
         A song whose names a person confirmed keeps its names and recording;
         AcoustID only links a recording to it when there's none and it agrees.
 
@@ -203,6 +211,19 @@ class AcoustIdService:
                 "AcoustID: song %s disappeared while fingerprinting", song_id
             )
             return "not_found"
+
+        right_length = [
+            c
+            for c in candidates
+            if same_length(cast(float | None, song.duration), c["duration"])
+        ]
+        if not right_length:
+            logger.info(
+                "AcoustID: every match for song %s is a different length; not used",
+                song_id,
+            )
+            return self._unresolved(song_id, "no_match", score=candidates[0]["score"])
+        candidates = right_length
 
         best_score = candidates[0]["score"]
         top = [c for c in candidates if c["score"] == best_score]

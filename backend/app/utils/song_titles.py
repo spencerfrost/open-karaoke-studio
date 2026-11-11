@@ -11,6 +11,8 @@ covers and remakes under the song they copy.
 - song_key: title_key, also without a " - Live" style suffix, so every
   version of a song shares one key.
 - version_markers: the words in a title that make a different recording.
+- same_length: whether two lengths can be one recording, so an extended remake
+  isn't taken for the original it shares a name and most of its audio with.
 """
 
 import re
@@ -63,3 +65,17 @@ def version_markers(title: str) -> set[str]:
     if "remixed" in words:
         words.add("remix")
     return words & VERSION_MARKERS
+
+
+# Lengths further apart than this are different versions (an extended remake,
+# a radio cut). Within it: a video's lead-in silence, a longer fade.
+_LENGTH_TOLERANCE_SECONDS = 15.0
+_LENGTH_TOLERANCE_RATIO = 0.1
+
+
+def same_length(a: float | None, b: float | None) -> bool:
+    """False only when both lengths (seconds) are known and too far apart."""
+    if not a or not b:
+        return True
+    tolerance = max(_LENGTH_TOLERANCE_SECONDS, max(a, b) * _LENGTH_TOLERANCE_RATIO)
+    return abs(a - b) <= tolerance

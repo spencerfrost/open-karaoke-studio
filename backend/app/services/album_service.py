@@ -7,8 +7,8 @@ always come from the same release.
 
     1. YouTube Music: the album of the exact video the song was downloaded
        from (right by construction). Plain uploads aren't on an album.
-    2. Deezer: a title + artist search, accepted only when the artist and
-       title match (see deezer_result_matches).
+    2. Deezer: a title + artist search, accepted only when the artist, title
+       and length match (see deezer_result_matches).
     3. Nothing: the song keeps its YouTube thumbnail and is marked checked.
 
 Songs whose album a person set (album_hand_set_at) are never looked up.
@@ -17,7 +17,7 @@ Songs whose album a person set (album_hand_set_at) are never looked up.
 import logging
 import re
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 import requests
 
@@ -27,6 +27,7 @@ from app.utils.song_titles import (
     STRICT_MARKERS,
     artist_key,
     normalize,
+    same_length,
     title_key,
     version_markers,
 )
@@ -73,7 +74,9 @@ def find_album(song: DbSong) -> AlbumMatch | None:
         if match:
             return match
     if song.title and song.artist:
-        return _from_deezer(song.title, primary_artist_name(song))
+        return _from_deezer(
+            song.title, primary_artist_name(song), cast(float | None, song.duration)
+        )
     return None
 
 
@@ -148,13 +151,17 @@ def _youtube_music_explicit(ytmusic, video_id: str, title: str, artist: str):
     return None
 
 
-def _from_deezer(title: str, artist: str) -> AlbumMatch | None:
-    """The first Deezer result whose artist and title match the song's."""
+def _from_deezer(
+    title: str, artist: str, duration: float | None = None
+) -> AlbumMatch | None:
+    """The first Deezer result whose artist, title and length match the song's."""
     # Deezer's artist:"…" filter returns nothing (2026-10), so this is a plain
     # search and the match rules do the filtering.
     data = _deezer_get(_DEEZER_SEARCH, {"q": f"{artist} {title}", "limit": 25})
     for item in data.get("data", []):
-        if not deezer_result_matches(item, title=title, artist=artist):
+        if not deezer_result_matches(
+            item, title=title, artist=artist, duration=duration
+        ):
             continue
         album = item.get("album") or {}
         if not album.get("id"):
@@ -221,8 +228,16 @@ REJECTED_ALBUM_WORDS = (
 )
 
 
-def deezer_result_matches(item: dict, *, title: str, artist: str) -> bool:
-    """Whether a Deezer search result is this song on its own release."""
+def deezer_result_matches(
+    item: dict, *, title: str, artist: str, duration: float | None = None
+) -> bool:
+    """Whether a Deezer search result is this song on its own release.
+
+    `duration` is the song's length in seconds; a result far off it is another
+    version (an extended remake shares the title and artist).
+    """
+    if not same_length(duration, item.get("duration")):
+        return False
     deezer_artist = (item.get("artist") or {}).get("name") or ""
     if not artist_key(artist) or artist_key(deezer_artist) != artist_key(artist):
         return False

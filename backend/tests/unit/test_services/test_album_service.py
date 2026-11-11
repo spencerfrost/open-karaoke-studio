@@ -18,9 +18,16 @@ from app.services.album_service import (
 ART = "https://yt3.googleusercontent.com/abc=w{0}-h{0}-l90-rj"
 
 
-def _song(title="Sweet Emotion", artist="Aerosmith", video_id="vid1", credits=()):
+def _song(
+    title="Sweet Emotion",
+    artist="Aerosmith",
+    video_id="vid1",
+    credits=(),
+    duration=None,
+):
     return SimpleNamespace(
         title=title,
+        duration=duration,
         artist=artist,
         video_id=video_id,
         song_artists=[
@@ -62,8 +69,10 @@ def _deezer_item(
     title_short=None,
     title_version="",
     explicit=False,
+    duration=None,
 ):
     return {
+        "duration": duration,
         "title": title,
         "title_short": title_short or title,
         "title_version": title_version,
@@ -200,6 +209,30 @@ def _matches(item, title="Sweet Emotion", artist="Aerosmith"):
 class TestDeezerMatchRules:
     def test_same_artist_and_title_match(self):
         assert _matches(_deezer_item())
+
+    def test_a_different_length_is_another_version(self):
+        # The original and its extended remake share the title and artist.
+        remake = _deezer_item(
+            title="Ma Meilleure Ennemie", artist="Stromae", duration=202
+        )
+        assert not deezer_result_matches(
+            remake, title="Ma Meilleure Ennemie", artist="Stromae", duration=148.0
+        )
+        original = _deezer_item(
+            title="Ma Meilleure Ennemie", artist="Stromae", duration=148
+        )
+        assert deezer_result_matches(
+            original, title="Ma Meilleure Ennemie", artist="Stromae", duration=148.0
+        )
+
+    def test_unknown_lengths_dont_block_a_match(self):
+        assert deezer_result_matches(
+            _deezer_item(duration=None),
+            title="Sweet Emotion",
+            artist="Aerosmith",
+            duration=270.0,
+        )
+        assert _matches(_deezer_item(duration=270))
 
     def test_case_accents_and_punctuation_are_ignored(self):
         item = _deezer_item(title="Beyonce", artist="Beyoncé")

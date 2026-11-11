@@ -31,14 +31,17 @@ def _raw_response(*recordings_per_score):
     return {"status": "ok", "results": results}
 
 
-def _rec(mbid, title, artist, albums=None):
+def _rec(mbid, title, artist, albums=None, duration=None):
     """Shorthand for building a recording dict."""
-    return {
+    rec = {
         "id": mbid,
         "title": title,
         "artists": [{"name": artist}],
         "releases": [{"title": a} for a in (albums or [])],
     }
+    if duration is not None:
+        rec["duration"] = duration
+    return rec
 
 
 def _song(
@@ -48,9 +51,11 @@ def _song(
     confirmed=False,
     recording_id=None,
     show_hand_set=False,
+    duration=None,
 ):
     return SimpleNamespace(
         id="song-1",
+        duration=duration,
         title=title,
         artist=artist,
         album=album,
@@ -200,6 +205,58 @@ def test_agreeing_ties_prefer_the_songs_album(svc, song_repo, mock_config):
     )
     _run(svc, mock_config, raw)
     assert song_repo.update.call_args.kwargs["musicbrainz_recording_id"] == "mbid-album"
+
+
+def test_agreeing_ties_link_the_version_of_the_songs_length(
+    svc, song_repo, mock_config
+):
+    # The original and its extended remake share most of a fingerprint and tie.
+    song_repo.fetch.return_value = _song(
+        title="Ma Meilleure Ennemie", artist="Stromae, Pomme", duration=148.0
+    )
+    raw = _raw_response(
+        (
+            0.99,
+            [
+                _rec(
+                    "mbid-extended", "Ma Meilleure Ennemie", "Stromae", duration=201.9
+                ),
+                _rec(
+                    "mbid-original", "Ma meilleure ennemie", "Stromae", duration=148.0
+                ),
+            ],
+        )
+    )
+    assert _run(svc, mock_config, raw) == "matched"
+    assert (
+        song_repo.update.call_args.kwargs["musicbrainz_recording_id"] == "mbid-original"
+    )
+
+
+def test_only_a_different_length_is_no_match(svc, song_repo, mock_config):
+    song_repo.fetch.return_value = _song(duration=148.0, recording_id="mbid-old")
+    raw = _raw_response(
+        (0.99, [_rec("mbid-extended", "Hero of the Day", "Metallica", duration=202)])
+    )
+    assert _run(svc, mock_config, raw) == "no_match"
+    assert song_repo.update.call_args.kwargs["musicbrainz_recording_id"] is None
+
+
+def test_a_small_length_difference_still_links(svc, song_repo, mock_config):
+    # A video's few seconds of silence or a fade aren't another version.
+    song_repo.fetch.return_value = _song(duration=270.0)
+    raw = _raw_response(
+        (0.98, [_rec("mbid-hero", "Hero of the Day", "Metallica", duration=262)])
+    )
+    assert _run(svc, mock_config, raw) == "matched"
+
+
+def test_unknown_lengths_dont_block_a_link(svc, song_repo, mock_config):
+    song_repo.fetch.return_value = _song(duration=None)
+    raw = _raw_response(
+        (0.98, [_rec("mbid-hero", "Hero of the Day", "Metallica", duration=262)])
+    )
+    assert _run(svc, mock_config, raw) == "matched"
 
 
 def test_confirmed_song_keeps_the_recording_a_person_picked(

@@ -242,7 +242,9 @@ flowchart TD
     Key -->|no| Failed["failed"]
     Key -->|yes| Any{"any candidates?"}
     Any -->|no| NoMatch["no_match"]
-    Any -->|yes| Top["top = candidates tied at best score"]
+    Any -->|yes| Length{"any within 15 s / 10%<br/>of the song's length?"}
+    Length -->|no| NoMatch
+    Length -->|yes| Top["top = those tied at best score"]
     Top --> Agree{"any of top agree with<br/>title + artist?<br/><i>_agrees(): ignores case, brackets,<br/>'- 2011 Remaster', 'feat.' guests</i>"}
     Agree -->|yes| Link["link recording<br/>(album match breaks ties)<br/><b>matched</b>"]
     Agree -->|no| Score{"best score ≥ 0.9?"}
@@ -255,6 +257,11 @@ flowchart TD
 
     Link --> Credits["→ enrich_song_artist_credits"]
 ```
+
+Candidates whose MusicBrainz length is more than 15 s (or 10%, whichever is larger) off the
+song's own length are dropped first. A remake that extends an original (the Coldplay version of
+"Ma Meilleure Ennemie") shares most of its fingerprint and ties with it, so without this the
+wrong version gets linked. A missing length on either side doesn't drop a candidate.
 
 A song a person has confirmed is treated specially in `_unresolved()`: anything short of
 `failed` is recorded as `matched` (if it keeps a recording) or `skipped`, so it never drops back
@@ -414,8 +421,10 @@ release:
    carry it). Music videos and plain uploads have no album and fall through.
 2. **Deezer.** A plain `artist title` search (Deezer's `artist:"…"` filter returns nothing),
    taking the first result whose artist and title match: names normalized, "feat." credits
-   dropped, version markers (live, acoustic, remix, demo…) agreeing, and karaoke, tribute,
-   "in the style of", instrumental and 8-bit albums rejected. Art is `cover_xl` (1000px).
+   dropped, version markers (live, acoustic, remix, demo…) agreeing, the length within 15 s (or
+   10%) of the song's, and karaoke, tribute, "in the style of", instrumental and 8-bit albums
+   rejected. The length check keeps an extended remake under the same name from standing in for
+   the original. Art is `cover_xl` (1000px).
 3. **Nothing.** The song keeps its YouTube thumbnail and `album_checked_at` is set.
 
 Albums are keyed by `(source, source_id)`, so songs on the same release share one row and one
