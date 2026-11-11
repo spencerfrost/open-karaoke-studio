@@ -39,6 +39,12 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
       "Finds each song's album and cover on YouTube Music from the exact video it was downloaded from, or on Deezer when that fails.",
     unit: ["song", "songs"],
   },
+  album_art_videos: {
+    name: "Album-art videos",
+    description:
+      "Marks the songs whose YouTube video is just the album cover over the audio, so the stage shows that picture once. Reads what was saved at download; asks YouTube only for songs without it.",
+    unit: ["song", "songs"],
+  },
   fingerprint: {
     name: "AcoustID fingerprints",
     description:

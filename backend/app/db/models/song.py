@@ -33,6 +33,10 @@ class DbSong(Base):
     source = Column(String, nullable=True)
     source_url = Column(String, nullable=True)
     video_id = Column(String, nullable=True)
+    # The video is YouTube's upload of an album track ("Provided to YouTube
+    # by ..."): its picture is the album cover, so the video has no still of
+    # its own. None until the download (or the backfill) has looked.
+    video_is_album_art = Column(Boolean, nullable=True)
 
     # Core metadata
     album = Column(String, nullable=True)
@@ -158,6 +162,7 @@ class DbSong(Base):
             "thumbnail": self.thumbnail_path,
             # Source info
             "videoId": self.video_id,
+            "videoIsAlbumArt": self.video_is_album_art,
             "sourceUrl": self.source_url,
             "source": self.source,
             # Metadata

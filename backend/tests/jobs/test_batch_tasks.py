@@ -1,10 +1,12 @@
 """Tests for the batch tasks that the loudness, vocal range and alignment files don't
-cover: fingerprinting, albums, duration and artist images, plus run tracking.
+cover: fingerprinting, albums, duration, album-art videos and artist images, plus
+run tracking.
 
 Song and artist rows are real. Outside work is mocked: AcoustID, album lookups,
-Discogs, librosa and Celery dispatch.
+Discogs, librosa, yt-dlp and Celery dispatch.
 """
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -13,6 +15,7 @@ from app.db.database import SessionLocal
 from app.db.models import BatchRun, DbArtist
 from app.jobs.batch_tasks import (
     batch_backfill_duration,
+    batch_detect_album_art_videos,
     batch_fetch_albums,
     batch_fetch_artist_images,
     batch_fingerprint_songs,
@@ -145,6 +148,45 @@ class TestBatchBackfillDuration:
         assert fetch_song("has-audio").duration == 191.5
         assert fetch_song("no-audio").duration is None
         assert fetch_song("known").duration == 200.0
+
+
+class TestBatchDetectAlbumArtVideos:
+    def test_reads_saved_info_and_asks_youtube_without_it(
+        self, add_song, fetch_song, library
+    ):
+        add_song("track", video_id="v-track")
+        add_song("video", video_id="v-video")
+        add_song("no-info", video_id="v-no-info")
+        add_song("broken", video_id="v-broken")
+        add_song("known", video_id="v-known", video_is_album_art=False)
+        add_song("upload")  # no video: not covered
+        for song_id, description in (
+            ("track", "Provided to YouTube by Universal Music Group\n\nTrack"),
+            ("video", "Official music video"),
+        ):
+            (library / song_id).mkdir()
+            (library / song_id / "original.info.json").write_text(
+                json.dumps({"description": description})
+            )
+        (library / "broken").mkdir()
+        (library / "broken" / "original.info.json").write_text("{not json")
+
+        with patch("app.services.youtube_service.YouTubeService") as service_class:
+            service_class.return_value.extract_video_info.return_value = {
+                "channel": "ABBA - Topic"
+            }
+            result = batch_detect_album_art_videos(mode="missing")
+
+        assert result == {"album_art": 2, "own_picture": 1, "error": 1}
+        service_class.return_value.extract_video_info.assert_called_once_with(
+            "v-no-info"
+        )
+        assert fetch_song("track").video_is_album_art is True
+        assert fetch_song("video").video_is_album_art is False
+        assert fetch_song("no-info").video_is_album_art is True
+        assert fetch_song("broken").video_is_album_art is None
+        assert fetch_song("known").video_is_album_art is False
+        assert fetch_song("upload").video_is_album_art is None
 
 
 class TestBatchFetchArtistImages:

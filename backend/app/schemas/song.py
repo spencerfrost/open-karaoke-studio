@@ -62,6 +62,8 @@ class SongResponse(BaseModel):
     source: Optional[str] = None
     sourceUrl: Optional[str] = None
     videoId: Optional[str] = None
+    # The video's picture is the album cover (an album track upload)
+    videoIsAlbumArt: Optional[bool] = None
 
     # Metadata
     album: Optional[str] = None

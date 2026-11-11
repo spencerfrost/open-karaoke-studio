@@ -12,6 +12,7 @@
 
 import type { Artist } from "@/hooks/api/useArtists";
 import type { Song } from "@/types/Song";
+import type { ArtSource } from "./WheelArtwork";
 
 /** Every letter, always, so the column's geometry never shifts. */
 export const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"] as const;
@@ -348,6 +349,32 @@ export function songHeroSources(
   if (song.videoId)
     sources.push(`https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg`);
   if (song.albumCoverUrl) sources.push(song.albumCoverUrl);
+  return sources;
+}
+
+/**
+ * The song's video is an album track upload: its still is the album cover
+ * between two plain bars, so a still and a cover side by side are one picture.
+ */
+export const stillIsCover = (song: Pick<Song, "videoIsAlbumArt">): boolean =>
+  song.videoIsAlbumArt === true;
+
+/**
+ * Images for the cover alone, best first: the album cover, then the middle of
+ * the video still, which for an album track upload is the same cover.
+ */
+export function songCoverSources(
+  song: Pick<Song, "id" | "thumbnail" | "videoId" | "albumCoverUrl">,
+): ArtSource[] {
+  const sources: ArtSource[] = [];
+  if (song.albumCoverUrl) sources.push(song.albumCoverUrl);
+  if (song.thumbnail)
+    sources.push({ url: `/api/songs/${song.id}/thumbnail`, videoMiddle: true });
+  if (song.videoId)
+    sources.push({
+      url: `https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg`,
+      videoMiddle: true,
+    });
   return sources;
 }
 

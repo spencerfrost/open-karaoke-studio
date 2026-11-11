@@ -592,7 +592,12 @@ flowchart LR
 - **Resting 1.5 s on a song plays a preview** at a quarter volume, through the same preview store
   as a library card's hover ([useWheelPreview.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/wheel/useWheelPreview.ts)).
 - **`SongInfoCard`** on the right shows what the library actually knows about the song (lyrics
-  type, year, vocal range…) and leaves out anything missing rather than showing a dash.
+  type, year, vocal range…) and leaves out anything missing rather than showing a dash. Its
+  picture depends on the video: an album track upload (`videoIsAlbumArt`), whose still is the
+  album cover, shows the cover once, square over a blurred copy of itself; any other video shows
+  its still with the album cover inset at the corner; a song with no video shows the cover alone.
+  `WheelArtwork`'s `videoMiddle` sources crop a YouTube still to its middle square, so an album
+  track upload without a stored cover still gets a clean square.
 - **Search** is a quiet button in the top bar. Songs come up as library cards; artists are buttons
   that hand back to the wheel, landed on that artist.
 - **The join QR** sits bottom-right, where the performance screen has it.

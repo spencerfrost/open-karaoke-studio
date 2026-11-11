@@ -123,6 +123,7 @@ sequenceDiagram
     W->>DB: job → DOWNLOADING, step download, 5%
     W-)R: fetch_song_artwork
     W->>W: yt-dlp → original.mp3 (10%)
+    W->>DB: song.duration, video_is_album_art (from yt-dlp's info)
     W->>DB: job → PROCESSING, step separate, 12%
     W-)R: fingerprint_single_song · prefetch_song_lyrics
     W->>E: run_separation_with_fallback(engine_type)

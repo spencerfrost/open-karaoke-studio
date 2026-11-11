@@ -11,6 +11,7 @@ A batch job works through the whole library one song (or artist, or album) at a 
 | `singing_map` | When the lead and backing vocals are singing, from the stems | `missing`, `all` |
 | `vocal_range` | Lowest and highest sung note | `missing`, `all` |
 | `song_albums` | Finds each song's album and cover on YouTube Music (exact video), else Deezer. Skips hand-set albums; deletes albums left unlinked when it ends | `missing`, `all` |
+| `album_art_videos` | Marks songs whose YouTube video is an album track upload (its picture is the album cover), from the saved yt-dlp info, else YouTube | `missing`, `all` |
 | `fingerprint` | AcoustID fingerprint; links the MusicBrainz recording, or suggests a different name for review | `missing`, `retry` |
 | `artist_images` | Discogs artist photos | `missing` |
 | `lyrics_alignment` | Queues one `align_song_lyrics` job per song | `missing`, `repair`, `all`, `retime` (every song with lyrics, keeping its lyrics) |

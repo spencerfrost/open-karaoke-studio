@@ -190,6 +190,44 @@ def batch_backfill_duration(
     return {"processed": success + skipped, "success": success, "skipped": skipped}
 
 
+@celery.task(name="batch_detect_album_art_videos")
+def batch_detect_album_art_videos(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: mark the songs whose video is an album track upload.
+
+    Reads the info yt-dlp saved beside the download; a song without one asks
+    YouTube again.
+    """
+    from .metadata_tasks import detect_and_store_album_art_video
+
+    counts = {"album_art": 0, "own_picture": 0, "error": 0}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("album_art_videos", mode))
+        logger.info(
+            "batch_detect_album_art_videos: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
+
+        for song_id in run.each(song_ids):
+            try:
+                counts[detect_and_store_album_art_video(song_id)] += 1
+                run.song_done()
+            except Exception:
+                logger.warning(
+                    "batch_detect_album_art_videos: error for song %s",
+                    song_id,
+                    exc_info=True,
+                )
+                counts["error"] += 1
+                run.song_done(ok=False)
+
+    logger.info("batch_detect_album_art_videos: done %s", counts)
+    return counts
+
+
 @celery.task(name="batch_backfill_vocal_range")
 def batch_backfill_vocal_range(
     mode: str = "missing", run_id: Optional[int] = None

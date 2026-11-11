@@ -23,6 +23,8 @@ export interface Song {
   source?: string;
   sourceUrl?: string;
   videoId?: string;
+  /** The video is an album track upload: its picture is the album cover. Null until checked. */
+  videoIsAlbumArt?: boolean | null;
 
   // Metadata
   album?: string;

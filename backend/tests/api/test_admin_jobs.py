@@ -138,6 +138,28 @@ class TestListJobs:
             "tied",
         ]
 
+    def test_album_art_videos_cover_youtube_songs_not_yet_looked_at(self, client, db):
+        db.add_all(
+            [
+                DbSong(id="new", title="New", artist="A", video_id="v1"),
+                DbSong(
+                    id="seen",
+                    title="Seen",
+                    artist="A",
+                    video_id="v2",
+                    video_is_album_art=False,
+                ),
+                DbSong(id="upload", title="Upload", artist="A"),
+            ]
+        )
+        db.commit()
+
+        videos = _jobs_by_kind(client)["album_art_videos"]
+
+        assert videos["coverage"] == {"have": 1, "of": 2}
+        assert select_ids(db, "album_art_videos", "missing") == ["new"]
+        assert sorted(select_ids(db, "album_art_videos", "all")) == ["new", "seen"]
+
     def test_lists_every_job(self, client):
         assert set(_jobs_by_kind(client)) == {
             "duration",
@@ -145,6 +167,7 @@ class TestListJobs:
             "singing_map",
             "vocal_range",
             "song_albums",
+            "album_art_videos",
             "fingerprint",
             "artist_images",
             "lyrics_alignment",

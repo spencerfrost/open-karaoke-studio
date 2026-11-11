@@ -18,7 +18,9 @@ import {
   routeWheelScroll,
   lyricsKind,
   songByline,
+  songCoverSources,
   songHeroSources,
+  stillIsCover,
   songYear,
   stepLetter,
   tileInitial,
@@ -174,6 +176,32 @@ describe("artwork", () => {
       "/api/albums/4/cover",
     ]);
     expect(songHeroSources({ id: "s2" })).toEqual([]);
+  });
+
+  it("leads the cover with the album cover, then the middle of the stills", () => {
+    expect(
+      songCoverSources({
+        id: "s1",
+        thumbnail: "thumbnail.webp",
+        videoId: "abc",
+        albumCoverUrl: "/api/albums/4/cover",
+      }),
+    ).toEqual([
+      "/api/albums/4/cover",
+      { url: "/api/songs/s1/thumbnail", videoMiddle: true },
+      {
+        url: "https://img.youtube.com/vi/abc/hqdefault.jpg",
+        videoMiddle: true,
+      },
+    ]);
+    expect(songCoverSources({ id: "s2" })).toEqual([]);
+  });
+
+  it("treats only a checked album track upload's still as the cover", () => {
+    expect(stillIsCover({ videoIsAlbumArt: true })).toBe(true);
+    expect(stillIsCover({ videoIsAlbumArt: false })).toBe(false);
+    expect(stillIsCover({ videoIsAlbumArt: null })).toBe(false);
+    expect(stillIsCover({})).toBe(false);
   });
 
   it("drops a leading article from the tile letter", () => {

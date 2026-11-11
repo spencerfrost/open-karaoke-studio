@@ -19,6 +19,26 @@ from .interfaces.youtube_service import YouTubeServiceInterface
 
 logger = logging.getLogger(__name__)
 
+# How YouTube opens the description of an album track it made from a label's
+# delivery (the "Artist - Topic" channels).
+_ALBUM_TRACK_DESCRIPTION = "Provided to YouTube by"
+
+
+def is_album_art_upload(info: dict[str, Any]) -> bool:
+    """Whether yt-dlp's info is for an album track upload.
+
+    Those videos are the album cover held still over the audio, so their
+    thumbnail is the cover. yt-dlp drops " - Topic" from most of their channel
+    names, so the description's opening line is the reliable sign; the channel
+    name catches the rest.
+    """
+    description = (info.get("description") or "").lstrip()
+    if description.startswith(_ALBUM_TRACK_DESCRIPTION):
+        return True
+    return any(
+        (info.get(key) or "").endswith(" - Topic") for key in ("channel", "uploader")
+    )
+
 
 class YouTubeService(YouTubeServiceInterface):
     """Handle YouTube video operations"""
@@ -225,16 +245,20 @@ class YouTubeService(YouTubeServiceInterface):
                 "Successfully downloaded YouTube video %s as song %s", video_id, song_id
             )
             try:
-                # Update song with duration if available
-                if metadata_dict.get("duration"):
-                    from app.db.database import get_db_session
-                    from app.repositories.song_repository import SongRepository
+                from app.db.database import get_db_session
+                from app.repositories.song_repository import SongRepository
 
-                    with get_db_session() as session:
-                        repo = SongRepository(session)
-                        repo.update(song_id, duration=metadata_dict["duration"])
+                updates: dict[str, Any] = {
+                    "video_is_album_art": is_album_art_upload(info)
+                }
+                if metadata_dict.get("duration"):
+                    updates["duration"] = metadata_dict["duration"]
+                with get_db_session() as session:
+                    SongRepository(session).update(song_id, **updates)
             except Exception as e:
-                logger.warning("Failed to update duration for song %s: %s", song_id, e)
+                logger.warning(
+                    "Failed to save video details for song %s: %s", song_id, e
+                )
             return song_id, metadata_dict
 
         except Exception as e:

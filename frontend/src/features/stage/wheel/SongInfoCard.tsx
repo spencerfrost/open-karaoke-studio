@@ -8,6 +8,10 @@
  * Built around what the library actually has: the video still leads because
  * most songs have one, and any fact a song lacks is left out rather than shown
  * as "—", so a sparse song gets a shorter card, not a card of blanks.
+ *
+ * Most videos are album track uploads, whose still *is* the album cover. Those
+ * show the cover once, sharp and square over a blurred copy of itself; only a
+ * video with a picture of its own gets the still with the cover inset.
  */
 
 import React from "react";
@@ -19,7 +23,9 @@ import WheelArtwork from "./WheelArtwork";
 import {
   lyricsKind,
   songByline,
+  songCoverSources,
   songHeroSources,
+  stillIsCover,
   songYear,
   tileInitial,
   vocalRange,
@@ -80,8 +86,9 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
   const ms = reducedMotion ? 0 : 220;
 
   const hasStill = !!(song.thumbnail || song.videoId);
+  const coverOnly = hasStill && stillIsCover(song);
   // Without a still the cover is the hero; an inset would repeat it.
-  const showCover = hasStill && !!song.albumCoverUrl;
+  const showCover = hasStill && !coverOnly && !!song.albumCoverUrl;
 
   const facts: [string, string][] = [];
   if (song.duration) facts.push(["Length", formatTime(song.duration)]);
@@ -107,13 +114,35 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
       {/* The artwork dims itself: it lags the text by a load, and a wrapper
           dimming both would brighten the old image before the new arrived. */}
       <div className={cn("relative", showCover ? "mb-16" : "mb-5")}>
-        <WheelArtwork
-          sources={songHeroSources(song)}
-          fallback={tileInitial(song.title)}
-          pending={pending}
-          staleOpacity={STALE_OPACITY}
-          className="aspect-video w-full shadow-[0_8px_30px_rgba(0,0,0,.45)]"
-        />
+        {coverOnly ? (
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,.45)]">
+            <WheelArtwork
+              sources={songCoverSources(song)}
+              pending={pending}
+              staleOpacity={STALE_OPACITY}
+              className="absolute -inset-[10%] z-0 rounded-none"
+              layerClassName="blur-2xl brightness-[.55] saturate-[1.2]"
+            />
+            {/* A set size, not a stretched height and aspect ratio: its
+                layers are all absolute, so a shrink-to-fit width would be 0.
+                352px card content → 198px tall still, less 12px each side. */}
+            <WheelArtwork
+              sources={songCoverSources(song)}
+              fallback={tileInitial(song.album || song.title)}
+              pending={pending}
+              staleOpacity={STALE_OPACITY}
+              className="absolute left-1/2 top-1/2 z-[1] size-[174px] -translate-x-1/2 -translate-y-1/2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
+            />
+          </div>
+        ) : (
+          <WheelArtwork
+            sources={songHeroSources(song)}
+            fallback={tileInitial(song.title)}
+            pending={pending}
+            staleOpacity={STALE_OPACITY}
+            className="aspect-video w-full shadow-[0_8px_30px_rgba(0,0,0,.45)]"
+          />
+        )}
         {showCover && (
           <WheelArtwork
             sources={[song.albumCoverUrl]}

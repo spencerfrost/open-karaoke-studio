@@ -21,6 +21,10 @@
  *
  * It does not decide *when* to load: callers pass sources only once the
  * cursor has settled (see useSongWheel).
+ *
+ * A source can be a video still to show only the middle of: an album track
+ * upload's still is its square cover between two plain bars, and in a square
+ * slot `videoMiddle` shows just the cover.
  */
 
 import React, { useEffect, useState } from "react";
@@ -31,6 +35,20 @@ import { cn } from "@/lib/utils";
 const failedUrls = new Set<string>();
 
 /**
+ * An image URL, or a video still whose middle is the picture: drawn as a 16:9
+ * frame the full height of the slot, centred, so the slot shows the middle of
+ * it. A 4:3 still (the 16:9 picture letterboxed) loses its bars to that frame.
+ */
+export type ArtSource =
+  | string
+  | { url: string; videoMiddle: true }
+  | null
+  | undefined;
+
+const sourceUrl = (s: ArtSource): string | null =>
+  !s ? null : typeof s === "string" ? s : s.url;
+
+/**
  * One thing the slot has shown: an image, or the letter tile. Each change of
  * what is shown is a new layer, even back to an image still fading out, so a
  * leaving layer is never revived mid-exit.
@@ -39,6 +57,8 @@ interface Layer {
   key: number;
   /** The image, or null for the letter tile. */
   src: string | null;
+  /** Show the middle of the image as a 16:9 video still. */
+  videoMiddle: boolean;
   letter?: string;
   /** Replaced: sits under the new layer, then fades out and is dropped. */
   leaving: boolean;
@@ -57,7 +77,7 @@ const sameContent = (
 
 interface WheelArtworkProps {
   /** Candidate images, best first. Empty entries are skipped. */
-  sources: readonly (string | null | undefined)[];
+  sources: readonly ArtSource[];
   /** The letter tile's letter, when no source loads. Omit for no tile. */
   fallback?: string;
   /** Round for artists, rounded-square for songs. */
@@ -89,19 +109,30 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
   const reducedMotion = useReducedMotion() ?? false;
   // Bumped when a source fails, so the next one is picked.
   const [, setFailures] = useState(0);
-  const target =
-    sources.find((s): s is string => !!s && !failedUrls.has(s)) ?? null;
+  const targetSource = sources.find((s) => {
+    const url = sourceUrl(s);
+    return url !== null && !failedUrls.has(url);
+  });
+  const target = sourceUrl(targetSource);
+  const targetVideoMiddle =
+    typeof targetSource === "object" && targetSource !== null;
 
-  // The last image that finished loading. Shown until `target` catches up.
-  const [loaded, setLoaded] = useState<string | null>(null);
+  // The last image that finished loading, and how it is drawn. Shown until
+  // `target` catches up.
+  const [loaded, setLoaded] = useState<{
+    url: string;
+    videoMiddle: boolean;
+  } | null>(null);
+  const loadedUrl = loaded?.url ?? null;
   useEffect(() => {
-    if (target === null || target === loaded) return;
+    if (target === null || target === loadedUrl) return;
     let cancelled = false;
     const img = new Image();
     img.src = target;
     img.decode().then(
       () => {
-        if (!cancelled) setLoaded(target);
+        if (!cancelled)
+          setLoaded({ url: target, videoMiddle: targetVideoMiddle });
       },
       () => {
         failedUrls.add(target);
@@ -111,10 +142,11 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [target, loaded]);
+  }, [target, targetVideoMiddle, loadedUrl]);
 
   // No source left at all: straight to the tile, nothing to wait for.
-  const shown = target === null ? null : loaded;
+  const shown = target === null ? null : loadedUrl;
+  const shownVideoMiddle = shown !== null && (loaded?.videoMiddle ?? false);
   const hasContent = shown !== null || fallback !== undefined;
 
   const [layers, setLayers] = useState<Layer[]>(() =>
@@ -123,6 +155,7 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
           {
             key: 0,
             src: shown,
+            videoMiddle: shownVideoMiddle,
             letter: fallback,
             leaving: false,
             mounted: true,
@@ -149,6 +182,7 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
             {
               key,
               src: shown,
+              videoMiddle: shownVideoMiddle,
               letter: fallback,
               leaving: false,
               mounted: false,
@@ -204,7 +238,10 @@ const WheelArtwork: React.FC<WheelArtworkProps> = ({
                   alt=""
                   draggable={false}
                   className={cn(
-                    "absolute inset-0 size-full object-cover",
+                    "absolute object-cover",
+                    l.videoMiddle
+                      ? "inset-y-0 left-1/2 aspect-video h-full max-w-none -translate-x-1/2"
+                      : "inset-0 size-full",
                     layerClassName,
                   )}
                   style={

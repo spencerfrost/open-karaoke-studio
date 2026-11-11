@@ -176,6 +176,49 @@ def detect_song_vocal_range(song_id: str) -> dict:
     return {"status": detect_and_store_vocal_range(song_id), "song_id": song_id}
 
 
+def detect_and_store_album_art_video(song_id: str) -> str:
+    """Mark whether a song's video is an album track upload.
+
+    Reads the info yt-dlp saved beside the download; a song without one asks
+    YouTube again. Returns "album_art" or "own_picture", and raises when it
+    can't tell. Shared by the per-song task and the library-wide backfill.
+    """
+    import json
+
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.youtube_service import YouTubeService, is_album_art_upload
+
+    info_path = Path(get_config().BASE_LIBRARY_DIR) / song_id / "original.info.json"
+    if info_path.exists():
+        info = json.loads(info_path.read_text(encoding="utf-8"))
+    else:
+        with get_db_session() as session:
+            song = SongRepository(session).fetch(song_id)
+            video_id = song.video_id if song else None
+        if not video_id:
+            raise ValueError("song has no video")
+        info = YouTubeService().extract_video_info(video_id)
+    album_art = is_album_art_upload(info)
+    with get_db_session() as session:
+        SongRepository(session).update(song_id, video_is_album_art=album_art)
+    return "album_art" if album_art else "own_picture"
+
+
+@celery.task(name="detect_song_album_art_video")
+def detect_song_album_art_video(song_id: str) -> dict:
+    """Mark whether the song's video is just its album cover over the audio."""
+    try:
+        status = detect_and_store_album_art_video(song_id)
+    except Exception:
+        logger.warning(
+            "detect_song_album_art_video: failed for song %s", song_id, exc_info=True
+        )
+        status = "error"
+    return {"status": status, "song_id": song_id}
+
+
 @celery.task(name="fingerprint_single_song")
 def fingerprint_single_song(song_id: str) -> dict:
     """Fingerprint a single song via AcoustID."""

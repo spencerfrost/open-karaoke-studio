@@ -97,6 +97,7 @@ erDiagram
         bool explicit "from the album lookup"
         datetime album_hand_set_at "a person set the album"
         datetime album_checked_at "lookup found no cover"
+        bool video_is_album_art "video is an album track upload"
         string musicbrainz_recording_id
         string acoustid_fingerprint_status
         string acoustid_suggested_title "plus _artist, _recording_id"
@@ -443,6 +444,22 @@ One admin batch job maintains this: `song_albums` (`batch_fetch_albums`, "Album 
 mode takes songs not hand-set or checked whose album is absent or has no cover; "all" looks every
 song that isn't hand-set up again. Each run ends by deleting albums no song links to. Their cover
 files stay, since the other database sharing the folder may still show that release.
+
+### Album track uploads
+
+Most songs come from YouTube's album track uploads (the "Artist - Topic" channels): the album
+cover held still over the label's audio. Their YouTube thumbnail is the cover between two plain
+bars, so beside the album cover it is the same picture twice. `songs.video_is_album_art` records
+which videos these are, for the stage's song card.
+
+The download sets it from yt-dlp's info (`is_album_art_upload` in
+[youtube_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/youtube_service.py)):
+the description opens "Provided to YouTube by", or the channel ends " - Topic" (yt-dlp drops that
+suffix from most of them, so the description is the main sign). The `album_art_videos` batch job
+(`batch_detect_album_art_videos`, "Album-art videos") fills it in for songs downloaded before, from
+the `original.info.json` yt-dlp saved beside the audio, asking YouTube again only when that file
+is missing. It stays null for songs without a video and for videos yt-dlp can't open
+(age-restricted ones without cookies).
 
 ## Artist images
 

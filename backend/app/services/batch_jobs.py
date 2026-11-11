@@ -59,6 +59,10 @@ def _songs_with_old_credits(session: Session) -> Query:
     return _songs(session).filter(or_(~has_list.exists(), old.exists()))
 
 
+def _youtube_songs(session: Session) -> Query:
+    return _songs(session).filter(DbSong.video_id.isnot(None))
+
+
 def _songs_without_hand_set_album(session: Session) -> Query:
     return _songs(session).filter(DbSong.album_hand_set_at.is_(None))
 
@@ -106,6 +110,15 @@ JOBS: dict[str, BatchJob] = {
             .filter(
                 DbSong.album_checked_at.is_(None),
                 or_(DbSong.album_id.is_(None), DbAlbum.cover_path.is_(None)),
+            ),
+        ),
+        BatchJob(
+            kind="album_art_videos",
+            task_name="batch_detect_album_art_videos",
+            modes=("missing", "all"),
+            covered=_youtube_songs,
+            missing=lambda s: _youtube_songs(s).filter(
+                DbSong.video_is_album_art.is_(None)
             ),
         ),
         BatchJob(

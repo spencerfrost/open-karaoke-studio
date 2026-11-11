@@ -7,6 +7,7 @@ export type JobKind =
   | "singing_map"
   | "vocal_range"
   | "song_albums"
+  | "album_art_videos"
   | "fingerprint"
   | "artist_images"
   | "lyrics_alignment"
