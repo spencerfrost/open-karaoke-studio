@@ -41,6 +41,8 @@ isort>=5.10.0
 # The fork below has updated torchaudio requirements to work with newer versions
 git+https://github.com/spencerfrost/demucs.git
 whisperx
+# faster-whisper 1.2.1 opens audio with av.open(metadata_errors=...), which av 19 removed
+av>=11,<19
 qwen-asr
 # Audio separation experiments - UVR/Roformer models for lead/backing vocal isolation
 audio-separator[gpu]==0.47.0
