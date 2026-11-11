@@ -7,6 +7,7 @@ import pytest
 from app.jobs.batch_tasks import batch_backfill_loudness
 from app.jobs.metadata_tasks import detect_and_store_loudness
 from app.services.audio import LoudnessResult
+from app.services.processing_versions import LOUDNESS_VERSION
 
 SONG_ID = "song-abc-123"
 
@@ -32,6 +33,7 @@ class TestDetectAndStoreLoudness:
         assert saved.loudness_lufs == -9.8
         assert saved.true_peak_dbtp == 0.3
         assert saved.gain_db == -6.2
+        assert saved.loudness_version == LOUDNESS_VERSION
 
     @pytest.mark.parametrize(
         "detect, outcome",
@@ -50,6 +52,10 @@ class TestDetectAndStoreLoudness:
         saved = fetch_song(SONG_ID)
         assert saved.loudness_lufs is None
         assert saved.gain_db is None
+        # Silence is an answer; a step that couldn't run is tried again.
+        assert saved.loudness_version == (
+            LOUDNESS_VERSION if outcome == "silent" else None
+        )
 
 
 class TestBatchBackfillLoudness:
@@ -87,7 +93,13 @@ class TestBatchBackfillLoudness:
     def test_missing_mode_skips_measured_songs(
         self, add_song, mock_detect, library, fetch_song
     ):
-        add_song("measured", loudness_lufs=-10.0, true_peak_dbtp=0.0, gain_db=-4.0)
+        add_song(
+            "measured",
+            loudness_lufs=-10.0,
+            true_peak_dbtp=0.0,
+            gain_db=-4.0,
+            loudness_version=LOUDNESS_VERSION,
+        )
         add_song("unmeasured")
         mock_detect.return_value = LoudnessResult(-9.0, 0.0, -5.0)
 

@@ -175,7 +175,7 @@ Three workers, started by [celery_workers.sh](https://github.com/spencerfrost/op
 |---|---|---|---|
 | `audio` | 1 | `audio` | `process_youtube_job`, `process_audio_job` |
 | `lyrics` | 1 | `lyrics`, then `lyrics_backfill` | `align_song_lyrics`: a new song's or a person's on `lyrics`, a library run's on `lyrics_backfill` |
-| `enrichment` | 3 | `enrichment` | artwork, loudness, singing map, vocal range, fingerprint, artist credits, all `batch_*`, and — by falling through to the default queue — `prefetch_song_lyrics` |
+| `enrichment` | 3 | `enrichment` | artwork, loudness, singing map, vocal range, album-art video, fingerprint, artist credits, `update_song_step`, all `batch_*`, and — by falling through to the default queue — `prefetch_song_lyrics` |
 
 The split follows one rule: what a song needs before it can be sung (separation, then lyrics)
 has a worker to itself, and everything that can finish after the song is playable waits on
@@ -194,6 +194,54 @@ Two settings make the lyrics worker's queue order a real priority:
 share the GPU. All workers run `--without-gossip --without-mingle` (single box, and gossip
 heartbeats were producing false "missed heartbeat" warnings when a heavy task starved the GIL).
 Celery also forces the `spawn` multiprocessing start method, which CUDA requires.
+
+### Catching up when a song is queued
+
+A song processed months ago was processed by older code. Instead of re-running the whole
+library after every change, a song catches up when someone queues it to sing.
+
+```mermaid
+flowchart LR
+    Add["POST /api/karaoke-queue<br/>item saved"] --> Check["update_queued_song<br/><i>song is processed?</i>"]
+    Check -->|"per batch job with a per-song task:<br/>is this song in its 'missing' set?"| Step["update_song_step(kind, song_id)<br/><i>enrichment queue</i>"]
+    Step -->|still needs it| Task["the job's per-song task"]
+    Step -->|done meanwhile| Skip["up_to_date"]
+    Check -->|"has vocals, word timing version behind"| Enq["enqueue_song_alignment<br/><i>lyrics queue</i>"]
+```
+
+`update_queued_song` ([song_updates.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/song_updates.py)) runs after the queue item is
+saved. It never fails the request, and it skips a song that isn't `processed`, whose pipeline
+is still doing all of this.
+
+**Which steps.** Each batch job in [batch_jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/batch_jobs.py) can name a
+`song_task`, the Celery task that does the job for one song. A song in the job's `missing` set
+(the same filter the library-wide run selects with) gets `update_song_step`, which checks
+again when it starts, so a song queued twice in a row is done once.
+
+| Batch job | Per-song task | The song needs it when |
+|---|---|---|
+| `loudness` | `detect_song_loudness` | its `loudness_version` is behind |
+| `singing_map` | `detect_song_singing_map` | its `singing_map_version` is behind |
+| `vocal_range` | `detect_song_vocal_range` | its `vocal_range_version` is behind |
+| `song_albums` | `fetch_song_artwork` | never looked up, and it has no album cover |
+| `album_art_videos` | `detect_song_album_art_video` | `video_is_album_art` is null |
+| `fingerprint` | `fingerprint_single_song` | its status is `not_checked` |
+
+Word timing goes through `enqueue_song_alignment` on the `lyrics` queue, which pulls the song
+forward if it was waiting in a library run. A song that has lyrics keeps its words and is only
+re-timed (`include_remote=False`); a song with none gets the full search.
+
+**Step versions.** [processing_versions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/processing_versions.py) holds one
+number per step that can change: `LOUDNESS_VERSION`, `SINGING_MAP_VERSION`,
+`VOCAL_RANGE_VERSION` and `WORD_TIMING_VERSION`. A step saves its number on the song
+(`songs.<step>_version`) whenever it reaches an answer, and "no range found" or "no lyrics
+found" is an answer. A step that couldn't run (no audio, an error, a full GPU) saves nothing.
+A song is **behind** when its saved number is empty or lower. Adding 1 to a constant is all it
+takes to have every song redo that step: when it's next queued, or in the batch job's
+`missing` run.
+
+The stage reloads lyrics when an alignment job finishes, so a re-time of the song that's next
+up can land after it has started. The words are the same; their timing shifts mid-song.
 
 ### When a worker stops
 

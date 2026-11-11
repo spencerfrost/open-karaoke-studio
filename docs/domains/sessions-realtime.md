@@ -476,7 +476,10 @@ sequenceDiagram
 The TV is the only screen that keeps a live queue. Phones fetch it only while the singer dialog
 is open (`useQueue(…, { enabled: isOpen })`), and no phone listens for `queue_updated`.
 
-Adding a song is the one queue action phones take. **Loading** a song is an owner action:
+Adding a song is the one queue action phones take. It also starts any processing the song is
+behind on, so a change to alignment or a new measurement reaches the song before its turn (see
+[Ingestion pipeline § Catching up when a song is queued](ingestion-pipeline.md#catching-up-when-a-song-is-queued)).
+**Loading** a song is an owner action:
 `POST /{item_id}/play` is what the Stage calls when the handoff screen or the queue rail starts
 someone. It:
 

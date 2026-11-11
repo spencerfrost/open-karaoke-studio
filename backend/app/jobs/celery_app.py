@@ -62,6 +62,7 @@ celery.conf.update(
         "detect_song_singing_map": {"queue": "enrichment"},
         "detect_song_vocal_range": {"queue": "enrichment"},
         "detect_song_album_art_video": {"queue": "enrichment"},
+        "update_song_step": {"queue": "enrichment"},
         "align_song_lyrics": {"queue": "lyrics"},
         "fingerprint_single_song": {"queue": "enrichment"},
         "enrich_song_artist_credits": {"queue": "enrichment"},

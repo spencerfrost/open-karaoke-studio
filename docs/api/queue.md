@@ -137,6 +137,8 @@ Request body:
 
 Response (`201 Created`): the created queue item, including its `status` (`active` or `pending`).
 
+Adding a song also queues any processing the song is behind on (word timing from an older version of alignment, a missing singing map, and so on). It never fails or delays the response.
+
 Host settings are enforced for non-host requesters:
 - `403` if the host has closed the queue (`queue_open` off).
 - `429` if the singer already has the maximum allowed songs in the queue (`max_songs_per_singer`).

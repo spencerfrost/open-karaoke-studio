@@ -6,6 +6,7 @@ import pytest
 
 from app.jobs.batch_tasks import batch_backfill_vocal_range
 from app.jobs.metadata_tasks import detect_and_store_vocal_range
+from app.services.processing_versions import VOCAL_RANGE_VERSION
 
 SONG_ID = "song-abc-123"
 
@@ -35,6 +36,7 @@ class TestDetectAndStoreVocalRange:
         assert detect_and_store_vocal_range(SONG_ID) == "ok"
         saved = fetch_song(SONG_ID)
         assert (saved.vocal_range_low, saved.vocal_range_high) == ("G2", "E5")
+        assert saved.vocal_range_version == VOCAL_RANGE_VERSION
 
     def test_no_vocals_file(self, mock_detect, library, fetch_song):
         assert detect_and_store_vocal_range(SONG_ID) == "no_audio"
@@ -55,7 +57,12 @@ class TestDetectAndStoreVocalRange:
         mock_detect.configure_mock(**detect)
 
         assert detect_and_store_vocal_range(SONG_ID) == outcome
-        assert fetch_song(SONG_ID).vocal_range_low is None
+        saved = fetch_song(SONG_ID)
+        assert saved.vocal_range_low is None
+        # No range is an answer; a failed analysis is tried again.
+        assert saved.vocal_range_version == (
+            VOCAL_RANGE_VERSION if outcome == "no_range" else None
+        )
 
 
 class TestBatchBackfillVocalRange:
@@ -95,7 +102,12 @@ class TestBatchBackfillVocalRange:
     def test_missing_mode_skips_songs_with_a_range(
         self, add_song, mock_detect, library, fetch_song
     ):
-        add_song("detected", vocal_range_low="A2", vocal_range_high="D5")
+        add_song(
+            "detected",
+            vocal_range_low="A2",
+            vocal_range_high="D5",
+            vocal_range_version=VOCAL_RANGE_VERSION,
+        )
         add_song("undetected")
         _add_vocals(library, "detected")
         _add_vocals(library, "undetected")

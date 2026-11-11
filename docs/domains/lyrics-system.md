@@ -217,6 +217,7 @@ flowchart LR
     Save["Person saves lyrics<br/>PATCH /songs · POST /lyrics/songs · report undo"] -->|realign_hand_picked_lyrics<br/>include_remote=False| Enq["enqueue_song_alignment<br/><i>skips if a run is in flight</i>"]
     Report["POST /lyrics/songs/{id}/reports"] -->|include_remote=True| Enq
     Button["Song dialog: language change<br/>POST /lyrics/songs/{id}/align"] --> Enq
+    Queued["Song queued to sing<br/>word timing version behind"] -->|include_remote only<br/>without lyrics| Enq
     AlignDb["POST …/align-db<br/><i>no UI caller</i>"] -->|include_remote=False| Enq
     BatchBtn["Admin → Background jobs<br/>Lyrics alignment: Missing · Needs repair · All"] --> Batch["batch_align_lyrics"] -->|per song, include_remote=True,<br/>background=True| Enq
     Enq --> Align
@@ -237,6 +238,12 @@ lyrics that change under it. Ingestion's `_dispatch_vocals_ready_tasks`
 ([audio_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/audio_tasks.py)) bypasses it. It creates the job row and
 calls `send_task` directly. In practice this is harmless, because nothing else has a reason to
 align a song that is still being separated.
+
+A finished run saves `WORD_TIMING_VERSION` on the song (`songs.word_timing_version`), whatever
+its answer; only a run that never got to look (no vocals, no song) saves nothing. A song whose
+version is behind is aligned again when it's next queued to sing, keeping its words if it has
+any. See
+[Ingestion pipeline § Catching up when a song is queued](ingestion-pipeline.md#catching-up-when-a-song-is-queued).
 
 `prefetch_song_lyrics` exists so a newly added song shows *some* lyrics within seconds, before
 separation produces `vocals.mp3`. It builds the same candidate list the alignment task does and
@@ -433,7 +440,8 @@ backing vocals (`backing_vocals.mp3`) are singing and stores both lists in `song
 ([singing_map.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/singing_map.py)).
 A frame counts as singing when its RMS is above 15% of the stem's 95th-percentile RMS and above
 −45 dBFS; pauses under 0.6 s are joined and runs under 0.25 s dropped. The numbers are stored
-with each map. The `singing_map` batch job fills in the library and re-measures after a change.
+with each map. The `singing_map` batch job fills in the library, and a song whose map is from an older
+`SINGING_MAP_VERSION` is re-measured when it's next queued to sing.
 It needs no lyrics, so lyrics changes never rerun it.
 
 `breaks_from_map` builds breaks in the `instrumental_intervals` shape, on request, from the map

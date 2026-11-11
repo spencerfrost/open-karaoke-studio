@@ -15,6 +15,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
+from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import (
     RequesterContext,
@@ -31,6 +32,7 @@ from app.db.models import (
     SessionPlaybackState,
     User,
 )
+from app.jobs.song_updates import update_queued_song
 from app.services.queue_ordering import (
     get_ordered_queue_items,
 )
@@ -395,6 +397,10 @@ async def add_to_queue(
         await broadcast_roster_update(manager, session_code, performer.name)
 
     await broadcast_queue_update(manager, session_code)
+
+    # Anything the library has learned to do since this song was processed
+    # starts now, so it's ready by the song's turn.
+    await run_in_threadpool(update_queued_song, new_item.song_id)
 
     return QueueItemResponse(
         id=new_item.id,

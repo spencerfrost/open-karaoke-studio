@@ -7,6 +7,7 @@ import pytest
 
 from app.jobs.batch_tasks import batch_backfill_singing_map
 from app.jobs.metadata_tasks import detect_and_store_singing_map
+from app.services.processing_versions import SINGING_MAP_VERSION
 
 SONG_ID = "song-abc-123"
 MAP = {"method": "rms", "lead": [[1.0, 5.0]], "backing": [], "duration": 10.0}
@@ -29,7 +30,9 @@ class TestDetectAndStoreSingingMap:
 
         assert detect_and_store_singing_map(SONG_ID) == "ok"
         mock_measure.assert_called_once_with(library / SONG_ID)
-        assert json.loads(fetch_song(SONG_ID).singing_map) == MAP
+        saved = fetch_song(SONG_ID)
+        assert json.loads(saved.singing_map) == MAP
+        assert saved.singing_map_version == SINGING_MAP_VERSION
 
     @pytest.mark.parametrize(
         "error, outcome",
@@ -41,7 +44,9 @@ class TestDetectAndStoreSingingMap:
         mock_measure.side_effect = error
 
         assert detect_and_store_singing_map(SONG_ID) == outcome
-        assert fetch_song(SONG_ID).singing_map is None
+        saved = fetch_song(SONG_ID)
+        assert saved.singing_map is None
+        assert saved.singing_map_version is None
 
 
 class TestBatchBackfillSingingMap:
@@ -70,7 +75,11 @@ class TestBatchBackfillSingingMap:
     def test_missing_mode_skips_measured_songs(
         self, add_song, mock_measure, library, fetch_song
     ):
-        add_song("measured", singing_map=json.dumps({"lead": []}))
+        add_song(
+            "measured",
+            singing_map=json.dumps({"lead": []}),
+            singing_map_version=SINGING_MAP_VERSION,
+        )
         add_song("unmeasured")
         mock_measure.return_value = MAP
 

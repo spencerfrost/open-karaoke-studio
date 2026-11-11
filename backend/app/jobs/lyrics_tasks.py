@@ -924,6 +924,7 @@ def align_song_lyrics(
     else:
         _record_report_outcomes(song_id, result, run.get("pending_reports", []))
         if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):
+            _save_word_timing_version(song_id, result)
             return result
         log_lyrics_event(
             song_id,
@@ -936,6 +937,26 @@ def align_song_lyrics(
         song_id, include_remote=include_remote, source=source, language=language
     )
     return result
+
+
+# Outcomes where the run never got to look at the song's lyrics and singing.
+_NOT_LOOKED_AT = {"no_audio", "not_found", "invalid_source"}
+
+
+def _save_word_timing_version(song_id: str, result: Mapping[str, Any]) -> None:
+    """Record that this version of alignment reached an answer for the song.
+
+    Any answer counts, "no lyrics found" included, so a song isn't aligned
+    again each time it's queued to sing (app.jobs.song_updates).
+    """
+    if result.get("status") in _NOT_LOOKED_AT:
+        return
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.processing_versions import WORD_TIMING_VERSION
+
+    with get_db_session() as session:
+        SongRepository(session).update(song_id, word_timing_version=WORD_TIMING_VERSION)
 
 
 def _record_report_outcomes(

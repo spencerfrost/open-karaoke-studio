@@ -88,6 +88,13 @@ class DbSong(Base):
     # When the lead and backing vocals are singing, from the stems; JSON, see
     # services/singing_map.py. Null until measured.
     singing_map = Column(Text, nullable=True)
+    # Which version of each step last reached an answer for this song (see
+    # services/processing_versions.py). Empty or behind: the step runs again
+    # when the song is next queued to sing.
+    loudness_version = Column(Integer, nullable=True)
+    singing_map_version = Column(Integer, nullable=True)
+    vocal_range_version = Column(Integer, nullable=True)
+    word_timing_version = Column(Integer, nullable=True)
 
     # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")

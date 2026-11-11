@@ -5,6 +5,7 @@ timestamp now that karaoke_queue.created_at exists.
 """
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from app.db.models import DbSong, KaraokeQueueItem, KaraokeSession, SessionPerformer
 from app.utils.clock import utc_now
@@ -48,6 +49,19 @@ def test_add_to_queue_creates_a_performer_for_a_new_singer(client, db):
     performer = db.query(SessionPerformer).one()
     assert item.performer_id == performer.id
     assert performer.normalized_name == "spencer"
+
+
+def test_add_to_queue_brings_the_song_up_to_date(client, db):
+    _make_session_with_song(db)
+
+    with patch("app.api.karaoke_queue.update_queued_song") as update:
+        response = client.post(
+            "/api/karaoke-queue?session_code=AAAA",
+            json={"singer": "Spencer", "songId": "test-song-123"},
+        )
+
+    assert response.status_code == 201
+    update.assert_called_once_with("test-song-123")
 
 
 def test_add_to_queue_reuses_an_existing_performer(client, db):

@@ -14,6 +14,12 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
 
 from app.db.models import BatchRun, DbAlbum, DbArtist, DbSong, DbSongArtist
+from app.services.processing_versions import (
+    LOUDNESS_VERSION,
+    SINGING_MAP_VERSION,
+    VOCAL_RANGE_VERSION,
+    behind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,10 @@ class BatchJob:
     others: dict[str, Callable[[Session], Query]] = field(default_factory=dict)
     # Whether a finished run saves a report (GET /admin/jobs/runs/{id}/report).
     reports: bool = False
+    # Celery task that does the job for one song, taking the song id. A job
+    # with one also runs for a song in `missing` when it's queued to sing
+    # (app.jobs.song_updates).
+    song_task: Optional[str] = None
 
     def rows(self, session: Session, mode: str) -> Query:
         """The rows a run in `mode` works through: "all" is every covered row."""
@@ -82,21 +92,30 @@ JOBS: dict[str, BatchJob] = {
             task_name="batch_backfill_loudness",
             modes=("missing", "all"),
             covered=_songs,
-            missing=lambda s: _songs(s).filter(DbSong.loudness_lufs.is_(None)),
+            missing=lambda s: _songs(s).filter(
+                behind(DbSong.loudness_version, LOUDNESS_VERSION)
+            ),
+            song_task="detect_song_loudness",
         ),
         BatchJob(
             kind="singing_map",
             task_name="batch_backfill_singing_map",
             modes=("missing", "all"),
             covered=_songs,
-            missing=lambda s: _songs(s).filter(DbSong.singing_map.is_(None)),
+            missing=lambda s: _songs(s).filter(
+                behind(DbSong.singing_map_version, SINGING_MAP_VERSION)
+            ),
+            song_task="detect_song_singing_map",
         ),
         BatchJob(
             kind="vocal_range",
             task_name="batch_backfill_vocal_range",
             modes=("missing", "all"),
             covered=_songs,
-            missing=lambda s: _songs(s).filter(DbSong.vocal_range_low.is_(None)),
+            missing=lambda s: _songs(s).filter(
+                behind(DbSong.vocal_range_version, VOCAL_RANGE_VERSION)
+            ),
+            song_task="detect_song_vocal_range",
         ),
         BatchJob(
             kind="song_albums",
@@ -111,6 +130,7 @@ JOBS: dict[str, BatchJob] = {
                 DbSong.album_checked_at.is_(None),
                 or_(DbSong.album_id.is_(None), DbAlbum.cover_path.is_(None)),
             ),
+            song_task="fetch_song_artwork",
         ),
         BatchJob(
             kind="album_art_videos",
@@ -120,6 +140,7 @@ JOBS: dict[str, BatchJob] = {
             missing=lambda s: _youtube_songs(s).filter(
                 DbSong.video_is_album_art.is_(None)
             ),
+            song_task="detect_song_album_art_video",
         ),
         BatchJob(
             kind="fingerprint",
@@ -142,6 +163,7 @@ JOBS: dict[str, BatchJob] = {
                     DbSong.metadata_confirmed_at.is_(None),
                 )
             },
+            song_task="fingerprint_single_song",
         ),
         BatchJob(
             kind="artist_images",
@@ -215,6 +237,13 @@ def select_ids(session: Session, kind: str, mode: str) -> list[Any]:
     job = get_job(kind, mode)
     query = job.rows(session, mode)
     return [row[0] for row in query.all()]
+
+
+def song_needs(session: Session, job: BatchJob, song_id: str) -> bool:
+    """Whether a "missing" run of `job` would include this song."""
+    return session.query(
+        job.missing(session).filter(DbSong.id == song_id).exists()
+    ).scalar()
 
 
 def alignment_summary(session: Session) -> dict:

@@ -13,6 +13,7 @@ from app.repositories.batch_run_repository import (
     RunNotActive,
 )
 from app.services.batch_jobs import select_ids
+from app.services.processing_versions import LOUDNESS_VERSION
 from app.utils.clock import utc_now
 
 NO_ALIGNMENT = ([], 0)
@@ -38,7 +39,13 @@ def no_alignment_scan():
 def _add_songs(db, *songs):
     for song_id, loudness in songs:
         db.add(
-            DbSong(id=song_id, title=song_id, artist="Queen", loudness_lufs=loudness)
+            DbSong(
+                id=song_id,
+                title=song_id,
+                artist="Queen",
+                loudness_lufs=loudness,
+                loudness_version=None if loudness is None else LOUDNESS_VERSION,
+            )
         )
     db.commit()
 

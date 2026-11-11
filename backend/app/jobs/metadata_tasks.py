@@ -58,11 +58,13 @@ def detect_and_store_loudness(song_id: str) -> str:
     """Measure how loud a song plays by default and save its normalization gain.
 
     Returns "ok", "silent", "no_audio" (no instrumental stem yet), or "error".
-    Shared by the per-song pipeline task and the library-wide backfill.
+    Shared by the per-song pipeline task and the library-wide backfill. "ok"
+    and "silent" are answers, and save the version that reached them.
     """
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
+    from app.services.processing_versions import LOUDNESS_VERSION
 
     song_dir = Path(get_config().BASE_LIBRARY_DIR) / song_id
     try:
@@ -80,6 +82,8 @@ def detect_and_store_loudness(song_id: str) -> str:
         logger.warning(
             "detect_loudness: song %s is silent, leaving its gain unset", song_id
         )
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, loudness_version=LOUDNESS_VERSION)
         return "silent"
 
     with get_db_session() as session:
@@ -88,6 +92,7 @@ def detect_and_store_loudness(song_id: str) -> str:
             loudness_lufs=result.loudness_lufs,
             true_peak_dbtp=result.true_peak_dbtp,
             gain_db=result.gain_db,
+            loudness_version=LOUDNESS_VERSION,
         )
     return "ok"
 
@@ -111,6 +116,7 @@ def detect_and_store_singing_map(song_id: str) -> str:
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
+    from app.services.processing_versions import SINGING_MAP_VERSION
     from app.services.singing_map import measure_singing_map
 
     song_dir = Path(get_config().BASE_LIBRARY_DIR) / song_id
@@ -124,7 +130,11 @@ def detect_and_store_singing_map(song_id: str) -> str:
         return "error"
 
     with get_db_session() as session:
-        SongRepository(session).update(song_id, singing_map=json.dumps(singing_map))
+        SongRepository(session).update(
+            song_id,
+            singing_map=json.dumps(singing_map),
+            singing_map_version=SINGING_MAP_VERSION,
+        )
     return "ok"
 
 
@@ -139,11 +149,13 @@ def detect_and_store_vocal_range(song_id: str) -> str:
     """Detect a song's vocal range from vocals.mp3 and save it.
 
     Returns "ok", "no_range" (too few voiced frames), "no_audio", or "error".
-    Shared by the per-song pipeline task and the library-wide backfill.
+    Shared by the per-song pipeline task and the library-wide backfill. "ok"
+    and "no_range" are answers, and save the version that reached them.
     """
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
+    from app.services.processing_versions import VOCAL_RANGE_VERSION
 
     vocals_path = Path(get_config().BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
     if not vocals_path.exists():
@@ -159,11 +171,18 @@ def detect_and_store_vocal_range(song_id: str) -> str:
         return "error"
 
     if not result:
+        with get_db_session() as session:
+            SongRepository(session).update(
+                song_id, vocal_range_version=VOCAL_RANGE_VERSION
+            )
         return "no_range"
 
     with get_db_session() as session:
         SongRepository(session).update(
-            song_id, vocal_range_low=result[0], vocal_range_high=result[1]
+            song_id,
+            vocal_range_low=result[0],
+            vocal_range_high=result[1],
+            vocal_range_version=VOCAL_RANGE_VERSION,
         )
     logger.info("detect_vocal_range: %s-%s for song %s", result[0], result[1], song_id)
     return "ok"
@@ -217,6 +236,26 @@ def detect_song_album_art_video(song_id: str) -> dict:
         )
         status = "error"
     return {"status": status, "song_id": song_id}
+
+
+@celery.task(name="update_song_step")
+def update_song_step(kind: str, song_id: str) -> dict:
+    """Run one batch job's per-song task for a song, if the song still needs it.
+
+    Queued when a song is added to a session's queue (app.jobs.song_updates).
+    Checking again here means a song queued twice in a row is done once.
+    """
+    from app.db.database import get_db_session
+    from app.services.batch_jobs import get_job, song_needs
+
+    job = get_job(kind)
+    if job.song_task is None:
+        raise ValueError(f"{kind} has no per-song task")
+    with get_db_session() as session:
+        if not song_needs(session, job, song_id):
+            return {"status": "up_to_date", "kind": kind, "song_id": song_id}
+    logger.info("update_song_step: %s for queued song %s", kind, song_id)
+    return celery.tasks[job.song_task](song_id)
 
 
 @celery.task(name="fingerprint_single_song")

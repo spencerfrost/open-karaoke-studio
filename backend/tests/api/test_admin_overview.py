@@ -7,6 +7,7 @@ import pytest
 
 from app.db.models import BatchRun, DbSong, LyricsReport
 from app.repositories.batch_run_repository import BatchRunRepository
+from app.services.processing_versions import LOUDNESS_VERSION
 from app.utils.clock import utc_now
 
 
@@ -67,7 +68,7 @@ class TestOverview:
         assert body["librarySize"] == 5
 
     def test_reports_coverage_and_runs_in_progress(self, client, db):
-        _add(db, "a", loudness_lufs=-9.0)
+        _add(db, "a", loudness_lufs=-9.0, loudness_version=LOUDNESS_VERSION)
         _add(db, "b")
         run = BatchRunRepository(db).create("loudness", "missing")
 
