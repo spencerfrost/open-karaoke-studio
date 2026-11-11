@@ -35,6 +35,7 @@ import WorkerStrip from "./WorkerStrip";
 const MODE_LABEL: Record<RunMode, string> = {
   missing: "missing",
   repair: "needing repair",
+  retime: "with lyrics, keeping their lyrics",
   retry: "not yet matched",
   all: "all",
   preview: "preview",
@@ -88,6 +89,7 @@ function describeRun(run: BatchRun, unit: JobInfo["unit"]): string {
   const parts = [formatWhen(run.finishedAt ?? run.createdAt)];
   if (run.mode === "all") parts.push("re-ran all");
   if (run.mode === "repair") parts.push("ones needing repair");
+  if (run.mode === "retime") parts.push("re-timed all, lyrics kept");
   if (run.mode === "retry") parts.push("retried ones not yet matched");
   if (run.mode === "preview") parts.push("preview");
   if (run.mode === "apply") parts.push("applied");
@@ -106,11 +108,13 @@ const RunButton: React.FC<{
   const label =
     mode === "all"
       ? "Re-run all"
-      : mode === "preview"
-        ? "Preview"
-        : mode === "apply"
-          ? "Apply"
-          : `Run on ${count.toLocaleString()} ${MODE_LABEL[mode]}`;
+      : mode === "retime"
+        ? "Re-time all, keep lyrics"
+        : mode === "preview"
+          ? "Preview"
+          : mode === "apply"
+            ? "Apply"
+            : `Run on ${count.toLocaleString()} ${MODE_LABEL[mode]}`;
 
   const start = () =>
     runJob.mutate(

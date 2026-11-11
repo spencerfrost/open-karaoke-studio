@@ -416,6 +416,34 @@ def load_vocals(path: Path) -> Tuple[np.ndarray, int]:
     return y, sr
 
 
+BACKING_VOCALS_FILENAME = "backing_vocals.mp3"
+
+
+def load_sung_vocals(vocals_path: Path) -> Tuple[np.ndarray, int]:
+    """Load everything sung in a song: the lead vocals plus the backing vocals.
+
+    Lyrics alignment listens to this. The lead stem alone misses every line the
+    backing vocals sing, and the aligner then crams those lines' words into a
+    moment. A song separated without backing vocals gets its lead alone.
+
+    The two stems are summed sample by sample and scaled down only if the sum
+    clips. Same sample rate and mono as `load_vocals`.
+    """
+    lead, sr = load_vocals(vocals_path)
+    backing_path = vocals_path.parent / BACKING_VOCALS_FILENAME
+    if not backing_path.exists():
+        return lead, sr
+    backing, _ = load_vocals(backing_path)
+    length = max(len(lead), len(backing))
+    mix = np.pad(lead, (0, length - len(lead))) + np.pad(
+        backing, (0, length - len(backing))
+    )
+    peak = float(np.max(np.abs(mix))) if length else 0.0
+    if peak > 1.0:
+        mix = mix / peak
+    return mix.astype(np.float32), sr
+
+
 def compute_rms_curve(
     y: np.ndarray,
     sr: int,

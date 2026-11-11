@@ -15,6 +15,7 @@ export type JobKind =
 export type RunMode =
   | "missing"
   | "repair"
+  | "retime"
   | "retry"
   | "all"
   | "preview"

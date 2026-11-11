@@ -18,7 +18,7 @@ from typing import TypedDict
 
 import numpy as np
 
-from app.services.audio import load_vocals
+from app.services.audio import load_sung_vocals
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.gpu_memory import is_cuda_out_of_memory
 from app.services.lyrics_analysis import LrcLine, parse_lrc_lines
@@ -469,9 +469,9 @@ def _align_segments(
     song_id = _song_id_from_vocals_path(vocals_path)
 
     # Load audio
-    logger.info("Loading vocals from %s", vocals_path)
+    logger.info("Loading lead + backing vocals from %s", vocals_path.parent)
     audio_load_started_at = perf_counter()
-    y, sr = load_vocals(vocals_path)
+    y, sr = load_sung_vocals(vocals_path)
     log_lyrics_event(
         song_id,
         "lyrics_audio_loaded",

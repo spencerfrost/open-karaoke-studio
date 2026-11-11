@@ -24,7 +24,7 @@ from typing import Literal, Optional
 
 import numpy as np
 
-from .audio import compute_rms_curve, load_vocals
+from .audio import compute_rms_curve, load_sung_vocals
 from .gpu_memory import is_cuda_out_of_memory
 from .lyrics_analysis import (
     LrcLine,
@@ -250,7 +250,7 @@ def analyze_global_offset(
 
     # --- Load audio once ------------------------------------------------------
     try:
-        y, sr = load_vocals(vocals_path)
+        y, sr = load_sung_vocals(vocals_path)
     except Exception as e:
         logger.error("Failed to load vocals from %s: %s", vocals_path, e, exc_info=True)
         return OffsetAnalysisResult(
@@ -495,7 +495,7 @@ def sweep_lrc_offset(
         return None
 
     device = _resolve_alignment_device(device)
-    y, sr = load_vocals(vocals_path)
+    y, sr = load_sung_vocals(vocals_path)
     audio = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
 
     scores: dict[float, float] = {}

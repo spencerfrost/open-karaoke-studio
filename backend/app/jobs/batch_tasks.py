@@ -369,6 +369,9 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     queued jobs and stays running, counting them as they finish, until the
     last one does (BatchRunRepository.refresh_handed_off). A song already
     aligning isn't queued again and isn't waited on.
+
+    `retime` keeps each song's stored lyrics and redoes only the timing, so a
+    change to the aligner is measured on the same words.
     """
     from app.db.database import get_db_session
     from app.jobs.lyrics_dispatch import enqueue_song_alignment
@@ -388,7 +391,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
             run.start(len(selected))
             for song, reasons in selected:
                 dispatch = enqueue_song_alignment(
-                    song, include_remote=True, background=True
+                    song, include_remote=mode != "retime", background=True
                 )
                 queued += int(dispatch["dispatched"])
                 if dispatch["dispatched"]:

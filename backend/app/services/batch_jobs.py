@@ -155,7 +155,7 @@ JOBS: dict[str, BatchJob] = {
         BatchJob(
             kind="lyrics_alignment",
             task_name="batch_align_lyrics",
-            modes=("missing", "repair", "all"),
+            modes=("missing", "repair", "all", "retime"),
             covered=_songs,
             missing=_songs,
         ),
@@ -211,12 +211,16 @@ def alignment_summary(session: Session) -> dict:
     selected, with_vocals = select_songs_for_alignment(session, "all")
     aligned = sum(1 for song, _ in selected if song.word_synced_lyrics)
     needs_repair = [(song, reasons) for song, reasons in selected if reasons]
+    with_lyrics = sum(
+        1 for song, _ in selected if song.synced_lyrics or song.plain_lyrics
+    )
     return {
         "coverage": {"have": aligned, "of": with_vocals},
         "modeCounts": {
             "missing": with_vocals - aligned,
             "repair": len(needs_repair),
             "all": with_vocals,
+            "retime": with_lyrics,
         },
         "repairReasons": count_reasons(needs_repair),
     }

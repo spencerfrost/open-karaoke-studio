@@ -306,6 +306,12 @@ flowchart TB
 
 The rules behind those boxes:
 
+- **Alignment hears the lead and backing vocals together.** Forced alignment, the offset sweep
+  and the anchor offset estimate load `vocals.mp3` summed with `backing_vocals.mp3`
+  (`load_sung_vocals` in [audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py)),
+  scaled down only if the sum clips. Lines the backing vocals sing would otherwise be aligned
+  against silence. A song separated without backing vocals is aligned on its lead alone. ASR
+  transcription and language detection still listen to `vocals.mp3`.
 - **Forced alignment only works on synced text.** WhisperX's aligner searches for each line's
   words in the window between its LRC timestamp and the next one
   ([lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) `_lrc_lines_to_segments`).
@@ -475,7 +481,9 @@ run, and why:
 | `reported` | An unresolved lyrics report exists |
 
 `batch_align_lyrics` ([batch_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py)) runs in mode
-`missing`, `repair` or `all`. It aligns nothing itself. It queues one `align_song_lyrics` per
+`missing`, `repair`, `all` or `retime`. `retime` takes every song with vocals and lyrics and
+runs it without remote candidates, so each keeps its lyrics and only the timing is redone: the
+way to measure an aligner change on the same words. It aligns nothing itself. Its run stays open after queuing and counts the queued jobs as they finish (`refresh_handed_off` in [batch_run_repository.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/repositories/batch_run_repository.py)), and stopping or pausing it takes the waiting ones off the queue (Resume queues the paused ones again). It queues one `align_song_lyrics` per
 selected song on the low-priority `lyrics_backfill` queue, so a batch song goes through exactly
 the waterfall above, but only when no new song or fix is waiting. The admin control is the **Lyrics alignment** card on the
 Background jobs page ([jobInfo.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/jobInfo.ts)). Its counts come

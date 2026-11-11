@@ -81,7 +81,7 @@ def fake_alignment(monkeypatch):
     monkeypatch.setitem(sys.modules, "whisperx", _fake_whisperx())
     monkeypatch.setattr(
         lyrics_offset,
-        "load_vocals",
+        "load_sung_vocals",
         lambda _path: (np.zeros(16000, dtype=np.float32), 16000),
     )
 

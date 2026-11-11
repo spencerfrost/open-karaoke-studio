@@ -13,8 +13,13 @@ from app.services.lyrics_alignment import recompute_alignment_line_indices
 
 logger = logging.getLogger(__name__)
 
-AlignmentRunMode = Literal["missing", "repair", "all"]
-ALIGNMENT_RUN_MODES: tuple[AlignmentRunMode, ...] = ("missing", "repair", "all")
+AlignmentRunMode = Literal["missing", "repair", "all", "retime"]
+ALIGNMENT_RUN_MODES: tuple[AlignmentRunMode, ...] = (
+    "missing",
+    "repair",
+    "all",
+    "retime",
+)
 
 # Why a song needs its lyrics re-run. Order is the order they're reported in.
 RepairReason = Literal[
@@ -78,6 +83,8 @@ def select_songs_for_alignment(
     - `missing`: songs without word timings, whatever lyrics they have.
     - `repair`: songs with any repair reason.
     - `all`: every song with vocals.
+    - `retime`: every song with vocals and lyrics, to be re-timed keeping its
+      lyrics (no remote fetch): for measuring an aligner change on the same words.
 
     Returns the selected songs and how many songs have vocals.
     """
@@ -100,6 +107,7 @@ def select_songs_for_alignment(
             mode == "all"
             or (mode == "missing" and not song.word_synced_lyrics)
             or (mode == "repair" and reasons)
+            or (mode == "retime" and (song.synced_lyrics or song.plain_lyrics))
         ):
             selected.append((song, reasons))
     return selected, with_vocals
