@@ -122,7 +122,8 @@ Opened from the full song card (stage device and admins). Three tabs:
   - Artist with featured-artist chips
   - Read-only facts: AcoustID fingerprint status, MusicBrainz link, separation engine, loudness
     and volume correction, source, video ID
-  - Vocal range (lowest/highest detected note, e.g. G2–E5)
+  - Vocal range: the lowest and highest note the lead singer holds, e.g. G2–E5; none for a
+    rapped song
   - Editing the album name stops automatic album lookups from changing it
 - **Lyrics tab:** edit plain and synced lyrics, search for each, clear word timings
 - **Actions tab:**
@@ -822,7 +823,8 @@ why it's still waiting.
 - **Processing Flow:**
   1. YouTube download via yt-dlp
   2. Audio separation using AI
-  3. Vocal range detection (librosa pyin on vocals track)
+  3. Vocal range detection (librosa pyin on the lead vocal, while the lead sings a lyric line;
+     rapped songs get no range)
   4. Loudness measurement after separation (ffmpeg EBU R128 on instrumental + backing vocals → gain correction capped by true peak)
   5. Duration measurement
   6. File storage and database update

@@ -129,10 +129,11 @@ sequenceDiagram
     W->>E: run_separation_with_fallback(engine_type)
     E-->>W: status strings → progress mapper → DB writes
     E-)W: on_vocals_ready(vocals.mp3) ~62%
-    W-)R: detect_song_vocal_range · align_song_lyrics
+    W-)R: align_song_lyrics
     E-->>W: instrumental.mp3 + backing_vocals.mp3
     W->>DB: song.engine_type, duration, status "processed"
     W-)R: detect_song_loudness · detect_song_singing_map (both read the stems, so they wait for separation)
+    R-)R: detect_song_vocal_range, from whichever of singing map and alignment finishes second
     W->>DB: job → COMPLETED 100% (the row stays)
     R->>EW: enrichment + lyrics tasks run independently
 
@@ -195,6 +196,53 @@ share the GPU. All workers run `--without-gossip --without-mingle` (single box, 
 heartbeats were producing false "missed heartbeat" warnings when a heavy task starved the GIL).
 Celery also forces the `spawn` multiprocessing start method, which CUDA requires.
 
+All of a worker's tasks are threads in one process, so a task that holds the GIL for long
+freezes the rest: its other tasks stall, and the worker can't answer pings, so the admin page
+shows its queue with nobody serving it. Vocal range detection is the one that does this:
+librosa's `pyin` runs numba loops that never release the GIL, for about a minute per song.
+`detect_vocal_range` in [services/audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py) therefore runs it in a child process,
+[services/vocal_range_child.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/vocal_range_child.py), started by file path with `python -I` so
+it imports only librosa and numpy, and killed after 600 s. The admin "analyze vocal range"
+endpoint goes through the same function, which keeps the API process responsive too. A crash, a
+timeout or an unreadable file raises, so the batch counts it as `error` and the endpoint answers
+`500`.
+
+**How the range is decided** (method `lyrics-v2`, picked by ear on the benchmark below). pyin's
+pitch track of `vocals.mp3` is kept only where the [singing map](lyrics-system.md#singing-map-breaks-from-the-audio) says the lead
+sings and a synced-lyrics line is on screen (each line from its timestamp to the next, at most
+10 s; a song without synced lyrics skips this second gate). The kept frames join into held notes
+(steady within half a semitone for at least 0.15 s), and the range runs from the lowest to the
+highest note held for 0.25 s in total, after dropping top notes that sit an octave above
+everything sung around them, which is pyin misreading the singer. Some songs get a label and no
+range: **rapped** when under 7% of the lead's singing is clearly pitched, **no lead found**
+under 10 s of lead singing, **one note** when both ends are the same note. On the 72 test songs
+checked by ear it picks the right note for 76% of range ends (today's earlier method: 46%); the
+known error left is held notes read an octave high.
+
+[jobs/metadata_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/metadata_tasks.py) `detect_and_store_vocal_range`
+builds those inputs ([services/vocal_range.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/vocal_range.py)) and saves the
+answer: `vocal_range_low` and `vocal_range_high` (both null with no range) and
+`vocal_range_detail`, JSON with the method, the label, the moments that set each end, the
+pitched share and the md5 of the synced lyrics it read. A song with no singing map yet is
+`waiting` and saves nothing. Because the range needs both the map and the lyrics, a new song's
+range is queued by `queue_vocal_range_if_ready`, which the singing map task and the lyrics
+alignment task each call when they finish: whichever finishes second queues it. It also queues a
+song whose range was measured against other synced lyrics than it has now.
+
+The admin page **Check vocal range**
+([AdminCheckVocalRangePage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/AdminCheckVocalRangePage.tsx),
+route `/admin/vocal-range`) checks range methods by ear. The vocal range benchmark
+([scripts/experiments/vocal_range](https://github.com/spencerfrost/open-karaoke-studio/tree/master/backend/scripts/experiments/vocal_range))
+runs methods over a test set and writes each song's range, the moments that set each end and the
+pitch tracks to a gitignored folder on the machine it runs on;
+[vocal_range_review.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/vocal_range_review.py)
+reads that folder, never the database. Each moment plays from the lead stem (the full mix a click
+away) and stops by itself, beside tones at its note and an octave either side and a strip of the
+pitch track around it. It takes an answer (right, an octave too high or too low, another note, not
+the singer, rapped or spoken, screamed, can't tell), and each song takes its kind (sung, rap with a sung part, rapped, spoken,
+no vocals). Answers are saved in the folder (`answers.json`) and keyed by note and time, so methods
+that agree on a moment share its answer. Nothing here changes the range the app stores.
+
 ### Catching up when a song is queued
 
 A song processed months ago was processed by older code. Instead of re-running the whole
@@ -222,7 +270,7 @@ again when it starts, so a song queued twice in a row is done once.
 |---|---|---|
 | `loudness` | `detect_song_loudness` | its `loudness_version` is behind |
 | `singing_map` | `detect_song_singing_map` | its `singing_map_version` is behind |
-| `vocal_range` | `detect_song_vocal_range` | its `vocal_range_version` is behind |
+| `vocal_range` | `detect_song_vocal_range` | its `vocal_range_version` is behind (it waits for the singing map) |
 | `song_albums` | `fetch_song_artwork` | never looked up, and it has no album cover |
 | `album_art_videos` | `detect_song_album_art_video` | `video_is_album_art` is null |
 | `fingerprint` | `fingerprint_single_song` | its status is `not_checked` |
@@ -275,8 +323,9 @@ process outright: no Python exception, no task failure, nothing in the Celery lo
 A stop on purpose goes through Celery's warm shutdown, which waits for every running task:
 the thread pool can't stop a task part-way. A batch task is one task for the whole library,
 so between songs it checks Celery's shutdown flags (`worker_stopping`). Once they are set, it
-stops and marks its run `interrupted`, and the wait is one song. The loudness `ffmpeg` starts
-in its own session, so a Ctrl-C in the terminal lets the current song finish instead of killing it. A second Ctrl-C makes `celery_workers.sh` kill the workers
+stops and marks its run `interrupted`, and the wait is one song. The vocal range child and the
+loudness `ffmpeg` start in their own session, so a Ctrl-C in the terminal lets the current
+song finish instead of killing it. A second Ctrl-C makes `celery_workers.sh` kill the workers
 outright (`SIGKILL`); that is the same as a crash, and the next start recovers it the same way.
 In prod, `docker stop` sends `SIGKILL` after its grace period, with the same result.
 
@@ -319,8 +368,9 @@ flowchart LR
     C -.-> C3["prefetch_song_lyrics"]
     D -.->|after separation| D3["detect_song_loudness"]
     D -.->|after separation| D4["detect_song_singing_map"]
-    D -.->|on_vocals_ready ~62%| D1["detect_song_vocal_range"]
     D -.->|on_vocals_ready ~62%| D2["align_song_lyrics"]
+    D4 -.->|second of the two to finish| D1["detect_song_vocal_range"]
+    D2 -.->|second of the two to finish| D1
 
     style A1 fill:#1f4d3d,color:#fff
     style C1 fill:#1f4d3d,color:#fff
@@ -340,8 +390,8 @@ vocals and converting the instrumental. The engine calls back at that moment so 
 — the slowest downstream task — starts ~40% of a separation earlier than it otherwise would. Only
 the `three_track*` engines pass this callback through
 ([jobs/separation.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/separation.py) only forwards `on_vocals_ready` when
-`engine_type.startswith("three_track")`); on `demucs` or `roformer`, vocal range and lyrics
-alignment are simply never dispatched by this task at all.
+`engine_type.startswith("three_track")`); on `demucs` or `roformer`, lyrics alignment is
+never dispatched by this task at all, and so neither is the vocal range, which waits for it.
 
 ### Progress accounting (why the numbers look arbitrary)
 
@@ -577,6 +627,12 @@ still surfaces, because its row is kept with the error.
   the songbook endpoints (`GET /api/songs`, `/search`, `/artists`, `/shows`, `/by-artist`,
   `/by-show`) filter them out via `in_songbook()`, adding the song again restarts the row, and
   admins see them in Library Audit.
+- **Vocal range octave errors.** pyin sometimes holds a note an octave above the singer. The
+  octave check drops a top note only when it sits an octave above everything sung within 4 s,
+  so 11% of range ends checked by ear are still an octave high. Another pitch model (torchcrepe,
+  RMVPE, Basic Pitch) is the likely fix.
+- **A rap with a sung hook is labelled rapped.** No pitched-share cut separates rap from sung
+  songs cleanly, and a mostly rapped song with a sung chorus gets no range.
 
 ## Cross-references
 

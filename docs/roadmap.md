@@ -14,6 +14,10 @@ The working plans behind these tasks are in `docs/plans/` in the repo, indexed b
 
 In no particular order.
 
+- **Trustworthy vocal ranges.** The range on the song card and wheel comes from pyin frame
+  percentiles, unchecked since it was built. Some are plainly wrong (Rick Astley up to A6, rap
+  songs with sung ranges). Measure first (ear-check page, reference set, benchmark), then fix
+  what counts as a note, label rapped songs, and show a comfortable range. *(Plan: vocal range)*
 - **One keyboard layer for the stage.** Five screens each bind their own keys, with copies of
   the same checks that have already drifted apart (for example, holding Back on the confirm
   screen goes back twice). Replace them with one table of keys → actions and one hook.
