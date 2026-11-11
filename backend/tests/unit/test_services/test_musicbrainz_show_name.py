@@ -201,6 +201,8 @@ def test_a_failed_lookup_is_none_not_no_show(mock_client_cls, _sleep):
         ("ill_cover_you_reprise", "Rent"),
         ("defying_gravity", "Wicked"),
         ("falling_slowly_once", "Once"),
+        # A remake added to a later edition of the show's album
+        ("ma_meilleure_ennemie_coldplay", "Arcane: League of Legends"),
         # Licensed: on its artist's album years before the soundtrack
         ("bobcaygeon", None),
         # The same song's earlier recording, on a non-soundtrack album
@@ -284,6 +286,22 @@ def test_a_lead_single_out_before_the_album_still_counts():
         "releases": [_soundtrack("Once: Music From the Motion Picture", "2007-05-22")],
     }
     assert _extract_show_name(data) == "Once"
+
+
+def test_an_album_out_after_the_recording_isnt_its_show():
+    # A licensed song: out on the artist's own album, the soundtrack years later
+    data = _first_released_2001(_soundtrack("Practical Magic", "2004"))
+    assert _extract_show_name(data) is None
+
+
+def test_an_album_out_before_the_recording_is_its_show():
+    data = _first_released_2001(_soundtrack("Big Fish", "1999-11-02"))
+    assert _extract_show_name(data) == "Big Fish"
+
+
+def test_an_album_without_a_date_isnt_a_show():
+    data = _first_released_2001(_soundtrack("Big Fish", ""))
+    assert _extract_show_name(data) is None
 
 
 def test_no_first_release_date_means_no_show():

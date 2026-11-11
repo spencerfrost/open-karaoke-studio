@@ -188,12 +188,14 @@ def _various_artists(artist_credit_list: list) -> bool:
 def _extract_show_name(data: dict) -> str | None:
     """The show a recording was written for, from its releases; None if none.
 
-    A recording is from a show when it first came out on the show's album: a
-    soundtrack album (MusicBrainz files Broadway cast albums as soundtracks
-    too) that came out the year the recording first did. A licensed song was
-    released years earlier on the artist's own album, so a later movie
+    A recording is from a show when it's on the show's album: a soundtrack
+    album (MusicBrainz files Broadway cast albums as soundtracks too) that
+    came out no later than the year the recording first did. A licensed song
+    was released years earlier on the artist's own album, so a later movie
     soundtrack doesn't count. Years rather than dates, so a lead single out
-    weeks before the album still counts.
+    weeks before the album still counts. An album that came out earlier
+    counts: a recording added to a later edition of the show's album (a
+    remake with a new guest) was made for the show.
 
     Not every soundtrack is a show's. Singles are named after the song, and
     compilations and "Various Artists" albums gather songs for a film, game
@@ -213,12 +215,13 @@ def _extract_show_name(data: dict) -> str | None:
     for release in data.get("releases", []):
         rg = release.get("release-group") or {}
         secondary_types = rg.get("secondary-types") or []
-        rg_date = rg.get("first-release-date") or ""
+        rg_year = (rg.get("first-release-date") or "")[:4]
         if (
             rg.get("primary-type") == "Album"
             and "Soundtrack" in secondary_types
             and "Compilation" not in secondary_types
-            and rg_date[:4] == first_released[:4]
+            and len(rg_year) == 4
+            and rg_year <= first_released[:4]
             and not _various_artists(release.get("artist-credit") or [])
         ):
             candidates[rg.get("id") or rg.get("title")] = rg

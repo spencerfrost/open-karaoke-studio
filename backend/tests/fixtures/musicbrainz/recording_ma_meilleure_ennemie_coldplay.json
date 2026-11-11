@@ -1,0 +1,207 @@
+{
+  "id": "67c6b802-6f84-48df-8614-ec3bb26f034d",
+  "title": "Ma Meilleure Ennemie",
+  "first-release-date": "2025-03-14",
+  "artist-credit": [
+    {
+      "name": "Stromae",
+      "joinphrase": ", ",
+      "artist": {
+        "id": "ab2528d9-719f-4261-8098-21849222a0f2",
+        "name": "Stromae"
+      }
+    },
+    {
+      "name": "Pomme",
+      "joinphrase": ", ",
+      "artist": {
+        "id": "c75b226d-d643-41dc-a2b7-00c0ff8c8e7b",
+        "name": "Pomme"
+      }
+    },
+    {
+      "name": "Coldplay",
+      "joinphrase": ", ",
+      "artist": {
+        "id": "cc197bad-dc9c-440d-a5b5-d52ba2e14234",
+        "name": "Coldplay"
+      }
+    },
+    {
+      "name": "Elyanna",
+      "joinphrase": ", ",
+      "artist": {
+        "id": "bc563821-40ec-48e9-b0a0-4f41dc46a1f2",
+        "name": "Elyanna"
+      }
+    },
+    {
+      "name": "Arcane",
+      "joinphrase": " & ",
+      "artist": {
+        "id": "3d1ebd4c-17d9-4dd5-983c-e1677a11e2cf",
+        "name": "Arcane"
+      }
+    },
+    {
+      "name": "League of Legends",
+      "joinphrase": "",
+      "artist": {
+        "id": "0976dbd8-e7fe-4161-9a49-58c57f7a7787",
+        "name": "Riot Games Music Team"
+      }
+    }
+  ],
+  "releases": [
+    {
+      "title": "Arcane League of Legends: Season 2 Original Soundtrack (Extended Edition)",
+      "artist-credit": [
+        {
+          "name": "Arcane",
+          "joinphrase": " & ",
+          "artist": {
+            "id": "3d1ebd4c-17d9-4dd5-983c-e1677a11e2cf",
+            "name": "Arcane"
+          }
+        },
+        {
+          "name": "League of Legends",
+          "joinphrase": "",
+          "artist": {
+            "id": "0976dbd8-e7fe-4161-9a49-58c57f7a7787",
+            "name": "Riot Games Music Team"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "9d5812a8-056f-45ad-9d8d-60763e785896",
+        "title": "Arcane: League of Legends: Season Two Original Soundtrack",
+        "primary-type": "Album",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "first-release-date": "2024-11-09"
+      }
+    },
+    {
+      "title": "Arcane League of Legends: Season 2 Original Soundtrack (Extended Edition)",
+      "artist-credit": [
+        {
+          "name": "Arcane",
+          "joinphrase": " & ",
+          "artist": {
+            "id": "3d1ebd4c-17d9-4dd5-983c-e1677a11e2cf",
+            "name": "Arcane"
+          }
+        },
+        {
+          "name": "League of Legends",
+          "joinphrase": "",
+          "artist": {
+            "id": "0976dbd8-e7fe-4161-9a49-58c57f7a7787",
+            "name": "Riot Games Music Team"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "9d5812a8-056f-45ad-9d8d-60763e785896",
+        "title": "Arcane: League of Legends: Season Two Original Soundtrack",
+        "primary-type": "Album",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "first-release-date": "2024-11-09"
+      }
+    },
+    {
+      "title": "Arcane League of Legends: Season 2 Original Soundtrack (Extended Edition)",
+      "artist-credit": [
+        {
+          "name": "Arcane & League of Legends Music",
+          "joinphrase": "",
+          "artist": {
+            "id": "3d1ebd4c-17d9-4dd5-983c-e1677a11e2cf",
+            "name": "Arcane"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "9d5812a8-056f-45ad-9d8d-60763e785896",
+        "title": "Arcane: League of Legends: Season Two Original Soundtrack",
+        "primary-type": "Album",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "first-release-date": "2024-11-09"
+      }
+    },
+    {
+      "title": "Arcane League of Legends: Season 2 Original Soundtrack (Extended Edition)",
+      "artist-credit": [
+        {
+          "name": "Arcane",
+          "joinphrase": " & ",
+          "artist": {
+            "id": "3d1ebd4c-17d9-4dd5-983c-e1677a11e2cf",
+            "name": "Arcane"
+          }
+        },
+        {
+          "name": "League of Legends",
+          "joinphrase": "",
+          "artist": {
+            "id": "0976dbd8-e7fe-4161-9a49-58c57f7a7787",
+            "name": "Riot Games Music Team"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "9d5812a8-056f-45ad-9d8d-60763e785896",
+        "title": "Arcane: League of Legends: Season Two Original Soundtrack",
+        "primary-type": "Album",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "first-release-date": "2024-11-09"
+      }
+    },
+    {
+      "title": "Ma meilleure ennemie",
+      "artist-credit": [
+        {
+          "name": "Stromae",
+          "joinphrase": ", ",
+          "artist": {
+            "id": "ab2528d9-719f-4261-8098-21849222a0f2",
+            "name": "Stromae"
+          }
+        },
+        {
+          "name": "Pomme",
+          "joinphrase": " & ",
+          "artist": {
+            "id": "c75b226d-d643-41dc-a2b7-00c0ff8c8e7b",
+            "name": "Pomme"
+          }
+        },
+        {
+          "name": "Coldplay",
+          "joinphrase": "",
+          "artist": {
+            "id": "cc197bad-dc9c-440d-a5b5-d52ba2e14234",
+            "name": "Coldplay"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "6c7f4cbb-dcae-4370-bfdd-5d23c676d7ab",
+        "title": "Ma meilleure ennemie",
+        "primary-type": "Single",
+        "secondary-types": [
+          "Soundtrack"
+        ],
+        "first-release-date": "2025-04-04"
+      }
+    }
+  ]
+}

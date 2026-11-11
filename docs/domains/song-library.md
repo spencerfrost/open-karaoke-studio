@@ -477,8 +477,10 @@ decides. A recording is from a show when one of its releases is in a release gro
   soundtracks too),
 - **not** a Compilation,
 - **not** credited to Various Artists,
-- first out the **same year** the recording first came out. A licensed pop song came out years
-  earlier on the artist's own album, so a later movie soundtrack doesn't count.
+- first out **no later than the year** the recording first came out. A licensed pop song came
+  out years earlier on the artist's own album, so a later movie soundtrack doesn't count. A
+  recording added to a later edition of the show's album (the Coldplay version of "Ma Meilleure
+  Ennemie" on the Arcane soundtrack) was made for the show, so an earlier album counts.
 
 Of the albums that qualify, the one out on the recording's first release date wins, then the
 earliest.
