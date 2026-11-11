@@ -31,7 +31,7 @@ MATCH = AlbumMatch(
 def covers_dir():
     path = get_config().library_path / "covers"
     yield path
-    for cover in path.glob("album-*"):
+    for cover in path.glob("*.jpg"):
         cover.unlink()
 
 
@@ -75,8 +75,8 @@ class TestRefreshSongAlbum:
         assert song.album_checked_at is None
         assert (album.source, album.source_id) == ("ytmusic", "MPREb_1")
         assert album.release_date == "1975"
-        assert album.cover_path == f"covers/album-{album.id}.jpg"
-        assert (covers_dir / f"album-{album.id}.jpg").read_bytes() == b"cover-bytes"
+        assert album.cover_path == "covers/ytmusic-MPREb_1.jpg"
+        assert (covers_dir / "ytmusic-MPREb_1.jpg").read_bytes() == b"cover-bytes"
 
     def test_songs_on_the_same_album_share_it_and_its_cover(self, db, covers_dir):
         _add_song(db, "s1")
@@ -155,6 +155,7 @@ class TestRefreshSongAlbum:
 
 class TestBatchFetchAlbums:
     def test_looks_songs_up_and_deletes_albums_left_unlinked(self, db, covers_dir):
+        # The cover file stays: another database sharing the library may use it.
         old = DbAlbum(
             title="Pandora's Box",
             source="itunes",
@@ -173,7 +174,7 @@ class TestBatchFetchAlbums:
         assert counts["found"] == 1
         assert counts["albums_deleted"] == 1
         assert db.query(DbAlbum).filter(DbAlbum.source == "itunes").count() == 0
-        assert not (covers_dir / "album-old.jpg").exists()
+        assert (covers_dir / "album-old.jpg").exists()
 
     def test_delete_unlinked_albums_keeps_linked_ones(self, db):
         kept = DbAlbum(title="Kept")
@@ -183,6 +184,18 @@ class TestBatchFetchAlbums:
 
         assert delete_unlinked_albums() == 1
         assert [a.title for a in db.query(DbAlbum).all()] == ["Kept"]
+
+
+class TestCoverFileName:
+    def test_is_named_after_the_release(self):
+        assert album_service.cover_file_name("deezer", "302127") == (
+            "covers/deezer-302127.jpg"
+        )
+
+    def test_keeps_odd_characters_out_of_the_path(self):
+        assert album_service.cover_file_name("ytmusic", "a/../b c") == (
+            "covers/ytmusic-a____b_c.jpg"
+        )
 
 
 class TestHandEditedAlbum:

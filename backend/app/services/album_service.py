@@ -277,7 +277,7 @@ def assign_album(song_id: str, match: AlbumMatch) -> AlbumOutcome:
 
     cover_path = None
     if not has_cover and match.cover_url:
-        cover_path = _download_cover(album_id, match.cover_url)
+        cover_path = download_cover(match.source, match.source_id, match.cover_url)
 
     with get_db_session() as session:
         from app.db.models.album import DbAlbum
@@ -343,14 +343,24 @@ def refresh_song_album(song_id: str) -> AlbumOutcome:
     return assign_album(song_id, match)
 
 
-def _download_cover(album_id: int, url: str) -> Optional[str]:
-    """Save the cover as covers/album-{id}.jpg. Returns that path, or None."""
+def cover_file_name(source: str, source_id: str) -> str:
+    """The cover's path in the library: named after the release, not the album row.
+
+    Dev and prod share one library folder but number their albums separately,
+    so a name built from the row id would let one overwrite the other's covers.
+    A release's cover is the same picture whichever database saves it.
+    """
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "_", source_id)
+    return f"covers/{source}-{safe_id}.jpg"
+
+
+def download_cover(source: str, source_id: str, url: str) -> Optional[str]:
+    """Save the release's cover into the library. Returns its path, or None."""
     from app.config import get_config
 
-    covers_dir = get_config().library_path / "covers"
-    covers_dir.mkdir(parents=True, exist_ok=True)
-    relative = f"covers/album-{album_id}.jpg"
-    dest = covers_dir / f"album-{album_id}.jpg"
+    relative = cover_file_name(source, source_id)
+    dest = get_config().library_path / relative
+    dest.parent.mkdir(parents=True, exist_ok=True)
     try:
         response = requests.get(url, timeout=_TIMEOUT)
         response.raise_for_status()
@@ -360,23 +370,23 @@ def _download_cover(album_id: int, url: str) -> Optional[str]:
         partial.write_bytes(response.content)
         partial.replace(dest)
     except Exception as e:
-        logger.warning("Cover download failed for album %s: %s", album_id, e)
+        logger.warning("Cover download failed for %s %s: %s", source, source_id, e)
         return None
     return relative
 
 
 def delete_unlinked_albums() -> int:
-    """Delete albums no song links to, and their cover files. Returns how many."""
-    from app.config import get_config
+    """Delete albums no song links to. Returns how many.
+
+    Their cover files stay: the library folder is shared with another database
+    (dev and prod), which may still show the same release's cover.
+    """
     from app.db.database import get_db_session
     from app.repositories.album_repository import AlbumRepository
 
-    library = get_config().library_path
     with get_db_session() as session:
         albums = AlbumRepository(session).unlinked()
         for album in albums:
-            if album.cover_path:
-                (library / album.cover_path).unlink(missing_ok=True)
             session.delete(album)
         session.commit()
     if albums:

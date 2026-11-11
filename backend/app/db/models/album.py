@@ -14,7 +14,9 @@ class DbAlbum(Base):
     source = Column(String, nullable=True)
     source_id = Column(String, nullable=True)
     release_date = Column(String, nullable=True)  # year, e.g. "1975"
-    cover_path = Column(String, nullable=True)  # relative: "covers/album-{id}.jpg"
+    cover_path = Column(
+        String, nullable=True
+    )  # relative: "covers/{source}-{source_id}.jpg"
     image_status = Column(String, nullable=False, default="not_checked")
     # image_status values: "not_checked" | "found" | "not_found"
 

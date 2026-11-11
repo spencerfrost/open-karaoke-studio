@@ -121,7 +121,7 @@ erDiagram
         string source "ytmusic | deezer (itunes: legacy)"
         string source_id "UK with source"
         string release_date "year"
-        string cover_path "covers/album-{id}.jpg"
+        string cover_path "covers/{source}-{source_id}.jpg"
         string image_status "not_checked | found | not_found"
     }
 ```
@@ -204,7 +204,7 @@ sequenceDiagram
     W-->>Art: send_task at 5%
     Art->>Ext: YouTube Music watch page of video_id → its album
     Note over Art: not on an album → Deezer search, checked match
-    Art->>API: albums row + covers/album-{id}.jpg, song.album + album_id + explicit
+    Art->>API: albums row + covers/{source}-{source_id}.jpg, song.album + album_id + explicit
     Note over Art: no album with a cover → YouTube thumbnail
     W-->>FP: send_task after download (12%)
     FP->>Ext: AcoustID match(original.mp3)
@@ -419,7 +419,9 @@ release:
 3. **Nothing.** The song keeps its YouTube thumbnail and `album_checked_at` is set.
 
 Albums are keyed by `(source, source_id)`, so songs on the same release share one row and one
-cover file, `karaoke_library/covers/album-{id}.jpg`, served by `GET /api/albums/{id}/cover`.
+cover file, `karaoke_library/covers/{source}-{source_id}.jpg`, served by `GET /api/albums/{id}/cover`.
+The file is named after the release, not the row, because dev and prod share one library folder
+but number their albums separately: a release's cover is the same picture in both.
 
 A person editing the album name sets `album_hand_set_at`; automatic lookups then skip the song
 and its cover stays linked. Clearing the name clears the link and the marker.
@@ -430,8 +432,8 @@ URL built from `videoId`.
 
 One admin batch job maintains this: `song_albums` (`batch_fetch_albums`, "Album covers"). Missing
 mode takes songs not hand-set or checked whose album is absent or has no cover; "all" looks every
-song that isn't hand-set up again. Each run ends by deleting albums no song links to, with their
-cover files.
+song that isn't hand-set up again. Each run ends by deleting albums no song links to. Their cover
+files stay, since the other database sharing the folder may still show that release.
 
 ## Artist images
 
