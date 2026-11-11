@@ -241,8 +241,8 @@ class TestBreaksFromMap:
         assert [(b["start"], b["end"]) for b in breaks] == [(5.0, 30.0)]
 
     def test_short_gaps_are_not_breaks(self):
-        lrc = "[00:00.00] One\n[00:10.00] Two"
-        singing_map = {"lead": [[0, 5], [10, 15]], "backing": None, "duration": 20}
+        lrc = "[00:00.00] One\n[00:07.00] Two"
+        singing_map = {"lead": [[0, 5], [7, 15]], "backing": None, "duration": 20}
         assert breaks_from_map(singing_map, line_windows(lrc)) == []
 
     def test_silence_after_the_last_line_is_dropped(self):

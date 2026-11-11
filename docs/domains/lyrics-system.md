@@ -440,7 +440,7 @@ It needs no lyrics, so lyrics changes never rerun it.
 and the current synced lyrics. Singing that counts is the lead, plus the backing only while a
 lyric line is on screen: backing that sings lines the lyrics have shows those lines, and backing
 ad-libs with no line can be part of a break. A line with word timing is on screen from its first
-word to its last; any other line from its timestamp to the next line's. A break is 6 s or more
+word to its last; any other line from its timestamp to the next line's. A break is 3 s or more
 with nothing counted as singing, leading into the first line that starts after it begins.
 
 The admin page **Compare breaks**

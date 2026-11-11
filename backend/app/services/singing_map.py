@@ -151,8 +151,11 @@ def measure_singing_map(
 # Instrumental breaks from the map
 # ---------------------------------------------------------------------------
 
-# Same minimum and lead-in as the word-gap breaks in lyrics_alignment.py.
-BREAK_MIN_SECONDS = 6.0
+# The bar tells the singer when to come back in, so a gap short enough to
+# come in late on still gets one. The word-gap breaks in lyrics_alignment.py
+# keep 6 s: held words make word ends too loose for short gaps.
+BREAK_MIN_SECONDS = 3.0
+# Same lead-in as the word-gap breaks.
 BREAK_LEAD_IN_SECONDS = 1.5
 # A line without word timing is on screen from its timestamp to the next
 # line's, as the TV shows it. The last line has no next line: this long.
