@@ -18,16 +18,10 @@ interface AddSongFlowProps {
   step: AddFlowStep;
   /** Leave the flow, back to the songbook. */
   onExit: () => void;
-  /** Called after a song is added. */
-  onAdded?: () => void;
 }
 
-export const AddSongFlow: React.FC<AddSongFlowProps> = ({
-  step,
-  onExit,
-  onAdded,
-}) => (
-  <AddSongProvider onAdded={onAdded}>
+export const AddSongFlow: React.FC<AddSongFlowProps> = ({ step, onExit }) => (
+  <AddSongProvider>
     <PreviewProvider>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-2 pb-4 sm:px-6">
         {step.kind === "search" && <SearchScreen step={step} onExit={onExit} />}

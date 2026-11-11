@@ -4,9 +4,8 @@
  * The same screens as the phone's /add; the shell keeps their stack, and
  * `shell.back()` walks it (album → artist → search → song select).
  *
- * The one rule specific to the stage: hand back on *submit*, not on completion.
- * Download plus Demucs runs for minutes, and a TV that sits on a spinner for
- * that long is a dead cabinet — the song surfaces in the library when it lands.
+ * Adding a song stays on this screen, so a guest can add several and go back
+ * when done. Each song shows up in the wheel when it's ready.
  */
 
 import React from "react";
@@ -25,11 +24,7 @@ const AddSongScreen: React.FC<AddSongScreenProps> = ({ step }) => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-auto pt-4">
-        <AddSongFlow
-          step={step}
-          onExit={() => shell?.back()}
-          onAdded={() => shell?.openSelect()}
-        />
+        <AddSongFlow step={step} onExit={() => shell?.back()} />
       </div>
       <StageNowPlaying />
     </div>

@@ -666,9 +666,10 @@ after a song ends).
 ### Add, create, exit
 
 - **`AddSongScreen`** renders the phone's `AddSongFlow` (search, artist, album) for the top of the
-  shell's add stack; `back()` walks the stack before returning to song select. It hands back to
-  song select as soon as a song is added. Download and separation take minutes, and the song shows up in
-  the wheel when it lands, and in the processing list on song select meanwhile. The pipeline itself is [ingestion-pipeline.md](ingestion-pipeline.md).
+  shell's add stack; `back()` walks the stack before returning to song select. Adding a song
+  stays on the screen, so a guest can add several before going back. Download and separation take
+  minutes; each song shows up in the processing list on song select meanwhile, and in the wheel
+  when it lands. The pipeline itself is [ingestion-pipeline.md](ingestion-pipeline.md).
 - **`CreateSessionScreen`** renders before the shell exists. It's covered in
   [sessions-realtime.md](sessions-realtime.md#created-only-on-the-stage).
 - **`ExitStagePrompt`** offers "Keep it running" (leave fullscreen, go to `/`, session and audio

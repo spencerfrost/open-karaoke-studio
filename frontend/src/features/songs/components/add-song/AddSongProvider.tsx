@@ -1,6 +1,6 @@
 /**
- * AddSongProvider - supplies the add flow's submissions (see addSongContext),
- * and what to do once a song is added.
+ * AddSongProvider - supplies the add flow's submissions (see addSongContext).
+ * Adding a song leaves the guest where they are, so they can add several.
  */
 
 import React, { useMemo } from "react";
@@ -8,13 +8,10 @@ import { useSongCreation } from "../../hooks/useSongCreation";
 import { AddSongContext, type AddSongContextValue } from "./addSongContext";
 
 interface AddSongProviderProps {
-  /** Called after a song is added, e.g. the stage handing back to song select. */
-  onAdded?: () => void;
   children: React.ReactNode;
 }
 
 export const AddSongProvider: React.FC<AddSongProviderProps> = ({
-  onAdded,
   children,
 }) => {
   const { addSong, getSubmission } = useSongCreation();
@@ -33,13 +30,11 @@ export const AddSongProvider: React.FC<AddSongProviderProps> = ({
           album: song.album,
           durationSeconds: song.durationSeconds,
           source,
-        }).then((songId) => {
-          if (songId) onAdded?.();
         });
       },
       getSubmission,
     }),
-    [addSong, getSubmission, onAdded],
+    [addSong, getSubmission],
   );
 
   return (
