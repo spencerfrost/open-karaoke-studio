@@ -24,7 +24,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
-import { Loader2, Plus, Theater } from "lucide-react";
+import { Loader2, Plus, Search, Theater } from "lucide-react";
 import type { Song } from "@/types/Song";
 import { artistSongTotal } from "@/hooks/api/useArtists";
 import SongInfoCard from "./SongInfoCard";
@@ -53,6 +53,7 @@ import {
   tileInitial,
   type ColumnKind,
   type SourceId,
+  type WheelArtist,
   type WheelScrollLock,
 } from "./wheelModel";
 
@@ -80,6 +81,8 @@ interface SongWheelProps {
   onPickSong: (song: Song) => void;
   /** The source column's "Add a song" row. */
   onAddSong: () => void;
+  /** The song column's last row: the add flow, on this artist. */
+  onFindMore: (artist: WheelArtist) => void;
   /** Back from the letter or artist column; null when there is nowhere to go. */
   onLeave: (() => void) | null;
   /**
@@ -159,6 +162,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
   focusArtist,
   onPickSong,
   onAddSong,
+  onFindMore,
   onLeave,
   backdropTarget,
 }) => {
@@ -173,6 +177,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
     // The only action so far.
     onAction: onAddSong,
     onLeave: () => onLeave?.(),
+    onFindMore,
   });
 
   useMouseWheel(containerRef, wheel.scrollColumn);
@@ -235,6 +240,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
       ["⏎"],
       (frontKind === "source" &&
         SOURCE_ACTIONS.find((a) => a.id === wheel.sourceAction)?.label) ||
+        (frontKind === "song" && az.onFindMore && "Find more") ||
         legendText.enter,
     ],
   ];
@@ -366,10 +372,24 @@ const SongWheel: React.FC<SongWheelProps> = ({
                 "No songs"
               )
             }
-            isRowDisabled={(row) => az.songs[row]?.status !== "processed"}
+            isRowDisabled={(row) =>
+              row < az.songs.length && az.songs[row].status !== "processed"
+            }
             rowClassName="px-7 text-[32px]"
             renderRow={(row) => {
               const song = az.songs[row];
+              // The songbook's "Find more from …" card, as the last row:
+              // songs not in the songbook yet, on the add screen.
+              if (!song) {
+                return (
+                  <>
+                    <Search className="mr-3 size-7 flex-none text-accent" />
+                    <span className="truncate">
+                      Find more from {az.artist?.name}
+                    </span>
+                  </>
+                );
+              }
               return (
                 <>
                   <span className="w-11 flex-none font-display text-[22px] tabular-nums text-foreground-faint">

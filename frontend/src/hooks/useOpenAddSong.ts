@@ -20,6 +20,19 @@ export interface OpenAddSongOptions {
   artistBrowseId?: string;
 }
 
+/**
+ * "Find more from this artist": their YouTube Music page when the library
+ * knows it, else a search for their name that opens the matching artist.
+ * The songbook's browse card and the stage wheel's last row both use it.
+ */
+export const browseArtistOptions = (artist: {
+  name: string;
+  youtubeMusicArtistId?: string | null;
+}): OpenAddSongOptions =>
+  artist.youtubeMusicArtistId
+    ? { artistBrowseId: artist.youtubeMusicArtistId }
+    : { query: artist.name, findArtist: true };
+
 export const useOpenAddSong = () => {
   const navigate = useNavigate();
   const shell = useStageShell();

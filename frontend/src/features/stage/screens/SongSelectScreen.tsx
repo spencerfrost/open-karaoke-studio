@@ -20,6 +20,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { LogOut, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import { browseArtistOptions } from "@/hooks/useOpenAddSong";
 import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
 import StageNowPlaying from "../components/StageNowPlaying";
@@ -27,6 +28,7 @@ import StageProcessingList from "../components/StageProcessingList";
 import StageSearch from "../components/StageSearch";
 import SongWheel from "../wheel/SongWheel";
 import type { WheelFocusRequest } from "../wheel/useSongWheel";
+import type { WheelArtist } from "../wheel/wheelModel";
 
 interface SongSelectScreenProps {
   /** Whether this is the screen showing. It stays mounted behind the others. */
@@ -77,6 +79,10 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
   }, []);
   const closeSearch = useCallback(() => setSearching(false), []);
   const handleAddSong = useCallback(() => shell?.openAdd(), [shell]);
+  const handleFindMore = useCallback(
+    (artist: WheelArtist) => shell?.openAdd(browseArtistOptions(artist)),
+    [shell],
+  );
   // State, not a ref: the wheel has to re-render once the layer exists.
   const [backdropEl, setBackdropEl] = useState<HTMLDivElement | null>(null);
 
@@ -140,6 +146,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
               focusArtist={focusArtist}
               onPickSong={handlePickSong}
               onAddSong={handleAddSong}
+              onFindMore={handleFindMore}
               onLeave={handleLeave}
               backdropTarget={backdropEl}
             />

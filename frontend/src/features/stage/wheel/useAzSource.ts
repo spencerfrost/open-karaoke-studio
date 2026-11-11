@@ -58,6 +58,14 @@ export interface AzSource {
   letterIndex: number;
   /** Their own songs, then the ones they guest on (`role: "featured"`). */
   songs: ArtistSong[];
+  /**
+   * Rows in the song column: the songs, then a "Find more from …" row once
+   * every page of them is in (the songbook's browse card, as a row). The
+   * cursor rests on it like a song; `songIndex === songs.length` is it.
+   */
+  songRows: number;
+  /** The cursor is on the "Find more from …" row. */
+  onFindMore: boolean;
   songsLoading: boolean;
   songIndex: number;
   /** The artist the cursor last rested on; lags `artist` while it moves. */
@@ -167,9 +175,15 @@ export function useAzSource({
     [songsAreCurrent, songsQuery.songs],
   );
   const songsLoading = !songsAreCurrent || songsQuery.isLoading;
-  const clampedSongIndex = clampIndex(songIndex, Math.max(1, songs.length));
-
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = songsQuery;
+  // Only after the last page: a row that moved down as pages arrived would
+  // slide out from under the cursor.
+  const songRows =
+    songs.length > 0 && !songsLoading && !hasNextPage
+      ? songs.length + 1
+      : songs.length;
+  const clampedSongIndex = clampIndex(songIndex, Math.max(1, songRows));
+
   useEffect(() => {
     if (
       hasNextPage &&
@@ -198,8 +212,8 @@ export function useAzSource({
         if (target !== artistIndex) setArtistIndex(target);
       } else if (kind === "artist") {
         setArtistIndex(artistIndex + dir * steps);
-      } else if (songs.length > 0) {
-        setSongIndex(clampIndex(clampedSongIndex + dir * steps, songs.length));
+      } else if (songRows > 0) {
+        setSongIndex(clampIndex(clampedSongIndex + dir * steps, songRows));
       }
     },
     [
@@ -207,7 +221,7 @@ export function useAzSource({
       artists,
       firstByLetter,
       setArtistIndex,
-      songs.length,
+      songRows,
       clampedSongIndex,
     ],
   );
@@ -222,6 +236,8 @@ export function useAzSource({
     letterIndex,
     songs,
     songsLoading,
+    songRows,
+    onFindMore: songRows > songs.length && clampedSongIndex === songs.length,
     songIndex: clampedSongIndex,
     settledArtist,
     artistPending: settledKey !== currentKey,

@@ -368,6 +368,8 @@ choose.
 - The mouse wheel scrolls the column under the pointer
 - Resting on a song plays a quiet preview after 1.5 seconds
 - An info card shows what's known about the song (lyrics type, year, vocal range…)
+- The last row of an artist's songs, **Find more from …**, opens the add screen on that artist
+  to add songs that aren't in the songbook yet
 - Search for whoever has the keyboard
 - Picking a song opens a confirm screen that asks who's singing, starting on whoever's turn it
   is, then **Sing it now** or **Add to queue**

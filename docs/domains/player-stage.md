@@ -598,6 +598,12 @@ flowchart LR
   its still with the album cover inset at the corner; a song with no video shows the cover alone.
   `WheelArtwork`'s `videoMiddle` sources crop a YouTube still to its middle square, so an album
   track upload without a stored cover still gets a clean square.
+- **The last row of an artist's songs is "Find more from …"**, the songbook's browse card as a
+  row. Enter opens the add screen on that artist: their YouTube Music page when the library has
+  their channel, else a search for their name (`browseArtistOptions` in
+  [useOpenAddSong.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/useOpenAddSong.ts), shared with the card).
+  It appears only once every page of their songs is in, so it never slides out from under the
+  cursor. Back from the add screen returns to the row.
 - **Search** is a quiet button in the top bar. Songs come up as library cards; artists are buttons
   that hand back to the wheel, landed on that artist.
 - **The join QR** sits bottom-right, where the performance screen has it.

@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Music, ArrowRight } from "lucide-react";
-import { useOpenAddSong } from "@/hooks/useOpenAddSong";
+import { browseArtistOptions, useOpenAddSong } from "@/hooks/useOpenAddSong";
 
 interface BrowseArtistCardProps {
   artistName: string;
@@ -17,9 +17,7 @@ export const BrowseArtistCard: React.FC<BrowseArtistCardProps> = ({
 
   const handleClick = () => {
     openAddSong(
-      youtubeMusicArtistId
-        ? { artistBrowseId: youtubeMusicArtistId }
-        : { query: artistName, findArtist: true },
+      browseArtistOptions({ name: artistName, youtubeMusicArtistId }),
     );
   };
 

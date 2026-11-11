@@ -35,6 +35,7 @@ import {
   type SourceActionId,
   type SourceDef,
   type SourceId,
+  type WheelArtist,
 } from "./wheelModel";
 
 export type { WheelFocusRequest };
@@ -48,6 +49,8 @@ interface UseSongWheelOptions {
   onAction: (id: SourceActionId) => void;
   /** Back from any column but the songs. */
   onLeave: () => void;
+  /** Enter on the song column's "Find more from …" row. */
+  onFindMore: (artist: WheelArtist) => void;
 }
 
 /** One column of the current source, as the component draws it. */
@@ -104,6 +107,7 @@ export function useSongWheel({
   onPickSong,
   onAction,
   onLeave,
+  onFindMore,
 }: UseSongWheelOptions): SongWheel {
   const [sourceId, setSourceId] = useState<SourceId>(INITIAL_SOURCE);
   const [colState, setCol] = useState(INITIAL_COLUMN);
@@ -157,7 +161,7 @@ export function useSongWheel({
           case "artist":
             return { kind, count: az.artists.length, cursor: az.artistIndex };
           case "song":
-            return { kind, count: az.songs.length, cursor: az.songIndex };
+            return { kind, count: az.songRows, cursor: az.songIndex };
           case "recent":
             return {
               kind,
@@ -240,7 +244,9 @@ export function useSongWheel({
   );
 
   const enter = useCallback(() => {
-    if (frontKind === "song" || frontKind === "recent") {
+    if (frontKind === "song" && az.onFindMore) {
+      if (az.artist) onFindMore(az.artist);
+    } else if (frontKind === "song" || frontKind === "recent") {
       if (cursorSong) onPickSong(cursorSong);
     } else if (frontKind === "source" && sourceAction) {
       onAction(sourceAction);
@@ -253,7 +259,9 @@ export function useSongWheel({
     onPickSong,
     sourceAction,
     onAction,
+    az.onFindMore,
     az.artist,
+    onFindMore,
     col,
   ]);
 
@@ -290,7 +298,7 @@ export function useSongWheel({
           break;
         case "song":
           if (index === az.songIndex) enter();
-          else az.setSongIndex(clampIndex(index, az.songs.length));
+          else az.setSongIndex(clampIndex(index, az.songRows));
           break;
         case "recent":
           if (index === recent.songIndex) enter();
