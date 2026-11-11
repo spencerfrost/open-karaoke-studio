@@ -262,8 +262,11 @@ const AdminLayout: React.FC = () => {
   );
 
   return (
-    <div className="flex h-screen flex-col md:flex-row">
-      <aside className="flex shrink-0 flex-col gap-3 border-b border-border/40 bg-surface p-3 text-surface-foreground md:w-60 md:gap-5 md:border-b-0 md:border-r md:p-4">
+    // The page itself never scrolls: the sidebar and the content scroll on
+    // their own, so a sidebar taller than the screen can't add a second
+    // page-level scrollbar.
+    <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
+      <aside className="flex shrink-0 flex-col gap-3 border-b border-border/40 bg-surface p-3 text-surface-foreground md:w-60 md:gap-5 md:overflow-y-auto md:border-b-0 md:border-r md:p-4">
         <div className="flex items-center justify-between gap-2 md:flex-col md:items-start">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
