@@ -59,7 +59,7 @@ pnpm-debug.log
 # Project-specific
 karaoke_library
 backend/reports/
-backend/logs/lyrics_timing.jsonl
+backend/logs/
 pipeline_timing.jsonl
 frontend/dev-dist/
 frontend/public/dev-dist/
