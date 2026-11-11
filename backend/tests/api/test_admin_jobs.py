@@ -179,6 +179,7 @@ class TestListJobs:
             "artist_images",
             "lyrics_alignment",
             "artist_credits",
+            "lrc_offset",
         }
 
     def test_artist_credits_counts_songs_with_old_credits(self, client, db):

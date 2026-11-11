@@ -15,7 +15,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 
 from .base import UNKNOWN_ARTIST, Base
 
@@ -95,6 +95,16 @@ class DbSong(Base):
     singing_map_version = Column(Integer, nullable=True)
     vocal_range_version = Column(Integer, nullable=True)
     word_timing_version = Column(Integer, nullable=True)
+    # The LRC offset sweep layer, JSON (see services/lrc_offset_layer.py): the
+    # score at every whole-song shift tried, and the aligned words at the best
+    # shift when it passes the gate. Deferred: it can run to tens of kB.
+    lrc_offset_sweep = deferred(Column(Text, nullable=True))
+    lrc_offset_version = Column(Integer, nullable=True)
+    # md5 of the synced_lyrics the sweep measured; another means it's stale.
+    lrc_offset_lrc_md5 = Column(String(32), nullable=True)
+    # The shift that passed the gate, waiting for "Apply shifts"; null when
+    # there's none or it's been applied.
+    lrc_offset_pending_shift = Column(Float, nullable=True)
 
     # Processing state: "processing" | "queued" | "processed" | "error"
     status = Column(String, nullable=False, default="processing")

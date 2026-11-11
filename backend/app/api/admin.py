@@ -408,38 +408,46 @@ def save_singing_map_checks(
 
 
 @router.get("/word-timing/experiments")
-def list_word_timing_experiments(current_user: User = Depends(require_admin)):
-    """Experiments found in the experiments folder, newest name last. Empty
-    where none were run: the folder exists only on the machine that ran them."""
+def list_word_timing_experiments(
+    db: Session = Depends(get_db), current_user: User = Depends(require_admin)
+):
+    """Experiments found in the experiments folder, newest name last (the
+    folder exists only on the machine that ran them), then the LRC offset
+    sweep's shifts waiting to be applied, from the database."""
     from app.services.word_timing_experiments import list_experiments
 
-    return {"experiments": list_experiments()}
+    return {"experiments": list_experiments(db)}
 
 
 @router.get("/word-timing/experiments/{experiment_id}/songs")
 def list_word_timing_songs(
-    experiment_id: str, current_user: User = Depends(require_admin)
+    experiment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """The experiment's songs, each with how many lines differ between its two
     timings and how many of those are answered, plus a tally of answers."""
     from app.services.word_timing_experiments import NotFound, list_songs
 
     try:
-        return list_songs(experiment_id)
+        return list_songs(experiment_id, db)
     except NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.get("/word-timing/experiments/{experiment_id}/songs/{song_id}")
 def get_word_timing_song(
-    experiment_id: str, song_id: str, current_user: User = Depends(require_admin)
+    experiment_id: str,
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """One song's moments: each line whose two timings differ, with both sets
     of words and any answer given."""
     from app.services.word_timing_experiments import NotFound, song_detail
 
     try:
-        return song_detail(experiment_id, song_id)
+        return song_detail(experiment_id, song_id, db)
     except NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -459,6 +467,7 @@ def save_word_timing_answers(
     experiment_id: str,
     song_id: str,
     body: WordTimingAnswers,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     """Say which timing followed the singing, by moment key. All or nothing:
@@ -473,9 +482,9 @@ def save_word_timing_answers(
 
     try:
         save_answers(
-            experiment_id, song_id, [item.model_dump() for item in body.answers]
+            experiment_id, song_id, [item.model_dump() for item in body.answers], db
         )
-        return song_detail(experiment_id, song_id)
+        return song_detail(experiment_id, song_id, db)
     except NotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except BadAnswer as error:

@@ -7,6 +7,7 @@ import pytest
 from app.services import lyrics_offset
 from app.services.lyrics_analysis import parse_lrc_lines
 from app.services.lyrics_offset import (
+    _fine_shifts,
     _sweep_shifts,
     pick_best_lrc_shift,
     shift_lrc_timestamps,
@@ -42,6 +43,23 @@ def test_sweep_shifts_is_symmetric_and_includes_zero():
     assert shifts[0] == -12.0
     assert shifts[-1] == 12.0
     assert 0.0 in shifts
+
+
+def test_fine_shifts_fill_the_gaps_either_side_of_the_coarse_best():
+    assert _fine_shifts(-1.0, 0.5, 0.1, 1.5) == [
+        -1.4,
+        -1.3,
+        -1.2,
+        -1.1,
+        -0.9,
+        -0.8,
+        -0.7,
+        -0.6,
+    ]
+
+
+def test_fine_shifts_stay_within_the_sweep():
+    assert _fine_shifts(1.5, 0.5, 0.1, 1.5) == [1.1, 1.2, 1.3, 1.4]
 
 
 # ---------------------------------------------------------------------------
@@ -133,3 +151,109 @@ def test_sweep_returns_none_when_there_are_no_lyric_lines(fake_alignment, tmp_pa
         )
         is None
     )
+
+
+@pytest.mark.parametrize("lrc_error", [0.9, -0.3, 0.2, 1.4])
+def test_fine_sweep_finds_offsets_between_coarse_steps(
+    fake_alignment, tmp_path, lrc_error
+):
+    """GRiZ "Find My Own Way" is 0.9 s late: the coarse 0.5 s steps land
+    either side of it and the fine pass finds it."""
+    lrc = "\n".join(
+        f"[00:{start + lrc_error:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
+    )
+
+    sweep = sweep_lrc_offset(
+        lrc,
+        tmp_path / "vocals.mp3",
+        device="cpu",
+        max_shift=1.5,
+        step=0.5,
+        fine_step=0.1,
+    )
+
+    assert sweep is not None
+    assert sweep["shift"] == pytest.approx(-lrc_error)
+    assert sweep["score"] == 1.0
+    # 7 coarse shifts and 8 fine ones, minus any fine shift past the edge.
+    assert 11 <= len(sweep["scores"]) <= 15
+
+
+def test_sweep_without_a_fine_step_only_tries_coarse_shifts(fake_alignment, tmp_path):
+    lrc = "\n".join(
+        f"[00:{start + 0.9:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
+    )
+
+    sweep = sweep_lrc_offset(
+        lrc, tmp_path / "vocals.mp3", device="cpu", max_shift=1.5, step=0.5
+    )
+
+    assert sweep is not None
+    assert set(sweep["scores"]) == {-1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5}
+    assert sweep["shift"] == -1.0
+
+
+def test_fine_shifts_out_to_a_reach_shorter_than_the_step():
+    assert _fine_shifts(4.0, 1.0, 0.1, 12.0, reach=0.5) == [
+        3.5,
+        3.6,
+        3.7,
+        3.8,
+        3.9,
+        4.1,
+        4.2,
+        4.3,
+        4.4,
+        4.5,
+    ]
+
+
+@pytest.mark.parametrize("lrc_error", [-4.6, 2.3])
+def test_wide_sweep_in_whole_seconds_finds_an_offset_of_seconds(
+    fake_alignment, tmp_path, lrc_error
+):
+    """Gretchen Wilson "Redneck Woman": the LRC is 4.6 s early, a whole line."""
+    lrc = "\n".join(
+        f"[00:{start + lrc_error:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
+    )
+
+    sweep = sweep_lrc_offset(
+        lrc,
+        tmp_path / "vocals.mp3",
+        device="cpu",
+        max_shift=12.0,
+        step=1.0,
+        fine_step=0.1,
+        fine_reach=0.5,
+        fine_around_zero=False,
+    )
+
+    assert sweep is not None
+    assert sweep["shift"] == pytest.approx(-lrc_error)
+    # 25 coarse shifts and 10 fine ones.
+    assert len(sweep["scores"]) == 35
+
+
+def test_wide_sweep_skips_the_fine_pass_when_no_shift_wins(fake_alignment, tmp_path):
+    lrc = "\n".join(
+        f"[00:{start:05.2f}]line number {i}"
+        for i, start in enumerate(TRUE_VOCAL_STARTS)
+    )
+
+    sweep = sweep_lrc_offset(
+        lrc,
+        tmp_path / "vocals.mp3",
+        device="cpu",
+        max_shift=12.0,
+        step=1.0,
+        fine_step=0.1,
+        fine_reach=0.5,
+        fine_around_zero=False,
+    )
+
+    assert sweep is not None
+    assert sweep["shift"] == 0.0
+    assert len(sweep["scores"]) == 25

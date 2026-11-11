@@ -113,7 +113,9 @@ const RunButton: React.FC<{
         : mode === "preview"
           ? "Preview"
           : mode === "apply"
-            ? "Apply"
+            ? job.kind === "lrc_offset"
+              ? `Apply ${countOf(count, ["shift", "shifts"])}`
+              : "Apply"
             : `Run on ${count.toLocaleString()} ${MODE_LABEL[mode]}`;
 
   const start = () =>
@@ -135,7 +137,7 @@ const RunButton: React.FC<{
     );
   }
 
-  // Apply rewrites the library's credits, so it asks first.
+  // Applying rewrites part of the library, so it asks first.
   if (mode === "apply") {
     return (
       <AlertDialog>
@@ -150,10 +152,9 @@ const RunButton: React.FC<{
               Apply {info.name.toLowerCase()}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This re-credits {countOf(count, info.unit)}, merges duplicate
-              artists and deletes unused ones, as the last preview's report
-              describes. Take a database backup (pg_dump) first: it can't be
-              undone from here.
+              {job.kind === "lrc_offset"
+                ? `This shifts the lyrics of ${countOf(count, info.unit)} by the offset the sweep found and re-times their words, so the TV shows the change. Listen to them on Compare word timing first. Take a database backup (pg_dump) first: it can't be undone from here.`
+                : `This re-credits ${countOf(count, info.unit)}, merges duplicate artists and deletes unused ones, as the last preview's report describes. Take a database backup (pg_dump) first: it can't be undone from here.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

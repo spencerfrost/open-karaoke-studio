@@ -764,8 +764,9 @@ How it works: [Ingestion & Processing Pipeline](/domains/ingestion-pipeline).
 - Failed songs are hidden from the songbook. Adding the song again restarts it, and admins see
   them on the Failed songs page
 - Network and GPU memory failures retry by themselves after 1, 5, then 15 minutes
-- Library-wide maintenance (lyrics alignment, album covers, artist images…) runs from the admin
-  Background jobs page
+- Library-wide maintenance (lyrics alignment, LRC offset sweep, album covers, artist images…)
+  runs from the admin Background jobs page. A run can be paused, which frees the GPU after the
+  song it's on, and resumed later from where it stopped
 
 **Status:** ✅ Working
 

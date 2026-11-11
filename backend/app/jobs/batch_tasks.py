@@ -466,6 +466,46 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     }
 
 
+@celery.task(name="batch_sweep_lrc_offsets")
+def batch_sweep_lrc_offsets(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: sweep each song's LRC for a whole-song offset, or apply them.
+
+    "missing" and "all" sweep (about 25 alignments a song, on the GPU) and store
+    the layer without changing what the TV shows; a shift that passes the gate
+    waits on the song, listed on Compare word timing. "apply" shifts and
+    re-aligns the songs waiting. One song after another inside this task, so
+    it stops, pauses and resumes between songs. See services/lrc_offset_layer.
+    """
+    from .lrc_offset_tasks import apply_pending_shift, sweep_and_store
+
+    work = apply_pending_shift if mode == "apply" else sweep_and_store
+    failures = {"error", "rejected"}
+    counts: dict[str, int] = {}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("lrc_offset", mode))
+        logger.info("batch_sweep_lrc_offsets: %d songs (mode=%s)", len(song_ids), mode)
+        for i, song_id in enumerate(run.each(song_ids), 1):
+            try:
+                outcome = work(song_id)
+            except Exception:
+                logger.error(
+                    "batch_sweep_lrc_offsets: song %s failed", song_id, exc_info=True
+                )
+                outcome = "error"
+            counts[outcome] = counts.get(outcome, 0) + 1
+            run.song_done(ok=outcome not in failures)
+            if i % 25 == 0:
+                logger.info(
+                    "batch_sweep_lrc_offsets: %d/%d done %s", i, len(song_ids), counts
+                )
+
+    logger.info("batch_sweep_lrc_offsets: done (mode=%s) — %s", mode, counts)
+    return {"mode": mode, "processed": sum(counts.values()), **counts}
+
+
 @celery.task(name="batch_rebuild_artist_credits")
 def batch_rebuild_artist_credits(
     mode: str = "preview", run_id: Optional[int] = None

@@ -497,6 +497,43 @@ the waterfall above, but only when no new song or fix is waiting. The admin cont
 Background jobs page ([jobInfo.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/jobInfo.ts)). Its counts come
 from `alignment_summary` in [batch_jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/batch_jobs.py).
 
+### LRC offset sweep job
+
+The waterfall sweeps for an offset only when no candidate passes the 0.3 gate. An LRC off by a
+whole line passes anyway: each line's window still holds someone singing, just the line before
+or after, which scores about 0.4–0.5. Its words are then lit one line early or late.
+
+The **LRC offset sweep** job (`batch_sweep_lrc_offsets` in
+[batch_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py),
+per-song work in [lrc_offset_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lrc_offset_tasks.py))
+sweeps every song with synced lyrics and vocals, whatever it scores, and stores the result as a
+layer ([lrc_offset_layer.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lrc_offset_layer.py)):
+
+```mermaid
+flowchart LR
+    Sweep["missing / all<br/><i>re-align at −12…+12 s in 1 s steps,<br/>then 0.1 s steps within 0.5 s<br/>of a best shift that isn't 0</i>"] --> Gate{"passes the<br/>waterfall's gate?"}
+    Gate -->|no| Kept["layer stored,<br/>nothing waiting"]
+    Gate -->|yes| Waiting["layer stored with the shifted words;<br/>lrc_offset_pending_shift set"]
+    Waiting --> Compare["Compare word timing:<br/>today's timing vs shifted"]
+    Compare --> Apply["apply<br/><i>shift the LRC, re-align,<br/>store both (store_offset_corrected_lrc)</i>"]
+```
+
+- **Sweeping changes nothing the TV shows.** The layer is `songs.lrc_offset_sweep` (JSON: the
+  score at every shift, the best shift and its gain, why it was rejected, the words at the
+  shift when it passes, and answers from Compare word timing), with `lrc_offset_version`,
+  `lrc_offset_lrc_md5` (the synced lyrics it measured) and `lrc_offset_pending_shift`. Most
+  songs take 25 alignments, about half a minute on the GPU.
+- **The gate is the waterfall's** (`_offset_rejection_reason`: a shift other than 0, a gain of
+  at least 0.03 and a score of at least 0.3). Passing songs are listed on Compare word timing
+  as the `lrc_offset_sweep` experiment, read from the database, so the shifts can be heard
+  first. A gain of 0.06 or more is grouped `clear`, less `borderline`.
+- **Apply** shifts and re-aligns only songs whose sweep is current, the same way the waterfall
+  stores an offset correction. The layer then describes the shifted LRC, so the song isn't
+  swept again. A shift that no longer aligns well enough is left alone.
+- **A changed LRC makes the sweep stale**: `missing` sweeps the song again, and `apply` skips it.
+- The job runs song by song inside one task on the enrichment worker, so it stops, pauses and
+  resumes between songs, and a full GPU waits a minute and tries the song again (three times).
+
 ## Frontend: from columns to pixels
 
 ### The render path

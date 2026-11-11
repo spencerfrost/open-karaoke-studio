@@ -73,6 +73,12 @@ def _youtube_songs(session: Session) -> Query:
     return _songs(session).filter(DbSong.video_id.isnot(None))
 
 
+def _songs_with_synced_lyrics(session: Session) -> Query:
+    return _songs(session).filter(
+        DbSong.synced_lyrics.isnot(None), DbSong.synced_lyrics != ""
+    )
+
+
 def _songs_without_hand_set_album(session: Session) -> Query:
     return _songs(session).filter(DbSong.album_hand_set_at.is_(None))
 
@@ -194,6 +200,15 @@ JOBS: dict[str, BatchJob] = {
             covered=_songs,
             missing=_songs,
         ),
+        # Selection and counts come from lrc_offset_layer: a sweep is stale
+        # when the lyrics changed, which a query can't compare portably.
+        BatchJob(
+            kind="lrc_offset",
+            task_name="batch_sweep_lrc_offsets",
+            modes=("missing", "all", "apply"),
+            covered=_songs_with_synced_lyrics,
+            missing=_songs_with_synced_lyrics,
+        ),
     ]
 }
 
@@ -235,6 +250,10 @@ def get_job(kind: str, mode: Optional[str] = None) -> BatchJob:
 def select_ids(session: Session, kind: str, mode: str) -> list[Any]:
     """The rows a run of `kind` in `mode` works through."""
     job = get_job(kind, mode)
+    if kind == "lrc_offset":
+        from app.services import lrc_offset_layer
+
+        return list(lrc_offset_layer.select_ids(session, mode))
     query = job.rows(session, mode)
     return [row[0] for row in query.all()]
 
@@ -272,6 +291,10 @@ def job_summary(session: Session, job: BatchJob) -> dict:
     """What a job covers, how many each mode would run on, plus any details."""
     if job.kind == "lyrics_alignment":
         return alignment_summary(session)
+    if job.kind == "lrc_offset":
+        from app.services import lrc_offset_layer
+
+        return lrc_offset_layer.summary(session)
     covered = job.covered(session).count()
     missing = job.missing(session).count()
     counts = {"missing": missing, "all": covered}

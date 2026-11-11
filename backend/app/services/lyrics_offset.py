@@ -427,6 +427,14 @@ def shift_lrc_timestamps(content: str, shift_seconds: float) -> str:
 
 OFFSET_SWEEP_MAX_SECONDS = 12.0
 OFFSET_SWEEP_STEP_SECONDS = 0.5
+# A fine pass around the coarse best catches offsets that fall between coarse
+# steps: GRiZ "Find My Own Way" is 0.9 s late, and the 0.5 s steps either side
+# of it score well below 0.9 s itself.
+OFFSET_SWEEP_FINE_STEP_SECONDS = 0.1
+# How far a sweep of a song that already passes looks. An LRC that is off by
+# seconds scores below the gate and gets the wide sweep; one that passes and is
+# still late is off by about a second at most.
+OFFSET_SWEEP_NEAR_MAX_SECONDS = 1.5
 
 
 class LrcOffsetSweep(TypedDict):
@@ -460,6 +468,27 @@ def _sweep_shifts(max_shift: float, step: float) -> list[float]:
     return [round(i * step, 3) for i in range(-steps, steps + 1)]
 
 
+def _fine_shifts(
+    center: float,
+    step: float,
+    fine_step: float,
+    max_shift: float,
+    reach: Optional[float] = None,
+) -> list[float]:
+    """The shifts around `center`, `fine_step` apart, out to `reach` either
+    side (its coarse neighbours by default) but no further than `max_shift`."""
+    reach = step if reach is None else reach
+    count = int(round(reach / fine_step))
+    if reach >= step:
+        count -= 1  # the coarse neighbours themselves were already tried
+    shifts = [
+        round(center + sign * i * fine_step, 3)
+        for i in range(1, count + 1)
+        for sign in (-1, 1)
+    ]
+    return sorted(shift for shift in shifts if abs(shift) <= max_shift)
+
+
 def sweep_lrc_offset(
     lrc_content: str,
     vocals_path: Path,
@@ -467,6 +496,9 @@ def sweep_lrc_offset(
     device: str = "auto",
     max_shift: float = OFFSET_SWEEP_MAX_SECONDS,
     step: float = OFFSET_SWEEP_STEP_SECONDS,
+    fine_step: Optional[float] = None,
+    fine_reach: Optional[float] = None,
+    fine_around_zero: bool = True,
 ) -> Optional[LrcOffsetSweep]:
     """Find a global LRC offset by re-aligning the lyrics at a range of shifts.
 
@@ -477,6 +509,11 @@ def sweep_lrc_offset(
     land on the real vocals the mean word score jumps, so the best-scoring
     shift is the offset. The caller decides whether the gain is worth
     applying (see pick_best_lrc_shift for the result shape).
+
+    With `fine_step`, a second pass tries the shifts between the coarse best
+    and its neighbours, `fine_step` apart (or out to `fine_reach` either side),
+    and the best of both passes wins. Without `fine_around_zero`, the fine pass
+    is skipped when the coarse best is no shift at all, which is most songs.
 
     Loads the audio and alignment model once; each shift is one alignment
     pass (~1s per 3-minute song on GPU). Returns None if alignment fails.
@@ -507,21 +544,38 @@ def sweep_lrc_offset(
         model_a, metadata = whisperx.load_align_model(
             language_code=language, device=device
         )
-        for shift in _sweep_shifts(max_shift, step):
-            segments = _lrc_lines_to_segments(
-                parse_lrc_lines(shift_lrc_timestamps(lrc_content, shift))
-            )
-            result = whisperx.align(
-                segments, model_a, metadata, audio, device, return_char_alignments=False
-            )
-            word_scores = [
-                word["score"]
-                for segment in result.get("segments", [])
-                for word in segment.get("words", [])
-                if "score" in word
-            ]
-            if word_scores:
-                scores[shift] = sum(word_scores) / len(word_scores)
+
+        def score_shifts(shifts: list[float]) -> None:
+            for shift in shifts:
+                if shift in scores:
+                    continue
+                segments = _lrc_lines_to_segments(
+                    parse_lrc_lines(shift_lrc_timestamps(lrc_content, shift))
+                )
+                result = whisperx.align(
+                    segments,
+                    model_a,
+                    metadata,
+                    audio,
+                    device,
+                    return_char_alignments=False,
+                )
+                word_scores = [
+                    word["score"]
+                    for segment in result.get("segments", [])
+                    for word in segment.get("words", [])
+                    if "score" in word
+                ]
+                if word_scores:
+                    scores[shift] = sum(word_scores) / len(word_scores)
+
+        score_shifts(_sweep_shifts(max_shift, step))
+        if fine_step and 0.0 in scores:
+            coarse_best = pick_best_lrc_shift(scores)["shift"]
+            if coarse_best != 0.0 or fine_around_zero:
+                score_shifts(
+                    _fine_shifts(coarse_best, step, fine_step, max_shift, fine_reach)
+                )
     except Exception as exc:
         # A full GPU isn't this song's fault: the task waits and tries again.
         if is_cuda_out_of_memory(exc):
@@ -537,7 +591,7 @@ def sweep_lrc_offset(
 
     sweep = pick_best_lrc_shift(scores)
     logger.info(
-        "LRC offset sweep for %s: best shift %+.1fs (score %.3f, baseline %.3f, gain %+.3f)",
+        "LRC offset sweep for %s: best shift %+.2fs (score %.3f, baseline %.3f, gain %+.3f)",
         vocals_path,
         sweep["shift"],
         sweep["score"],

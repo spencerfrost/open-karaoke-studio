@@ -13,8 +13,13 @@ under EXPERIMENTS_DIR:
                                        <a key>: {"words", "mean_score", "bad", "lines"}, <b key>: ...}
     <experiment>/answers.json         written here: {song_id: {moment key: answer}}
 
-Nothing here touches the database: an experiment's timings never reach the TV.
-The folder is gitignored, so experiments exist only where they were run.
+An experiment's timings never reach the TV. The folder is gitignored, so
+experiments exist only where they were run.
+
+One experiment comes from the database instead of a folder: the songs the
+LRC offset sweep job found off, waiting for Apply shifts
+(services/lrc_offset_layer.py LrcOffsetReview). It keeps its answers on each
+song, so it works on prod too.
 """
 
 import json
@@ -23,6 +28,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 EXPERIMENTS_DIR = Path(
@@ -143,27 +150,85 @@ def moments(
     return found
 
 
+class _FolderExperiment:
+    """An experiment a script wrote to a folder under EXPERIMENTS_DIR."""
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def meta(self) -> dict:
+        return _meta(self.path)
+
+    def results(self) -> list[dict]:
+        return _results(self.path)
+
+    def result(self, song_id: str) -> dict:
+        return _result(self.path, song_id)
+
+    def answers(self) -> dict[str, dict[str, str]]:
+        return _answers(self.path)
+
+    def write_song_answers(self, song_id: str, song_answers: dict[str, str]) -> None:
+        answers = _answers(self.path)
+        answers[song_id] = song_answers
+        file = self.path / "answers.json"
+        tmp = file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(answers, indent=1))
+        tmp.replace(file)
+
+
+def _experiment(experiment_id: str, session: Session | None):
+    from app.services.lrc_offset_layer import REVIEW_ID, LrcOffsetReview
+
+    if experiment_id == REVIEW_ID and session is not None:
+        return _CheckedResult(LrcOffsetReview(session))
+    return _FolderExperiment(_experiment_dir(experiment_id))
+
+
+class _CheckedResult:
+    """A database experiment, with a missing song raised as NotFound."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    def result(self, song_id: str) -> dict:
+        if not _SONG_ID.match(song_id):
+            raise NotFound(f"No song {song_id!r}")
+        found = self.inner.result(song_id)
+        if found is None:
+            raise NotFound(f"No song {song_id!r} in this experiment")
+        return found
+
+
 def _side(result: dict, key: str) -> dict | None:
     side = result.get(key)
     return side if side and side.get("words") is not None else None
 
 
-def list_experiments() -> list[dict]:
-    return [_meta(path) for path in _experiment_dirs()]
+def list_experiments(session: Session | None = None) -> list[dict]:
+    from app.services.lrc_offset_layer import LrcOffsetReview
+
+    found = [_meta(path) for path in _experiment_dirs()]
+    if session is not None:
+        found.append(LrcOffsetReview(session).meta())
+    return found
 
 
-def list_songs(experiment_id: str) -> dict:
+def list_songs(experiment_id: str, session: Session | None = None) -> dict:
     """The experiment and its songs, with how many moments each has to check.
 
     Songs still to check come first, then by group as the script wrote them
     (the songs it should help before the controls), then the most moments.
     """
-    path = _experiment_dir(experiment_id)
-    meta = _meta(path)
-    answers = _answers(path)
+    experiment = _experiment(experiment_id, session)
+    meta = experiment.meta()
+    answers = experiment.answers()
     rows = []
     tally: dict[str, int] = defaultdict(int)
-    for result in _results(path):
+    for result in experiment.results():
         a, b = _side(result, meta["a"]["key"]), _side(result, meta["b"]["key"])
         if not a or not b:
             continue
@@ -205,14 +270,16 @@ def list_songs(experiment_id: str) -> dict:
     return {"experiment": meta, "songs": rows, "tally": dict(tally)}
 
 
-def song_detail(experiment_id: str, song_id: str) -> dict:
-    path = _experiment_dir(experiment_id)
-    meta = _meta(path)
-    result = _result(path, song_id)
+def song_detail(
+    experiment_id: str, song_id: str, session: Session | None = None
+) -> dict:
+    experiment = _experiment(experiment_id, session)
+    meta = experiment.meta()
+    result = experiment.result(song_id)
     a, b = _side(result, meta["a"]["key"]), _side(result, meta["b"]["key"])
     if not a or not b:
         raise NotFound("This song failed to align one of the two ways")
-    song_answers = _answers(path).get(song_id, {})
+    song_answers = experiment.answers().get(song_id, {})
     found = moments(a["words"], b["words"], meta["compareEnds"])
     for moment in found:
         moment["answer"] = song_answers.get(moment["key"])
@@ -225,23 +292,24 @@ def song_detail(experiment_id: str, song_id: str) -> dict:
     }
 
 
-def save_answers(experiment_id: str, song_id: str, items: list[dict[str, Any]]) -> None:
+def save_answers(
+    experiment_id: str,
+    song_id: str,
+    items: list[dict[str, Any]],
+    session: Session | None = None,
+) -> None:
     """Save answers by moment key; an answer of None clears it. All or nothing."""
-    path = _experiment_dir(experiment_id)
-    keys = {m["key"] for m in song_detail(experiment_id, song_id)["moments"]}
+    experiment = _experiment(experiment_id, session)
+    keys = {m["key"] for m in song_detail(experiment_id, song_id, session)["moments"]}
     for item in items:
         if item["key"] not in keys:
             raise BadAnswer(f"No moment {item['key']!r} in this song")
         if item["answer"] is not None and item["answer"] not in ANSWERS:
             raise BadAnswer(f"Unknown answer {item['answer']!r}")
-    answers = _answers(path)
-    song_answers = answers.setdefault(song_id, {})
+    song_answers = dict(experiment.answers().get(song_id, {}))
     for item in items:
         if item["answer"] is None:
             song_answers.pop(item["key"], None)
         else:
             song_answers[item["key"]] = item["answer"]
-    file = path / "answers.json"
-    tmp = file.with_suffix(".tmp")
-    tmp.write_text(json.dumps(answers, indent=1))
-    tmp.replace(file)
+    experiment.write_song_answers(song_id, song_answers)

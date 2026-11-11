@@ -265,10 +265,7 @@ def _apply_offset_correction(
     Returns the sweep and final alignment on success, None when the LRC should
     be left alone.
     """
-    from app.db.database import get_db_session
-    from app.repositories.song_repository import SongRepository
-    from app.services.lyrics_alignment import align_lyrics_to_vocals
-    from app.services.lyrics_offset import shift_lrc_timestamps, sweep_lrc_offset
+    from app.services.lyrics_offset import sweep_lrc_offset
 
     sweep_started_at = perf_counter()
     sweep = sweep_lrc_offset(attempt["content"], vocals_path, language=language)
@@ -294,8 +291,43 @@ def _apply_offset_correction(
     if rejection_reason is not None:
         return None
 
+    result = store_offset_corrected_lrc(
+        song_id,
+        content=attempt["content"],
+        shift=sweep["shift"],
+        vocals_path=vocals_path,
+        language=language,
+        source=attempt["source"],
+        attempt_index=attempt_index,
+        run_token=run_token,
+    )
+    if result is None:
+        return None
+    return {"sweep": sweep, "result": result}
+
+
+def store_offset_corrected_lrc(
+    song_id: str,
+    *,
+    content: str,
+    shift: float,
+    vocals_path: Path,
+    language: str,
+    source: str,
+    attempt_index: int,
+    run_token: tuple | None = None,
+) -> dict[str, Any] | None:
+    """Shift the LRC by `shift`, align it, and store both on the song.
+
+    Returns the alignment, or None when it scores below the gate or its words
+    don't read as the stored text (nothing is written then).
+    """
+    from app.db.database import get_db_session
+    from app.services.lyrics_alignment import align_lyrics_to_vocals
+    from app.services.lyrics_offset import shift_lrc_timestamps
+
     corrected_lrc = _format_synced_lyrics_for_storage(
-        shift_lrc_timestamps(attempt["content"], sweep["shift"])
+        shift_lrc_timestamps(content, shift)
     )
     # Formatting can insert blank break lines, which renumbers lines — align the
     # exact text being stored so every word's line_index points into it.
@@ -306,15 +338,13 @@ def _apply_offset_correction(
         log_lyrics_event(
             song_id,
             "lyrics_offset_realign_rejected",
-            source=attempt["source"],
-            shift=sweep["shift"],
+            source=source,
+            shift=shift,
             mean_score=result["mean_score"] if result else None,
         )
         return None
 
-    fitted = _fit_words_to_lyrics(
-        song_id, result, content=corrected_lrc, source=attempt["source"]
-    )
+    fitted = _fit_words_to_lyrics(song_id, result, content=corrected_lrc, source=source)
     if fitted is None:
         return None
     result = fitted
@@ -328,14 +358,14 @@ def _apply_offset_correction(
             _build_word_sync_payload(
                 result,
                 source_type="synced",
-                source=attempt["source"],
+                source=source,
                 attempt_index=attempt_index,
-                offset_applied=sweep["shift"],
+                offset_applied=shift,
             )
         )
         session.commit()
 
-    return {"sweep": sweep, "result": result}
+    return result
 
 
 def _resolve_song_language(

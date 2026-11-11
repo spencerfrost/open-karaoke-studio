@@ -18,6 +18,9 @@ SINGING_MAP_VERSION = 1
 VOCAL_RANGE_VERSION = 1
 # jobs/lyrics_tasks.py align_song_lyrics. 1: aligns on the lead + backing mix.
 WORD_TIMING_VERSION = 1
+# services/lrc_offset_layer.py, the LRC offset sweep job. 1: ±12 s in 1 s steps,
+# then 0.1 s steps around a best shift that isn't 0, on the lead + backing mix.
+LRC_OFFSET_VERSION = 1
 
 
 def behind(column, current: int):

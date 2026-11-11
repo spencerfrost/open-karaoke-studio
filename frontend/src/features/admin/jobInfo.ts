@@ -62,6 +62,12 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
       "Credits every song from its MusicBrainz recording (or re-reads the artist line of older songs without one), merges duplicate artists and fixes their names. Preview changes nothing and writes a report; Apply makes the changes. Take a database backup before applying.",
     unit: ["song", "songs"],
   },
+  lrc_offset: {
+    name: "LRC offset sweep",
+    description:
+      "Checks whether each song's whole LRC is early or late, by up to 12 seconds, on the GPU (about half a minute per song). It changes nothing: shifts it finds are listed on Compare word timing to listen to, and Apply shifts them.",
+    unit: ["song", "songs"],
+  },
   lyrics_alignment: {
     name: "Lyrics alignment",
     description:

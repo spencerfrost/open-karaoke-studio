@@ -11,6 +11,7 @@ export type JobKind =
   | "fingerprint"
   | "artist_images"
   | "lyrics_alignment"
+  | "lrc_offset"
   | "artist_credits";
 
 export type RunMode =
