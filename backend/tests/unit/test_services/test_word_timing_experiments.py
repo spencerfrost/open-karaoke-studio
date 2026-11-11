@@ -76,6 +76,17 @@ def test_moments_are_lines_that_moved():
     assert found[1]["meanShift"] is None
 
 
+def test_moments_can_compare_ends():
+    # A held word cut short: same starts, a different end.
+    a = [word(0, 1.0), word(0, 1.5, 12.0)]
+    b = [word(0, 1.0), word(0, 1.5, 3.0)]
+    assert wte.moments(a, b) == []
+    found = wte.moments(a, b, compare_ends=True)
+    assert [m["key"] for m in found] == ["line:0"]
+    assert found[0]["meanShift"] == 4.5
+    assert found[0]["end"] == 12.0
+
+
 def test_list_orders_by_group_and_counts_answers(experiment):
     listing = wte.list_songs("exp")
     assert [s["songId"] for s in listing["songs"]] == [SONG, CONTROL]

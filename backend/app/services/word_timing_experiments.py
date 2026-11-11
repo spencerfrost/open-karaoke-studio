@@ -6,7 +6,9 @@ first) aligns songs two ways, A and B, and writes the results to a folder
 under EXPERIMENTS_DIR:
 
     <experiment>/meta.json            {"name", "description", "a": {"key", "label"}, "b": {...},
-                                       "groups": [{"key", "label"}, ...] in the order to check them}
+                                       "groups": [{"key", "label"}, ...] in the order to check them,
+                                       "compareEnds": true to also list lines whose words end
+                                       elsewhere (optional; starts only by default)}
     <experiment>/results/<song>.json  {"id", "title", "artist", "group",
                                        <a key>: {"words", "mean_score", "bad", "lines"}, <b key>: ...}
     <experiment>/answers.json         written here: {song_id: {moment key: answer}}
@@ -69,6 +71,7 @@ def _meta(path: Path) -> dict:
         "a": meta["a"],
         "b": meta["b"],
         "groups": meta.get("groups", []),
+        "compareEnds": bool(meta.get("compareEnds", False)),
     }
 
 
@@ -100,18 +103,27 @@ def _by_line(words: list[dict]) -> dict[int, list[dict]]:
     return lines
 
 
-def moments(a_words: list[dict], b_words: list[dict]) -> list[dict]:
+def _word_shift(x: dict, y: dict, compare_ends: bool) -> float:
+    shift = abs(x["start"] - y["start"])
+    return max(shift, abs(x["end"] - y["end"])) if compare_ends else shift
+
+
+def moments(
+    a_words: list[dict], b_words: list[dict], compare_ends: bool = False
+) -> list[dict]:
     """The lines whose timing differs enough to hear, in song order.
 
     Words are matched by position in the line; a line with a different word
-    count on each side always differs.
+    count on each side always differs. With `compare_ends`, a word that ends
+    elsewhere counts as much as one that starts elsewhere (an experiment that
+    cuts held words changes only ends).
     """
     a_lines, b_lines = _by_line(a_words), _by_line(b_words)
     found = []
     for line_index in sorted(set(a_lines) | set(b_lines)):
         a, b = a_lines.get(line_index, []), b_lines.get(line_index, [])
         if a and b and len(a) == len(b):
-            shift = sum(abs(x["start"] - y["start"]) for x, y in zip(a, b)) / len(a)
+            shift = sum(_word_shift(x, y, compare_ends) for x, y in zip(a, b)) / len(a)
             if shift < MIN_MEAN_SHIFT_SECONDS:
                 continue
         else:
@@ -155,7 +167,7 @@ def list_songs(experiment_id: str) -> dict:
         a, b = _side(result, meta["a"]["key"]), _side(result, meta["b"]["key"])
         if not a or not b:
             continue
-        keys = {m["key"] for m in moments(a["words"], b["words"])}
+        keys = {m["key"] for m in moments(a["words"], b["words"], meta["compareEnds"])}
         song_answers = {
             k: v for k, v in answers.get(result["id"], {}).items() if k in keys
         }
@@ -201,7 +213,7 @@ def song_detail(experiment_id: str, song_id: str) -> dict:
     if not a or not b:
         raise NotFound("This song failed to align one of the two ways")
     song_answers = _answers(path).get(song_id, {})
-    found = moments(a["words"], b["words"])
+    found = moments(a["words"], b["words"], meta["compareEnds"])
     for moment in found:
         moment["answer"] = song_answers.get(moment["key"])
     return {
