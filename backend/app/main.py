@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy.exc import SQLAlchemyError
 
 # Import routers
 from app.api import (
@@ -49,7 +50,9 @@ from app.api import (
 # Import configuration and logging setup
 from app.config import get_config
 from app.config.logging import setup_logging
+from app.db.database import SessionLocal
 from app.limiter import limiter
+from app.services.auth_service import ensure_admin_from_env
 
 # Import WebSocket modules
 from app.ws import (
@@ -64,6 +67,26 @@ logging_config = setup_logging(config)
 logger = logging.getLogger(__name__)
 
 
+def _create_startup_admin() -> None:
+    """Create the first admin from ADMIN_USERNAME/ADMIN_PASSWORD, if set.
+
+    A database problem (e.g. migrations not run yet) is logged, never fatal.
+    """
+    db = SessionLocal()
+    try:
+        ensure_admin_from_env(
+            db, os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.error(
+            "Could not check for a startup admin (has alembic upgrade head run?)",
+            exc_info=True,
+        )
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
@@ -73,6 +96,7 @@ async def lifespan(app: FastAPI):
             "JWT_SECRET_KEY is not set — a random key was generated. "
             "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
         )
+    _create_startup_admin()
     yield
 
 

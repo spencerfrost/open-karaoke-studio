@@ -123,9 +123,21 @@ Roughly 2–5 minutes per song on GPU, 10–20 on CPU.
 git clone https://github.com/spencerfrost/open-karaoke-studio.git
 cd open-karaoke-studio
 
-./setup.sh              # creates venvs, installs deps, runs migrations
+cp .env.example .env    # set JWT_SECRET_KEY, ADMIN_USERNAME and ADMIN_PASSWORD
+
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head    # needs DATABASE_URL (Postgres) in .env
+cd ../frontend && pnpm install && cd ..
+
 ./scripts/dev-tmux.sh   # starts API, frontend, and Celery worker
 ```
+
+On its first start the API creates an admin from `ADMIN_USERNAME` and `ADMIN_PASSWORD` (at least
+8 characters). Sign in with it under **Hosting tonight? Sign in**, then add hosts on
+`/admin/users`. Once an admin exists the two variables are ignored; `backend/scripts/manage_users.py`
+creates accounts and resets passwords by hand.
 
 | Service | URL |
 |---------|-----|
@@ -133,7 +145,9 @@ cd open-karaoke-studio
 | Backend API | http://localhost:5123 |
 | API docs (Swagger) | http://localhost:5123/docs |
 
-A `docker-compose.yml` is included for Postgres and Redis.
+**Docker:** `docker-compose.yml` runs the whole stack (API, Celery, frontend, Postgres, Redis). Put
+`JWT_SECRET_KEY`, `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env` next to it and run
+`docker compose up -d`; the API container runs the migrations and creates the admin on first start.
 
 ### Development
 

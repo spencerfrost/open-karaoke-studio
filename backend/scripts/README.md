@@ -6,8 +6,9 @@ maintenance jobs there, not here.
 
 What's left in this folder:
 
-- `manage_users.py`: creates the first admin before anyone can log in. The only script
-  shipped in the Docker image.
+- `manage_users.py`: creates, lists and deletes accounts and resets passwords by hand. The first
+  admin usually comes from `ADMIN_USERNAME`/`ADMIN_PASSWORD` instead (created on API startup).
+  The only script shipped in the Docker image.
 - `archive/`: finished one-off repairs, kept for reference. Not maintained; they may break
   as the app changes.
   - `backfill_lyrics_line_index.py`: verified 2026-09-25, a dry run changes 0 songs.

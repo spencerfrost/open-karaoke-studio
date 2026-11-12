@@ -982,6 +982,8 @@ or password, and a role change shows in an already-signed-in browser only after 
 **As an operator, I want to manage user accounts from the command line** so I can set up accounts without a UI.
 
 **Features:**
+- The first admin comes from `ADMIN_USERNAME` / `ADMIN_PASSWORD`: created on the API's first start
+  while no admin exists, ignored after that
 - `backend/scripts/manage_users.py create [--admin] [--host] [--demo]`
 - List and delete users
 - Reset passwords (the only way to change one)

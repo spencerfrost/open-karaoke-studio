@@ -35,8 +35,7 @@ tmux capture-pane -t open-karaoke:0.0 -p | tail -20   # API server
 tmux capture-pane -t open-karaoke:0.1 -p | tail -20   # Frontend
 tmux capture-pane -t open-karaoke:0.2 -p | tail -20   # Celery worker
 
-# Setup
-./setup.sh                    # Initial setup (once)
+# Setup: see README "Getting Started" (first admin comes from ADMIN_USERNAME/ADMIN_PASSWORD)
 ./scripts/dev-tmux.sh         # Start all services
 ```
 

@@ -249,9 +249,16 @@ frontend gate and can browse and add songs to the library, but it reaches a sess
 that session's device credential, like a guest. The tiers are laid out in
 [Authentication § Permission ladder](../api/authentication.md#permission-ladder).
 
-Accounts are made by an admin, either on the Users page (register, then set-host) or with
-`scripts/manage_users.py create [--admin] [--host] [--demo]`. The CLI also lists, deletes and
-resets passwords.
+The first admin comes from the environment: when `ADMIN_USERNAME` and `ADMIN_PASSWORD` are both
+set and no admin exists, the API creates that account on startup (`ensure_admin_from_env` in
+[auth_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/auth_service.py),
+called from the lifespan in `main.py`). It never promotes an existing account with that name,
+since registration is open and anyone could take the name first. Once any admin exists the
+variables are ignored. A missing table or other database error is logged and startup carries on.
+
+Every other account is made by an admin, either on the Users page (register, then set-host) or
+with `scripts/manage_users.py create [--admin] [--host] [--demo]`. The CLI also lists, deletes
+and resets passwords.
 
 ### Logging in
 

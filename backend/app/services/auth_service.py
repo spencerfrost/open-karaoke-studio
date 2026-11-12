@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import JWTError, jwt
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import User
@@ -67,4 +68,63 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
     if not user.check_password(password):
         return None
+    return user
+
+
+MIN_ADMIN_PASSWORD_LENGTH = 8  # same minimum as RegisterUserRequest
+
+
+def ensure_admin_from_env(
+    db: Session, username: Optional[str], password: Optional[str]
+) -> Optional[User]:
+    """Create the first admin from ADMIN_USERNAME / ADMIN_PASSWORD.
+
+    Runs once per API start. Does nothing when neither value is set or when any
+    admin already exists. Never promotes an existing account: registration is
+    open, so someone could take the name first and gain admin with their own
+    password. Returns the created admin, or None when nothing was created.
+    """
+    username = (username or "").strip()
+    password = password or ""
+    if not username and not password:
+        return None
+    if not username or not password:
+        missing = "ADMIN_USERNAME" if not username else "ADMIN_PASSWORD"
+        logger.warning("%s is not set; skipping the startup admin", missing)
+        return None
+
+    if db.query(User).filter(User.is_admin.is_(True)).first():
+        logger.debug("An admin already exists; ignoring ADMIN_USERNAME")
+        return None
+
+    if len(password) < MIN_ADMIN_PASSWORD_LENGTH:
+        logger.error(
+            "ADMIN_PASSWORD must be at least %d characters; no admin created",
+            MIN_ADMIN_PASSWORD_LENGTH,
+        )
+        return None
+
+    if db.query(User).filter(User.username == username).first():
+        logger.error(
+            "ADMIN_USERNAME '%s' belongs to an existing non-admin account; "
+            "not promoting it. Pick another name or use manage_users.py",
+            username,
+        )
+        return None
+
+    try:
+        user = User(username=username, display_name=username, is_admin=True)
+    except ValueError as e:
+        logger.error("ADMIN_USERNAME is invalid (%s); no admin created", e)
+        return None
+    user.set_password(password)
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Another process created the same username between the check and commit.
+        db.rollback()
+        logger.info("Admin '%s' was created by another process", username)
+        return None
+    logger.info("Created admin '%s' from ADMIN_USERNAME", username)
     return user
