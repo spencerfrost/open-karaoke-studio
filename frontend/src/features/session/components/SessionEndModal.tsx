@@ -43,7 +43,7 @@ const SessionEndModal: React.FC<SessionEndModalProps> = ({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Music2 className="h-5 w-5 text-orange-peel" />
+            <Music2 className="h-5 w-5 text-primary" />
             {isReady ? "Your Karaoke Night Playlist" : "Session Ended"}
           </DialogTitle>
           <DialogDescription>
@@ -57,7 +57,7 @@ const SessionEndModal: React.FC<SessionEndModalProps> = ({
         <div className="flex flex-col items-center gap-6 py-4">
           {isGenerating && (
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <Loader2 className="h-10 w-10 animate-spin text-orange-peel" />
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-sm">Creating playlist on YouTube Music…</p>
             </div>
           )}

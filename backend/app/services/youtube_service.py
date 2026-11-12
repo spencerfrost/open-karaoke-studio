@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import yt_dlp
+
 from app.exceptions import ServiceError, ValidationError
 
 from .file_service import FileService
@@ -17,6 +18,26 @@ from .interfaces.file_service import FileServiceInterface
 from .interfaces.youtube_service import YouTubeServiceInterface
 
 logger = logging.getLogger(__name__)
+
+# How YouTube opens the description of an album track it made from a label's
+# delivery (the "Artist - Topic" channels).
+_ALBUM_TRACK_DESCRIPTION = "Provided to YouTube by"
+
+
+def is_album_art_upload(info: dict[str, Any]) -> bool:
+    """Whether yt-dlp's info is for an album track upload.
+
+    Those videos are the album cover held still over the audio, so their
+    thumbnail is the cover. yt-dlp drops " - Topic" from most of their channel
+    names, so the description's opening line is the reliable sign; the channel
+    name catches the rest.
+    """
+    description = (info.get("description") or "").lstrip()
+    if description.startswith(_ALBUM_TRACK_DESCRIPTION):
+        return True
+    return any(
+        (info.get(key) or "").endswith(" - Topic") for key in ("channel", "uploader")
+    )
 
 
 class YouTubeService(YouTubeServiceInterface):
@@ -224,16 +245,20 @@ class YouTubeService(YouTubeServiceInterface):
                 "Successfully downloaded YouTube video %s as song %s", video_id, song_id
             )
             try:
-                # Update song with duration if available
-                if metadata_dict.get("duration"):
-                    from app.db.database import get_db_session
-                    from app.repositories.song_repository import SongRepository
+                from app.db.database import get_db_session
+                from app.repositories.song_repository import SongRepository
 
-                    with get_db_session() as session:
-                        repo = SongRepository(session)
-                        repo.update(song_id, duration=metadata_dict["duration"])
+                updates: dict[str, Any] = {
+                    "video_is_album_art": is_album_art_upload(info)
+                }
+                if metadata_dict.get("duration"):
+                    updates["duration"] = metadata_dict["duration"]
+                with get_db_session() as session:
+                    SongRepository(session).update(song_id, **updates)
             except Exception as e:
-                logger.warning("Failed to update duration for song %s: %s", song_id, e)
+                logger.warning(
+                    "Failed to save video details for song %s: %s", song_id, e
+                )
             return song_id, metadata_dict
 
         except Exception as e:
@@ -278,12 +303,8 @@ class YouTubeService(YouTubeServiceInterface):
                 "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
                 "quiet": True,
                 "no_warnings": True,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "web"],
-                        "player_skip": ["js"],
-                    }
-                },
+                # yt-dlp's own choice of player clients: forcing android/web
+                # stopped returning any audio-only formats (2026-10).
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -369,6 +390,12 @@ class YouTubeService(YouTubeServiceInterface):
                     }
                     created_song = repo.create(song_data)
                     if created_song:
+                        from app.services.song_artist_service import (
+                            set_song_credits,
+                        )
+
+                        set_song_credits(session, created_song, None)
+                        session.commit()
                         logger.info("Created song record %s in database", song_id)
                     else:
                         raise ServiceError(f"Failed to create song record {song_id}")
@@ -377,13 +404,14 @@ class YouTubeService(YouTubeServiceInterface):
             job_id = str(uuid.uuid4())
 
             # Create and save job to database FIRST, before queuing Celery task
-            from app.db.models import Job, JobStatus
+            from app.db.models import Job, JobStatus, JobStep
             from app.repositories import JobRepository
 
             job = Job(
                 id=job_id,
                 filename="original.mp3",
                 status=JobStatus.PENDING,
+                step=JobStep.DOWNLOAD,
                 status_message="Queued for YouTube processing",
                 progress=0,
                 song_id=song_id,

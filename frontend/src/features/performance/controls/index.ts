@@ -1,5 +1,5 @@
 /**
- * Shared performance controls — one strip, two densities.
+ * The stage rail's performance controls.
  */
 
 export { default as ControlsStrip } from "./ControlsStrip";
@@ -10,4 +10,3 @@ export { default as LyricsOffsetRow } from "./LyricsOffsetRow";
 export { default as LyricsSizeRow } from "./LyricsSizeRow";
 export { default as MoreControlsSheet } from "./MoreControlsSheet";
 export { useLyricsOffsetDrag } from "./useLyricsOffsetDrag";
-export type { Density } from "./density";

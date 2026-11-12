@@ -16,6 +16,7 @@ from .base import BaseConfig
 
 try:
     import colorlog
+
     COLORLOG_AVAILABLE = True
 except ImportError:
     COLORLOG_AVAILABLE = False
@@ -38,6 +39,7 @@ class TimezoneFormatter(logging.Formatter):
 
 
 if COLORLOG_AVAILABLE:
+
     class PrefixedColorFormatter(colorlog.ColoredFormatter):
         """Console formatter with [API]/[JOB] prefix and shortened logger name."""
 
@@ -58,6 +60,7 @@ if COLORLOG_AVAILABLE:
             short = name.removeprefix("app.")
             record.short_name = short[:25]
             return super().format(record)
+
 else:
     PrefixedColorFormatter = None
 
@@ -106,7 +109,9 @@ class LoggingConfig:
                         },
                         "secondary_log_colors": {},
                         "style": "%",
-                    } if COLORLOG_AVAILABLE else {
+                    }
+                    if COLORLOG_AVAILABLE
+                    else {
                         "()": TimezoneFormatter,
                         "format": "%(asctime)s [%(name)s] %(levelname)-8s %(message)s",
                         "datefmt": "%H:%M:%S",
@@ -123,7 +128,7 @@ class LoggingConfig:
                     "timezone": self.timezone,
                 },
                 "json": {
-                    "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                    "()": "pythonjsonlogger.json.JsonFormatter",
                     "format": (
                         "%(asctime)s %(name)s %(levelname)s %(filename)s "
                         "%(lineno)d %(funcName)s %(message)s"
@@ -169,27 +174,39 @@ class LoggingConfig:
                 # Root logger
                 "": {
                     "level": "INFO",
-                    "handlers": ["console", "file_info", ],
+                    "handlers": [
+                        "console",
+                        "file_info",
+                    ],
                     "propagate": False,
                 },
                 # App-specific loggers
                 "app": {
                     "level": "INFO",
-                    "handlers": ["console", "file_info", ],
+                    "handlers": [
+                        "console",
+                        "file_info",
+                    ],
                     "propagate": False,
                 },
                 # Celery loggers
                 "celery": {
                     "level": "INFO",
-                    "handlers": ["console", "file_celery",],
+                    "handlers": [
+                        "console",
+                        "file_celery",
+                    ],
                     "propagate": False,
                 },
                 "celery.task": {
                     "level": "INFO",
-                    "handlers": ["console", "file_celery",],
+                    "handlers": [
+                        "console",
+                        "file_celery",
+                    ],
                     "propagate": False,
                 },
-                "app.lyrics_timing": {
+                "app.services.lyrics_timing": {
                     "level": "INFO",
                     "handlers": ["file_lyrics_timing"],
                     "propagate": False,

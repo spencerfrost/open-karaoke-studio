@@ -7,7 +7,7 @@
  * of a screen someone is looking at from across the room.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StageShell } from "@/features/stage";
 import CreateSessionScreen from "@/features/stage/screens/CreateSessionScreen";
 import { cn } from "@/lib/utils";
@@ -45,11 +45,11 @@ const StageFrame: React.FC<{
   contentClassName?: string;
 }> = ({ children, contentClassName = "max-w-md" }) => (
   <div
-    className="relative flex h-screen w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
+    className="relative flex h-dvh w-full flex-col items-center justify-center gap-6 overflow-hidden p-6"
     style={{ background: "var(--page-bg)" }}
   >
-    <div className="vintage-sunburst-pattern" />
-    <div className="vintage-texture-overlay" />
+    <div className="theme-pattern" />
+    <div className="theme-texture" />
     {/* The scrim that makes stage mode dark. StageShell paints the same one, and
         without it these pre-session screens sit on the raw sunburst - blazing
         orange, and light-on-dark text tokens land on a light ground. */}
@@ -76,8 +76,10 @@ const Stage: React.FC = () => {
     recoveryError,
     isConnecting,
     connectionError,
+    sessionInfo,
   } = useSessionStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user, expireSession } = useAuthStore();
+  const isDemo = Boolean(user?.isDemo);
 
   const { useSong } = useSongs();
 
@@ -104,11 +106,16 @@ const Stage: React.FC = () => {
   // `displayCode` while this page is still up. Without the guard that reads as
   // "no session, better go recover one" on every subsequent render.
   const hasBootstrapped = useRef(false);
+  // Set once recovery has had its say, so "no session" means none to resume.
+  const [hasInitialized, setHasInitialized] = useState(false);
   useEffect(() => {
     const initializeSession = async () => {
       if (hasBootstrapped.current || !isAuthenticated) return;
       hasBootstrapped.current = true;
-      if (displayCode) return;
+      if (displayCode) {
+        setHasInitialized(true);
+        return;
+      }
 
       try {
         await recoverSession();
@@ -118,6 +125,8 @@ const Stage: React.FC = () => {
       } catch (error) {
         logger.error("Failed to initialize session:", error);
         toast.error("Failed to initialize session");
+      } finally {
+        setHasInitialized(true);
       }
     };
 
@@ -168,6 +177,41 @@ const Stage: React.FC = () => {
     };
   }, [queueQuery]);
 
+  // A demo account never starts a session here: its one session came from
+  // Try it live, and the server refuses another. Once that session is gone,
+  // sign the visitor out, which sends them back to the start page.
+  const demoIsOver =
+    isDemo &&
+    hasInitialized &&
+    !displayCode &&
+    !isRecovering &&
+    !isResumingAccountSession &&
+    !isConnecting;
+  // Nothing tells the stage when a session simply runs out, so a demo stage
+  // ends itself at the session's expiry rather than carrying on without one.
+  const sessionExpiresAt = sessionInfo?.expires_at;
+  useEffect(() => {
+    if (!isDemo || !sessionExpiresAt) return;
+    // The server sends naive UTC timestamps.
+    const hasOffset = /(Z|[+-]\d\d:\d\d)$/.test(sessionExpiresAt);
+    const expiresMs = Date.parse(
+      hasOffset ? sessionExpiresAt : `${sessionExpiresAt}Z`,
+    );
+    if (Number.isNaN(expiresMs)) return;
+    const timer = window.setTimeout(
+      () => useSessionStore.getState().clearSession(),
+      Math.max(expiresMs - Date.now(), 0),
+    );
+    return () => window.clearTimeout(timer);
+  }, [isDemo, sessionExpiresAt]);
+
+  useEffect(() => {
+    if (demoIsOver) {
+      logger.info("Demo session is over; signing the demo account out");
+      expireSession();
+    }
+  }, [demoIsOver, expireSession]);
+
   const handleStartSession = async (options: HostSessionSetup) => {
     try {
       await joinAsHost(options);
@@ -195,6 +239,22 @@ const Stage: React.FC = () => {
           </div>
         )}
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </StageFrame>
+    );
+  }
+
+  // Never the create screen for a demo: a spinner until recovery has run,
+  // then a line to read while the sign-out above sends them back.
+  if (!displayCode && isDemo) {
+    return (
+      <StageFrame>
+        {hasInitialized ? (
+          <h1 className="text-center text-4xl font-bold text-primary">
+            Your demo has ended
+          </h1>
+        ) : (
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        )}
       </StageFrame>
     );
   }
@@ -235,7 +295,7 @@ const Stage: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden">
+    <div className="h-dvh w-full overflow-hidden">
       <StageShell
         songId={currentSong?.id || ""}
         current={currentQueueItem}

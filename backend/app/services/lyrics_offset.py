@@ -2,14 +2,18 @@
 Global LRC timestamp offset detection and correction.
 
 Detects whether a song's synced LRC timestamps are globally shifted relative to
-the actual audio by comparing LRC line timestamps against detected vocal onsets
-in the vocals track.  Returns an estimated offset (seconds) that can be applied
-to all timestamps to re-align the lyrics with the audio.
+the actual audio. Two estimators, with opposite sign conventions — read each
+one's docs before applying its number:
 
-Usage pattern:
-    result = analyze_global_offset(lrc_content, vocals_path)
-    if result["confidence"] in ("high", "medium"):
-        corrected = shift_lrc_timestamps(lrc_content, -result["estimated_offset"])
+- analyze_global_offset: compares LRC timestamps to vocal onsets found in the
+  RMS curve (manual API endpoint). `estimated_offset` is LRC minus audio, so
+  apply it negated:
+      corrected = shift_lrc_timestamps(lrc_content, -result["estimated_offset"])
+
+- sweep_lrc_offset: re-runs WhisperX forced alignment at a range of shifts and
+  keeps the best-scoring one (automatic alignment pipeline). `shift` is the
+  correction itself, so apply it as-is:
+      corrected = shift_lrc_timestamps(lrc_content, sweep["shift"])
 """
 
 import logging
@@ -20,8 +24,8 @@ from typing import Literal, Optional
 
 import numpy as np
 
-from .audio import compute_rms_curve, load_vocals
-from .lyrics_alignment import AlignmentResult
+from .audio import compute_rms_curve, load_sung_vocals
+from .gpu_memory import is_cuda_out_of_memory
 from .lyrics_analysis import (
     LrcLine,
     SectionBreakCandidate,
@@ -55,20 +59,6 @@ class OffsetAnalysisResult(TypedDict):
     successful_anchors: int
     anchors: list[AnchorMeasurement]
     max_deviation: Optional[float]
-
-
-class WhisperXOffsetEvidence(TypedDict):
-    offset: Optional[float]
-    anchor_count: int
-    spread: Optional[float]
-    offsets: list[float]
-    cluster_count: int
-    inlier_count: int
-    inlier_ratio: float
-    cluster_quality: float
-    dominant_cluster: Optional[dict]
-    repeated_text_groups: dict[str, list[int]]
-    outlier_line_indices: list[int]
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +224,9 @@ def analyze_global_offset(
     # Additional anchors: lines that immediately follow a high-confidence timing gap
     # (i.e. the line that starts a new section — fresh silence → onset pattern)
     timing_candidates = analyze_timing_gaps(lines)
-    high_conf = [c for c in timing_candidates if c["confidence"] >= min_anchor_confidence]
+    high_conf = [
+        c for c in timing_candidates if c["confidence"] >= min_anchor_confidence
+    ]
     fused = fuse_candidates(high_conf) if high_conf else []
 
     # Map after_line_index → the LrcLine that comes right after the break
@@ -258,7 +250,7 @@ def analyze_global_offset(
 
     # --- Load audio once ------------------------------------------------------
     try:
-        y, sr = load_vocals(vocals_path)
+        y, sr = load_sung_vocals(vocals_path)
     except Exception as e:
         logger.error("Failed to load vocals from %s: %s", vocals_path, e, exc_info=True)
         return OffsetAnalysisResult(
@@ -414,6 +406,7 @@ def shift_lrc_timestamps(content: str, shift_seconds: float) -> str:
     """
     result_lines: list[str] = []
     for raw_line in content.splitlines():
+
         def _replace_ts(m: re.Match) -> str:
             mins = int(m.group(1))
             secs = int(m.group(2))
@@ -428,219 +421,181 @@ def shift_lrc_timestamps(content: str, shift_seconds: float) -> str:
     return "\n".join(result_lines)
 
 
-def _normalize_lyric_text(text: str) -> str:
-    """Normalize lyric text for repeat grouping comparisons."""
-    lowered = text.lower().strip()
-    lowered = re.sub(r"[^a-z0-9\s]", "", lowered)
-    return re.sub(r"\s+", " ", lowered).strip()
+# ---------------------------------------------------------------------------
+# WhisperX shift sweep
+# ---------------------------------------------------------------------------
+
+OFFSET_SWEEP_MAX_SECONDS = 12.0
+OFFSET_SWEEP_STEP_SECONDS = 0.5
+# A fine pass around the coarse best catches offsets that fall between coarse
+# steps: GRiZ "Find My Own Way" is 0.9 s late, and the 0.5 s steps either side
+# of it score well below 0.9 s itself.
+OFFSET_SWEEP_FINE_STEP_SECONDS = 0.1
+# How far a sweep of a song that already passes looks. An LRC that is off by
+# seconds scores below the gate and gets the wide sweep; one that passes and is
+# still late is off by about a second at most.
+OFFSET_SWEEP_NEAR_MAX_SECONDS = 1.5
 
 
-def _build_repeated_text_groups(lrc_lines: list[LrcLine]) -> dict[str, list[int]]:
-    groups: dict[str, list[int]] = {}
-    for idx, line in enumerate(lrc_lines):
-        normalized = _normalize_lyric_text(line["text"])
-        if not normalized:
-            continue
-        groups.setdefault(normalized, []).append(idx)
-    return {text: indices for text, indices in groups.items() if len(indices) > 1}
+class LrcOffsetSweep(TypedDict):
+    shift: float  # seconds to pass to shift_lrc_timestamps (negative = earlier)
+    score: float  # mean word score with `shift` applied
+    baseline_score: float  # mean word score of the LRC as-is (shift 0)
+    gain: float  # score - baseline_score
+    scores: dict[float, float]  # every shift tried -> mean word score
 
 
-def _cluster_offsets_by_tolerance(
-    offsets: list[float],
-    line_indices: list[int],
-    tolerance_seconds: float = 0.4,
-) -> list[dict]:
-    """Cluster offsets by proximity, keeping line indices for diagnostics."""
-    if not offsets:
-        return []
+def pick_best_lrc_shift(scores: dict[float, float]) -> LrcOffsetSweep:
+    """Pick the shift with the highest alignment score from a sweep.
 
-    pairs = sorted(zip(offsets, line_indices), key=lambda item: item[0])
-    clusters: list[dict] = []
-
-    current_offsets: list[float] = [pairs[0][0]]
-    current_lines: list[int] = [pairs[0][1]]
-
-    for offset, line_idx in pairs[1:]:
-        if abs(offset - current_offsets[-1]) <= tolerance_seconds:
-            current_offsets.append(offset)
-            current_lines.append(line_idx)
-            continue
-
-        clusters.append(
-            {
-                "offset": float(median(current_offsets)),
-                "count": len(current_offsets),
-                "spread": (max(current_offsets) - min(current_offsets)) if len(current_offsets) > 1 else 0.0,
-                "line_indices": sorted(current_lines),
-                "offsets": current_offsets.copy(),
-            }
-        )
-        current_offsets = [offset]
-        current_lines = [line_idx]
-
-    clusters.append(
-        {
-            "offset": float(median(current_offsets)),
-            "count": len(current_offsets),
-            "spread": (max(current_offsets) - min(current_offsets)) if len(current_offsets) > 1 else 0.0,
-            "line_indices": sorted(current_lines),
-            "offsets": current_offsets.copy(),
-        }
-    )
-
-    clusters.sort(key=lambda cluster: (cluster["count"], -cluster["spread"]), reverse=True)
-    return clusters
-
-
-def _compute_repeated_text_disagreement_penalty(
-    offsets_by_line: dict[int, float], repeated_text_groups: dict[str, list[int]]
-) -> float:
-    """Penalize evidence when repeated lyric lines disagree strongly on offset."""
-    penalty = 0.0
-    for indices in repeated_text_groups.values():
-        repeated_offsets = [offsets_by_line[idx] for idx in indices if idx in offsets_by_line]
-        if len(repeated_offsets) < 2:
-            continue
-        spread = max(repeated_offsets) - min(repeated_offsets)
-        # Allow modest disagreement on repeated chorus lines without zeroing quality.
-        if spread > 0.6:
-            penalty += min(0.08, (spread - 0.6) / 30.0)
-    return min(0.25, penalty)
-
-
-def compute_whisperx_offset_evidence(
-    alignment_result: AlignmentResult,
-    lrc_content: str,
-    min_word_score: float = 0.7,
-    min_line_anchors: int = 3,
-    cluster_tolerance_seconds: float = 0.5,
-) -> WhisperXOffsetEvidence:
-    """Estimate a global LRC timing offset from high-confidence words in a low-confidence alignment.
-
-    Even when WhisperX mean_score is below the acceptance threshold, individual
-    words may carry high confidence scores.  Groups those words by LRC line and
-    computes the delta between WhisperX-detected onset and LRC timestamp for each
-    qualifying line, then returns the median delta.
-
-    Args:
-        alignment_result: Result from align_lyrics_to_vocals() (may be low confidence).
-        lrc_content: The original LRC content that was aligned.
-        min_word_score: Per-word score threshold to count as a high-confidence anchor.
-        min_line_anchors: Minimum qualifying lines required to return an estimate.
-
-    Returns detailed evidence for a global offset estimate.
+    Ties go to the smaller shift, so an LRC that is already right stays put.
+    `scores` must include the unshifted baseline (0.0).
     """
-    lrc_lines = parse_lrc_lines(lrc_content)
-    lrc_timestamps = {i: line["timestamp"] for i, line in enumerate(lrc_lines)}
-    repeated_text_groups = _build_repeated_text_groups(lrc_lines)
-
-    line_words: dict[int, list] = {}
-    for word in alignment_result["words"]:
-        if word["score"] >= min_word_score:
-            idx = word["line_index"]
-            line_words.setdefault(idx, []).append(word)
-
-    offsets: list[float] = []
-    line_indices: list[int] = []
-    for line_idx, words in line_words.items():
-        lrc_ts = lrc_timestamps.get(line_idx)
-        if lrc_ts is None:
-            continue
-        detected_onset = min(w["start"] for w in words)
-        offsets.append(detected_onset - lrc_ts)
-        line_indices.append(line_idx)
-
-    if len(offsets) < min_line_anchors:
-        logger.debug(
-            "compute_whisperx_offset: only %d qualifying lines (need %d), skipping",
-            len(offsets),
-            min_line_anchors,
-        )
-        return {
-            "offset": None,
-            "anchor_count": len(offsets),
-            "spread": None,
-            "offsets": offsets,
-            "cluster_count": 0,
-            "inlier_count": 0,
-            "inlier_ratio": 0.0,
-            "cluster_quality": 0.0,
-            "dominant_cluster": None,
-            "repeated_text_groups": repeated_text_groups,
-            "outlier_line_indices": [],
-        }
-
-    clusters = _cluster_offsets_by_tolerance(
-        offsets,
-        line_indices,
-        tolerance_seconds=cluster_tolerance_seconds,
+    baseline_score = scores[0.0]
+    best_shift = max(scores, key=lambda shift: (scores[shift], -abs(shift)))
+    best_score = scores[best_shift]
+    return LrcOffsetSweep(
+        shift=best_shift,
+        score=round(best_score, 3),
+        baseline_score=round(baseline_score, 3),
+        gain=round(best_score - baseline_score, 3),
+        scores={shift: round(score, 3) for shift, score in scores.items()},
     )
-    dominant_cluster = clusters[0] if clusters else None
-
-    if dominant_cluster is None:
-        return {
-            "offset": None,
-            "anchor_count": len(offsets),
-            "spread": None,
-            "offsets": offsets,
-            "cluster_count": 0,
-            "inlier_count": 0,
-            "inlier_ratio": 0.0,
-            "cluster_quality": 0.0,
-            "dominant_cluster": None,
-            "repeated_text_groups": repeated_text_groups,
-            "outlier_line_indices": [],
-        }
-
-    result = dominant_cluster["offset"]
-    spread = dominant_cluster["spread"]
-    inlier_count = dominant_cluster["count"]
-    inlier_ratio = inlier_count / len(offsets)
-
-    dominant_line_indices = set(dominant_cluster["line_indices"])
-    outlier_line_indices = [idx for idx in line_indices if idx not in dominant_line_indices]
-    offsets_by_line = {line_idx: offset for line_idx, offset in zip(line_indices, offsets)}
-    disagreement_penalty = _compute_repeated_text_disagreement_penalty(offsets_by_line, repeated_text_groups)
-
-    # Cluster quality favors compact, dominant clusters and penalizes repeated-text disagreement.
-    base_quality = inlier_ratio * (1.0 / (1.0 + (spread * 0.7)))
-    cluster_quality = max(0.0, min(1.0, base_quality - disagreement_penalty))
-
-    logger.info(
-        "compute_whisperx_offset: offset=%.3fs from %d/%d line anchors (spread=%.3fs, clusters=%d, inlier_ratio=%.3f, cluster_quality=%.3f)",
-        result,
-        inlier_count,
-        len(offsets),
-        spread,
-        len(clusters),
-        inlier_ratio,
-        cluster_quality,
-    )
-    return {
-        "offset": result,
-        "anchor_count": len(offsets),
-        "spread": spread,
-        "offsets": offsets,
-        "cluster_count": len(clusters),
-        "inlier_count": inlier_count,
-        "inlier_ratio": inlier_ratio,
-        "cluster_quality": cluster_quality,
-        "dominant_cluster": dominant_cluster,
-        "repeated_text_groups": repeated_text_groups,
-        "outlier_line_indices": sorted(set(outlier_line_indices)),
-    }
 
 
-def compute_whisperx_offset(
-    alignment_result: AlignmentResult,
+def _sweep_shifts(max_shift: float, step: float) -> list[float]:
+    steps = int(round(max_shift / step))
+    return [round(i * step, 3) for i in range(-steps, steps + 1)]
+
+
+def _fine_shifts(
+    center: float,
+    step: float,
+    fine_step: float,
+    max_shift: float,
+    reach: Optional[float] = None,
+) -> list[float]:
+    """The shifts around `center`, `fine_step` apart, out to `reach` either
+    side (its coarse neighbours by default) but no further than `max_shift`."""
+    reach = step if reach is None else reach
+    count = int(round(reach / fine_step))
+    if reach >= step:
+        count -= 1  # the coarse neighbours themselves were already tried
+    shifts = [
+        round(center + sign * i * fine_step, 3)
+        for i in range(1, count + 1)
+        for sign in (-1, 1)
+    ]
+    return sorted(shift for shift in shifts if abs(shift) <= max_shift)
+
+
+def sweep_lrc_offset(
     lrc_content: str,
-    min_word_score: float = 0.7,
-    min_line_anchors: int = 3,
-) -> Optional[float]:
-    evidence = compute_whisperx_offset_evidence(
-        alignment_result,
-        lrc_content,
-        min_word_score=min_word_score,
-        min_line_anchors=min_line_anchors,
+    vocals_path: Path,
+    language: str = "en",
+    device: str = "auto",
+    max_shift: float = OFFSET_SWEEP_MAX_SECONDS,
+    step: float = OFFSET_SWEEP_STEP_SECONDS,
+    fine_step: Optional[float] = None,
+    fine_reach: Optional[float] = None,
+    fine_around_zero: bool = True,
+) -> Optional[LrcOffsetSweep]:
+    """Find a global LRC offset by re-aligning the lyrics at a range of shifts.
+
+    Strict forced alignment only searches for each line's words between that
+    line's timestamp and the next one, so it cannot *see* vocals that sit
+    outside those windows — which is exactly the situation when the whole LRC
+    is early or late. Shifting the LRC moves the windows themselves: when they
+    land on the real vocals the mean word score jumps, so the best-scoring
+    shift is the offset. The caller decides whether the gain is worth
+    applying (see pick_best_lrc_shift for the result shape).
+
+    With `fine_step`, a second pass tries the shifts between the coarse best
+    and its neighbours, `fine_step` apart (or out to `fine_reach` either side),
+    and the best of both passes wins. Without `fine_around_zero`, the fine pass
+    is skipped when the coarse best is no shift at all, which is most songs.
+
+    Loads the audio and alignment model once; each shift is one alignment
+    pass (~1s per 3-minute song on GPU). Returns None if alignment fails.
+    """
+    import librosa
+    import whisperx
+
+    from .gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
+    from .lyrics_alignment import (
+        _is_cuda_device,
+        _lrc_lines_to_segments,
+        _resolve_alignment_device,
     )
-    return evidence["offset"]
+
+    if not any(line["text"].strip() for line in parse_lrc_lines(lrc_content)):
+        return None
+
+    device = _resolve_alignment_device(device)
+    y, sr = load_sung_vocals(vocals_path)
+    audio = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+
+    scores: dict[float, float] = {}
+    activity_started = False
+    try:
+        if _is_cuda_device(device):
+            begin_gpu_activity(f"lyrics-offset-sweep:{language}")
+            activity_started = True
+        model_a, metadata = whisperx.load_align_model(
+            language_code=language, device=device
+        )
+
+        def score_shifts(shifts: list[float]) -> None:
+            for shift in shifts:
+                if shift in scores:
+                    continue
+                segments = _lrc_lines_to_segments(
+                    parse_lrc_lines(shift_lrc_timestamps(lrc_content, shift))
+                )
+                result = whisperx.align(
+                    segments,
+                    model_a,
+                    metadata,
+                    audio,
+                    device,
+                    return_char_alignments=False,
+                )
+                word_scores = [
+                    word["score"]
+                    for segment in result.get("segments", [])
+                    for word in segment.get("words", [])
+                    if "score" in word
+                ]
+                if word_scores:
+                    scores[shift] = sum(word_scores) / len(word_scores)
+
+        score_shifts(_sweep_shifts(max_shift, step))
+        if fine_step and 0.0 in scores:
+            coarse_best = pick_best_lrc_shift(scores)["shift"]
+            if coarse_best != 0.0 or fine_around_zero:
+                score_shifts(
+                    _fine_shifts(coarse_best, step, fine_step, max_shift, fine_reach)
+                )
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
+        logger.error("LRC offset sweep failed for %s", vocals_path, exc_info=True)
+        return None
+    finally:
+        if activity_started:
+            end_gpu_activity(f"lyrics-offset-sweep:{language}")
+
+    if 0.0 not in scores:
+        return None
+
+    sweep = pick_best_lrc_shift(scores)
+    logger.info(
+        "LRC offset sweep for %s: best shift %+.2fs (score %.3f, baseline %.3f, gain %+.3f)",
+        vocals_path,
+        sweep["shift"],
+        sweep["score"],
+        sweep["baseline_score"],
+        sweep["gain"],
+    )
+    return sweep

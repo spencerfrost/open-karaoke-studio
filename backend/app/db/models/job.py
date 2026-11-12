@@ -26,6 +26,18 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class JobStep(str, Enum):
+    """The pipeline step a job is on (or waiting for, while pending).
+
+    Separate from `status`, which says whether the job is waiting, running or done.
+    Lyrics alignment runs as its own job, so its step is always `align`.
+    """
+
+    DOWNLOAD = "download"
+    SEPARATE = "separate"
+    ALIGN = "align"
+
+
 @dataclass
 class Job:
     """Data class representing a job with its current status and progress."""
@@ -48,17 +60,28 @@ class Job:
     )
     session_id: Optional[str] = None  # Karaoke session that initiated the job
     user_id: Optional[int] = None  # Account that initiated the job (if any)
+    step: Optional[JobStep] = None  # Pipeline step, see JobStep
 
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now(timezone.utc)
         if isinstance(self.status, str):
             self.status = JobStatus(self.status)
-
-    """Convert the job to a dictionary representation for serialization."""
+        if isinstance(self.step, str) and not isinstance(self.step, JobStep):
+            self.step = JobStep(self.step)
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the job to its wire form for clients.
+
+        `session_id` is the session's join code and `/ws/jobs` is open to anyone, so
+        neither it nor `user_id` is sent. `owner_tag` stands in for ownership.
+        """
+        from app.utils.owner_tag import session_owner_tag
+
         data = asdict(self)
+        data.pop("session_id", None)
+        data.pop("user_id", None)
+        data["owner_tag"] = session_owner_tag(self.session_id)
         for key in ["created_at", "started_at", "completed_at"]:
             if data[key] is not None and isinstance(data[key], datetime):
                 if data[key].tzinfo is None:
@@ -66,6 +89,7 @@ class Job:
                 else:
                     data[key] = data[key].isoformat()
         data["status"] = self.status.value
+        data["step"] = self.step.value if self.step else None
         return data
 
 
@@ -89,6 +113,7 @@ class DbJob(Base):
     engine_type = Column(String, nullable=True)  # Separation engine used
     session_id = Column(String, nullable=True, index=True)  # Initiating karaoke session
     user_id = Column(Integer, nullable=True)  # Initiating account (if any)
+    step = Column(String, nullable=True)  # JobStep value
 
     def to_job(self) -> Job:
         """Convert database job to domain job object."""
@@ -109,4 +134,5 @@ class DbJob(Base):
             engine_type=self.engine_type,  # type: ignore[assignment]
             session_id=self.session_id,  # type: ignore[assignment]
             user_id=self.user_id,  # type: ignore[assignment]
+            step=JobStep(self.step) if self.step else None,  # type: ignore[arg-type]
         )

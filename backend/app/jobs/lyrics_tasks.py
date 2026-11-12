@@ -1,19 +1,26 @@
 """Lyrics-alignment Celery tasks."""
 
 import json
-
+from collections.abc import Collection, Mapping
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+from celery.utils.log import get_task_logger
 
 from app.db.models import JobStatus
+from app.services.gpu_memory import (
+    free_cached_gpu_memory,
+    is_cuda_out_of_memory,
+    track_gpu_memory,
+)
 from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
-from celery.utils.log import get_task_logger
 
 from ._shared import (
+    TRANSIENT_RETRY_DELAYS,
     _complete_lyrics_alignment_job,
     _get_lyrics_job_id,
     _update_lyrics_alignment_job,
@@ -21,8 +28,22 @@ from ._shared import (
 )
 from .celery_app import celery
 from .lyrics_support import build_alignment_attempts_for_song, run_alignment_attempt
+from .metadata_tasks import queue_vocal_range_if_ready
+
+if TYPE_CHECKING:
+    from app.services.lyrics_offset import LrcOffsetSweep
 
 logger = get_task_logger(__name__)
+
+# An alignment is stored when its mean word score reaches this.
+MIN_ALIGNMENT_SCORE = 0.3
+# A swept LRC shift is applied only when it beats the unshifted score by this
+# much. Measured on known-good songs: a real 1.5–9s offset gains ≥0.058, an
+# already-correct LRC gains ≤0.006.
+MIN_OFFSET_GAIN = 0.03
+# Lyrics are re-timed from an ASR transcript only when at least this share of
+# their words matched it. Below it, the text is likely another song or version.
+MIN_RETIME_MATCH_RATIO = 0.5
 
 
 def _format_synced_lyrics_for_storage(content: str, min_confidence: float = 0.3) -> str:
@@ -32,15 +53,133 @@ def _format_synced_lyrics_for_storage(content: str, min_confidence: float = 0.3)
     return content
 
 
-def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
+def _build_alignment_attempts(
+    song: SongData,
+    include_remote: bool = True,
+    max_remote_results: int = 3,
+    rejected_keys: Collection[str] = (),
+) -> list[dict]:
     return build_alignment_attempts_for_song(
         song,
         include_remote=include_remote,
         max_remote_results=max_remote_results,
+        rejected_keys=rejected_keys,
     )
 
 
-def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | None) -> tuple[bool, bool]:
+def _format_synced_attempts(attempts: list[dict]) -> list[dict]:
+    """Format every synced candidate before it's aligned.
+
+    Formatting inserts blank break lines, which renumbers lines, so a candidate
+    has to be aligned in the form it will be stored in. Candidates that turn
+    out identical after formatting are aligned once.
+    """
+    formatted: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for attempt in attempts:
+        if attempt["source_type"] == "synced":
+            attempt = {
+                **attempt,
+                "content": _format_synced_lyrics_for_storage(attempt["content"]),
+            }
+        key = (attempt["source_type"], attempt["content"])
+        if key in seen:
+            continue
+        seen.add(key)
+        formatted.append(attempt)
+    return formatted
+
+
+def _fit_words_to_lyrics(
+    song_id: str,
+    alignment: Mapping[str, Any],
+    *,
+    content: str,
+    source: str,
+) -> dict[str, Any] | None:
+    """Point every word's line_index into `content`, the exact LRC stored beside it.
+
+    Returns the alignment with line indexes and instrumental intervals derived
+    from that text, or None when the words don't read as that text word for
+    word. Storing those would highlight different words than the screen shows.
+    """
+    from app.services.lyrics_alignment import (
+        _build_instrumental_intervals,
+        recompute_alignment_line_indices,
+    )
+
+    words = recompute_alignment_line_indices(alignment["words"], content=content)
+    if words is None:
+        logger.warning(
+            "Lyrics words don't match the lyrics text for song %s (source=%s)",
+            song_id,
+            source,
+        )
+        log_lyrics_event(
+            song_id,
+            "lyrics_words_mismatch",
+            source=source,
+            word_count=len(alignment["words"]),
+        )
+        return None
+
+    relabelled = sum(
+        1
+        for old, new in zip(alignment["words"], words)
+        if old["line_index"] != new["line_index"]
+    )
+    if relabelled:
+        log_lyrics_event(
+            song_id, "lyrics_words_relabelled", source=source, word_count=relabelled
+        )
+    return {
+        **alignment,
+        "words": words,
+        "instrumental_intervals": _build_instrumental_intervals(words),
+    }
+
+
+class LyricsChangedDuringRun(Exception):
+    """A person saved or reported the song's lyrics while this run was going."""
+
+
+def _lyrics_run_token(session, song) -> tuple:
+    """What a run must still see before it writes: no new pick, no new report.
+
+    A person saving lyrics changes `lyrics_hand_picked_at`; a report adds a
+    row or bumps a count. Either means this run's candidates are out of date.
+    """
+    from app.db.models import LyricsReport
+
+    reports = (
+        session.query(LyricsReport.id, LyricsReport.report_count)
+        .filter(LyricsReport.song_id == song.id)
+        .order_by(LyricsReport.id)
+        .all()
+    )
+    return (
+        song.lyrics_hand_picked_at,
+        tuple((row.id, row.report_count) for row in reports),
+    )
+
+
+def _fetch_song_for_write(session, song_id: str, run_token: tuple | None):
+    """The song, about to be written; raises if its lyrics changed since the run started."""
+    from app.repositories.song_repository import SongRepository
+
+    song = SongRepository(session).fetch(song_id)
+    if (
+        song is not None
+        and run_token is not None
+        and _lyrics_run_token(session, song) != run_token
+    ):
+        raise LyricsChangedDuringRun(song_id)
+    return song
+
+
+def _persist_initial_lyrics_candidate(
+    song_id: str, candidate: dict[str, Any] | None, run_token: tuple | None = None
+) -> tuple[bool, bool]:
     """Persist top remote lyrics candidate without overwriting existing lyric fields."""
     if not candidate:
         return (False, False)
@@ -52,17 +191,23 @@ def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | 
     persisted_synced_lyrics = False
 
     with get_db_session() as session:
-        song = SongRepository(session).fetch(song_id)
+        song = _fetch_song_for_write(session, song_id, run_token)
         if not song:
             return (False, False)
 
         if candidate["source_type"] == "synced" and not song.synced_lyrics:
-            formatted_synced_lyrics = _format_synced_lyrics_for_storage(candidate["content"])
+            formatted_synced_lyrics = _format_synced_lyrics_for_storage(
+                candidate["content"]
+            )
             candidate["content"] = formatted_synced_lyrics
             song.synced_lyrics = formatted_synced_lyrics
             song.word_synced_lyrics = None
             persisted_synced_lyrics = True
-        elif candidate["source_type"] == "plain" and not song.plain_lyrics and not song.synced_lyrics:
+        elif (
+            candidate["source_type"] == "plain"
+            and not song.plain_lyrics
+            and not song.synced_lyrics
+        ):
             song.plain_lyrics = candidate["content"]
             persisted_plain_lyrics = True
 
@@ -72,11 +217,234 @@ def _persist_initial_lyrics_candidate(song_id: str, candidate: dict[str, Any] | 
     return (persisted_plain_lyrics, persisted_synced_lyrics)
 
 
-def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_reason: str) -> bool:
+def _build_word_sync_payload(
+    result: Mapping[str, Any],
+    *,
+    source_type: str,
+    source: str,
+    attempt_index: int,
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "words": result["words"],
+        "instrumental_intervals": result.get("instrumental_intervals", []),
+        "language": result["language"],
+        "mean_score": result["mean_score"],
+        "word_count": result["word_count"],
+        "line_count": result["line_count"],
+        "aligned_at": result["aligned_at"],
+        "lyrics_source_type": source_type,
+        "lyrics_source": source,
+        "lyrics_attempt": attempt_index,
+        **extra,
+    }
+
+
+def _offset_rejection_reason(sweep: "LrcOffsetSweep") -> str | None:
+    if sweep["shift"] == 0.0:
+        return "no_shift"
+    if sweep["gain"] < MIN_OFFSET_GAIN:
+        return "gain_too_small"
+    if sweep["score"] < MIN_ALIGNMENT_SCORE:
+        return "score_too_low"
+    return None
+
+
+def _apply_offset_correction(
+    song_id: str,
+    *,
+    attempt: dict[str, Any],
+    attempt_index: int,
+    vocals_path: Path,
+    language: str,
+    run_token: tuple | None = None,
+) -> dict[str, Any] | None:
+    """Shift a low-scoring synced LRC to where the vocals actually are.
+
+    Sweeps a range of global shifts (see sweep_lrc_offset), and if one clearly
+    beats the LRC as-is, stores the shifted LRC together with its word timings.
+    Returns the sweep and final alignment on success, None when the LRC should
+    be left alone.
+    """
+    from app.services.lyrics_offset import sweep_lrc_offset
+
+    sweep_started_at = perf_counter()
+    sweep = sweep_lrc_offset(attempt["content"], vocals_path, language=language)
+    if sweep is None:
+        log_lyrics_event(
+            song_id, "lyrics_offset_sweep_failed", source=attempt["source"]
+        )
+        return None
+
+    rejection_reason = _offset_rejection_reason(sweep)
+    log_lyrics_event(
+        song_id,
+        "lyrics_offset_sweep_finished",
+        source=attempt["source"],
+        shift=sweep["shift"],
+        score=sweep["score"],
+        baseline_score=sweep["baseline_score"],
+        gain=sweep["gain"],
+        accepted=rejection_reason is None,
+        rejection_reason=rejection_reason,
+        elapsed_ms=round((perf_counter() - sweep_started_at) * 1000, 1),
+    )
+    if rejection_reason is not None:
+        return None
+
+    result = store_offset_corrected_lrc(
+        song_id,
+        content=attempt["content"],
+        shift=sweep["shift"],
+        vocals_path=vocals_path,
+        language=language,
+        source=attempt["source"],
+        attempt_index=attempt_index,
+        run_token=run_token,
+    )
+    if result is None:
+        return None
+    return {"sweep": sweep, "result": result}
+
+
+def store_offset_corrected_lrc(
+    song_id: str,
+    *,
+    content: str,
+    shift: float,
+    vocals_path: Path,
+    language: str,
+    source: str,
+    attempt_index: int,
+    run_token: tuple | None = None,
+) -> dict[str, Any] | None:
+    """Shift the LRC by `shift`, align it, and store both on the song.
+
+    Returns the alignment, or None when it scores below the gate or its words
+    don't read as the stored text (nothing is written then).
+    """
+    from app.db.database import get_db_session
+    from app.services.lyrics_alignment import align_lyrics_to_vocals
+    from app.services.lyrics_offset import shift_lrc_timestamps
+
+    corrected_lrc = _format_synced_lyrics_for_storage(
+        shift_lrc_timestamps(content, shift)
+    )
+    # Formatting can insert blank break lines, which renumbers lines — align the
+    # exact text being stored so every word's line_index points into it.
+    result = align_lyrics_to_vocals(
+        corrected_lrc, vocals_path, language=language, alignment_mode="offset_corrected"
+    )
+    if not result or result["mean_score"] < MIN_ALIGNMENT_SCORE:
+        log_lyrics_event(
+            song_id,
+            "lyrics_offset_realign_rejected",
+            source=source,
+            shift=shift,
+            mean_score=result["mean_score"] if result else None,
+        )
+        return None
+
+    fitted = _fit_words_to_lyrics(song_id, result, content=corrected_lrc, source=source)
+    if fitted is None:
+        return None
+    result = fitted
+
+    with get_db_session() as session:
+        song = _fetch_song_for_write(session, song_id, run_token)
+        if not song:
+            return None
+        song.synced_lyrics = corrected_lrc
+        song.word_synced_lyrics = json.dumps(
+            _build_word_sync_payload(
+                result,
+                source_type="synced",
+                source=source,
+                attempt_index=attempt_index,
+                offset_applied=shift,
+            )
+        )
+        session.commit()
+
+    return result
+
+
+def _resolve_song_language(
+    song_id: str,
+    *,
+    requested: str | None,
+    stored: str | None,
+    lyrics: str | None,
+    vocals_path: Path,
+) -> str:
+    """The language to align in.
+
+    In order: the one asked for, the song's, the language `lyrics` (the text
+    this run aligns) are written in, a guess from the singing, English. The
+    aligner times the lyrics' words, so their text decides; a confident reading
+    of it is stored on the song. The singing is listened to only for a song
+    with no lyrics (its language feeds transcription), and that guess is used
+    for this run only: Whisper hears accented English as other languages.
+    """
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_language import (
+        DEFAULT_LANGUAGE,
+        MIN_DETECTION_PROBABILITY,
+        MIN_LYRICS_PROBABILITY,
+        detect_lyrics_language,
+        detect_vocals_language,
+    )
+
+    from_lyrics = None if requested or stored else detect_lyrics_language(lyrics)
+    if requested:
+        language, language_source = requested, "requested"
+    elif stored:
+        language, language_source = stored, "song"
+    elif from_lyrics and from_lyrics["probability"] >= MIN_LYRICS_PROBABILITY:
+        language, language_source = from_lyrics["language"], "lyrics"
+        with get_db_session() as session:
+            SongRepository(session).update(song_id, language=language)
+    elif lyrics and lyrics.strip():
+        # Too little text, or text that reads as no one language: English is a
+        # safer guess for the words than one from the singing.
+        language, language_source = DEFAULT_LANGUAGE, "default"
+    else:
+        _update_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.PROCESSING,
+            progress=15,
+            message="Detecting the sung language",
+        )
+        detected = detect_vocals_language(song_id, vocals_path)
+        if detected and detected["probability"] >= MIN_DETECTION_PROBABILITY:
+            language, language_source = detected["language"], "detected"
+        else:
+            language, language_source = DEFAULT_LANGUAGE, "default"
+
+    log_lyrics_event(
+        song_id,
+        "lyrics_language_resolved",
+        language=language,
+        language_source=language_source,
+        lyrics_detection=from_lyrics,
+    )
+    return language
+
+
+def _persist_asr_fallback(
+    song_id: str,
+    transcription: dict[str, Any],
+    fallback_reason: str,
+    rejected_keys: Collection[str] = (),
+    run_token: tuple | None = None,
+) -> bool:
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
 
-    formatted_synced_lyrics = _format_synced_lyrics_for_storage(transcription["synced_lyrics"])
+    formatted_synced_lyrics = _format_synced_lyrics_for_storage(
+        transcription["synced_lyrics"]
+    )
     asr_provider = str(
         transcription.get("asr_provider")
         or transcription.get("alignment", {}).get("asr_provider")
@@ -87,32 +455,237 @@ def _persist_asr_fallback(song_id: str, transcription: dict[str, Any], fallback_
         or transcription.get("alignment", {}).get("asr_model")
         or "unknown"
     )
-    alignment_payload = {
-        **transcription["alignment"],
-        "lyrics_source_type": "synced",
-        "lyrics_source": f"asr:{asr_provider}",
-        "lyrics_attempt": 0,
-        "fallback_reason": fallback_reason,
-        "asr_provider": asr_provider,
-        "asr_model": asr_model,
-    }
+    alignment = transcription["alignment"]
+    if alignment["words"]:
+        # Formatting inserted break lines; point the words at the formatted text.
+        alignment = _fit_words_to_lyrics(
+            song_id,
+            alignment,
+            content=formatted_synced_lyrics,
+            source=f"asr:{asr_provider}",
+        )
+    alignment_payload = (
+        {
+            **alignment,
+            "lyrics_source_type": "synced",
+            "lyrics_source": f"asr:{asr_provider}",
+            "lyrics_attempt": 0,
+            "fallback_reason": fallback_reason,
+            "asr_provider": asr_provider,
+            "asr_model": asr_model,
+        }
+        if alignment is not None
+        else None
+    )
 
     with get_db_session() as session:
-        song = SongRepository(session).fetch(song_id)
+        song = _fetch_song_for_write(session, song_id, run_token)
         if not song:
             return False
 
-        song.plain_lyrics = transcription["plain_lyrics"]
+        # Plain lyrics already stored (pasted or fetched) are the real words;
+        # keep them, unless someone reported them as wrong.
+        from app.services.lyrics_retiming import lyrics_words_key
+
+        if (
+            not song.plain_lyrics
+            or lyrics_words_key(song.plain_lyrics, "plain") in rejected_keys
+        ):
+            song.plain_lyrics = transcription["plain_lyrics"]
         song.synced_lyrics = formatted_synced_lyrics
-        song.word_synced_lyrics = json.dumps(alignment_payload)
+        # Without matching words the lyrics still scroll line by line.
+        song.word_synced_lyrics = (
+            json.dumps(alignment_payload) if alignment_payload else None
+        )
         session.commit()
 
     transcription["synced_lyrics"] = formatted_synced_lyrics
-    transcription["alignment"] = alignment_payload
+    if alignment_payload:
+        transcription["alignment"] = alignment_payload
     return True
 
 
-def _run_asr_fallback(song_id: str, vocals_path: Path, language: str, fallback_reason: str) -> dict | None:
+def _retime_from_asr(
+    song_id: str,
+    attempts: list[dict[str, Any]],
+    *,
+    vocals_path: Path,
+    language: str,
+    reason: str,
+    run_token: tuple | None = None,
+) -> dict[str, Any] | None:
+    """Time a lyrics candidate's own text from an ASR transcript of the vocals.
+
+    For songs whose lyrics couldn't be aligned as they are: plain lyrics, or
+    synced lyrics with bad timestamps. The transcript only supplies the timing;
+    the stored words are always the candidate's. Candidates are tried best
+    match first. Returns the stored result, or None when ASR is unavailable or
+    no candidate matches the singing well enough, leaving the lyrics untimed.
+    """
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_alignment import align_line_chunks, align_lyrics_to_vocals
+    from app.services.lyrics_retiming import (
+        lrc_from_aligned_lines,
+        lyrics_text_lines,
+        plan_retiming,
+    )
+    from app.services.lyrics_transcription import transcribe_lyrics_from_vocals
+
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PROCESSING,
+        progress=50,
+        message="Timing the lyrics from the vocals",
+    )
+    log_lyrics_event(
+        song_id,
+        "lyrics_retime_requested",
+        reason=reason,
+        language=language,
+        attempt_count=len(attempts),
+    )
+
+    transcription = transcribe_lyrics_from_vocals(
+        vocals_path=vocals_path, language=language
+    )
+    if not transcription:
+        log_lyrics_event(song_id, "lyrics_retime_asr_unavailable", reason=reason)
+        return None
+    asr_source = f"asr:{transcription.get('asr_provider') or 'whisperx'}"
+    asr_words = transcription["alignment"]["words"]
+
+    matches = []
+    for attempt_index, attempt in enumerate(attempts, 1):
+        lines = lyrics_text_lines(attempt["content"], attempt["source_type"])
+        plan = plan_retiming(lines, asr_words)
+        log_lyrics_event(
+            song_id,
+            "lyrics_retime_matched",
+            source=attempt["source"],
+            source_type=attempt["source_type"],
+            match_ratio=plan["match_ratio"] if plan else 0.0,
+            line_count=len(lines),
+            anchor_count=plan["anchor_count"] if plan else 0,
+            chunk_count=len(plan["chunks"]) if plan else 0,
+        )
+        if plan and plan["match_ratio"] >= MIN_RETIME_MATCH_RATIO:
+            matches.append((plan, lines, attempt, attempt_index))
+    matches.sort(key=lambda match: match[0]["match_ratio"], reverse=True)
+
+    for plan, lines, attempt, attempt_index in matches:
+        # ASR only marks the chunks; forced alignment finds each line within
+        # them, and the aligned lines become the LRC that is aligned for real.
+        chunked = align_line_chunks(
+            lines, plan["chunks"], vocals_path, language=language
+        )
+        retimed_lrc = (
+            lrc_from_aligned_lines(lines, chunked["words"]) if chunked else None
+        )
+        if retimed_lrc is None:
+            log_lyrics_event(
+                song_id, "lyrics_retime_chunks_failed", source=attempt["source"]
+            )
+            continue
+        lrc = _format_synced_lyrics_for_storage(retimed_lrc)
+        result = align_lyrics_to_vocals(
+            lrc, vocals_path, language=language, alignment_mode="retimed"
+        )
+        if not result or result["mean_score"] < MIN_ALIGNMENT_SCORE:
+            log_lyrics_event(
+                song_id,
+                "lyrics_retime_rejected",
+                source=attempt["source"],
+                mean_score=result["mean_score"] if result else None,
+            )
+            continue
+        fitted = _fit_words_to_lyrics(
+            song_id, result, content=lrc, source=attempt["source"]
+        )
+        if fitted is None:
+            continue
+
+        with get_db_session() as session:
+            song = _fetch_song_for_write(session, song_id, run_token)
+            if not song:
+                return None
+            song.synced_lyrics = lrc
+            if attempt["source_type"] == "plain":
+                song.plain_lyrics = attempt["content"]
+            song.word_synced_lyrics = json.dumps(
+                _build_word_sync_payload(
+                    fitted,
+                    source_type="synced",
+                    source=attempt["source"],
+                    attempt_index=attempt_index,
+                    retimed_from=attempt["source_type"],
+                    retimed_by=asr_source,
+                    retime_match_ratio=plan["match_ratio"],
+                )
+            )
+            session.commit()
+
+        return {
+            "attempt": attempt,
+            "plan": plan,
+            "result": fitted,
+            "asr_source": asr_source,
+        }
+
+    log_lyrics_event(
+        song_id, "lyrics_retime_no_fit", reason=reason, matched_candidates=len(matches)
+    )
+    return None
+
+
+def _complete_retimed(
+    song_id: str,
+    retimed: dict[str, Any],
+    *,
+    reason: str,
+    task_started_at: float,
+    queue_wait_ms: float | None,
+) -> dict[str, Any]:
+    attempt = retimed["attempt"]
+    log_lyrics_event(
+        song_id,
+        "lyrics_task_completed",
+        status="retimed",
+        reason=reason,
+        source=attempt["source"],
+        source_type=attempt["source_type"],
+        retimed_by=retimed["asr_source"],
+        match_ratio=retimed["plan"]["match_ratio"],
+        mean_score=retimed["result"]["mean_score"],
+        total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+        queue_wait_ms=queue_wait_ms,
+    )
+    _complete_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.COMPLETED,
+        message=f"Lyrics timed from the vocals ({retimed['result']['word_count']} words)",
+    )
+    return {
+        "status": "retimed",
+        "song_id": song_id,
+        "source": attempt["source"],
+        "reason": reason,
+        "retimed_by": retimed["asr_source"],
+    }
+
+
+def _run_asr_fallback(
+    song_id: str,
+    vocals_path: Path,
+    language: str,
+    fallback_reason: str,
+    rejected_keys: Collection[str] = (),
+    run_token: tuple | None = None,
+) -> dict | None:
+    """Store an ASR transcript as the lyrics.
+
+    Only for songs with no lyrics, or only lyrics someone reported as wrong.
+    """
     from app.services.lyrics_transcription import transcribe_lyrics_from_vocals
 
     _update_lyrics_alignment_job(
@@ -121,11 +694,20 @@ def _run_asr_fallback(song_id: str, vocals_path: Path, language: str, fallback_r
         progress=50,
         message="Transcribing vocals with ASR fallback",
     )
-    log_lyrics_event(song_id, "lyrics_asr_fallback_requested", fallback_reason=fallback_reason, language=language)
+    log_lyrics_event(
+        song_id,
+        "lyrics_asr_fallback_requested",
+        fallback_reason=fallback_reason,
+        language=language,
+    )
 
-    transcription = transcribe_lyrics_from_vocals(vocals_path=vocals_path, language=language)
+    transcription = transcribe_lyrics_from_vocals(
+        vocals_path=vocals_path, language=language
+    )
     if not transcription:
-        log_lyrics_event(song_id, "lyrics_asr_fallback_unavailable", fallback_reason=fallback_reason)
+        log_lyrics_event(
+            song_id, "lyrics_asr_fallback_unavailable", fallback_reason=fallback_reason
+        )
         return None
 
     asr_provider = str(
@@ -139,7 +721,9 @@ def _run_asr_fallback(song_id: str, vocals_path: Path, language: str, fallback_r
         or "unknown"
     )
 
-    if not _persist_asr_fallback(song_id, transcription, fallback_reason):
+    if not _persist_asr_fallback(
+        song_id, transcription, fallback_reason, rejected_keys, run_token
+    ):
         return {"status": "not_found", "song_id": song_id}
 
     log_lyrics_event(
@@ -167,30 +751,24 @@ def _run_asr_fallback(song_id: str, vocals_path: Path, language: str, fallback_r
     }
 
 
-@celery.task(name="prefetch_song_lyrics")
-def prefetch_song_lyrics(
-    song_id: str,
-    include_remote: bool = True,
-    source: Optional[str] = None,
-) -> dict:
-    """Fetch and persist top plain/synced lyrics candidate before alignment starts."""
-    logger.info("[PIPELINE] prefetch_song_lyrics starting for song %s", song_id)
+def _load_song_lyrics_state(song_id: str) -> dict[str, Any] | None:
+    """The song's lyrics, and what people said about them, for building candidates.
 
+    `hand_picked_at`: when a person saved the stored lyrics; while set, only
+    they are used.
+    `rejected_keys`: words keys of lyrics reported as having the wrong words.
+    `pending_reports`: (id, kind, report_count) of open reports the app hasn't
+    acted on yet; this run acts on them and records what it did.
+    """
     from app.db.database import get_db_session
+    from app.db.models import LyricsReport
+    from app.repositories.lyrics_report_repository import LyricsReportRepository
     from app.repositories.song_repository import SongRepository
-
-    if source not in {None, "plain", "synced"}:
-        logger.warning("prefetch_song_lyrics: invalid source %s for song %s", source, song_id)
-        return {"status": "invalid_source", "song_id": song_id, "source": source}
-
-    started_at = perf_counter()
-    log_lyrics_event(song_id, "lyrics_prefetch_started", include_remote=include_remote, requested_source=source)
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
         if not song:
-            log_lyrics_event(song_id, "lyrics_prefetch_song_missing")
-            return {"status": "not_found", "song_id": song_id}
+            return None
         song_data: SongData = {
             "id": song.id,
             "title": song.title,
@@ -200,8 +778,64 @@ def prefetch_song_lyrics(
             "synced_lyrics": song.synced_lyrics,
             "word_synced_lyrics": song.word_synced_lyrics,
         }
+        return {
+            "song": song_data,
+            "language": song.language,
+            "hand_picked_at": song.lyrics_hand_picked_at,
+            "rejected_keys": LyricsReportRepository(session).rejected_keys(song_id),
+            "run_token": _lyrics_run_token(session, song),
+            "pending_reports": [
+                (row.id, row.kind, row.report_count)
+                for row in session.query(
+                    LyricsReport.id, LyricsReport.kind, LyricsReport.report_count
+                )
+                .filter(
+                    LyricsReport.song_id == song_id,
+                    LyricsReport.resolved_at.is_(None),
+                    LyricsReport.outcome.is_(None),
+                )
+                .order_by(LyricsReport.id)
+                .all()
+            ],
+        }
 
-    attempts = _build_alignment_attempts(song_data, include_remote=include_remote)
+
+@celery.task(name="prefetch_song_lyrics")
+def prefetch_song_lyrics(
+    song_id: str,
+    include_remote: bool = True,
+    source: Optional[str] = None,
+) -> dict:
+    """Fetch and persist top plain/synced lyrics candidate before alignment starts."""
+    logger.info("[PIPELINE] prefetch_song_lyrics starting for song %s", song_id)
+
+    if source not in {None, "plain", "synced"}:
+        logger.warning(
+            "prefetch_song_lyrics: invalid source %s for song %s", source, song_id
+        )
+        return {"status": "invalid_source", "song_id": song_id, "source": source}
+
+    started_at = perf_counter()
+    log_lyrics_event(
+        song_id,
+        "lyrics_prefetch_started",
+        include_remote=include_remote,
+        requested_source=source,
+    )
+
+    state = _load_song_lyrics_state(song_id)
+    if state is None:
+        log_lyrics_event(song_id, "lyrics_prefetch_song_missing")
+        return {"status": "not_found", "song_id": song_id}
+    # Lyrics a person saved are never replaced by a fetched copy.
+    if state["hand_picked_at"] is not None:
+        include_remote = False
+
+    attempts = _build_alignment_attempts(
+        state["song"],
+        include_remote=include_remote,
+        rejected_keys=state["rejected_keys"],
+    )
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
 
@@ -222,9 +856,15 @@ def prefetch_song_lyrics(
             "attempt_count": len(attempts),
         }
 
-    persisted_plain_lyrics, persisted_synced_lyrics = _persist_initial_lyrics_candidate(song_id, initial_lyrics_attempt)
+    persisted_plain_lyrics, persisted_synced_lyrics = _persist_initial_lyrics_candidate(
+        song_id, initial_lyrics_attempt, state["run_token"]
+    )
 
-    status = "persisted" if (persisted_plain_lyrics or persisted_synced_lyrics) else "no_change"
+    status = (
+        "persisted"
+        if (persisted_plain_lyrics or persisted_synced_lyrics)
+        else "no_change"
+    )
     log_lyrics_event(
         song_id,
         "lyrics_prefetch_finished",
@@ -249,27 +889,230 @@ def prefetch_song_lyrics(
     }
 
 
-@celery.task(name="align_song_lyrics")
+def _retry_when_gpu_frees_up(task, song_id: str, exc: BaseException) -> dict:
+    """The GPU was full: park the job and retry later, or give up after the last wait.
+
+    Raises celery's Retry while retries remain. The song keeps whatever lyrics
+    it already has either way.
+    """
+    retries = task.request.retries
+    free_cached_gpu_memory()
+    if retries >= task.max_retries:
+        logger.error(
+            "align_song_lyrics: GPU still full for song %s after %s attempts",
+            song_id,
+            retries + 1,
+        )
+        log_lyrics_event(song_id, "lyrics_gpu_full", attempt=retries + 1, gave_up=True)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics timing failed: the GPU stayed full",
+            error=str(exc),
+        )
+        return {"status": "gpu_full", "song_id": song_id}
+
+    delay = TRANSIENT_RETRY_DELAYS[min(retries, len(TRANSIENT_RETRY_DELAYS) - 1)]
+    logger.warning(
+        "align_song_lyrics: GPU full for song %s, retry %s/%s in %ss: %s",
+        song_id,
+        retries + 1,
+        task.max_retries,
+        delay,
+        exc,
+    )
+    log_lyrics_event(
+        song_id, "lyrics_gpu_full", attempt=retries + 1, retry_in_seconds=delay
+    )
+    _update_lyrics_alignment_job(
+        song_id,
+        status=JobStatus.PENDING,
+        progress=0,
+        message=f"The server is busy — trying again in {max(1, delay // 60)} min",
+    )
+    raise task.retry(countdown=delay, exc=exc)
+
+
+@celery.task(
+    bind=True, name="align_song_lyrics", max_retries=len(TRANSIENT_RETRY_DELAYS)
+)
 def align_song_lyrics(
+    self,
     song_id: str,
     include_remote: bool = True,
     source: Optional[str] = None,
-    language: str = "en",
+    language: Optional[str] = None,
 ) -> dict:
-    """Run WhisperX forced alignment against vocals.mp3 and store word-level timings."""
+    """Run WhisperX forced alignment against vocals.mp3 and store word-level timings.
+
+    `language` overrides the song's stored language for this run. If a person
+    saves or reports the lyrics while it runs, it stops before its next write
+    (or notices once it's done) and queues a fresh run with the new state.
+    """
+    run: dict[str, Any] = {}
+    try:
+        with track_gpu_memory("lyrics", song_id):
+            result = _align_song_lyrics(
+                song_id,
+                include_remote=include_remote,
+                source=source,
+                language=language,
+                run=run,
+            )
+    except LyricsChangedDuringRun:
+        log_lyrics_event(song_id, "lyrics_changed_during_run", stopped=True)
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message="Lyrics changed while aligning; starting again",
+        )
+        result = {"status": "superseded", "song_id": song_id}
+    except Exception as exc:
+        if not is_cuda_out_of_memory(exc):
+            raise
+        return _retry_when_gpu_frees_up(self, song_id, exc)
+    else:
+        _record_report_outcomes(song_id, result, run.get("pending_reports", []))
+        if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):
+            _save_word_timing_version(song_id, result)
+            # The vocal range reads the lyrics' line times, so it waits for them.
+            queue_vocal_range_if_ready(song_id)
+            return result
+        log_lyrics_event(
+            song_id,
+            "lyrics_changed_during_run",
+            stopped=False,
+            status=result.get("status"),
+        )
+
+    _queue_fresh_run(
+        song_id, include_remote=include_remote, source=source, language=language
+    )
+    return result
+
+
+# Outcomes where the run never got to look at the song's lyrics and singing.
+_NOT_LOOKED_AT = {"no_audio", "not_found", "invalid_source"}
+
+
+def _save_word_timing_version(song_id: str, result: Mapping[str, Any]) -> None:
+    """Record that this version of alignment reached an answer for the song.
+
+    Any answer counts, "no lyrics found" included, so a song isn't aligned
+    again each time it's queued to sing (app.jobs.song_updates).
+    """
+    if result.get("status") in _NOT_LOOKED_AT:
+        return
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.processing_versions import WORD_TIMING_VERSION
+
+    with get_db_session() as session:
+        SongRepository(session).update(song_id, word_timing_version=WORD_TIMING_VERSION)
+
+
+def _record_report_outcomes(
+    song_id: str, result: Mapping[str, Any], pending_reports: list[tuple]
+) -> None:
+    """Write what this run did to each report it acted on.
+
+    The lyrics on screen now, against the ones reported: other words were
+    "replaced" (or "transcribed" by ASR), the same words newly timed were
+    "retimed", and anything else left them "unchanged". A report made again
+    during the run is left for the run that report started.
+    """
+    if not pending_reports:
+        return
+    from app.db.database import get_db_session
+    from app.db.models import LyricsReport
+    from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_retiming import shown_lyrics_key
+
+    status = result.get("status")
+    timed = status in {"ok", "offset_corrected", "retimed"}
+    transcribed = status == "ok" and str(result.get("source") or "").startswith("asr:")
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if song is None:
+            return
+        shown_key = shown_lyrics_key(song.synced_lyrics, song.plain_lyrics)
+        for report_id, kind, report_count in pending_reports:
+            report = session.get(LyricsReport, report_id)
+            if (
+                report is None
+                or report.report_count != report_count
+                or report.outcome is not None
+            ):
+                continue
+            if transcribed:
+                report.outcome = "transcribed"
+            elif shown_key != report.words_key:
+                report.outcome = "replaced"
+            elif timed:
+                report.outcome = "retimed"
+            else:
+                report.outcome = "unchanged"
+            log_lyrics_event(
+                song_id,
+                "lyrics_report_outcome",
+                report_id=report_id,
+                kind=kind,
+                outcome=report.outcome,
+            )
+        session.commit()
+
+
+def _lyrics_changed_since(song_id: str, run_token: tuple) -> bool:
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        return song is not None and _lyrics_run_token(session, song) != run_token
+
+
+def _queue_fresh_run(
+    song_id: str,
+    *,
+    include_remote: bool,
+    source: Optional[str],
+    language: Optional[str],
+) -> None:
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+
+    from .lyrics_dispatch import enqueue_song_alignment
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if song is not None:
+            enqueue_song_alignment(
+                song, include_remote=include_remote, source=source, language=language
+            )
+
+
+def _align_song_lyrics(
+    song_id: str,
+    *,
+    include_remote: bool,
+    source: Optional[str],
+    language: Optional[str],
+    run: dict[str, Any],
+) -> dict:
     logger.info("[PIPELINE] align_song_lyrics starting for song %s", song_id)
     from app.config import get_config
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
 
-    MIN_SCORE = 0.3
-    synced_recovery_modes = ["synced_padded_small", "synced_padded_medium", "synced_stripped_plain"]
     task_started_at = perf_counter()
-    alignment_cache: dict[tuple[str, str, str, str], dict | None] = {}
     lyrics_job = job_repository.get_by_id(_get_lyrics_job_id(song_id))
     queue_wait_ms = None
     if lyrics_job and lyrics_job.created_at:
-        now = datetime.now(lyrics_job.created_at.tzinfo) if lyrics_job.created_at.tzinfo else datetime.now()
+        now = (
+            datetime.now(lyrics_job.created_at.tzinfo)
+            if lyrics_job.created_at.tzinfo
+            else datetime.now()
+        )
         queue_wait_ms = round((now - lyrics_job.created_at).total_seconds() * 1000, 1)
     log_lyrics_event(
         song_id,
@@ -286,11 +1129,17 @@ def align_song_lyrics(
         song_id,
         status=JobStatus.PROCESSING,
         progress=10,
-        message="Fetching lyrics candidates" if include_remote else "Loading stored lyrics candidates",
+        message=(
+            "Fetching lyrics candidates"
+            if include_remote
+            else "Loading stored lyrics candidates"
+        ),
     )
 
     if source not in {None, "plain", "synced"}:
-        logger.warning("align_song_lyrics: invalid source %s for song %s", source, song_id)
+        logger.warning(
+            "align_song_lyrics: invalid source %s for song %s", source, song_id
+        )
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.FAILED,
@@ -309,27 +1158,31 @@ def align_song_lyrics(
         )
         return {"status": "no_audio", "song_id": song_id}
 
-    with get_db_session() as session:
-        song = SongRepository(session).fetch(song_id)
-        if not song:
-            logger.warning("align_song_lyrics: song %s not found", song_id)
-            log_lyrics_event(song_id, "lyrics_song_missing")
-            _complete_lyrics_alignment_job(
-                song_id,
-                status=JobStatus.FAILED,
-                message="Lyrics alignment failed: song not found",
-                error="song not found",
-            )
-            return {"status": "not_found", "song_id": song_id}
-        song_data: SongData = {
-            "id": song.id,
-            "title": song.title,
-            "artist": song.artist,
-            "album": song.album,
-            "plain_lyrics": song.plain_lyrics,
-            "synced_lyrics": song.synced_lyrics,
-            "word_synced_lyrics": song.word_synced_lyrics,
-        }
+    state = _load_song_lyrics_state(song_id)
+    if state is None:
+        logger.warning("align_song_lyrics: song %s not found", song_id)
+        log_lyrics_event(song_id, "lyrics_song_missing")
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics alignment failed: song not found",
+            error="song not found",
+        )
+        return {"status": "not_found", "song_id": song_id}
+    song_data: SongData = state["song"]
+    stored_language = state["language"]
+    rejected_keys = state["rejected_keys"]
+    run_token = state["run_token"]
+    run["token"] = run_token
+    run["pending_reports"] = state["pending_reports"]
+    # Lyrics a person saved are only timed, never replaced by a fetched copy.
+    if state["hand_picked_at"] is not None:
+        include_remote = False
+    # Someone said the words are right but out of sync: keep them, re-time them.
+    pending_kinds = {kind for _id, kind, _count in state["pending_reports"]}
+    retime_only = pending_kinds == {"timing"}
+    if retime_only:
+        include_remote = False
 
     log_lyrics_event(
         song_id,
@@ -343,14 +1196,26 @@ def align_song_lyrics(
         title=song_data["title"],
         include_remote=include_remote,
         requested_source=source,
-        language=language,
+        hand_picked=state["hand_picked_at"] is not None,
+        rejected_count=len(rejected_keys),
     )
 
     attempts_started_at = perf_counter()
-    attempts = _build_alignment_attempts(song_data, include_remote=include_remote)
+    attempts = _build_alignment_attempts(
+        song_data, include_remote=include_remote, rejected_keys=rejected_keys
+    )
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+    attempts = _format_synced_attempts(attempts)
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
+    # Every attempt is the same song's words, so the first one's text decides.
+    language = _resolve_song_language(
+        song_id,
+        requested=language,
+        stored=stored_language,
+        lyrics=attempts[0]["content"] if attempts else None,
+        vocals_path=vocals_path,
+    )
     logger.info(
         "align_song_lyrics: built %d attempts for song %s in %.2fs",
         len(attempts),
@@ -363,7 +1228,11 @@ def align_song_lyrics(
         elapsed_ms=attempts_elapsed_ms,
         attempt_count=len(attempts),
         sources=[
-            {"source": attempt["source"], "source_type": attempt["source_type"], "persist": attempt["persist"]}
+            {
+                "source": attempt["source"],
+                "source_type": attempt["source_type"],
+                "persist": attempt["persist"],
+            }
             for attempt in attempts
         ],
         include_remote=include_remote,
@@ -374,9 +1243,12 @@ def align_song_lyrics(
     initial_lyrics_attempt = select_initial_lyrics(attempts)
     if initial_lyrics_attempt:
         immediate_persist_started_at = perf_counter()
-        persisted_plain_lyrics, persisted_synced_lyrics = _persist_initial_lyrics_candidate(
-            song_id,
-            initial_lyrics_attempt,
+        persisted_plain_lyrics, persisted_synced_lyrics = (
+            _persist_initial_lyrics_candidate(
+                song_id,
+                initial_lyrics_attempt,
+                run_token,
+            )
         )
         if persisted_plain_lyrics or persisted_synced_lyrics:
             log_lyrics_event(
@@ -384,7 +1256,9 @@ def align_song_lyrics(
                 "lyrics_initial_persisted",
                 source=initial_lyrics_attempt["source"],
                 source_type=initial_lyrics_attempt["source_type"],
-                persist_elapsed_ms=round((perf_counter() - immediate_persist_started_at) * 1000, 1),
+                persist_elapsed_ms=round(
+                    (perf_counter() - immediate_persist_started_at) * 1000, 1
+                ),
                 persisted_plain_lyrics=persisted_plain_lyrics,
                 persisted_synced_lyrics=persisted_synced_lyrics,
                 total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
@@ -394,13 +1268,19 @@ def align_song_lyrics(
         song_id,
         status=JobStatus.PROCESSING,
         progress=35,
-        message="Lyrics fetched, aligning to vocals" if include_remote else "Stored lyrics loaded, aligning to vocals",
+        message=(
+            "Lyrics fetched, aligning to vocals"
+            if include_remote
+            else "Stored lyrics loaded, aligning to vocals"
+        ),
     )
 
     if not attempts:
         logger.debug("align_song_lyrics: no lyrics available for song %s", song_id)
         log_lyrics_event(song_id, "lyrics_no_candidates")
-        asr_result = _run_asr_fallback(song_id, vocals_path, language, "no_candidates")
+        asr_result = _run_asr_fallback(
+            song_id, vocals_path, language, "no_candidates", rejected_keys, run_token
+        )
         if asr_result:
             return asr_result
         _complete_lyrics_alignment_job(
@@ -410,34 +1290,121 @@ def align_song_lyrics(
         )
         return {"status": "no_lyrics", "song_id": song_id}
 
+    from app.services.lyrics_language import supports_word_alignment
+
+    if not supports_word_alignment(language):
+        # The lyrics fetched above still scroll line by line.
+        log_lyrics_event(
+            song_id,
+            "lyrics_task_completed",
+            status="no_alignment_model",
+            language=language,
+            total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            queue_wait_ms=queue_wait_ms,
+        )
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message=f"Lyrics ready without word timing (no alignment model for '{language}')",
+        )
+        return {
+            "status": "no_alignment_model",
+            "song_id": song_id,
+            "language": language,
+        }
+
+    if retime_only:
+        retimed = _retime_from_asr(
+            song_id,
+            attempts,
+            vocals_path=vocals_path,
+            language=language,
+            reason="timing_reported",
+            run_token=run_token,
+        )
+        if retimed:
+            return _complete_retimed(
+                song_id,
+                retimed,
+                reason="timing_reported",
+                task_started_at=task_started_at,
+                queue_wait_ms=queue_wait_ms,
+            )
+        log_lyrics_event(
+            song_id,
+            "lyrics_task_completed",
+            status="retime_failed",
+            total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            queue_wait_ms=queue_wait_ms,
+        )
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message="Couldn't re-time the lyrics to the singing",
+        )
+        return {"status": "retime_failed", "song_id": song_id}
+
+    # Plain lyrics have no timestamps for WhisperX to search around, so forcing
+    # them onto the audio puts words in made-up places. They're timed from an
+    # ASR transcript instead, and show untimed if that doesn't work.
+    synced_attempts = [
+        attempt for attempt in attempts if attempt["source_type"] == "synced"
+    ]
+    if not synced_attempts:
+        log_lyrics_event(song_id, "lyrics_plain_only", attempt_count=len(attempts))
+        retimed = _retime_from_asr(
+            song_id,
+            attempts,
+            vocals_path=vocals_path,
+            language=language,
+            reason="plain_only",
+            run_token=run_token,
+        )
+        if retimed:
+            return _complete_retimed(
+                song_id,
+                retimed,
+                reason="plain_only",
+                task_started_at=task_started_at,
+                queue_wait_ms=queue_wait_ms,
+            )
+        log_lyrics_event(
+            song_id,
+            "lyrics_task_completed",
+            status="plain_only",
+            total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+            queue_wait_ms=queue_wait_ms,
+        )
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.COMPLETED,
+            message="Plain lyrics ready without word timing",
+        )
+        return {"status": "plain_only", "song_id": song_id}
+
     best_result = None
     best_attempt = None
-    best_synced_result = None
-    best_synced_attempt = None
+    best_attempt_index = 0
     align_error_count = 0
 
-    for idx, attempt in enumerate(attempts):
+    for idx, attempt in enumerate(synced_attempts):
         source_type = attempt["source_type"]
         source_label = attempt["source"]
-        alignment_mode = "plain" if source_type == "plain" else "synced_strict"
         attempt_started_at = perf_counter()
         logger.info(
-            "align_song_lyrics: attempt %d/%d for song %s (%s, source=%s, mode=%s)",
+            "align_song_lyrics: attempt %d/%d for song %s (source=%s)",
             idx + 1,
-            len(attempts),
+            len(synced_attempts),
             song_id,
-            source_type,
             source_label,
-            alignment_mode,
         )
         log_lyrics_event(
             song_id,
             "lyrics_attempt_started",
             attempt_index=idx + 1,
-            attempt_total=len(attempts),
+            attempt_total=len(synced_attempts),
             source=source_label,
             source_type=source_type,
-            alignment_mode=alignment_mode,
             content_length=len(attempt["content"]),
         )
 
@@ -446,10 +1413,10 @@ def align_song_lyrics(
                 attempt=attempt,
                 vocals_path=vocals_path,
                 language=language,
-                alignment_cache=alignment_cache,
-                alignment_mode=alignment_mode,
             )
-        except Exception:
+        except Exception as exc:
+            if is_cuda_out_of_memory(exc):
+                raise
             align_error_count += 1
             log_lyrics_event(
                 song_id,
@@ -457,7 +1424,6 @@ def align_song_lyrics(
                 attempt_index=idx + 1,
                 source=source_label,
                 source_type=source_type,
-                alignment_mode=alignment_mode,
                 elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             )
             logger.warning(
@@ -475,21 +1441,19 @@ def align_song_lyrics(
                 attempt_index=idx + 1,
                 source=source_label,
                 source_type=source_type,
-                alignment_mode=alignment_mode,
                 elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             )
-            logger.info("align_song_lyrics: no words returned for song %s (source=%s)", song_id, source_label)
+            logger.info(
+                "align_song_lyrics: no words returned for song %s (source=%s)",
+                song_id,
+                source_label,
+            )
             continue
 
         if not best_result or result["mean_score"] > best_result["mean_score"]:
             best_result = result
             best_attempt = attempt
-
-        if source_type == "synced" and (
-            not best_synced_result or result["mean_score"] > best_synced_result["mean_score"]
-        ):
-            best_synced_result = result
-            best_synced_attempt = attempt
+            best_attempt_index = idx + 1
 
         log_lyrics_event(
             song_id,
@@ -497,47 +1461,37 @@ def align_song_lyrics(
             attempt_index=idx + 1,
             source=source_label,
             source_type=source_type,
-            alignment_mode=alignment_mode,
             elapsed_ms=round((perf_counter() - attempt_started_at) * 1000, 1),
             word_count=result["word_count"],
             line_count=result["line_count"],
             mean_score=result["mean_score"],
         )
 
-        if result["mean_score"] >= MIN_SCORE:
+        if result["mean_score"] >= MIN_ALIGNMENT_SCORE:
+            fitted = _fit_words_to_lyrics(
+                song_id, result, content=attempt["content"], source=source_label
+            )
+            if fitted is None:
+                continue
+
             persist_started_at = perf_counter()
             with get_db_session() as session:
-                song = SongRepository(session).fetch(song_id)
+                song = _fetch_song_for_write(session, song_id, run_token)
                 if not song:
                     return {"status": "not_found", "song_id": song_id}
 
-                should_persist_plain_lyrics = bool(
-                    attempt["persist"] and source_type == "plain" and not song.plain_lyrics
-                )
-                should_persist_synced_lyrics = bool(
-                    attempt["persist"] and source_type == "synced" and not song.synced_lyrics
-                )
-
+                # The words index into this candidate's text, so its text is
+                # stored with them, replacing whatever was there before.
+                should_persist_synced_lyrics = song.synced_lyrics != attempt["content"]
+                song.synced_lyrics = attempt["content"]
                 song.word_synced_lyrics = json.dumps(
-                    {
-                        "words": result["words"],
-                        "instrumental_intervals": result.get("instrumental_intervals", []),
-                        "language": result["language"],
-                        "mean_score": result["mean_score"],
-                        "word_count": result["word_count"],
-                        "line_count": result["line_count"],
-                        "aligned_at": result["aligned_at"],
-                        "lyrics_source_type": source_type,
-                        "lyrics_source": source_label,
-                        "lyrics_attempt": idx + 1,
-                    }
+                    _build_word_sync_payload(
+                        fitted,
+                        source_type=source_type,
+                        source=source_label,
+                        attempt_index=idx + 1,
+                    )
                 )
-
-                if attempt["persist"]:
-                    if should_persist_plain_lyrics:
-                        song.plain_lyrics = attempt["content"]
-                    if should_persist_synced_lyrics:
-                        song.synced_lyrics = attempt["content"]
 
                 session.commit()
 
@@ -553,7 +1507,6 @@ def align_song_lyrics(
                 word_count=result["word_count"],
                 line_count=result["line_count"],
                 mean_score=result["mean_score"],
-                persisted_plain_lyrics=should_persist_plain_lyrics,
                 persisted_synced_lyrics=should_persist_synced_lyrics,
             )
 
@@ -567,7 +1520,10 @@ def align_song_lyrics(
             _complete_lyrics_alignment_job(
                 song_id,
                 status=JobStatus.COMPLETED,
-                message=("Lyrics ready" f" ({result['word_count']} words, {perf_counter() - task_started_at:.1f}s)"),
+                message=(
+                    "Lyrics ready"
+                    f" ({result['word_count']} words, {perf_counter() - task_started_at:.1f}s)"
+                ),
             )
             log_lyrics_event(
                 song_id,
@@ -588,248 +1544,72 @@ def align_song_lyrics(
             song_id,
         )
 
-        if best_synced_result and best_synced_attempt:
-            from app.services.lyrics_offset import compute_whisperx_offset_evidence, shift_lrc_timestamps
-
-            MIN_OFFSET_ANCHORS = 6
-            MAX_OFFSET_SPREAD_SECONDS = 3.0
-            MAX_ABS_OFFSET_SECONDS = 12.0
-            MIN_INLIER_RATIO = 0.55
-            MIN_INLIER_COUNT = 8
-
-            def _required_cluster_quality(inlier_ratio: float) -> float:
-                if inlier_ratio >= 0.75:
-                    return 0.18
-                if inlier_ratio >= 0.65:
-                    return 0.22
-                if inlier_ratio >= 0.55:
-                    return 0.26
-                return 0.30
-
-            offset_candidates: list[dict[str, Any]] = []
-
-            def _offset_candidate_rejection_reason(evidence):
-                offset = evidence["offset"]
-                spread = evidence["spread"]
-                anchor_count = evidence["anchor_count"]
-                inlier_count = evidence.get("inlier_count", 0)
-                inlier_ratio = evidence.get("inlier_ratio", 0.0)
-                cluster_quality = evidence.get("cluster_quality", 0.0)
-                if offset is None or spread is None:
-                    return "missing_offset_or_spread"
-                if anchor_count < MIN_OFFSET_ANCHORS:
-                    return "insufficient_anchors"
-                if inlier_count < MIN_INLIER_COUNT:
-                    return "insufficient_inliers"
-                if inlier_ratio < MIN_INLIER_RATIO:
-                    return "low_inlier_ratio"
-                if cluster_quality < _required_cluster_quality(inlier_ratio):
-                    return "low_cluster_quality"
-                if spread > MAX_OFFSET_SPREAD_SECONDS:
-                    return "spread_too_wide"
-                if abs(offset) > MAX_ABS_OFFSET_SECONDS:
-                    return "offset_too_large"
-                return None
-
-            best_offset_candidate = None
-            strict_evidence = compute_whisperx_offset_evidence(best_synced_result, best_synced_attempt["content"])
-            strict_reason = _offset_candidate_rejection_reason(strict_evidence)
-            offset_candidates.append(
-                {
-                    "alignment_mode": "synced_strict",
-                    "anchor_count": strict_evidence["anchor_count"],
-                    "offset": strict_evidence["offset"],
-                    "spread": strict_evidence["spread"],
-                    "cluster_count": strict_evidence.get("cluster_count"),
-                    "inlier_count": strict_evidence.get("inlier_count"),
-                    "inlier_ratio": strict_evidence.get("inlier_ratio"),
-                    "cluster_quality": strict_evidence.get("cluster_quality"),
-                    "outlier_line_count": len(strict_evidence.get("outlier_line_indices", [])),
-                    "mean_score": best_synced_result["mean_score"],
-                    "reliable": strict_reason is None,
-                    "rejection_reason": strict_reason,
-                }
-            )
-            if strict_reason is None:
-                best_offset_candidate = {
-                    "alignment_mode": "synced_strict",
-                    "offset": strict_evidence["offset"],
-                    "evidence": strict_evidence,
-                    "result": best_synced_result,
-                }
-            else:
-                logger.info(
-                    "align_song_lyrics: rejected strict offset candidate for song %s "
-                    "(reason=%s, anchors=%s, spread=%s, offset=%s, inlier_ratio=%s, cluster_quality=%s)",
-                    song_id,
-                    strict_reason,
-                    strict_evidence["anchor_count"],
-                    strict_evidence["spread"],
-                    strict_evidence["offset"],
-                    strict_evidence.get("inlier_ratio"),
-                    strict_evidence.get("cluster_quality"),
-                )
-
-            for recovery_mode in synced_recovery_modes:
-                try:
-                    recovery_result = run_alignment_attempt(
-                        attempt=best_synced_attempt,
-                        vocals_path=vocals_path,
-                        language=language,
-                        alignment_cache=alignment_cache,
-                        alignment_mode=recovery_mode,
-                    )
-                except Exception:
-                    align_error_count += 1
-                    logger.warning(
-                        "align_song_lyrics: recovery mode failed for song %s (source=%s, mode=%s)",
-                        song_id,
-                        best_synced_attempt["source"],
-                        recovery_mode,
-                        exc_info=True,
-                    )
-                    continue
-
-                if not recovery_result:
-                    continue
-
-                recovery_evidence = compute_whisperx_offset_evidence(recovery_result, best_synced_attempt["content"])
-                recovery_reason = _offset_candidate_rejection_reason(recovery_evidence)
-                offset_candidates.append(
-                    {
-                        "alignment_mode": recovery_mode,
-                        "anchor_count": recovery_evidence["anchor_count"],
-                        "offset": recovery_evidence["offset"],
-                        "spread": recovery_evidence["spread"],
-                        "cluster_count": recovery_evidence.get("cluster_count"),
-                        "inlier_count": recovery_evidence.get("inlier_count"),
-                        "inlier_ratio": recovery_evidence.get("inlier_ratio"),
-                        "cluster_quality": recovery_evidence.get("cluster_quality"),
-                        "outlier_line_count": len(recovery_evidence.get("outlier_line_indices", [])),
-                        "mean_score": recovery_result["mean_score"],
-                        "reliable": recovery_reason is None,
-                        "rejection_reason": recovery_reason,
-                    }
-                )
-
-                if recovery_reason is not None:
-                    logger.info(
-                        "align_song_lyrics: rejected recovery offset candidate for song %s "
-                        "(mode=%s, reason=%s, anchors=%s, spread=%s, offset=%s, inlier_ratio=%s, cluster_quality=%s)",
-                        song_id,
-                        recovery_mode,
-                        recovery_reason,
-                        recovery_evidence["anchor_count"],
-                        recovery_evidence["spread"],
-                        recovery_evidence["offset"],
-                        recovery_evidence.get("inlier_ratio"),
-                        recovery_evidence.get("cluster_quality"),
-                    )
-                    continue
-
-                current_candidate_score = (
-                    -(best_offset_candidate["evidence"]["spread"] or 0.0),
-                    best_offset_candidate["evidence"].get("inlier_ratio", 0.0),
-                    best_offset_candidate["evidence"].get("cluster_quality", 0.0),
-                    best_offset_candidate["evidence"]["anchor_count"],
-                    best_offset_candidate["result"]["mean_score"],
-                ) if best_offset_candidate is not None else None
-                recovery_candidate_score = (
-                    -(recovery_evidence["spread"] or 0.0),
-                    recovery_evidence.get("inlier_ratio", 0.0),
-                    recovery_evidence.get("cluster_quality", 0.0),
-                    recovery_evidence["anchor_count"],
-                    recovery_result["mean_score"],
-                )
-
-                if best_offset_candidate is None or recovery_candidate_score > current_candidate_score:
-                    best_offset_candidate = {
-                        "alignment_mode": recovery_mode,
-                        "offset": recovery_evidence["offset"],
-                        "evidence": recovery_evidence,
-                        "result": recovery_result,
-                    }
-
-            if best_offset_candidate is not None:
-                corrected_lrc = shift_lrc_timestamps(best_synced_attempt["content"], -best_offset_candidate["offset"])
-                corrected_lrc = _format_synced_lyrics_for_storage(corrected_lrc)
-                with get_db_session() as session:
-                    song = SongRepository(session).fetch(song_id)
-                    if song:
-                        song.synced_lyrics = corrected_lrc
-                        song.word_synced_lyrics = None
-                        session.commit()
-                log_lyrics_event(
-                    song_id,
-                    "lyrics_task_completed",
-                    status="offset_corrected",
-                    source=best_synced_attempt["source"],
-                    source_type=best_synced_attempt["source_type"],
-                    alignment_mode=best_offset_candidate["alignment_mode"],
-                    anchor_count=best_offset_candidate["evidence"]["anchor_count"],
-                    offset_spread=best_offset_candidate["evidence"]["spread"],
-                    inlier_count=best_offset_candidate["evidence"].get("inlier_count"),
-                    inlier_ratio=best_offset_candidate["evidence"].get("inlier_ratio"),
-                    cluster_quality=best_offset_candidate["evidence"].get("cluster_quality"),
-                    best_score=best_offset_candidate["result"]["mean_score"],
-                    offset=round(best_offset_candidate["offset"], 3),
-                    offset_candidates=offset_candidates,
-                    attempted=len(attempts),
-                    errors=align_error_count,
-                    total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
-                    queue_wait_ms=queue_wait_ms,
-                )
-                _complete_lyrics_alignment_job(
-                    song_id,
-                    status=JobStatus.COMPLETED,
-                    message=(
-                        "Synced lyrics corrected by "
-                        f"{best_offset_candidate['offset']:+.3f}s using {best_offset_candidate['alignment_mode']}"
-                    ),
-                )
-                return {
-                    "status": "offset_corrected",
-                    "song_id": song_id,
-                    "offset": best_offset_candidate["offset"],
-                    "source": best_synced_attempt["source"],
-                    "alignment_mode": best_offset_candidate["alignment_mode"],
-                    "offset_candidates": offset_candidates,
-                    "attempted": len(attempts),
-                    "errors": align_error_count,
-                }
-
-            best_rejected_candidate = None
-            rejected_candidates = [candidate for candidate in offset_candidates if not candidate["reliable"]]
-            if rejected_candidates:
-                best_rejected_candidate = max(
-                    rejected_candidates,
-                    key=lambda candidate: (
-                        -float(candidate["spread"] or 0.0),
-                        candidate.get("inlier_ratio") or 0.0,
-                        candidate.get("cluster_quality") or 0.0,
-                        candidate["anchor_count"],
-                        candidate["mean_score"],
-                    ),
-                )
-
+        correction = _apply_offset_correction(
+            song_id,
+            attempt=best_attempt,
+            attempt_index=best_attempt_index,
+            vocals_path=vocals_path,
+            language=language,
+            run_token=run_token,
+        )
+        if correction:
+            sweep = correction["sweep"]
+            corrected_result = correction["result"]
             log_lyrics_event(
                 song_id,
-                "lyrics_offset_candidates_rejected",
-                source=best_synced_attempt["source"],
-                source_type=best_synced_attempt["source_type"],
-                candidate_count=len(offset_candidates),
-                rejected_count=len(rejected_candidates),
-                best_rejected_candidate=best_rejected_candidate,
-                offset_candidates=offset_candidates,
+                "lyrics_task_completed",
+                status="offset_corrected",
+                source=best_attempt["source"],
+                source_type=best_attempt["source_type"],
+                offset=sweep["shift"],
+                baseline_score=sweep["baseline_score"],
+                best_score=corrected_result["mean_score"],
+                attempted=len(synced_attempts),
+                errors=align_error_count,
+                total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
+                queue_wait_ms=queue_wait_ms,
             )
+            _complete_lyrics_alignment_job(
+                song_id,
+                status=JobStatus.COMPLETED,
+                message=(
+                    f"Synced lyrics shifted {sweep['shift']:+.1f}s to match the vocals"
+                    f" ({corrected_result['word_count']} words)"
+                ),
+            )
+            return {
+                "status": "offset_corrected",
+                "song_id": song_id,
+                "offset": sweep["shift"],
+                "source": best_attempt["source"],
+                "attempted": len(synced_attempts),
+                "errors": align_error_count,
+            }
 
-        asr_result = _run_asr_fallback(song_id, vocals_path, language, "low_confidence")
-        if asr_result:
-            return asr_result
+        # The song has lyrics, so a transcript never replaces them; it can only time them.
+        retimed = _retime_from_asr(
+            song_id,
+            attempts,
+            vocals_path=vocals_path,
+            language=language,
+            reason="low_confidence",
+            run_token=run_token,
+        )
+        if retimed:
+            return _complete_retimed(
+                song_id,
+                retimed,
+                reason="low_confidence",
+                task_started_at=task_started_at,
+                queue_wait_ms=queue_wait_ms,
+            )
         _complete_lyrics_alignment_job(
             song_id,
             status=JobStatus.COMPLETED,
-            message=("Lyrics alignment finished with low confidence" f" ({best_result['mean_score']:.3f})"),
+            message=(
+                "Lyrics alignment finished with low confidence"
+                f" ({best_result['mean_score']:.3f})"
+            ),
         )
         log_lyrics_event(
             song_id,
@@ -838,8 +1618,7 @@ def align_song_lyrics(
             source=best_attempt["source"],
             source_type=best_attempt["source_type"],
             best_score=best_result["mean_score"],
-            offset_candidates=offset_candidates if best_synced_result and best_synced_attempt else None,
-            attempted=len(attempts),
+            attempted=len(synced_attempts),
             errors=align_error_count,
             total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
             queue_wait_ms=queue_wait_ms,
@@ -849,20 +1628,32 @@ def align_song_lyrics(
             "song_id": song_id,
             "best_score": best_result["mean_score"],
             "source": best_attempt["source"],
-            "offset_candidates": offset_candidates if best_synced_result and best_synced_attempt else None,
-            "attempted": len(attempts),
+            "attempted": len(synced_attempts),
             "errors": align_error_count,
         }
 
     logger.warning("align_song_lyrics: no result produced for song %s", song_id)
-    asr_result = _run_asr_fallback(song_id, vocals_path, language, "no_result")
-    if asr_result:
-        return asr_result
+    retimed = _retime_from_asr(
+        song_id,
+        attempts,
+        vocals_path=vocals_path,
+        language=language,
+        reason="no_result",
+        run_token=run_token,
+    )
+    if retimed:
+        return _complete_retimed(
+            song_id,
+            retimed,
+            reason="no_result",
+            task_started_at=task_started_at,
+            queue_wait_ms=queue_wait_ms,
+        )
     log_lyrics_event(
         song_id,
         "lyrics_task_completed",
         status="no_result",
-        attempted=len(attempts),
+        attempted=len(synced_attempts),
         errors=align_error_count,
         total_elapsed_ms=round((perf_counter() - task_started_at) * 1000, 1),
         queue_wait_ms=queue_wait_ms,
@@ -875,6 +1666,6 @@ def align_song_lyrics(
     return {
         "status": "no_result",
         "song_id": song_id,
-        "attempted": len(attempts),
+        "attempted": len(synced_attempts),
         "errors": align_error_count,
     }

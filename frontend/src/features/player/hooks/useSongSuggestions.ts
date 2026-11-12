@@ -104,7 +104,7 @@ export function getSuggestionReasonText(
     case "similar_genre":
       return "Similar style";
     case "popular":
-      return "Popular in your library";
+      return "Popular in the songbook";
     case "random":
       return "You might like";
     default:

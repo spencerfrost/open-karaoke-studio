@@ -1,4 +1,5 @@
 """Unit tests for app/exceptions.py — all custom exception classes."""
+
 import pytest
 
 from app.exceptions import (

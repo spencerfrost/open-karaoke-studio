@@ -31,6 +31,10 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Mock elementFromPoint (not available in jsdom; input-otp calls it to look
+// for password-manager badges over its input)
+document.elementFromPoint = vi.fn(() => null);
+
 // Mock IntersectionObserver (not available in jsdom)
 class IntersectionObserverMock {
   readonly root: Element | null = null;
@@ -58,6 +62,7 @@ class AudioContextMock {
   createBufferSource = vi.fn().mockReturnValue({
     buffer: null,
     connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
     onended: null,
@@ -65,6 +70,16 @@ class AudioContextMock {
 
   createGain = vi.fn().mockReturnValue({
     gain: { value: 1 },
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+  });
+
+  createDynamicsCompressor = vi.fn().mockReturnValue({
+    threshold: { value: -24 },
+    knee: { value: 30 },
+    ratio: { value: 12 },
+    attack: { value: 0.003 },
+    release: { value: 0.25 },
     connect: vi.fn().mockReturnThis(),
   });
 

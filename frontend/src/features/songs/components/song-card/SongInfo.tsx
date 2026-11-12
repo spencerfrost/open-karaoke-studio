@@ -43,7 +43,7 @@ export const SongInfo: React.FC<SongInfoProps> = ({
       )}
       <div className="flex gap-2 justify-between items-center mt-1">
         <p
-          className="text-xs text-secondary truncate whitespace-nowrap"
+          className="text-xs text-card-detail truncate whitespace-nowrap"
           title={song.album}
         >
           {song.album && song.album.length > 50

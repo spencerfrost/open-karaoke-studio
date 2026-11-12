@@ -1,5 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=VT323&family=DM+Sans:wght@400;500;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Manrope:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -7,15 +9,29 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Room for two columns and not a touchscreen: a computer, or a TV driven by a
+ * remote, keyboard or mouse. Width alone can't tell - the Shield's WebView is
+ * 960px wide, a landscape phone nearly as much - but a phone's pointer is
+ * "coarse" while a remote-only TV's is "none". Same query as
+ * hooks/useDesktopLayout.ts. */
+@custom-variant desktop {
+  /* Block form: the one-line form splits on the comma and drops @media from
+   * the second query. */
+  @media (min-width: 48rem) and (pointer: fine),
+    (min-width: 48rem) and (pointer: none) {
+    @slot;
+  }
+}
+
 /*
- * Legacy (vintage) theme. Semantic tokens describe roles, not colors:
+ * Retro theme. Semantic tokens describe roles, not colors:
  * --background/--foreground are the page itself (dark gradient base, light text);
  * --card is the raised opaque surface (cream, dark text). Components must only
- * reference roles — raw palette vars below are slated for removal (see
- * docs/plans/2026-07-19-theme-token-migration.md).
+ * reference roles — the raw palette vars below are this theme's internals and
+ * are deliberately not exposed as Tailwind utilities.
  */
 :root {
-  /* Raw palette (legacy theme internals — do not use directly in components) */
+  /* Raw palette (retro theme internals — do not use directly in components) */
   --black: #080705;
   --rust: #b44819;
   --russet: #774320;
@@ -23,28 +39,55 @@
   --orange-peel: #fd9a02;
   --dark-cyan: #01928b;
   --pale-warm-beige: #c7b99c;
+  --harvest-gold: #e2b24a;
 
   /* UI Elements */
   --radius: 0.5rem;
   --background: color-mix(in srgb, var(--russet), var(--black) 50%);
   --foreground: var(--lemon-chiffon);
+  /* Text tiers on the page: secondary text, then the quietest labels */
+  --foreground-dim: color-mix(in oklab, var(--lemon-chiffon) 65%, transparent);
+  --foreground-faint: color-mix(
+    in oklab,
+    var(--lemon-chiffon) 45%,
+    transparent
+  );
 
   --card: var(--lemon-chiffon);
   --card-foreground: var(--black);
+  /* The card's outline. Retro draws it in the card's text color. */
+  --card-border: var(--card-foreground);
+  /* Small metadata on a card, like a song's album */
+  --card-detail: var(--secondary);
   --popover: var(--lemon-chiffon);
   --popover-foreground: var(--black);
 
-  /* Raised neutral surface (nav bars, recessed grooves) — distinct from
-     card (opaque cream) and background (the page gradient's dark mix) */
+  /*
+   * Surface ladder: panels on the page, from recessed to most raised.
+   *   --surface-sunk    inputs and wells inside a panel
+   *   --surface         nav bars and panels
+   *   --surface-raised  headers and blocks inside a panel
+   *   --surface-hover   hovered or selected rows
+   * Each theme picks how the steps look. Retro's are tints over the page
+   * gradient (apart from the russet nav surface); a theme may use solid colors.
+   */
+  --surface-sunk: color-mix(in oklab, var(--black) 20%, transparent);
   --surface: var(--russet);
+  --surface-raised: color-mix(in oklab, var(--lemon-chiffon) 10%, transparent);
+  --surface-hover: color-mix(in oklab, var(--lemon-chiffon) 5%, transparent);
   --surface-foreground: var(--lemon-chiffon);
 
   --primary: var(--orange-peel);
-  --primary-foreground: var(--lemon-chiffon);
+  --primary-foreground: var(--black);
   --secondary: var(--rust);
   --secondary-foreground: var(--black);
   --accent: var(--dark-cyan);
   --accent-foreground: var(--lemon-chiffon);
+  /*
+   * A soft wash behind something on the page (the library search box, the
+   * artist letter markers). A tint base: consume it with an opacity modifier.
+   */
+  --tint: var(--accent);
   --muted: var(--pale-warm-beige);
   --muted-foreground: var(--black);
 
@@ -52,8 +95,8 @@
    * Status roles. Each status has three parts:
    *   --x            the color itself — fills (bg-x) and text on the dark page
    *   --x-foreground text/icons placed ON an --x fill
-   *   --x-strong     darker variant for text/icons on LIGHT surfaces
-   *                  (card, popover, muted), where the mid tone lacks contrast
+   *   --x-strong     variant for text/icons on the card, popover and muted
+   *                  surfaces, where the mid tone lacks contrast
    * Themes only need to set the base; -strong derives unless overridden.
    */
   --destructive: var(--color-red-500);
@@ -90,7 +133,29 @@
   /* Full body background value — themes may use a gradient or a flat color */
   --page-bg: linear-gradient(135deg, var(--russet) 0%, var(--rust) 100%);
 
-  /* Glow effects — legacy is subtle/warm; neon themes redefine these */
+  /*
+   * Decoration colors: art, not UI. The audio visualizer cycles through all
+   * four; the progress bar and the wheel's glow use the first two. A theme
+   * with a bigger palette shows more of it here.
+   */
+  --decor-1: var(--dark-cyan);
+  --decor-2: var(--orange-peel);
+  --decor-3: var(--harvest-gold);
+  --decor-4: var(--rust);
+  /*
+   * Section headings inside a screen ("Best match", "Popular songs"). Every
+   * theme reads it; a theme that wants its labels in a color of their own
+   * sets it.
+   */
+  --section-label: var(--foreground-dim);
+  /*
+   * How the visualizer draws them: bar opacity, and the most degrees a bar's
+   * hue shifts across the row (0 keeps the colors exact).
+   */
+  --visualizer-opacity: 0.7;
+  --visualizer-hue-shift: 60;
+
+  /* Glow effects — retro is subtle/warm; neon themes redefine these */
   --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
   --glow-accent: none;
 
@@ -98,6 +163,265 @@
   --display-font: "Syne", system-ui, sans-serif;
   --body-font: "Manrope", system-ui, sans-serif;
   --accent-font: "VT323", monospace;
+  /*
+   * Accent-font sizes in components are set for VT323, which renders small
+   * for its font-size (x-height 0.40em). Themes with a different accent
+   * font set this to 0.4 so it renders at VT323's size.
+   */
+  --accent-font-size-adjust: none;
+}
+
+/*
+ * Cyberpunk theme. Rough on purpose: its job right now is to show where
+ * components assume retro's colors.
+ */
+[data-theme="cyberpunk"] {
+  --cp-void: #07060d;
+  --cp-panel: #17142e;
+  --cp-ink: #e6f6ff;
+  --cp-magenta: #ff2a6d;
+  --cp-cyan: #05d9e8;
+  --cp-violet: #7a04eb;
+  --cp-yellow: #fcee0a;
+
+  --radius: 0.125rem;
+  --background: var(--cp-void);
+  --foreground: var(--cp-ink);
+  --foreground-dim: #b4bde0;
+  --foreground-faint: #6f7399;
+
+  --surface-sunk: #0b0918;
+  --surface: var(--cp-panel);
+  --surface-raised: #211d40;
+  --surface-hover: #2c2754;
+  --surface-foreground: var(--cp-ink);
+
+  --card: var(--surface);
+  --card-foreground: var(--cp-ink);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--cp-ink);
+
+  --primary: var(--cp-magenta);
+  --primary-foreground: var(--cp-void);
+  --secondary: var(--cp-violet);
+  --secondary-foreground: var(--cp-ink);
+  --accent: var(--cp-cyan);
+  --accent-foreground: var(--cp-void);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--foreground-dim);
+
+  --destructive: #ff3b3b;
+  --destructive-foreground: var(--cp-void);
+  --destructive-strong: color-mix(in oklab, var(--destructive), white 25%);
+  --success: #39ff88;
+  --success-foreground: var(--cp-void);
+  --success-strong: color-mix(in oklab, var(--success), white 25%);
+  --warning: #ffe14d;
+  --warning-foreground: var(--cp-void);
+  --warning-strong: color-mix(in oklab, var(--warning), white 25%);
+  --info: #4da3ff;
+  --info-foreground: var(--cp-void);
+  --info-strong: color-mix(in oklab, var(--info), white 25%);
+
+  --border: color-mix(in oklab, var(--cp-cyan) 45%, transparent);
+  --input: var(--border);
+  --ring: var(--cp-cyan);
+
+  --glass: var(--cp-ink);
+  --glass-border: var(--cp-cyan);
+  --overlay: #000;
+
+  --page-bg:
+    radial-gradient(
+      ellipse at 50% 120%,
+      color-mix(in oklab, var(--cp-violet) 35%, transparent),
+      transparent 60%
+    ),
+    var(--cp-void);
+
+  --decor-1: var(--cp-cyan);
+  --decor-2: var(--cp-magenta);
+  --decor-3: var(--cp-yellow);
+  --decor-4: var(--cp-violet);
+
+  --glow-primary:
+    0 0 6px var(--cp-magenta),
+    0 0 18px color-mix(in oklab, var(--cp-magenta) 60%, transparent);
+  --glow-accent:
+    0 0 6px var(--cp-cyan),
+    0 0 18px color-mix(in oklab, var(--cp-cyan) 60%, transparent);
+
+  --display-font: "Orbitron", system-ui, sans-serif;
+  --body-font: "Rajdhani", system-ui, sans-serif;
+  --accent-font: "Share Tech Mono", monospace;
+  --accent-font-size-adjust: 0.4;
+}
+
+/*
+ * Catppuccin Mocha. The palette is fixed and already a ladder, so this is
+ * mapping: Crust < Mantle < Base (the page) < Surface 0–2 < Overlay 0–2.
+ * Text on the pastel fills is Crust.
+ */
+[data-theme="catppuccin"] {
+  --ctp-crust: #11111b;
+  --ctp-mantle: #181825;
+  --ctp-base: #1e1e2e;
+  --ctp-surface0: #313244;
+  --ctp-surface1: #45475a;
+  --ctp-surface2: #585b70;
+  --ctp-overlay0: #6c7086;
+  --ctp-overlay1: #7f849c;
+  --ctp-overlay2: #9399b2;
+  --ctp-subtext0: #a6adc8;
+  --ctp-text: #cdd6f4;
+  --ctp-lavender: #b4befe;
+  --ctp-blue: #89b4fa;
+  --ctp-teal: #94e2d5;
+  --ctp-green: #a6e3a1;
+  --ctp-yellow: #f9e2af;
+  --ctp-peach: #fab387;
+  --ctp-red: #f38ba8;
+  --ctp-mauve: #cba6f7;
+  --ctp-pink: #f5c2e7;
+
+  --background: var(--ctp-base);
+  --foreground: var(--ctp-text);
+  --foreground-dim: var(--ctp-subtext0);
+  --foreground-faint: var(--ctp-overlay1);
+
+  --surface-sunk: var(--ctp-mantle);
+  --surface: var(--ctp-surface0);
+  --surface-raised: var(--ctp-surface1);
+  --surface-hover: var(--ctp-surface2);
+  --surface-foreground: var(--ctp-text);
+
+  --card: var(--surface);
+  --card-foreground: var(--ctp-text);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--ctp-text);
+
+  --primary: var(--ctp-mauve);
+  --primary-foreground: var(--ctp-crust);
+  --secondary: var(--ctp-lavender);
+  --secondary-foreground: var(--ctp-crust);
+  --accent: var(--ctp-peach);
+  --accent-foreground: var(--ctp-crust);
+  --tint: var(--ctp-mauve);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--foreground-dim);
+
+  --destructive: var(--ctp-red);
+  --destructive-foreground: var(--ctp-crust);
+  --destructive-strong: color-mix(in oklab, var(--destructive), white 20%);
+  --success: var(--ctp-green);
+  --success-foreground: var(--ctp-crust);
+  --success-strong: color-mix(in oklab, var(--success), white 20%);
+  --warning: var(--ctp-yellow);
+  --warning-foreground: var(--ctp-crust);
+  --warning-strong: color-mix(in oklab, var(--warning), white 20%);
+  --info: var(--ctp-blue);
+  --info-foreground: var(--ctp-crust);
+  --info-strong: color-mix(in oklab, var(--info), white 20%);
+
+  --border: var(--ctp-surface1);
+  --card-border: var(--ctp-surface1);
+  --card-detail: var(--ctp-overlay2);
+  --input: var(--ctp-overlay0);
+  --ring: var(--ctp-peach);
+
+  --glass: var(--ctp-text);
+  --glass-border: var(--ctp-text);
+  --overlay: var(--ctp-crust);
+
+  --page-bg: var(--ctp-base);
+
+  --decor-1: var(--ctp-teal);
+  --decor-2: var(--ctp-mauve);
+  --decor-3: var(--ctp-peach);
+  --decor-4: var(--ctp-pink);
+  --visualizer-opacity: 0.85;
+  --visualizer-hue-shift: 0;
+
+  --glow-primary: 0 0 12px color-mix(in oklab, var(--primary) 35%, transparent);
+  --glow-accent: none;
+
+  --radius: 0.5rem;
+  --display-font: "Syne", system-ui, sans-serif;
+  --body-font: "Manrope", system-ui, sans-serif;
+  --accent-font: "JetBrains Mono", monospace;
+  --accent-font-size-adjust: 0.4;
+}
+
+/*
+ * Background decorations. Layouts render .theme-pattern and .theme-texture
+ * behind their content; each theme defines what they look like, or hides them.
+ * These are retro's: a faint sunburst and a pixel-grain texture.
+ */
+@layer utilities {
+  .theme-texture {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: repeat;
+    @apply absolute inset-0 z-10 pointer-events-none;
+  }
+
+  .theme-pattern {
+    background:
+      radial-gradient(
+        circle at center,
+        transparent 0,
+        transparent 40%,
+        color-mix(in oklab, var(--overlay) 20%, transparent) 41%,
+        transparent 42%
+      ),
+      repeating-conic-gradient(
+        color-mix(in srgb, var(--secondary) 50%, transparent) 0deg,
+        color-mix(in srgb, var(--secondary) 50%, transparent) 6deg,
+        color-mix(in srgb, var(--surface) 50%, transparent) 6deg,
+        color-mix(in srgb, var(--surface) 50%, transparent) 12deg
+      );
+    background-size:
+      100% 100%,
+      100% 100%;
+    @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
+  }
+
+  /* Cyberpunk: scanlines instead of grain, a grid instead of the sunburst. */
+  [data-theme="cyberpunk"] .theme-texture {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      color-mix(in oklab, white 4%, transparent) 0 1px,
+      transparent 1px 3px
+    );
+  }
+
+  [data-theme="cyberpunk"] .theme-pattern {
+    background:
+      linear-gradient(
+          color-mix(in oklab, var(--accent) 25%, transparent) 1px,
+          transparent 1px
+        )
+        0 0 / 48px 48px,
+      linear-gradient(
+          90deg,
+          color-mix(in oklab, var(--accent) 25%, transparent) 1px,
+          transparent 1px
+        )
+        0 0 / 48px 48px;
+  }
+
+  /* Catppuccin: a flat page, no pattern or texture. */
+  [data-theme="catppuccin"] .theme-texture,
+  [data-theme="catppuccin"] .theme-pattern {
+    display: none;
+  }
+  /*
+   * The decoration under a screen's header (see HeaderDecoration). Not a page
+   * backdrop, so it isn't .theme-pattern's job. No theme draws one yet; a
+   * theme that does gives it a height and a background here.
+   */
+  .header-decoration {
+    display: none;
+  }
 }
 
 @theme inline {
@@ -107,9 +431,16 @@
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-dim: var(--foreground-dim);
+  --color-foreground-faint: var(--foreground-faint);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-card-border: var(--card-border);
+  --color-card-detail: var(--card-detail);
+  --color-surface-sunk: var(--surface-sunk);
   --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
   --color-surface-foreground: var(--surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
@@ -121,6 +452,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-tint: var(--tint);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-strong: var(--destructive-strong);
@@ -139,32 +471,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-decor-1: var(--decor-1);
+  --color-decor-2: var(--decor-2);
+  --color-decor-3: var(--decor-3);
+  --color-decor-4: var(--decor-4);
+  --color-section-label: var(--section-label);
   --shadow-glow-primary: var(--glow-primary);
   --shadow-glow-accent: var(--glow-accent);
   --font-display: var(--display-font);
   --font-body: var(--body-font);
   --font-accent: var(--accent-font);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  --color-black: var(--black);
-  --color-white: var(--lemon-chiffon);
-  --color-rust: var(--rust);
-  --color-russet: var(--russet);
-  --color-lemon-chiffon: var(--lemon-chiffon);
-  --color-orange-peel: var(--orange-peel);
-  --color-dark-cyan: var(--dark-cyan);
 }
 
 @layer base {
@@ -191,6 +507,10 @@
    * .font-body in particular collided with the generated utility.
    */
 
+  .font-accent {
+    font-size-adjust: var(--accent-font-size-adjust);
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
@@ -212,37 +532,14 @@
   }
 }
 
-/* Vintage Theme Background Pattern Utilities */
+/* Registered so the lyric sweep can glide between player time updates. */
+@property --lyric-sweep {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 @layer utilities {
-  /* Vintage texture overlay - matches theme.ts getTextureOverlay() */
-  .vintage-texture-overlay {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
-    background-repeat: repeat;
-    @apply absolute inset-0 z-10 pointer-events-none;
-  }
-
-  /* Vintage sunburst pattern - matches theme.ts getSunburstPattern() */
-  .vintage-sunburst-pattern {
-    background:
-      radial-gradient(
-        circle at center,
-        transparent 0,
-        transparent 40%,
-        rgba(0, 0, 0, 0.2) 41%,
-        transparent 42%
-      ),
-      repeating-conic-gradient(
-        #b4481980 0deg,
-        #b4481980 6deg,
-        #77432080 6deg,
-        #77432080 12deg
-      );
-    background-size:
-      100% 100%,
-      100% 100%;
-    @apply absolute inset-0 opacity-20 z-[5] pointer-events-none;
-  }
-
   /* Lyrics fade — both ends, so scrolling text never ends on a hard edge */
   .mask-image-fade-y {
     -webkit-mask-image: linear-gradient(
@@ -282,6 +579,22 @@
 
   .instrumental-progress-fill {
     transition: width 120ms ease-out;
+  }
+
+  /* A crammed line's highlight: the lit color sweeps across the text. It sits
+     on an inline span so a wrapped line fills row by row. The player sets
+     --lyric-sweep ten times a second; the transition fills in between. */
+  .lyric-sweep {
+    color: transparent;
+    text-shadow: none;
+    background-image: linear-gradient(
+      to right,
+      var(--primary) calc(var(--lyric-sweep) - 2%),
+      transparent calc(var(--lyric-sweep) + 2%)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    transition: --lyric-sweep 100ms linear;
   }
 
   .instrumental-progress-leadin {
@@ -392,16 +705,16 @@
   .wheel-band {
     background: radial-gradient(
       ellipse 50% 50% at 50% 50%,
-      color-mix(in oklab, var(--primary) 28%, transparent),
-      color-mix(in oklab, var(--accent) 8%, transparent) 60%,
+      color-mix(in oklab, var(--decor-2) 28%, transparent),
+      color-mix(in oklab, var(--decor-1) 8%, transparent) 60%,
       transparent 75%
     );
   }
 
   .wheel-row-glow {
     text-shadow:
-      0 0 18px color-mix(in oklab, var(--primary) 70%, transparent),
-      0 0 42px color-mix(in oklab, var(--accent) 35%, transparent);
+      0 0 18px color-mix(in oklab, var(--decor-2) 70%, transparent),
+      0 0 42px color-mix(in oklab, var(--decor-1) 35%, transparent);
   }
 
   /* Over the blurred backdrop: light at the edges, dark behind the wheel. */

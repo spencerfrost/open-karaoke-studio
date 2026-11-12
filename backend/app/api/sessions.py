@@ -11,35 +11,37 @@ This module provides REST API endpoints for session management:
 
 import logging
 import uuid
-from datetime import datetime, timedelta
-from typing import Generator, List, Literal, Optional
+from datetime import timedelta
+from typing import List, Literal, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, Field, computed_field
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     RequesterContext,
-    _resolve_user,
-    get_current_user,
-    optional_security,
+    ensure_session_access,
+    get_db,
     require_host,
     require_host_or_session_member,
     require_session_member,
 )
-from app.db.database import SessionLocal
 from app.db.models import KaraokeSession, SessionDevice, SessionPerformer, User
 from app.limiter import limiter
+from app.services import turn_service
+from app.services.demo_service import DEMO_SESSION_ENDED_DETAIL, is_demo_session
 from app.services.roster_service import (
     resolve_or_create_performer,
     resolve_or_create_performer_verbose,
 )
 from app.services.session_service import deactivate_session
-from app.services.turn_service import claim_turn, compute_turn, pass_turn
+from app.services.turn_service import compute_turn
+from app.utils.clock import utc_now
+from app.utils.owner_tag import session_owner_tag
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
 from app.ws.session_specific import session_termination_tasks
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -74,6 +76,15 @@ class SessionResponse(BaseModel):
     expires_at: str
     is_active: bool
     queue_order_mode: str
+    # Hosted by a demo pool account. Phones read it to send a guest straight
+    # to adding a song, which the guided tour waits on.
+    is_demo: bool
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def owner_tag(self) -> Optional[str]:
+        """Matches `owner_tag` on this session's jobs (see app.utils.owner_tag)."""
+        return session_owner_tag(self.session_id)
 
 
 class SessionCreateRequest(BaseModel):
@@ -89,7 +100,6 @@ class SessionCreateRequest(BaseModel):
     )
     # Setup collected by the stage's create-session screen. All three are
     # creation-time only: a request that resumes a live session ignores them.
-    # See docs/plans/archive/2026-08-30-create-session-screen.md.
     duration_hours: Optional[float] = Field(
         None, description="Override tonight's session length"
     )
@@ -182,16 +192,27 @@ class ExpectedTurnRequest(BaseModel):
     )
 
 
-class TurnClaimRequest(ExpectedTurnRequest):
-    """Request model for handing the turn to someone else.
+class TurnInsertRequest(ExpectedTurnRequest):
+    """Request model for the handoff screen's "Add performer"."""
 
-    Either an existing roster entry (`performer_id`) or a new name from the
-    picker's "Someone else…" field, which is resolved the same way every other
-    roster entry point resolves one.
+    name: str = Field(..., min_length=1, max_length=100, description="Performer name")
+
+
+class PerformerRestoreRequest(BaseModel):
+    """Request model for undoing "Remove from rotation".
+
+    `expected_holder_id` is the `holder_id` the remove answered with. The turn
+    only goes back to the restored person if it is still there - otherwise a
+    song has started or someone skipped since, and they just rejoin their seat.
     """
 
-    performer_id: Optional[int] = None
-    name: Optional[str] = Field(None, max_length=100)
+    expected_holder_id: Optional[int] = None
+
+
+class RemovedPerformerResponse(PerformerResponse):
+    """A removed performer, plus whose turn it is now - what the undo checks."""
+
+    holder_id: Optional[int] = None
 
 
 class QueueOrderModeUpdateRequest(BaseModel):
@@ -211,19 +232,6 @@ class QueueOrderModeResponse(BaseModel):
 # ============================================================================
 
 
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
 def get_session_manager(request: Request) -> SessionConnectionManager:
     """Get the shared SessionConnectionManager from app state."""
     return request.app.state.session_manager
@@ -232,15 +240,14 @@ def get_session_manager(request: Request) -> SessionConnectionManager:
 def require_roster_access(
     session_id: str,
     requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
 ) -> str:
     """The session id this caller may read or add roster entries for.
 
-    Mirrors karaoke_queue.py's require_queue_access: an account holder may
-    address any session, an anonymous session guest is confined to the
-    session their device credential names.
+    Same rule as karaoke_queue.py's require_queue_access - see
+    ensure_session_access.
     """
-    if requester.user is None and requester.session_id != session_id:
-        raise HTTPException(status_code=403, detail="Not a member of that session")
+    ensure_session_access(requester, session_id, db)
     return session_id
 
 
@@ -262,7 +269,7 @@ def deactivate_expired_sessions(db: Session) -> int:
         db.query(KaraokeSession)
         .filter(
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at <= datetime.utcnow(),
+            KaraokeSession.expires_at <= utc_now(),
         )
         .update({KaraokeSession.is_active: False}, synchronize_session=False)
     )
@@ -304,7 +311,7 @@ def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
     use and are deleted outright (cascading to their queue items and playback state).
     Returns the number of sessions removed.
     """
-    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    cutoff = utc_now() - timedelta(days=older_than_days)
 
     stale = (
         db.query(KaraokeSession)
@@ -331,7 +338,7 @@ def purge_stale_sessions(db: Session, older_than_days: int = 7) -> int:
 
 
 @router.get("/my", response_model=Optional[SessionResponse])
-async def get_my_session(
+def get_my_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_host),
 ):
@@ -345,7 +352,7 @@ async def get_my_session(
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at > datetime.utcnow(),
+            KaraokeSession.expires_at > utc_now(),
         )
         .order_by(KaraokeSession.created_at.desc())
         .first()
@@ -382,6 +389,7 @@ async def get_my_session(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
@@ -415,11 +423,22 @@ async def get_or_create_my_session(
         .filter(
             KaraokeSession.host_user_id == current_user.id,
             KaraokeSession.is_active.is_(True),
-            KaraokeSession.expires_at > datetime.utcnow(),
+            KaraokeSession.expires_at > utc_now(),
         )
         .order_by(KaraokeSession.created_at.desc())
         .first()
     )
+
+    # A demo account's only session is the one POST /api/demo/start opened for
+    # it. Devices may join that session, but once it has ended the visitor
+    # goes back through the pool for a new one (and a fresh download quota).
+    if current_user.is_demo and (
+        existing is None or session_data.on_existing == "replace"
+    ):
+        logger.info(
+            "Rejected session create for demo account %s", current_user.username
+        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
     if existing and session_data.on_existing == "reject":
         raise HTTPException(
@@ -510,6 +529,7 @@ async def get_or_create_my_session(
             expires_at=existing.expires_at.isoformat(),
             is_active=existing.is_active,
             queue_order_mode=existing.queue_order_mode,
+            is_demo=is_demo_session(db, existing),
         )
 
     # Get host settings for session duration. A duration_hours in the request is a
@@ -600,6 +620,7 @@ async def get_or_create_my_session(
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
                 queue_order_mode=session.queue_order_mode,
+                is_demo=is_demo_session(db, session),
             )
 
         except IntegrityError:
@@ -614,18 +635,26 @@ async def get_or_create_my_session(
 
 
 @router.post("", response_model=SessionResponse, status_code=201)
-async def create_session(
+def create_session(
     request: Request,
     session_data: SessionCreateRequest = SessionCreateRequest(),
     user_agent: Optional[str] = Header(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_host),
 ):
     """
-    Create a new karaoke session.
+    Create a new karaoke session. Hosting needs a host account, as for
+    POST /api/sessions/my - registration is open, so "signed in" isn't enough.
     """
     device_type = session_data.device_type
     display_name = session_data.display_name
+
+    # Demo sessions come only from POST /api/demo/start - see get_or_create_my_session.
+    if current_user.is_demo:
+        logger.info(
+            "Rejected session create for demo account %s", current_user.username
+        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
     if device_type not in SessionDevice.DEVICE_TYPES:
         raise HTTPException(status_code=400, detail="Invalid device type")
@@ -682,6 +711,7 @@ async def create_session(
                 expires_at=session.expires_at.isoformat(),
                 is_active=session.is_active,
                 queue_order_mode=session.queue_order_mode,
+                is_demo=is_demo_session(db, session),
             )
 
         except IntegrityError:
@@ -697,7 +727,7 @@ async def create_session(
 
 @router.post("/join-by-code", response_model=SessionResponse)
 @limiter.limit("10/minute")
-async def join_session_by_code(
+def join_session_by_code(
     request: Request,
     join_data: SessionJoinByCodeRequest,
     user_agent: Optional[str] = Header(None),
@@ -792,12 +822,13 @@ async def join_session_by_code(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
 @router.post("/join-by-id", response_model=SessionResponse)
 @limiter.limit("10/minute")
-async def join_session_by_id(
+def join_session_by_id(
     request: Request,
     join_data: SessionJoinByIdRequest,
     user_agent: Optional[str] = Header(None),
@@ -905,25 +936,25 @@ async def join_session_by_id(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
 @router.get("/{session_id}/info", response_model=SessionResponse)
-async def get_session_info(
+def get_session_info(
     session_id: str,
-    request: Request,
-    device_id: Optional[str] = None,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    requester: RequesterContext = Depends(require_host_or_session_member),
     db: Session = Depends(get_db),
 ):
     """
-    Get information about a specific session.
+    Get information about a specific session, including its device roster.
 
-    `is_host` comes from the bearer token when one is supplied, since ownership lives on
-    `host_user_id` - the same source the session WebSocket uses. Anonymous callers fall
-    back to comparing `host_device_id`, so pass `device_id` as a query parameter for that
-    path (host_device_id is a 'rest_xxx' token, not an IP address).
+    Only a member device, the hosting account or an admin may read it (see
+    ensure_session_access). `is_host` comes from the account, since ownership lives on
+    `host_user_id` - the same source the session WebSocket uses.
     """
+    ensure_session_access(requester, session_id, db)
+
     # Find session
     session = (
         db.query(KaraokeSession)
@@ -940,16 +971,13 @@ async def get_session_info(
     if session.is_expired():
         raise HTTPException(status_code=410, detail="Session has expired")
 
-    # Use provided device_id for identity if supplied, otherwise fall back to IP
-    client_identity = device_id or (
-        request.client.host if request.client else "unknown"
+    is_host = requester.user is not None and requester.user.id == session.host_user_id
+    own_device_id = (
+        requester.device.device_id
+        if requester.device is not None
+        and requester.device.session_id == session.session_id
+        else None
     )
-
-    # Ownership lives on host_user_id; the device comparison is only for anonymous callers.
-    if credentials is not None:
-        is_host = _resolve_user(credentials.credentials, db).id == session.host_user_id
-    else:
-        is_host = client_identity == session.host_device_id
 
     # Get all active devices in the session
     active_devices = (
@@ -966,7 +994,7 @@ async def get_session_info(
             device_id=d.device_id,
             device_type=d.device_type,
             joined_at=d.joined_at.isoformat(),
-            is_self=d.device_id == client_identity,
+            is_self=d.device_id == own_device_id,
             display_name=d.display_name,
         )
         for d in active_devices
@@ -982,11 +1010,12 @@ async def get_session_info(
         expires_at=session.expires_at.isoformat(),
         is_active=session.is_active,
         queue_order_mode=session.queue_order_mode,
+        is_demo=is_demo_session(db, session),
     )
 
 
 @router.get("/{session_id}/validate", response_model=SessionValidationResponse)
-async def validate_session(session_id: str, db: Session = Depends(get_db)):
+def validate_session(session_id: str, db: Session = Depends(get_db)):
     """
     Validate if a session exists and is active.
     Used by frontend to check session validity before connecting to WebSocket.
@@ -1007,7 +1036,7 @@ async def validate_session(session_id: str, db: Session = Depends(get_db)):
         )
 
     # Check if session has expired
-    if session.expires_at and session.expires_at < datetime.utcnow():
+    if session.expires_at and session.expires_at < utc_now():
         raise HTTPException(status_code=410, detail="Session has expired")
 
     return SessionValidationResponse(
@@ -1021,7 +1050,7 @@ async def validate_session(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{session_id}/leave", response_model=SessionLeaveResponse)
-async def leave_session(
+def leave_session(
     session_id: str,
     device: SessionDevice = Depends(require_session_member),
     db: Session = Depends(get_db),
@@ -1084,7 +1113,7 @@ async def end_session(
 
 
 @router.get("/{session_id}/performers", response_model=List[PerformerResponse])
-async def list_performers(
+def list_performers(
     session_id: str = Depends(require_roster_access),
     db: Session = Depends(get_db),
 ):
@@ -1152,9 +1181,9 @@ async def add_performer(
 # The turn - unit 4's handoff screen
 # ============================================================================
 #
-# All three run under require_roster_access rather than host auth. The handoff
+# These run under require_roster_access rather than host auth. The handoff
 # screen is the part guests operate: someone walks up to the TV between songs
-# and says who they are or steps aside. Requiring the host to be standing there
+# and skips, adds someone, or steps out for the night. Requiring the host to be standing there
 # would defeat the feature. Session-level *settings* stay host-only - see
 # set_queue_order_mode below.
 
@@ -1186,80 +1215,9 @@ def _check_expected(turn, expected_performer_id: Optional[int]) -> None:
         raise HTTPException(status_code=409, detail="The turn has already moved on")
 
 
-@router.post("/{session_id}/turn/claim", response_model=PerformerResponse)
-async def claim_current_turn(
-    body: TurnClaimRequest,
-    session_id: str = Depends(require_roster_access),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-):
-    """Hand the turn to someone else - the screen's "That's not me".
-
-    Whoever held it is passed forward invisibly. The person stepping up only
-    says who they are; they never adjudicate somebody else's turn in front of
-    the room.
-    """
-    session = _active_session_or_404(db, session_id)
-    turn = compute_turn(db, session_id)
-    _check_expected(turn, body.expected_performer_id)
-
-    if body.performer_id is not None:
-        claimant = (
-            db.query(SessionPerformer)
-            .filter(
-                SessionPerformer.id == body.performer_id,
-                SessionPerformer.session_id == session_id,
-            )
-            .first()
-        )
-        if claimant is None:
-            raise HTTPException(status_code=404, detail="Performer not found")
-        created = False
-    elif body.name:
-        try:
-            claimant, created = resolve_or_create_performer_verbose(
-                db, session_id, body.name
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-    else:
-        raise HTTPException(status_code=400, detail="performer_id or name is required")
-
-    claim_turn(db, session, turn, claimant)
-    db.commit()
-
-    if created:
-        await broadcast_roster_update(manager, session_id, claimant.name)
-    await broadcast_queue_update(manager, session_id)
-
-    return PerformerResponse(
-        id=claimant.id,
-        name=claimant.name,
-        seat=claimant.seat,
-        is_active=claimant.is_active,
-    )
-
-
-@router.post(
-    "/{session_id}/performers/{performer_id}/deactivate",
-    response_model=PerformerResponse,
-)
-async def deactivate_performer(
-    performer_id: int,
-    session_id: str = Depends(require_roster_access),
-    db: Session = Depends(get_db),
-    manager: SessionConnectionManager = Depends(get_session_manager),
-):
-    """Step out of the rotation - the screen's "Skip me for now".
-
-    Deliberate and self-service, unlike the automatic pass. The seat stops being
-    offered until this person queues something, claims a turn, or joins again -
-    any of which routes through `roster_service.mark_active`.
-
-    If they are holding the turn right now, pass it forward too, so the button
-    does something visible even for someone with songs already queued.
-    """
-    session = _active_session_or_404(db, session_id)
+def _performer_or_404(
+    db: Session, session_id: str, performer_id: int
+) -> SessionPerformer:
     performer = (
         db.query(SessionPerformer)
         .filter(
@@ -1270,15 +1228,10 @@ async def deactivate_performer(
     )
     if performer is None:
         raise HTTPException(status_code=404, detail="Performer not found")
+    return performer
 
-    turn = compute_turn(db, session_id)
-    if turn.performer is not None and turn.performer.id == performer.id:
-        pass_turn(session, turn)
 
-    performer.is_active = False
-    db.commit()
-
-    await broadcast_queue_update(manager, session_id)
+def _performer_response(performer: SessionPerformer) -> PerformerResponse:
     return PerformerResponse(
         id=performer.id,
         name=performer.name,
@@ -1287,8 +1240,157 @@ async def deactivate_performer(
     )
 
 
+def _require_rotation(session: KaraokeSession) -> None:
+    if session.queue_order_mode != "rotation":
+        raise HTTPException(status_code=400, detail="Turns only exist in rotation mode")
+
+
+@router.post("/{session_id}/turn/skip", response_model=PerformerResponse)
+async def skip_turn(
+    body: ExpectedTurnRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Skip my turn" - the turn moves to the next seat.
+
+    Their songs stay where they are, so each one is simply a lap later. Never
+    takes anyone out of the rotation.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+    if turn.performer is None:
+        raise HTTPException(status_code=400, detail="Nobody is up")
+
+    skipped = turn.performer
+    turn_service.skip(db, session, turn)
+    db.commit()
+
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(skipped)
+
+
+@router.post(
+    "/{session_id}/turn/insert", response_model=PerformerResponse, status_code=201
+)
+async def insert_performer_at_turn(
+    body: TurnInsertRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Add performer" - seat someone at the turn. They're up now, whoever was
+    up goes next, and they keep that seat for the night.
+
+    A removed person's name brings them back the same way. Someone already in
+    the circle is rejected: moving them isn't what this button means.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+
+    normalized = body.name.strip().lower()
+    existing = (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.session_id == session_id,
+            SessionPerformer.normalized_name == normalized,
+        )
+        .first()
+    )
+    if existing is not None and existing.is_active:
+        raise HTTPException(
+            status_code=400, detail=f"{existing.name} is already in the rotation"
+        )
+
+    try:
+        performer, created = resolve_or_create_performer_verbose(
+            db, session_id, body.name
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    turn_service.insert_at_turn(db, session, performer)
+    db.commit()
+
+    if created:
+        await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(performer)
+
+
+@router.post(
+    "/{session_id}/performers/{performer_id}/remove",
+    response_model=RemovedPerformerResponse,
+)
+async def remove_performer(
+    performer_id: int,
+    body: ExpectedTurnRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """ "Remove from rotation" - out of the circle for the night.
+
+    Their songs are hidden, not deleted, and their seat is kept, so the undo
+    (`/restore`) is a flag flip. Answers with whose turn it is now, which the
+    undo sends back to prove nothing has moved since.
+    """
+    session = _active_session_or_404(db, session_id)
+    _require_rotation(session)
+    turn = compute_turn(db, session_id)
+    _check_expected(turn, body.expected_performer_id)
+    performer = _performer_or_404(db, session_id, performer_id)
+
+    turn_service.remove(db, session, performer)
+    db.commit()
+
+    holder = compute_turn(db, session_id).performer
+    # The roster lists active performers only, so pickers need to hear about it.
+    await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return RemovedPerformerResponse(
+        **_performer_response(performer).model_dump(),
+        holder_id=holder.id if holder else None,
+    )
+
+
+@router.post(
+    "/{session_id}/performers/{performer_id}/restore",
+    response_model=PerformerResponse,
+)
+async def restore_performer(
+    performer_id: int,
+    body: PerformerRestoreRequest,
+    session_id: str = Depends(require_roster_access),
+    db: Session = Depends(get_db),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Undo "Remove from rotation": same seat, and their turn back if the turn
+    is still where the remove left it."""
+    session = _active_session_or_404(db, session_id)
+    performer = _performer_or_404(db, session_id, performer_id)
+    if performer.is_active:
+        # Already back - a double tap, or they rejoined some other way.
+        return _performer_response(performer)
+
+    holder = compute_turn(db, session_id).performer
+    point_back = body.expected_holder_id is not None and body.expected_holder_id == (
+        holder.id if holder else None
+    )
+    turn_service.restore(session, performer, point_back)
+    db.commit()
+
+    await broadcast_roster_update(manager, session_id, performer.name)
+    await broadcast_queue_update(manager, session_id)
+    return _performer_response(performer)
+
+
 @router.patch("/{session_id}/queue-order-mode", response_model=QueueOrderModeResponse)
-async def set_queue_order_mode(
+def set_queue_order_mode(
     session_id: str,
     mode_data: QueueOrderModeUpdateRequest,
     db: Session = Depends(get_db),
@@ -1296,9 +1398,8 @@ async def set_queue_order_mode(
 ):
     """Switch a session between append and rotation queue ordering.
 
-    Deliberately not exposed on the stage/TV screen - it's the Settings-page
-    control described in docs/plans/archive/2026-08-29-roster-and-rotation.md's open
-    decisions, so a performer glancing at the TV never sees host controls.
+    Deliberately not exposed on the stage/TV screen - it's a Settings-page
+    control, so a performer glancing at the TV never sees host controls.
     """
     if mode_data.mode not in ("append", "rotation"):
         raise HTTPException(

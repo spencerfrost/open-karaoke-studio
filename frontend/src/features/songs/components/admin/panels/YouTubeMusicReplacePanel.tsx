@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { apiSend } from "@/hooks/api/useApi";
 import { useYoutubeMusicSearch } from "@/hooks/api/useYoutubeMusic";
 import { useSongRecovery } from "@/features/songs/hooks/useSongRecovery";
-import { YoutubeMusicSearchResult } from "@/types/Youtube";
+import { YoutubeMusicSong } from "@/types/Youtube";
+import { formatTime } from "@/utils/formatters";
 import type { ReplacePanelProps, ValidationResult } from "./types";
 
 export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
@@ -15,9 +16,7 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
 }) => {
   const [query, setQuery] = useState(`${song.artist} ${song.title}`);
   const [debouncedQuery, setDebouncedQuery] = useState(query);
-  const [selected, setSelected] = useState<YoutubeMusicSearchResult | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<YoutubeMusicSong | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
 
   // Simple debounce via timeout ref
@@ -32,10 +31,16 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
     debouncedQuery,
     !!debouncedQuery,
   );
-  const songs = data?.songs ?? [];
+  // Every playable result in one list; the original's other versions next to
+  // it, since a replacement is usually the same song from another upload.
+  const songs = data
+    ? [data.bestMatch, ...data.otherVersions, ...data.otherSongs].filter(
+        (s): s is YoutubeMusicSong & { videoId: string } => !!s?.videoId,
+      )
+    : [];
 
   const validateMutation = useMutation({
-    mutationFn: (result: YoutubeMusicSearchResult) =>
+    mutationFn: (result: YoutubeMusicSong) =>
       apiSend<ValidationResult, Record<string, unknown>>(
         `songs/${song.id}/validate-youtube-replacement`,
         "post",
@@ -57,7 +62,7 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
   });
   const isReplacing = isRecovering(song.id);
 
-  const handleSelect = (result: YoutubeMusicSearchResult) => {
+  const handleSelect = (result: YoutubeMusicSong) => {
     setSelected(result);
     setValidation(null);
     validateMutation.mutate(result);
@@ -99,7 +104,9 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
                 <p className="text-sm font-medium truncate">{result.title}</p>
                 <p className="text-xs text-muted-foreground truncate">
                   {result.artist}
-                  {result.duration ? ` · ${result.duration}` : ""}
+                  {result.durationSeconds
+                    ? ` · ${formatTime(result.durationSeconds)}`
+                    : ""}
                 </p>
               </div>
             </div>
@@ -144,8 +151,8 @@ export const YouTubeMusicReplacePanel: React.FC<ReplacePanelProps> = ({
                 onClick={() =>
                   recoverSong({
                     id: song.id,
-                    title: selected!.title,
-                    artist: selected!.artist,
+                    title: selected!.title ?? undefined,
+                    artist: selected!.artist ?? undefined,
                     videoId: selected!.videoId,
                   })
                 }

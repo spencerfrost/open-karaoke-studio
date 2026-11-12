@@ -1,20 +1,15 @@
 """
 Pytest configuration and shared fixtures for Open Karaoke Studio backend tests.
-
-This conftest provides FastAPI test fixtures after the Flask to FastAPI migration.
 """
 
 import os
-import random
+import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
-from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 # Point the app's global engine at a throwaway SQLite file BEFORE any app
 # module is imported: app/db/database.py builds its engine from
@@ -26,17 +21,20 @@ _TEST_DB_FD, _TEST_DB_PATH = tempfile.mkstemp(prefix="okstudio-tests-", suffix="
 os.close(_TEST_DB_FD)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
 
+# Same for the song library: BaseConfig reads LIBRARY_DIR at import time, and
+# endpoints like POST /api/songs create a song folder through FileService. Left
+# unset, every test run leaves empty folders in the real library.
+_TEST_LIBRARY_DIR = tempfile.mkdtemp(prefix="okstudio-tests-library-")
+os.environ["LIBRARY_DIR"] = _TEST_LIBRARY_DIR
+
 # Add the backend path for imports
 backend_path = str(Path(__file__).parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-
+from app.db.database import SessionLocal as _SessionLocal
 from app.db.database import engine as _global_engine
-from app.db.models import Base, DbSong
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from tests.fixtures.test_data import create_test_db_song, create_test_song
+from app.db.models import Base
 
 # Alembic manages the real schema, but the throwaway test database needs its
 # tables created directly.
@@ -58,80 +56,23 @@ def _clean_global_db():
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Remove the throwaway test database file (and SQLite sidecars)."""
+    """Remove the throwaway test database file (and SQLite sidecars) and library."""
     for suffix in ("", "-wal", "-shm"):
         try:
             os.unlink(_TEST_DB_PATH + suffix)
         except FileNotFoundError:
             pass
+    shutil.rmtree(_TEST_LIBRARY_DIR, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")
 def test_db_session():
-    """
-    Provide a transactional scope for database tests.
-
-    This fixture creates an in-memory SQLite database, begins a transaction,
-    and rolls it back after each test. This ensures that every test starts
-    with a clean database and any changes are discarded, preventing test pollution.
-    """
-    # Create an in-memory SQLite database for testing
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-
-    # Begin a transaction
-    connection = engine.connect()
-    transaction = connection.begin()
-    session.begin_nested()
-
-    yield session
-
-    # Rollback the transaction and close the connection
-    transaction.rollback()
-    connection.close()
-    session.close()
-
-
-@pytest.fixture(scope="function")
-def populate_test_songs(test_db_session):
-    """
-    Populate the test database with 25 representative songs for integration tests.
-    Songs will have a mix of artists, albums, and special characters.
-    """
-    artists = ["Artist A", "Artist B", "Artist C", "Björk", "李荣浩"]
-    albums = ["Hits 1", "Hits 2", "Classics", "Specials"]
-    for i in range(25):
-        song = DbSong(
-            id=f"song-{i+1}",
-            title=f"Test Song {i+1} {'★' if i % 5 == 0 else ''}",
-            artist=random.choice(artists),
-            album=random.choice(albums),
-            duration=180.0 + i,  # Duration in seconds
-            date_added=None,
-            thumbnail_path=f"/tmp/test_songs/thumb_{i+1}.jpg",
-            cover_art_path=f"/tmp/test_songs/cover_{i+1}.jpg",
-            source="test",
-            source_url=f"http://example.com/song/{i+1}",
-            video_id=f"vid{i+1}",
-            uploader="TestUploader",
-            uploader_id="uploader123",
-            channel="TestChannel",
-            channel_id="channel123",
-            description=f"Description for song {i+1}",
-            upload_date=None,
-            mbid=None,
-            release_id=None,
-            release_date=None,
-            year=2020 + (i % 5),
-            language=random.choice(["English", "Spanish", "Chinese"]),
-            lyrics="La la la...",
-            synced_lyrics=None,
-        )
-        test_db_session.add(song)
-    test_db_session.commit()
-    # No yield or cleanup needed here, as the transaction will be rolled back.
+    """Session on the shared test database; _clean_global_db empties it afterwards."""
+    session = _SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 def create_test_app():
@@ -139,15 +80,22 @@ def create_test_app():
     Create a minimal FastAPI app for testing that includes all routers.
     This is a factory function to allow fresh app instances for tests.
     """
+    from fastapi import WebSocket
+    from fastapi.middleware.cors import CORSMiddleware
+
     from app.api import (
+        admin_router,
         albums_router,
         artists_router,
+        demo_router,
         health_router,
         host_settings_router,
         jobs_router,
         lyrics_router,
+        musicbrainz_router,
         performance_history_router,
         queue_router,
+        session_playlist_router,
         sessions_router,
         songs_router,
         users_router,
@@ -159,8 +107,6 @@ def create_test_app():
         websocket_jobs_endpoint,
         websocket_unified_session_endpoint,
     )
-    from fastapi import WebSocket
-    from fastapi.middleware.cors import CORSMiddleware
 
     test_app = FastAPI(
         title="Open Karaoke Studio API (Test)",
@@ -178,8 +124,10 @@ def create_test_app():
     )
 
     # Include all API routers
+    test_app.include_router(admin_router)
     test_app.include_router(albums_router)
     test_app.include_router(artists_router)
+    test_app.include_router(demo_router)
     test_app.include_router(health_router)
     test_app.include_router(songs_router)
     test_app.include_router(jobs_router)
@@ -191,6 +139,8 @@ def create_test_app():
     test_app.include_router(users_router)
     test_app.include_router(performance_history_router)
     test_app.include_router(host_settings_router)
+    test_app.include_router(musicbrainz_router)
+    test_app.include_router(session_playlist_router)
 
     # WebSocket routes
     @test_app.websocket("/ws/jobs")
@@ -229,156 +179,8 @@ def create_test_app():
     return test_app
 
 
-@pytest.fixture(scope="session")
-def app():
-    """Create FastAPI application for testing"""
-    return create_test_app()
-
-
-@pytest.fixture(scope="session")
-def client(app):
-    """
-    Create FastAPI test client.
-
-    FastAPI's TestClient wraps httpx and allows testing async endpoints synchronously.
-    """
-    with TestClient(app) as test_client:
-        yield test_client
-
-
-@pytest.fixture(scope="function")
-def db_session():
-    """
-    Provide a transactional scope for database tests.
-
-    This fixture creates an in-memory SQLite database, begins a transaction,
-    and rolls it back after each test. This ensures that every test starts
-    with a clean database and any changes are discarded, preventing test pollution.
-    """
-    # Create an in-memory SQLite database for testing
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-
-    # Begin a transaction
-    connection = engine.connect()
-    transaction = connection.begin()
-    session.begin_nested()
-
-    yield session
-
-    # Rollback the transaction and close the connection
-    transaction.rollback()
-    connection.close()
-    session.close()
-
-
 @pytest.fixture(scope="function")
 def temp_library_dir():
     """Create temporary directory for file operations"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield Path(temp_dir)
-
-
-@pytest.fixture
-def sample_song_data():
-    """Sample song data for testing"""
-    return {
-        "id": "test-song-123",
-        "title": "Test Song",
-        "artist": "Test Artist",
-        "duration": 180,
-        "source": "upload",
-    }
-
-
-@pytest.fixture
-def sample_job_data():
-    """Sample job data for testing"""
-    return {
-        "id": "test-job-123",
-        "filename": "test_file.mp3",
-        "status": "pending",
-        "progress": 0,
-    }
-
-
-@pytest.fixture
-def mock_celery_task():
-    """Mock Celery task for testing"""
-
-    class MockTask:
-        def __init__(self):
-            self.id = "test-job-123"
-            self.state = "PENDING"
-            self.result = None
-
-        def delay(self):
-            return self
-
-        def get(self):
-            return self.result
-
-        def ready(self):
-            return self.state in ["SUCCESS", "FAILURE"]
-
-        def successful(self):
-            return self.state == "SUCCESS"
-
-        def failed(self):
-            return self.state == "FAILURE"
-
-    return MockTask()
-
-
-@pytest.fixture
-def mock_config():
-    """Mock configuration for testing"""
-    config = Mock()
-    config.LIBRARY_DIR = Path("/tmp/test_library")
-    config.UPLOADS_DIR = Path("/tmp/test_uploads")
-    config.DATABASE_URL = "sqlite:///:memory:"
-    return config
-
-
-@pytest.fixture
-def mock_file_service():
-    """Mock file management service"""
-    service = Mock()
-    service.get_song_directory.return_value = Path("/tmp/test_song")
-    service.ensure_song_directory.return_value = Path("/tmp/test_song")
-    service.get_metadata.return_value = {
-        "title": "Test Song",
-        "artist": "Test Artist",
-        "duration": 180,
-    }
-    return service
-
-
-@pytest.fixture
-def mock_audio_service():
-    """Mock audio processing service"""
-    service = Mock()
-    service.separate_audio.return_value = {}
-    return service
-
-
-@pytest.fixture
-def db_song_factory():
-    """Factory for creating test database songs"""
-
-    def _create_db_song(**kwargs):
-        return create_test_db_song(kwargs)
-
-    return _create_db_song
-
-
-@pytest.fixture
-def song_factory():
-    """Factory for creating test songs"""
-
-    def _create_song(**kwargs):
-        return create_test_song(kwargs)
-
-    return _create_song

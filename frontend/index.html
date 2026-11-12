@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -18,7 +18,7 @@
       sizes="512x512"
       href="/android-chrome-512x512.png"
     />
-    <meta name="theme-color" content="#fd9a02" />
+    <meta name="theme-color" content="#ff2a6d" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- PWA Meta Tags -->
@@ -30,6 +30,18 @@
     <meta name="apple-mobile-web-app-title" content="Open Karaoke Studio" />
     
     <title>Open Karaoke Studio</title>
+    <!-- Apply the saved theme before the stylesheet paints, so a non-default
+         theme doesn't flash the default (cyberpunk, set on <html>) first.
+         useApplyTheme takes over once React loads. -->
+    <script>
+      try {
+        var saved = JSON.parse(localStorage.getItem("openKaraokeSettings"));
+        var themeName = saved && saved.state && saved.state.theme && saved.state.theme.themeName;
+        if (typeof themeName === "string") {
+          document.documentElement.dataset.theme = themeName;
+        }
+      } catch (e) {}
+    </script>
     <link
       href="https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Manrope:wght@400;600&display=swap"
       rel="stylesheet"

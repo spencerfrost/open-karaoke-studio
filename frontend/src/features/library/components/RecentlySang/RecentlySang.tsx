@@ -31,7 +31,7 @@ const RecentlySang: React.FC = () => {
 
   if (total === 0) {
     return (
-      <div className="text-center py-12 text-lemon-chiffon/50">
+      <div className="text-center py-12 text-foreground-faint">
         No performances yet. Start a session and play some songs!
       </div>
     );
@@ -48,12 +48,12 @@ const RecentlySang: React.FC = () => {
               size="sm"
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               disabled={currentPage === 0}
-              className="text-orange-peel hover:bg-orange-peel/20 disabled:opacity-30"
+              className="text-primary hover:bg-primary/20 disabled:opacity-30"
             >
               <ChevronLeft size={16} />
               Previous
             </Button>
-            <span className="text-sm text-lemon-chiffon/80 px-2">
+            <span className="text-sm text-foreground px-2">
               {currentPage + 1} of {totalPages}
             </span>
             <Button
@@ -61,7 +61,7 @@ const RecentlySang: React.FC = () => {
               size="sm"
               onClick={() => setOffset(offset + PAGE_SIZE)}
               disabled={currentPage >= totalPages - 1}
-              className="text-orange-peel hover:bg-orange-peel/20 disabled:opacity-30"
+              className="text-primary hover:bg-primary/20 disabled:opacity-30"
             >
               Next
               <ChevronRight size={16} />
@@ -74,7 +74,7 @@ const RecentlySang: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-lemon-chiffon/20 text-lemon-chiffon/60">
+            <tr className="border-b border-glass-border/20 text-foreground-dim">
               <th className="text-left pb-2 pr-4 font-medium">Song</th>
               <th className="text-left pb-2 pr-4 font-medium">Artist</th>
               <th className="text-left pb-2 pr-4 font-medium">Singer</th>
@@ -86,23 +86,23 @@ const RecentlySang: React.FC = () => {
             {items.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-lemon-chiffon/10 hover:bg-lemon-chiffon/5"
+                className="border-b border-glass-border/10 hover:bg-surface-hover"
               >
-                <td className="py-2 pr-4 text-lemon-chiffon">
+                <td className="py-2 pr-4 text-foreground">
                   {item.song_title ?? (
-                    <span className="text-lemon-chiffon/40">Deleted song</span>
+                    <span className="text-foreground-faint">Deleted song</span>
                   )}
                 </td>
-                <td className="py-2 pr-4 text-lemon-chiffon/80">
+                <td className="py-2 pr-4 text-foreground">
                   {item.artist ?? "—"}
                 </td>
-                <td className="py-2 pr-4 text-lemon-chiffon/80">
+                <td className="py-2 pr-4 text-foreground">
                   {item.singer_name}
                 </td>
-                <td className="py-2 pr-4 text-lemon-chiffon/60 font-mono text-xs">
+                <td className="py-2 pr-4 text-foreground-dim font-mono text-xs">
                   {item.session_code ?? "—"}
                 </td>
-                <td className="py-2 text-lemon-chiffon/60 text-xs">
+                <td className="py-2 text-foreground-dim text-xs">
                   {formatRelativeTime(item.performed_at)}
                 </td>
               </tr>

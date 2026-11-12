@@ -1,4 +1,5 @@
 """Unit tests for SessionConnectionManager."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -347,3 +348,85 @@ async def test_force_close_sends_session_ended_broadcast(manager):
 @pytest.mark.asyncio
 async def test_force_close_nonexistent_session_does_not_raise(manager):
     await manager.force_close_session_connections("nonexistent", "reason")
+
+
+# ---------------------------------------------------------------------------
+# presence
+# ---------------------------------------------------------------------------
+
+
+def test_presence_unknown_device_is_disconnected(manager):
+    presence = manager.get_device_presence("ABCD", "rest_phone")
+    assert presence == (False, False, False)
+
+
+def test_set_presence_reports_change_only_when_summary_moves(manager):
+    assert manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    # Same report again: nothing for the stage to redraw.
+    assert not manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    assert manager.set_presence("ABCD", "rest_phone", "device_1", visible=False)
+
+    presence = manager.get_device_presence("ABCD", "rest_phone")
+    assert presence.connected is True
+    assert presence.visible is False
+
+
+def test_device_is_visible_if_any_socket_is(manager):
+    manager.set_presence("ABCD", "rest_phone", "device_1", visible=False)
+    manager.set_presence("ABCD", "rest_phone", "device_2", visible=True)
+    assert manager.get_device_presence("ABCD", "rest_phone").visible is True
+
+    # The visible tab closing leaves the hidden one connected but off screen.
+    assert manager.drop_presence("ABCD", "device_2")
+    presence = manager.get_device_presence("ABCD", "rest_phone")
+    assert presence.connected is True
+    assert presence.visible is False
+
+
+def test_on_controls_requires_the_page_to_be_on_screen(manager):
+    manager.set_presence(
+        "ABCD", "rest_phone", "device_1", visible=False, on_controls=True
+    )
+    assert manager.get_device_presence("ABCD", "rest_phone").on_controls is False
+
+    manager.set_presence(
+        "ABCD", "rest_phone", "device_1", visible=True, on_controls=True
+    )
+    assert manager.get_device_presence("ABCD", "rest_phone").on_controls is True
+
+
+def test_drop_last_socket_disconnects_device(manager):
+    manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    assert manager.drop_presence("ABCD", "device_1")
+    assert manager.get_device_presence("ABCD", "rest_phone").connected is False
+    # The session's bucket goes with its last device.
+    assert "ABCD" not in manager.presence
+
+
+def test_drop_unknown_socket_is_not_a_change(manager):
+    assert not manager.drop_presence("ABCD", "device_missing")
+    manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    assert not manager.drop_presence("ABCD", "device_missing")
+
+
+def test_presence_is_isolated_per_session(manager):
+    manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    assert manager.get_device_presence("WXYZ", "rest_phone").connected is False
+    assert manager.get_session_presence("WXYZ") == {}
+    assert set(manager.get_session_presence("ABCD")) == {"rest_phone"}
+
+
+def test_socket_reporting_as_another_device_moves(manager):
+    manager.set_presence("ABCD", "rest_a", "device_1", visible=True)
+    assert manager.set_presence("ABCD", "rest_b", "device_1", visible=True)
+    assert manager.get_device_presence("ABCD", "rest_a").connected is False
+    assert manager.get_device_presence("ABCD", "rest_b").connected is True
+
+
+@pytest.mark.asyncio
+async def test_force_close_clears_session_presence(manager):
+    manager.set_presence("ABCD", "rest_phone", "device_1", visible=True)
+    manager.set_presence("WXYZ", "rest_other", "device_2", visible=True)
+    await manager.force_close_session_connections("ABCD")
+    assert "ABCD" not in manager.presence
+    assert "WXYZ" in manager.presence

@@ -8,27 +8,44 @@
  */
 
 import React from "react";
-import { useKaraokePlayer } from "../hooks";
+import { useKaraokePlayer, useSongPosition } from "../hooks";
 import { PlayerErrorBoundary } from "./subcomponents";
 import { ThrottledLyricsDisplay } from "@/features/lyrics";
 import type { KaraokePlayerProps } from "../types/KaraokePlayer.types";
-import { Library, Loader2 } from "lucide-react";
+import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { cn } from "@/lib/utils";
+import { useSongCountdownStore } from "@/stores/useSongCountdownStore";
+import SongCountdown from "./SongCountdown";
+
+type LiveLyricsProps = Omit<
+  React.ComponentProps<typeof ThrottledLyricsDisplay>,
+  "currentTime"
+>;
+
+/**
+ * The lyrics, reading the song position themselves so the rest of the player
+ * doesn't re-render with it. 100ms steps: as often as the lyrics redraw.
+ */
+const LiveLyrics: React.FC<LiveLyricsProps> = (props) => {
+  const currentTime = useSongPosition(0.1);
+  return <ThrottledLyricsDisplay {...props} currentTime={currentTime} />;
+};
 
 const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
   songId,
   autoPlay = false,
+  visible = true,
+  singer,
   onPlay,
   onPause,
-  onEnd,
-  onTimeUpdate,
   onError,
-  dimHeader = false,
+  chromeCollapsed = false,
   className = "",
 }) => {
-  const player = useKaraokePlayer(songId, { autoPlay });
+  const player = useKaraokePlayer(songId, { autoPlay, visible });
+  const countdown = useSongCountdownStore((s) => s.countdown);
   const openSongSelect = useOpenSongSelect();
 
   // Handle play/pause callbacks
@@ -53,32 +70,41 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     }
   }, [player.error, onError]);
 
-  // Handle time update callback
-  React.useEffect(() => {
-    if (onTimeUpdate) {
-      onTimeUpdate(player.currentTime, player.duration);
-    }
-  }, [player.currentTime, player.duration, onTimeUpdate]);
-
-  // Handle song end callback
-  React.useEffect(() => {
-    if (onEnd && player.duration > 0 && player.currentTime >= player.duration) {
-      onEnd();
-    }
-  }, [player.currentTime, player.duration, onEnd]);
-
   // Hoisted so the header's event handlers close over a narrowed value —
   // TypeScript cannot keep `player.song` narrowed inside a callback.
   const song = player.song;
+
+  // The way to the songbook mid-song, top left where an app's back button
+  // would be. A word, not an icon: someone who wants the songbook looks for
+  // the word. Not a call to action - singing is the point of this screen - so
+  // it stays quiet and comes and goes with the rest of the chrome.
+  //
+  // Only with a song loaded. With none, the empty state below has its own
+  // "Open the Songbook" button, and two would be one too many.
+  const songbookButton = (
+    <Button
+      variant="ghost"
+      size="lg"
+      onClick={() => openSongSelect()}
+      className={cn(
+        "absolute left-0 top-0 z-10 gap-2 text-lg text-foreground-dim transition-opacity duration-500 hover:text-foreground",
+        chromeCollapsed && "pointer-events-none opacity-0",
+      )}
+    >
+      <BookOpen className="size-5" />
+      Songbook
+    </Button>
+  );
 
   if (player.error) {
     return (
       <div
         className={cn(
-          "flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4 text-center",
+          "relative flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4 text-center",
           className,
         )}
       >
+        {songbookButton}
         <div className="text-lg font-semibold text-destructive">
           {player.error.message}
         </div>
@@ -93,23 +119,27 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
     <PlayerErrorBoundary onError={undefined}>
       <div
         className={cn(
-          "flex min-h-0 w-full flex-1 flex-col items-center",
+          "relative flex min-h-0 w-full flex-1 flex-col items-center",
           className,
         )}
       >
+        {song && songbookButton}
+
         {/* Song header */}
         {song && (
           <div
             className={cn(
-              "shrink-0 pb-4 pt-1 text-center transition-opacity duration-500",
-              dimHeader && "opacity-35",
+              // Side padding keeps a long title wrapping clear of the
+              // Songbook button in the top-left corner.
+              "shrink-0 px-44 pb-4 pt-1 text-center transition-opacity duration-500",
+              chromeCollapsed && "opacity-35",
             )}
           >
             <h1 className="font-display text-3xl leading-tight text-foreground">
               {song.title}
             </h1>
             <h2
-              className="cursor-pointer pt-1 text-lg text-foreground/55 transition-colors hover:text-primary"
+              className="cursor-pointer pt-1 text-lg text-foreground-dim transition-colors hover:text-primary"
               onClick={() => openSongSelect({ expandArtist: song.artist })}
               role="button"
               tabIndex={0}
@@ -128,20 +158,24 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             handoff screen - it is a whole screen about a person, not a branch
             inside the lyrics column. */}
         <div className="relative flex min-h-0 w-full flex-1 flex-col">
-          {song && !player.isReady ? (
-            // Until the stems are decoded there is nothing to sing along to,
-            // and with autoplay on the song starts by itself once they are.
-            <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground/60">
+          {countdown.phase !== "idle" && countdown.songId === songId ? (
+            // A new song: the 3-2-1 covers the old song's fade-out and the
+            // load, and the song starts by itself when it ends.
+            <SongCountdown countdown={countdown} singer={singer} />
+          ) : song && !player.isReady ? (
+            // Until the stems are decoded there is nothing to sing along to.
+            // Seen without a count only after a page reload, where the song
+            // waits for a click on play instead of starting by itself.
+            <div className="flex h-full w-full items-center justify-center gap-3 text-xl text-foreground-dim">
               <Loader2 className="size-6 animate-spin" />
               Getting the song ready…
             </div>
           ) : song ? (
             <>
               <div className="min-h-0 w-full flex-1">
-                <ThrottledLyricsDisplay
+                <LiveLyrics
                   lyrics={player.lyrics}
                   isSync={player.isLyricsSync}
-                  currentTime={player.currentTime}
                   lyricsSize={player.lyricsSize}
                   lyricsOffset={player.lyricsOffset}
                   onSeek={player.seek}
@@ -157,7 +191,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
             </>
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-4">
-              <div className="text-xl font-semibold text-foreground/60">
+              <div className="text-xl font-semibold text-foreground-dim">
                 No songs in the queue
               </div>
               <Button
@@ -166,8 +200,8 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
                 onClick={() => openSongSelect()}
                 className="gap-2"
               >
-                <Library className="size-5" />
-                Browse Library
+                <BookOpen className="size-5" />
+                Open the Songbook
               </Button>
             </div>
           )}

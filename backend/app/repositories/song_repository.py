@@ -24,10 +24,14 @@ Song repository for managing song records in the database.
 
 """
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.db.models import DbSong
 from sqlalchemy.orm import Session, joinedload, subqueryload
+
+from app.db.models import DbSong
+from app.db.models.song import in_songbook
+from app.utils.clock import utc_now
 
 
 class SongRepository:
@@ -103,22 +107,30 @@ class SongRepository:
         )
 
     def fetch_all(
-        self, *, filters=None, sort_by=None, direction="desc", limit=None, offset=None
+        self,
+        *,
+        filters=None,
+        sort_by=None,
+        direction="desc",
+        limit=None,
+        offset=None,
+        songbook_only=False,
     ) -> List[DbSong]:
         """
         Fetch all songs with optional filtering, sorting, and pagination.
         :param filters: dict of field-value pairs to filter by
+        :param songbook_only: leave out failed songs, as the songbook does
         :param sort_by: field name to sort by (default None)
         :param direction: 'asc' or 'desc' (default 'desc')
         :param limit: max number of results (default None)
         :param offset: number of results to skip (default None)
         """
-        query = self.db.query(DbSong).options(
-            subqueryload(DbSong.album_rel)
-        )
+        query = self.db.query(DbSong).options(subqueryload(DbSong.album_rel))
         if filters:
             for attr, value in filters.items():
                 query = query.filter(getattr(DbSong, attr) == value)
+        if songbook_only:
+            query = query.filter(in_songbook())
         if sort_by:
             sort_col = getattr(DbSong, sort_by, None)
             if sort_col is not None:
@@ -132,7 +144,9 @@ class SongRepository:
                 elif sort_by in ["title", "artist"]:
                     # For title/artist sorts, use date_added as secondary
                     if direction == "desc":
-                        query = query.order_by(sort_col.desc(), DbSong.date_added.desc())
+                        query = query.order_by(
+                            sort_col.desc(), DbSong.date_added.desc()
+                        )
                     else:
                         query = query.order_by(sort_col.asc(), DbSong.date_added.desc())
                 else:
@@ -147,23 +161,44 @@ class SongRepository:
             query = query.limit(limit)
         return query.all()
 
+    def fetch_failed(self) -> List[DbSong]:
+        """Failed songs, the most recent failure first; ones failed before
+        failures were timed come last."""
+        return (
+            self.db.query(DbSong)
+            .options(subqueryload(DbSong.album_rel))
+            .filter(DbSong.status == "error")
+            .order_by(
+                DbSong.failed_at.is_(None),
+                DbSong.failed_at.desc(),
+                DbSong.date_added.desc(),
+            )
+            .all()
+        )
+
     def update(self, song_id: str, **fields) -> Optional[DbSong]:
         """
         Update an existing song record.
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         song = self.fetch(song_id)
         if not song:
             logger.warning("Song %s not found for update", song_id)
             return None
-            
+
+        # failed_at goes with status: stamped when the song fails, cleared
+        # when it's restarted or finishes.
+        if "status" in fields and "failed_at" not in fields:
+            fields["failed_at"] = utc_now() if fields["status"] == "error" else None
+
         for key, value in fields.items():
             setattr(song, key, value)
         self.db.commit()
         self.db.refresh(song)
-        
+
         logger.debug("Successfully updated song %s", song_id)
         return song
 
@@ -201,7 +236,9 @@ class SongRepository:
         )
 
         clusters = []
-        for _, group in groupby(songs, key=lambda s: (s.title.lower(), s.artist.lower())):
+        for _, group in groupby(
+            songs, key=lambda s: (s.title.lower(), s.artist.lower())
+        ):
             clusters.append(list(group))
         return clusters
 

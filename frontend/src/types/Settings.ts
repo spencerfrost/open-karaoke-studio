@@ -1,6 +1,7 @@
+import type { ThemeName } from "@/lib/themes";
+
 export interface ThemeSettings {
-  darkMode: boolean;
-  themeName: "vintage" | "synthwave" | "minimal";
+  themeName: ThemeName;
 }
 
 export interface AudioSettings {

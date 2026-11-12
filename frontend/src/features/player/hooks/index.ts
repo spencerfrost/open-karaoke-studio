@@ -3,6 +3,7 @@
  */
 
 export { useKaraokePlayer } from "./useKaraokePlayer";
+export { useSongPosition } from "./useSongPosition";
 export { usePlayerUI } from "./usePlayerUI";
 export {
   useSongSuggestions,

@@ -1,8 +1,14 @@
 """Unit tests for app/schemas/song.py."""
+
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.song import SongCreateRequest, SongReprocessRequest, SongReplaceYouTubeRequest, SongUpdateRequest
+from app.schemas.song import (
+    SongCreateRequest,
+    SongReplaceYouTubeRequest,
+    SongReprocessRequest,
+    SongUpdateRequest,
+)
 
 
 class TestSongCreateRequest:

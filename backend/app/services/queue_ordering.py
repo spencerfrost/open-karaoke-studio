@@ -1,15 +1,20 @@
 """
-Queue ordering service - the single place play order is computed and sorted.
+Queue ordering service - the single place play order is computed.
 
 `build_queue_state()` (REST) and `get_current_queue_state()` (WebSocket) both
 call `get_ordered_queue_items` instead of each hand-rolling their own
-`ORDER BY`, since those two had already drifted once. See
-docs/plans/archive/2026-08-29-roster-and-rotation.md, Stage 3b.
+`ORDER BY`, since those two had already drifted once.
+
+Rotation mode is a circle of performers and a pointer to whose turn it is.
+This module is the read side of it: who is in the circle, who holds the turn, and the play order that follows.
+Everything that *moves* the pointer lives in turn_service, which builds on
+these.
 """
 
 import logging
-from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+from sqlalchemy.orm import Session, joinedload
 
 from app.db.models import (
     DbSong,
@@ -18,82 +23,131 @@ from app.db.models import (
     SessionPerformer,
     SessionPlaybackState,
 )
-from app.services import roster_service
-from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
 
-def compute_lap(
-    db: Session, session: KaraokeSession, performer: SessionPerformer
-) -> int:
-    """The lap a newly-inserted item for `performer` belongs to.
+def get_circle(db: Session, session: KaraokeSession) -> List[SessionPerformer]:
+    """Active performers in seat order - one lap, lowest seat to highest."""
+    return (
+        db.query(SessionPerformer)
+        .filter(
+            SessionPerformer.session_id == session.session_id,
+            SessionPerformer.is_active.is_(True),
+        )
+        .order_by(SessionPerformer.seat, SessionPerformer.id)
+        .all()
+    )
 
-    Their Nth pending song is their Nth turn from wherever the rotation has
-    reached for them: `max(laps_taken, current_lap)` is that starting point -
-    the later of the turns they have already sung and the lap the room is on.
-    The `max` is what stops a late joiner (laps_taken 0, room at lap 4) from
-    jumping the whole queue, and stops someone who has already sung this lap
-    from queueing into it a second time.
 
-    **Inserts never advance the rotation** - `current_lap` moves in `advance_to`,
-    at play time, and nowhere else. Advancing it here instead means one person
-    queueing five songs drags the room's frontier to lap 4, and the next person
-    to add starts at lap 4 rather than being interleaved from lap 0.
+def holder_in(
+    db: Session, session: KaraokeSession, circle: List[SessionPerformer]
+) -> Optional[SessionPerformer]:
+    """Who holds the turn, given the circle. Read-only.
+
+    The pointer's performer, else the lowest active seat - which covers a new
+    session, one created before the pointer existed, and a pointer whose row
+    was deleted. A pointer left on someone who is no longer active (remove
+    moves it, so this is defensive) resolves to the next seat after theirs.
     """
-    current_item_id = (
+    if not circle:
+        return None
+
+    pointer = session.turn_performer_id
+    if pointer is None:
+        return circle[0]
+
+    for performer in circle:
+        if performer.id == pointer:
+            return performer
+
+    pointed = db.get(SessionPerformer, pointer)
+    if pointed is not None:
+        for performer in circle:
+            if performer.seat > pointed.seat:
+                return performer
+    return circle[0]
+
+
+def current_holder(db: Session, session: KaraokeSession) -> Optional[SessionPerformer]:
+    """Whose turn the pointer says it is. Read-only."""
+    return holder_in(db, session, get_circle(db, session))
+
+
+def _current_item_id(db: Session, session_id: str) -> Optional[int]:
+    return (
         db.query(SessionPlaybackState.current_queue_item_id)
-        .filter(SessionPlaybackState.session_id == session.session_id)
+        .filter(SessionPlaybackState.session_id == session_id)
         .scalar()
     )
 
-    # The item being sung right now is no longer pending - counting it would
-    # push this performer's next song one lap further out than it belongs.
-    pending = db.query(func.count(KaraokeQueueItem.id)).filter(
-        KaraokeQueueItem.session_id == session.session_id,
-        KaraokeQueueItem.performer_id == performer.id,
-    )
-    if current_item_id is not None:
-        pending = pending.filter(KaraokeQueueItem.id != current_item_id)
 
-    already_queued = pending.scalar() or 0
-    return max(performer.laps_taken, session.current_lap) + already_queued
+def project_upcoming(
+    circle: List[SessionPerformer],
+    holder: Optional[SessionPerformer],
+    bumped_item_id: Optional[int],
+    pending: List[KaraokeQueueItem],
+) -> List[KaraokeQueueItem]:
+    """Rotation-mode play order for the songs that have not started yet.
 
+    Walk the circle from the holder, lap by lap, taking each person's k-th song
+    on the k-th pass. Someone with nothing queued still has their turn - it is
+    just not a song, so it is not in this list (the turn says `empty_seat`).
+    A bumped song goes first. If it is the holder's, it is their turn and the
+    walk starts at the next seat; anyone else's is an extra song and the walk
+    starts at the holder (see `turn_service.record_play`).
 
-def advance_to(session: KaraokeSession, item: KaraokeQueueItem) -> None:
-    """Record that playback has reached `item`, moving the rotation with it.
-
-    `current_lap` is the lap a walk-up joins at; `laps_taken` is the turn count
-    that keeps a performer who has already sung this lap out of it. Both move
-    here, when a song actually starts - never on insert.
+    Pure: it touches no database. Songs of anyone outside the circle - removed
+    for the night - are hidden, not deleted. Rows with no performer at all
+    (from before the roster) go at the end in insert order.
     """
-    session.current_lap = max(session.current_lap, item.lap)
-    if item.performer is not None:
-        item.performer.laps_taken = max(item.performer.laps_taken, item.lap + 1)
-        # Singing is the loudest sign of life there is: it clears any auto-pass
-        # count the handoff screen ran up while this person was away from the TV.
-        roster_service.mark_active(item.performer)
+    songs: Dict[int, List[KaraokeQueueItem]] = {p.id: [] for p in circle}
+    orphans: List[KaraokeQueueItem] = []
+    bumped: Optional[KaraokeQueueItem] = None
 
+    for item in sorted(pending, key=lambda i: i.id):
+        if bumped_item_id is not None and item.id == bumped_item_id:
+            bumped = item
+        elif item.performer_id is None:
+            orphans.append(item)
+        elif item.performer_id in songs:
+            songs[item.performer_id].append(item)
 
-def enter_rotation(performer: SessionPerformer) -> None:
-    """Stamp when `performer` joined the circle, the first time they queue.
+    if bumped is not None and bumped.performer_id not in songs:
+        # A bump on someone outside the circle is hidden with the rest of
+        # their songs; an orphan bump still plays first.
+        if bumped.performer_id is not None:
+            bumped = None
 
-    Written once and never moved, so their place in each lap is fixed for the
-    night: whoever queued first stays ahead of whoever queued after them.
-    """
-    if performer.first_queued_at is None:
-        performer.first_queued_at = datetime.utcnow()
+    ordered: List[KaraokeQueueItem] = []
+    if bumped is not None:
+        ordered.append(bumped)
+    if not circle:
+        return ordered + orphans
+
+    index = circle.index(holder) if holder in circle else 0
+    if bumped is not None and holder is not None and bumped.performer_id == holder.id:
+        index += 1
+
+    remaining = sum(len(queue) for queue in songs.values())
+    while remaining:
+        queue = songs[circle[index % len(circle)].id]
+        index += 1
+        if queue:
+            ordered.append(queue.pop(0))
+            remaining -= 1
+
+    return ordered + orphans
 
 
 def get_ordered_queue_items(db: Session, session_id: str) -> List[KaraokeQueueItem]:
-    """All of a session's queue items, sorted per its `queue_order_mode`.
+    """A session's queue items in play order, per its `queue_order_mode`.
 
-    Rotation: (lap, first_queued_at, id) - a pure sort, no row is ever mutated
-    to produce it. The tie inside a lap goes to whoever entered the rotation
-    first, *not* to the lower seat: seats are handed out on join, so the host
-    holds seat 0 and would otherwise open every single lap.
-    Append: (position, id) - today's manually-reordered behaviour.
+    Rotation: the item playing now (if any), then `project_upcoming`.
+    Append: (position, id) - the host's manual drag order.
+
+    The playing item is included so callers can find it by id; both queue
+    payload builders split it back out as `current`.
     """
     session = (
         db.query(KaraokeSession).filter(KaraokeSession.session_id == session_id).first()
@@ -109,52 +163,14 @@ def get_ordered_queue_items(db: Session, session_id: str) -> List[KaraokeQueueIt
         .filter(KaraokeQueueItem.session_id == session_id)
     )
 
-    if mode == "rotation":
-        items = query.all()
-        items.sort(
-            key=lambda item: (
-                item.lap,
-                (
-                    item.performer.first_queued_at
-                    if item.performer is not None
-                    and item.performer.first_queued_at is not None
-                    else datetime.max
-                ),
-                item.id,
-            )
-        )
-        return items
+    if mode != "rotation":
+        return query.order_by(KaraokeQueueItem.position, KaraokeQueueItem.id).all()
 
-    return query.order_by(KaraokeQueueItem.position, KaraokeQueueItem.id).all()
+    items = query.all()
+    current_id = _current_item_id(db, session_id)
+    current = [item for item in items if item.id == current_id]
+    pending = [item for item in items if item.id != current_id]
 
-
-def bump_to_next(
-    db: Session, session_id: str, item_id: int
-) -> Optional[KaraokeQueueItem]:
-    """Rewrite one item's `lap` so it sorts first among this session's pending items.
-
-    Rotation mode only - free drag reorder already covers append mode. This is
-    the one deliberate exception to "lap is written once and never recomputed":
-    a human asked for it. Returns None if the item does not exist in this session.
-    """
-    item = (
-        db.query(KaraokeQueueItem)
-        .filter(
-            KaraokeQueueItem.id == item_id,
-            KaraokeQueueItem.session_id == session_id,
-        )
-        .first()
-    )
-    if item is None:
-        return None
-
-    min_lap = (
-        db.query(func.min(KaraokeQueueItem.lap))
-        .filter(
-            KaraokeQueueItem.session_id == session_id,
-            KaraokeQueueItem.id != item_id,
-        )
-        .scalar()
-    )
-    item.lap = (min_lap - 1) if min_lap is not None else 0
-    return item
+    circle = get_circle(db, session)
+    holder = holder_in(db, session, circle)
+    return current + project_upcoming(circle, holder, session.bumped_item_id, pending)

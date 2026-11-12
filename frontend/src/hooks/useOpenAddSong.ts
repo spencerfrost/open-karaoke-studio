@@ -3,17 +3,35 @@
  *
  * On the phone and desktop that is a route change; on the stage it is a screen
  * change inside the shell, because the player underneath must keep playing.
- * Callers get one function and never have to know which.
+ * Callers get one function and never have to know which. Moving around inside
+ * the flow is useAddFlowNavigation's job.
  */
 
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStageShell } from "@/features/stage";
+import { addFlowPath } from "./useAddFlowNavigation";
 
 export interface OpenAddSongOptions {
   query?: string;
-  browseArtist?: boolean;
+  /** Go straight to the artist whose name matches `query`, if there is one. */
+  findArtist?: boolean;
+  /** Open this YouTube Music artist instead, when the library knows them. */
+  artistBrowseId?: string;
 }
+
+/**
+ * "Find more from this artist": their YouTube Music page when the library
+ * knows it, else a search for their name that opens the matching artist.
+ * The songbook's browse card and the stage wheel's last row both use it.
+ */
+export const browseArtistOptions = (artist: {
+  name: string;
+  youtubeMusicArtistId?: string | null;
+}): OpenAddSongOptions =>
+  artist.youtubeMusicArtistId
+    ? { artistBrowseId: artist.youtubeMusicArtistId }
+    : { query: artist.name, findArtist: true };
 
 export const useOpenAddSong = () => {
   const navigate = useNavigate();
@@ -25,13 +43,17 @@ export const useOpenAddSong = () => {
         shell.openAdd(opts);
         return;
       }
-
-      const params = new URLSearchParams();
-      if (opts.query) params.set("q", opts.query);
-      if (opts.browseArtist) params.set("browseArtist", "true");
-
-      const search = params.toString();
-      navigate(search ? `/add?${search}` : "/add");
+      navigate(
+        addFlowPath(
+          opts.artistBrowseId
+            ? { kind: "artist", browseId: opts.artistBrowseId }
+            : {
+                kind: "search",
+                query: opts.query,
+                findArtist: opts.findArtist,
+              },
+        ),
+      );
     },
     [navigate, shell],
   );

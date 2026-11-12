@@ -1,4 +1,5 @@
 """Unit tests for SyncedLyricsService."""
+
 from unittest.mock import patch
 
 import pytest
@@ -102,13 +103,23 @@ class TestSearchLyricsStructured:
 
     def test_enhances_result_with_structured_metadata(self, service):
         fake_result = {
-            "id": None, "name": "query", "trackName": None, "artistName": None,
-            "albumName": None, "duration": None, "instrumental": False,
-            "plainLyrics": "some", "syncedLyrics": "[00:00.00] line"
+            "id": None,
+            "name": "query",
+            "trackName": None,
+            "artistName": None,
+            "albumName": None,
+            "duration": None,
+            "instrumental": False,
+            "plainLyrics": "some",
+            "syncedLyrics": "[00:00.00] line",
         }
         with patch.object(service, "search_lyrics", return_value=[fake_result]):
             results = service.search_lyrics_structured(
-                {"track_name": "Never Gonna", "artist_name": "Rick Astley", "album_name": "Whenever"}
+                {
+                    "track_name": "Never Gonna",
+                    "artist_name": "Rick Astley",
+                    "album_name": "Whenever",
+                }
             )
         assert results[0]["trackName"] == "Never Gonna"
         assert results[0]["artistName"] == "Rick Astley"

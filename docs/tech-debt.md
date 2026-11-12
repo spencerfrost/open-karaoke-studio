@@ -1,477 +1,66 @@
 # Open Karaoke Studio - Tech Debt & Known Issues
 
-Prioritized list of technical debt, known issues, and improvement opportunities discovered through codebase exploration.
+Known issues and cleanup work, grouped by severity. Item numbers are stable — other docs
+link to them — so closed items keep their number in the [Resolved](#resolved) table and new
+items take the next free number.
 
-## Summary Statistics
+**Last checked against the code:** 2026-11-09.
 
-| Category | Count |
-|----------|-------|
-| **Critical Issues** | 8 |
-| **Important Issues** | 19 |
-| **Nice-to-Have** | 7 |
-| **Total TODOs Found** | 10+ explicit TODOs |
-| **Console.log Statements** | 50+ in frontend |
-| **ESLint Disables** | 9 |
-| **Backend Tests** | 2,277 files |
-| **Frontend Tests** | 4 files (infrastructure exists) |
-| **Print Statements (Backend)** | 0 (resolved) |
+| Severity | Open items |
+|----------|-----------|
+| 🟠 Important | #21, #33, #38, #39 |
+| 🟢 Low | #5, #8, #10, #11, #14, #16, #17, #18, #19, #40, #41, #42, #43 |
 
-**Note:** Several issues documented here have been resolved since this document was written. See [docs/websocket-protocol.md](websocket-protocol.md) for the current WebSocket message catalog.
+The access-gate audit items (#23–#37) are all fixed except #33, which is a robustness issue,
+not a hole. [Authentication](/api/authentication) has the rules they settled on.
 
----
+The 4-letter room code is the intended gate, Jackbox-style: anyone with the code may join. What
+the audit items guard against is a path *around* the join step — something that accepts a code
+without the rate-limited, roster-visible `join-by-code` that hands out a device id.
 
-## Table of Contents
-
-1. [Critical Issues](#critical-issues) - Fix immediately
-2. [Important Issues](#important-issues) - Address soon
-3. [Nice-to-Have Improvements](#nice-to-have-improvements) - When time permits
-4. [Quick Wins](#quick-wins) - Easy improvements
-
----
-
-## Critical Issues
-
-### 1. Celery Job Cancellation Not Implemented
-
-**Severity:** 🔴 CRITICAL
-
-**Status:** ✅ **RESOLVED** (commit `9d8368df4`)
-
-**Location:** [jobs_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/jobs_service.py)
-
-**Resolution:** `cancel_job()` now calls `celery.control.revoke(job.task_id, terminate=True, signal="SIGTERM")` before marking the job cancelled.
-
----
-
-### 2. Print Statements in Production WebSocket Code
-
-**Severity:** 🔴 CRITICAL
-
-**Status:** ✅ **RESOLVED** (2026-03-06)
-
-**Locations:** 5 files in `/backend/app/ws/`
-- [session_specific.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
-- [sessions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/sessions.py)
-- [connection_manager.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/connection_manager.py)
-- [queue.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/queue.py)
-- [jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
-
-**Resolution:** All `print()` statements replaced with Python `logging` module. See `docs/websocket-protocol.md` for the complete WebSocket message catalog.
-
----
-
-### 3. Type Safety Issues in Frontend
-
-**Severity:** 🟡 MEDIUM
-
-**Location:** [useJobsSync.ts:27](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/useJobsSync.ts#L27)
-
-**Problem:**
-- Type bypass with `as any`
-- Compromises TypeScript type safety
-- Runtime errors possible
-
-**Evidence:**
-```typescript
-const songId = (job as any).song_id;  // Type bypass
-```
-
-**Impact:** MEDIUM - Runtime errors possible, type safety compromised
-
-**Recommendation:**
-- Define proper interface for job type
-- Add `song_id` to job type definition
-- Remove type bypass
-
----
-
-### 4. Manual Migration Workaround
-
-**Severity:** 🟡 MEDIUM
-
-**Location:** [20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py:23](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/alembic/versions/20251228_0009_d335baa6b48b_add_back_itunes_preview_url.py#L23)
-
-**Problem:**
-- Migration checks if column exists before adding
-- Indicates prior manual ALTER TABLE fix
-- Database schema inconsistency risk
-
-**Impact:** MEDIUM - Database schema inconsistency across environments, migration ordering issues
-
-**Recommendation:**
-- Review migration history
-- Ensure migrations are idempotent
-- Document any manual database changes
-
----
-
-### 22. `batch_align_lyrics` Crashes the Worker Process Mid-Batch (CUDA Allocator Corruption)
-
-**Severity:** 🔴 CRITICAL
-
-**Location:**
-- [batch_tasks.py:batch_align_lyrics](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py) — loads the wav2vec2 model once, then loops synchronously over every eligible song (hundreds) inside a single Celery task invocation using `align_lyrics_to_vocals_with_model`/`align_plain_lyrics_to_vocals_with_model`.
-- [gpu_idle_cleanup.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_idle_cleanup.py) — a `threading.Timer` that calls `torch.cuda.empty_cache()` after `GPU_IDLE_CLEANUP_SECONDS` of no tracked GPU activity, tracked via `begin_gpu_activity()`/`end_gpu_activity()`.
-- [lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) — the per-song `align_lyrics_to_vocals`/`align_plain_lyrics_to_vocals` (used by the single-song `align_song_lyrics` task) correctly bracket their CUDA work with `begin_gpu_activity()`/`end_gpu_activity()` (lines ~326/361, ~582/617). The `_with_model` variants used by `batch_align_lyrics` did **not** — the batch loop never told the idle-cleanup subsystem it was using the GPU.
-
-**Problem:** Found 2026-08-28 while running a library-wide alignment backfill; the batch task repeatedly died with no error in `logs/celery.log` and no task-failure event. `journalctl`/`dmesg` showed the real cause: four separate hard SIGSEGV crashes in `libc10_cuda.so` (`DeviceCachingAllocator::malloc`, PyTorch's CUDA caching allocator) over the course of the backfill, each captured by `systemd-coredump`. Because `batch_align_lyrics` never called `begin_gpu_activity()`, a leftover idle-cleanup timer (armed by an unrelated task that had run earlier in the same worker process) could fire `torch.cuda.empty_cache()` on its own daemon thread *while the batch loop's thread was mid-allocation* — `empty_cache()` racing a live `cudaMalloc` on another thread of the same process corrupts the allocator's internal free-list, producing exactly this segfault signature. Because it's a native crash (not a Python exception), Celery can't catch it, log a traceback, or mark the task failed — the worker process just dies silently, and the batch stops with zero record of why.
-
-**Impact:** CRITICAL — total, silent task loss. A multi-hundred-song backfill can die after processing only a handful of songs, with nothing in the logs to indicate why, and no automatic retry (the failure isn't visible to Celery as a failure at all).
-
-**Fix applied (2026-08-28):** `batch_align_lyrics` now brackets its entire loop with `begin_gpu_activity("batch-lyrics-alignment:...")` / `end_gpu_activity(...)` in a `try`/`finally`, matching the pattern already used by the per-song alignment functions. This cancels/suppresses the idle-cleanup timer for the full duration of the batch instead of leaving it free to fire mid-batch.
-
-**Follow-up still recommended:** restructure `batch_align_lyrics` into one Celery task per song — dispatched/chained the way `process_audio_job` already is — instead of one task looping over the whole library. This would also give proper per-song progress/retry instead of an all-or-nothing batch, and further reduce the blast radius if a similar native crash ever recurs from another cause.
-
-**Related, lower-severity fix (same day):** added `--without-gossip --without-mingle` to all three workers in `run_celery.sh` — this stops noisy "missed heartbeat" log spam from cross-worker gossip on this single-box setup, but was a symptom fix, not the cause of the silent failures described above.
-
----
-
-### 23. Most HTTP Endpoints Have No Auth Dependency At All
-
-**Severity:** 🔴 CRITICAL
-
-**Location:** `main.py:110-124` includes every router with no `dependencies=`, so per-endpoint `Depends(...)` is the *only* gate — there is no router-level or app-level fallback.
-
-**Problem:** Found 2026-08-30 while rebuilding the frontend's access gate (the `isAuthenticated || sessionId` rule now enforced in `frontend/src/routes/guards.tsx`, replacing the passthrough left by commit `30e1f1882`). An inventory of every router turned up **~38 endpoints with no auth dependency whatsoever**, reachable by anyone who can reach the API — the entire read surface: every `GET /api/songs*` (list, search, artists, shows, by-artist, by-show, details, thumbnail, download), all of `lyrics.py`'s read endpoints, `youtube.py`/`youtube_music.py` search, and `sessions.py`'s `/info`, `/validate`, `/performers`. The frontend's route gate only controls what the React app *shows* — it does nothing to stop a direct `curl` against the API.
-
-**Impact:** CRITICAL — on a LAN deployment this is low-severity (anyone on the network could already see the TV), but the app is not scoped to stay LAN-only, and several of these endpoints leak more than song metadata (see #24 and #25 below for the session-specific instances).
-
-**Recommendation:** Apply `require_host_or_session_member` (`backend/app/api/dependencies.py`) across the read endpoints listed above, following the pattern already established for `POST /api/songs`, `PATCH /api/songs/{id}`, and `POST /api/youtube/download`. This is a large, mechanical change — worth its own PR rather than folding into unrelated feature work.
-
----
-
-### 24. The Session WebSocket Accepts Unauthenticated Connects, and Two Handlers Are Ungated Inside It
-
-**Severity:** 🔴 CRITICAL
-
-**Location:** [session_specific.py:177-243](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py) (connect), lines 307-324 (`update_performance_control`), lines 448-454 (`queue_changed`).
-
-**Problem:** Found 2026-08-30 during the same audit as #23. `/ws/session/{session_id}` checks only that the `KaraokeSession` row exists, is active, and isn't expired — no token, no `X-Device-ID`, nothing tying the socket to a real `SessionDevice`. The 4-character `session_id` (which is also the `display_code` shown on screen and printed in every QR code — see #29) is the only thing standing between an anonymous client and the room. An anonymous connection can passively receive every broadcast in the room (`session_connected`, `control_updated`, `performance_state`, `playback_*`, `queue_updated` — full singer names and song metadata) and can actively call `request_queue_update`.
-
-Worse: the handler set is otherwise correctly gated on `is_session_owner` (see `update_player_state`, the `playback_play`/`playback_pause`/`reset_player_state`/`song_loaded`/`song_ready` group) — but two handlers were missed. `update_performance_control` has no ownership check at all and will write any key already present in the in-memory state dict, including `is_playing`, `current_time`, `duration`, and `current_song_id` alongside the intended volume/lyrics-size controls. `queue_changed` has no check either and lets any client trigger a `queue_updated` broadcast to the whole room.
-
-**Impact:** CRITICAL — an anonymous client on the LAN can corrupt in-memory playback state and spam room broadcasts for a session it never joined, and can surveil every session's queue and singer names without a credential.
-
-**Recommendation:** Add the same `is_session_owner` check already used by the sibling handlers to `update_performance_control` and `queue_changed`. The unauthenticated-connect design itself (vs. requiring a device credential at connect time) is a bigger decision — flag it for the same follow-up plan as #23 rather than deciding it here.
-
----
-
-### 25. `/ws/jobs` Has No Auth Whatsoever
-
-**Severity:** 🔴 CRITICAL
-
-**Location:** [jobs.py:33-51](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/jobs.py)
-
-**Problem:** Found 2026-08-30, same audit as #23-24. `manager.connect(websocket)` runs immediately on connect with no token check and no `authenticate` message handler at all — any anonymous client can connect, join the global `"jobs_updates"` room, and send `subscribe_to_jobs`/`request_jobs_list` to receive the full in-flight job list (`job.to_dict()`: filenames, titles, song ids, engine types). The equivalent HTTP endpoint, `GET /api/jobs`, requires `require_host` — this WebSocket is a straight bypass of that gate for read access.
-
-**Impact:** CRITICAL — anonymous job-queue surveillance; the WS and HTTP surfaces enforce different policies for the same data.
-
-**Recommendation:** Gate the connect (or at minimum the `subscribe_to_jobs` message) behind the same `require_host` check the HTTP endpoint uses.
+This page is the cross-cutting list. Each [domain doc](architecture.md#domain-docs) also has a
+Known debt section with the bugs and dead code in its own slice, in more detail.
 
 ---
 
 ## Important Issues
-
-### 5. Missing Frontend Tests
-
-**Severity:** 🟠 IMPORTANT
-
-**Status:** 🚧 **In Progress** - Test infrastructure exists, coverage needs expansion
-
-**Location:** `/frontend/src/` (entire frontend)
-
-**Progress:**
-- ✅ Vitest configured
-- ✅ Mock data and API handlers added
-- ✅ 4 test files exist (player store, LRC parser, lyrics timing, lyrics renderer)
-
-**Current State:**
-- 4 test files exist (not 0 as originally documented)
-- Tests cover: player store, LRC parsing, lyrics timing/rendering
-- Missing: queue operations, session connection lifecycle, WebSocket sync integration
-
-**Recommendation:**
-- Expand test coverage for critical paths: queue management, session lifecycle
-- Add integration tests with mocked WebSockets
-- Aim for 70%+ coverage of critical paths
-
----
-
-### 6. Excessive Console Logging in Production
-
-**Severity:** 🟠 IMPORTANT
-
-**Status:** 🚧 **In Progress** - Using `createLogger()` but console.log still present
-
-**Locations:** 50+ console.log statements across frontend
-
-**Key Areas:**
-- [sessionWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/sessionWebSocketService.ts) - WebSocket events
-- [jobsWebSocketService.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/services/jobsWebSocketService.ts) - Job updates
-- [sessionStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/sessionStore.ts) - State changes
-- [useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts) - Player state
-
-**Current State:**
-- Logger utility exists (`createLogger` from `@/lib/logger`)
-- Some files still use console.log directly
-- Need to migrate all console statements to proper logging
-
-**Recommendation:**
-- Replace remaining console.log with createLogger
-- Guard debug logging in production via `VITE_LOG_LEVEL`
-
----
-
-### 7. Default Singer Hardcoded
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:**
-- [singers.ts:9-12](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/constants/singers.ts#L9-L12)
-- [PrimaryActionsSection.tsx:56, 88](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/PrimaryActionsSection.tsx#L56)
-
-**Problem:**
-```typescript
-// TODO: This should become a user setting in the upcoming settings feature
-export const DEFAULT_SINGER = "global";
-```
-
-Also hardcoded "Unknown Singer" in action buttons.
-
-**Impact:** MEDIUM - Poor UX, awaiting settings feature
-
-**Recommendation:**
-- Implement settings page
-- Allow user to set default singer name
-- Store in localStorage or user preferences
-
----
-
-### 8. Incomplete Preload Implementation
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [useKaraokePlayer.ts:111](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/hooks/useKaraokePlayer.ts#L111)
-
-**Problem:**
-```typescript
-console.log("Preloading song:", preloadSongId);
-// TODO: Implement actual preloading logic
-```
-
-**Impact:** MEDIUM - Performance optimization missing, songs not preloaded
-
-**Recommendation:**
-- Preload audio for next song in queue
-- Use Web Audio API to buffer next track
-- Reduce gap between songs
-
----
-
-### 9. Disabled Lyric Alignment Analysis
-
-**Severity:** 🟡 MEDIUM
-
-**Location:** [batch_test.py:39-43](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/experiments/lyric_alignment/batch_test.py#L39-L43)
-
-**Problem:**
-- Analysis and reporting logic commented out with TODO
-- Feature incomplete
-
-**Impact:** MEDIUM - Technical debt in experimental code
-
-**Recommendation:**
-- Complete the implementation OR
-- Move to separate experimental branch
-- Document why it's disabled
-
----
-
-### 10. No Drag-and-Drop Queue Reordering
-
-**Severity:** 🟡 MEDIUM
-
-**Location:** [KaraokeQueueList.tsx:42](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueList.tsx#L42)
-
-**Problem:**
-```typescript
-// TODO: add drag-and-drop functionality for reordering
-```
-
-**Impact:** MEDIUM - UX feature gap, users can't reorder queue easily
-
-**Recommendation:**
-- Use react-beautiful-dnd or @dnd-kit
-- Add drag handles to queue items
-- Update backend API to support reordering
-
----
-
-### 11. Missing Connecting State in Player
-
-**Severity:** 🟡 MEDIUM
-
-**Location:** [useKaraokePlayer.ts:204](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/hooks/useKaraokePlayer.ts#L204)
-
-**Problem:**
-```typescript
-return "disconnected"; // TODO: Add 'connecting' state detection
-```
-
-**Impact:** LOW-MEDIUM - Poor connection status feedback to users
-
-**Recommendation:**
-- Add 'connecting' state to player
-- Show loading spinner during connection
-- Better UX for connection issues
-
----
-
-### 12. Player Store State Persistence Issue
-
-**Severity:** 🟡 MEDIUM
-
-**Status:** 🚧 **In Progress** - Workaround still in place
-
-**Location:** [useKaraokePlayerStore.ts:722](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts#L722)
-
-**Current State:**
-```typescript
-// Note: We don't reset the store state here as it causes infinite loops
-```
-
-**Investigation Needed:**
-- Root cause of infinite loop
-- Proper store lifecycle management
-- Fix architecture vs working around it
-
----
-
-### ~~13. Deprecated Test File Not Removed~~ ✅ RESOLVED
-
-**Was:** `test_songs_api.py.deprecated` left in `backend/tests/integration/test_api/`.
-
-**Fixed:** File no longer exists in the repo.
-
----
 
 ### 21. Repeated Lyric Lines Break Word Alignment Matching
 
 **Severity:** 🟠 IMPORTANT
 
 **Location:**
-- [lrcParser.ts:attachWordTimestamps](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/utils/lrcParser.ts) — frontend word-to-line matching
-- [lyrics_alignment.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_alignment.py) — WhisperX forced alignment
+- `frontend/src/utils/lrcParser.ts` (`attachWordTimestamps`) — frontend word-to-line matching
+- `backend/app/services/lyrics_alignment.py` — WhisperX forced alignment
 
-**Problem:** Found during manual testing (2026-08-28) while verifying a fix for partial-alignment rendering. Two distinct failure modes, same underlying trigger — a lyric line repeating verbatim elsewhere in the song:
+**Problem:** Found during manual testing (2026-08-28). Two failure modes, same trigger — a lyric
+line repeating verbatim elsewhere in the song:
 
-1. **Duplicate-timestamp source data.** Some songs' `synced_lyrics` (from LRCLIB/`syncedlyrics`) have multiple distinct content lines sharing one identical `[mm:ss.xx]` timestamp — e.g. Atmosphere's "Fuck You Lucy" has ~12 consecutive lines all stamped `[00:53.90]`. `attachWordTimestamps`'s timestamp-based line matching can't distinguish between lines with identical timestamps, so word groups collapse onto the wrong line and duplicate/concatenate visually in the player.
-2. **Wrong occurrence matched during forced alignment.** When the exact same lyric line/phrase occurs twice in a song (e.g. Cameron Whitcomb's "The Hard Way" repeats "(You were right) I had to do it the hard way" twice, ~12s apart), WhisperX's forced alignment can anchor word timing to the wrong occurrence, leaving one instance of the line with no word data while its twin has correct timing.
+1. **Duplicate-timestamp source data.** Some songs' `synced_lyrics` (from LRCLIB/`syncedlyrics`)
+   have several distinct lines sharing one `[mm:ss.xx]` timestamp — e.g. Atmosphere's "Fuck You
+   Lucy" has ~12 consecutive lines stamped `[00:53.90]`. `attachWordTimestamps` now prefers the
+   backend's `line_index`, but when that index
+   isn't consistent it falls back to timestamp matching, which can't tell those lines apart, so
+   words pile onto one line.
+2. **Wrong occurrence matched during forced alignment.** When the same line occurs twice (e.g.
+   Cameron Whitcomb's "The Hard Way" repeats "(You were right) I had to do it the hard way" ~12s
+   apart), WhisperX can anchor word timing to the wrong occurrence, leaving one instance with no
+   word data while its twin has correct timing.
 
-**Impact:** MEDIUM — cosmetic during karaoke playback (garbled/duplicated line text, or a line missing per-word highlighting) for the subset of songs with duplicate-timestamp LRC data or repeated lyric lines. Does not affect plain-lyrics or non-repeating synced-lyrics playback.
+The "Needs repair" alignment run (`backend/app/services/lyrics_repair.py`, 2026-10-09) catches
+some of these through its `words_mismatch` reason and singer reports, but it re-runs the same
+alignment, so it doesn't fix either cause. See
+[lyrics-system.md](domains/lyrics-system.md) for how the matching works.
+
+**Impact:** MEDIUM — cosmetic during playback (garbled/duplicated line text, or a line missing
+per-word highlighting) for songs with duplicate-timestamp LRC data or repeated lines.
 
 **Recommendation:**
-- For (1): detect duplicate consecutive timestamps during LRC ingestion/parsing and either reject the source or fall back to evenly-spaced synthetic timestamps for that block.
-- For (2): investigate whether WhisperX alignment can be given position/context hints (e.g. previous alignment progress) to disambiguate repeated phrases, or accept the limitation and only auto-apply alignment above a stricter per-song confidence threshold.
-- Neither fix should be bundled with unrelated lyrics-rendering work — this is an alignment/data-quality problem, not a rendering bug.
-
----
-
-### 26. `POST /api/sessions/{id}/performers` Is Unauthenticated
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [sessions.py:969](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py)
-
-**Problem:** Found 2026-08-30 during the access-gate audit (see #23). Anyone who knows a session's 4-character id can inject arbitrary named performers into that session's roster and trigger a broadcast to every connected device — no membership or ownership check at all.
-
-**Impact:** IMPORTANT — directly undercuts the roster feature ([docs/plans/2026-08-29-roster-and-rotation.md](https://github.com/spencerfrost/open-karaoke-studio/blob/acc34ec32/docs/plans/2026-08-29-roster-and-rotation.md)): a stranger can pollute a live session's singer queue.
-
-**Recommendation:** Gate behind `require_host_or_session_member`, scoped to the named session the way `require_queue_access` now does for the queue endpoints (`backend/app/api/karaoke_queue.py`).
-
----
-
-### 27. `POST /api/sessions/{id}/playlist` Is Unauthenticated
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [session_playlist.py:135](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/session_playlist.py)
-
-**Problem:** Found 2026-08-30, same audit as #26. An anonymous caller can trigger a background YouTube Music playlist-generation job for any session id, guarded only by an idempotent job id (not an auth check).
-
-**Impact:** IMPORTANT — unauthenticated outbound work amplification against a third-party service.
-
-**Recommendation:** Same fix shape as #26.
-
----
-
-### 28. `GET /api/sessions/{id}/info` Leaks the Device Roster and Trusts a Client-Supplied `device_id`
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [sessions.py:795-798](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/sessions.py)
-
-**Problem:** Found 2026-08-30, same audit as #26. The endpoint returns the full connected-device roster (device ids, display names) to anonymous callers, and derives `is_host` by comparing `session.host_device_id` against a `device_id` passed as a plain query parameter — i.e. the client asserts its own host status and the server believes it for the purposes of this response.
-
-**Impact:** IMPORTANT — anonymous roster/device-id disclosure, plus a spoofable `is_host` flag in the response (though nothing privileged is gated on this specific response's `is_host` today — worth re-checking if that changes).
-
-**Recommendation:** Require the same credential (`X-Session-ID` + `X-Device-ID`) `require_session_member` already validates elsewhere instead of an unauthenticated query param.
-
----
-
-### 29. `session_id` and `display_code` Are the Same Value — Anything Trusting the Id Alone Is Trusting a Displayed 4-Character Code
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [session.py:96](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/session.py) — `session_id=display_code` at session creation.
-
-**Problem:** Found 2026-08-30 during the same audit. `session_id` (the credential-shaped field used throughout the backend and the frontend's `sessionStore`) and `display_code` (the code printed on the stage screen and encoded in every QR code) are literally the same string. `_resolve_session_member` (`backend/app/api/dependencies.py`) is sound because it *also* requires the `rest_xxx`-prefixed `device_id`, but anything that trusts the session id by itself — the WS connect (#24), and `get_session_code` before this change (see `require_queue_access` in `backend/app/api/karaoke_queue.py`, which fixed this for the queue specifically) — is trusting a value that's designed to be shown on a TV and scanned from across a room.
-
-**Impact:** IMPORTANT — not a bug by itself, but a footgun: the next endpoint or handler that reads for "is this caller in session X" by checking `session_id == X` alone is reintroducing the same hole #23's queue fix just closed.
-
-**Recommendation:** When fixing #23/#24/#26/#27/#28, always pair the session id with the device credential (`_resolve_session_member`) or an account (`require_host_or_session_member`) — never trust `session_id` alone as proof of membership.
-
----
-
-### 30. `require_host_or_session_member` Doesn't Fall Back to the Session Credential on an Expired Token
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [dependencies.py:36-42, 137-159](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/api/dependencies.py)
-
-**Problem:** Found 2026-08-30. `require_host_or_session_member` checks for a bearer token first; if one is present, `_resolve_user` raises `401` on an expired/invalid token and the function never falls through to the session-membership path — even though the caller may be holding a perfectly valid `X-Session-ID`/`X-Device-ID` pair. Concretely: a guest who signed into a host account at some point (token now expired, still cached client-side) loses queue/song-creation access despite an active session membership. Affects `POST /api/songs`, `PATCH /api/songs/{id}`, `POST /api/youtube/download`, and the new `require_queue_access` (`backend/app/api/karaoke_queue.py`) — anything built on this shared dependency.
-
-**Impact:** IMPORTANT — a confusing, hard-to-reproduce access loss for a returning user; not a security hole (fails closed), just a broken fallback.
-
-**Recommendation:** In `require_host_or_session_member`, catch the token-invalid case and continue to the session-membership check instead of raising immediately.
-
----
-
-### 31. Host-Disconnect Session Teardown Is Keyed on the Socket, Not the User
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** [session_specific.py:467-510](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)
-
-**Problem:** Found 2026-08-30 during the same audit as #24. On `WebSocketDisconnect` of a connection with `is_session_owner=True`, a 30-second grace timer starts, after which `deactivate_session` + `force_close_session_connections` end the session for everyone. The timer is cancelled only when *some* connection re-authenticates as owner — but it's armed per-socket, not per-user, so a host with two tabs open who closes just one of them starts the countdown even though their other tab is still connected and still the owner.
-
-**Impact:** IMPORTANT — a host can lose their live session (and kick every performer) just by closing a duplicate tab, with no warning.
-
-**Recommendation:** Track "is the owning user still connected via *any* socket" rather than "did *this* socket reconnect within 30s" before arming or honoring the grace-period timer.
-
----
-
-### 32. No Rate Limiting on the Unauthenticated Third-Party Proxy Endpoints
-
-**Severity:** 🟠 IMPORTANT
-
-**Location:** `/api/youtube/search`, `/api/youtube-music/*`, `/api/lyrics/search` (see #23 for the full unauthenticated-endpoint list).
-
-**Problem:** Found 2026-08-30. Only `register`, `login`, `join-by-code`, and `join-by-id` carry `@limiter.limit`. Every unauthenticated endpoint that proxies to a third-party API — YouTube, YouTube Music, LRCLIB — has no rate limit at all.
-
-**Impact:** IMPORTANT — an unauthenticated caller can drive unbounded outbound traffic to third-party services through this backend, which is both a cost/quota risk and a way to get the server's IP rate-limited or blocked upstream.
-
-**Recommendation:** Extend the existing `@limiter.limit` pattern to these endpoints; fold in with #23 since fixing auth on them is the more fundamental change anyway.
+- For (1): detect duplicate consecutive timestamps during LRC ingestion/parsing and either reject
+  the source or spread synthetic timestamps across that block.
+- For (2): investigate giving WhisperX position/context hints to disambiguate repeated phrases,
+  or only auto-apply alignment above a stricter per-song confidence threshold.
+- Keep both out of unrelated lyrics-rendering work — this is alignment/data quality, not rendering.
 
 ---
 
@@ -479,104 +68,166 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Severity:** 🟠 IMPORTANT
 
-**Location:** [session.py:30](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/session.py)
+**Location:** `backend/app/db/models/session.py` (`KaraokeSession.host_user_id`); the bypass is
+`require_session_owner` in `backend/app/api/karaoke_queue.py`.
 
-**Problem:** Found 2026-08-30 while adding `require_session_owner` to `backend/app/api/karaoke_queue.py` (the ownership check behind `DELETE`/`reorder`/`play`/`skip` on the queue). Because `host_user_id` can be `NULL` on legacy rows, a strict "only the owner may mutate" rule would make those sessions permanently unmutable by anyone — the new dependency has to fall back to `current_user.is_admin` to avoid that trap.
+**Problem:** Found 2026-08-30. Because `host_user_id` can be `NULL` on legacy rows, a strict
+"only the owner may mutate" rule would make those sessions unmutable by anyone — so
+`require_session_owner` falls back to `current_user.is_admin`.
 
-**Impact:** IMPORTANT — not itself a vulnerability (the bypass is admin-only), but every future host-ownership check on `KaraokeSession` will need the same escape hatch until this is cleaned up, and each one is a place the bypass could be copied incorrectly.
+**Impact:** IMPORTANT — not a vulnerability (the bypass is admin-only), but every future
+ownership check on `KaraokeSession` needs the same escape hatch until this is cleaned up, and
+each copy is a place it could go wrong.
 
-**Recommendation:** Backfill `host_user_id` for any existing `NULL` rows (or confirm none exist in production) and migrate the column to `NOT NULL`, then drop the admin-bypass requirement from new ownership checks going forward.
+**Recommendation:** Backfill `host_user_id` for any `NULL` rows (or confirm none exist in prod),
+migrate the column to `NOT NULL`, then drop the admin bypass. Dev has none. Do it with the rest of
+the model/schema reconciliation, since that migration makes the other `NOT NULL` changes too.
 
 ---
 
-### 34. Dead WebSocket Code: an Unrouted Session Endpoint and an Empty Module
+### 38. Errors Reach the Browser as Raw Exception Text
 
 **Severity:** 🟠 IMPORTANT
 
-**Location:** [ws/sessions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/sessions.py), `ws/session_state.py`.
+**Location:** `backend/app/main.py`, routes across `backend/app/api/` (most in `songs.py`,
+`youtube.py`, `lyrics.py`, `users.py`)
 
-**Problem:** Found 2026-08-30. `ws/sessions.py` defines a complete, unauthenticated session create/join-over-websocket endpoint (`websocket_session_endpoint`) that is neither exported from `ws/__init__.py` nor routed in `main.py` — unreachable in production, but live in the codebase as a second, divergent implementation of session join. `ws/session_state.py` is a 0-byte file.
+**Problem:** Nothing turns the `app.exceptions` types (`NotFoundError`, `ValidationError`,
+`ServiceError`…) into HTTP responses. Each route has its own `try`/`except`: there are 40 `except
+Exception` blocks in `app/api/`, and 29 routes answer `500` with the exception's text in `detail`
+(`f"Failed to retrieve songs: {str(e)}"`). That text can be a SQL error, a file path or a
+yt-dlp message. Each route also decides for itself which errors become 404s or 400s, so the
+same failure gets different status codes on different routes.
 
-**Impact:** IMPORTANT (maintainability, not runtime risk since it's unreachable) — dead code that could be mistaken for the real session-join path, or accidentally wired back in without the auth review the reachable paths have had.
+**Impact:** MEDIUM — internal details shown to any caller, and the frontend can't rely on
+status codes.
 
-**Recommendation:** Delete both files.
+**Recommendation:** Register one exception handler per `app.exceptions` type in `main.py`
+(`NotFoundError` → 404, `ValidationError` → 400, anything else → 500 with a fixed message, and
+the traceback logged with `exc_info=True`). Then remove the per-route `except Exception` blocks.
+Routes raise the typed error, or nothing.
 
 ---
 
-## Nice-to-Have Improvements
+### 39. Unpinned Dependencies, Unmaintained JWT Library
 
-### 14. ESLint Disables Scattered Throughout Frontend
+**Severity:** 🟠 IMPORTANT
+
+**Location:** `backend/requirements.txt`, `backend/app/services/auth_service.py`
+
+**Problem:** 32 of the 33 requirements are `>=` ranges, so every Docker build installs whatever
+was released most recently. Nothing records which versions prod is running, and a release
+upstream can break a build that changed nothing. `python-jose`, which signs and checks every
+login token, has gone years between releases, and FastAPI's own docs moved to PyJWT.
+
+**Impact:** MEDIUM — prod builds aren't reproducible, and auth depends on an abandoned library.
+
+**Recommendation:** Keep `requirements.txt` as the list of direct dependencies. Generate a
+locked `requirements.lock` from it with `uv pip compile`, and install the lock in the
+Dockerfile and `setup.sh`. Swap `python-jose` for PyJWT: HS256 tokens are the same format, so
+existing logins survive.
+
+---
+
+## Low Priority
+
+### 5. Thin Frontend Test Coverage
 
 **Severity:** 🟢 LOW-MEDIUM
 
-**Locations:** 9 occurrences of `eslint-disable` comments
+**Current state:** 13 test files, covering the player store, LRC parsing, lyric timing and
+rendering, route guards, `useAccess`, the stage wheel model, turn items, the default-singer
+picker, and a few utils.
 
-**Files:**
-- [Stage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/Stage.tsx)
-- [AddSongDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/AddSongDialog.tsx)
-- [LyricsFetchDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsFetchDialog.tsx)
-- [FileUpload.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/upload/FileUpload.tsx)
-- [LibrarySearchInput.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/LibrarySearchInput.tsx)
+**Missing:** queue operations, session connection lifecycle, WebSocket sync — the paths most
+likely to break during a live session.
 
-**Problem:**
-- `react-hooks/exhaustive-deps` disabled in multiple components
-- Suppressing useful warnings
-- Potential dependency bugs
-
-**Impact:** LOW-MEDIUM - May hide bugs in useEffect dependencies
-
-**Recommendation:**
-- Review each case
-- Fix dependency arrays properly
-- Only disable if truly necessary
+**Recommendation:** Add tests for the queue and session hooks with a mocked WebSocket.
 
 ---
 
-### 15. Missing Thumbnail Display
+### 8. Preload Is a Stub
 
 **Severity:** 🟢 LOW
 
-**Location:** [KaraokeQueueItem.tsx:56](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/queue/components/KaraokeQueueItem.tsx#L56)
+**Location:** `frontend/src/features/player/hooks/useKaraokePlayer.ts` (`preloadSong`)
 
-**Problem:**
-```typescript
-{/* TODO: Include thumbnail once that feature is finalized */}
-```
+**Problem:** `preloadSong` only logs and has a `// TODO: Implement actual preloading logic`. No
+caller passes the `preload` option (`KaraokePlayer.tsx` passes only `autoPlay`), so it never runs.
 
-**Impact:** LOW - Visual enhancement pending
-
-**Recommendation:**
-- Finalize thumbnail feature
-- Add artwork to queue items
+**Recommendation:** Either implement it (buffer the next queued song's stems so the handoff has
+no load gap) or delete the stub and the `preload` option.
 
 ---
 
-### 16. Error Handling Patterns Could Be Improved
+### 10. No Queue Reordering in the UI
 
-**Severity:** 🟢 LOW-MEDIUM
+**Severity:** 🟢 LOW
 
-**Locations:** Throughout frontend
+**Problem:** The backend supports `PUT /api/karaoke-queue/reorder` (append mode) and bump
+(rotation mode), but no frontend code calls either. The old `KaraokeQueueList` and its
+drag-and-drop TODO are gone; the queue is now shown by `StageQueueRail`.
 
-**Problem:**
-- Many `try/catch` blocks with simple `console.error()`
-- No centralized error reporting/tracking
-- No user-facing error messages
-
-**Impact:** LOW-MEDIUM - Difficult to debug production issues
-
-**Recommendation:**
-- Implement error boundary components
-- Add error tracking (Sentry, LogRocket, etc.)
-- Show user-friendly error messages
-- Centralized error handling
+**Recommendation:** Decide whether the host needs manual reordering now that rotation mode
+exists. If yes, add bump/reorder controls; if no, consider removing the unused endpoints.
 
 ---
 
-### ~~17. WebSocket Cleanup Management~~ ✅ RESOLVED (2026-03-06)
+### 11. Missing Connecting State in Player
 
-**Was:** `window.__playerWebSocketCleanup` global used for tracking WebSocket listener teardown in [useKaraokePlayerStore.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.ts).
+**Severity:** 🟢 LOW
 
-**Fixed:** Replaced with a module-private `playerWebSocketCleanups` array. No longer pollutes the global namespace.
+**Location:** `frontend/src/features/player/hooks/useKaraokePlayer.ts` (`connectionStatus`)
+
+**Problem:** `return "disconnected"; // TODO: Add 'connecting' state detection` — the type allows
+`"connecting"` but it's never returned, so a reconnect looks like a disconnect.
+
+**Recommendation:** Derive `connecting` from the session WebSocket service's state.
+
+---
+
+### 14. ESLint Disables
+
+**Severity:** 🟢 LOW
+
+**Locations:** 6 `react-hooks/exhaustive-deps` disables:
+- `components/ui/file-uploader.tsx:157`
+- `features/songs/components/admin/panels/FingerprintLookupPanel.tsx:37`
+- `features/stage/wheel/useWheelPreview.ts:42`
+- `pages/AdminThreeTrackComparePage.tsx:656, 668`
+- `pages/Entry.tsx:78`
+
+**Recommendation:** Review each; fix the dependency array or leave a comment on why the disable
+is correct.
+
+---
+
+### 16. Error Handling Patterns
+
+**Severity:** 🟢 LOW
+
+**Current state:** The player has an error boundary (`PlayerErrorBoundary`) and songs have a
+shared error-message helper (`features/songs/utils/errorMessage.ts`), but there's no app-level
+error boundary, and many catch blocks only log.
+
+**Recommendation:** Add a route-level error boundary, and show user-facing messages where a
+catch currently only logs.
+
+---
+
+### 17. Player WebSocket Listeners Stack Up
+
+**Severity:** 🟢 LOW
+
+**Location:** `frontend/src/stores/useKaraokePlayerStore.ts` (`connect`)
+
+**Problem:** `connect()` registers nine `sessionWebSocketService` listeners and stores their
+cleanups on `window.__playerWebSocketCleanup`, overwriting any earlier set without running it. Both
+`useKaraokePlayer` (the stage) and `useSessionConnection` (the phone) call it, so each remount of
+`KaraokePlayer` adds another set and a remote `playback_play` calls `play()` once per set.
+
+**Recommendation:** Run the existing cleanups at the top of `connect()`, and keep them in a
+module-level variable instead of on `window`.
 
 ---
 
@@ -584,94 +235,173 @@ return "disconnected"; // TODO: Add 'connecting' state detection
 
 **Severity:** 🟢 LOW
 
-**Location:** [useSongs.ts:183, 254](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/hooks/api/useSongs.ts#L183)
+**Location:** `frontend/src/hooks/api/useSongs.ts:194, 266`
 
-**Problem:**
-```typescript
-// Note: We don't optimistically update song lists due to complex query key structure
-```
+**Problem:** `// Note: We don't optimistically update song lists due to complex query key structure`
 
-**Impact:** LOW - UX could be snappier
-
-**Recommendation:**
-- Implement optimistic updates
-- Simplify query key structure
-- Better perceived performance
+**Recommendation:** Simplify the song-list query keys, then add optimistic updates.
 
 ---
 
-### 19. Experimental Code in Production Repository
+### 19. Production Separation Engines Are Labeled "Experimental"
 
 **Severity:** 🟢 LOW
 
-**Locations:**
-- `/backend/scripts/bpm_investigation/` - 8 experimental BPM detection strategies
-- `/backend/scripts/experiments/ai_lyrics/asr_experiments/` - ASR model experiments
-- `/backend/app/services/separation_engines/` - 3 experimental separation engines
+**Location:** `backend/app/services/separation_engines/__init__.py`
 
-**Problem:**
-- Experimental code mixed with production code
-- Not clearly marked or documented
+**Problem:** The package docstring says "Experimental vocal separation engines for benchmarking",
+but `app/jobs/jobs.py` and `app/jobs/separation.py` import from it — it's the production
+separation code. It's not clear which of the seven engines are actually selectable in production
+and which are only benchmark variants.
 
-**Impact:** LOW - Confusing, unclear what's production-ready
+The rest of the original item is done: the BPM experiments were removed (2026-09-03), and
+`backend/scripts/README.md` marks `scripts/experiments/` as unmaintained research code.
 
-**Recommendation:**
-- Move experiments to separate branch/repo OR
-- Clearly mark as experimental in README
-- Document which engines are production-ready
+**Recommendation:** Rewrite the docstring to say which engines production uses; move
+benchmark-only engines to `scripts/experiments/` if any are unused.
 
 ---
 
-### 20. Documentation Gaps
+### 40. No One Layer Owns Database Transactions
 
 **Severity:** 🟢 LOW
 
-**Locations:**
-- Complex lyrics rendering logic lacks inline documentation
-- WebSocket message protocols not fully documented
-- Session state management complexity not well-documented
+**Location:** `backend/app/` throughout
 
-**Impact:** LOW - Onboarding difficulty, maintenance burden
+**Problem:** `commit()` is called from routes (36 calls), repositories (27), Celery jobs (12),
+services (8) and the session WebSocket (1). `JobRepository`, `album_service` and
+`youtube_service` open their own sessions instead of using the caller's. When one action
+writes through two of these and the second fails, the first write is already committed.
+
+**Impact:** LOW today — no known bug traced to it — but every new multi-step write can leave
+half its work saved.
+
+**Recommendation:** One rule: the route or Celery task that starts the work commits.
+Repositories and services `flush()` and take the caller's session. Apply it file by file as
+code is touched, rather than in one sweep.
+
+---
+
+### 41. Config Checks the Wrong Secrets
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/config/`, `backend/app/services/auth_service.py`
+
+**Problem:**
+- Production requires `SECRET_KEY`, which nothing reads.
+- It doesn't check `JWT_SECRET_KEY`, the key that signs logins. When that is unset,
+  `auth_service` makes a random one per process and logs an error, so a restart signs everyone
+  out.
+- An `ENVIRONMENT` value that isn't recognised silently runs as development.
+- `BaseConfig` carries Flask-era aliases (`FLASK_ENV`, `SQLALCHEMY_*`, `BASE_LIBRARY_DIR`,
+  `library_path`, `PROJECT_ROOT`, `DEFAULT_MODEL`, `DEFAULT_MP3_BITRATE`).
+- `get_config()` builds a new config object on every call.
+
+Prod's `docker-compose.yml` sets both secrets, so nothing is broken today.
+
+**Impact:** LOW — a missing or mistyped variable fails late and quietly instead of at startup.
+
+**Recommendation:** One `pydantic-settings` class, built once: required fields with no
+default, `ENVIRONMENT` limited to the three known values, and `JWT_SECRET_KEY` required in
+production. Rename the alias uses to the real names and delete the aliases.
+
+---
+
+### 42. The Health Check Doesn't Check Anything
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/api/health.py`
+
+**Problem:** `GET /api/health` sleeps 1 ms and returns `ok`, with a docstring comparing it to
+Flask. It touches neither Postgres nor Redis, so it says `ok` while the pool is exhausted or the
+broker is down: the two failures that have taken prod down.
+
+**Impact:** LOW — nothing alerts on it yet, but it can't be used to tell a stall from a healthy
+server.
+
+**Recommendation:** Run `SELECT 1` through the pool (in a thread, with a short timeout) and
+ping Redis. Return `503` with which one failed.
+
+---
+
+### 43. Cancelling a Running Job Doesn't Stop It
+
+**Severity:** 🟢 LOW
+
+**Location:** `backend/app/services/jobs_service.py` (`cancel_job`),
+`backend/app/jobs/audio_tasks.py`, `backend/app/repositories/job_repository.py`
+
+**Problem:** `cancel_job` revokes the Celery task with `terminate=True`, then marks the row
+`cancelled`. The workers run `--pool=threads` (`celery_workers.sh`), and the thread pool can't
+terminate a running task, so a job that has started carries on:
+
+1. The row says `cancelled`.
+2. The worker keeps separating on the GPU.
+3. Its next progress save (every 5%) writes its in-memory copy of the job back, `processing`
+   included.
+4. The song finishes as if nothing happened.
+
+`process_audio_job` and `process_youtube_job` each pass a `stop_event` to separation, but
+nothing ever sets it, so their `StopProcessingError` cleanup never runs. Revoking does still
+stop a job that hasn't started.
+
+The overwrite comes from how `JobRepository` saves:
+
+- every save copies every field of the row, so the last writer wins whatever the other side
+  changed;
+- every save also runs a SQLite-only `force_db_sync`, re-reads the row to "verify" the commit,
+  and publishes a job event nobody acts on.
+
+**Impact:** LOW today — no screen calls `POST /api/jobs/{id}/cancel` (the `uploadService.ts`
+hook for it is unused), so only a direct API call hits this. Fix it before a Cancel button is
+added: as things stand, the job would look cancelled while the GPU stays busy and the song still
+lands in the library.
 
 **Recommendation:**
-- Add inline comments to complex logic
-- ~~Document WebSocket protocol~~ — done, see [WebSocket Protocol](/websocket-protocol)
-- Create architecture diagrams
+- Have the worker's progress callback read the row's status and set `stop_event` when it is
+  `cancelled`. Separation already checks the event between stages.
+- Make status changes conditional (`UPDATE ... WHERE status NOT IN ('completed', 'failed',
+  'cancelled')`) and progress saves write only progress, so a finished state can't be undone.
+- Drop the sync call and the verification re-read. The event publishing is already set for
+  removal with the rest of the unused job event chain.
 
 ---
 
-## Quick Wins
+## Resolved
 
-These can be fixed quickly with high impact:
-
-1. **Remove console.log statements** (2-3 hours)
-   - Replace with proper logging
-   - Guard with debug flags
-
-2. **Fix default singer hardcode** (1 hour)
-   - Add to localStorage
-   - Quick UX improvement
+| # | Item | How it was closed |
+|---|------|-------------------|
+| 1 | Celery job cancellation | `cancel_job()` revokes the Celery task before marking the job cancelled (`9d8368df4`). |
+| 2 | `print()` in WebSocket code | Replaced with `logging` (2026-03-06). |
+| 3 | `as any` in `useJobsSync.ts` | `job.song_id` is typed; no `as any` left in the frontend. |
+| 4 | Defensive `itunes_preview_url` migration | Won't fix: the existence check is in an already-applied migration and is harmless; editing applied migrations is riskier than leaving it. |
+| 6 | Console logging | No direct `console.*` calls outside `lib/logger`; the logger defaults to `warn` in production (`VITE_LOG_LEVEL` overrides). |
+| 7 | Hardcoded default singer | `DEFAULT_SINGER` is gone; the singer picker starts on the current turn's performer (`useDefaultSinger`). |
+| 9 | Disabled analysis in `batch_test.py` | Covered by `backend/scripts/README.md`: `experiments/` is unmaintained research code. |
+| 12 | Player store reset workaround | The "don't reset, causes infinite loops" workaround went away when the store was split into sub-stores (`461b44fc6`). |
+| 13 | Deprecated test file | Deleted. |
+| 15 | Missing queue-item thumbnail | `KaraokeQueueItem` no longer exists; the queue is shown by `StageQueueRail`. |
+| 20 | Documentation gaps | WebSocket protocol, architecture and per-domain docs (`docs/domains/`) now exist. |
+| 22 | `batch_align_lyrics` crashing the worker | GPU activity bracketing added 2026-08-28; since 2026-10-06 the batch queues one `align_song_lyrics` job per song, so a crash loses one song, not the batch. |
+| 23 | HTTP endpoints with no auth dependency | Library, lyrics, YouTube and YouTube Music reads need an account or session credential (`require_host_or_session_member`). Media URLs (thumbnails, covers, artist images, track files) stay header-free for `<img>`/`<audio>`: song ids are random UUIDs, learned only through the gated reads, and covers and artist images are public artwork. `/api/performance-test` deleted. |
+| 24 | Session WebSocket accepted anyone with the code | The first message must be `authenticate` with an active member device id; wrong code and wrong device get the same `not_a_member` + close 1008, so the socket can't find live codes. `update_performance_control` is limited to the mix/display controls, and the `queue_changed` relay is gone (2026-10-10). |
+| 25 | `/ws/jobs` had no auth | The first message must be `authenticate` with an account token or a session member's `session_id` + `device_id`; anything else gets `auth_failed` and close 1008. The frontend client opens the socket once it holds credentials and reconnects when they change. |
+| 26 | Unauthenticated `POST /sessions/{id}/performers` | `GET` and `POST` now go through `require_roster_access`, which confines anonymous guests to their own session. |
+| 27 | Unauthenticated session playlist endpoints | `POST` is the session's host or an admin only (it writes to the server's YouTube Music account); `GET` goes through `ensure_session_access`. |
+| 28 | `GET /sessions/{id}/info` leaked the roster and trusted `?device_id=` | Requires the session credential, the hosting account or an admin (`ensure_session_access`); `is_host` comes only from the account, `is_self` from `X-Device-ID`. |
+| 29 | `session_id` == `display_code` | Kept on purpose: the code is the gate. The WebSocket, the last path that trusted the id alone, now requires the device id too (#24). |
+| 30 | Expired token blocked a valid session guest | `require_host_or_session_member` falls through to the session credential when the token is bad, and keeps both when both are valid. A bad token with nothing to fall back on is still a `401`. |
+| 32 | No rate limits on third-party proxies | Per-IP `@limiter.limit` on YouTube search and preview, YouTube Music browse, lyrics provider search and lyrics alignment. |
+| 34 | Dead WebSocket code | `ws/sessions.py` (unrouted session join) and the empty `ws/session_state.py` deleted (2026-10-10). |
+| 35 | Rate limits saw the nginx container, not the client | `karaoke-network` has a fixed subnet and nginx a pinned address (`172.30.250.10`); `FORWARDED_ALLOW_IPS` trusts only that address, and uvicorn (`>=0.40.0`) reads nginx's `$proxy_add_x_forwarded_for` right to left. Direct callers on `15123` key on their own address. See [Client IPs behind the proxy](/guide#client-ips-behind-the-proxy). |
+| 36 | Any account could act inside any session | Queue and roster access let any JWT address any session, and registration and `POST /api/demo/start` hand out JWTs to anyone, so a stranger could skip join-by-code and probe codes unthrottled. `ensure_session_access` now admits only a member device, the hosting account or an admin, with one `403` for a missing or foreign session. `POST /api/sessions` requires a host account. |
+| 37 | Public demo accounts held host-wide powers | Demo accounts are hosts, so a visitor could list and cancel every job, read every session's performance history (singer names and join codes) and work lyrics reports. Jobs, lyrics reports, batch-align status and the library audits are admin-only; performance history shows a host only their own sessions. |
 
 ---
 
-## Recommended Priority Order
+## Related
 
-1. Remove remaining frontend console.log statements (production readiness)
-2. Add frontend test infrastructure (quality assurance)
-3. Fix type safety issues (code quality)
-4. Complete preload implementation (performance)
-5. Add settings feature for singer names (UX)
-6. Implement queue drag-and-drop (UX enhancement)
-7. Clean up experimental code (code organization)
-8. Address ESLint warnings (code quality)
-
----
-
-## Notes
-
-- Many issues have TODOs already in code
-- Backend is well-tested, frontend has 4 test files (infrastructure exists)
-- Most critical issues are in WebSocket layer
-- Many "nice-to-have" items are already tracked in code comments
-- **New:** See [docs/websocket-protocol.md](websocket-protocol.md) for the complete WebSocket message catalog
-- See [ROADMAP.md](/roadmap) for how these fit into future plans
+- [WebSocket Protocol](websocket-protocol.md) — the WebSocket message catalog
+- [Roadmap](roadmap.md) — how these fit into future plans

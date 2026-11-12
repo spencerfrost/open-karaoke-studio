@@ -17,7 +17,6 @@ export interface PerformanceState {
   is_playing: boolean;
   current_song_id?: string | null;
   is_ready?: boolean;
-  playback_speed: number;
 }
 
 // Mini-player position interface
@@ -29,10 +28,4 @@ export interface MiniPlayerPosition {
 // Local update tracking for debouncing WebSocket echoes
 export interface LocalUpdateTracker {
   [key: string]: { value: unknown; timestamp: number };
-}
-
-// Grain parameters for Tone.js GrainPlayer
-export interface GrainParams {
-  grainSize: number;
-  overlap: number;
 }

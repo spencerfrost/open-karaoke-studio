@@ -1,22 +1,22 @@
 # backend/tests/integration/test_karaoke_queue_websockets.py
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-import app.db.models as models
-import app.api.karaoke_queue as _queue_api
-import app.api.sessions as _sessions_api
-from app.api.dependencies import get_current_user, get_db
-from app.db.models import Base
-from app.services.auth_service import create_access_token
 from tests.conftest import create_test_app
 
-from unittest.mock import MagicMock
+import app.db.models as models
+from app.api.dependencies import (
+    RequesterContext,
+    get_current_user,
+    require_host_or_session_member,
+)
+from app.db.database import SessionLocal
+from app.services.auth_service import create_access_token
+from app.utils.clock import utc_now
 
 
 def _make_mock_user():
@@ -28,38 +28,27 @@ def _make_mock_user():
     return u
 
 
+def _join(websocket, device_id, token=None):
+    """Send the opening authenticate message and return the session_connected greeting."""
+    message = {"type": "authenticate", "device_id": device_id}
+    if token is not None:
+        message["token"] = token
+    websocket.send_json(message)
+    greeting = websocket.receive_json()
+    assert greeting["type"] == "session_connected"
+    return greeting
+
+
 @pytest.fixture(scope="function")
 def test_setup():
-    """Set up test database tables and factories using SQLite."""
-    import tempfile, os
-
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-    db_url = f"sqlite:///{db_path}"
-
-    engine = create_engine(db_url, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-    def _get_db():
-        db = TestingSession()
-        try:
-            yield db
-        finally:
-            db.close()
-
+    """App with auth bypassed, plus factories that seed the shared test database."""
     app = create_test_app()
-    app.dependency_overrides[get_db] = _get_db
-    app.dependency_overrides[_queue_api.get_db] = _get_db
-    app.dependency_overrides[_sessions_api.get_db] = _get_db
     app.dependency_overrides[get_current_user] = _make_mock_user
+    app.dependency_overrides[require_host_or_session_member] = lambda: (
+        RequesterContext(user=_make_mock_user())
+    )
 
-    setup_session = TestingSession()
-    # Patch SessionLocal globally so WebSocket handlers (which bypass DI) use SQLite
-    import app.db.database as _db_module
-
-    original_SessionLocal = _db_module.SessionLocal
-    _db_module.SessionLocal = TestingSession
+    setup_session = SessionLocal()
 
     def user_factory(username: str):
         user = models.User(username=username, is_host=True, is_admin=False)
@@ -76,9 +65,15 @@ def test_setup():
             host_device_id=host_device_id,
             host_user_id=host_user_id,
             is_active=True,
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            expires_at=utc_now() + timedelta(hours=1),
         )
         setup_session.add(session)
+        # Session creation registers the host's device; sockets authenticate with it.
+        setup_session.add(
+            models.SessionDevice(
+                session_id=session_id, device_id=host_device_id, device_type="stage"
+            )
+        )
         setup_session.commit()
         setup_session.refresh(session)
         return session
@@ -100,12 +95,6 @@ def test_setup():
             yield client, session_factory, song_factory, user_factory
     finally:
         setup_session.close()
-        _db_module.SessionLocal = original_SessionLocal
-        engine.dispose()
-        try:
-            os.unlink(db_path)
-        except Exception:
-            pass
 
 
 def test_websocket_queue_update_is_session_specific(test_setup):
@@ -146,12 +135,8 @@ def test_websocket_queue_update_is_session_specific(test_setup):
         f"/ws/session/{session_id_2}"
     ) as websocket2:
 
-        # Get initial connection messages
-        message1 = websocket1.receive_json()
-        assert message1["type"] == "session_connected"
-
-        message2 = websocket2.receive_json()
-        assert message2["type"] == "session_connected"
+        _join(websocket1, host_device_id_1)
+        _join(websocket2, host_device_id_2)
 
         # Request queue update for session 1
         websocket1.send_json({"type": "request_queue_update"})
@@ -264,15 +249,10 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
     host_token = create_access_token(host)
     ws_url = f"/ws/session/{session_id}"
     with client.websocket_connect(ws_url) as websocket:
-        connected_message = websocket.receive_json()
-        assert connected_message["type"] == "session_connected"
+        # The host token makes player state commands acceptable
+        connected_message = _join(websocket, host_device_id, host_token)
         assert connected_message["performance_state"]["current_song_id"] == song.id
-
-        # Authenticate so player state commands are accepted
-        websocket.send_json({"type": "authenticate", "token": host_token})
-        auth_reply = websocket.receive_json()
-        assert auth_reply["type"] == "authenticated"
-        assert auth_reply["is_session_owner"] is True
+        assert connected_message["is_session_owner"] is True
 
         websocket.send_json(
             {
@@ -289,11 +269,58 @@ def test_playback_state_persists_across_websocket_reconnect(test_setup):
         _ = websocket.receive_json()  # queue_updated response
 
     with client.websocket_connect(ws_url) as websocket:
-        connected_message = websocket.receive_json()
-        assert connected_message["type"] == "session_connected"
+        connected_message = _join(websocket, host_device_id)
 
         state = connected_message["performance_state"]
         assert state["current_song_id"] == song.id
         assert state["is_playing"] is True
         assert state["current_time"] == 42.5
         assert state["duration"] == 180
+
+
+def test_performance_control_cannot_write_playback_state(test_setup):
+    """An unprivileged connection may change mix controls but not playback state."""
+    client, session_factory, _song_factory, user_factory = test_setup
+
+    session_id = f"session_{uuid.uuid4()}"
+    host_device_id = f"host_{uuid.uuid4()}"
+    host = user_factory("controls-host")
+    session_factory(session_id, host_device_id, host_user_id=host.id)
+
+    ws_url = f"/ws/session/{session_id}"
+    with client.websocket_connect(ws_url) as performer, client.websocket_connect(
+        ws_url
+    ) as tv:
+        # No token on either: both connections are unprivileged members
+        _join(performer, host_device_id)
+        _join(tv, host_device_id)
+
+        performer.send_json(
+            {
+                "type": "update_performance_control",
+                "control": "is_playing",
+                "value": True,
+            }
+        )
+        denied = performer.receive_json()
+        assert denied["type"] == "permission_denied"
+        assert denied["action"] == "update_performance_control"
+
+        performer.send_json(
+            {
+                "type": "update_performance_control",
+                "control": "vocal_volume",
+                "value": 0.25,
+            }
+        )
+        relayed = tv.receive_json()
+        assert relayed == {
+            "type": "control_updated",
+            "control": "vocal_volume",
+            "value": 0.25,
+        }
+
+        tv.send_json({"type": "join_performance"})
+        state = tv.receive_json()["state"]
+        assert state["vocal_volume"] == 0.25
+        assert state["is_playing"] is False

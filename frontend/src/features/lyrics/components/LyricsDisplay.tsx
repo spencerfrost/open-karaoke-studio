@@ -10,7 +10,7 @@ import { Search, FileText, Mic2, Loader2 } from "lucide-react";
 import LyricsFetchDialog from "./LyricsFetchDialog";
 import PasteLyricsDialog from "./PasteLyricsDialog";
 import { useSongs } from "@/hooks/api/useSongs";
-import { useApiMutation } from "@/hooks/api/useApi";
+import { getAuthHeaders, useApiMutation } from "@/hooks/api/useApi";
 import { toast } from "sonner";
 import type { LyricsResult } from "./LyricsFetchDialog";
 import type { Song } from "@/types/Song";
@@ -79,6 +79,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
 
         const response = await fetch(`/api/lyrics/songs/${songId}/align`, {
           method: "POST",
+          headers: { ...getAuthHeaders() },
           credentials: "include",
         });
 
@@ -246,7 +247,7 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             aria-label={ariaLabel}
           >
             <div className="flex flex-col items-center gap-4">
-              <div className="text-foreground/50 text-lg">
+              <div className="text-foreground-faint text-lg">
                 No synced lyrics available
               </div>
               {songId && (
@@ -305,10 +306,10 @@ const LyricsDisplay: React.FC<LyricsDisplayProps> = memo(
             className="flex flex-col items-center justify-center h-full text-center p-8"
             role="status"
           >
-            <div className="text-foreground/60 text-lg mb-2">
+            <div className="text-foreground-dim text-lg mb-2">
               🎵 No lyrics available
             </div>
-            <div className="text-foreground/40 text-sm mb-4">
+            <div className="text-foreground-faint text-sm mb-4">
               Enjoy the music and sing along if you know the words!
             </div>
             {(songForDialog || songId) && (

@@ -1,0 +1,69 @@
+"""
+Batch runs - one row per run of a library-wide maintenance job.
+"""
+
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+from sqlalchemy.orm import deferred
+
+from .base import Base
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class BatchRun(Base):
+    """One run of a batch job (loudness, album art, lyrics alignment...).
+
+    The API creates the row as "queued" when someone presses Run, so the
+    admin page shows it straight away; the task moves it to "running",
+    counts songs as it goes and closes it as "done" or "failed".
+
+    A run whose worker stops (shutting down between songs, or dying) is
+    "interrupted". It is still active: the next enrichment worker to start
+    queues its task again, and the task carries on from `item_ids` after the
+    done + failed it had already handled (see app/jobs/_batch_runs.py).
+
+    The hand-run scans (disk check, metadata, duplicates) run inside their
+    request, so they write one finished row with `issues` once they're done.
+    """
+
+    __tablename__ = "batch_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # Which job: a key of app.services.batch_jobs.JOBS.
+    kind = Column(String, nullable=False, index=True)
+    # "missing", "all", or a job's own mode (alignment has "repair" and "retime").
+    mode = Column(String, nullable=False)
+    # "queued" | "running" | "interrupted" | "done" | "failed" | "cancelled"
+    status = Column(String, nullable=False, default="queued", index=True)
+    celery_task_id = Column(String, nullable=True)
+
+    # Songs (or artists) the run picked up. None until the task has looked.
+    total = Column(Integer, nullable=True)
+    # Handled without an error, including ones there was nothing to find for.
+    done = Column(Integer, nullable=False, default=0)
+    # Hit an error.
+    failed = Column(Integer, nullable=False, default=0)
+    # The ids the run works through, in order, saved when it starts: it has
+    # handled the first done + failed of them. None for runs that don't work
+    # song by song (lyrics alignment queues jobs; the credits rebuild is one
+    # transaction), which start over when resumed.
+    item_ids = deferred(Column(JSON, nullable=True))
+    # Why the whole run stopped, when it did.
+    error = Column(Text, nullable=True)
+    # Hand-run scans only: how many problems the scan found. None for jobs.
+    issues = Column(Integer, nullable=True)
+    # A job's own write-up of what it did (or would do, in a preview run).
+    # Deferred: it can run to hundreds of kilobytes, and only its own endpoint
+    # reads it.
+    report = deferred(Column(JSON, nullable=True))
+
+    created_at = Column(DateTime, nullable=False, default=_now)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    # Bumped on every progress update; a running row that stops changing
+    # belongs to a worker that died.
+    updated_at = Column(DateTime, nullable=False, default=_now)

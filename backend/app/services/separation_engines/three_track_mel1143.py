@@ -1,8 +1,8 @@
 """Three-track engine variant using Mel-Roformer-Viperx-1143 for vocal split."""
 
+import threading
 from pathlib import Path
 from typing import Callable, Dict, Optional
-import threading
 
 from .three_track import separate_with_three_track
 

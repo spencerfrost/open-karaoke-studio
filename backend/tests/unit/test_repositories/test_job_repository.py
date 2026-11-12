@@ -9,7 +9,7 @@ import uuid
 
 import pytest
 
-from app.db.models import Job, JobStatus
+from app.db.models import Job, JobStatus, JobStep
 from app.repositories.job_repository import JobRepository
 
 
@@ -92,3 +92,40 @@ class TestDeleteJob:
 
     def test_delete_nonexistent_job_returns_false(self, repo):
         assert repo.delete_job(str(uuid.uuid4())) is False
+
+
+class TestJobStep:
+    def test_step_round_trips_and_updates(self, repo):
+        job = _make_job(JobStatus.PENDING, song_id="song-1")
+        job.step = JobStep.DOWNLOAD
+        repo.create(job)
+        assert repo.get_job(job.id).step == JobStep.DOWNLOAD
+
+        job.status = JobStatus.PROCESSING
+        job.step = JobStep.SEPARATE
+        repo.update(job)
+        stored = repo.get_job(job.id)
+        assert stored.step == JobStep.SEPARATE
+        assert stored.to_dict()["step"] == "separate"
+
+    def test_step_is_optional(self, repo):
+        job = _make_job(JobStatus.PENDING)
+        repo.create(job)
+        stored = repo.get_job(job.id)
+        assert stored.step is None
+        assert stored.to_dict()["step"] is None
+
+    def test_lyrics_alignment_job_is_on_the_align_step(self):
+        from app.jobs._shared import (
+            _create_lyrics_alignment_job,
+            _update_lyrics_alignment_job,
+            job_repository,
+        )
+
+        job_id = _create_lyrics_alignment_job("song-lyrics")
+        assert job_repository.get_job(job_id).step == JobStep.ALIGN
+
+        _update_lyrics_alignment_job(
+            "song-lyrics", status=JobStatus.PROCESSING, progress=40, message="x"
+        )
+        assert job_repository.get_job(job_id).step == JobStep.ALIGN

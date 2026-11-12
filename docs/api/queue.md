@@ -40,6 +40,7 @@ Returns explicit queue state:
     "id": 7,
     "songId": "song-123",
     "singer": "Alex",
+    "performerId": 3,
     "position": 0,
     "addedAt": "2026-03-05T12:34:56Z",
     "song": {
@@ -58,6 +59,7 @@ Returns explicit queue state:
       "id": 8,
       "songId": "song-456",
       "singer": "Jordan",
+      "performerId": 5,
       "position": 1,
       "addedAt": "2026-03-05T12:35:20Z",
       "song": {
@@ -77,6 +79,7 @@ Returns explicit queue state:
       "id": 7,
       "songId": "song-123",
       "singer": "Alex",
+      "performerId": 3,
       "position": 0,
       "addedAt": "2026-03-05T12:34:56Z",
       "song": {
@@ -94,6 +97,7 @@ Returns explicit queue state:
       "id": 8,
       "songId": "song-456",
       "singer": "Jordan",
+      "performerId": 5,
       "position": 1,
       "addedAt": "2026-03-05T12:35:20Z",
       "song": {
@@ -113,6 +117,7 @@ Returns explicit queue state:
 
 Notes:
 - `current` is nullable.
+- `performerId` is the roster seat the item belongs to. It's `null` only for rows that predate the roster. A phone compares `current.performerId` with its own seat to open its controls when its song starts.
 - `upcoming` never includes the current loaded item.
 - `items` is retained for compatibility and includes `current` first (if present), then `upcoming`.
 - The response also includes a `pending` array of items awaiting host approval (see [Approval Flow](#approval-flow)).
@@ -131,6 +136,8 @@ Request body:
 ```
 
 Response (`201 Created`): the created queue item, including its `status` (`active` or `pending`).
+
+Adding a song also queues any processing the song is behind on (word timing from an older version of alignment, a missing singing map, and so on). It never fails or delays the response.
 
 Host settings are enforced for non-host requesters:
 - `403` if the host has closed the queue (`queue_open` off).

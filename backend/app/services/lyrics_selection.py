@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from time import perf_counter
 from typing import Literal, Optional, TypedDict
 
@@ -35,7 +36,9 @@ def _attempt_priority(attempt: AlignmentAttempt) -> tuple[int, int, str]:
 
 def select_initial_lyrics(attempts: list[AlignmentAttempt]) -> AlignmentAttempt | None:
     """Pick the best remote candidate to persist for immediate display."""
-    remote_attempts = [attempt for attempt in attempts if not attempt["source"].startswith("db:")]
+    remote_attempts = [
+        attempt for attempt in attempts if not attempt["source"].startswith("db:")
+    ]
     if not remote_attempts:
         return None
 
@@ -51,8 +54,15 @@ def build_alignment_attempts(
     song: SongData,
     include_remote: bool = True,
     max_remote_results: int = 3,
+    rejected_keys: Collection[str] = (),
 ) -> list[AlignmentAttempt]:
-    """Build ordered lyric-alignment attempts for a song."""
+    """Build ordered lyric-alignment attempts for a song.
+
+    Candidates whose words someone reported as wrong (`rejected_keys`, see
+    lyrics_words_key) are left out, the stored lyrics included.
+    """
+    from app.services.lyrics_retiming import lyrics_words_key
+
     attempts: list[AlignmentAttempt] = []
     seen: set[tuple[str, str]] = set()
 
@@ -71,6 +81,14 @@ def build_alignment_attempts(
         if key in seen:
             return
         seen.add(key)
+        if rejected_keys and lyrics_words_key(text, source_type) in rejected_keys:
+            log_lyrics_event(
+                song["id"],
+                "lyrics_candidate_rejected",
+                source=source,
+                source_type=source_type,
+            )
+            return
         attempts.append(
             {
                 "content": text,
@@ -125,7 +143,12 @@ def build_alignment_attempts(
                 persist=True,
             )
     except Exception as e:
-        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="lrclib", exc_type=type(e).__name__)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_failed",
+            provider="lrclib",
+            exc_type=type(e).__name__,
+        )
         logger.warning(
             "LRCLIB candidate fetch failed for %s - %s",
             artist_name,
@@ -157,7 +180,12 @@ def build_alignment_attempts(
                 persist=True,
             )
     except Exception as e:
-        log_lyrics_event(song["id"], "lyrics_remote_fetch_failed", provider="syncedlyrics", exc_type=type(e).__name__)
+        log_lyrics_event(
+            song["id"],
+            "lyrics_remote_fetch_failed",
+            provider="syncedlyrics",
+            exc_type=type(e).__name__,
+        )
         logger.warning(
             "syncedlyrics candidate fetch failed for %s - %s",
             artist_name,

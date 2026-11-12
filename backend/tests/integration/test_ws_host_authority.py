@@ -6,57 +6,32 @@ Guards the bug where `device_id` was declared on the inner handler but never for
 the registered route, so `is_session_owner` was False for every connection ever made (774/774 in
 production logs). Host authority now derives from the authenticated user via the
 `authenticate` message, so these tests assert that contract directly.
+
+They also guard membership: the opening `authenticate` must carry the device id of an active
+member of the session, and a wrong code is indistinguishable from a wrong device.
 """
 
+import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
-import app.api.sessions as _sessions_api
-import app.db.models as models
 import pytest
-from app.api.dependencies import get_db
-from app.db.models import Base
-from app.services.auth_service import create_access_token
+from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from tests.conftest import create_test_app
+
+import app.db.models as models
+from app.db.database import SessionLocal
+from app.services.auth_service import create_access_token
+from app.utils.clock import utc_now
 
 
 @pytest.fixture(scope="function")
 def ws_setup():
-    """SQLite-backed app with factories for users and sessions."""
-    import os
-    import tempfile
-
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-
-    engine = create_engine(
-        f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
-    )
-    Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-    def _get_db():
-        db = TestingSession()
-        try:
-            yield db
-        finally:
-            db.close()
-
+    """App with factories that seed the shared test database."""
     app = create_test_app()
-    app.dependency_overrides[get_db] = _get_db
-    app.dependency_overrides[_sessions_api.get_db] = _get_db
-
-    setup_session = TestingSession()
-
-    # WebSocket handlers bypass DI and use SessionLocal directly
-    import app.db.database as _db_module
-
-    original_SessionLocal = _db_module.SessionLocal
-    _db_module.SessionLocal = TestingSession
+    setup_session = SessionLocal()
 
     def user_factory(username: str) -> models.User:
         user = models.User(username=username, is_host=True, is_admin=False)
@@ -76,43 +51,53 @@ def ws_setup():
             host_device_id=f"rest_{uuid.uuid4().hex[:12]}",
             host_user_id=host_user_id,
             is_active=True,
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            expires_at=utc_now() + timedelta(hours=1),
         )
         setup_session.add(session)
         setup_session.commit()
         setup_session.refresh(session)
         return session
 
+    def device_factory(session_id: str, is_active: bool = True) -> str:
+        device = models.SessionDevice(
+            session_id=session_id,
+            device_id=f"rest_{uuid.uuid4().hex[:12]}",
+            device_type="performer",
+            is_active=is_active,
+        )
+        setup_session.add(device)
+        setup_session.commit()
+        return device.device_id
+
     try:
         with TestClient(app) as client:
-            yield client, user_factory, session_factory
+            yield client, user_factory, session_factory, device_factory
     finally:
         setup_session.close()
-        _db_module.SessionLocal = original_SessionLocal
-        engine.dispose()
-        try:
-            os.unlink(db_path)
-        except Exception:
-            pass
 
 
 def _greeting(websocket):
-    """Read messages until the session_connected greeting arrives."""
+    """Read messages until the session_connected greeting; return (greeting, seen before)."""
+    seen = []
     for _ in range(5):
         message = websocket.receive_json()
         if message.get("type") == "session_connected":
-            return message
+            return message, seen
+        seen.append(message)
     raise AssertionError("never received session_connected")
 
 
-def _authenticate(websocket, token):
-    """Send an authenticate message and return the server's reply."""
-    websocket.send_json({"type": "authenticate", "token": token})
-    for _ in range(5):
-        message = websocket.receive_json()
-        if message.get("type") in ("authenticated", "auth_failed"):
-            return message
-    raise AssertionError("never received an authentication reply")
+def _assert_rejected(client, session_id, device_id):
+    """The server answers not_a_member and closes with 1008."""
+    with client.websocket_connect(f"/ws/session/{session_id}") as websocket:
+        websocket.send_json({"type": "authenticate", "device_id": device_id})
+        assert websocket.receive_json() == {
+            "type": "auth_failed",
+            "reason": "not_a_member",
+        }
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+    assert closed.value.code == 1008
 
 
 def _collect_until(websocket, sentinel_type, max_messages=8):
@@ -133,80 +118,166 @@ def _collect_until(websocket, sentinel_type, max_messages=8):
     )
 
 
-def test_connection_starts_unprivileged(ws_setup):
-    """A fresh connection holds no host authority until it authenticates."""
-    client, user_factory, session_factory = ws_setup
+def test_member_device_connects_unprivileged(ws_setup):
+    """A member device without a token gets in, with no host authority."""
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    device_id = device_factory(session.session_id)
+
+    with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
+        websocket.send_json({"type": "authenticate", "device_id": device_id})
+        greeting, _ = _greeting(websocket)
+
+    assert greeting["is_session_owner"] is False
+
+
+def test_unknown_device_is_rejected(ws_setup):
+    client, user_factory, session_factory, _device_factory = ws_setup
+    session = session_factory(host_user_id=user_factory("host").id)
+
+    _assert_rejected(client, session.session_id, "rest_notarealone")
+
+
+def test_unknown_code_looks_the_same_as_unknown_device(ws_setup):
+    """A wrong code gets the exact same answer, so the socket can't confirm live codes."""
+    client, *_ = ws_setup
+
+    _assert_rejected(client, "ZZZZ", "rest_notarealone")
+
+
+def test_device_from_another_session_is_rejected(ws_setup):
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    other = session_factory(host_user_id=host.id)
+
+    _assert_rejected(client, session.session_id, device_factory(other.session_id))
+
+
+def test_device_that_left_is_rejected(ws_setup):
+    client, user_factory, session_factory, device_factory = ws_setup
+    session = session_factory(host_user_id=user_factory("host").id)
+
+    _assert_rejected(
+        client,
+        session.session_id,
+        device_factory(session.session_id, is_active=False),
+    )
+
+
+def test_missing_device_id_is_rejected(ws_setup):
+    """A token alone is not membership - the host's devices carry device ids too."""
+    client, user_factory, session_factory, _device_factory = ws_setup
     host = user_factory("host")
     session = session_factory(host_user_id=host.id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        assert _greeting(websocket)["is_session_owner"] is False
+        websocket.send_json(
+            {"type": "authenticate", "token": create_access_token(host)}
+        )
+        assert websocket.receive_json()["reason"] == "not_a_member"
+
+
+def test_first_message_must_be_authenticate(ws_setup):
+    """Anything sent before authenticating gets the connection dropped, not answered."""
+    client, user_factory, session_factory, _device_factory = ws_setup
+    session = session_factory(host_user_id=user_factory("host").id)
+
+    with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
+        websocket.send_json({"type": "request_queue_update"})
+        assert websocket.receive_json()["reason"] == "not_a_member"
 
 
 def test_host_token_grants_host_authority(ws_setup):
     """The session owner's JWT elevates the connection. This is the 774/774 regression."""
-    client, user_factory, session_factory = ws_setup
+    client, user_factory, session_factory, device_factory = ws_setup
     host = user_factory("host")
     session = session_factory(host_user_id=host.id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        _greeting(websocket)
-        reply = _authenticate(websocket, create_access_token(host))
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_factory(session.session_id),
+                "token": create_access_token(host),
+            }
+        )
+        greeting, before = _greeting(websocket)
 
-    assert reply["type"] == "authenticated"
-    assert reply["is_session_owner"] is True
+    assert greeting["is_session_owner"] is True
+    assert before == []
 
 
 def test_non_owner_token_does_not_grant_host_authority(ws_setup):
     """A valid token for someone who does not own the session confers nothing."""
-    client, user_factory, session_factory = ws_setup
+    client, user_factory, session_factory, device_factory = ws_setup
     host = user_factory("host")
     stranger = user_factory("stranger")
     session = session_factory(host_user_id=host.id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        _greeting(websocket)
-        reply = _authenticate(websocket, create_access_token(stranger))
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_factory(session.session_id),
+                "token": create_access_token(stranger),
+            }
+        )
+        greeting, before = _greeting(websocket)
 
-    assert reply["type"] == "authenticated"
-    assert reply["is_session_owner"] is False
+    assert greeting["is_session_owner"] is False
+    assert before == []
 
 
-def test_garbage_token_is_rejected(ws_setup):
-    """An unparseable token fails auth rather than silently passing."""
-    client, user_factory, session_factory = ws_setup
-    host = user_factory("host")
-    session = session_factory(host_user_id=host.id)
+def test_garbage_token_is_reported_but_membership_stands(ws_setup):
+    """A bad token is reported, and the member device still gets in as a non-owner."""
+    client, user_factory, session_factory, device_factory = ws_setup
+    session = session_factory(host_user_id=user_factory("host").id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        _greeting(websocket)
-        reply = _authenticate(websocket, "not-a-jwt")
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_factory(session.session_id),
+                "token": "not-a-jwt",
+            }
+        )
+        greeting, before = _greeting(websocket)
 
-    assert reply["type"] == "auth_failed"
-    assert reply["reason"] == "invalid_token"
+    assert before == [{"type": "auth_failed", "reason": "invalid_token"}]
+    assert greeting["is_session_owner"] is False
 
 
 def test_session_without_owner_has_no_host(ws_setup):
     """A session with a null host_user_id cannot grant host authority to anyone."""
-    client, user_factory, session_factory = ws_setup
+    client, user_factory, session_factory, device_factory = ws_setup
     host = user_factory("host")
     session = session_factory(host_user_id=None)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        _greeting(websocket)
-        reply = _authenticate(websocket, create_access_token(host))
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_factory(session.session_id),
+                "token": create_access_token(host),
+            }
+        )
+        greeting, before = _greeting(websocket)
 
-    assert reply["type"] == "auth_failed"
-    assert reply["reason"] == "session_has_no_host"
+    assert before == [{"type": "auth_failed", "reason": "session_has_no_host"}]
+    assert greeting["is_session_owner"] is False
 
 
-def test_host_only_action_rejected_before_authentication(ws_setup):
-    """Playback control is refused until the connection proves it owns the session."""
-    client, user_factory, session_factory = ws_setup
-    host = user_factory("host")
-    session = session_factory(host_user_id=host.id)
+def test_host_only_action_rejected_for_non_owner(ws_setup):
+    """Playback control is refused for a member that hasn't proven it owns the session."""
+    client, user_factory, session_factory, device_factory = ws_setup
+    session = session_factory(host_user_id=user_factory("host").id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_factory(session.session_id)}
+        )
         _greeting(websocket)
         websocket.send_json({"type": "playback_play"})
         # join_performance always replies, giving the read loop a terminating sentinel
@@ -214,22 +285,25 @@ def test_host_only_action_rejected_before_authentication(ws_setup):
         seen = _collect_until(websocket, "performance_state")
 
     denied = [m for m in seen if m.get("type") == "permission_denied"]
-    assert denied, "expected permission_denied for an unauthenticated client"
+    assert denied, "expected permission_denied for a non-owner"
     assert denied[0]["action"] == "playback_play"
 
 
-def test_host_only_action_allowed_after_authentication(ws_setup):
-    """After authenticating, the same action is accepted rather than denied."""
-    client, user_factory, session_factory = ws_setup
+def test_host_only_action_allowed_for_owner(ws_setup):
+    """With the owner's token, the same action is accepted rather than denied."""
+    client, user_factory, session_factory, device_factory = ws_setup
     host = user_factory("host")
     session = session_factory(host_user_id=host.id)
 
     with client.websocket_connect(f"/ws/session/{session.session_id}") as websocket:
-        _greeting(websocket)
-        assert (
-            _authenticate(websocket, create_access_token(host))["is_session_owner"]
-            is True
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_factory(session.session_id),
+                "token": create_access_token(host),
+            }
         )
+        assert _greeting(websocket)[0]["is_session_owner"] is True
 
         websocket.send_json({"type": "playback_play"})
         websocket.send_json({"type": "join_performance"})
@@ -238,3 +312,77 @@ def test_host_only_action_allowed_after_authentication(ws_setup):
     assert not any(
         m.get("type") == "permission_denied" for m in seen
     ), "authenticated host must not be refused playback control"
+
+
+def _connect_owner(client, session_id, device_id, token):
+    websocket = client.websocket_connect(f"/ws/session/{session_id}")
+    ws = websocket.__enter__()
+    ws.send_json({"type": "authenticate", "device_id": device_id, "token": token})
+    assert _greeting(ws)[0]["is_session_owner"] is True
+    return websocket, ws
+
+
+def _session_is_active(session_id: str) -> bool:
+    db = SessionLocal()
+    try:
+        return (
+            db.query(models.KaraokeSession.is_active)
+            .filter(models.KaraokeSession.session_id == session_id)
+            .scalar()
+        )
+    finally:
+        db.close()
+
+
+GRACE = 0.2
+
+
+def test_closing_one_of_two_host_devices_keeps_the_session(ws_setup, monkeypatch):
+    """The stage stays up when the host closes their phone; only the last device counts."""
+    import app.ws.session_specific as session_specific
+
+    monkeypatch.setattr(session_specific, "HOST_DISCONNECT_GRACE_SECONDS", GRACE)
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    token = create_access_token(host)
+
+    stage_cm, stage = _connect_owner(
+        client, session.session_id, device_factory(session.session_id), token
+    )
+    try:
+        phone_cm, _phone = _connect_owner(
+            client, session.session_id, device_factory(session.session_id), token
+        )
+        phone_cm.__exit__(None, None, None)
+
+        time.sleep(GRACE * 3)
+
+        # The stage is still connected and still answered, not sent session_ended.
+        stage.send_json({"type": "join_performance"})
+        seen = _collect_until(stage, "performance_state")
+        assert not any(m.get("type") == "session_ended" for m in seen)
+        assert _session_is_active(session.session_id) is True
+    finally:
+        stage_cm.__exit__(None, None, None)
+
+
+def test_closing_the_last_host_device_ends_the_session(ws_setup, monkeypatch):
+    import app.ws.session_specific as session_specific
+
+    monkeypatch.setattr(session_specific, "HOST_DISCONNECT_GRACE_SECONDS", GRACE)
+    client, user_factory, session_factory, device_factory = ws_setup
+    host = user_factory("host")
+    session = session_factory(host_user_id=host.id)
+    token = create_access_token(host)
+
+    for _ in range(2):
+        cm, _ws = _connect_owner(
+            client, session.session_id, device_factory(session.session_id), token
+        )
+        cm.__exit__(None, None, None)
+
+    deadline = time.monotonic() + GRACE * 20
+    while _session_is_active(session.session_id) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert _session_is_active(session.session_id) is False

@@ -1,4 +1,5 @@
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import {
   getLyricsSizeValue,
   parseLyricsSize,
@@ -20,7 +21,18 @@ export const usePerformanceControlsLogic = () => {
     setBackingVocalVolume,
     setInstrumentalVolume,
     setLyricsSize,
-  } = useKaraokePlayerStore();
+  } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      vocalVolume: s.vocalVolume,
+      backingVocalVolume: s.backingVocalVolume,
+      instrumentalVolume: s.instrumentalVolume,
+      lyricsSize: s.lyricsSize,
+      setVocalVolume: s.setVocalVolume,
+      setBackingVocalVolume: s.setBackingVocalVolume,
+      setInstrumentalVolume: s.setInstrumentalVolume,
+      setLyricsSize: s.setLyricsSize,
+    })),
+  );
 
   const toggleVocalsVolume = () => {
     const newVolume = toggleVolume(vocalVolume, 1); // Max volume is 1 (100%)

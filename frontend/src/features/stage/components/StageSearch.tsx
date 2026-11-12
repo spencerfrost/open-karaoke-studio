@@ -10,7 +10,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Plus, Theater } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useArtists } from "@/hooks/api/useArtists";
+import { artistSongTotal, useArtists } from "@/hooks/api/useArtists";
 import { useSongs } from "@/hooks/api/useSongs";
 import LibrarySearchInput from "@/features/library/components/LibrarySearchInput";
 import SongResultsSection from "@/features/library/components/SongResultsSection";
@@ -68,7 +68,11 @@ const StageSearch: React.FC<StageSearchProps> = ({
   );
   const { artists } = useArtists({ search: trimmed });
   const songs: Song[] = trimmed ? (songsQuery.data ?? []) : [];
-  const matchedArtists = trimmed ? artists.slice(0, MAX_ARTISTS) : [];
+  // Only artists the wheel lists can be jumped to; a one-off guest's songs
+  // still show in the song results.
+  const matchedArtists = trimmed
+    ? artists.filter((a) => a.listed !== false).slice(0, MAX_ARTISTS)
+    : [];
   const nothingFound =
     trimmed.length > 0 &&
     !songsQuery.isLoading &&
@@ -90,7 +94,7 @@ const StageSearch: React.FC<StageSearchProps> = ({
           placeholder="What do you want to sing?"
           debounceMs={300}
         />
-        <p className="pt-2 text-center text-sm text-foreground/40">
+        <p className="pt-2 text-center text-sm text-foreground-faint">
           {inputFocused ? "Esc" : "Esc or ⌫"} to go back to the wheel
         </p>
       </div>
@@ -110,8 +114,8 @@ const StageSearch: React.FC<StageSearchProps> = ({
               >
                 {artist.isShow && <Theater className="mr-2 size-4" />}
                 {artist.name}
-                <span className="ml-2 text-foreground/40">
-                  {artist.songCount}
+                <span className="ml-2 text-foreground-faint">
+                  {artistSongTotal(artist)}
                 </span>
               </Button>
             ))}
@@ -129,8 +133,8 @@ const StageSearch: React.FC<StageSearchProps> = ({
         )}
 
         {nothingFound && (
-          <div className="flex flex-col items-center gap-4 pt-12 text-xl text-foreground/60">
-            Nothing in the library matches "{trimmed}".
+          <div className="flex flex-col items-center gap-4 pt-12 text-xl text-foreground-dim">
+            Nothing in the songbook matches "{trimmed}".
             <Button
               variant="accent"
               size="lg"

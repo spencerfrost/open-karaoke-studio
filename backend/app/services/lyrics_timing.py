@@ -1,11 +1,17 @@
-import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app.config.logging import get_structured_logger
+# Routed to logs/lyrics_timing.jsonl by the "app.services.lyrics_timing" entry in
+# app/config/logging.py. Keep a plain logger: a LoggerAdapter replaces `extra`
+# and drops the event fields.
+logger = logging.getLogger(__name__)
 
-logger = get_structured_logger(__name__, {"component": "lyrics_timing"})
+# Passing one of these in `extra` makes logging raise KeyError.
+_RESERVED_RECORD_KEYS = frozenset(
+    logging.LogRecord("", 0, "", 0, "", None, None).__dict__
+) | {"message", "asctime"}
 
 
 def _normalize_value(value: Any) -> Any:
@@ -28,12 +34,8 @@ def log_lyrics_event(song_id: str, event: str, **fields: Any) -> None:
         "event": event,
     }
     for key, value in fields.items():
+        if key in _RESERVED_RECORD_KEYS:
+            key = f"field_{key}"
         payload[key] = _normalize_value(value)
 
-    logger.info(
-        event,
-        extra={
-            "lyrics_event": json.dumps(payload, sort_keys=True),
-            **payload,
-        },
-    )
+    logger.info(event, extra=payload)

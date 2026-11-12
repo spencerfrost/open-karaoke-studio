@@ -1,16 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { Artist } from "@/hooks/api/useArtists";
 import {
+  COLUMN_LEGEND,
+  COLUMN_SPECS,
   LETTERS,
+  SOURCES,
   artistImageUrl,
+  primaryArtists,
   columnBrightness,
   columnSeats,
   firstArtistByLetter,
   holdRate,
+  isColumnHidden,
+  columnIndexOf,
   listScrollOffset,
+  ringAngleFor,
+  routeWheelScroll,
   lyricsKind,
   songByline,
+  songCoverSources,
   songHeroSources,
+  stillIsCover,
   songYear,
   stepLetter,
   tileInitial,
@@ -23,7 +33,8 @@ const artist = (name: string, firstLetter: string, id = 0): Artist => ({
   id,
   name,
   sortName: name.toLowerCase(),
-  songCount: 1,
+  ownCount: 1,
+  featuredCount: 0,
   firstLetter,
 });
 
@@ -79,17 +90,55 @@ describe("stepLetter", () => {
   });
 });
 
-describe("geometry", () => {
-  it("puts artists at the front, letters left and songs right", () => {
-    const [l, a, s] = columnSeats();
-    expect(a).toBe(0);
-    expect(l).toBeLessThan(0);
-    expect(s).toBeGreaterThan(0);
+const AZ = SOURCES[0];
+const RECENT = SOURCES[1];
+const ARTIST = columnIndexOf(AZ, "artist");
+const LETTER = columnIndexOf(AZ, "letter");
+const SONG = columnIndexOf(AZ, "song");
+
+describe("sources", () => {
+  it("starts every source with the source column", () => {
+    for (const source of SOURCES) expect(source.columns[0]).toBe("source");
   });
 
-  it("seats the narrow letter column closer than the wide song column", () => {
-    const [l, , s] = columnSeats();
-    expect(Math.abs(l)).toBeLessThan(Math.abs(s));
+  it("gives every column kind a spec", () => {
+    for (const source of SOURCES)
+      for (const kind of source.columns)
+        expect(COLUMN_SPECS[kind].width).toBeGreaterThan(0);
+  });
+
+  it("has legend text for every column kind", () => {
+    for (const source of SOURCES)
+      for (const kind of source.columns)
+        expect(COLUMN_LEGEND[kind].enter).not.toBe("");
+  });
+});
+
+describe("geometry", () => {
+  it("puts the source column at 0 and every column to its right further on", () => {
+    for (const source of SOURCES) {
+      const seats = columnSeats(source.columns);
+      expect(seats).toHaveLength(source.columns.length);
+      expect(seats[0]).toBe(0);
+      seats
+        .slice(1)
+        .forEach((seat, i) => expect(seat).toBeGreaterThan(seats[i]));
+    }
+  });
+
+  it("seats the narrow letter column closer to its neighbour than the wide song column", () => {
+    const seats = columnSeats(AZ.columns);
+    expect(seats[ARTIST] - seats[LETTER]).toBeLessThan(
+      seats[SONG] - seats[ARTIST],
+    );
+  });
+
+  it("seats the recent list by its own width", () => {
+    const [source, recent] = columnSeats(RECENT.columns);
+    const px = (COLUMN_SPECS.source.width + COLUMN_SPECS.recent.width) / 2;
+    expect(recent - source).toBeGreaterThan(
+      (px / WHEEL_TUNING.radiusPx) * (180 / Math.PI),
+    );
   });
 
   it("compounds dimming per step back", () => {
@@ -108,11 +157,9 @@ describe("holdRate", () => {
 });
 
 describe("artwork", () => {
-  it("asks for artist photos by name, and never for shows", () => {
-    expect(artistImageUrl({ name: "AC/DC" })).toBe(
-      "/api/artists/image?name=AC%2FDC",
-    );
-    expect(artistImageUrl({ name: "Wicked", isShow: true })).toBeNull();
+  it("asks for artist photos by id, and never for shows", () => {
+    expect(artistImageUrl({ id: 42 })).toBe("/api/artists/42/image");
+    expect(artistImageUrl({ id: -1, isShow: true })).toBeNull();
   });
 
   it("leads the hero with the stored still, then YouTube, then the cover", () => {
@@ -129,6 +176,32 @@ describe("artwork", () => {
       "/api/albums/4/cover",
     ]);
     expect(songHeroSources({ id: "s2" })).toEqual([]);
+  });
+
+  it("leads the cover with the album cover, then the middle of the stills", () => {
+    expect(
+      songCoverSources({
+        id: "s1",
+        thumbnail: "thumbnail.webp",
+        videoId: "abc",
+        albumCoverUrl: "/api/albums/4/cover",
+      }),
+    ).toEqual([
+      "/api/albums/4/cover",
+      { url: "/api/songs/s1/thumbnail", videoMiddle: true },
+      {
+        url: "https://img.youtube.com/vi/abc/hqdefault.jpg",
+        videoMiddle: true,
+      },
+    ]);
+    expect(songCoverSources({ id: "s2" })).toEqual([]);
+  });
+
+  it("treats only a checked album track upload's still as the cover", () => {
+    expect(stillIsCover({ videoIsAlbumArt: true })).toBe(true);
+    expect(stillIsCover({ videoIsAlbumArt: false })).toBe(false);
+    expect(stillIsCover({ videoIsAlbumArt: null })).toBe(false);
+    expect(stillIsCover({})).toBe(false);
   });
 
   it("drops a leading article from the tile letter", () => {
@@ -173,6 +246,21 @@ describe("artwork", () => {
   });
 });
 
+describe("primaryArtists", () => {
+  it("names the primary credits, falling back to the artist text", () => {
+    expect(
+      primaryArtists({
+        artist: "Rihanna feat. JAY-Z",
+        artists: [
+          { id: 1, name: "Rihanna", role: "primary" },
+          { id: 2, name: "JAY-Z", role: "featured" },
+        ],
+      }),
+    ).toBe("Rihanna");
+    expect(primaryArtists({ artist: "Queen" })).toBe("Queen");
+  });
+});
+
 describe("listScrollOffset", () => {
   // 10 rows of 50px in a 200px column: 4 rows visible, max offset 300.
   const offset = (cursor: number, count = 10) =>
@@ -196,5 +284,85 @@ describe("listScrollOffset", () => {
   it("never scrolls a list shorter than the column", () => {
     expect(offset(0, 3)).toBe(0);
     expect(offset(2, 3)).toBe(0);
+  });
+});
+
+describe("ringAngleFor", () => {
+  const seats = columnSeats(AZ.columns);
+
+  it("turns the active column to the front", () => {
+    for (const col of [ARTIST, SONG])
+      expect(ringAngleFor(col, seats, AZ.columns)).toBeCloseTo(-seats[col]);
+  });
+
+  it("leaves the ring on the artists when the sources or letters are active", () => {
+    for (const col of [0, LETTER])
+      expect(ringAngleFor(col, seats, AZ.columns)).toBe(
+        ringAngleFor(ARTIST, seats, AZ.columns),
+      );
+  });
+
+  it("turns a one-column source's list to the front, sources active or not", () => {
+    const recentSeats = columnSeats(RECENT.columns);
+    for (const col of [0, 1])
+      expect(ringAngleFor(col, recentSeats, RECENT.columns)).toBeCloseTo(
+        -recentSeats[1],
+      );
+  });
+});
+
+describe("isColumnHidden", () => {
+  it("hides a narrow column two steps back, and any column three", () => {
+    expect(isColumnHidden("letter", 1)).toBe(false);
+    expect(isColumnHidden("letter", 2)).toBe(true);
+    expect(isColumnHidden("artist", 2)).toBe(false);
+    expect(isColumnHidden("source", 3)).toBe(true);
+  });
+});
+
+describe("routeWheelScroll", () => {
+  const gap = WHEEL_TUNING.scrollGestureGapMs;
+
+  it("starts a gesture on the hovered column", () => {
+    expect(routeWheelScroll(null, ARTIST, 1000).target).toBe(ARTIST);
+  });
+
+  it("keeps a gesture on its column when another turns in under the pointer", () => {
+    const first = routeWheelScroll(null, ARTIST, 1000);
+    const next = routeWheelScroll(first.lock, LETTER, 1000 + gap - 1);
+    expect(next.target).toBe(ARTIST);
+  });
+
+  it("stays locked through a long continuous scroll", () => {
+    let { lock } = routeWheelScroll(null, ARTIST, 0);
+    for (let t = 100; t <= 2000; t += 100) {
+      const step = routeWheelScroll(lock, LETTER, t);
+      expect(step.target).toBe(ARTIST);
+      lock = step.lock;
+    }
+  });
+
+  it("keeps going once the pointer is left over empty space", () => {
+    const first = routeWheelScroll(null, ARTIST, 1000);
+    const next = routeWheelScroll(first.lock, null, 1100);
+    expect(next.target).toBe(ARTIST);
+    expect(next.started).toBe(false);
+  });
+
+  it("starts nothing over empty space", () => {
+    expect(routeWheelScroll(null, null, 1000).target).toBeNull();
+  });
+
+  it("marks only the first event of a gesture as started", () => {
+    const first = routeWheelScroll(null, SONG, 1000);
+    expect(first.started).toBe(true);
+    expect(routeWheelScroll(first.lock, SONG, 1050).started).toBe(false);
+  });
+
+  it("frees the lock after a pause", () => {
+    const first = routeWheelScroll(null, ARTIST, 1000);
+    expect(routeWheelScroll(first.lock, LETTER, 1000 + gap).target).toBe(
+      LETTER,
+    );
   });
 });

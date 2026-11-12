@@ -109,7 +109,47 @@ CELERY_BROKER_URL=redis://localhost:6379/0
 
 # Paths
 LIBRARY_PATH=/path/to/karaoke_library
+
+# Docker: proxies whose X-Forwarded-For the API trusts (defaults to the bundled nginx)
+# FORWARDED_ALLOW_IPS=172.30.250.10
+
+# Docker: link for the entry page's "Watch the demo" button (hidden when unset).
+# A frontend build arg, so rebuild the frontend image after changing it.
+# VITE_DEMO_RECORDING_URL=https://example.com/demo-video
+
+# Docker: public docs site for the guided tour's "how this works" links (hidden when unset).
+# Also a frontend build arg.
+# VITE_DOCS_URL=https://example.com/docs/
 ```
+
+#### Client IPs behind the proxy
+
+Per-IP rate limits (login, session join, the [live demo](/demo-accounts)) need each visitor's real
+address. In Docker, requests reach the API through the frontend's nginx, so the API has to read it
+from `X-Forwarded-For`, and must only believe that header from nginx.
+
+```mermaid
+flowchart LR
+    V["Visitor"] --> O["Your reverse proxy<br/><i>optional</i>"]
+    O --> N["nginx (frontend)<br/><i>pinned at 172.30.250.10</i>"]
+    V -.-> N
+    N -->|"X-Forwarded-For:<br/>…, visitor"| A["API (uvicorn)<br/><i>trusts FORWARDED_ALLOW_IPS only</i>"]
+    D["Direct caller on :15123"] -->|"keyed on its own address"| A
+```
+
+- `docker-compose.yml` gives `karaoke-network` the fixed subnet `172.30.250.0/24` and pins the
+  frontend container to `172.30.250.10`. `FORWARDED_ALLOW_IPS` defaults to that one address.
+- nginx sends `$proxy_add_x_forwarded_for`: whatever the client sent, with the address nginx saw
+  appended last. uvicorn reads the header right to left and trusts only nginx, so it takes that
+  last entry and ignores anything a client wrote in front of it. This needs `uvicorn>=0.40.0`,
+  which `backend/requirements.txt` requires.
+- **Behind your own reverse proxy**, add its address to `FORWARDED_ALLOW_IPS` (comma-separated IPs
+  or CIDRs), so uvicorn passes through it to the visitor's address. Never add a range that direct
+  callers can come from.
+- The API port `15123` is still published to the host. A caller that connects to it directly is
+  keyed on its own address, since it isn't a trusted proxy.
+- Changing the subnet needs `docker compose down` and then `up`: Docker doesn't change an existing
+  network's subnet in place.
 
 ### 4. Database Setup
 
@@ -327,11 +367,11 @@ Not recommended for security reasons
 
 ### Session Sharing
 
-**QR Code (Planned):**
+**QR Code:**
 ```
-Display QR code on stage view
+The stage shows the join code and a QR code
 Scan to join session
-Automatic device detection
+No phone? "Open a phone view" under the code (computer only)
 ```
 
 **Manual Code Entry:**

@@ -5,8 +5,7 @@
 
 // Component exports
 export { DeleteSongDialog } from "./components/DeleteSongDialog";
-export { YoutubeMusicResultCard } from "./components/YoutubeMusicResultCard";
-export { YouTubeResultCard } from "./components/YoutubeVideoResultCard";
+export { AddSongFlow } from "./components/add-song/AddSongFlow";
 
 // Hook exports
 export { useSongActions } from "./hooks/useSongActions";

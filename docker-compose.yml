@@ -61,13 +61,20 @@ services:
       - PORT=5123
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      # First admin, created on startup only while no admin exists.
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
       - CORS_ORIGINS=${CORS_ORIGINS}
+      # Trust X-Forwarded-For from the bundled nginx only (its pinned address
+      # below), so per-IP rate limits see the visitor rather than nginx, and a
+      # direct caller on :15123 can't fake the header.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.30.250.10}
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
@@ -94,18 +101,24 @@ services:
     container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
-    command: celery -A app.jobs.celery_app.celery worker --loglevel=warning --concurrency=1 --pool=threads --queues=audio,enrichment,lyrics
+    # Three workers (audio, lyrics, enrichment), each in a restart loop; see the script
+    command: ./celery_workers.sh
     volumes:
       - ./karaoke_library:/app/karaoke_library
       - ./secrets:/app/secrets:ro
       - backend_logs:/app/backend/logs
+      # Demucs weights (torch hub) and the torch.compile kernel cache; without it a
+      # recreated container re-downloads the weights and recompiles the Roformers
+      - torch_cache:/root/.cache/torch
     environment:
+      - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torch/inductor
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
       - LOG_LEVEL=WARNING
+      - CELERY_LOG_LEVEL=warning
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1
@@ -138,6 +151,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Link for the entry page's "Watch the demo" button; hidden when empty.
+        VITE_DEMO_RECORDING_URL: ${VITE_DEMO_RECORDING_URL:-}
+        # Docs site the guided tour's "how this works" links point to; hidden when empty.
+        VITE_DOCS_URL: ${VITE_DOCS_URL:-}
     container_name: karaoke-frontend-prod
     restart: unless-stopped
     stop_grace_period: 5s
@@ -147,13 +165,20 @@ services:
       api:
         condition: service_healthy
     networks:
-      - karaoke-network
+      karaoke-network:
+        # Pinned: the API trusts X-Forwarded-For from this address only
+        # (FORWARDED_ALLOW_IPS on the api service).
+        ipv4_address: 172.30.250.10
 
 volumes:
   redis_data:
   postgres_data:
   backend_logs:
+  torch_cache:
 
 networks:
   karaoke-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24

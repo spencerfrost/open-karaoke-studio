@@ -17,7 +17,12 @@ import React, {
   useCallback,
 } from "react";
 import type { ParsedLrcData } from "@/utils/lrcUtils";
-import { getActiveLineIndex, lineHasWordTiming } from "./activeLineTiming";
+import {
+  getActiveLineIndex,
+  getLineRenderMode,
+  getSweepProgress,
+  type LineRenderMode,
+} from "./activeLineTiming";
 
 type ParsedLine = ParsedLrcData["lines"][number];
 type InstrumentalInterval = NonNullable<
@@ -190,16 +195,18 @@ interface InstrumentalSeparatorProps {
   widthClass: string;
 }
 
-const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
+// Memoized: only the separator for the running interval gets new props each
+// frame; the rest sit at a fixed 0 or 1 and skip re-rendering.
+const InstrumentalSeparator = React.memo(function InstrumentalSeparator({
   isLeadIn,
   progress,
   showLeadInHighlight,
   widthClass,
-}) => {
-  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-orange-peel/15";
+}: InstrumentalSeparatorProps) {
+  const separatorStateClass = isLeadIn ? "bg-glass/15" : "bg-primary/15";
   const progressFillClass = isLeadIn
     ? "from-foreground to-primary"
-    : "from-orange-peel to-primary/80";
+    : "from-primary to-primary/80";
   const progressAriaLabel = isLeadIn
     ? "Lead-in progress"
     : "Instrumental progress";
@@ -227,16 +234,17 @@ const InstrumentalSeparator: React.FC<InstrumentalSeparatorProps> = ({
       </div>
     </div>
   );
-};
+});
 
 interface LyricContentProps {
   line: ParsedLine;
-  renderMode: "content" | "words";
+  renderMode: LineRenderMode;
   isActive: boolean;
   opacity: string;
   isClickable: boolean;
   seekProps: SeekableSpanProps;
   currentWordIndex: number | null;
+  sweepProgress: number | null;
 }
 
 const LyricContent: React.FC<LyricContentProps> = ({
@@ -247,7 +255,33 @@ const LyricContent: React.FC<LyricContentProps> = ({
   isClickable,
   seekProps,
   currentWordIndex,
+  sweepProgress,
 }) => {
+  if (renderMode === "sweep" && isActive && sweepProgress !== null) {
+    // Two copies in one grid cell wrap identically: the dim one underneath
+    // keeps the line's glow, the lit one on top is filled by the sweep.
+    return (
+      <span
+        className={`${opacity} transition-opacity duration-300 inline-grid ${isClickable ? "cursor-pointer hover:opacity-100" : ""}`}
+        {...seekProps}
+      >
+        <span className="[grid-area:1/1] opacity-60">{line.content}</span>
+        <span className="[grid-area:1/1]" aria-hidden="true">
+          <span
+            className="lyric-sweep"
+            style={
+              {
+                "--lyric-sweep": `${sweepProgress * 100}%`,
+              } as React.CSSProperties
+            }
+          >
+            {line.content}
+          </span>
+        </span>
+      </span>
+    );
+  }
+
   if (renderMode === "words" && line.words && line.words.length > 0) {
     const words = line.words.map((w) => w.word);
 
@@ -261,7 +295,7 @@ const LyricContent: React.FC<LyricContentProps> = ({
             key={wIdx}
             className={`transition-[color,opacity] duration-100 ${
               isActive && currentWordIndex !== null && wIdx <= currentWordIndex
-                ? "opacity-100 text-orange-peel"
+                ? "opacity-100 text-primary"
                 : "opacity-60"
             }`}
           >
@@ -282,6 +316,92 @@ const LyricContent: React.FC<LyricContentProps> = ({
     </span>
   );
 };
+
+interface LyricLineProps {
+  line: ParsedLine;
+  index: number;
+  isActive: boolean;
+  renderMode: LineRenderMode;
+  /** The active line's highlighted word; null on every other line. */
+  currentWordIndex: number | null;
+  /** How far the active sweep line is lit, 0–1; null on every other line. */
+  sweepProgress: number | null;
+  activeFontClass: string;
+  inactiveFontClass: string;
+  onSeek?: (timeSeconds: number) => void;
+  lineRefs: React.RefObject<(HTMLDivElement | null)[]>;
+}
+
+/**
+ * One lyric line. Memoized so a frame of playback re-renders only the line
+ * whose props changed - the active one as its word highlight moves, and the
+ * two lines swapping in and out of active - instead of the whole song.
+ */
+const LyricLine = React.memo(function LyricLine({
+  line,
+  index,
+  isActive,
+  renderMode,
+  currentWordIndex,
+  sweepProgress,
+  activeFontClass,
+  inactiveFontClass,
+  onSeek,
+  lineRefs,
+}: LyricLineProps) {
+  const setRef = (el: HTMLDivElement | null) => {
+    lineRefs.current[index] = el;
+  };
+
+  if (line.isBlank) {
+    return <div ref={setRef} className="py-2 px-4 text-center min-h-[1em]" />;
+  }
+
+  const isClickable = !!onSeek;
+  const seekTo = line.timestamp / 1000;
+  const seekProps: SeekableSpanProps = isClickable
+    ? {
+        onClick: () => onSeek(seekTo),
+        role: "button",
+        tabIndex: 0,
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSeek(seekTo);
+          }
+        },
+      }
+    : {};
+
+  const fontSize = isActive ? activeFontClass : inactiveFontClass;
+  const opacity = isActive ? "opacity-100" : "opacity-50";
+  const weight = isActive ? "font-bold" : "font-normal";
+  const shadow = isActive ? "text-shadow" : "";
+
+  return (
+    <div
+      ref={setRef}
+      className={`py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
+      role={isActive ? "status" : undefined}
+      aria-live={isActive ? "polite" : undefined}
+    >
+      <div className="flex flex-col items-center justify-center gap-2 w-full">
+        <div className="text-center">
+          <LyricContent
+            line={line}
+            renderMode={renderMode}
+            isActive={isActive}
+            opacity={opacity}
+            isClickable={isClickable}
+            seekProps={seekProps}
+            currentWordIndex={currentWordIndex}
+            sweepProgress={sweepProgress}
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
 
 interface InstrumentalStyleConfig {
   showProgressBar?: boolean;
@@ -404,6 +524,19 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     }
     return idx;
   }, [parsedData.lines, currentLineIndex, currentTimeSec]);
+
+  const renderModes = useMemo(
+    () => parsedData.lines.map(getLineRenderMode),
+    [parsedData.lines],
+  );
+
+  const sweepProgress = useMemo(() => {
+    if (currentLineIndex === -1 || renderModes[currentLineIndex] !== "sweep")
+      return null;
+    const words = parsedData.lines[currentLineIndex].words;
+    if (!words || words.length === 0) return null;
+    return getSweepProgress(words, currentTimeSec);
+  }, [parsedData.lines, renderModes, currentLineIndex, currentTimeSec]);
 
   const activeInstrumentalDisplay = useMemo(() => {
     const interval = parsedData.instrumentalIntervals?.find((candidate) => {
@@ -570,35 +703,8 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
   }, [currentLineIndex, fontSizes]);
 
   // Render all lyrics lines (including blanks)
-  const renderAllLines = () => {
-    const isClickable = !!onSeek;
-
-    const getSeekProps = (lineTimestampMs: number): SeekableSpanProps => {
-      if (!isClickable) {
-        return {
-          onClick: undefined,
-          role: undefined,
-          tabIndex: undefined,
-          onKeyDown: undefined,
-        };
-      }
-
-      const seekTo = lineTimestampMs / 1000;
-
-      return {
-        onClick: () => onSeek?.(seekTo),
-        role: "button" as const,
-        tabIndex: 0,
-        onKeyDown: (e: React.KeyboardEvent<HTMLSpanElement>) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSeek?.(seekTo);
-          }
-        },
-      };
-    };
-
-    return parsedData.lines.flatMap((line, index) => {
+  const renderAllLines = () =>
+    parsedData.lines.flatMap((line, index) => {
       const renderedElements: React.ReactNode[] = [];
       const isActive = index === currentLineIndex;
       const lineInstrumentalIntervals =
@@ -632,61 +738,24 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
         }
       }
 
-      // Check if this line is blank
-      if (line.isBlank) {
-        renderedElements.push(
-          <div
-            key={`line-${line.timestamp}-${index}`}
-            ref={(el) => {
-              lineRefs.current[index] = el;
-            }}
-            className="py-2 px-4 text-center min-h-[1em]"
-          >
-            {/* Empty blank line */}
-          </div>,
-        );
-
-        return renderedElements;
-      }
-
-      const fontSize = isActive ? fontSizes.active : fontSizes.inactive;
-      const opacity = isActive ? "opacity-100" : "opacity-50";
-      const weight = isActive ? "font-bold" : "font-normal";
-      const shadow = isActive ? "text-shadow" : "";
-      const seekProps = getSeekProps(line.timestamp);
-      const lineRenderMode: "content" | "words" = lineHasWordTiming(line)
-        ? "words"
-        : "content";
-
       renderedElements.push(
-        <div
+        <LyricLine
           key={`line-${line.timestamp}-${index}`}
-          ref={(el) => {
-            lineRefs.current[index] = el;
-          }}
-          className={`py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
-          role={isActive ? "status" : undefined}
-          aria-live={isActive ? "polite" : undefined}
-        >
-          <div className="flex flex-col items-center justify-center gap-2 w-full">
-            <div className="text-center">
-              <LyricContent
-                line={line}
-                renderMode={lineRenderMode}
-                isActive={isActive}
-                opacity={opacity}
-                isClickable={isClickable}
-                seekProps={seekProps}
-                currentWordIndex={currentWordIndex}
-              />
-            </div>
-          </div>
-        </div>,
+          line={line}
+          index={index}
+          isActive={isActive}
+          renderMode={renderModes[index]}
+          currentWordIndex={isActive ? currentWordIndex : null}
+          sweepProgress={isActive ? sweepProgress : null}
+          activeFontClass={fontSizes.active}
+          inactiveFontClass={fontSizes.inactive}
+          onSeek={onSeek}
+          lineRefs={lineRefs}
+        />,
       );
 
       return renderedElements;
     });
-  };
 
   return (
     <div

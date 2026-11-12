@@ -17,13 +17,18 @@ const BASE_VOLUME = 0.7;
 
 type PreviewStatus = "idle" | "loading" | "playing";
 
+interface PreviewStartOptions {
+  /** Base volume before the song's normalization gain; the library's is 0.7. */
+  volume?: number;
+}
+
 interface SongPreviewState {
   previewSongId: string | null;
   status: PreviewStatus;
   /** 0–1 through the preview window (not through the song). */
   progress: number;
 
-  start: (song: Song) => void;
+  start: (song: Song, options?: PreviewStartOptions) => void;
   /** Stops the preview. Passing a songId makes it a no-op unless that song is the one playing. */
   stop: (songId?: string) => void;
   /** Cuts the preview dead with no fade, even one already fading out. */
@@ -51,9 +56,9 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 /** Preview volume adjusted by the song's stored normalization gain, so the library plays back level. */
-const volumeForSong = (song: Song): number => {
+const volumeForSong = (song: Song, baseVolume: number): number => {
   const gainDb = song.gainDb ?? 0;
-  return clamp(BASE_VOLUME * 10 ** (gainDb / 20), 0, 1);
+  return clamp(baseVolume * 10 ** (gainDb / 20), 0, 1);
 };
 
 const cancelRamp = () => {
@@ -173,7 +178,7 @@ export const useSongPreviewStore = create<SongPreviewState>((set, get) => {
     status: "idle",
     progress: 0,
 
-    start: (song) => {
+    start: (song, options = {}) => {
       // A performance always wins. Checked here rather than only at the call
       // site because the hover-intent timer arms 500ms before it fires, so
       // playback can begin in between.
@@ -191,7 +196,7 @@ export const useSongPreviewStore = create<SongPreviewState>((set, get) => {
       // tore down, and stamps the one replacing it.
       token += 1;
       pending = { token, song };
-      targetVolume = volumeForSong(song);
+      targetVolume = volumeForSong(song, options.volume ?? BASE_VOLUME);
       previewStartedAt = 0;
 
       const el = getAudio();

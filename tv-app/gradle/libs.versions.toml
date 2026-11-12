@@ -1,0 +1,11 @@
+[versions]
+agp = "9.4.1"
+appcompat = "1.7.1"
+core = "1.17.0"
+
+[libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }

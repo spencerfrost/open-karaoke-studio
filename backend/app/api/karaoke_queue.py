@@ -10,14 +10,20 @@ This module provides REST API endpoints for queue management:
 """
 
 import logging
-from typing import Generator, List, Optional
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session, joinedload, subqueryload
+from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies import (
     RequesterContext,
+    ensure_session_access,
+    get_db,
     require_host,
     require_host_or_session_member,
 )
-from app.db.database import SessionLocal
 from app.db.models import (
     DbSong,
     KaraokeQueueItem,
@@ -26,20 +32,14 @@ from app.db.models import (
     SessionPlaybackState,
     User,
 )
+from app.jobs.song_updates import update_queued_song
 from app.services.queue_ordering import (
-    advance_to,
-    bump_to_next,
-    compute_lap,
-    enter_rotation,
     get_ordered_queue_items,
 )
 from app.services.roster_service import resolve_or_create_performer_verbose
-from app.services.turn_service import compute_turn, serialize_turn
+from app.services.turn_service import compute_turn, record_play, serialize_turn
 from app.ws.connection_manager import SessionConnectionManager
 from app.ws.queue import broadcast_queue_update, broadcast_roster_update
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session, joinedload, subqueryload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/karaoke-queue", tags=["queue"])
@@ -74,8 +74,10 @@ class QueueItemResponse(BaseModel):
     id: int
     songId: str
     singer: str
+    # The roster seat this song belongs to. Null only for rows that predate the
+    # roster and never had one backfilled.
+    performerId: Optional[int] = None
     position: int
-    lap: int
     addedAt: Optional[str] = None
     song: SongInfo
 
@@ -143,19 +145,6 @@ class QueueStateResponse(BaseModel):
 # ============================================================================
 
 
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
 def get_session_code(
     session_code: Optional[str] = Query(None, alias="session_code"),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
@@ -170,16 +159,11 @@ def get_session_code(
 def require_queue_access(
     session_code: str = Depends(get_session_code),
     requester: RequesterContext = Depends(require_host_or_session_member),
+    db: Session = Depends(get_db),
 ) -> str:
-    """The session code this caller is allowed to touch.
-
-    An account holder may address any session - hosts run them, and the
-    planned performer tier is scoped by its own membership anyway. An
-    anonymous session guest is confined to the session their device
-    credential names.
-    """
-    if requester.user is None and requester.session_id != session_code:
-        raise HTTPException(status_code=403, detail="Not a member of that session")
+    """The session code this caller is allowed to touch: one their device is a
+    member of, one their account hosts, or any for an admin."""
+    ensure_session_access(requester, session_code, db)
     return session_code
 
 
@@ -238,8 +222,8 @@ def queue_item_to_response(
         id=item.id,
         songId=item.song_id,
         singer=item.singer_name,
+        performerId=item.performer_id,
         position=position_override if position_override is not None else item.position,
-        lap=item.lap,
         addedAt=item.created_at.isoformat() if item.created_at else None,
         song=song_to_info(item.song),
     )
@@ -333,7 +317,7 @@ def build_queue_state(db: Session, session_code: str) -> QueueStateResponse:
 
 
 @router.get("", response_model=QueueStateResponse)
-async def get_queue(
+def get_queue(
     session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
 ):
@@ -397,9 +381,6 @@ async def add_to_queue(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    lap = compute_lap(db, karaoke_session, performer)
-    enter_rotation(performer)
-
     # Create new queue item
     new_item = KaraokeQueueItem(
         singer_name=queue_data.singer,
@@ -407,7 +388,6 @@ async def add_to_queue(
         session_id=session_code,
         position=new_position,
         performer_id=performer.id,
-        lap=lap,
     )
     db.add(new_item)
     db.commit()
@@ -418,12 +398,15 @@ async def add_to_queue(
 
     await broadcast_queue_update(manager, session_code)
 
+    # Anything the library has learned to do since this song was processed
+    # starts now, so it's ready by the song's turn.
+    await run_in_threadpool(update_queued_song, new_item.song_id)
+
     return QueueItemResponse(
         id=new_item.id,
         songId=new_item.song_id,
         singer=new_item.singer_name,
         position=new_item.position,
-        lap=new_item.lap,
         addedAt=new_item.created_at.isoformat() if new_item.created_at else None,
         song=song_to_info(song),
     )
@@ -486,7 +469,7 @@ async def reorder_queue(
 
     Free reordering only makes sense in append mode - in rotation mode the next
     add would immediately undo a drag, so `Bump to next` is the only mutation
-    allowed there instead. See docs/plans/archive/2026-08-29-roster-and-rotation.md.
+    allowed there instead.
     """
     if session.queue_order_mode != "append":
         raise HTTPException(
@@ -527,9 +510,13 @@ async def bump_queue_item(
     session: KaraokeSession = Depends(require_session_owner),
 ):
     """
-    Move one queue item to the front of the rotation - "Grandma's leaving, let
-    her sing now." Rewrites `lap` on exactly this row; every other row is
-    untouched. Rotation mode only.
+    Make one queue item the next song - "Grandma's leaving, let her sing now."
+
+    Sets the session's one-off bump, which takes precedence over the pointer
+    for a single turn and clears when that song starts. Works mid-song, since
+    nothing plays until `/play`. If it isn't the holder's song, it is an extra
+    song: the turn stays with the holder (see turn_service.record_play).
+    Rotation mode only.
     """
     if session.queue_order_mode != "rotation":
         raise HTTPException(
@@ -537,10 +524,22 @@ async def bump_queue_item(
             detail="Bump is only available in rotation mode - reorder instead",
         )
 
-    item = bump_to_next(db, session_code, item_id)
+    item = (
+        db.query(KaraokeQueueItem)
+        .filter(
+            KaraokeQueueItem.id == item_id,
+            KaraokeQueueItem.session_id == session_code,
+        )
+        .first()
+    )
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    playback_state = get_or_create_playback_state(db, session_code)
+    if playback_state.current_queue_item_id == item.id:
+        raise HTTPException(status_code=400, detail="That song is already playing")
+
+    session.bumped_item_id = item.id
     db.commit()
     db.refresh(item)
 
@@ -614,9 +613,9 @@ async def play_queue_item(
     playback_state.duration = item.song.duration or 0
     playback_state.is_ready = False
 
-    # Starting a song is what moves the rotation - a walk-up now joins at this
-    # lap, and this singer's next add lands on the one after it.
-    advance_to(session, item)
+    # Starting a song is the only thing that moves the pointer on its own: the
+    # turn follows whoever sings. Needs the previous song's history row above.
+    record_play(db, session, item)
 
     reindex_upcoming_positions(db, session_code, playback_state.current_queue_item_id)
 

@@ -9,15 +9,12 @@ This module provides REST API endpoints for job management:
 """
 
 import logging
-from typing import Generator, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, ConfigDict
 
-
-from app.api.dependencies import require_host
-from app.db.database import SessionLocal
+from app.api.dependencies import require_admin
 from app.db.models import JobStatus, User
 from app.services.jobs_service import JobsService
 
@@ -28,6 +25,7 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 # ============================================================================
 # Pydantic Models
 # ============================================================================
+
 
 class JobResponse(BaseModel):
     """Job response model"""
@@ -41,8 +39,7 @@ class JobResponse(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class JobListResponse(BaseModel):
@@ -81,18 +78,6 @@ class JobActionResponse(BaseModel):
 # Dependencies
 # ============================================================================
 
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
 
 def get_jobs_service() -> JobsService:
     """Dependency to get jobs service"""
@@ -103,10 +88,11 @@ def get_jobs_service() -> JobsService:
 # Endpoints
 # ============================================================================
 
+
 @router.get("/status", response_model=JobStatisticsResponse)
-async def get_job_status(
+def get_job_status(
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Get the overall status of job processing with statistics.
@@ -123,10 +109,10 @@ async def get_job_status(
 
 
 @router.get("", response_model=JobListResponse)
-async def get_jobs(
+def get_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     List all jobs with their status.
@@ -139,9 +125,7 @@ async def get_jobs(
                 job_status = JobStatus(status)
                 jobs = jobs_service.get_jobs_by_status(job_status)
             except ValueError:
-                raise HTTPException(
-                    status_code=400, detail=f"Invalid status: {status}"
-                )
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         else:
             jobs = jobs_service.get_all_jobs()
 
@@ -155,10 +139,10 @@ async def get_jobs(
 
 
 @router.get("/{job_id}")
-async def get_job(
+def get_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Get detailed information about a specific job.
@@ -172,10 +156,10 @@ async def get_job(
 
 
 @router.post("/{job_id}/cancel", response_model=JobActionResponse)
-async def cancel_job(
+def cancel_job(
     job_id: str,
     jobs_service: JobsService = Depends(get_jobs_service),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Cancel a pending or in-progress job.
@@ -193,8 +177,6 @@ async def cancel_job(
     success = jobs_service.cancel_job(job_id)
 
     if success:
-        return JobActionResponse(
-            success=True, message="Job cancelled", job_id=job_id
-        )
+        return JobActionResponse(success=True, message="Job cancelled", job_id=job_id)
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel job")

@@ -6,9 +6,7 @@
  * display name, so the queue ends up as a wall of one person. Asking once, here,
  * costs a tap and makes the queue mean something.
  *
- * The name grid itself lives in RosterPicker, because unit 4's handoff screen
- * asks the same question when someone taps "That's not me" - the second caller
- * this screen was built expecting.
+ * The name grid itself lives in RosterPicker.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -24,6 +22,7 @@ import type { SessionPerformer } from "@/types/SessionPerformer";
 import type { SessionTurn } from "@/types/KaraokeQueue";
 import RosterPicker from "../components/RosterPicker";
 import { useDefaultSinger } from "../hooks/useDefaultSinger";
+import StageNowPlaying from "../components/StageNowPlaying";
 import { useStageShell } from "../StageShellContext";
 
 interface SongConfirmScreenProps {
@@ -129,19 +128,19 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
   const chosenRing = "ring-4 ring-primary ring-offset-2 ring-offset-background";
 
   return (
-    <div className="flex h-full w-full flex-col overflow-auto">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-4">
         <Button
           variant="ghost"
           onClick={() => shell?.back()}
-          className="text-foreground/60 hover:text-foreground"
+          className="text-foreground-dim hover:text-foreground"
         >
           <ChevronLeft className="mr-1 size-5" />
           Back
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 p-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-auto p-6">
         <div className="flex items-center gap-6">
           <img
             src={getArtworkUrl(song, "medium") ?? undefined}
@@ -152,7 +151,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
             <h1 className="font-display text-4xl leading-tight text-foreground">
               {song.title}
             </h1>
-            <h2 className="pt-2 text-2xl text-foreground/55">{song.artist}</h2>
+            <h2 className="pt-2 text-2xl text-foreground-dim">{song.artist}</h2>
           </div>
         </div>
 
@@ -203,6 +202,7 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
           </p>
         )}
       </div>
+      <StageNowPlaying />
     </div>
   );
 };

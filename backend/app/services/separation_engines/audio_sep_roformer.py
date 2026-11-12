@@ -14,8 +14,11 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-from audio_separator.separator import Separator
+import torch
+
 from app.services import file_management
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -49,24 +52,21 @@ def separate_with_roformer(
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # Initialize audio-separator with song_dir as output directory
         status_callback("Progress: 35% - Initializing Roformer model...")
-        separator = Separator(
-            output_dir=str(song_dir),
-            output_format="mp3",
-        )
-
         # Load the Mel-Band Roformer ViperX model
         # This model auto-downloads on first use
         model_name = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
         status_callback(f"Loading model: {model_name}")
-        separator.load_model(model_filename=model_name)
+        separator = load_separator(model_name, str(song_dir), output_format="mp3")
 
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # Perform separation
@@ -79,6 +79,7 @@ def separate_with_roformer(
         # Check for stop request
         if stop_event and stop_event.is_set():
             from app.services.audio import StopProcessingError
+
             raise StopProcessingError("Processing stopped by user")
 
         # The Roformer karaoke model typically outputs:
@@ -112,10 +113,13 @@ def separate_with_roformer(
 
         # Move to standard names in song_dir
         vocals_path = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-        instrumental_path = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
+        instrumental_path = file_management.get_instrumental_path_stem(
+            song_dir
+        ).with_suffix(".mp3")
 
         # Use shutil.move instead of rename to handle cross-filesystem moves
         import shutil
+
         shutil.move(str(vocals_file), str(vocals_path))
         shutil.move(str(instrumental_file), str(instrumental_path))
 
@@ -126,6 +130,10 @@ def separate_with_roformer(
         logger.info("Roformer Karaoke-First separation completed successfully")
 
         return True
+
+    except torch.cuda.OutOfMemoryError:
+        # A full GPU is the job's to handle (retry later)
+        raise
 
     except Exception as e:
         logger.error("Roformer separation failed: %s", e, exc_info=True)

@@ -4,7 +4,7 @@ import {
   SongCard,
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { useSongs as useSongsHook } from "@/hooks/api/useSongs";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
@@ -15,8 +15,9 @@ interface RecentlyAddedSongsProps {
 const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
   maxSongs = 48,
 }) => {
-  const { isStageDevice } = useSessionStore();
-  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
+  // Admins manage songs from any device, not just the one running the Stage.
+  const { isStageDevice, isAdmin } = useAccess();
+  const CardComponent = isStageDevice || isAdmin ? SongCard : PerformerSongCard;
   const { useSongs } = useSongsHook();
   const { data: allSongs, isLoading } = useSongs({
     limit: maxSongs,
@@ -50,8 +51,8 @@ const RecentlyAddedSongs: React.FC<RecentlyAddedSongsProps> = ({
           "md:[&::-webkit-scrollbar]:h-1.5",
           "md:[&::-webkit-scrollbar-track]:rounded-full md:[&::-webkit-scrollbar-track]:bg-glass/10",
           // Scrollbar thumb
-          "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-orange-peel/40",
-          "md:hover:[&::-webkit-scrollbar-thumb]:bg-orange-peel/70",
+          "md:[&::-webkit-scrollbar-thumb]:rounded-full md:[&::-webkit-scrollbar-thumb]:bg-primary/40",
+          "md:hover:[&::-webkit-scrollbar-thumb]:bg-primary/70",
           // Padding below for scrollbar space on desktop
           "pb-1 md:pb-3",
         ].join(" ")}

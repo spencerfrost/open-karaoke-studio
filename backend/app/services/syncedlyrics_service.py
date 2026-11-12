@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Dict, List, Optional
+
 import syncedlyrics
+
 from app.exceptions import ServiceError
 
 logger = logging.getLogger(__name__)
@@ -99,9 +101,7 @@ class SyncedLyricsService:
             logger.error("syncedlyrics search error: %s", e, exc_info=True)
             raise ServiceError(f"Failed to search syncedlyrics: {e}")
 
-    def search_lyrics_structured(
-        self, params: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
+    def search_lyrics_structured(self, params: Dict[str, str]) -> List[Dict[str, Any]]:
         """
         Search using structured parameters (track_name, artist_name, album_name).
         Converts to query string for syncedlyrics.
@@ -122,10 +122,12 @@ class SyncedLyricsService:
 
         # Enhance results with structured metadata
         if results:
-            results[0].update({
-                "trackName": track_name,
-                "artistName": artist_name,
-                "albumName": album_name,
-            })
+            results[0].update(
+                {
+                    "trackName": track_name,
+                    "artistName": artist_name,
+                    "albumName": album_name,
+                }
+            )
 
         return results

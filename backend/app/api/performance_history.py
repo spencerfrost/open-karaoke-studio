@@ -7,11 +7,12 @@ Provides read access to the persistent log of all songs performed.
 import logging
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import get_db, require_host
 from app.db.models import DbSong, KaraokeSession, PerformanceHistory, User
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/performance-history", tags=["performance-history"])
@@ -26,8 +27,7 @@ class PerformanceHistoryItem(BaseModel):
     session_code: Optional[str]
     performed_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerformanceHistoryResponse(BaseModel):
@@ -45,13 +45,22 @@ def get_performance_history(
     current_user: User = Depends(require_host),
 ):
     """
-    Get paginated list of all performances, most recent first.
+    Get paginated list of performances, most recent first.
+
+    Admins see every session's; a host sees only the sessions they ran. Hosts
+    include the public demo accounts, and other sessions' rows carry singer
+    names and join codes.
     """
-    total = db.query(PerformanceHistory).count()
+    query = db.query(PerformanceHistory)
+    if not current_user.is_admin:
+        query = query.join(
+            KaraokeSession, KaraokeSession.session_id == PerformanceHistory.session_id
+        ).filter(KaraokeSession.host_user_id == current_user.id)
+
+    total = query.count()
 
     rows = (
-        db.query(PerformanceHistory)
-        .order_by(PerformanceHistory.performed_at.desc())
+        query.order_by(PerformanceHistory.performed_at.desc())
         .offset(offset)
         .limit(limit)
         .all()

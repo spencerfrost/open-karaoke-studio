@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Open Karaoke</string>
+
+    <string name="menu_reload">Reload</string>
+    <string name="menu_server_address">Change server address</string>
+    <string name="menu_exit">Exit</string>
+
+    <string name="error_title">Can\'t reach the karaoke server</string>
+    <string name="error_detail">Tried %1$s</string>
+    <string name="error_retry">Retry</string>
+    <string name="error_change_server">Change server address</string>
+
+    <string name="server_title">Server address</string>
+    <string name="server_hint">For example http://192.168.1.20:5193</string>
+    <string name="server_save">Save</string>
+    <string name="server_reset">Reset to %1$s</string>
+    <string name="server_invalid">That doesn\'t look like a web address</string>
+</resources>

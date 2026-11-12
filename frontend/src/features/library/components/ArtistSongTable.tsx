@@ -46,9 +46,9 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   };
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-lemon-chiffon/5 group">
+    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-surface-hover group">
       {/* Thumbnail */}
-      <div className="w-9 h-9 rounded flex-shrink-0 overflow-hidden bg-orange-peel/20 flex items-center justify-center">
+      <div className="w-9 h-9 rounded flex-shrink-0 overflow-hidden bg-primary/20 flex items-center justify-center">
         {artworkUrl && !imgError ? (
           <img
             src={artworkUrl}
@@ -58,17 +58,17 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
             onError={() => setImgError(true)}
           />
         ) : (
-          <Music size={14} className="text-orange-peel/60" />
+          <Music size={14} className="text-primary/60" />
         )}
       </div>
 
       {/* Title */}
-      <span className="flex-1 min-w-0 text-sm text-lemon-chiffon truncate">
+      <span className="flex-1 min-w-0 text-sm text-foreground truncate">
         {song.title}
       </span>
 
       {/* Duration */}
-      <span className="w-10 text-xs text-lemon-chiffon/50 text-right shrink-0 tabular-nums">
+      <span className="w-10 text-xs text-foreground-faint text-right shrink-0 tabular-nums">
         {formatDuration(song.duration)}
       </span>
 
@@ -156,12 +156,12 @@ const ArtistSongTable: React.FC<ArtistSongTableProps> = React.memo(
     return (
       <div className="space-y-4">
         {/* Column headers */}
-        <div className="flex items-center gap-3 px-3 pb-1 border-b border-lemon-chiffon/10">
+        <div className="flex items-center gap-3 px-3 pb-1 border-b border-glass-border/10">
           <div className="w-9 shrink-0" />
-          <span className="flex-1 text-xs text-lemon-chiffon/40 uppercase tracking-wide">
+          <span className="flex-1 text-xs text-foreground-faint uppercase tracking-wide">
             Title
           </span>
-          <span className="w-10 text-xs text-lemon-chiffon/40 uppercase tracking-wide text-right shrink-0">
+          <span className="w-10 text-xs text-foreground-faint uppercase tracking-wide text-right shrink-0">
             Time
           </span>
           <div className="w-[76px] shrink-0" />

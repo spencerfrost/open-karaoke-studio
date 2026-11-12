@@ -13,16 +13,30 @@
  * the actions, and there are several hundred of them mounted at once — putting
  * both in one value meant every screen change re-rendered the entire library.
  * Read `useStageShell()` for the actions, `useStageScreen()` for the state.
+ *
+ * A third, `useStageQueue()`, carries the queue for the stage's own chrome (the
+ * now-playing bar). It changes on every queue broadcast, so it is kept out of
+ * the other two, and the memoized song select screen never reads it.
  */
 
 import { createContext, useContext } from "react";
+import type {
+  KaraokeQueueItemWithSong,
+  SessionTurn,
+} from "@/types/KaraokeQueue";
 import type { Song } from "@/types/Song";
+import type { AddFlowStep } from "@/hooks/useAddFlowNavigation";
+import type { OpenAddSongOptions } from "@/hooks/useOpenAddSong";
 
 export type StageScreen =
   | { name: "performance" }
   | { name: "select"; expandArtist?: string }
   | { name: "confirm"; song: Song }
-  | { name: "add"; query?: string; browseArtist?: boolean }
+  /**
+   * The add-song flow: search, then maybe an artist, then maybe an album.
+   * `back` walks the stack before leaving it. Never empty.
+   */
+  | { name: "add"; stack: AddFlowStep[] }
   /**
    * Between songs. Entered from `songEnded` rather than a tap, and left when a
    * song starts - the only screen the shell drives itself.
@@ -33,14 +47,30 @@ export interface StageShellApi {
   openPerformance: () => void;
   openSelect: (opts?: { expandArtist?: string }) => void;
   openConfirm: (song: Song) => void;
-  openAdd: (opts?: { query?: string; browseArtist?: boolean }) => void;
+  openAdd: (opts?: OpenAddSongOptions) => void;
+  /** Open an add-flow screen on top of the current one. */
+  pushAdd: (step: AddFlowStep) => void;
+  /** Swap the current add-flow screen for another. */
+  replaceAdd: (step: AddFlowStep) => void;
   openHandoff: () => void;
-  /** One step back along the select-family screens; ends at the performance screen. */
+  /**
+   * One step back along the select-family screens (and the add flow's own
+   * screens, before it returns to song select); ends at the performance
+   * screen. After a song has ended, song select leads to the handoff screen
+   * when the next singer has a song, and nowhere when they don't.
+   */
   back: () => void;
+}
+
+export interface StageQueue {
+  current: KaraokeQueueItemWithSong | null;
+  upcoming: KaraokeQueueItemWithSong[];
+  turn: SessionTurn;
 }
 
 export const StageShellContext = createContext<StageShellApi | null>(null);
 export const StageScreenContext = createContext<StageScreen | null>(null);
+export const StageQueueContext = createContext<StageQueue | null>(null);
 
 /** The stage shell's actions, or null when not running on the stage. */
 export const useStageShell = (): StageShellApi | null =>
@@ -49,3 +79,7 @@ export const useStageShell = (): StageShellApi | null =>
 /** The active stage screen. Only the shell's own chrome should need this. */
 export const useStageScreen = (): StageScreen | null =>
   useContext(StageScreenContext);
+
+/** The session queue as the shell holds it, or null off the stage. */
+export const useStageQueue = (): StageQueue | null =>
+  useContext(StageQueueContext);

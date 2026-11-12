@@ -33,9 +33,19 @@ GET /api/youtube/search
 {
   "success": true,
   "message": "Found 10 videos matching 'queen bohemian rhapsody'",
-  "data": [ { "id": "fJ9rUzIMcZQ", "title": "...", "channel": "...", "duration": 355 } ]
+  "data": [
+    {
+      "id": "fJ9rUzIMcZQ",
+      "title": "...",
+      "channel": "...",
+      "duration": 355,
+      "library": null
+    }
+  ]
 }
 ```
+
+Each video carries a `library` field, the same as on [YouTube Music results](#the-library-field), with the channel standing in for the artist.
 
 ---
 
@@ -70,7 +80,7 @@ POST /api/youtube/download
 }
 ```
 
-`video_id` and `song_id` are required (create the song first via `POST /api/songs`). `engine_type` is one of `three_track` (default), `demucs`, `roformer`, `hybrid`, `clean_backing`, `three_track_duality_v2`, `three_track_mel1143`.
+`video_id` and `song_id` are required (create the song first via `POST /api/songs`). To add a song in one request, use [`POST /api/songs/from-youtube`](songs.md#add-song-from-youtube) instead. `engine_type` is one of `three_track` (default), `demucs`, `roformer`, `hybrid`, `clean_backing`, `three_track_duality_v2`, `three_track_mel1143`.
 
 #### Response
 
@@ -90,48 +100,110 @@ POST /api/youtube/download
 
 ## YouTube Music Endpoints
 
-Richer music-oriented search used by the Add Song flow. Song results include an `existsInLibrary` flag.
+Music-oriented search and browse, used by the Add Song flow. Each needs an account or session-member credential, and each is rate limited per client IP (suggestions `120/minute`, the rest `30/minute`). When YouTube Music fails they return `502`; an unknown artist or album is `404`.
+
+### Song Shape
+
+Every song (in search results, an artist's popular songs and album tracks) has the same fields:
+
+```json
+{
+  "videoId": "HgzGwKwLmgM",
+  "title": "Don't Stop Me Now",
+  "artists": [{ "name": "Queen", "id": "UCiMhD4jzUqG-IgPzUmmytRQ" }],
+  "artist": "Queen",
+  "album": "Jazz (Deluxe Edition)",
+  "albumId": "MPREb_...",
+  "durationSeconds": 210,
+  "isExplicit": false,
+  "thumbnails": [{ "url": "https://...", "width": 120, "height": 120 }],
+  "trackNumber": null,
+  "library": { "status": "ready", "songId": "song-uuid" }
+}
+```
+
+- `artists` keeps every credited artist; `artist` is the same names as the one credit line a library song stores ("JAY-Z feat. Alicia Keys").
+- `videoId` is `null` for a track YouTube Music can't play.
+- `trackNumber` is set on album tracks only.
+
+#### The `library` field
+
+What the library already holds of this song. A library song matches when it has the same video id, or the same artist and title (case-insensitive).
+
+| Value | Meaning |
+|---|---|
+| `{"status": "ready", "songId": ...}` | A processed copy exists |
+| `{"status": "processing", "songId": ...}` | A copy is still being processed |
+| `{"status": "failed", "songId": ...}` | The only copy failed; adding the song restarts it |
+| `null` | Not in the library |
+
+A working copy wins over a failed one, and a video id match wins over an artist and title match.
 
 ### Search
 
 ```http
-GET /api/youtube-music/search?q={query}&limit=10
+GET /api/youtube-music/search?q={query}&limit=20
 ```
+
+`limit` (1–50, default 20) is the number of songs YouTube Music is asked for.
 
 #### Response
 
 ```json
 {
-  "artists": [ { "browseId": "UC...", "artist": "Queen", "thumbnails": [] } ],
-  "songs": [
-    {
-      "videoId": "fJ9rUzIMcZQ",
-      "title": "Bohemian Rhapsody",
-      "artist": "Queen",
-      "album": "A Night at the Opera",
-      "duration": "5:55",
-      "existsInLibrary": true
-    }
-  ],
-  "error": null
+  "bestMatch": { "...": "a song" },
+  "otherVersions": [ { "...": "songs" } ],
+  "otherSongs": [ { "...": "songs" } ],
+  "artists": [ { "browseId": "UC...", "name": "Queen", "subscribers": "19.1M", "thumbnails": [] } ],
+  "topArtistId": "UC..."
 }
 ```
 
+- `bestMatch` is YouTube Music's first song result, which is the original recording in practice. `null` when nothing matched.
+- `otherVersions` are the results with the same song title as the best match, ignoring "feat." credits, bracketed notes and a " - Live" style suffix: covers, live takes, remasters.
+- `otherSongs` is everything else.
+- `artists` holds up to 3.
+- `topArtistId` is set when YouTube Music's own top result for the query is an artist ("queen"), and `null` otherwise ("bohemian rhapsody", though an artist by that name exists). The add flow opens that artist when the query was a picked suggestion.
+
+### Suggestions
+
+Search suggestions for a partly typed query.
+
+```http
+GET /api/youtube-music/suggestions?q={text}
+```
+
+Returns a list of strings, e.g. `["don't stop believing", "don't stop me now"]`.
+
 ### Artist Details
 
-Get artist info with top songs (with `existsInLibrary` flags) and albums.
+The artist, their first 5 popular songs, and every album, single and remix.
 
 ```http
-GET /api/youtube-music/artist/{artist_id}?limit=12
+GET /api/youtube-music/artist/{artist_id}
 ```
 
-### Artist Releases (Load More)
+```json
+{
+  "artist": { "id": "UC...", "name": "Queen", "thumbnails": [], "description": "...", "subscribers": "19.1M" },
+  "topSongs": [ { "...": "songs" } ],
+  "hasMoreSongs": true,
+  "albums": [ { "browseId": "MPREb_...", "title": "Jazz", "year": "1978", "type": "album", "thumbnails": [] } ],
+  "singles": [],
+  "remixes": []
+}
+```
 
-Fetch all albums or singles when the initial artist response includes `albumsMore`/`singlesMore` pagination metadata.
+`hasMoreSongs` says the next endpoint has more than these five. `albums` and `singles` are every one, not just the few the artist page lists: oldest first, one per title (YouTube Music can list one twice), those without a year last. Remixes are left out of both and listed in `remixes`, in the same order: titles with "remix", "remixes", "remixed", "reblend", "sped up" or "slowed down" ("Supersonic (Remixes)", "Little L (Sped Up Version)").
+
+### Artist's Popular Songs
+
+Every one of the artist's popular songs, in YouTube Music's order.
 
 ```http
-GET /api/youtube-music/artist/{artist_id}/releases?channel_id={channel_id}&params={params}
+GET /api/youtube-music/artist/{artist_id}/songs
 ```
+
 
 ### Album Tracks
 
@@ -139,7 +211,12 @@ GET /api/youtube-music/artist/{artist_id}/releases?channel_id={channel_id}&param
 GET /api/youtube-music/album/{album_id}/tracks
 ```
 
-Returns the album track list with `existsInLibrary` flags.
+```json
+{
+  "album": { "browseId": "MPREb_...", "title": "A Night At The Opera", "artists": [{ "name": "Queen", "id": "UC..." }], "type": "Album", "year": "1975", "thumbnails": [], "trackCount": 12 },
+  "tracks": [ { "...": "songs, with trackNumber" } ]
+}
+```
 
 ---
 
@@ -184,20 +261,15 @@ Returns `502` if the MusicBrainz API is unreachable.
 curl "http://localhost:5123/api/youtube-music/search?q=queen+bohemian+rhapsody"
 
 # 2. Preview the audio before committing
-curl -L "http://localhost:5123/api/youtube/preview/fJ9rUzIMcZQ" -o preview.m4a
+curl -L "http://localhost:5123/api/youtube/preview/fJ9rUzIMcZQ" -o preview.webm
 
-# 3. Create the song record
-curl -X POST http://localhost:5123/api/songs \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Bohemian Rhapsody", "artist": "Queen", "video_id": "fJ9rUzIMcZQ"}'
-
-# 4. Download and process (as a session member or logged-in user)
-curl -X POST http://localhost:5123/api/youtube/download \
+# 3. Add the song and queue its processing (as a session member or logged-in user)
+curl -X POST http://localhost:5123/api/songs/from-youtube \
   -H "Content-Type: application/json" \
   -H "X-Session-ID: {session_id}" -H "X-Device-ID: {device_id}" \
-  -d '{"video_id": "fJ9rUzIMcZQ", "song_id": "{song_id}", "title": "Bohemian Rhapsody", "artist": "Queen"}'
+  -d '{"video_id": "fJ9rUzIMcZQ", "title": "Bohemian Rhapsody", "artists": [{"name": "Queen"}]}'
 
-# 5. Watch progress via the jobs WebSocket or poll the job
+# 4. Watch progress via the jobs WebSocket or poll the job
 ```
 
 ---

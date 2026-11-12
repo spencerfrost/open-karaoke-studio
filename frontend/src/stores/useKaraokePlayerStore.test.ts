@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { act } from "@testing-library/react";
-import { useKaraokePlayerStore } from "./useKaraokePlayerStore";
+import {
+  SONG_CHANGE_FADE_MS,
+  useKaraokePlayerStore,
+} from "./useKaraokePlayerStore";
+import { usePlaybackStateStore } from "./usePlaybackStateStore";
 import { sessionWebSocketService } from "../services/sessionWebSocketService";
 
 // Mock the sessionWebSocketService
@@ -312,6 +316,235 @@ describe("useKaraokePlayerStore", () => {
       });
 
       expect(useKaraokePlayerStore.getState().songEnded).toBe(false);
+    });
+  });
+
+  describe("fading out on a song change", () => {
+    type MockGain = {
+      gain: {
+        value: number;
+        cancelScheduledValues: ReturnType<typeof vi.fn>;
+        setValueAtTime: ReturnType<typeof vi.fn>;
+        setValueCurveAtTime: ReturnType<typeof vi.fn>;
+      };
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+    };
+
+    // The shared mock hands out one gain object for every node, with no
+    // scheduling methods. Record a fresh node per createGain instead, so the
+    // fade node can be told apart from the loudness node.
+    let gains: MockGain[] = [];
+    let analysers: object[] = [];
+    type MockLimiter = {
+      threshold: { value: number };
+      knee: { value: number };
+      ratio: { value: number };
+      attack: { value: number };
+      release: { value: number };
+      connect: ReturnType<typeof vi.fn>;
+    };
+    let limiters: MockLimiter[] = [];
+    // Typed loosely: the setup mock is not a full AudioContext, and neither
+    // are the nodes the subclass below returns.
+    const BaseAudioContext =
+      globalThis.AudioContext as unknown as new () => object;
+
+    const fadeNode = () => {
+      const limiter = limiters[limiters.length - 1];
+      const node = [...gains]
+        .reverse()
+        .find((g) =>
+          g.connect.mock.calls.some(([target]) => target === limiter),
+        );
+      if (!node) throw new Error("no gain node feeds the limiter");
+      return node;
+    };
+
+    const startSong = async () => {
+      const store = useKaraokePlayerStore.getState();
+      store.setSongId("fade-song", 180, -6);
+      await store.load();
+      store.play();
+    };
+
+    beforeEach(() => {
+      gains = [];
+      analysers = [];
+      limiters = [];
+      vi.stubGlobal(
+        "AudioContext",
+        class extends BaseAudioContext {
+          createGain = vi.fn(() => {
+            const node: MockGain = {
+              gain: {
+                value: 1,
+                cancelScheduledValues: vi.fn(),
+                setValueAtTime: vi.fn(),
+                setValueCurveAtTime: vi.fn(),
+              },
+              connect: vi.fn(),
+              disconnect: vi.fn(),
+            };
+            gains.push(node);
+            return node;
+          });
+          createDynamicsCompressor = vi.fn(() => {
+            const node: MockLimiter = {
+              threshold: { value: -24 },
+              knee: { value: 30 },
+              ratio: { value: 12 },
+              attack: { value: 0.003 },
+              release: { value: 0.25 },
+              connect: vi.fn(),
+            };
+            limiters.push(node);
+            return node;
+          });
+          createAnalyser = vi.fn(() => {
+            const node = {
+              fftSize: 256,
+              frequencyBinCount: 128,
+              connect: vi.fn(),
+            };
+            analysers.push(node);
+            return node;
+          });
+        },
+      );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          ok: true,
+          arrayBuffer: async () => new ArrayBuffer(8),
+        })),
+      );
+      vi.useFakeTimers();
+    });
+
+    afterEach(async () => {
+      useKaraokePlayerStore.getState().cleanup();
+      // setSongAndLoad ignores WebSocket updates until a timer after the load
+      // fires; left pending, it would leak into the tests below.
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+      vi.stubGlobal("AudioContext", BaseAudioContext);
+    });
+
+    const changeSong = (id: string) =>
+      useKaraokePlayerStore.getState().setSongAndLoad(id, 200, "Next", "Them");
+
+    it("fades the playing song on its own gain node, leaving loudness alone", async () => {
+      await startSong();
+      const fade = fadeNode();
+      const loudness = gains.find((g) =>
+        g.connect.mock.calls.some(([target]) => target === fade),
+      )!;
+
+      void changeSong("next-song");
+
+      expect(fade.gain.setValueCurveAtTime).toHaveBeenCalledWith(
+        expect.any(Float32Array),
+        0,
+        SONG_CHANGE_FADE_MS / 1000,
+      );
+      const curve: Float32Array =
+        fade.gain.setValueCurveAtTime.mock.calls[0][0];
+      expect(curve[0]).toBe(1);
+      expect(curve[curve.length - 1]).toBe(0);
+      // Squared, not straight: halfway through it is at a quarter.
+      expect(curve[(curve.length - 1) / 2]).toBeCloseTo(0.25);
+      expect(loudness.gain.value).toBeCloseTo(Math.pow(10, -6 / 20));
+      expect(loudness.gain.setValueCurveAtTime).not.toHaveBeenCalled();
+      // The old song plays on underneath the fade.
+      expect(usePlaybackStateStore.getState().songId).toBe("fade-song");
+      expect(usePlaybackStateStore.getState().isPlaying).toBe(true);
+    });
+
+    it("passes everything through a limiter just under full scale before the analyser", async () => {
+      await startSong();
+
+      expect(limiters).toHaveLength(1);
+      const [limiter] = limiters;
+      expect(limiter.threshold.value).toBe(-1);
+      expect(limiter.ratio.value).toBe(20);
+      expect(limiter.knee.value).toBe(0);
+      expect(limiter.connect).toHaveBeenCalledWith(
+        analysers[analysers.length - 1],
+      );
+      // fadeNode() throws unless a gain node feeds the limiter.
+      expect(fadeNode().connect).toHaveBeenCalledWith(limiter);
+    });
+
+    it("loads the new song once the fade is done, at full volume", async () => {
+      await startSong();
+
+      const switched = changeSong("next-song");
+      await vi.advanceTimersByTimeAsync(SONG_CHANGE_FADE_MS);
+      await switched;
+
+      const state = usePlaybackStateStore.getState();
+      expect(state.songId).toBe("next-song");
+      expect(state.isReady).toBe(true);
+      // No handoff screen in between: the song was replaced, not finished.
+      expect(state.songEnded).toBe(false);
+
+      useKaraokePlayerStore.getState().play();
+      const fade = fadeNode();
+      expect(fade.gain.value).toBe(1);
+      expect(fade.gain.setValueCurveAtTime).not.toHaveBeenCalled();
+    });
+
+    it("switches straight away when nothing is playing", async () => {
+      await startSong();
+      useKaraokePlayerStore.getState().pause();
+
+      await changeSong("next-song");
+
+      expect(usePlaybackStateStore.getState().songId).toBe("next-song");
+    });
+
+    it("a pause mid-fade restores the volume and still switches", async () => {
+      await startSong();
+      const fade = fadeNode();
+
+      const switched = changeSong("next-song");
+      await vi.advanceTimersByTimeAsync(SONG_CHANGE_FADE_MS / 2);
+      useKaraokePlayerStore.getState().pause();
+
+      expect(fade.gain.cancelScheduledValues).toHaveBeenCalled();
+      expect(fade.gain.value).toBe(1);
+      await switched;
+      expect(usePlaybackStateStore.getState().songId).toBe("next-song");
+    });
+
+    it("a repeat call for the same song mid-fade loads it once", async () => {
+      await startSong();
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockClear();
+
+      const first = changeSong("next-song");
+      const second = changeSong("next-song");
+      await vi.advanceTimersByTimeAsync(SONG_CHANGE_FADE_MS);
+      await Promise.all([first, second]);
+
+      // Instrumental, vocals and backing vocals: one load's worth.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("a later song overtakes one still fading in", async () => {
+      await startSong();
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockClear();
+
+      const first = changeSong("song-b");
+      const second = changeSong("song-c");
+      await vi.advanceTimersByTimeAsync(SONG_CHANGE_FADE_MS);
+      await Promise.all([first, second]);
+
+      expect(usePlaybackStateStore.getState().songId).toBe("song-c");
+      // song-b never loaded.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
   });
 

@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
+from app.utils.clock import utc_now
+
 from .base import Base
 
 if TYPE_CHECKING:
@@ -30,19 +32,40 @@ class KaraokeSession(Base):
     host_user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # "append" (today's insert-order behaviour) or "rotation" (strict round-robin
-    # by lap). Rotation is the default - append is the escape hatch. See
-    # docs/plans/archive/2026-08-29-roster-and-rotation.md.
+    # "append" (today's insert-order behaviour) or "rotation" (round-robin over
+    # the circle of performers). Rotation is the default - append is the escape
+    # hatch.
     queue_order_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="rotation"
     )
-    # The frontier lap reached so far - max(current_lap, newly computed lap) after
-    # every insert. Lets a late joiner enter at the point the circle has reached
-    # instead of being handed catch-up turns. See queue_ordering.compute_lap.
-    current_lap: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Whose turn is next - the only source of truth for it. Null means "the
+    # lowest active seat". `use_alter` because session_performers already points
+    # back at this table; the two FKs form a cycle.
+    turn_performer_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "session_performers.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_karaoke_sessions_turn_performer_id",
+        ),
+        nullable=True,
+    )
+    # A one-off "this song is next" from Bump. Takes precedence over the pointer
+    # for one turn and is cleared when that song starts.
+    bumped_item_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "karaoke_queue.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_karaoke_sessions_bumped_item_id",
+        ),
+        nullable=True,
+    )
 
     # Relationship to session devices
     devices: Mapped[List["SessionDevice"]] = relationship(
@@ -51,7 +74,10 @@ class KaraokeSession(Base):
 
     # Relationship to queue items
     queue_items: Mapped[List["KaraokeQueueItem"]] = relationship(
-        "KaraokeQueueItem", back_populates="session", cascade="all, delete-orphan"
+        "KaraokeQueueItem",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        foreign_keys="KaraokeQueueItem.session_id",
     )
 
     # Relationship to playback state
@@ -64,7 +90,10 @@ class KaraokeSession(Base):
 
     # Relationship to roster entries
     performers: Mapped[List["SessionPerformer"]] = relationship(
-        "SessionPerformer", back_populates="session", cascade="all, delete-orphan"
+        "SessionPerformer",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        foreign_keys="SessionPerformer.session_id",
     )
 
     @classmethod
@@ -114,7 +143,7 @@ class KaraokeSession(Base):
             session_id=display_code,  # Use display_code as session_id for simplicity
             display_code=display_code,
             host_device_id=host_device_id,
-            expires_at=datetime.utcnow() + timedelta(hours=duration_hours),
+            expires_at=utc_now() + timedelta(hours=duration_hours),
         )
         if queue_order_mode is not None:
             session.queue_order_mode = queue_order_mode
@@ -122,7 +151,7 @@ class KaraokeSession(Base):
 
     def is_expired(self) -> bool:
         """Check if the session has expired."""
-        return datetime.utcnow() > self.expires_at
+        return utc_now() > self.expires_at
 
     def get_active_devices(self) -> List["SessionDevice"]:
         """Get all active devices in this session."""
@@ -144,7 +173,7 @@ class SessionDevice(Base):
     )
     device_id: Mapped[str] = mapped_column(String(64), nullable=False)
     device_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -190,11 +219,11 @@ class SessionPlaybackState(Base):
     current_time: Mapped[float] = mapped_column(nullable=False, default=0.0)
     duration: Mapped[float] = mapped_column(nullable=False, default=0.0)
     is_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     session: Mapped["KaraokeSession"] = relationship(

@@ -6,15 +6,19 @@ maintenance jobs there, not here.
 
 What's left in this folder:
 
-- `manage_users.py`: creates the first admin before anyone can log in. The only script
-  shipped in the Docker image.
+- `manage_users.py`: creates, lists and deletes accounts and resets passwords by hand. The first
+  admin usually comes from `ADMIN_USERNAME`/`ADMIN_PASSWORD` instead (created on API startup).
+  The only script shipped in the Docker image.
 - `archive/`: finished one-off repairs, kept for reference. Not maintained; they may break
   as the app changes.
   - `backfill_lyrics_line_index.py`: verified 2026-09-25, a dry run changes 0 songs.
   - `repair_acoustid_mislabels.py` + `review_mislabels.py`/`.html`: the 2026-09-25 repair of
     68 songs mislabelled by AcoustID.
+  - `repair_shared_covers.py`: the 2026-11-10 repair of album covers a dev album run wrote
+    over prod's in the shared library folder (1020 releases downloaded again, 2 had none).
 - `experiments/`: research code (separation-engine comparisons, ASR and lyric-alignment
-  trials). Not maintained.
+  trials). Not maintained, except `experiments/lyrics_benchmark/`: the scored ASR and
+  alignment benchmark against the library's own lyrics (see its README).
 
 Run anything here from `backend/` with the venv active, e.g.
 `python scripts/manage_users.py list`.

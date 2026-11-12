@@ -1,14 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useThemeColors, useThemeNumbers } from "@/hooks/useThemeValues";
+import type { RGB } from "@/lib/themeColor";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
+
+const BASE_COLOR_TOKENS = ["decor-1", "decor-2", "decor-3", "decor-4"] as const;
+const STYLE_TOKENS = ["visualizer-opacity", "visualizer-hue-shift"] as const;
 
 interface AudioVisualizerProps {
   height?: number;
+  /** False while the bar is hidden: it keeps its last frame and stops
+   * drawing, since every frame costs main-thread time the TV is short of. */
+  active?: boolean;
   barCount?: number;
   className?: string;
 }
-
-// dark-cyan, orange-peel — alternated per bar, then hue-shifted across the row
-const BASE_COLORS = ["#01928B", "#FD9A02"];
 
 // Auto-leveling: each band scales against its own recently-seen peak rather
 // than a fixed 0-255 ceiling, so quiet songs and quiet frequency ranges
@@ -30,11 +36,18 @@ const RESPONSE_CURVE = 4.5;
 
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   height = 120,
+  active = true,
   barCount = 120,
   className = "",
 }) => {
-  const { isReady, isPlaying, error, getFrequencyData } =
-    useKaraokePlayerStore();
+  const { isReady, isPlaying, error, getFrequencyData } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      isReady: s.isReady,
+      isPlaying: s.isPlaying,
+      error: s.error,
+      getFrequencyData: s.getFrequencyData,
+    })),
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
@@ -51,15 +64,23 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     positions: number[];
   } | null>(null);
 
+  // The theme's decoration colors — cycled per bar, then hue-shifted across
+  // the row by up to the theme's hue shift, and drawn at its opacity.
+  const baseColors = useThemeColors(BASE_COLOR_TOKENS);
+  const [barOpacity, hueShift] = useThemeNumbers(STYLE_TOKENS);
+
   // Colors depend only on distance from center, not on audio data — compute
   // them once per halfCount instead of re-running the hue math for every
   // bar, every frame. Both mirrored bars at a given distance share a color.
   const barColors = useMemo(
     () =>
       Array.from({ length: halfCount }, (_, k) =>
-        adjustColorHue(BASE_COLORS[k % 2], (k / halfCount) * 60),
+        adjustColorHue(
+          baseColors[k % baseColors.length],
+          (k / halfCount) * hueShift,
+        ),
       ),
-    [halfCount],
+    [halfCount, baseColors, hueShift],
   );
 
   useEffect(() => {
@@ -152,41 +173,32 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const actualBarWidth = barWidth - spacing;
       const radius = Math.min(4, actualBarWidth / 2);
 
+      // Rounded top corners, square bottoms. Both mirrored bars share a color,
+      // so they go into one path and one fill.
+      const corners = [radius, radius, 0, 0];
+      ctx.globalAlpha = barOpacity;
       for (let k = 0; k < halfCount; k++) {
         const barHeight = valueAt(k) * canvasHeight;
         const y = (canvasHeight - barHeight) / 2;
 
-        ctx.globalAlpha = 0.7;
         ctx.fillStyle = barColors[k];
-
+        ctx.beginPath();
         for (const barIndex of [halfCount - 1 - k, halfCount + k]) {
-          const x = barIndex * barWidth;
-          ctx.beginPath();
-          ctx.moveTo(x + spacing / 2, y + barHeight);
-          ctx.lineTo(x + spacing / 2, y + radius);
-          ctx.arc(
-            x + spacing / 2 + radius,
-            y + radius,
-            radius,
-            Math.PI,
-            1.5 * Math.PI,
+          ctx.roundRect(
+            barIndex * barWidth + spacing / 2,
+            y,
+            actualBarWidth,
+            barHeight,
+            corners,
           );
-          ctx.lineTo(x + actualBarWidth - radius, y);
-          ctx.arc(
-            x + actualBarWidth - radius,
-            y + radius,
-            radius,
-            1.5 * Math.PI,
-            0,
-          );
-          ctx.lineTo(x + actualBarWidth, y + barHeight);
-          ctx.closePath();
-          ctx.fill();
         }
+        ctx.fill();
       }
 
       ctx.globalAlpha = 1.0;
     };
+
+    if (!active) return;
 
     if (isReady && isPlaying && getFrequencyData) {
       const animate = () => {
@@ -232,11 +244,13 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       }
     }
   }, [
+    active,
     isPlaying,
     isReady,
     getFrequencyData,
     halfCount,
     barColors,
+    barOpacity,
     getBinPositions,
   ]);
 
@@ -254,11 +268,10 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 };
 
 // Helper function to simulate CSS hue-rotate filter
-function adjustColorHue(hexColor: string, hueShift: number): string {
-  // Convert hex to RGB
-  const r = parseInt(hexColor.slice(1, 3), 16) / 255;
-  const g = parseInt(hexColor.slice(3, 5), 16) / 255;
-  const b = parseInt(hexColor.slice(5, 7), 16) / 255;
+function adjustColorHue([red, green, blue]: RGB, hueShift: number): string {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
 
   // Convert RGB to HSL
   const max = Math.max(r, g, b);

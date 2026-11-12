@@ -1,18 +1,22 @@
+import json
 import logging
+import math
 import os
 import re
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
 
 import librosa
 import numpy as np
 import torch
-from app.config import get_config
 from demucs.api import Separator
 from demucs.audio import save_audio
-from pydub import AudioSegment
+
+from app.config import get_config
 
 from . import file_management
 
@@ -24,7 +28,9 @@ class StopProcessingError(Exception):
 
 
 # --- Progress Tracking Helper ---
-def create_audio_progress_mapper(engine_type: str, base_start: int, base_end: int, update_fn):
+def create_audio_progress_mapper(
+    engine_type: str, base_start: int, base_end: int, update_fn
+):
     """
     Creates a progress callback that maps engine-specific progress to job progress.
 
@@ -52,7 +58,7 @@ def create_audio_progress_mapper(engine_type: str, base_start: int, base_end: in
     def callback(msg):
         # Try to extract percentage from Demucs-style messages
         # Demucs-style: "Separating: Model 1/2 (Overall 45.3%)" — map to base_start..base_end range
-        match = re.search(r'\(Overall (\d+(?:\.\d+)?)\%\)', msg)
+        match = re.search(r"\(Overall (\d+(?:\.\d+)?)\%\)", msg)
         if match:
             engine_progress = float(match.group(1))
             job_progress = int(base_start + (engine_progress / 100.0) * progress_range)
@@ -60,7 +66,7 @@ def create_audio_progress_mapper(engine_type: str, base_start: int, base_end: in
             return
 
         # three_track stage markers: "Progress: 50% - Step 2/4 ..." — use value directly
-        match2 = re.search(r'\bProgress:\s*(\d+(?:\.\d+)?)\s*%', msg, re.IGNORECASE)
+        match2 = re.search(r"\bProgress:\s*(\d+(?:\.\d+)?)\s*%", msg, re.IGNORECASE)
         if match2:
             update_fn(int(float(match2.group(1))), msg)
 
@@ -183,98 +189,215 @@ def get_output_paths(song_dir: Path, output_extension: str) -> Tuple[Path, Path]
     return vocals_path, instrumental_path
 
 
+_VOCAL_RANGE_CHILD = Path(__file__).with_name("vocal_range_child.py")
+# A full song takes about a minute; a long one with a slow CPU a few.
+_VOCAL_RANGE_TIMEOUT_SECONDS = 600
+
+
+class VocalRangeContext(NamedTuple):
+    """What the range method reads besides the audio.
+
+    lead: the singing map's lead intervals (seconds). lyric_lines: when each
+    synced-lyrics line is on screen, or None for a song without synced lyrics.
+    """
+
+    lead: list[tuple[float, float]]
+    lyric_lines: Optional[list[tuple[float, float]]]
+
+
+def _run_vocal_range_child(
+    vocals_path: Path, context: VocalRangeContext
+) -> Dict[str, Any]:
+    """Run vocal_range_child.py on one file and return its reply.
+
+    The reply is {"low", "high", "label", "detail"}; the song's context goes in
+    on stdin. -I keeps the child's imports to installed packages: without it
+    the script's own folder (app/services) would come first on its import
+    path. A timeout kills the child. Raises RuntimeError when the child fails
+    or replies with something unreadable.
+    """
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", str(_VOCAL_RANGE_CHILD), str(vocals_path)],
+            input=json.dumps(
+                {"lead": context.lead, "lyric_lines": context.lyric_lines}
+            ),
+            capture_output=True,
+            text=True,
+            timeout=_VOCAL_RANGE_TIMEOUT_SECONDS,
+            check=False,
+            # Out of the terminal's process group: Ctrl-C stopping the worker
+            # lets this song finish, rather than killing it mid-song.
+            start_new_session=True,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"vocal range analysis took over {_VOCAL_RANGE_TIMEOUT_SECONDS}s"
+        ) from e
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"vocal range analysis failed ({completed.returncode}): "
+            f"{completed.stderr[-500:]}"
+        )
+    try:
+        reply = json.loads(completed.stdout.strip().splitlines()[-1])
+        return {
+            "low": reply["low"],
+            "high": reply["high"],
+            "label": reply["label"],
+            "detail": dict(reply["detail"]),
+        }
+    except (IndexError, KeyError, TypeError, ValueError) as e:
+        raise RuntimeError(
+            f"vocal range analysis gave an unreadable reply: {completed.stdout[-500:]!r}"
+        ) from e
+
+
 def detect_vocal_range(
     vocals_path: Path,
+    context: VocalRangeContext,
     status_callback: Callable[[str], None],
-) -> Optional[Tuple[str, str]]:
+) -> Dict[str, Any]:
     """
-    Detect the vocal range (lowest and highest note) from a vocals audio file.
+    Measure the lead singer's range (lowest and highest held note) from the
+    isolated lead vocal.
 
-    Uses probabilistic YIN (pyin) pitch detection on the isolated vocal track.
-    Returns note names in scientific pitch notation (e.g., "G2", "E5").
+    The pitch comes from probabilistic YIN (pyin), in a child process
+    (vocal_range_child.py, which describes the method): pyin holds the GIL for
+    as long as it runs, which would freeze every other thread in this process.
 
-    Args:
-        vocals_path: Path to the vocals audio file (ideally isolated by Demucs)
-        status_callback: Function to call with status updates
+    Returns {"low", "high", "label", "detail"}. low and high are note names in
+    scientific pitch notation (e.g. "G2", "E5"), or both None when there's no
+    sung range; label then says why ("rapped", "no lead found", "one note"),
+    or is None when no note was held long enough. detail holds the method,
+    the moments that set each end and the measures the label came from.
 
-    Returns:
-        Tuple of (low_note, high_note) strings, or None if detection fails
+    Raises:
+        RuntimeError: the analysis failed (unreadable file, crash, timeout), so
+            the song has no answer yet rather than no range.
     """
-    try:
-        status_callback("Detecting vocal range...")
-        y, sr = librosa.load(str(vocals_path), sr=22050, mono=True)
+    status_callback("Detecting vocal range...")
+    result = _run_vocal_range_child(vocals_path, context)
 
-        f0, voiced_flag, voiced_probs = librosa.pyin(
-            y,
-            fmin=librosa.note_to_hz("C2"),  # ~65 Hz, below bass vocal range
-            fmax=librosa.note_to_hz("C7"),  # ~2093 Hz, above soprano range
-            sr=sr,
+    if result["low"] is None or result["high"] is None:
+        status_callback(f"No sung range: {result['label'] or 'no held notes'}")
+        return result
+
+    status_callback(f"Vocal range detected: {result['low']} – {result['high']}")
+    logger.info("Vocal range: %s – %s", result["low"], result["high"])
+    return result
+
+
+# Loudness is measured on the stems the player plays by default: lead vocal off,
+# backing vocals and instrumental at full level.
+_LOUDNESS_TARGET_LUFS = -16.0
+# Never boost a song so far that its loudest instant passes this level.
+_LOUDNESS_PEAK_CEILING_DBTP = -1.0
+# Guards against a bad measurement producing an absurd correction.
+_LOUDNESS_GAIN_LIMIT_DB = 12.0
+# Below this the audio is silence (EBU R128 gates out everything under -70 LUFS).
+_LOUDNESS_SILENCE_LUFS = -70.0
+_LOUDNESS_FFMPEG_TIMEOUT_SECONDS = 300
+
+
+class LoudnessResult(NamedTuple):
+    loudness_lufs: float
+    true_peak_dbtp: float
+    gain_db: float
+
+
+def compute_normalization_gain(loudness_lufs: float, true_peak_dbtp: float) -> float:
+    """Gain in dB that brings a song to the loudness target without pushing its peak past the ceiling."""
+    gain = _LOUDNESS_TARGET_LUFS - loudness_lufs
+    gain = min(gain, _LOUDNESS_PEAK_CEILING_DBTP - true_peak_dbtp)
+    return max(-_LOUDNESS_GAIN_LIMIT_DB, min(_LOUDNESS_GAIN_LIMIT_DB, gain))
+
+
+def parse_loudnorm_output(stderr: str) -> Optional[Tuple[float, float]]:
+    """
+    Read integrated loudness and true peak from ffmpeg's loudnorm JSON summary.
+
+    Returns (loudness_lufs, true_peak_dbtp), or None when the audio is silent.
+    Raises ValueError when the output has no readable summary.
+    """
+    start = stderr.rfind("{")
+    end = stderr.rfind("}")
+    if start == -1 or end < start:
+        raise ValueError("ffmpeg loudnorm output has no JSON summary")
+    summary = json.loads(stderr[start : end + 1])
+    loudness_lufs = float(summary["input_i"])
+    true_peak_dbtp = float(summary["input_tp"])
+    if not math.isfinite(loudness_lufs) or loudness_lufs < _LOUDNESS_SILENCE_LUFS:
+        return None
+    if not math.isfinite(true_peak_dbtp):
+        return None
+    return loudness_lufs, true_peak_dbtp
+
+
+def _loudnorm_command(stem_paths: list[Path]) -> list[str]:
+    command = ["ffmpeg", "-hide_banner", "-nostats"]
+    for path in stem_paths:
+        command += ["-i", str(path)]
+    analysis = "loudnorm=print_format=json"
+    if len(stem_paths) == 1:
+        command += ["-af", analysis]
+    else:
+        # normalize=0 sums the stems at full level, as the player does. amix's
+        # default scales each input down, which would read about 6 dB low.
+        command += [
+            "-filter_complex",
+            f"amix=inputs={len(stem_paths)}:normalize=0,{analysis}",
+        ]
+    return command + ["-f", "null", "-"]
+
+
+def detect_loudness(song_dir: Path) -> Optional[LoudnessResult]:
+    """
+    Measure how loud a song plays by default and compute its normalization gain.
+
+    Measures instrumental.mp3, summed with backing_vocals.mp3 when the song has
+    one, using EBU R128 integrated loudness and true peak.
+
+    Returns None when the audio is silent.
+    Raises FileNotFoundError when there is no instrumental stem, and
+    RuntimeError or ValueError when ffmpeg fails or its output can't be read.
+    """
+    instrumental_path = song_dir / "instrumental.mp3"
+    backing_path = song_dir / "backing_vocals.mp3"
+    if not instrumental_path.exists():
+        raise FileNotFoundError(instrumental_path)
+    stem_paths = [instrumental_path]
+    if backing_path.exists():
+        stem_paths.append(backing_path)
+
+    completed = subprocess.run(
+        _loudnorm_command(stem_paths),
+        capture_output=True,
+        text=True,
+        timeout=_LOUDNESS_FFMPEG_TIMEOUT_SECONDS,
+        check=False,
+        # Out of the terminal's process group: Ctrl-C stopping the worker lets
+        # this song finish, rather than killing ffmpeg mid-song.
+        start_new_session=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg loudnorm failed ({completed.returncode}): {completed.stderr[-500:]}"
         )
 
-        # Filter: only voiced frames with high confidence, no NaN
-        mask = voiced_flag & (voiced_probs > 0.75) & ~np.isnan(f0)
-        confident_f0 = f0[mask]
-
-        if len(confident_f0) < 10:
-            status_callback("Warning: insufficient voiced frames for vocal range detection")
-            return None
-
-        midi_notes = librosa.hz_to_midi(confident_f0)
-        low_note = librosa.midi_to_note(int(np.percentile(midi_notes, 5)))
-        high_note = librosa.midi_to_note(int(np.percentile(midi_notes, 95)))
-
-        status_callback(f"Vocal range detected: {low_note} – {high_note}")
-        logger.info("Vocal range: %s – %s", low_note, high_note)
-        return low_note, high_note
-
-    except Exception as e:
-        logger.error("Vocal range detection failed: %s", e, exc_info=True)
-        status_callback(f"Warning: vocal range detection failed: {e}")
+    measured = parse_loudnorm_output(completed.stderr)
+    if measured is None:
         return None
-
-
-_LOUDNESS_TARGET_DBFS = -14.0
-_LOUDNESS_GAIN_MAX_DB = 12.0
-
-
-def detect_loudness(
-    audio_path: Path,
-    status_callback: Callable[[str], None],
-) -> Optional[Tuple[float, float]]:
-    """
-    Measure the RMS loudness of an audio file and compute a normalization gain.
-
-    Args:
-        audio_path: Path to the audio file (MP3 or WAV)
-        status_callback: Function to call with status updates
-
-    Returns:
-        Tuple of (loudness_dbfs, gain_db) or None if detection fails.
-        loudness_dbfs: RMS loudness relative to full scale (e.g. -20.0)
-        gain_db: dB gain needed to reach -14 dBFS target, clamped to ±12 dB
-    """
-    try:
-        status_callback("Detecting loudness...")
-        audio = AudioSegment.from_file(str(audio_path))
-        loudness_dbfs = audio.dBFS
-        if loudness_dbfs == float("-inf"):
-            # Silent file — skip normalization
-            status_callback("Warning: Silent audio file, skipping loudness detection")
-            return None
-        raw_gain = _LOUDNESS_TARGET_DBFS - loudness_dbfs
-        gain_db = max(-_LOUDNESS_GAIN_MAX_DB, min(_LOUDNESS_GAIN_MAX_DB, raw_gain))
-        status_callback(f"Loudness detected: {loudness_dbfs:.1f} dBFS (gain: {gain_db:+.1f} dB)")
-        logger.info(
-            "Loudness detection complete: %.1f dBFS, gain correction: %+.1f dB",
-            loudness_dbfs,
-            gain_db,
-        )
-        return loudness_dbfs, gain_db
-    except Exception as e:
-        error_msg = f"Loudness detection failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        status_callback(f"Warning: {error_msg}")
-        return None
+    loudness_lufs, true_peak_dbtp = measured
+    gain_db = compute_normalization_gain(loudness_lufs, true_peak_dbtp)
+    logger.info(
+        "Loudness: %.1f LUFS, true peak %.1f dBTP, gain %+.1f dB (%d stem(s))",
+        loudness_lufs,
+        true_peak_dbtp,
+        gain_db,
+        len(stem_paths),
+    )
+    return LoudnessResult(loudness_lufs, true_peak_dbtp, gain_db)
 
 
 def save_stem(
@@ -341,6 +464,34 @@ def load_vocals(path: Path) -> Tuple[np.ndarray, int]:
     return y, sr
 
 
+BACKING_VOCALS_FILENAME = "backing_vocals.mp3"
+
+
+def load_sung_vocals(vocals_path: Path) -> Tuple[np.ndarray, int]:
+    """Load everything sung in a song: the lead vocals plus the backing vocals.
+
+    Lyrics alignment listens to this. The lead stem alone misses every line the
+    backing vocals sing, and the aligner then crams those lines' words into a
+    moment. A song separated without backing vocals gets its lead alone.
+
+    The two stems are summed sample by sample and scaled down only if the sum
+    clips. Same sample rate and mono as `load_vocals`.
+    """
+    lead, sr = load_vocals(vocals_path)
+    backing_path = vocals_path.parent / BACKING_VOCALS_FILENAME
+    if not backing_path.exists():
+        return lead, sr
+    backing, _ = load_vocals(backing_path)
+    length = max(len(lead), len(backing))
+    mix = np.pad(lead, (0, length - len(lead))) + np.pad(
+        backing, (0, length - len(backing))
+    )
+    peak = float(np.max(np.abs(mix))) if length else 0.0
+    if peak > 1.0:
+        mix = mix / peak
+    return mix.astype(np.float32), sr
+
+
 def compute_rms_curve(
     y: np.ndarray,
     sr: int,
@@ -383,8 +534,10 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         Exception: For other errors during processing.
     """
     if status_callback is None:
+
         def default_status_callback(msg):
             logger.info(msg)
+
         status_callback = default_status_callback
     if stop_event is None:
         stop_event = threading.Event()
@@ -444,7 +597,8 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         logger.info(complete_msg)
         status_callback(complete_msg)
         return True
-    except StopProcessingError:
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry later).
         raise
     except Exception as e:
         logger.error(

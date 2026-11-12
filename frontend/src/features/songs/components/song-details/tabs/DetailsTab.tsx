@@ -1,8 +1,19 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Song, SongArtist } from "@/types/Song";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  useLyricsLanguages,
+  useRealignLyrics,
+} from "@/hooks/api/useLyricsAlignment";
 import { useSongs } from "@/hooks/api/useSongs";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
@@ -10,42 +21,90 @@ import { ArtistManager } from "../components/ArtistManager";
 
 const logger = createLogger("component:DetailsTab");
 
+// Select items can't have an empty value; this stands for "no stored language".
+const DETECT_LANGUAGE = "detect";
+const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
+
+const languageName = (code: string) => languageNames.of(code) ?? code;
+
+// "+3.2 dB" / "-6.2 dB" / "0.0 dB"
+const formatSignedDb = (db: number) =>
+  `${Number(db.toFixed(1)) > 0 ? "+" : ""}${db.toFixed(1)} dB`;
+
 interface DetailsTabProps {
   song: Song;
 }
 
+/** The credits as saved, or the artist line as the one artist for a song without any. */
+const initialCredits = (song: Song): SongArtist[] =>
+  song.artists && song.artists.length > 0
+    ? song.artists
+    : [{ id: -1, name: song.artist, role: "primary" }];
+
+const creditsKey = (credits: SongArtist[]) =>
+  JSON.stringify(credits.map((c) => [c.name, c.role]));
+
 export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
+  const realignLyricsMutation = useRealignLyrics();
+  const { data: languageCodes } = useLyricsLanguages();
 
   const [title, setTitle] = useState(song.title);
   const [album, setAlbum] = useState(song.album ?? "");
   const [showName, setShowName] = useState(song.showName ?? "");
   const [year, setYear] = useState(song.year?.toString() ?? "");
-  const [primaryArtist, setPrimaryArtist] = useState(song.artist);
-  const [featuredArtists, setFeaturedArtists] = useState<SongArtist[]>(
-    song.artists?.filter((a) => a.role === "featured") ?? [],
+  const [language, setLanguage] = useState(song.language ?? DETECT_LANGUAGE);
+  const [credits, setCredits] = useState<SongArtist[]>(() =>
+    initialCredits(song),
+  );
+
+  const languageOptions = useMemo(
+    () =>
+      (languageCodes ?? [])
+        .map((code) => ({ code, name: languageName(code) }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [languageCodes],
   );
 
   const handleSave = () => {
-    const artistString =
-      featuredArtists.length > 0
-        ? `${primaryArtist} feat. ${featuredArtists.map((a) => a.name).join(", ")}`
-        : primaryArtist;
+    // Only a changed list is sent: saving the credits confirms them.
+    const creditsChanged =
+      creditsKey(credits) !== creditsKey(initialCredits(song));
 
-    logger.debug("Saving song metadata", { id: song.id, title, artistString });
+    logger.debug("Saving song metadata", {
+      id: song.id,
+      title,
+      creditsChanged,
+    });
 
     updateSongMutation.mutate(
       {
         id: song.id,
         title,
         album: album || undefined,
-        showName: showName || undefined,
+        // An empty string clears it and keeps the song out of every show
+        showName,
         year: year ? parseInt(year) : undefined,
-        artist: artistString,
+        ...(creditsChanged && { artists: credits }),
+        // An empty string clears it, so it's detected from the vocals again
+        language: language === DETECT_LANGUAGE ? "" : language,
       },
       {
-        onSuccess: () => toast.success("Saved"),
+        onSuccess: () => {
+          const languageChanged =
+            language !== (song.language ?? DETECT_LANGUAGE);
+          if (!languageChanged) {
+            toast.success("Saved");
+            return;
+          }
+          // The lyrics were timed in the old language; time them again.
+          realignLyricsMutation.mutate(song.id, {
+            onSuccess: () => toast.success("Saved. Re-timing the lyrics…"),
+            onError: () =>
+              toast.error("Saved, but the lyrics couldn't be re-timed"),
+          });
+        },
         onError: () => toast.error("Failed to save"),
       },
     );
@@ -97,12 +156,35 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
           />
         </div>
 
-        <ArtistManager
-          primaryArtist={primaryArtist}
-          featuredArtists={featuredArtists}
-          onPrimaryChange={setPrimaryArtist}
-          onFeaturedChange={setFeaturedArtists}
-        />
+        <div className="space-y-1.5">
+          <Label htmlFor="song-language">Sung language</Label>
+          <Select value={language} onValueChange={setLanguage}>
+            <SelectTrigger id="song-language">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DETECT_LANGUAGE}>
+                Detect from the vocals
+              </SelectItem>
+              {/* Keep the stored language selectable while the list loads */}
+              {languageOptions.length === 0 && song.language && (
+                <SelectItem value={song.language}>
+                  {languageName(song.language)}
+                </SelectItem>
+              )}
+              {languageOptions.map(({ code, name }) => (
+                <SelectItem key={code} value={code}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            The lyrics are timed to the singing in this language.
+          </p>
+        </div>
+
+        <ArtistManager credits={credits} onChange={setCredits} />
 
         <Button
           className="w-full"
@@ -141,13 +223,21 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({ song }) => {
             </div>
           )}
 
-          {song.loudnessDbfs != null && (
+          {song.loudnessLufs != null && (
             <div className="flex justify-between text-sm py-1 border-b">
               <span className="text-muted-foreground">Loudness</span>
               <span>
-                {song.loudnessDbfs.toFixed(1)} dBFS
-                {song.gainDb != null && ` (+${song.gainDb.toFixed(1)} dB gain)`}
+                {song.loudnessLufs.toFixed(1)} LUFS
+                {song.truePeakDbtp != null &&
+                  ` · peak ${song.truePeakDbtp.toFixed(1)} dBTP`}
               </span>
+            </div>
+          )}
+
+          {song.gainDb != null && (
+            <div className="flex justify-between text-sm py-1 border-b">
+              <span className="text-muted-foreground">Volume correction</span>
+              <span>{formatSignedDb(song.gainDb)}</span>
             </div>
           )}
 

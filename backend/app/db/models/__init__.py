@@ -4,10 +4,14 @@ Database models package exports
 
 # Import all models so they can be imported from the package
 from .album import DbAlbum
-from .artist import DbArtist
+from .artist import DbArtist, DbArtistAlias
 from .base import UNKNOWN_ARTIST, Base
+from .batch_run import BatchRun
+from .break_check import BreakCheck
 from .host_settings import HostSettings
-from .job import DbJob, Job, JobStatus
+from .job import DbJob, Job, JobStatus, JobStep
+from .lyrics_feedback import LyricsFeedback
+from .lyrics_report import LyricsReport
 from .performance import PerformanceHistory
 from .performer import SessionPerformer
 from .queue import KaraokeQueueItem
@@ -20,14 +24,20 @@ from .user import User
 __all__ = [
     "DbAlbum",
     "DbArtist",
+    "DbArtistAlias",
     "Base",
+    "BatchRun",
     "UNKNOWN_ARTIST",
     "DbJob",
     "Job",
     "JobStatus",
+    "JobStep",
     "HostSettings",
     "KaraokeSession",
     "KaraokeQueueItem",
+    "BreakCheck",
+    "LyricsFeedback",
+    "LyricsReport",
     "PerformanceHistory",
     "SessionPerformer",
     "SessionDevice",

@@ -11,6 +11,9 @@ from .interfaces.file_service import FileServiceInterface
 
 logger = logging.getLogger(__name__)
 
+# Library folders that hold shared artwork rather than one song's files.
+NON_SONG_DIRS = frozenset({"artists", "covers", "cache"})
+
 
 class FileService(FileServiceInterface):
     """Handle file system operations for songs"""
@@ -65,8 +68,12 @@ class FileService(FileServiceInterface):
                 logger.warning("Song directory does not exist: %s", song_dir)
                 return False
         except PermissionError as e:
-            logger.warning("Permission denied when deleting files for song %s: %s", song_id, e)
-            raise ServiceError(f"Permission denied when deleting files for song {song_id}: {e}")
+            logger.warning(
+                "Permission denied when deleting files for song %s: %s", song_id, e
+            )
+            raise ServiceError(
+                f"Permission denied when deleting files for song {song_id}: {e}"
+            )
         except Exception as e:
             logger.error("Error deleting files for song %s: %s", song_id, e)
             raise ServiceError(f"Failed to delete files for song {song_id}: {e}")
@@ -80,7 +87,9 @@ class FileService(FileServiceInterface):
             song_ids = [
                 d.name
                 for d in self.base_library_dir.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
+                if d.is_dir()
+                and not d.name.startswith(".")
+                and d.name not in NON_SONG_DIRS
             ]
 
             logger.debug("Found %s processed song directories", len(song_ids))
@@ -112,7 +121,6 @@ class FileService(FileServiceInterface):
     def get_artist_notfound_path(self, slug: str) -> Path:
         """Get artist not-found marker file path"""
         return self.base_library_dir / "artists" / f"{slug}.notfound"
-
 
     def list_song_files(self, song_id: str) -> list[Path]:
         """List all files in a song directory"""

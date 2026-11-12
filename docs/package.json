@@ -9,9 +9,11 @@
     "preview": "vitepress preview ."
   },
   "devDependencies": {
+    "mermaid": "^12.1.0",
+    "vite": "^6.3.2",
     "vitepress": "^1.6.4",
-    "vue": "^3.5.12",
-    "vite": "^6.3.2"
+    "vitepress-plugin-mermaid": "^2.0.17",
+    "vue": "^3.5.12"
   },
   "packageManager": "pnpm@10.9.0+sha512.0486e394640d3c1fb3c9d43d49cf92879ff74f8516959c235308f5a8f62e2e19528a65cdc2a3058f587cde71eba3d5b56327c8c33a97e4c4051ca48a10ca2d5f"
 }

@@ -49,22 +49,3 @@ def filter_youtube_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
         # Fallback: clean non-serializable objects
         serializable_data = _make_serializable(filtered)
         return json.dumps(serializable_data)
-
-
-def filter_itunes_metadata_for_storage(raw_data: Dict[str, Any]) -> str:
-    """
-    Filter iTunes metadata for storage (minimal filtering needed).
-
-    Args:
-        raw_data: Raw iTunes response data
-
-    Returns:
-        JSON string of filtered metadata
-    """
-    # iTunes responses are compact, keep everything except wrapper
-    if "resultCount" in raw_data:
-        # Store just the first result, not the wrapper
-        results = raw_data.get("results", [])
-        return json.dumps(results[0] if results else {})
-
-    return json.dumps(raw_data)

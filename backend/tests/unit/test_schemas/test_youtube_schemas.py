@@ -37,11 +37,15 @@ class TestYouTubeProcessRequest:
 
     def test_title_too_long_raises(self):
         with pytest.raises(ValidationError):
-            YouTubeProcessRequest(url="https://youtube.com/watch?v=abc", title="x" * 201)
+            YouTubeProcessRequest(
+                url="https://youtube.com/watch?v=abc", title="x" * 201
+            )
 
     def test_artist_too_long_raises(self):
         with pytest.raises(ValidationError):
-            YouTubeProcessRequest(url="https://youtube.com/watch?v=abc", artist="x" * 201)
+            YouTubeProcessRequest(
+                url="https://youtube.com/watch?v=abc", artist="x" * 201
+            )
 
 
 class TestYouTubeDownloadRequest:
@@ -63,7 +67,9 @@ class TestYouTubeDownloadRequest:
             YouTubeDownloadRequest(video_id="   ", song_id="song-123")
 
     def test_empty_optional_string_becomes_none(self):
-        req = YouTubeDownloadRequest(video_id="vid123", song_id="song-123", title="", artist="")
+        req = YouTubeDownloadRequest(
+            video_id="vid123", song_id="song-123", title="", artist=""
+        )
         assert req.title is None
         assert req.artist is None
 

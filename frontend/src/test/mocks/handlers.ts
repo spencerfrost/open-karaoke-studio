@@ -30,6 +30,9 @@ export const mockSession = {
 
 // API handlers
 export const handlers = [
+  // Live demo: off unless a test turns it on
+  http.get("/api/demo", () => HttpResponse.json({ enabled: false })),
+
   // Songs endpoints
   http.get("/api/songs", () => {
     return HttpResponse.json({

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from app.exceptions import ServiceError
 from app.services.file_service import FileService
 
@@ -213,6 +214,10 @@ class TestFileService:
 
         # Create a hidden directory (should be ignored)
         (self.temp_dir / ".hidden").mkdir(parents=True, exist_ok=True)
+
+        # Shared artwork folders are not songs (should be ignored)
+        (self.temp_dir / "covers").mkdir(parents=True, exist_ok=True)
+        (self.temp_dir / "artists").mkdir(parents=True, exist_ok=True)
 
         result = self.file_service.get_processed_song_ids()
 
@@ -443,7 +448,6 @@ class TestFileServiceIntegration:
         # Check all songs are deleted
         processed_ids = self.file_service.get_processed_song_ids()
         assert processed_ids == []
-
 
     def test_get_artist_image_path(self):
         path = self.file_service.get_artist_image_path("rick-astley")

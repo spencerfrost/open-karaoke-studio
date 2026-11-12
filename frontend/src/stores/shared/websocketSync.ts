@@ -10,7 +10,7 @@ export const LOCAL_UPDATE_DEBOUNCE_MS = 1000;
 
 /**
  * Check if a WebSocket update should be ignored based on recent local updates
- * This prevents echo updates when a local change is sent to the server and echoed back
+ * This prevents echoes and stale broadcasts from undoing a local change
  */
 export function shouldIgnoreWebSocketUpdate(
   lastLocalUpdate: LocalUpdateTracker,
@@ -35,9 +35,11 @@ export function shouldIgnoreWebSocketUpdate(
     return isSimilarTime && isWithinDebounceWindow;
   }
 
-  // For other controls, require exact value match
-  const isSameValue = localUpdate.value === value;
-  return isSameValue && isWithinDebounceWindow;
+  // For other controls the local change wins outright for the window, not
+  // only against its own echo: the stage re-broadcasts the full state every
+  // few hundred ms, so a broadcast sent just before the server saw this change
+  // still carries the old value and would snap the control back.
+  return isWithinDebounceWindow;
 }
 
 /**

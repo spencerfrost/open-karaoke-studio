@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  apiGet,
   getAuthHeaders,
   useApiQuery,
   useApiMutation,
@@ -59,6 +60,7 @@ export function useSongs() {
     // Use a custom query function that handles different response formats
     const queryFn = async () => {
       const response = await fetch(`/api/${queryString}`, {
+        headers: { ...getAuthHeaders() },
         credentials: "include",
       });
 
@@ -110,6 +112,19 @@ export function useSongs() {
   };
 
   /**
+   * Fetch a song by ID outside a render, e.g. on a tap that only has its id.
+   * Shares useSong's cache.
+   */
+  const fetchSong = useCallback(
+    (id: string) =>
+      queryClient.fetchQuery({
+        queryKey: QUERY_KEYS.song(id),
+        queryFn: () => apiGet<Song>(`songs/${id}`),
+      }),
+    [queryClient],
+  );
+
+  /**
    * Get song processing status
    */
   const useSongStatus = (id: string, options = {}) => {
@@ -129,44 +144,6 @@ export function useSongs() {
   };
 
   // ===== Mutations =====
-  /**
-   * Create a new song
-   */
-  const useCreateSong = () => {
-    return useApiMutation<Song, Partial<Song>>("songs", "post", {
-      onMutate: async () => {
-        await queryClient.cancelQueries({ queryKey: ["songs"] });
-        return {};
-      },
-      onError: () => {
-        // Invalidate to refetch fresh data on error
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
-      },
-      onSettled: () => {
-        // Refetch to ensure server state
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
-      },
-      mutationFn: async (data) => {
-        const response = await fetch("/api/songs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify(data),
-          credentials: "include",
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || `Failed to create song: ${response.status}`,
-          );
-        }
-        return response.json();
-      },
-    });
-  };
-
   /**
    * Update a song
    */
@@ -311,85 +288,6 @@ export function useSongs() {
         },
       },
     );
-  };
-
-  /**
-   * Update iTunes metadata for a song
-   */
-  const useUpdateItunesMetadata = () => {
-    return useApiMutation<
-      Song,
-      {
-        id: string;
-        itunesTrackId?: number;
-        itunesArtistId?: number;
-        itunesCollectionId?: number;
-        trackTimeMillis?: number;
-        itunesExplicit?: boolean;
-        itunesPreviewUrl?: string;
-        itunesArtworkUrls?: {
-          60?: string;
-          100?: string;
-          600?: string;
-        };
-      }
-    >("songs/:id/metadata/itunes", "patch", {
-      onMutate: async (variables) => {
-        const { id, ...metadata } = variables;
-        await queryClient.cancelQueries({ queryKey: QUERY_KEYS.song(id) });
-
-        const previousSong = queryClient.getQueryData<Song>(
-          QUERY_KEYS.song(id),
-        );
-
-        if (previousSong) {
-          queryClient.setQueryData<Song>(QUERY_KEYS.song(id), {
-            ...previousSong,
-            ...metadata,
-          });
-        }
-
-        return { previousSong };
-      },
-      onError: (_err, variables, context: unknown) => {
-        const ctx = context as { previousSong?: Song } | undefined;
-        if (ctx?.previousSong) {
-          queryClient.setQueryData(
-            QUERY_KEYS.song(variables.id),
-            ctx.previousSong,
-          );
-        }
-      },
-      onSettled: (_data, _error, variables) => {
-        queryClient.invalidateQueries({
-          queryKey: QUERY_KEYS.song(variables.id),
-        });
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
-      },
-      mutationFn: async (data) => {
-        const { id, ...metadata } = data;
-        const url = formatUrl("songs/:id/metadata/itunes", { id });
-        const response = await fetch(`/api/${url}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify(metadata),
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error ||
-              `Failed to update iTunes metadata: ${response.status}`,
-          );
-        }
-
-        return response.json();
-      },
-    });
   };
 
   /**
@@ -737,16 +635,15 @@ export function useSongs() {
     useRichSongMetadata,
 
     // Mutations
-    useCreateSong,
     useUpdateSong,
     useUpdateSongMetadata,
-    useUpdateItunesMetadata,
     useUpdateYoutubeMetadata,
     useDeleteSong,
     useReprocessSong,
     useReprocessAllSongs,
 
     // Utility functions
+    fetchSong,
     getAudioUrl,
     uploadSong,
     downloadVocals,

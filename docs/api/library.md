@@ -9,7 +9,7 @@ API documentation for artist and album management. Most write operations are **a
 /api/albums
 ```
 
-For *browsing* artists and their songs, see the [Songs API](songs.md) (`GET /api/songs/artists`, `GET /api/songs/by-artist/{artist_name}`).
+For *browsing* artists and their songs, see the [Songs API](songs.md) (`GET /api/songs/artists`, `GET /api/songs/by-artist/{artist_id}`).
 
 ---
 
@@ -58,7 +58,7 @@ DELETE /api/artists/{artist_id}
 Fetch (and cache) an artist image from Discogs, served from local disk. Public.
 
 ```http
-GET /api/artists/image?name={artist_name}
+GET /api/artists/{artist_id}/image
 ```
 
 #### Response
@@ -107,28 +107,13 @@ Returns `{ "success": true }`, or `422` if the download failed.
 
 ### Backfill Artist Images
 
-Fetch images for all artists not yet checked, sequentially (respects Discogs rate limits). **Admin only.**
-
-```http
-POST /api/artists/images/backfill
-```
-
-#### Response
-
-```json
-{
-  "fetched": 12,
-  "not_found": 3,
-  "errors": 0,
-  "total": 15
-}
-```
+Artist photos are fetched by the `artist_images` batch job: see [Admin API](admin.md).
 
 ---
 
 ### Split Artist Credits
 
-Split a combined artist (e.g. `"A & B"`) into separate credits, applied to all songs currently linked to the artist. At least one `primary` credit is required. **Admin only.**
+Split a combined artist (e.g. `"A & B"`) into separate credits. On every song crediting the artist, the given credits take its place and the song's other credits stay; where it was featured, they're all featured. Each song's artist line is rebuilt from its new credits and the song is confirmed. The combined artist is deleted once nothing refers to it. At least one `primary` credit is required. **Admin only.**
 
 ```http
 POST /api/artists/{artist_id}/split-credits
@@ -155,6 +140,24 @@ POST /api/artists/{artist_id}/split-credits
 
 ---
 
+### Merge Artist
+
+Merge one artist into another, e.g. "Jay‐Z" into "Jay-Z". Every credit moves to the target (a song crediting both keeps one, primary over featured), `songs.artist_id` and `albums.artist_id` are repointed, the source's names become the target's aliases, its MusicBrainz and YouTube Music ids and photo go to the target when it has none, and the source is deleted. Songs' artist text is left as it is. **Admin only.**
+
+```http
+POST /api/artists/{artist_id}/merge-into/{target_id}
+```
+
+#### Response
+
+```json
+{ "id": 7, "name": "JAY-Z", "moved": 12 }
+```
+
+`moved` is how many of the source's credits moved. `400` when both ids are the same, `404` for an unknown artist.
+
+---
+
 ## Album Endpoints
 
 ### Get Album Cover
@@ -177,8 +180,8 @@ Binary image data, or `404` if the album has no cover.
 # Get an album cover
 curl http://localhost:5123/api/albums/12/cover -o cover.jpg
 
-# Get an artist image by name
-curl "http://localhost:5123/api/artists/image?name=Queen" -o artist.jpg
+# Get an artist image
+curl http://localhost:5123/api/artists/42/image -o artist.jpg
 
 # Admin: rename an artist
 curl -X PATCH http://localhost:5123/api/artists/1 \
@@ -191,6 +194,10 @@ curl -X POST http://localhost:5123/api/artists/42/split-credits \
   -H "Authorization: Bearer {admin-token}" \
   -H "Content-Type: application/json" \
   -d '{"credits": [{"name": "Simon", "role": "primary"}, {"name": "Garfunkel", "role": "primary"}]}'
+
+# Admin: merge artist 42 into artist 7
+curl -X POST http://localhost:5123/api/artists/42/merge-into/7 \
+  -H "Authorization: Bearer {admin-token}"
 ```
 
 ---

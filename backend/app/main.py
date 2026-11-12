@@ -10,21 +10,28 @@ CLEAN ARCHITECTURE: Only two WebSocket endpoints - jobs (global) and session (se
 All karaoke functionality (performance controls, queue, player state) handled through sessions.
 """
 
-import asyncio
 import logging
 import os
-import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
+from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy.exc import SQLAlchemyError
 
 # Import routers
 from app.api import (
+    admin_router,
     albums_router,
     artists_router,
+    demo_router,
     health_router,
     host_settings_router,
     jobs_router,
@@ -43,9 +50,9 @@ from app.api import (
 # Import configuration and logging setup
 from app.config import get_config
 from app.config.logging import setup_logging
-
-# Import the cleanup utility
-from app.utils.cleanup_jobs import cleanup_stuck_jobs
+from app.db.database import SessionLocal
+from app.limiter import limiter
+from app.services.auth_service import ensure_admin_from_env
 
 # Import WebSocket modules
 from app.ws import (
@@ -53,12 +60,6 @@ from app.ws import (
     websocket_jobs_endpoint,
     websocket_unified_session_endpoint,
 )
-from app.limiter import limiter
-from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
 
 # Get configuration and setup logging
 config = get_config()
@@ -66,16 +67,36 @@ logging_config = setup_logging(config)
 logger = logging.getLogger(__name__)
 
 
+def _create_startup_admin() -> None:
+    """Create the first admin from ADMIN_USERNAME/ADMIN_PASSWORD, if set.
+
+    A database problem (e.g. migrations not run yet) is logged, never fatal.
+    """
+    db = SessionLocal()
+    try:
+        ensure_admin_from_env(
+            db, os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.error(
+            "Could not check for a startup admin (has alembic upgrade head run?)",
+            exc_info=True,
+        )
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     logger.info("Open Karaoke Studio backend starting")
-    cleanup_stuck_jobs()
     if not os.environ.get("JWT_SECRET_KEY"):
         logger.error(
             "JWT_SECRET_KEY is not set — a random key was generated. "
             "All sessions will be invalidated on restart. Set JWT_SECRET_KEY in .env."
         )
+    _create_startup_admin()
     yield
 
 
@@ -107,8 +128,10 @@ manager = SessionConnectionManager()
 app.state.session_manager = manager
 
 # Include all API routers
+app.include_router(admin_router)
 app.include_router(albums_router)
 app.include_router(artists_router)
+app.include_router(demo_router)
 app.include_router(health_router)
 app.include_router(songs_router)
 app.include_router(jobs_router)
@@ -165,24 +188,6 @@ async def unified_session_ws(websocket: WebSocket, session_id: str):
     await websocket_unified_session_endpoint(websocket, session_id, manager)
 
 
-# Performance testing endpoint
-@app.get("/api/performance-test")
-async def performance_test():
-    """
-    Endpoint for performance testing.
-    """
-    start_time = time.time()
-    await asyncio.sleep(0.01)  # 10ms of "work"
-    end_time = time.time()
-    
-    return {
-        "framework": "fastapi",
-        "response_time_ms": round((end_time - start_time) * 1000, 2),
-        "async_capable": True,
-        "concurrent_ready": True
-    }
-
-
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -191,7 +196,7 @@ async def not_found_handler(request, exc):
         content={
             "error": "Not found",
             "message": f"The endpoint {request.url.path} was not found",
-        }
+        },
     )
 
 
@@ -200,27 +205,30 @@ async def internal_error_handler(request, exc):
     return JSONResponse(
         status_code=500,
         content={
-            "error": "Internal server error", 
+            "error": "Internal server error",
             "message": "An unexpected error occurred",
-        }
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     port = int(os.environ.get("PORT", 5123))
-    
+
     logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
     print(f"🚀 Starting Open Karaoke Studio FastAPI Backend")
     print(f"📖 API Documentation: http://localhost:{port}/docs")
     print(f"🔍 Alternative Docs: http://localhost:{port}/redoc")
     print(f"❤️  Health Check: http://localhost:{port}/api/health")
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=port,
         reload=True,
-        log_level="info"
+        log_level="info",
+        # A reload waits for open connections (browser WebSockets) to close;
+        # without a limit it can wait forever and the API stops answering.
+        timeout_graceful_shutdown=5,
     )

@@ -6,10 +6,13 @@ import { SessionProvider } from "./contexts/SessionContext";
 import { Toaster } from "./components/ui/sonner";
 import { MiniPlayer } from "./components/player/MiniPlayer";
 import { useJobsSync } from "./hooks/useJobsSync";
+import { useApplyTheme } from "./hooks/useApplyTheme";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
+import { PhonePresence } from "./features/session";
 
 const App: React.FC = () => {
   useJobsSync(); // Sync jobs to processing indicators store
+  useApplyTheme();
 
   return (
     <>
@@ -18,6 +21,10 @@ const App: React.FC = () => {
       <Router>
         <SessionProvider>
           <AppRoutes />
+
+          {/* Reports this page's presence and opens the controls when this
+              device's song starts, whichever page it is on. */}
+          <PhonePresence />
 
           {/* Mini-player renders outside routes, always available */}
           <MiniPlayer />

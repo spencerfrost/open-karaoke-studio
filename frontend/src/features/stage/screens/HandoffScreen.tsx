@@ -17,25 +17,44 @@
  * Three slots, always in the same place:
  *   1. Who's up      - the name, at headline scale.
  *   2. What they're singing - the only slot whose content varies.
- *   3. How to change either - quiet, always present, never a modal.
+ *   3. How to change either - Skip my turn, Add performer, Remove from
+ *      rotation. Quiet, always present, never a modal.
+ *
+ * The rotation is authoritative: nobody overrules whose turn it is from here.
+ * Someone who walks up out of turn is added at the turn instead, and keeps
+ * that seat for the night.
  *
  * No clock runs here. This is a living-room app: the screen waits until
  * someone taps, rather than playing the next song or passing over a person who
  * hasn't picked one yet.
- *
- * See docs/plans/archive/2026-08-29-handoff-screen.md.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
-import { Library, Music, Play, UserRoundX, Users } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  BookOpen,
+  Music,
+  Play,
+  SkipForward,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { QRCodeDisplay } from "@/features/queue";
 import { useSongs } from "@/hooks/api/useSongs";
 import { useAddToKaraokeQueue } from "@/hooks/api/useKaraokeQueue";
 import {
-  useClaimTurn,
-  useDeactivatePerformer,
+  useInsertPerformer,
+  useRemovePerformer,
+  useRestorePerformer,
+  useSkipTurn,
   TurnMovedOnError,
 } from "@/hooks/api/useTurn";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -51,8 +70,9 @@ import {
   useSongSuggestions,
   getSuggestionReasonText,
 } from "@/features/player/hooks/useSongSuggestions";
-import RosterPicker from "../components/RosterPicker";
+import LyricsFeedbackRow from "../components/LyricsFeedbackRow";
 import { useStageShell } from "../StageShellContext";
+import { findTurnItem } from "../turnItem";
 
 const logger = createLogger("component:handoff-screen");
 
@@ -77,16 +97,21 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
   const { getArtworkUrl } = useSongs();
   const { displayCode } = useSessionStore();
 
-  const claimTurn = useClaimTurn(displayCode || undefined);
-  const deactivatePerformer = useDeactivatePerformer(displayCode || undefined);
-  const addToQueue = useAddToKaraokeQueue(displayCode || undefined);
+  const sessionCode = displayCode || undefined;
+  const skipTurn = useSkipTurn(sessionCode);
+  const insertPerformer = useInsertPerformer(sessionCode);
+  const removePerformer = useRemovePerformer(sessionCode);
+  const restorePerformer = useRestorePerformer(sessionCode);
+  const addToQueue = useAddToKaraokeQueue(sessionCode);
 
-  const [isPicking, setIsPicking] = useState(false);
-  const [pickedName, setPickedName] = useState("");
-  const [showOther, setShowOther] = useState(false);
+  // "Add performer" swaps slot 2 for a name field.
+  const [isAdding, setIsAdding] = useState(false);
+  const [newName, setNewName] = useState("");
 
-  const nextItem = upcoming.find((item) => Number(item.id) === turn.itemId);
-  const hasSong = turn.kind === "queued" && Boolean(nextItem);
+  // Shared with the shell, which uses it to decide whether Back from the
+  // library comes here at all.
+  const nextItem = findTurnItem(turn, upcoming);
+  const hasSong = nextItem !== null;
 
   // A 409 means somebody else got there first. Both screens are about to be
   // told the same thing by the queue broadcast, so there is nothing to say.
@@ -96,36 +121,120 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
       return;
     }
     logger.error("%s failed:", action, error);
-    toast.error(`Couldn't ${action}. Try again.`);
+    toast.error(`Couldn't ${action}`, { description: error.message });
   }, []);
 
   const handleAdvance = useCallback(() => {
     if (nextItem) onPlayFromQueue(nextItem.id);
   }, [nextItem, onPlayFromQueue]);
 
-  const handleClaim = useCallback(
-    (opts: { performerId?: number; name?: string }) => {
-      claimTurn.mutate(
-        { expectedPerformerId: turn.performerId, ...opts },
+  const handleSkip = useCallback(() => {
+    skipTurn.mutate(
+      { expectedPerformerId: turn.performerId },
+      { onError: (e) => onTurnError(e, "skip the turn") },
+    );
+  }, [skipTurn, turn.performerId, onTurnError]);
+
+  const handleInsert = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const name = newName.trim();
+      if (!name) return;
+      insertPerformer.mutate(
+        { expectedPerformerId: turn.performerId, name },
         {
           onSuccess: () => {
-            setIsPicking(false);
-            setShowOther(false);
-            setPickedName("");
+            setIsAdding(false);
+            setNewName("");
           },
-          onError: (e) => onTurnError(e, "take the turn"),
+          onError: (err) => onTurnError(err, `add ${name}`),
         },
       );
     },
-    [claimTurn, turn.performerId, onTurnError],
+    [insertPerformer, newName, turn.performerId, onTurnError],
   );
 
-  const handleSkipMe = useCallback(() => {
-    if (turn.performerId === null) return;
-    deactivatePerformer.mutate(turn.performerId, {
-      onError: (e) => onTurnError(e, "step out"),
-    });
-  }, [deactivatePerformer, turn.performerId, onTurnError]);
+  // No confirm dialog: the undo toast is the safety net.
+  const handleRemove = useCallback(() => {
+    const { performerId, performerName } = turn;
+    if (performerId === null) return;
+    removePerformer.mutate(
+      { expectedPerformerId: performerId, performerId },
+      {
+        onSuccess: (removed) => {
+          toast(`${performerName ?? "They"} left the rotation`, {
+            duration: 10000,
+            action: {
+              label: "Undo",
+              onClick: () =>
+                restorePerformer.mutate(
+                  {
+                    performerId: removed.id,
+                    expectedHolderId: removed.holder_id,
+                  },
+                  { onError: (e) => onTurnError(e, "undo that") },
+                ),
+            },
+          });
+        },
+        onError: (e) => onTurnError(e, "remove them"),
+      },
+    );
+  }, [removePerformer, restorePerformer, turn, onTurnError]);
+
+  // Keys, bound on the window like the confirm screen's, so nobody has to
+  // reach for the mouse between songs:
+  //   Enter      play their song, or open the library when they have none
+  //   Back / L   the library
+  // While "Add performer" is open, Back means "Never mind" and Enter belongs
+  // to its form.
+  const keys = useRef({ hasSong, isAdding, handleAdvance });
+  keys.current = { hasSong, isAdding, handleAdvance };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      const k = keys.current;
+      // The name field is typing, not navigating.
+      if (
+        t &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) ||
+          t.isContentEditable)
+      ) {
+        if (e.key === "Escape" && k.isAdding) setIsAdding(false);
+        return;
+      }
+      if (t?.closest("[role='dialog'], [role='slider']")) return;
+
+      if (e.key === "Escape" || e.key === "Backspace") {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (k.isAdding) setIsAdding(false);
+        else shell?.openSelect();
+        return;
+      }
+      if (k.isAdding) return;
+
+      if (e.code === "KeyL") {
+        e.preventDefault();
+        if (e.repeat) return;
+        shell?.openSelect();
+        return;
+      }
+      if (e.key === "Enter") {
+        // A button the mouse just clicked keeps Enter for itself.
+        if (t?.closest("button, a, [role='button']")) return;
+        e.preventDefault();
+        // The Enter that started the last song, still held, must not start
+        // this one.
+        if (e.repeat) return;
+        if (k.hasSong) k.handleAdvance();
+        else shell?.openSelect();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [shell]);
 
   const { suggestions, isLoading: suggestionsLoading } = useSongSuggestions(
     current?.song ? { currentSong: current.song, limit: 4 } : null,
@@ -148,29 +257,41 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
     );
   };
 
-  // Two or three ahead, so people can get ready. Free: the list is sorted.
+  // The next few *people*, so they can get ready - whose turns come next, not
+  // whose songs: someone with three songs queued is still one seat. The circle
+  // starts at whoever holds the turn. Leaving out the person on screen covers
+  // both the normal case (they are the holder) and a bumped song (the holder
+  // is next after them).
+  // Append mode has no circle, so there it is the singers of the next songs.
   const onDeck = useMemo(
     () =>
-      upcoming
-        .filter((item) => Number(item.id) !== turn.itemId)
-        .slice(0, 3)
-        .map((item) => item.singer),
-    [upcoming, turn.itemId],
+      turn.circle.length > 0
+        ? turn.circle
+            .filter((p) => p.id !== turn.performerId)
+            .slice(0, 3)
+            .map((p) => p.name)
+        : upcoming
+            .filter((item) => Number(item.id) !== turn.itemId)
+            .slice(0, 3)
+            .map((item) => item.singer),
+    [turn.circle, turn.performerId, upcoming, turn.itemId],
   );
 
   // An audience of one should not be told about a rotation.
   const showRibbon = turn.circle.length >= 2;
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-10 overflow-auto p-10">
+    // Short screens (the Shield's 960x540) get a tighter layout. Centering is
+    // "safe": anything that still doesn't fit falls off the bottom, not the top.
+    <div className="flex h-full w-full flex-col items-center justify-center-safe gap-10 overflow-auto p-10 [@media(max-height:600px)]:gap-5 [@media(max-height:600px)]:p-6">
       {/* ---- Slot 1: who's up ------------------------------------------- */}
       <div className="text-center">
         {turn.performerName ? (
           <>
-            <p className="text-xl uppercase tracking-[0.2em] text-foreground/45">
+            <p className="text-xl uppercase tracking-[0.2em] text-foreground-faint [@media(max-height:600px)]:text-base">
               Up next
             </p>
-            <h1 className="font-display text-8xl leading-none text-primary">
+            <h1 className="font-display text-8xl leading-none text-primary [@media(max-height:600px)]:text-6xl">
               {turn.performerName}
             </h1>
           </>
@@ -183,45 +304,50 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
 
       {/* ---- Slot 2: what they're singing -------------------------------- */}
       <div className="flex w-full max-w-4xl flex-col items-center gap-6">
-        {isPicking ? (
-          <div className="w-full max-w-2xl space-y-4 text-center">
-            <p className="text-xl text-foreground/60">Who's up, then?</p>
-            <RosterPicker
-              roster={roster}
-              value={pickedName}
-              onChange={setPickedName}
-              showOther={showOther}
-              onShowOtherChange={setShowOther}
-              excludeIds={turn.performerId ? [turn.performerId] : []}
+        {isAdding ? (
+          <form
+            onSubmit={handleInsert}
+            className="w-full max-w-xl space-y-4 text-center"
+          >
+            <p className="text-xl text-foreground-dim">
+              {turn.performerName
+                ? `They'll sing now, and ${turn.performerName} goes next.`
+                : "They'll sing now."}
+            </p>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Their name"
+              aria-label="Performer name"
+              maxLength={100}
+              autoFocus
+              className="h-14 text-center text-2xl"
             />
             <div className="flex justify-center gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setIsPicking(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsAdding(false)}
+              >
                 Never mind
               </Button>
               <Button
+                type="submit"
                 variant="primary"
                 size="lg"
-                disabled={!pickedName.trim() || claimTurn.isPending}
-                onClick={() => {
-                  const match = roster.find((p) => p.name === pickedName);
-                  handleClaim(
-                    match
-                      ? { performerId: match.id }
-                      : { name: pickedName.trim() },
-                  );
-                }}
+                disabled={!newName.trim() || insertPerformer.isPending}
               >
-                That's me
+                Add
               </Button>
             </div>
-          </div>
+          </form>
         ) : hasSong && nextItem ? (
           <button
             onClick={handleAdvance}
             className="group flex items-center gap-8 rounded-xl p-2 text-left"
             aria-label={`Play ${nextItem.song.title}`}
           >
-            <div className="relative flex size-48 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-overlay/60 shadow-2xl">
+            <div className="relative flex size-48 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-overlay/60 shadow-2xl [@media(max-height:600px)]:size-32">
               {getArtworkUrl(nextItem.song, "large") ? (
                 <img
                   src={getArtworkUrl(nextItem.song, "large") ?? undefined}
@@ -229,7 +355,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                   className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <Music size={64} className="text-foreground/20" />
+                <Music size={64} className="text-foreground-faint" />
               )}
               <div className="absolute inset-0 flex items-center justify-center bg-overlay/40 transition-colors group-hover:bg-overlay/50">
                 <Play
@@ -241,17 +367,17 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               </div>
             </div>
             <div className="min-w-0">
-              <h2 className="font-display text-5xl leading-tight text-foreground">
+              <h2 className="font-display text-5xl leading-tight text-foreground [@media(max-height:600px)]:text-4xl">
                 {nextItem.song.title}
               </h2>
-              <p className="pt-2 text-2xl text-foreground/55">
+              <p className="pt-2 text-2xl text-foreground-dim">
                 {nextItem.song.artist}
               </p>
             </div>
           </button>
         ) : turn.kind === "open" && roster.length === 0 && displayCode ? (
           <div className="flex flex-col items-center gap-5">
-            <p className="text-2xl text-foreground/60">
+            <p className="text-2xl text-foreground-dim">
               Scan to join and pick a song
             </p>
             <QRCodeDisplay
@@ -264,7 +390,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           </div>
         ) : (
           <div className="flex w-full flex-col items-center gap-6">
-            <p className="text-2xl text-foreground/60">
+            <p className="text-2xl text-foreground-dim">
               {turn.performerName
                 ? `${turn.performerName} — check your phone, or pick one here`
                 : "Pick something to keep it going"}
@@ -272,7 +398,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
 
             {suggestions.length > 0 && (
               <div className="w-full">
-                <h3 className="pb-3 text-center text-lg text-foreground/50">
+                <h3 className="pb-3 text-center text-lg text-foreground-faint">
                   {getSuggestionReasonText(suggestions[0].reason)}
                 </h3>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -291,7 +417,10 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                           />
                         ) : (
                           <div className="flex size-full items-center justify-center bg-primary/20">
-                            <Music size={32} className="text-foreground/30" />
+                            <Music
+                              size={32}
+                              className="text-foreground-faint"
+                            />
                           </div>
                         )}
                       </div>
@@ -299,7 +428,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                         <p className="truncate text-base font-medium text-foreground">
                           {song.title}
                         </p>
-                        <p className="truncate text-sm text-foreground/60">
+                        <p className="truncate text-sm text-foreground-dim">
                           {song.artist}
                         </p>
                       </div>
@@ -310,7 +439,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             )}
 
             {suggestionsLoading && (
-              <p className="text-foreground/50">Finding more songs…</p>
+              <p className="text-foreground-faint">Finding more songs…</p>
             )}
 
             <Button
@@ -319,56 +448,74 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               onClick={() => shell?.openSelect()}
               className="gap-2"
             >
-              <Library className="size-5" />
-              Browse Library
+              <BookOpen className="size-5" />
+              Open the Songbook
             </Button>
           </div>
         )}
       </div>
 
       {/* ---- Slot 3: how to change either -------------------------------- */}
-      {!isPicking && (
-        <div className="flex w-full max-w-4xl flex-col items-center gap-4">
-          {turn.performerId !== null && (
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={() => {
-                  setPickedName("");
-                  setShowOther(roster.length <= 1);
-                  setIsPicking(true);
-                }}
-                className="gap-2 text-foreground/60 hover:text-foreground"
-              >
-                <Users className="size-5" />
-                That's not me
-              </Button>
-              <span className="text-foreground/20">·</span>
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={handleSkipMe}
-                disabled={deactivatePerformer.isPending}
-                className="gap-2 text-foreground/60 hover:text-foreground"
-              >
-                <UserRoundX className="size-5" />
-                Skip me for now
-              </Button>
+      {!isAdding && (
+        <div className="flex w-full max-w-4xl flex-col items-center gap-4 [@media(max-height:600px)]:gap-2">
+          {/* The circle is empty in append mode, which has no turns to change. */}
+          {turn.circle.length > 0 && (
+            <div className="flex flex-col items-center gap-2">
+              {turn.performerId !== null && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleSkip}
+                  disabled={skipTurn.isPending}
+                  className="gap-2"
+                >
+                  <SkipForward className="size-5" />
+                  Skip my turn
+                </Button>
+              )}
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  onClick={() => {
+                    setNewName("");
+                    setIsAdding(true);
+                  }}
+                  className="gap-2 text-foreground-dim hover:text-foreground"
+                >
+                  <UserPlus className="size-5" />
+                  Add performer
+                </Button>
+                {turn.performerId !== null && (
+                  <>
+                    <span className="text-foreground-faint">·</span>
+                    <Button
+                      variant="ghost"
+                      size="lg"
+                      onClick={handleRemove}
+                      disabled={removePerformer.isPending}
+                      className="gap-2 text-foreground-dim hover:text-foreground"
+                    >
+                      <UserMinus className="size-5" />
+                      Remove from rotation
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
           {onDeck.length > 0 && (
-            <p className="text-lg text-foreground/40">
+            <p className="text-lg text-foreground-faint">
               On deck:{" "}
-              <span className="text-foreground/70">{onDeck.join(" · ")}</span>
+              <span className="text-foreground-dim">{onDeck.join(" · ")}</span>
             </p>
           )}
 
           {showRibbon && (
             <p
               className={cn(
-                "text-base uppercase tracking-[0.15em] text-foreground/30",
+                "text-base uppercase tracking-[0.15em] text-foreground-faint",
               )}
             >
               {turn.circle.map((p) => p.name).join(" → ")} →{" "}
@@ -377,10 +524,15 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           )}
 
           {current?.song && (
-            <p className="pt-2 text-sm text-foreground/25">
+            <p className="pt-2 text-sm text-foreground-faint">
               Just played: {current.song.title} — {current.song.artist}
             </p>
           )}
+
+          {current?.song &&
+            (current.song.syncedLyrics || current.song.plainLyrics) && (
+              <LyricsFeedbackRow queueItemId={Number(current.id)} />
+            )}
         </div>
       )}
     </div>

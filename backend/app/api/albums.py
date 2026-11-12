@@ -1,28 +1,19 @@
 import logging
-from typing import Generator
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_db
 from app.config import get_config
-from app.db.database import SessionLocal
 from app.db.models.album import DbAlbum
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/albums", tags=["albums"])
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.get("/{album_id}/cover")
-async def get_album_cover(album_id: int, db: Session = Depends(get_db)):
+def get_album_cover(album_id: int, db: Session = Depends(get_db)):
     """Serve the cached album cover art."""
     album = db.query(DbAlbum).filter(DbAlbum.id == album_id).first()
 

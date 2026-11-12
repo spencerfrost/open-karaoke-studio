@@ -8,9 +8,11 @@ session's history stays intact. Stale rows are reclaimed later by
 """
 
 import logging
+from typing import Optional
+
+from sqlalchemy.orm import Session
 
 from app.db.models import KaraokeSession, SessionDevice
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -37,3 +39,29 @@ def deactivate_session(db: Session, session_id: str) -> bool:
 
     logger.info("Session %s deactivated (row and queue retained)", session_id)
     return True
+
+
+def find_session_member(
+    db: Session, session_id: str, device_id: str
+) -> Optional[SessionDevice]:
+    """
+    Return the active SessionDevice for `device_id` in a live, unexpired session, or None.
+
+    The device id is the session-member credential: it is minted by join-by-code (rate
+    limited) and session creation, never derived from the session id. A missing session and
+    a missing device both return None, so callers can't tell a wrong code from a wrong device.
+    """
+    device = (
+        db.query(SessionDevice)
+        .join(KaraokeSession, KaraokeSession.session_id == SessionDevice.session_id)
+        .filter(
+            SessionDevice.device_id == device_id,
+            SessionDevice.session_id == session_id,
+            SessionDevice.is_active.is_(True),
+            KaraokeSession.is_active.is_(True),
+        )
+        .first()
+    )
+    if device is None or device.session.is_expired():
+        return None
+    return device

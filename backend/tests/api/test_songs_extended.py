@@ -1,0 +1,369 @@
+"""Extended integration tests for songs API — covers routes not in test_songs_api.py."""
+
+import uuid
+
+from app.db.database import SessionLocal
+from app.db.models import DbSong
+
+
+def _create_song(client, title="Test Song", artist="Test Artist", **kwargs):
+    resp = client.post("/api/songs", json={"title": title, "artist": artist, **kwargs})
+    assert resp.status_code in (200, 201)
+    return resp.json()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/songs/artists
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_get_artists_empty(client):
+    response = client.get("/api/songs/artists")
+    assert response.status_code == 200
+    data = response.json()
+    assert "artists" in data
+    assert "pagination" in data
+
+
+def test_get_artists_returns_unique_artists(client):
+    _create_song(client, title="Song A1", artist="ArtistA")
+    _create_song(client, title="Song A2", artist="ArtistA")
+    _create_song(client, title="Song B1", artist="ArtistB")
+
+    response = client.get("/api/songs/artists")
+    assert response.status_code == 200
+    names = [a["name"] for a in response.json()["artists"]]
+    assert names.count("ArtistA") == 1
+    assert "ArtistB" in names
+
+
+def test_get_artists_with_search_filter(client):
+    _create_song(client, title="Track", artist="UniqueArtistXYZ")
+    _create_song(client, title="Other", artist="OtherArtist")
+
+    response = client.get("/api/songs/artists?search=UniqueArtistXYZ")
+    assert response.status_code == 200
+    names = [a["name"] for a in response.json()["artists"]]
+    assert "UniqueArtistXYZ" in names
+    assert "OtherArtist" not in names
+
+
+def test_get_artists_with_limit_and_offset(client):
+    for i in range(5):
+        _create_song(client, title=f"Track {i}", artist=f"Artist{i:02d}")
+
+    resp_limited = client.get("/api/songs/artists?limit=2&offset=0")
+    assert resp_limited.status_code == 200
+    assert len(resp_limited.json()["artists"]) <= 2
+    assert resp_limited.json()["pagination"]["hasMore"] is True
+
+
+def test_get_artists_first_letter(client):
+    _create_song(client, title="Track", artist="Zeppelin")
+    response = client.get("/api/songs/artists?search=Zeppelin")
+    assert response.status_code == 200
+    artists = response.json()["artists"]
+    zeppelin = next((a for a in artists if a["name"] == "Zeppelin"), None)
+    assert zeppelin is not None
+    assert zeppelin["firstLetter"] == "Z"
+
+
+def test_get_artists_files_by_name_without_article(client):
+    band = f"The Wheelwrights {uuid.uuid4().hex[:6]}"
+    _create_song(client, title="Track", artist=band)
+    response = client.get(f"/api/songs/artists?search={band}")
+    assert response.status_code == 200
+    artist = next(a for a in response.json()["artists"] if a["name"] == band)
+    assert artist["firstLetter"] == "W"
+    assert artist["sortName"].startswith("wheelwrights")
+
+
+def _artists(client, **params):
+    return {
+        a["name"]: (a["ownCount"], a["featuredCount"])
+        for a in client.get("/api/songs/artists", params=params).json()["artists"]
+    }
+
+
+def test_artist_list_rule(client):
+    # Featured on one primary artist's songs only: files under them
+    _create_song(client, title="Kong", artist="Bonobo feat. Grey Reverend")
+    _create_song(client, title="Eyesdown", artist="Bonobo feat. Grey Reverend")
+    # Featured with two different primary artists: listed
+    _create_song(client, title="SexyBack", artist="Justin Timberlake feat. Jay-Z")
+    _create_song(client, title="Umbrella", artist="Rihanna feat. Jay-Z")
+
+    artists = _artists(client)
+
+    assert artists["Bonobo"] == (2, 0)
+    assert artists["Jay-Z"] == (0, 2)
+    assert "Grey Reverend" not in artists
+    # A search still finds them, and says they aren't listed
+    assert _artists(client, search="Grey") == {"Grey Reverend": (0, 2)}
+    [grey] = client.get("/api/songs/artists?search=Grey").json()["artists"]
+    assert grey["listed"] is False
+
+
+def test_artist_list_search_matches_aliases(client, db):
+    from app.db.models import DbArtist
+    from app.repositories.artist_repository import ArtistRepository
+
+    _create_song(client, title="Not Ready to Make Nice", artist="The Chicks")
+    repo = ArtistRepository(db)
+    repo.add_alias(
+        db.query(DbArtist).filter_by(name="the chicks").one(),
+        "Dixie Chicks",
+        "musicbrainz",
+    )
+    db.commit()
+
+    assert list(_artists(client, search="Dixie")) == ["The Chicks"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/songs/by-artist/{artist_id}
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_get_songs_by_artist(client):
+    artist = f"SoloArtist-{uuid.uuid4().hex[:6]}"
+    artist_id = _create_song(client, title="Hit 1", artist=artist)["artistId"]
+    _create_song(client, title="Hit 2", artist=artist)
+
+    response = client.get(f"/api/songs/by-artist/{artist_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["artist"]["name"] == artist
+    assert all(s["artist"] == artist for s in data["songs"])
+    assert all(s["role"] == "primary" for s in data["songs"])
+    assert len(data["songs"]) == 2
+
+
+def test_get_songs_by_artist_lists_own_songs_before_features(client):
+    guest_id = _create_song(client, title="Z Own Song", artist="Jay-Z")["artistId"]
+    _create_song(client, title="A Feature", artist="Rihanna feat. Jay-Z")
+
+    data = client.get(f"/api/songs/by-artist/{guest_id}").json()
+
+    assert [(s["title"], s["role"]) for s in data["songs"]] == [
+        ("Z Own Song", "primary"),
+        ("A Feature", "featured"),
+    ]
+
+
+def test_get_songs_by_artist_unknown_is_404(client):
+    response = client.get("/api/songs/by-artist/999999")
+    assert response.status_code == 404
+
+
+def test_get_songs_by_artist_pagination(client):
+    artist = f"PaginatedArtist-{uuid.uuid4().hex[:6]}"
+    artist_id = _create_song(client, title="Song 0", artist=artist)["artistId"]
+    for i in range(1, 5):
+        _create_song(client, title=f"Song {i}", artist=artist)
+
+    resp = client.get(f"/api/songs/by-artist/{artist_id}?limit=2")
+    assert resp.status_code == 200
+    assert len(resp.json()["songs"]) == 2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/songs/search (group_by_artist path)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_search_songs_group_by_artist(client):
+    artist = f"GroupArtist-{uuid.uuid4().hex[:6]}"
+    _create_song(client, title="Grouped Track 1", artist=artist)
+    _create_song(client, title="Grouped Track 2", artist=artist)
+
+    response = client.get(f"/api/songs/search?q={artist}&group_by_artist=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert "artists" in data
+    assert any(a["artist"] == artist for a in data["artists"])
+
+
+def test_search_finds_songs_through_credits_and_aliases(client, db):
+    from app.db.models import DbArtist
+    from app.repositories.artist_repository import ArtistRepository
+
+    guest = _create_song(client, title="Baddadan", artist="Chase & Status feat. IRah")
+    chicks = _create_song(client, title="Landslide", artist="The Chicks")
+    ArtistRepository(db).add_alias(
+        db.query(DbArtist).filter_by(name="the chicks").one(),
+        "Dixie Chicks",
+        "musicbrainz",
+    )
+    db.commit()
+    # The text no longer names the guest: only the credit does
+    with SessionLocal() as session:
+        session.get(DbSong, guest["id"]).artist = "Chase & Status"
+        session.commit()
+
+    def found(q):
+        return {s["id"] for s in client.get(f"/api/songs/search?q={q}").json()["songs"]}
+
+    assert found("IRah") == {guest["id"]}
+    assert found("Dixie") == {chicks["id"]}
+
+
+def test_grouped_search_groups_by_artist_row(client):
+    _create_song(client, title="Run This Town", artist="JAY-Z feat. Rihanna")
+    _create_song(client, title="Run It Back", artist="Jay-Z")
+
+    data = client.get("/api/songs/search?q=Run&group_by_artist=true").json()
+
+    [group] = data["artists"]
+    assert group["songCount"] == 2
+
+
+def test_search_songs_with_limit(client):
+    response = client.get("/api/songs/search?q=Song&limit=2")
+    assert response.status_code == 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATCH /api/songs/{song_id} — with lyrics update
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_update_song_with_plain_lyrics(client):
+    song = _create_song(client, title="Lyrics Song", artist="Lyrical")
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"plainLyrics": "Is this the real life?"},
+    )
+    assert resp.status_code == 200
+
+
+def test_update_song_with_plain_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Lyrics Song", artist="Lyrical")
+    with SessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"plainLyrics": "Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
+
+
+def test_update_song_with_synced_lyrics(client):
+    song = _create_song(client, title="Synced Song", artist="SyncedArtist")
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"syncedLyrics": "[00:00.06] Is this the real life?"},
+    )
+    assert resp.status_code == 200
+
+
+def test_update_song_with_synced_lyrics_clears_alignment(client):
+    song = _create_song(client, title="Synced Song", artist="SyncedArtist")
+    with SessionLocal() as session:
+        db_song = session.get(DbSong, song["id"])
+        db_song.word_synced_lyrics = '{"words": [{"word": "hello"}]}'
+        session.commit()
+
+    resp = client.patch(
+        f"/api/songs/{song['id']}",
+        json={"syncedLyrics": "[00:00.06] Is this the real life?"},
+    )
+
+    assert resp.status_code == 200
+    lyrics = client.get(f"/api/lyrics/songs/{song['id']}").json()
+    assert lyrics["hasAlignment"] is False
+
+
+def test_update_song_clear_lyrics(client):
+    song = _create_song(client, title="Clear Lyrics Song", artist="ClearArtist")
+    # Set then clear lyrics
+    client.patch(f"/api/songs/{song['id']}", json={"plainLyrics": "Some lyrics"})
+    resp = client.patch(f"/api/songs/{song['id']}", json={"plainLyrics": None})
+    assert resp.status_code == 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/songs/{song_id}/thumbnail
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_get_thumbnail_song_not_found(client):
+    response = client.get(f"/api/songs/{uuid.uuid4()}/thumbnail")
+    assert response.status_code == 404
+
+
+def test_get_thumbnail_no_file(client):
+    song = _create_song(client, title="No Thumbnail", artist="Thumbnailless")
+    response = client.get(f"/api/songs/{song['id']}/thumbnail")
+    # Song exists but has no thumbnail file
+    assert response.status_code == 404
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/songs/{song_id}/download/{track_type}
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_download_invalid_track_type(client):
+    song = _create_song(client, title="Download Song", artist="Downloader")
+    response = client.get(f"/api/songs/{song['id']}/download/kazoo")
+    assert response.status_code == 400
+
+
+def test_download_song_not_found(client):
+    response = client.get(f"/api/songs/{uuid.uuid4()}/download/vocals")
+    assert response.status_code == 404
+
+
+def test_download_track_missing_file(client):
+    song = _create_song(client, title="Track Missing", artist="NoFiles")
+    response = client.get(f"/api/songs/{song['id']}/download/vocals")
+    # Song dir exists (created by POST) but vocals file doesn't
+    assert response.status_code == 404
+
+
+def test_download_track_is_public(unauthenticated_client):
+    """The download route must be reachable without an Authorization header.
+
+    <audio> elements cannot send one, so this endpoint is deliberately public.
+    A 401 here would mean HTTPBearer rejected the request before the handler
+    ran — i.e. the auth dependency crept back in.
+    """
+    # Invalid track type → the handler's own 400, not an auth 401
+    response = unauthenticated_client.get(f"/api/songs/{uuid.uuid4()}/download/kazoo")
+    assert response.status_code == 400
+
+    # Valid track type on a missing song → the handler's own 404
+    response = unauthenticated_client.get(
+        f"/api/songs/{uuid.uuid4()}/download/original"
+    )
+    assert response.status_code == 404
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/songs/{song_id}/reprocess
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_reprocess_song_not_found(client):
+    response = client.post(
+        f"/api/songs/{uuid.uuid4()}/reprocess",
+        json={"engine_type": "demucs"},
+    )
+    assert response.status_code == 404
+
+
+def test_reprocess_song_no_original_file(client):
+    song = _create_song(client, title="Reprocess Test", artist="Reprocessor")
+    response = client.post(
+        f"/api/songs/{song['id']}/reprocess",
+        json={"engine_type": "demucs"},
+    )
+    # Song exists but no original.mp3 → 400
+    assert response.status_code == 400

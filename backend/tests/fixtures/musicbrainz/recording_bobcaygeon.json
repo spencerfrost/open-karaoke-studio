@@ -1,0 +1,329 @@
+{
+ "id": "49090b0c-671f-4b1c-be39-1d90d2ac4ca4",
+ "title": "Bobcaygeon",
+ "first-release-date": "1998-07-14",
+ "artist-credit": [
+  {
+   "name": "The Tragically Hip",
+   "joinphrase": "",
+   "artist": {
+    "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+    "name": "The Tragically Hip"
+   }
+  }
+ ],
+ "releases": [
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "Bobcaygeon",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "67cf2573-65e9-41e4-a620-cf368587f011",
+    "title": "Bobcaygeon",
+    "primary-type": "Single",
+    "secondary-types": [],
+    "first-release-date": "1999"
+   }
+  },
+  {
+   "title": "Yer Favourites",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "be1e384f-6aa4-35ad-ac9b-ffe84e9edf4e",
+    "title": "Yer Favourites",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2005-11-01"
+   }
+  },
+  {
+   "title": "Hipeponymous",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "22766b48-f2a8-483c-b444-553f244b673d",
+    "title": "Hipeponymous",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2005-11-08"
+   }
+  },
+  {
+   "title": "Oh What a Feeling 3",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "b846c1d9-2e85-3689-ab79-11ceb63c1094",
+    "title": "Oh What a Feeling 3",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2006-04-11"
+   }
+  },
+  {
+   "title": "Trailer Park Boys: The Movie Soundtrack",
+   "artist-credit": [
+    {
+     "name": "Various Artists",
+     "joinphrase": "",
+     "artist": {
+      "id": "89ad4ac3-39f7-470e-963a-56509c546377",
+      "name": "Various Artists"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "8632da13-8d8d-3cc6-89f8-ed1d1f020f2b",
+    "title": "Trailer Park Boys: The Movie Soundtrack",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Soundtrack"
+    ],
+    "first-release-date": "2006-10-10"
+   }
+  },
+  {
+   "title": "Poets / Bobcaygeon",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "9dcab9fd-7da0-4ac9-a486-dbd1115eed91",
+    "title": "Poets",
+    "primary-type": "Single",
+    "secondary-types": [],
+    "first-release-date": "2015-03-18"
+   }
+  },
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "Yer Favourites",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "be1e384f-6aa4-35ad-ac9b-ffe84e9edf4e",
+    "title": "Yer Favourites",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2005-11-01"
+   }
+  },
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "At the Hundredth Meridian and Other Places",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "c3f59593-295a-416b-9fd6-2a4e604d781c",
+    "title": "At the Hundredth Meridian and Other Places",
+    "primary-type": "EP",
+    "secondary-types": [],
+    "first-release-date": "2021-04-23"
+   }
+  },
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "Phantom Power",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "ff33258b-7b56-34bf-9e97-e30240b8c478",
+    "title": "Phantom Power",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "first-release-date": "1998-07-14"
+   }
+  },
+  {
+   "title": "Ahead by a Century",
+   "artist-credit": [
+    {
+     "name": "The Tragically Hip",
+     "joinphrase": "",
+     "artist": {
+      "id": "e86ab653-bec8-46f3-b4b6-a1a866919ef6",
+      "name": "The Tragically Hip"
+     }
+    }
+   ],
+   "release-group": {
+    "id": "5e0f0741-48f4-4f9f-8195-3a308a6827c8",
+    "title": "Ahead by a Century",
+    "primary-type": "EP",
+    "secondary-types": [
+     "Compilation"
+    ],
+    "first-release-date": "2024-08-16"
+   }
+  }
+ ]
+}

@@ -4,6 +4,8 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional
 
+from celery.utils.log import get_task_logger
+
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
 from app.services.separation_engines import (
     separate_with_clean_backing,
@@ -14,7 +16,6 @@ from app.services.separation_engines import (
     separate_with_three_track_duality_v2,
     separate_with_three_track_mel1143,
 )
-from celery.utils.log import get_task_logger
 
 logger = get_task_logger(__name__)
 
@@ -80,7 +81,9 @@ def run_separation_with_fallback(
             "three_track separation failed for %s; retrying with demucs fallback",
             input_path,
         )
-        status_callback("Three-track separation failed, retrying with demucs fallback...")
+        status_callback(
+            "Three-track separation failed, retrying with demucs fallback..."
+        )
         fallback_success = select_and_run_separation_engine(
             engine_type="demucs",
             input_path=input_path,

@@ -35,18 +35,19 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-from audio_separator.separator import Separator
 from demucs.api import Separator as DemucsSeparator
 from pydub import AudioSegment
 
 from app.config import get_config
 from app.services import file_management
 from app.services.audio import (
-    create_audio_progress_mapper,
     StopProcessingError,
+    create_audio_progress_mapper,
     make_progress_callback,
     select_device_and_log,
 )
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -88,17 +89,21 @@ def separate_with_clean_backing(
 
     try:
         # ===== STEP 1: Demucs Separation for Clean Instrumental (35-50% progress) =====
-        status_callback("Progress: 35% - Step 1/5: Running Demucs for clean instrumental...")
+        status_callback(
+            "Progress: 35% - Step 1/5: Running Demucs for clean instrumental..."
+        )
         logger.info("Step 1: Demucs separation")
 
         device = select_device_and_log(status_callback)
 
         # Create a wrapped progress callback that maps Demucs [0-100%] to job [35-50%]
         demucs_progress_callback = create_audio_progress_mapper(
-            engine_type='demucs',
+            engine_type="demucs",
             base_start=35,
             base_end=50,
-            update_fn=lambda prog, msg: status_callback(f"Step 1/5 (Demucs): {msg} [{prog}%]")
+            update_fn=lambda prog, msg: status_callback(
+                f"Step 1/5 (Demucs): {msg} [{prog}%]"
+            ),
         )
 
         demucs_separator = DemucsSeparator(
@@ -136,15 +141,13 @@ def separate_with_clean_backing(
             raise StopProcessingError("Processing stopped by user")
 
         # ===== STEP 2: Roformer Karaoke Separation (50-60% progress) =====
-        status_callback("Progress: 50% - Step 2/5: Running Roformer for lead vocal isolation...")
+        status_callback(
+            "Progress: 50% - Step 2/5: Running Roformer for lead vocal isolation..."
+        )
         logger.info("Step 2: Roformer karaoke separation")
 
-        karaoke_separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
-        )
         status_callback(f"Progress: 55% - Loading model: {KARAOKE_MODEL}")
-        karaoke_separator.load_model(model_filename=KARAOKE_MODEL)
+        karaoke_separator = load_separator(KARAOKE_MODEL, str(temp_dir))
 
         if stop_event and stop_event.is_set():
             raise StopProcessingError("Processing stopped by user")
@@ -202,16 +205,14 @@ def separate_with_clean_backing(
         if demucs_audio.shape[-1] != roformer_audio.shape[-1]:
             max_len = max(demucs_audio.shape[-1], roformer_audio.shape[-1])
             if demucs_audio.shape[-1] < max_len:
-                pad_width = (
-                    [(0, 0)] * (demucs_audio.ndim - 1)
-                    + [(0, max_len - demucs_audio.shape[-1])]
-                )
+                pad_width = [(0, 0)] * (demucs_audio.ndim - 1) + [
+                    (0, max_len - demucs_audio.shape[-1])
+                ]
                 demucs_audio = np.pad(demucs_audio, pad_width, mode="constant")
             if roformer_audio.shape[-1] < max_len:
-                pad_width = (
-                    [(0, 0)] * (roformer_audio.ndim - 1)
-                    + [(0, max_len - roformer_audio.shape[-1])]
-                )
+                pad_width = [(0, 0)] * (roformer_audio.ndim - 1) + [
+                    (0, max_len - roformer_audio.shape[-1])
+                ]
                 roformer_audio = np.pad(roformer_audio, pad_width, mode="constant")
 
         # Extract backing vocals: roformer_instrumental - demucs_instrumental
@@ -233,18 +234,16 @@ def separate_with_clean_backing(
             raise StopProcessingError("Processing stopped by user")
 
         # ===== STEP 4: De-Noise Backing Vocals (68-78% progress) =====
-        status_callback("Progress: 68% - Step 4/5: Cleaning backing vocals with de-noise model...")
+        status_callback(
+            "Progress: 68% - Step 4/5: Cleaning backing vocals with de-noise model..."
+        )
         logger.info("Step 4: De-noising backing vocals")
 
         cleaned_backing_path = None
 
         try:
-            denoise_separator = Separator(
-                output_dir=str(temp_dir),
-                output_format="wav",
-            )
             status_callback(f"Progress: 73% - Loading model: {DENOISE_MODEL}")
-            denoise_separator.load_model(model_filename=DENOISE_MODEL)
+            denoise_separator = load_separator(DENOISE_MODEL, str(temp_dir))
 
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
@@ -300,10 +299,9 @@ def separate_with_clean_backing(
         if cleaned_backing.shape[-1] != demucs_audio.shape[-1]:
             target_len = demucs_audio.shape[-1]
             if cleaned_backing.shape[-1] < target_len:
-                pad_width = (
-                    [(0, 0)] * (cleaned_backing.ndim - 1)
-                    + [(0, target_len - cleaned_backing.shape[-1])]
-                )
+                pad_width = [(0, 0)] * (cleaned_backing.ndim - 1) + [
+                    (0, target_len - cleaned_backing.shape[-1])
+                ]
                 cleaned_backing = np.pad(cleaned_backing, pad_width, mode="constant")
             else:
                 cleaned_backing = cleaned_backing[..., :target_len]
@@ -360,8 +358,9 @@ def separate_with_clean_backing(
 
         return True
 
-    except StopProcessingError:
-        # User cancelled - clean up and re-raise
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry
+        # later) - clean up and re-raise
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         raise

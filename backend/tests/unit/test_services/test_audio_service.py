@@ -42,7 +42,10 @@ class TestAudioService:
                 "bass": torch.zeros(1, 100),
                 "other": torch.zeros(1, 100),
             }
-            mock_separator_instance.separate_audio_file.return_value = (origin_wave, separated)
+            mock_separator_instance.separate_audio_file.return_value = (
+                origin_wave,
+                separated,
+            )
             mock_separator.return_value = mock_separator_instance
             input_path = Path("/test/input.mp3")
             song_dir = Path("/test/output")
@@ -114,6 +117,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()
@@ -124,7 +129,9 @@ class TestAudioService:
                 # the stop_event is already set before separation starts.
                 from app.services.audio import StopProcessingError as _SPE
 
-                mock_separator_instance.separate_audio_file.side_effect = _SPE("stopped")
+                mock_separator_instance.separate_audio_file.side_effect = _SPE(
+                    "stopped"
+                )
 
                 # This should raise StopProcessingError
                 with pytest.raises(StopProcessingError):
@@ -138,6 +145,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()
@@ -148,7 +157,10 @@ class TestAudioService:
                     "vocals": torch.zeros(1, 100),
                     "other": torch.zeros(1, 100),
                 }
-                mock_separator_instance.separate_audio_file.return_value = (origin_wave, separated)
+                mock_separator_instance.separate_audio_file.return_value = (
+                    origin_wave,
+                    separated,
+                )
 
                 with patch("app.services.audio.save_audio"):
                     result = separate_audio(input_path, song_dir, status_callback)
@@ -165,7 +177,9 @@ class TestAudioService:
         with patch("app.services.audio.Separator") as mock_separator:
             mock_separator_instance = Mock()
             mock_separator.return_value = mock_separator_instance
-            mock_separator_instance.separate_audio_file.side_effect = RuntimeError("Separator failed")
+            mock_separator_instance.separate_audio_file.side_effect = RuntimeError(
+                "Separator failed"
+            )
 
             result = separate_audio(input_path, song_dir, status_callback)
             assert result is False
@@ -177,6 +191,8 @@ class TestAudioService:
 
         with patch("app.services.audio.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = False
+            # separate_audio re-raises this one, so it must stay a real class
+            mock_torch.cuda.OutOfMemoryError = torch.cuda.OutOfMemoryError
 
             with patch("app.services.audio.Separator") as mock_separator:
                 mock_separator_instance = Mock()

@@ -10,6 +10,10 @@ WhisperX's original positional order, so this recomputes labels offline by
 walking that order against the original lyrics text — no audio, no GPU,
 no re-running WhisperX.
 
+Synced lyrics only. Plain-lyrics alignments were nonsense (made-up 5s line
+windows) and are re-run rather than relabelled; see
+docs/plans/2026-09-29-lyrics-alignment-repair.md step 4.
+
 Usage:
     python scripts/backfill_lyrics_line_index.py            # dry run, report only
     python scripts/backfill_lyrics_line_index.py --apply     # write changes
@@ -34,10 +38,6 @@ from app.services.lyrics_alignment import (
 logger = logging.getLogger(__name__)
 
 
-def _source_content(song, source_type: str) -> str | None:
-    return song.synced_lyrics if source_type == "synced" else song.plain_lyrics
-
-
 def backfill_lyrics_line_index(apply: bool) -> None:
     mode = "APPLY" if apply else "DRY RUN"
     print(f"Backfilling lyrics line_index ({mode})\n")
@@ -49,6 +49,8 @@ def backfill_lyrics_line_index(apply: bool) -> None:
         print(f"Found {len(songs)} songs with stored word-synced alignment\n")
 
         songs_changed = 0
+        songs_relabelled = 0
+        songs_source_type_inferred = 0
         songs_unchanged = 0
         songs_skipped_no_content = 0
         songs_skipped_divergence = 0
@@ -64,11 +66,12 @@ def backfill_lyrics_line_index(apply: bool) -> None:
                 songs_skipped_no_content += 1
                 continue
 
-            source_type = stored.get("lyrics_source_type")
             words: list[AlignedWord] = stored.get("words", [])
-            content = _source_content(song, source_type) if source_type else None
-
-            if not content or not words:
+            # Alignments from before 2026-04-19 don't record which lyrics they
+            # used. The token walk only accepts an exact word-for-word match
+            # against the synced text, so a plain-lyrics alignment is skipped.
+            stored_source_type = stored.get("lyrics_source_type")
+            if stored_source_type == "plain" or not song.synced_lyrics or not words:
                 print(
                     f"[{i}/{len(songs)}] ⊘ Skipping {song.title}: no source content or words"
                 )
@@ -76,7 +79,7 @@ def backfill_lyrics_line_index(apply: bool) -> None:
                 continue
 
             recomputed = recompute_alignment_line_indices(
-                words, source_type=source_type, content=content
+                words, content=song.synced_lyrics
             )
             if recomputed is None:
                 print(
@@ -92,24 +95,32 @@ def backfill_lyrics_line_index(apply: bool) -> None:
             )
             new_intervals = _build_instrumental_intervals(recomputed)
 
-            if words_relabelled == 0 and new_intervals == stored.get(
-                "instrumental_intervals", []
+            if (
+                words_relabelled == 0
+                and stored_source_type
+                and new_intervals == stored.get("instrumental_intervals", [])
             ):
                 songs_unchanged += 1
                 continue
 
             songs_changed += 1
             total_lines_changed += words_relabelled
+            if words_relabelled:
+                songs_relabelled += 1
+            if not stored_source_type:
+                songs_source_type_inferred += 1
             print(
                 f"[{i}/{len(songs)}] {'✓' if apply else '→'} {song.title}: "
                 f"{words_relabelled} word(s) relabelled, "
                 f"{len(new_intervals)} instrumental interval(s) "
                 f"(was {len(stored.get('instrumental_intervals', []))})"
+                + ("" if stored_source_type else ", source type: synced")
             )
 
             if apply:
                 stored["words"] = recomputed
                 stored["instrumental_intervals"] = new_intervals
+                stored["lyrics_source_type"] = "synced"
                 repo.update(song.id, word_synced_lyrics=json.dumps(stored))
 
         print(f"\n{'=' * 60}")
@@ -117,6 +128,8 @@ def backfill_lyrics_line_index(apply: bool) -> None:
             "Backfill complete!" if apply else "Dry run complete — no changes written."
         )
         print(f"  Changed:            {songs_changed}")
+        print(f"    with relabelled words:   {songs_relabelled}")
+        print(f"    with source type added:  {songs_source_type_inferred}")
         print(f"  Words relabelled:   {total_lines_changed}")
         print(f"  Unchanged:          {songs_unchanged}")
         print(f"  Skipped (content):  {songs_skipped_no_content}")

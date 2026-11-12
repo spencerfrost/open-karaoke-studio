@@ -84,3 +84,41 @@ def test_build_alignment_attempts_deduplicates_same_content_per_source_type():
 
     assert len(attempts) == 2
     assert [attempt["source_type"] for attempt in attempts] == ["synced", "plain"]
+
+
+def test_build_alignment_attempts_leaves_out_rejected_lyrics_including_stored_ones():
+    from app.services.lyrics_retiming import lyrics_words_key
+
+    rejected = {lyrics_words_key("[00:00.00]db synced", "synced")}
+
+    attempts = build_alignment_attempts(
+        make_song(), include_remote=False, rejected_keys=rejected
+    )
+
+    assert [attempt["source"] for attempt in attempts] == ["db:plain"]
+
+
+def test_build_alignment_attempts_rejects_plain_and_synced_copies_of_the_same_words():
+    from app.services.lyrics_retiming import lyrics_words_key
+
+    with patch("app.services.lyrics_service.LyricsService") as mock_lrclib_cls, patch(
+        "app.services.syncedlyrics_service.SyncedLyricsService"
+    ) as mock_synced_cls:
+        mock_lrclib_cls.return_value.search_lyrics_structured.return_value = [
+            {
+                "plainLyrics": "Wrong words here",
+                "syncedLyrics": "[00:01.00]Wrong words here",
+            },
+            {"plainLyrics": "Right words here", "syncedLyrics": None},
+        ]
+        mock_synced_cls.return_value.search_lyrics_structured.return_value = []
+
+        attempts = build_alignment_attempts(
+            make_song(plain_lyrics=None, synced_lyrics=None),
+            include_remote=True,
+            rejected_keys={lyrics_words_key("Wrong words here", "plain")},
+        )
+
+    assert [(attempt["source"], attempt["content"]) for attempt in attempts] == [
+        ("lrclib:2", "Right words here")
+    ]

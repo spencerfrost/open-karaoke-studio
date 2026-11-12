@@ -131,7 +131,7 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
                   className={`sticky top-0 px-3 py-2 mb-3 z-10
                   flex items-center justify-center
                   rounded-full w-12 h-12
-                  font-bold text-lg bg-dark-cyan/50 text-orange-peel
+                  font-bold text-lg bg-tint/50 text-primary
                   `}
                 >
                   {letter}

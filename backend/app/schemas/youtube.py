@@ -2,7 +2,7 @@
 Pydantic Schemas for YouTube related requests.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,6 +25,7 @@ class YouTubeProcessRequest(BaseModel):
             raise ValueError("Must be a valid YouTube URL")
 
         return v
+
 
 class YouTubeDownloadRequest(BaseModel):
     """Schema for YouTube download requests"""
@@ -61,3 +62,57 @@ class YouTubeDownloadRequest(BaseModel):
                 return None
             return stripped
         return v
+
+
+class SongFromYouTubeArtist(BaseModel):
+    """One credited artist, as YouTube Music lists them."""
+
+    name: str = Field(..., max_length=200)
+    # YouTube Music channel id ("UC..."), when the result had one
+    id: Optional[str] = Field(None, max_length=100)
+
+
+class SongFromYouTubeRequest(BaseModel):
+    """Add a YouTube song to the library and queue its processing, in one go."""
+
+    video_id: str = Field(..., min_length=1, max_length=100)
+    title: str = Field(..., min_length=1, max_length=200)
+    # Every credited artist, primary first
+    artists: list[SongFromYouTubeArtist] = Field(..., min_length=1, max_length=10)
+    album: Optional[str] = Field(None, max_length=200)
+    duration: Optional[float] = Field(None, ge=0, description="Length in seconds")
+    source: Literal["youtube_music", "youtube"] = "youtube_music"
+
+    @field_validator("video_id", "title")
+    @classmethod
+    def strip_required(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Field cannot be empty")
+        return v
+
+    @field_validator("artists")
+    @classmethod
+    def strip_artists(
+        cls, v: list[SongFromYouTubeArtist]
+    ) -> list[SongFromYouTubeArtist]:
+        artists = [
+            SongFromYouTubeArtist(name=a.name.strip(), id=a.id or None)
+            for a in v
+            if a.name.strip()
+        ]
+        if not artists:
+            raise ValueError("At least one artist is required")
+        return artists
+
+    @field_validator("album")
+    @classmethod
+    def strip_album(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() or None if v else None
+
+
+class SongFromYouTubeResponse(BaseModel):
+    songId: str
+    jobId: str
+    # True when this restarted the song's failed copy instead of adding one
+    restarted: bool

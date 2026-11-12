@@ -8,8 +8,9 @@
  *
  *   Space/Enter  play / pause
  *   Up/Down      vocal volume +/- 10%
- *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics earlier)
+ *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics later)
  *   F            toggle fullscreen
+ *   L            open the library (Back or L there comes back)
  *
  * Escape is not bound: the Fullscreen API makes the browser exit on Escape and
  * the page cannot prevent it, so a handler here would only shadow it.
@@ -17,12 +18,13 @@
 
 import { useEffect, useRef } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { LYRICS_OFFSET_STEP_MS } from "@/utils/performanceControls";
 
 const VOCAL_STEP = 0.1;
-const OFFSET_STEP_MS = 100;
 
 interface UseStageKeyboardOptions {
   onToggleFullscreen?: () => void;
+  onOpenLibrary?: () => void;
   /**
    * False while another stage screen covers the player. The guards below stop
    * typed keys reaching the shortcuts, but arrowing around a song grid is not
@@ -33,12 +35,15 @@ interface UseStageKeyboardOptions {
 
 export const useStageKeyboard = ({
   onToggleFullscreen,
+  onOpenLibrary,
   enabled = true,
 }: UseStageKeyboardOptions = {}) => {
   // Held in a ref so the listener below keeps its empty deps — toggleFullscreen
   // changes identity every time fullscreen does, and rebinding on that is noise.
   const onToggleFullscreenRef = useRef(onToggleFullscreen);
   onToggleFullscreenRef.current = onToggleFullscreen;
+  const onOpenLibraryRef = useRef(onOpenLibrary);
+  onOpenLibraryRef.current = onOpenLibrary;
 
   // Same reason: flipping screens must not tear down and rebind the listener.
   const enabledRef = useRef(enabled);
@@ -70,6 +75,16 @@ export const useStageKeyboard = ({
       }
 
       if (!enabledRef.current) return;
+
+      // Only while the player is showing: on song select the wheel binds L
+      // itself, to come back.
+      if (e.code === "KeyL") {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        if (e.repeat) return;
+        onOpenLibraryRef.current?.();
+        return;
+      }
 
       const {
         isReady,
@@ -109,11 +124,11 @@ export const useStageKeyboard = ({
           return;
         case "ArrowLeft":
           e.preventDefault();
-          setLyricsOffset(lyricsOffset - OFFSET_STEP_MS);
+          setLyricsOffset(lyricsOffset - LYRICS_OFFSET_STEP_MS);
           return;
         case "ArrowRight":
           e.preventDefault();
-          setLyricsOffset(lyricsOffset + OFFSET_STEP_MS);
+          setLyricsOffset(lyricsOffset + LYRICS_OFFSET_STEP_MS);
           return;
         default:
       }

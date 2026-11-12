@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { cn } from "@/lib/utils";
 import type { LyricsSize } from "@/utils/performanceControls";
-import type { Density } from "./density";
 
 const SIZES: Array<{ value: LyricsSize; label: string }> = [
   { value: "small", label: "S" },
@@ -15,23 +14,13 @@ const SIZES: Array<{ value: LyricsSize; label: string }> = [
   { value: "large", label: "L" },
 ];
 
-interface LyricsSizeRowProps {
-  density: Density;
-}
-
-const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
-  const isTv = density === "tv";
+const LyricsSizeRow: React.FC = () => {
   const lyricsSize = useKaraokePlayerStore((state) => state.lyricsSize);
   const setLyricsSize = useKaraokePlayerStore((state) => state.setLyricsSize);
 
   return (
     <div className="flex items-center gap-3">
-      <span
-        className={cn(
-          "flex-1 uppercase tracking-[0.08em] text-foreground/55",
-          isTv ? "text-sm" : "text-xs",
-        )}
-      >
+      <span className="flex-1 text-sm uppercase tracking-[0.08em] text-foreground-dim">
         Size
       </span>
       <div className="flex gap-2">
@@ -45,11 +34,10 @@ const LyricsSizeRow: React.FC<LyricsSizeRowProps> = ({ density }) => {
               onClick={() => setLyricsSize(value)}
               aria-pressed={isSelected}
               className={cn(
-                "rounded-md border font-semibold",
-                isTv ? "size-10 text-base" : "size-11 text-sm",
+                "size-10 rounded-md border text-base font-semibold",
                 isSelected
                   ? "border-glass-border/40 bg-glass/20 text-foreground"
-                  : "border-glass-border/20 text-foreground/70",
+                  : "border-glass-border/20 text-foreground-dim",
               )}
             >
               {label}

@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Dict, Optional, Tuple
+from typing import Dict, NamedTuple, Optional, Set, Tuple
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -19,13 +19,31 @@ logger = logging.getLogger(__name__)
 from app.db.database import get_db_session
 from app.db.models import KaraokeSession, SessionPlaybackState, User
 from app.services.auth_service import verify_token
-from app.services.session_service import deactivate_session
+from app.services.session_service import deactivate_session, find_session_member
 
 from .connection_manager import SessionConnectionManager
+from .presence import (
+    broadcast_presence_update,
+    build_performer_presence,
+    find_linked_performer_id,
+)
 from .queue import get_current_queue_state
 
 # Session-based performance state - separate state for each session
 session_performance_states = {}
+
+# Keys any connection may set via `update_performance_control` (performer phones send
+# these from /controls). Playback keys (is_playing, current_time, ...) live in the same
+# dict but only the session owner may change them, through the player messages.
+PERFORMANCE_CONTROLS = frozenset(
+    {
+        "vocal_volume",
+        "backing_vocal_volume",
+        "instrumental_volume",
+        "lyrics_size",
+        "lyrics_offset",
+    }
+)
 
 # Session-level locks to prevent race conditions during disconnect/cleanup
 session_cleanup_locks = {}
@@ -33,7 +51,31 @@ session_cleanup_locks = {}
 # Pending host-disconnect termination tasks (cancelled on host reconnect)
 # Grace period: 30 seconds before session is destroyed after host disconnects
 HOST_DISCONNECT_GRACE_SECONDS = 30
+
+# How long a new connection has to send its `authenticate` message before it is dropped
+AUTH_TIMEOUT_SECONDS = 10
 session_termination_tasks: Dict[str, asyncio.Task] = {}
+
+# Open owner connections per session. A host can be signed in on several devices at
+# once (the stage plus their phone), and each one is an owner connection - the session
+# only ends when the last of them goes away.
+session_owner_connections: Dict[str, Set[str]] = {}
+
+
+def _register_owner_connection(session_id: str, ws_connection_id: str) -> None:
+    session_owner_connections.setdefault(session_id, set()).add(ws_connection_id)
+
+
+def _release_owner_connection(session_id: str, ws_connection_id: str) -> bool:
+    """Forget an owner connection. Returns True if no owner connection is left open."""
+    owners = session_owner_connections.get(session_id)
+    if owners is None:
+        return True
+    owners.discard(ws_connection_id)
+    if owners:
+        return False
+    del session_owner_connections[session_id]
+    return True
 
 
 def get_session_cleanup_lock(session_id: str) -> asyncio.Lock:
@@ -91,7 +133,7 @@ def get_session_performance_state(session_id: str):
     """Get or create performance state for a specific session."""
     if session_id not in session_performance_states:
         session_performance_states[session_id] = {
-            "vocal_volume": 1.0,
+            "vocal_volume": 0.0,  # Songs start with the lead vocal off
             "backing_vocal_volume": 1.0,
             "instrumental_volume": 1.0,
             "lyrics_size": "medium",
@@ -101,7 +143,6 @@ def get_session_performance_state(session_id: str):
             "is_playing": False,
             "current_song_id": None,
             "is_ready": False,
-            "playback_speed": 1.0,
         }
     return session_performance_states[session_id]
 
@@ -174,6 +215,60 @@ def cleanup_session_performance_state(session_id: str):
         logger.debug("🔓 Cleaned up lock for session %s", session_id)
 
 
+class AuthenticatedConnection(NamedTuple):
+    """Who a socket proved itself to be in its opening `authenticate` message."""
+
+    # The session member id minted at join - the same one REST sends as X-Device-ID.
+    device_id: str
+    is_session_owner: bool
+
+
+async def _authenticate_connection(
+    websocket: WebSocket, session_id: str
+) -> Optional[AuthenticatedConnection]:
+    """
+    Read the connection's opening `authenticate` message and check it.
+
+    The message must carry the `device_id` minted by join-by-code or session creation (the
+    same credential REST calls send as X-Device-ID). It may also carry the host's JWT.
+
+    Returns None when the connection is not a member of this live session - a wrong code
+    and a wrong device get the same answer, so the socket can't be used to find live codes.
+    Otherwise returns the member's device id and whether the connection is the session
+    owner. A bad token on a valid device is reported but not fatal: the connection
+    continues as a non-owner.
+    """
+    try:
+        raw = await asyncio.wait_for(
+            websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
+        )
+        message = json.loads(raw)
+    except (asyncio.TimeoutError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(message, dict) or message.get("type") != "authenticate":
+        return None
+
+    device_id = message.get("device_id")
+    if not isinstance(device_id, str) or not device_id:
+        return None
+
+    with get_db_session() as db:
+        if find_session_member(db, session_id, device_id) is None:
+            return None
+
+    token = message.get("token")
+    if not token:
+        return AuthenticatedConnection(device_id, False)
+
+    is_session_owner, error = resolve_host_claim(token, session_id)
+    if error:
+        logger.warning("Session %s host claim failed: %s", session_id, error)
+        await websocket.send_text(json.dumps({"type": "auth_failed", "reason": error}))
+        return AuthenticatedConnection(device_id, False)
+    return AuthenticatedConnection(device_id, is_session_owner)
+
+
 async def websocket_unified_session_endpoint(
     websocket: WebSocket,
     session_id: str,
@@ -182,36 +277,31 @@ async def websocket_unified_session_endpoint(
     """
     Unified session WebSocket endpoint.
     Handles all session-related communication: performance controls, player state, and queue management.
-    Only devices in the specified session can access this endpoint.
 
-    Connections start unprivileged. A client becomes the host only by sending an
-    `authenticate` message carrying the host user's JWT - see resolve_host_claim.
+    Only session members get in. The first message must be `authenticate` with the
+    device's `device_id` (and, for the host, a JWT) - see _authenticate_connection. Until
+    it passes, the socket is not in the room and receives nothing.
     """
-    # Verify session exists in database
-    with get_db_session() as db:
-        db_session = (
-            db.query(KaraokeSession)
-            .filter(
-                KaraokeSession.session_id == session_id,
-                KaraokeSession.is_active == True,
-            )
-            .first()
+    await websocket.accept()
+
+    try:
+        connection = await _authenticate_connection(websocket, session_id)
+    except WebSocketDisconnect:
+        return
+
+    if connection is None:
+        await websocket.send_text(
+            json.dumps({"type": "auth_failed", "reason": "not_a_member"})
         )
+        await websocket.close(code=1008, reason="Not a member of this session")
+        return
 
-        if not db_session:
-            await websocket.close(code=1008, reason="Session not found or inactive")
-            return
-
-        if db_session.is_expired():
-            await websocket.close(code=1008, reason="Session has expired")
-            return
-
-    # Session ownership is granted only via the `authenticate` message below.
-    is_session_owner = False
+    is_session_owner = connection.is_session_owner
+    member_device_id = connection.device_id
 
     # Generate ephemeral WebSocket connection ID
     ws_connection_id = f"device_{secrets.token_urlsafe(8)}"
-    await manager.connect(websocket, ws_connection_id)
+    manager.register(websocket, ws_connection_id)
 
     # Add device to session (in-memory for WebSocket management)
     manager.join_session(session_id, ws_connection_id, "unified")
@@ -221,8 +311,21 @@ async def websocket_unified_session_endpoint(
     await manager.join_room(websocket, session_room)
 
     logger.info(
-        f"Session {session_id} unified client connected: {ws_connection_id} (unauthenticated)"
+        "Session %s unified client connected: %s (is_session_owner: %s)",
+        session_id,
+        ws_connection_id,
+        is_session_owner,
     )
+
+    if is_session_owner:
+        _register_owner_connection(session_id, ws_connection_id)
+
+    # Host reconnecting within the grace period - cancel pending termination
+    if is_session_owner and session_id in session_termination_tasks:
+        session_termination_tasks.pop(session_id).cancel()
+        logger.info(
+            f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
+        )
 
     try:
         # Hydrate in-memory state from persisted playback state before greeting client
@@ -238,6 +341,10 @@ async def websocket_unified_session_endpoint(
                     "device_id": ws_connection_id,
                     "is_session_owner": is_session_owner,
                     "performance_state": session_state,
+                    # Same shape as `presence_updated.performers`, so a stage that
+                    # connects mid-song knows whose phone is open without waiting
+                    # for someone's phone to change.
+                    "presence": build_performer_presence(manager, session_id),
                 }
             )
         )
@@ -247,50 +354,46 @@ async def websocket_unified_session_endpoint(
             message = json.loads(data)
             message_type = message.get("type")
 
-            # === AUTHENTICATION ===
-            # The only way a connection gains host authority. Performers never send this.
-            if message_type == "authenticate":
-                token = message.get("token")
-                if not token:
+            # === PRESENCE ===
+            # Sent by every device on open, on each visibility change and on each
+            # route change. Recorded against the device this socket authenticated
+            # as - a socket can only ever speak for itself.
+            if message_type == "presence":
+                visible = message.get("visible")
+                on_controls = message.get("on_controls", False)
+                if not isinstance(visible, bool) or not isinstance(on_controls, bool):
                     await websocket.send_text(
-                        json.dumps({"type": "auth_failed", "reason": "missing_token"})
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": "Malformed presence report",
+                            }
+                        )
                     )
                     continue
 
-                claimed_host, error = resolve_host_claim(token, session_id)
-                if error:
-                    logger.warning(
-                        "Session %s auth failed for %s: %s",
-                        session_id,
-                        ws_connection_id,
-                        error,
-                    )
-                    await websocket.send_text(
-                        json.dumps({"type": "auth_failed", "reason": error})
-                    )
-                    continue
-
-                is_session_owner = claimed_host
-                logger.info(
-                    "Session %s client %s authenticated (is_session_owner: %s)",
-                    session_id,
-                    ws_connection_id,
-                    is_session_owner,
+                changed = manager.set_presence(
+                    session_id, member_device_id, ws_connection_id, visible, on_controls
                 )
 
-                # Host reconnecting within the grace period - cancel pending termination
-                if is_session_owner and session_id in session_termination_tasks:
-                    pending_task = session_termination_tasks.pop(session_id)
-                    pending_task.cancel()
-                    logger.info(
-                        f"🔄 Host reconnected to session {session_id} - cancelling pending termination"
-                    )
-
+                # Personal reply: which roster seat this device is. The phone
+                # compares it with the queue's current item to know its song has
+                # started. Looked up per report, so a seat linked after connect
+                # is picked up on the next one.
                 await websocket.send_text(
                     json.dumps(
-                        {"type": "authenticated", "is_session_owner": is_session_owner}
+                        {
+                            "type": "presence_acknowledged",
+                            "performer_id": find_linked_performer_id(
+                                session_id, member_device_id
+                            ),
+                        }
                     )
                 )
+
+                if changed:
+                    await broadcast_presence_update(manager, session_id)
                 continue
 
             # === PERFORMANCE & PLAYER STATE MESSAGES ===
@@ -307,21 +410,32 @@ async def websocket_unified_session_endpoint(
             elif message_type == "update_performance_control":
                 control_name = message.get("control")
                 value = message.get("value")
-                session_state = get_session_performance_state(session_id)
 
-                if control_name and control_name in session_state:
-                    session_state[control_name] = value
-
-                    # Broadcast to all devices in this session
-                    await manager.broadcast_to_room(
-                        session_room,
-                        {
-                            "type": "control_updated",
-                            "control": control_name,
-                            "value": value,
-                        },
-                        exclude=websocket,
+                if control_name not in PERFORMANCE_CONTROLS:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "permission_denied",
+                                "action": message_type,
+                                "reason": f"Not a performance control: {control_name}",
+                            }
+                        )
                     )
+                    continue
+
+                session_state = get_session_performance_state(session_id)
+                session_state[control_name] = value
+
+                # Broadcast to all devices in this session
+                await manager.broadcast_to_room(
+                    session_room,
+                    {
+                        "type": "control_updated",
+                        "control": control_name,
+                        "value": value,
+                    },
+                    exclude=websocket,
+                )
 
             elif message_type == "update_player_state":
                 if not is_session_owner:
@@ -445,14 +559,6 @@ async def websocket_unified_session_endpoint(
                     )
                 )
 
-            elif message_type == "queue_changed":
-                # Broadcast queue changes to all devices in session
-                await manager.broadcast_to_room(
-                    session_room,
-                    {"type": "queue_updated", "trigger": "external_change"},
-                    exclude=websocket,
-                )
-
     except WebSocketDisconnect:
         logger.info(
             f"Session {session_id} unified client disconnected: {ws_connection_id} (is_session_owner: {is_session_owner})"
@@ -461,10 +567,11 @@ async def websocket_unified_session_endpoint(
         manager.disconnect(websocket)
         manager.leave_session(ws_connection_id, session_id)
 
-        # If host disconnected, start a grace period before terminating the session.
-        # This allows the host to survive a page refresh or brief network interruption
-        # without destroying the session for all connected performers.
-        if is_session_owner:
+        # If the host's last open device disconnected, start a grace period before
+        # terminating the session. This allows the host to survive a page refresh or
+        # brief network interruption without destroying the session for all connected
+        # performers. Closing one of several host devices leaves the session alone.
+        if is_session_owner and _release_owner_connection(session_id, ws_connection_id):
 
             async def terminate_session_after_grace():
                 try:
@@ -508,3 +615,13 @@ async def websocket_unified_session_endpoint(
             )
             task = asyncio.create_task(terminate_session_after_grace())
             session_termination_tasks[session_id] = task
+
+    finally:
+        if is_session_owner:
+            _release_owner_connection(session_id, ws_connection_id)
+
+        # However the socket ended - a clean close or an error out of the loop -
+        # it is no longer anyone's open page. A stale "on screen" would hide the
+        # stage's prompt for exactly the phone that needs it.
+        if manager.drop_presence(session_id, ws_connection_id):
+            await broadcast_presence_update(manager, session_id)

@@ -1,109 +1,149 @@
-"""Batch Celery tasks for library-wide backfills and alignment."""
+"""Batch Celery tasks for library-wide backfills and alignment.
 
-from app.services.lyrics_selection import SongData
+Each task takes the mode it runs in and the id of the batch_runs row the API
+created for it, and reports its progress there after every song. Which songs a
+mode selects is defined once, in app.services.batch_jobs.
+
+The song-by-song tasks take their ids from run.begin and loop over run.each,
+which is what lets a worker shutdown stop them between songs and a restarted
+worker resume them (see _batch_runs).
+"""
+
+from typing import Optional
+
 from celery.utils.log import get_task_logger
 
+from ._batch_runs import tracked_run
 from .celery_app import celery
-from .lyrics_support import build_alignment_attempts_for_song
 
 logger = get_task_logger(__name__)
 
+# Spacing between album lookups. Deezer allows 10 requests a second and
+# YouTube Music publishes no limit; a second keeps both comfortable.
+ALBUM_LOOKUP_GAP_SECONDS = 1.0
 
-def _build_alignment_attempts(song: SongData, include_remote: bool = True, max_remote_results: int = 3) -> list[dict]:
-    return build_alignment_attempts_for_song(
-        song,
-        include_remote=include_remote,
-        max_remote_results=max_remote_results,
-    )
+
+def _select(kind: str, mode: str) -> list:
+    from app.db.database import get_db_session
+    from app.services.batch_jobs import select_ids
+
+    with get_db_session() as session:
+        return select_ids(session, kind, mode)
 
 
 @celery.task(name="batch_fingerprint_songs")
-def batch_fingerprint_songs(reprocess_all: bool = False) -> None:
-    """Batch task: fingerprint songs via AcoustID."""
+def batch_fingerprint_songs(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: fingerprint songs via AcoustID.
+
+    "missing" takes songs never checked; "retry" takes unconfirmed songs AcoustID
+    couldn't settle (ambiguous, no match, or a failed lookup).
+    """
     from app.config import get_config
     from app.db.database import get_db_session
-    from app.db.models.song import DbSong
     from app.repositories.song_repository import SongRepository
     from app.services.acoustid_service import AcoustIdService
 
     config = get_config()
+    counts = {"ok": 0, "no_audio": 0, "error": 0}
 
-    with get_db_session() as session:
-        query = session.query(DbSong.id)
-        if not reprocess_all:
-            query = query.filter(DbSong.acoustid_fingerprint_status == "not_checked")
-        song_ids = [row[0] for row in query.all()]
-
-    logger.info("batch_fingerprint_songs: processing %d songs", len(song_ids))
-
-    for song_id in song_ids:
-        song_dir = config.BASE_LIBRARY_DIR / song_id
-        original_path = song_dir / "original.mp3"
-        instrumental_path = song_dir / "instrumental.mp3"
-        vocals_path = song_dir / "vocals.mp3"
-        audio_path = (
-            original_path if original_path.exists()
-            else instrumental_path if instrumental_path.exists()
-            else vocals_path
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("fingerprint", mode))
+        logger.info(
+            "batch_fingerprint_songs: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
         )
 
-        if not audio_path.exists():
-            logger.warning("batch_fingerprint_songs: no audio for song %s, skipping", song_id)
-            with get_db_session() as session:
-                SongRepository(session).update(song_id, acoustid_fingerprint_status="failed")
-            continue
+        for song_id in run.each(song_ids):
+            song_dir = config.BASE_LIBRARY_DIR / song_id
+            original_path = song_dir / "original.mp3"
+            instrumental_path = song_dir / "instrumental.mp3"
+            vocals_path = song_dir / "vocals.mp3"
+            audio_path = (
+                original_path
+                if original_path.exists()
+                else instrumental_path if instrumental_path.exists() else vocals_path
+            )
 
-        try:
-            with get_db_session() as session:
-                AcoustIdService(SongRepository(session)).fingerprint_and_identify(song_id, audio_path)
-        except Exception:
-            logger.warning("batch_fingerprint_songs: error processing song %s", song_id, exc_info=True)
+            if not audio_path.exists():
+                logger.warning(
+                    "batch_fingerprint_songs: no audio for song %s, skipping", song_id
+                )
+                with get_db_session() as session:
+                    SongRepository(session).update(
+                        song_id, acoustid_fingerprint_status="failed"
+                    )
+                counts["no_audio"] += 1
+                run.song_done()
+                continue
 
-    logger.info("batch_fingerprint_songs: done")
+            try:
+                with get_db_session() as session:
+                    outcome = AcoustIdService(
+                        SongRepository(session)
+                    ).fingerprint_and_link(song_id, audio_path)
+                # Credits follow the linked recording, as for a single song.
+                if outcome == "matched":
+                    celery.send_task("enrich_song_artist_credits", args=[song_id])
+                counts["ok"] += 1
+                run.song_done()
+            except Exception:
+                logger.warning(
+                    "batch_fingerprint_songs: error processing song %s",
+                    song_id,
+                    exc_info=True,
+                )
+                counts["error"] += 1
+                run.song_done(ok=False)
+
+    logger.info("batch_fingerprint_songs: done — %s", counts)
+    return counts
 
 
-@celery.task(name="batch_backfill_artwork")
-def batch_backfill_artwork(force: bool = False) -> dict:
-    """Batch task: backfill album art for songs missing it."""
-    from app.db.database import get_db_session
-    from app.db.models.song import DbSong
-    from app.services.itunes_service import fetch_and_assign_album_art
+@celery.task(name="batch_fetch_albums")
+def batch_fetch_albums(mode: str = "missing", run_id: Optional[int] = None) -> dict:
+    """Batch task: find each song's album and cover (YouTube Music, then Deezer).
 
-    with get_db_session() as session:
-        query = session.query(DbSong.id, DbSong.title, DbSong.artist)
-        if not force:
-            query = query.filter(DbSong.album_id.is_(None))
-        rows = query.all()
+    "all" looks every song up again. Songs whose album a person set are never
+    included. When the run ends, albums no song links to are deleted.
+    """
+    import time
 
-    song_ids = [(row[0], row[1], row[2]) for row in rows]
-    logger.info("batch_backfill_artwork: processing %d songs", len(song_ids))
+    from app.services.album_service import delete_unlinked_albums, refresh_song_album
 
-    success = 0
-    skipped = 0
-    for i, (song_id, title, artist) in enumerate(song_ids):
-        if not title or not artist:
-            skipped += 1
-            continue
-        if i > 0:
-            import time
+    counts = {"found": 0, "no_cover": 0, "not_found": 0, "hand_set": 0, "error": 0}
 
-            time.sleep(1.5)
-        try:
-            got = fetch_and_assign_album_art(song_id, title, artist)
-            if got:
-                success += 1
-            else:
-                skipped += 1
-        except Exception:
-            logger.warning("batch_backfill_artwork: error for song %s", song_id, exc_info=True)
-            skipped += 1
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("song_albums", mode))
+        logger.info(
+            "batch_fetch_albums: processing %d songs (mode=%s)", len(song_ids), mode
+        )
 
-    logger.info("batch_backfill_artwork: done — %d succeeded, %d skipped", success, skipped)
-    return {"processed": len(song_ids), "success": success, "skipped": skipped}
+        for i, song_id in enumerate(run.each(song_ids)):
+            if i > 0:
+                time.sleep(ALBUM_LOOKUP_GAP_SECONDS)
+            try:
+                outcome = refresh_song_album(song_id)
+            except Exception:
+                logger.warning(
+                    "batch_fetch_albums: error for song %s", song_id, exc_info=True
+                )
+                outcome = "error"
+            counts[outcome] = counts.get(outcome, 0) + 1
+            run.song_done(ok=outcome != "error")
+
+        counts["albums_deleted"] = delete_unlinked_albums()
+
+    logger.info("batch_fetch_albums: done — %s", counts)
+    return counts
 
 
 @celery.task(name="batch_backfill_duration")
-def batch_backfill_duration(mode: str = "missing") -> dict:
+def batch_backfill_duration(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
     """Batch task: populate duration from original audio file."""
     from pathlib import Path
 
@@ -111,274 +151,416 @@ def batch_backfill_duration(mode: str = "missing") -> dict:
 
     from app.config import get_config
     from app.db.database import get_db_session
-    from app.db.models.song import DbSong
     from app.repositories.song_repository import SongRepository
 
     config = get_config()
-
-    with get_db_session() as session:
-        query = session.query(DbSong.id)
-        if mode == "missing":
-            query = query.filter(DbSong.duration.is_(None))
-        rows = query.all()
-
-    song_ids = [row[0] for row in rows]
-    logger.info("batch_backfill_duration: processing %d songs (mode=%s)", len(song_ids), mode)
-
     success = 0
     skipped = 0
-    for song_id in song_ids:
-        audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
-        if not audio_path.exists():
-            skipped += 1
-            continue
-        try:
-            duration = librosa.get_duration(path=str(audio_path))
-            with get_db_session() as session:
-                SongRepository(session).update(song_id, duration=duration)
-            success += 1
-        except Exception:
-            logger.warning("batch_backfill_duration: error for song %s", song_id, exc_info=True)
-            skipped += 1
 
-    logger.info("batch_backfill_duration: done — %d updated, %d skipped", success, skipped)
-    return {"processed": len(song_ids), "success": success, "skipped": skipped}
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("duration", mode))
+        logger.info(
+            "batch_backfill_duration: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
+
+        for song_id in run.each(song_ids):
+            audio_path = Path(config.BASE_LIBRARY_DIR) / song_id / "original.mp3"
+            if not audio_path.exists():
+                skipped += 1
+                run.song_done()
+                continue
+            try:
+                duration = librosa.get_duration(path=str(audio_path))
+                with get_db_session() as session:
+                    SongRepository(session).update(song_id, duration=duration)
+                success += 1
+                run.song_done()
+            except Exception:
+                logger.warning(
+                    "batch_backfill_duration: error for song %s", song_id, exc_info=True
+                )
+                skipped += 1
+                run.song_done(ok=False)
+
+    logger.info(
+        "batch_backfill_duration: done — %d updated, %d skipped", success, skipped
+    )
+    return {"processed": success + skipped, "success": success, "skipped": skipped}
+
+
+@celery.task(name="batch_detect_album_art_videos")
+def batch_detect_album_art_videos(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: mark the songs whose video is an album track upload.
+
+    Reads the info yt-dlp saved beside the download; a song without one asks
+    YouTube again.
+    """
+    from .metadata_tasks import detect_and_store_album_art_video
+
+    counts = {"album_art": 0, "own_picture": 0, "error": 0}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("album_art_videos", mode))
+        logger.info(
+            "batch_detect_album_art_videos: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
+
+        for song_id in run.each(song_ids):
+            try:
+                counts[detect_and_store_album_art_video(song_id)] += 1
+                run.song_done()
+            except Exception:
+                logger.warning(
+                    "batch_detect_album_art_videos: error for song %s",
+                    song_id,
+                    exc_info=True,
+                )
+                counts["error"] += 1
+                run.song_done(ok=False)
+
+    logger.info("batch_detect_album_art_videos: done %s", counts)
+    return counts
 
 
 @celery.task(name="batch_backfill_vocal_range")
-def batch_backfill_vocal_range(mode: str = "missing") -> dict:
+def batch_backfill_vocal_range(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
     """Batch task: detect vocal range from each song's vocals stem.
 
-    Runs songs one after another inside this single task (~10-30s each) rather
+    Runs songs one after another inside this single task (about a minute each) rather
     than fanning out per-song tasks, so a long backfill occupies one enrichment
     slot and new downloads can still post-process alongside it. Each song is
     saved as it finishes, so re-running with mode="missing" resumes.
     """
-    from app.db.database import get_db_session
-    from app.db.models.song import DbSong
-
     from .metadata_tasks import detect_and_store_vocal_range
 
-    with get_db_session() as session:
-        query = session.query(DbSong.id)
-        if mode == "missing":
-            query = query.filter(DbSong.vocal_range_low.is_(None))
-        song_ids = [row[0] for row in query.all()]
+    counts = {
+        "ok": 0,
+        "labelled": 0,
+        "no_range": 0,
+        "waiting": 0,
+        "no_audio": 0,
+        "error": 0,
+    }
 
-    logger.info("batch_backfill_vocal_range: processing %d songs (mode=%s)", len(song_ids), mode)
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("vocal_range", mode))
+        logger.info(
+            "batch_backfill_vocal_range: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
 
-    counts = {"ok": 0, "no_range": 0, "no_audio": 0, "error": 0}
-    for i, song_id in enumerate(song_ids, 1):
-        counts[detect_and_store_vocal_range(song_id)] += 1
-        if i % 25 == 0:
-            logger.info("batch_backfill_vocal_range: %d/%d done %s", i, len(song_ids), counts)
+        for i, song_id in enumerate(run.each(song_ids), 1):
+            outcome = detect_and_store_vocal_range(song_id)
+            counts[outcome] += 1
+            run.song_done(ok=outcome != "error")
+            if i % 25 == 0:
+                logger.info(
+                    "batch_backfill_vocal_range: %d/%d done %s",
+                    i,
+                    len(song_ids),
+                    counts,
+                )
 
     logger.info("batch_backfill_vocal_range: done — %s", counts)
     return {
-        "processed": len(song_ids),
-        "success": counts["ok"],
-        "skipped": counts["no_range"] + counts["no_audio"] + counts["error"],
+        "processed": sum(counts.values()),
+        # A label ("rapped") is an answer as much as a range is.
+        "success": counts["ok"] + counts["labelled"],
+        "skipped": sum(counts.values()) - counts["ok"] - counts["labelled"],
         **counts,
     }
 
 
-@celery.task(name="batch_align_lyrics")
-def batch_align_lyrics(mode: str = "missing", language: str = "en") -> dict:
-    """Batch task: run WhisperX forced alignment across the library."""
-    import json as _json
+@celery.task(name="batch_backfill_loudness")
+def batch_backfill_loudness(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: measure each song's loudness from its stems and store its gain.
 
-    from app.db.database import get_db_session
-    from app.repositories.song_repository import SongRepository
-    from app.services.file_service import FileService
-    from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
-    from app.services.lyrics_alignment import (
-        align_lyrics_to_vocals_with_model,
-        align_plain_lyrics_to_vocals_with_model,
-        load_alignment_model,
-    )
+    Runs songs one after another inside this single task (a second or two each)
+    rather than fanning out per-song tasks, so new downloads can still
+    post-process alongside it. Each song is saved as it finishes, so re-running
+    with mode="missing" resumes.
+    """
+    from .metadata_tasks import detect_and_store_loudness
 
-    MIN_SCORE = 0.5
-    file_service = FileService()
+    counts = {"ok": 0, "silent": 0, "no_audio": 0, "error": 0}
 
-    with get_db_session() as session:
-        all_songs = SongRepository(session).fetch_all()
-        song_ids = [s.id for s in all_songs]
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("loudness", mode))
+        logger.info(
+            "batch_backfill_loudness: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
 
-    logger.info("batch_align_lyrics: found %d songs (mode=%s)", len(song_ids), mode)
+        for i, song_id in enumerate(run.each(song_ids), 1):
+            outcome = detect_and_store_loudness(song_id)
+            counts[outcome] += 1
+            run.song_done(ok=outcome != "error")
+            if i % 25 == 0:
+                logger.info(
+                    "batch_backfill_loudness: %d/%d done %s", i, len(song_ids), counts
+                )
 
-    eligible = []
-    for song_id in song_ids:
-        vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-        if not vocals_path.exists():
-            continue
-        with get_db_session() as session:
-            song = SongRepository(session).fetch(song_id)
-            if not song:
-                continue
-            if mode == "missing" and song.word_synced_lyrics:
-                continue
-            if not song.synced_lyrics and not song.plain_lyrics:
-                continue
-        eligible.append(song_id)
-
-    total_songs = len(song_ids)
-    if not eligible:
-        logger.info("batch_align_lyrics: no eligible songs — done")
-        return {
-            "processed": 0,
-            "activated": 0,
-            "failed": 0,
-            "skipped": total_songs,
-            "results": [],
-        }
-
-    logger.info("batch_align_lyrics: loading wav2vec2 model for %d songs", len(eligible))
-    model_a, metadata = load_alignment_model(language=language)
-
-    MIN_SCORE = 0.3
-    results = []
-    activated = 0
-    failed = 0
-
-    # The whole batch runs as sustained CUDA work on this worker thread. Without
-    # this guard, the idle-VRAM-cleanup timer (armed by an unrelated task on this
-    # same process) can fire torch.cuda.empty_cache() concurrently with an
-    # in-flight allocation here and corrupt the CUDA caching allocator — this is
-    # what caused the segfaults in libc10_cuda.so during earlier batch runs.
-    begin_gpu_activity(f"batch-lyrics-alignment:{language}")
-    try:
-        for song_id in eligible:
-            vocals_path = file_service.get_vocals_path(song_id, ".mp3")
-            with get_db_session() as session:
-                song = SongRepository(session).fetch(song_id)
-                if not song:
-                    failed += 1
-                    results.append({"songId": song_id, "status": "failed", "reason": "song not found"})
-                    continue
-                song_label = f"{song.artist or '?'} — {song.title or song_id}"
-                song_data: SongData = {
-                    "id": song.id,
-                    "title": song.title,
-                    "artist": song.artist,
-                    "album": song.album,
-                    "plain_lyrics": song.plain_lyrics,
-                    "synced_lyrics": song.synced_lyrics,
-                    "word_synced_lyrics": song.word_synced_lyrics,
-                }
-
-            attempts = _build_alignment_attempts(song_data, include_remote=False)
-            if not attempts:
-                failed += 1
-                results.append({"songId": song_id, "title": song_label, "status": "failed", "reason": "no source lyrics"})
-                continue
-            best_result = None
-            best_attempt = None
-            align_error_count = 0
-
-            for idx, attempt in enumerate(attempts):
-                source_content = attempt["content"]
-                use_plain = attempt["source_type"] == "plain"
-
-                try:
-                    result = (
-                        align_plain_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
-                        if use_plain
-                        else align_lyrics_to_vocals_with_model(source_content, vocals_path, model_a, metadata, language=language)
-                    )
-                except Exception as e:
-                    align_error_count += 1
-                    logger.warning(
-                        "batch_align_lyrics: attempt failed for %s (source=%s): %s",
-                        song_label,
-                        attempt["source"],
-                        e,
-                        exc_info=True,
-                    )
-                    continue
-
-                if not result:
-                    continue
-
-                if not best_result or result["mean_score"] > best_result["mean_score"]:
-                    best_result = result
-                    best_attempt = attempt
-
-                if result["mean_score"] >= MIN_SCORE:
-                    with get_db_session() as session:
-                        song = SongRepository(session).fetch(song_id)
-                        song.word_synced_lyrics = _json.dumps({
-                            "words": result["words"],
-                            "instrumental_intervals": result.get("instrumental_intervals", []),
-                            "language": result["language"],
-                            "mean_score": result["mean_score"],
-                            "word_count": result["word_count"],
-                            "line_count": result["line_count"],
-                            "aligned_at": result["aligned_at"],
-                            "lyrics_source_type": attempt["source_type"],
-                            "lyrics_source": attempt["source"],
-                            "lyrics_attempt": idx + 1,
-                        })
-                        if attempt["persist"]:
-                            if attempt["source_type"] == "plain" and not song.plain_lyrics:
-                                song.plain_lyrics = attempt["content"]
-                            if attempt["source_type"] == "synced" and not song.synced_lyrics:
-                                song.synced_lyrics = attempt["content"]
-                        session.commit()
-                    activated += 1
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "activated",
-                        "meanScore": result["mean_score"],
-                        "wordCount": result["word_count"],
-                        "sourceType": attempt["source_type"],
-                        "source": attempt["source"],
-                    })
-                    logger.info(
-                        "batch_align_lyrics %s: activated (score=%.3f, source=%s)",
-                        song_label,
-                        result["mean_score"],
-                        attempt["source"],
-                    )
-                    break
-            else:
-                failed += 1
-                if best_result and best_attempt:
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "low_confidence",
-                        "meanScore": best_result["mean_score"],
-                        "wordCount": best_result["word_count"],
-                        "sourceType": best_attempt["source_type"],
-                        "source": best_attempt["source"],
-                        "attempted": len(attempts),
-                        "errors": align_error_count,
-                    })
-                    logger.info(
-                        "batch_align_lyrics %s: low_confidence (score=%.3f, source=%s)",
-                        song_label,
-                        best_result["mean_score"],
-                        best_attempt["source"],
-                    )
-                else:
-                    results.append({
-                        "songId": song_id,
-                        "title": song_label,
-                        "status": "failed",
-                        "reason": "alignment produced no words",
-                        "attempted": len(attempts),
-                        "errors": align_error_count,
-                    })
-                    logger.info("batch_align_lyrics %s: failed after %d attempts", song_label, len(attempts))
-    finally:
-        end_gpu_activity(f"batch-lyrics-alignment:{language}")
-
-    logger.info("batch_align_lyrics: done — activated=%d, failed=%d", activated, failed)
+    logger.info("batch_backfill_loudness: done — %s", counts)
     return {
-        "processed": len(eligible),
-        "activated": activated,
-        "failed": failed,
-        "skipped": total_songs - len(eligible),
+        "processed": sum(counts.values()),
+        "success": counts["ok"],
+        "skipped": counts["silent"] + counts["no_audio"] + counts["error"],
+        **counts,
+    }
+
+
+@celery.task(name="batch_backfill_singing_map")
+def batch_backfill_singing_map(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: measure when each song's lead and backing vocals are singing.
+
+    One song after another inside this task (a second or two each), like the
+    loudness backfill. Each map is saved as it finishes, so re-running with
+    mode="missing" resumes; mode="all" re-measures after a threshold change.
+    """
+    from .metadata_tasks import detect_and_store_singing_map
+
+    counts = {"ok": 0, "no_audio": 0, "error": 0}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("singing_map", mode))
+        logger.info(
+            "batch_backfill_singing_map: processing %d songs (mode=%s)",
+            len(song_ids),
+            mode,
+        )
+
+        for i, song_id in enumerate(run.each(song_ids), 1):
+            outcome = detect_and_store_singing_map(song_id)
+            counts[outcome] += 1
+            run.song_done(ok=outcome != "error")
+            if i % 25 == 0:
+                logger.info(
+                    "batch_backfill_singing_map: %d/%d done %s",
+                    i,
+                    len(song_ids),
+                    counts,
+                )
+
+    logger.info("batch_backfill_singing_map: done — %s", counts)
+    return {
+        "processed": sum(counts.values()),
+        "success": counts["ok"],
+        "skipped": counts["no_audio"] + counts["error"],
+        **counts,
+    }
+
+
+@celery.task(name="batch_fetch_artist_images")
+def batch_fetch_artist_images(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: fetch a Discogs image for every artist not checked yet.
+
+    One artist at a time, to stay inside Discogs' rate limit.
+    """
+    import asyncio
+
+    from app.db.database import SessionLocal
+    from app.services.artist_image_service import ArtistImageService
+    from app.services.file_service import FileService
+
+    counts = {"fetched": 0, "not_found": 0, "errors": 0}
+
+    with tracked_run(run_id) as run:
+        artist_ids = run.begin(lambda: _select("artist_images", mode))
+        logger.info("batch_fetch_artist_images: processing %d artists", len(artist_ids))
+
+        service = ArtistImageService(FileService(), SessionLocal)
+        for artist_id in run.each(artist_ids):
+            try:
+                path = asyncio.run(service.get_or_fetch_artist_image(artist_id))
+                counts["fetched" if path is not None else "not_found"] += 1
+                run.song_done()
+            except Exception:
+                logger.warning(
+                    "batch_fetch_artist_images: error for artist %s",
+                    artist_id,
+                    exc_info=True,
+                )
+                counts["errors"] += 1
+                run.song_done(ok=False)
+
+    logger.info("batch_fetch_artist_images: done — %s", counts)
+    return counts
+
+
+@celery.task(name="batch_align_lyrics")
+def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> dict:
+    """Batch task: queue align_song_lyrics for every song a `mode` run selects.
+
+    Each song runs as its own job on the low-priority lyrics_backfill queue, so
+    new songs and fixes people ask for go first. Otherwise it's exactly like a
+    new song's alignment: in its own language, with remote candidates, the offset
+    sweep and ASR re-timing, and respecting hand-picked and rejected lyrics.
+    While queuing, the run counts songs queued. Then it hands off to the
+    queued jobs and stays running, counting them as they finish, until the
+    last one does (BatchRunRepository.refresh_handed_off). A song already
+    aligning isn't queued again and isn't waited on.
+
+    `retime` keeps each song's stored lyrics and redoes only the timing, so a
+    change to the aligner is measured on the same words.
+    """
+    from app.db.database import get_db_session
+    from app.jobs.lyrics_dispatch import enqueue_song_alignment
+    from app.services.lyrics_repair import count_reasons, select_songs_for_alignment
+
+    selected: list = []
+    with_vocals = 0
+    reason_counts: dict = {}
+    results: list = []
+    queued = 0
+    queued_job_ids: list[str] = []
+
+    with tracked_run(run_id) as run:
+        with get_db_session() as session:
+            selected, with_vocals = select_songs_for_alignment(session, mode)
+            reason_counts = count_reasons(selected)
+            run.start(len(selected))
+            for song, reasons in selected:
+                dispatch = enqueue_song_alignment(
+                    song, include_remote=mode != "retime", background=True
+                )
+                queued += int(dispatch["dispatched"])
+                if dispatch["dispatched"]:
+                    queued_job_ids.append(dispatch["jobId"])
+                run.song_done()
+                results.append(
+                    {
+                        "songId": song.id,
+                        "title": f"{song.artist or '?'} — {song.title or song.id}",
+                        "status": (
+                            "queued" if dispatch["dispatched"] else "already_running"
+                        ),
+                        "reasons": reasons,
+                    }
+                )
+            run.hand_off(queued_job_ids)
+
+    logger.info(
+        "batch_align_lyrics: mode=%s, queued %d of %d selected songs (%d with vocals), reasons=%s",
+        mode,
+        queued,
+        len(selected),
+        with_vocals,
+        reason_counts,
+    )
+    return {
+        "mode": mode,
+        "selected": len(selected),
+        "queued": queued,
+        "alreadyRunning": len(selected) - queued,
+        "skipped": with_vocals - len(selected),
+        "reasons": reason_counts,
         "results": results,
     }
+
+
+@celery.task(name="batch_sweep_lrc_offsets")
+def batch_sweep_lrc_offsets(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: sweep each song's LRC for a whole-song offset, or apply them.
+
+    "missing" and "all" sweep (about 25 alignments a song, on the GPU) and store
+    the layer without changing what the TV shows; a shift that passes the gate
+    waits on the song, listed on Compare word timing. "apply" shifts and
+    re-aligns the songs waiting. One song after another inside this task, so
+    it stops, pauses and resumes between songs. See services/lrc_offset_layer.
+    """
+    from .lrc_offset_tasks import apply_pending_shift, sweep_and_store
+
+    work = apply_pending_shift if mode == "apply" else sweep_and_store
+    failures = {"error", "rejected"}
+    counts: dict[str, int] = {}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("lrc_offset", mode))
+        logger.info("batch_sweep_lrc_offsets: %d songs (mode=%s)", len(song_ids), mode)
+        for i, song_id in enumerate(run.each(song_ids), 1):
+            try:
+                outcome = work(song_id)
+            except Exception:
+                logger.error(
+                    "batch_sweep_lrc_offsets: song %s failed", song_id, exc_info=True
+                )
+                outcome = "error"
+            counts[outcome] = counts.get(outcome, 0) + 1
+            run.song_done(ok=outcome not in failures)
+            if i % 25 == 0:
+                logger.info(
+                    "batch_sweep_lrc_offsets: %d/%d done %s", i, len(song_ids), counts
+                )
+
+    logger.info("batch_sweep_lrc_offsets: done (mode=%s) — %s", mode, counts)
+    return {"mode": mode, "processed": sum(counts.values()), **counts}
+
+
+@celery.task(name="batch_rebuild_artist_credits")
+def batch_rebuild_artist_credits(
+    mode: str = "preview", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: re-credit every song and tidy the artist list.
+
+    Looks up every linked recording and its artists on MusicBrainz (cached on
+    disk, so the apply after a preview asks nothing again), then makes the
+    changes in one transaction. "preview" rolls it back, "apply" commits it;
+    both save the same report on the run. See app.services.artist_credits_rebuild.
+    """
+    from app.config import get_config
+    from app.db.database import get_db_session
+    from app.services.artist_credits_rebuild import fetch_musicbrainz, rebuild
+
+    cache_dir = get_config().LIBRARY_DIR / "cache" / "musicbrainz"
+
+    with tracked_run(run_id) as run:
+        with get_db_session() as session:
+            mb = fetch_musicbrainz(
+                session, cache_dir, on_total=run.start, on_step=run.song_done
+            )
+        logger.info(
+            "batch_rebuild_artist_credits: %d recordings, %d artists looked up",
+            len(mb.recordings),
+            len(mb.artists),
+        )
+
+        with get_db_session() as session:
+            try:
+                report = rebuild(session, mb)
+            except Exception:
+                session.rollback()
+                raise
+            report["mode"] = mode
+            if mode == "apply":
+                session.commit()
+            else:
+                session.rollback()
+        run.report(report)
+
+    summary = {
+        "mode": mode,
+        "songs_changed": report["songs"]["counts"].get("changed", 0),
+        "merges": len(report["merges"]),
+        "renames": len(report["renames"]),
+        "deleted": report["deleted"]["count"],
+    }
+    logger.info("batch_rebuild_artist_credits: done — %s", summary)
+    return summary

@@ -8,6 +8,7 @@
 
 import { createLogger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/authStore";
+import type { PerformerPresence } from "@/types/Presence";
 
 const logger = createLogger("websocket:session");
 
@@ -15,6 +16,8 @@ interface QueueItem {
   id: string;
   songId: string;
   singer: string;
+  /** The roster seat this song belongs to. */
+  performerId?: number | null;
   position: number;
   addedAt?: string;
   song: {
@@ -38,7 +41,6 @@ interface PerformanceState {
   is_playing: boolean;
   current_song_id?: string | null;
   is_ready?: boolean;
-  playback_speed: number;
 }
 
 type ControlValue = number | string | boolean;
@@ -50,12 +52,13 @@ interface SessionWebSocketEvents {
     device_id: string;
     is_session_owner: boolean;
     performance_state: PerformanceState;
+    /** Same shape as `presence_updated.performers`. */
+    presence?: PerformerPresence[];
   }) => void;
   session_error: (data: { error: string }) => void;
   session_ended: (data: { reason: string }) => void;
 
-  // Host authentication events
-  authenticated: (data: { is_session_owner: boolean }) => void;
+  // Authentication events
   auth_failed: (data: { reason: string }) => void;
   permission_denied: (data: { action: string; reason: string }) => void;
 
@@ -75,6 +78,22 @@ interface SessionWebSocketEvents {
     items?: QueueItem[];
     trigger?: string;
   }) => void;
+  // Someone joined, left, or came back - the roster list is stale.
+  roster_updated: (data: { name: string }) => void;
+
+  // Presence events
+  /** Whose phones are open, per roster seat with a phone linked. Room-wide. */
+  presence_updated: (data: { performers: PerformerPresence[] }) => void;
+  /** Reply to this device's own `presence` report: which seat it is. */
+  presence_acknowledged: (data: { performer_id: number | null }) => void;
+}
+
+/** What this page reports about itself. See setPresence. */
+export interface PagePresence {
+  /** The page is on screen (Page Visibility API). */
+  visible: boolean;
+  /** The page is the performance controls. */
+  onControls: boolean;
 }
 
 type EventData =
@@ -88,10 +107,24 @@ type EventData =
       trigger?: string;
     }
   | { control: string; value: ControlValue }
-  | { is_session_owner: boolean }
   | { reason: string }
   | { action: string; reason: string }
+  | { name: string }
+  | { performers: PerformerPresence[] }
+  | { performer_id: number | null }
   | undefined;
+
+function socketUrl(sessionId: string): string {
+  if (import.meta.env.DEV) {
+    // Development mode - use the current host to leverage Vite proxy
+    return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
+  }
+  // Production mode - use direct URLs
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
+}
 
 class SessionWebSocketService {
   private websocket: WebSocket | null = null;
@@ -100,7 +133,14 @@ class SessionWebSocketService {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private currentSessionId: string | null = null;
+  // The session-member credential (the REST X-Device-ID), sent in the opening
+  // `authenticate` message.
+  private memberDeviceId: string | null = null;
+  // This socket's ephemeral id, assigned by the server's session_connected greeting.
   private deviceId: string | null = null;
+  // The last presence this page reported. Kept across reconnects and resent on
+  // every open, the same way authentication is.
+  private presence: PagePresence | null = null;
 
   constructor() {
     // Don't initialize connection immediately - wait for session
@@ -130,19 +170,23 @@ class SessionWebSocketService {
     this.websocket.onopen = () => {
       logger.debug("Connected to unified session WebSocket");
       this.isConnected = true;
-      this.reconnectAttempts = 0;
 
-      // Claim host authority if we hold a token. The server decides whether this user
-      // actually owns the session - performers have no token and simply skip this.
-      // Runs on every open, so reconnects re-authenticate automatically.
+      // The server ignores everything until this arrives: the device id proves session
+      // membership, and the token (if we hold one) claims host authority. The server
+      // decides ownership and answers in session_connected. Runs on every open, so
+      // reconnects re-authenticate automatically.
       const token = useAuthStore.getState().token;
-      if (token) {
-        this.send({ type: "authenticate", token });
-      }
+      this.send({
+        type: "authenticate",
+        device_id: this.memberDeviceId,
+        ...(token ? { token } : {}),
+      });
 
       // Initialize both performance and queue functionality
       this.send({ type: "join_performance" });
       this.send({ type: "join_queue_room" });
+
+      if (this.presence) this.sendPresence(this.presence);
     };
 
     this.websocket.onclose = (event) => {
@@ -154,9 +198,13 @@ class SessionWebSocketService {
       this.isConnected = false;
       this.websocket = null;
 
-      // Attempt to reconnect if it wasn't a manual disconnect
-      if (event.code !== 1000) {
-        // 1000 = normal closure
+      // 1000 = normal closure. 1008 = the server says this device isn't a member of
+      // a live session; retrying with the same credential can't succeed.
+      if (event.code === 1008) {
+        logger.error(
+          `Session WebSocket rejected: ${event.reason}. Not reconnecting.`,
+        );
+      } else if (event.code !== 1000) {
         this.scheduleReconnect();
       }
     };
@@ -174,6 +222,9 @@ class SessionWebSocketService {
         // Hydrate the ephemeral WebSocket device ID from the server's greeting
         if (data.type === "session_connected" && data.device_id) {
           this.deviceId = data.device_id;
+          // Reset backoff only once the server has admitted us. Resetting on open
+          // turns a socket that opens and then drops into a ~1s reconnect loop.
+          this.reconnectAttempts = 0;
         }
 
         // Never let an authority failure pass silently - this class of bug went
@@ -214,18 +265,7 @@ class SessionWebSocketService {
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       if (this.currentSessionId) {
-        // Rebuild the WebSocket URL with device_id query parameter if host
-        let baseSocketUrl: string;
-        if (import.meta.env.DEV) {
-          baseSocketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${this.currentSessionId}`;
-        } else {
-          const backendUrl =
-            import.meta.env.VITE_BACKEND_URL ||
-            `${window.location.protocol}//${window.location.host}`;
-          baseSocketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${this.currentSessionId}`;
-        }
-
-        this.initializeConnection(baseSocketUrl);
+        this.initializeConnection(socketUrl(this.currentSessionId));
       }
     }, delay);
   }
@@ -294,34 +334,24 @@ class SessionWebSocketService {
   /**
    * Connect to a session.
    *
-   * Every connection starts unprivileged. Host authority is granted by the server in
-   * response to the `authenticate` message sent on open - it is never derived from the
-   * connection URL.
+   * The server admits only session members: the opening `authenticate` message carries
+   * `deviceId`, and host authority comes from the auth token in that same message - it
+   * is never derived from the connection URL.
    *
    * @param sessionId The session ID to connect to
+   * @param deviceId The device id minted when this device joined or created the session
    */
-  connectToSession(sessionId: string) {
+  connectToSession(sessionId: string, deviceId: string) {
     logger.debug(
       "Connecting to unified session WebSocket for session:",
       sessionId,
     );
     this.disconnect(); // Clean up any existing connection first
     this.currentSessionId = sessionId;
+    this.memberDeviceId = deviceId;
     this.reconnectAttempts = 0;
 
-    let socketUrl: string;
-    if (import.meta.env.DEV) {
-      // Development mode - use the current host to leverage Vite proxy
-      socketUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/session/${sessionId}`;
-    } else {
-      // Production mode - use direct URLs
-      const backendUrl =
-        import.meta.env.VITE_BACKEND_URL ||
-        `${window.location.protocol}//${window.location.host}`;
-      socketUrl = `${backendUrl.replace("http", "ws")}/ws/session/${sessionId}`;
-    }
-
-    this.initializeConnection(socketUrl);
+    this.initializeConnection(socketUrl(sessionId));
   }
 
   /**
@@ -406,6 +436,36 @@ class SessionWebSocketService {
     });
   }
 
+  // === PRESENCE ===
+
+  /**
+   * Report whether this page is on screen and whether it is the controls.
+   *
+   * Remembered, so a reconnect reports again without being asked. Sent only
+   * when it changes - a phone flips visibility constantly, and each report the
+   * server sees as a change goes out to the whole room.
+   */
+  setPresence(presence: PagePresence) {
+    const previous = this.presence;
+    this.presence = presence;
+    if (
+      previous &&
+      previous.visible === presence.visible &&
+      previous.onControls === presence.onControls
+    ) {
+      return;
+    }
+    if (this.isConnectionActive()) this.sendPresence(presence);
+  }
+
+  private sendPresence(presence: PagePresence) {
+    this.send({
+      type: "presence",
+      visible: presence.visible,
+      on_controls: presence.onControls,
+    });
+  }
+
   // === QUEUE MANAGEMENT METHODS ===
 
   /**
@@ -413,13 +473,6 @@ class SessionWebSocketService {
    */
   requestQueueUpdate() {
     this.send({ type: "request_queue_update" });
-  }
-
-  /**
-   * Notify about queue changes (called after API mutations)
-   */
-  notifyQueueChanged() {
-    this.send({ type: "queue_changed" });
   }
 
   /**
@@ -439,6 +492,7 @@ class SessionWebSocketService {
     this.isConnected = false;
     this.reconnectAttempts = 0;
     this.currentSessionId = null;
+    this.memberDeviceId = null;
     this.deviceId = null; // cleared until next session_connected
   }
 
@@ -446,10 +500,11 @@ class SessionWebSocketService {
    * Manually reconnect the WebSocket
    */
   reconnect() {
-    if (this.currentSessionId) {
+    if (this.currentSessionId && this.memberDeviceId) {
       const sessionId = this.currentSessionId;
+      const deviceId = this.memberDeviceId;
       this.disconnect();
-      this.connectToSession(sessionId);
+      this.connectToSession(sessionId, deviceId);
     }
   }
 }

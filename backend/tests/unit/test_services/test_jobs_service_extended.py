@@ -1,4 +1,5 @@
 """Extended tests for JobsService covering paths not in test_jobs_service.py."""
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 

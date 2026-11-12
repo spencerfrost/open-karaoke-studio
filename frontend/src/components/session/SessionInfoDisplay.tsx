@@ -4,6 +4,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { useAccess } from "@/hooks/useAccess";
 import { createLogger } from "@/lib/logger";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import {
   Popover,
   PopoverContent,
@@ -63,7 +64,9 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   } = useSessionStore();
   const { inSession, isStageDevice } = useAccess();
 
-  const { connected } = useKaraokePlayerStore();
+  const { connected } = useKaraokePlayerStore(
+    useShallow((s) => ({ connected: s.connected })),
+  );
 
   // Only the host device gets a QR trigger to share.
   if (!inSession || !isStageDevice) return null;
@@ -128,7 +131,7 @@ const SessionInfoDisplay: React.FC<SessionInfoDisplayProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div data-tour="join-code" className={className}>
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <div

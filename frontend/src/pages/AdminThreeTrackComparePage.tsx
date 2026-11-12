@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Pause, Play, TestTube2, Waves } from "lucide-react";
+import { Pause, Play, TestTube2 } from "lucide-react";
 
-import AppLayout from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -670,158 +669,147 @@ const AdminThreeTrackComparePage: React.FC = () => {
   }, []);
 
   return (
-    <AppLayout>
-      <div className="max-w-6xl mx-auto pb-8 space-y-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Waves className="h-6 w-6 text-primary" />
-                Three-Track Compare
-              </h1>
-              <Badge variant="secondary" className="gap-1">
-                <TestTube2 className="h-3 w-3" />
-                Temporary Tool
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Compare all generated three-track engines with one shared
-              timeline. Backing vocal A/B is not fully apples-to-apples.
-            </p>
-          </div>
-
-          <div className="w-full sm:w-[340px]">
-            <Select
-              value={songId}
-              onValueChange={setSongId}
-              disabled={isLoadingManifest || songOptions.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select test song" />
-              </SelectTrigger>
-              <SelectContent>
-                {songOptions.map((song) => (
-                  <SelectItem key={song.id} value={song.id}>
-                    {song.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="max-w-6xl pb-8 space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="space-y-1">
+          <Badge variant="secondary" className="gap-1">
+            <TestTube2 className="h-3 w-3" />
+            Temporary Tool
+          </Badge>
+          <p className="text-sm text-muted-foreground">
+            Compare all generated three-track engines with one shared timeline.
+            Backing vocal A/B is not fully apples-to-apples.
+          </p>
         </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Compare Controls</CardTitle>
-            <CardDescription>
-              Shared transport and shared stem mix for both engines.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Engine
-              </p>
-              <ToggleGroup
-                type="single"
-                value={activeEngine}
-                onValueChange={(value) => void handleEngineToggle(value)}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <ToggleGroupItem value="demucs_three_track" className="px-4">
-                  Demucs
-                </ToggleGroupItem>
-                <ToggleGroupItem value="roformer_three_track" className="px-4">
-                  Roformer
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="three_track_duality_v2"
-                  className="px-4"
-                >
-                  Duality V2
-                </ToggleGroupItem>
-                <ToggleGroupItem value="three_track_mel1143" className="px-4">
-                  Mel1143
-                </ToggleGroupItem>
-                <ToggleGroupItem value="original" className="px-4">
-                  Original
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+        <div className="w-full sm:w-[340px]">
+          <Select
+            value={songId}
+            onValueChange={setSongId}
+            disabled={isLoadingManifest || songOptions.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select test song" />
+            </SelectTrigger>
+            <SelectContent>
+              {songOptions.map((song) => (
+                <SelectItem key={song.id} value={song.id}>
+                  {song.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={isPlaying ? "secondary" : "default"}
-                onClick={
-                  isPlaying
-                    ? handlePause
-                    : () => void handlePlayEngine(activeEngine)
-                }
-                disabled={isLoadingAudio}
-              >
-                {isPlaying ? (
-                  <Pause className="h-4 w-4 mr-1" />
-                ) : (
-                  <Play className="h-4 w-4 mr-1" />
-                )}
-                {isPlaying ? "Pause" : `Play ${ENGINE_LABEL[activeEngine]}`}
-              </Button>
-              <Badge variant="outline">{formatTime(currentTime)}</Badge>
-              <span className="text-xs text-muted-foreground">/</span>
-              <Badge variant="outline">{formatTime(duration)}</Badge>
-              {isLoadingAudio && (
-                <Badge variant="secondary">Loading tracks...</Badge>
-              )}
-            </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Compare Controls</CardTitle>
+          <CardDescription>
+            Shared transport and shared stem mix for both engines.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Engine
+            </p>
+            <ToggleGroup
+              type="single"
+              value={activeEngine}
+              onValueChange={(value) => void handleEngineToggle(value)}
+              variant="outline"
+              className="w-full justify-start"
+            >
+              <ToggleGroupItem value="demucs_three_track" className="px-4">
+                Demucs
+              </ToggleGroupItem>
+              <ToggleGroupItem value="roformer_three_track" className="px-4">
+                Roformer
+              </ToggleGroupItem>
+              <ToggleGroupItem value="three_track_duality_v2" className="px-4">
+                Duality V2
+              </ToggleGroupItem>
+              <ToggleGroupItem value="three_track_mel1143" className="px-4">
+                Mel1143
+              </ToggleGroupItem>
+              <ToggleGroupItem value="original" className="px-4">
+                Original
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
 
-            <Slider
-              min={0}
-              max={Math.max(duration, 0.1)}
-              step={0.05}
-              value={[seekPreviewTime ?? currentTime]}
-              onValueChange={([value]) => handleSeekPreview(value)}
-              onValueCommit={([value]) => void handleSeekCommit(value)}
-              disabled={isLoadingAudio || duration <= 0}
-            />
-
-            {STEMS.map((stem) => (
-              <div key={`shared-${stem}`} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="capitalize">
-                    {stem === "backing" ? "Backing Vocals" : stem}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {Math.round(sharedVolumes[stem] * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={1.5}
-                  step={0.01}
-                  value={[sharedVolumes[stem]]}
-                  onValueChange={([value]) =>
-                    handleSharedVolumeChange(stem, value)
-                  }
-                  disabled={isLoadingAudio || activeEngine === "original"}
-                />
-              </div>
-            ))}
-
+          <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="outline"
-              className="w-full"
-              onClick={resetSharedVolumes}
-              disabled={activeEngine === "original"}
+              variant={isPlaying ? "secondary" : "default"}
+              onClick={
+                isPlaying
+                  ? handlePause
+                  : () => void handlePlayEngine(activeEngine)
+              }
+              disabled={isLoadingAudio}
             >
-              Reset Shared Volumes
+              {isPlaying ? (
+                <Pause className="h-4 w-4 mr-1" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
+              {isPlaying ? "Pause" : `Play ${ENGINE_LABEL[activeEngine]}`}
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
+            <Badge variant="outline">{formatTime(currentTime)}</Badge>
+            <span className="text-xs text-muted-foreground">/</span>
+            <Badge variant="outline">{formatTime(duration)}</Badge>
+            {isLoadingAudio && (
+              <Badge variant="secondary">Loading tracks...</Badge>
+            )}
+          </div>
+
+          <Slider
+            min={0}
+            max={Math.max(duration, 0.1)}
+            step={0.05}
+            value={[seekPreviewTime ?? currentTime]}
+            onValueChange={([value]) => handleSeekPreview(value)}
+            onValueCommit={([value]) => void handleSeekCommit(value)}
+            disabled={isLoadingAudio || duration <= 0}
+          />
+
+          {STEMS.map((stem) => (
+            <div key={`shared-${stem}`} className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="capitalize">
+                  {stem === "backing" ? "Backing Vocals" : stem}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {Math.round(sharedVolumes[stem] * 100)}%
+                </span>
+              </div>
+              <Slider
+                min={0}
+                max={1.5}
+                step={0.01}
+                value={[sharedVolumes[stem]]}
+                onValueChange={([value]) =>
+                  handleSharedVolumeChange(stem, value)
+                }
+                disabled={isLoadingAudio || activeEngine === "original"}
+              />
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={resetSharedVolumes}
+            disabled={activeEngine === "original"}
+          >
+            Reset Shared Volumes
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

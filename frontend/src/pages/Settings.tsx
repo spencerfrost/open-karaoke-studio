@@ -1,7 +1,100 @@
 import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
-import { AccountCard, RotationModeCard } from "@/features/session";
+import { RotationModeCard } from "@/features/session";
+import { THEMES, isThemeName } from "@/lib/themes";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface SliderSettingProps {
+  label: string;
+  value: number;
+  max: number;
+  step?: number;
+  onChange: (value: number) => void;
+}
+
+const SliderSetting: React.FC<SliderSettingProps> = ({
+  label,
+  value,
+  max,
+  step = 1,
+  onChange,
+}) => (
+  <div>
+    <p className="mb-3 text-sm font-medium">{label}</p>
+    <Slider
+      value={[value]}
+      min={0}
+      max={max}
+      step={step}
+      onValueChange={([next]) => onChange(next)}
+    />
+  </div>
+);
+
+interface SelectSettingProps {
+  id: string;
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}
+
+const SelectSetting: React.FC<SelectSettingProps> = ({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}) => (
+  <div>
+    <Label htmlFor={id} className="mb-1">
+      {label}
+    </Label>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+);
+
+interface SwitchSettingProps {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+const SwitchSetting: React.FC<SwitchSettingProps> = ({
+  id,
+  label,
+  checked,
+  onChange,
+}) => (
+  <div className="flex items-center justify-between gap-4">
+    <Label htmlFor={id}>{label}</Label>
+    <Switch id={id} checked={checked} onCheckedChange={onChange} />
+  </div>
+);
 
 const SettingsPage: React.FC = () => {
   // Use the Zustand store instead of the Context API
@@ -15,11 +108,6 @@ const SettingsPage: React.FC = () => {
     (state) => state.setDisplaySettings,
   );
   const resetSettings = useSettingsStore((state) => state.resetSettings);
-
-  // Handler for theme settings
-  const handleThemeChange = (setting: string, value: string | boolean) => {
-    setThemeSettings({ [setting]: value });
-  };
 
   // Handler for audio settings
   const handleAudioChange = (setting: string, value: number) => {
@@ -44,230 +132,177 @@ const SettingsPage: React.FC = () => {
   return (
     <AppLayout>
       <div>
-        <h1 className="text-2xl font-semibold mb-6 text-orange-peel">
-          Settings
-        </h1>
+        <h1 className="text-2xl font-semibold mb-6 text-primary">Settings</h1>
 
-        <AccountCard />
         <RotationModeCard />
 
         {/* Theme Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
-          <h2 className="text-xl mb-3">Theme</h2>
-          <div className="flex flex-col gap-4">
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-xl">Theme</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
             <div>
-              <label className="block mb-1">Dark Mode</label>
-              <input
-                type="checkbox"
-                checked={settings.theme.darkMode}
-                onChange={(e) =>
-                  handleThemeChange("darkMode", e.target.checked)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Theme Style</label>
-              <select
+              <Label htmlFor="theme-name" className="mb-1">
+                Theme
+              </Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Applies to this screen only.
+              </p>
+              <Select
                 value={settings.theme.themeName}
-                onChange={(e) => handleThemeChange("themeName", e.target.value)}
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
+                onValueChange={(value) => {
+                  if (isThemeName(value)) {
+                    setThemeSettings({ themeName: value });
+                  }
+                }}
               >
-                <option value="vintage">Vintage</option>
-                <option value="synthwave">Synthwave</option>
-                <option value="minimal">Minimal</option>
-              </select>
+                <SelectTrigger id="theme-name" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {THEMES.map((theme) => (
+                    <SelectItem key={theme.id} value={theme.id}>
+                      {theme.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Audio Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
-          <h2 className="text-xl mb-3">Audio</h2>
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="block mb-1">
-                Default Vocals Volume: {settings.audio.defaultVocalVolume}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={settings.audio.defaultVocalVolume}
-                onChange={(e) =>
-                  handleAudioChange(
-                    "defaultVocalVolume",
-                    Number(e.target.value),
-                  )
-                }
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">
-                Default Instrumental Volume:{" "}
-                {settings.audio.defaultInstrumentalVolume}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={settings.audio.defaultInstrumentalVolume}
-                onChange={(e) =>
-                  handleAudioChange(
-                    "defaultInstrumentalVolume",
-                    Number(e.target.value),
-                  )
-                }
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">
-                Fade-in Duration: {settings.audio.fadeInDuration}ms
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="2000"
-                step="100"
-                value={settings.audio.fadeInDuration}
-                onChange={(e) =>
-                  handleAudioChange("fadeInDuration", Number(e.target.value))
-                }
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">
-                Fade-out Duration: {settings.audio.fadeOutDuration}ms
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="2000"
-                step="100"
-                value={settings.audio.fadeOutDuration}
-                onChange={(e) =>
-                  handleAudioChange("fadeOutDuration", Number(e.target.value))
-                }
-                className="w-full"
-              />
-            </div>
-          </div>
-        </div>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-xl">Audio</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <SliderSetting
+              label={`Default Vocals Volume: ${settings.audio.defaultVocalVolume}%`}
+              value={settings.audio.defaultVocalVolume}
+              max={100}
+              onChange={(value) =>
+                handleAudioChange("defaultVocalVolume", value)
+              }
+            />
+            <SliderSetting
+              label={`Default Instrumental Volume: ${settings.audio.defaultInstrumentalVolume}%`}
+              value={settings.audio.defaultInstrumentalVolume}
+              max={100}
+              onChange={(value) =>
+                handleAudioChange("defaultInstrumentalVolume", value)
+              }
+            />
+            <SliderSetting
+              label={`Fade-in Duration: ${settings.audio.fadeInDuration}ms`}
+              value={settings.audio.fadeInDuration}
+              max={2000}
+              step={100}
+              onChange={(value) => handleAudioChange("fadeInDuration", value)}
+            />
+            <SliderSetting
+              label={`Fade-out Duration: ${settings.audio.fadeOutDuration}ms`}
+              value={settings.audio.fadeOutDuration}
+              max={2000}
+              step={100}
+              onChange={(value) => handleAudioChange("fadeOutDuration", value)}
+            />
+          </CardContent>
+        </Card>
 
         {/* Processing Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
-          <h2 className="text-xl mb-3">Processing</h2>
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="block mb-1">Quality</label>
-              <select
-                value={settings.processing.quality}
-                onChange={(e) =>
-                  handleProcessingChange("quality", e.target.value)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1">Output Format</label>
-              <select
-                value={settings.processing.outputFormat}
-                onChange={(e) =>
-                  handleProcessingChange("outputFormat", e.target.value)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
-              >
-                <option value="mp3">MP3</option>
-                <option value="wav">WAV</option>
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1">Auto-process YouTube</label>
-              <input
-                type="checkbox"
-                checked={settings.processing.autoProcessYouTube}
-                onChange={(e) =>
-                  handleProcessingChange("autoProcessYouTube", e.target.checked)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
-              />
-            </div>
-          </div>
-        </div>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-xl">Processing</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <SelectSetting
+              id="processing-quality"
+              label="Quality"
+              value={settings.processing.quality}
+              options={[
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+              ]}
+              onChange={(value) => handleProcessingChange("quality", value)}
+            />
+            <SelectSetting
+              id="processing-output-format"
+              label="Output Format"
+              value={settings.processing.outputFormat}
+              options={[
+                { value: "mp3", label: "MP3" },
+                { value: "wav", label: "WAV" },
+              ]}
+              onChange={(value) =>
+                handleProcessingChange("outputFormat", value)
+              }
+            />
+            <SwitchSetting
+              id="auto-process-youtube"
+              label="Auto-process YouTube"
+              checked={settings.processing.autoProcessYouTube}
+              onChange={(checked) =>
+                handleProcessingChange("autoProcessYouTube", checked)
+              }
+            />
+          </CardContent>
+        </Card>
 
         {/* Display Settings */}
-        <div className="bg-lemon-chiffon text-russet shadow-lg border border-orange-peel overflow-hidden mb-4 p-4 rounded-lg">
-          <h2 className="text-xl mb-3">Display</h2>
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="block mb-1">Lyrics Size</label>
-              <select
-                value={settings.display.lyricsSize}
-                onChange={(e) =>
-                  handleDisplayChange("lyricsSize", e.target.value)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded w-full"
-              >
-                <option value="small">Small</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1">Show Audio Visualizations</label>
-              <input
-                type="checkbox"
-                checked={settings.display.showAudioVisualizations}
-                onChange={(e) =>
-                  handleDisplayChange(
-                    "showAudioVisualizations",
-                    e.target.checked,
-                  )
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Show Progress Bar</label>
-              <input
-                type="checkbox"
-                checked={settings.display.showProgress}
-                onChange={(e) =>
-                  handleDisplayChange("showProgress", e.target.checked)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
-              />
-            </div>
-            <div>
-              <label className="block mb-1">
-                Preview Songs on Hover in Library
-              </label>
-              <input
-                type="checkbox"
-                checked={settings.display.songPreviewsEnabled ?? true}
-                onChange={(e) =>
-                  handleDisplayChange("songPreviewsEnabled", e.target.checked)
-                }
-                className="p-2 border border-orange-peel bg-lemon-chiffon/80 text-russet rounded"
-              />
-            </div>
-          </div>
-        </div>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="text-xl">Display</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <SelectSetting
+              id="lyrics-size"
+              label="Lyrics Size"
+              value={settings.display.lyricsSize}
+              options={[
+                { value: "small", label: "Small" },
+                { value: "medium", label: "Medium" },
+                { value: "large", label: "Large" },
+              ]}
+              onChange={(value) => handleDisplayChange("lyricsSize", value)}
+            />
+            <SwitchSetting
+              id="show-audio-visualizations"
+              label="Show Audio Visualizations"
+              checked={settings.display.showAudioVisualizations}
+              onChange={(checked) =>
+                handleDisplayChange("showAudioVisualizations", checked)
+              }
+            />
+            <SwitchSetting
+              id="show-progress"
+              label="Show Progress Bar"
+              checked={settings.display.showProgress}
+              onChange={(checked) =>
+                handleDisplayChange("showProgress", checked)
+              }
+            />
+            <SwitchSetting
+              id="song-previews-enabled"
+              label="Preview Songs on Hover in the Songbook"
+              checked={settings.display.songPreviewsEnabled ?? true}
+              onChange={(checked) =>
+                handleDisplayChange("songPreviewsEnabled", checked)
+              }
+            />
+          </CardContent>
+        </Card>
 
         {/* Reset Button */}
-        <button
+        <Button
+          variant="secondary"
           onClick={handleResetSettings}
-          className="bg-rust text-lemon-chiffon px-4 py-2 rounded mt-4"
+          className="mt-4"
         >
           Reset All Settings
-        </button>
+        </Button>
       </div>
     </AppLayout>
   );

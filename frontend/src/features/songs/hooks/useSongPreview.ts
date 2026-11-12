@@ -19,6 +19,31 @@ interface SongPreviewHoverHandlers {
 }
 
 /**
+ * Every gate that decides whether a song may preview at all: the Settings
+ * toggle, a playable song, no processing job that would replace its audio,
+ * and no performance playing. Shared by the library cards and the stage wheel.
+ */
+export function useCanPreview(song: Song | null): boolean {
+  const previewsEnabled = useSettingsStore(
+    (state) => state.display.songPreviewsEnabled ?? true,
+  );
+  const karaokeIsPlaying = useKaraokePlayerStore((state) => state.isPlaying);
+  const processingStatus = useProcessingIndicators((state) =>
+    song ? state.getStatus(song.id) : undefined,
+  );
+  const isBlockingProcessing =
+    !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
+
+  return (
+    song !== null &&
+    previewsEnabled &&
+    song.status === "processed" &&
+    !isBlockingProcessing &&
+    !karaokeIsPlaying
+  );
+}
+
+/**
  * Per-card wiring for the shared hover preview.
  *
  * Owns the hover-intent delay so sweeping the cursor across a grid never fires
@@ -31,15 +56,7 @@ export function useSongPreview(
   const { enabled = true } = options;
 
   const hoverCapable = useHoverCapable();
-  const previewsEnabled = useSettingsStore(
-    (state) => state.display.songPreviewsEnabled ?? true,
-  );
-  const karaokeIsPlaying = useKaraokePlayerStore((state) => state.isPlaying);
-  const processingStatus = useProcessingIndicators((state) =>
-    state.getStatus(song.id),
-  );
-  const isBlockingProcessing =
-    !!processingStatus && processingStatus.engineType !== "lyrics_alignment";
+  const allowed = useCanPreview(song);
 
   const previewSongId = useSongPreviewStore((state) => state.previewSongId);
   const status = useSongPreviewStore((state) => state.status);
@@ -52,12 +69,7 @@ export function useSongPreview(
   const isLoading = isCurrent && status === "loading";
   const progress = isCurrent ? storeProgress : 0;
 
-  const canPreview =
-    enabled &&
-    previewsEnabled &&
-    song.status === "processed" &&
-    !isBlockingProcessing &&
-    !karaokeIsPlaying;
+  const canPreview = enabled && allowed;
 
   const timerRef = useRef<number | null>(null);
 

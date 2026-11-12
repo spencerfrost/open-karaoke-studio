@@ -9,6 +9,7 @@ from time import perf_counter
 from typing import Any, Literal, TypedDict
 
 from app.services.gpu_idle_cleanup import begin_gpu_activity, end_gpu_activity
+from app.services.gpu_memory import is_cuda_out_of_memory
 from app.services.lyrics_alignment import (
     _build_instrumental_intervals,
     _is_cuda_device,
@@ -61,7 +62,9 @@ def _normalize_text(text: str) -> str:
 
 
 def _resolve_asr_provider(provider: str | None) -> ASRProvider:
-    requested = (provider or os.getenv("LYRICS_ASR_PROVIDER") or "whisperx").strip().lower()
+    requested = (
+        (provider or os.getenv("LYRICS_ASR_PROVIDER") or "whisperx").strip().lower()
+    )
     provider_aliases = {
         "whisper": "whisperx",
         "whisperx": "whisperx",
@@ -137,7 +140,9 @@ def _resolve_qwen_confidence(entry: Any) -> float | None:
     return _clamp_confidence(raw_confidence)
 
 
-def _estimate_qwen_confidence(*, word_text: str, start: float, end: float, prev_end: float | None) -> float:
+def _estimate_qwen_confidence(
+    *, word_text: str, start: float, end: float, prev_end: float | None
+) -> float:
     duration = max(0.0, end - start)
     score = 0.2
 
@@ -159,6 +164,45 @@ def _estimate_qwen_confidence(*, word_text: str, start: float, end: float, prev_
     return round(_clamp_confidence(score), 3)
 
 
+def _line_words(
+    raw_words: list[dict[str, Any]], *, line_index: int, segment_start: float
+) -> list[dict[str, Any]]:
+    """Turn one ASR segment's words into stored words, one per whitespace token.
+
+    WhisperX leaves some words untimed (numbers, symbols). They're kept, with
+    the previous word's end as their time and a score of 0, so that the line
+    text built from these words has nothing the word list lacks. Punctuation
+    the ASR returns as its own word is attached to the word before it.
+    """
+    words: list[dict[str, Any]] = []
+    last_end = segment_start
+    for raw_word in raw_words:
+        raw_start = _coerce_float(raw_word.get("start"))
+        raw_end = _coerce_float(raw_word.get("end"))
+        timed = raw_start is not None and raw_end is not None
+        word_start = raw_start if raw_start is not None and timed else last_end
+        word_end = raw_end if raw_end is not None and timed else last_end
+        for token in _normalize_text(str(raw_word.get("word", ""))).split():
+            if words and not any(char.isalnum() for char in token):
+                words[-1]["word"] += token
+                continue
+            words.append(
+                {
+                    "word": token,
+                    "start": round(word_start, 3),
+                    "end": round(word_end, 3),
+                    "score": (
+                        round(_coerce_float(raw_word.get("score")) or 0.0, 3)
+                        if timed
+                        else 0.0
+                    ),
+                    "line_index": line_index,
+                }
+            )
+        last_end = word_end
+    return words
+
+
 def _build_transcription_result(
     *,
     song_id: str,
@@ -172,40 +216,45 @@ def _build_transcription_result(
     synced_lines: list[str] = []
     aligned_words: list[dict[str, Any]] = []
 
-    for seg_idx, segment in enumerate(segments):
-        text = _normalize_text(str(segment.get("text", "")))
+    for segment in segments:
+        segment_start = _coerce_float(segment.get("start"))
+        if segment_start is None:
+            # No timestamp, so no place in the synced lyrics.
+            continue
+
+        line_index = len(synced_lines)
+        line_words = _line_words(
+            segment.get("words", []), line_index=line_index, segment_start=segment_start
+        )
+        # Build the line from its words when there are any, so the stored text
+        # and the stored words read the same, word for word.
+        text = (
+            " ".join(word["word"] for word in line_words)
+            if line_words
+            else _normalize_text(str(segment.get("text", "")))
+        )
         if not text:
             continue
 
         plain_lines.append(text)
-
-        segment_start = _coerce_float(segment.get("start"))
-        if segment_start is not None:
-            synced_lines.append(f"{_format_lrc_timestamp(segment_start)}{text}")
-
-        for word in segment.get("words", []):
-            word_text = _normalize_text(str(word.get("word", "")))
-            word_start = _coerce_float(word.get("start"))
-            word_end = _coerce_float(word.get("end"))
-            if not word_text or word_start is None or word_end is None:
-                continue
-            aligned_words.append(
-                {
-                    "word": word_text,
-                    "start": round(word_start, 3),
-                    "end": round(word_end, 3),
-                    "score": round(_coerce_float(word.get("score")) or 0.0, 3),
-                    "line_index": seg_idx,
-                }
-            )
+        synced_lines.append(f"{_format_lrc_timestamp(segment_start)}{text}")
+        aligned_words.extend(line_words)
 
     if not plain_lines or not synced_lines:
-        logger.warning("%s ASR produced unusable lyric content for %s", provider, song_id)
+        logger.warning(
+            "%s ASR produced unusable lyric content for %s", provider, song_id
+        )
         log_lyrics_event(song_id, "lyrics_asr_empty", provider=provider)
         return None
 
-    mean_score = round(sum(word["score"] for word in aligned_words) / len(aligned_words), 3) if aligned_words else 0.0
-    instrumental_intervals = _build_instrumental_intervals(aligned_words) if aligned_words else []
+    mean_score = (
+        round(sum(word["score"] for word in aligned_words) / len(aligned_words), 3)
+        if aligned_words
+        else 0.0
+    )
+    instrumental_intervals = (
+        _build_instrumental_intervals(aligned_words) if aligned_words else []
+    )
     aligned_at = datetime.now(timezone.utc).isoformat()
 
     result: TranscribedLyricsResult = {
@@ -267,7 +316,9 @@ def _segment_qwen_timestamps(time_stamps: Any) -> list[dict[str, Any]]:
     words: list[dict[str, Any]] = []
     prev_end: float | None = None
     for entry in time_stamps or []:
-        word_text = _normalize_text(str(_read_object_value(entry, ["text", "word", "token"]) or ""))
+        word_text = _normalize_text(
+            str(_read_object_value(entry, ["text", "word", "token"]) or "")
+        )
         start = _coerce_float(_read_object_value(entry, ["start_time", "start"]))
         end = _coerce_float(_read_object_value(entry, ["end_time", "end"]))
         if not word_text or start is None or end is None:
@@ -276,9 +327,13 @@ def _segment_qwen_timestamps(time_stamps: Any) -> list[dict[str, Any]]:
         confidence = (
             round(explicit_confidence, 3)
             if explicit_confidence is not None
-            else _estimate_qwen_confidence(word_text=word_text, start=start, end=end, prev_end=prev_end)
+            else _estimate_qwen_confidence(
+                word_text=word_text, start=start, end=end, prev_end=prev_end
+            )
         )
-        words.append({"word": word_text, "start": start, "end": end, "score": confidence})
+        words.append(
+            {"word": word_text, "start": start, "end": end, "score": confidence}
+        )
         prev_end = end
 
     if not words:
@@ -293,14 +348,20 @@ def _segment_qwen_timestamps(time_stamps: Any) -> list[dict[str, Any]]:
             previous_word = current_words[-1]
             gap = word["start"] - previous_word["end"]
             previous_text = previous_word["word"]
-            should_break = gap > 1.25 or previous_text.endswith((".", "?", "!")) or len(current_words) >= 14
+            should_break = (
+                gap > 1.25
+                or previous_text.endswith((".", "?", "!"))
+                or len(current_words) >= 14
+            )
             if should_break:
                 segment_end = previous_word["end"]
                 segments.append(
                     {
                         "start": segment_start,
                         "end": segment_end,
-                        "text": _clean_segment_text([item["word"] for item in current_words]),
+                        "text": _clean_segment_text(
+                            [item["word"] for item in current_words]
+                        ),
                         "words": current_words,
                     }
                 )
@@ -339,7 +400,9 @@ def _transcribe_with_whisperx(
     activity_started = False
     try:
         if _is_cuda_device(resolved_device):
-            begin_gpu_activity(f"lyrics-asr:whisperx:{transcription_language or 'auto'}")
+            begin_gpu_activity(
+                f"lyrics-asr:whisperx:{transcription_language or 'auto'}"
+            )
             activity_started = True
 
         audio = whisperx.load_audio(str(vocals_path))
@@ -374,28 +437,39 @@ def _transcribe_with_whisperx(
             provider="whisperx",
             elapsed_ms=round((perf_counter() - transcribe_started_at) * 1000, 1),
         )
-    except Exception:
-        logger.error("WhisperX ASR transcription failed for %s", vocals_path, exc_info=True)
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
+        logger.error(
+            "WhisperX ASR transcription failed for %s", vocals_path, exc_info=True
+        )
         log_lyrics_event(song_id, "lyrics_asr_failed", provider="whisperx")
         return None
     finally:
         if activity_started:
             end_gpu_activity(f"lyrics-asr:whisperx:{transcription_language or 'auto'}")
 
-    raw_segments = transcription.get("segments", []) if isinstance(transcription, dict) else []
+    raw_segments = (
+        transcription.get("segments", []) if isinstance(transcription, dict) else []
+    )
     if not raw_segments:
         logger.warning("WhisperX ASR produced no segments for %s", vocals_path)
         log_lyrics_event(song_id, "lyrics_asr_empty", provider="whisperx")
         return None
 
     aligned_result: dict[str, Any] | None = None
-    align_language = (transcription.get("language") if isinstance(transcription, dict) else None) or transcription_language
+    align_language = (
+        transcription.get("language") if isinstance(transcription, dict) else None
+    ) or transcription_language
     align_activity_started = False
     try:
         if _is_cuda_device(resolved_device):
             begin_gpu_activity(f"lyrics-asr-align:whisperx:{align_language or 'auto'}")
             align_activity_started = True
-        model_a, metadata = whisperx.load_align_model(language_code=align_language, device=resolved_device)
+        model_a, metadata = whisperx.load_align_model(
+            language_code=align_language, device=resolved_device
+        )
         aligned_result = whisperx.align(
             raw_segments,
             model_a,
@@ -411,9 +485,21 @@ def _transcribe_with_whisperx(
             segment_count=len(raw_segments),
             language=align_language,
         )
-    except Exception:
-        logger.warning("WhisperX ASR alignment failed for %s; using segment timestamps only", vocals_path, exc_info=True)
-        log_lyrics_event(song_id, "lyrics_asr_align_failed", provider="whisperx", language=align_language)
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
+        logger.warning(
+            "WhisperX ASR alignment failed for %s; using segment timestamps only",
+            vocals_path,
+            exc_info=True,
+        )
+        log_lyrics_event(
+            song_id,
+            "lyrics_asr_align_failed",
+            provider="whisperx",
+            language=align_language,
+        )
     finally:
         if align_activity_started:
             end_gpu_activity(f"lyrics-asr-align:whisperx:{align_language or 'auto'}")
@@ -447,11 +533,15 @@ def _transcribe_with_qwen3(
         from qwen_asr import Qwen3ASRModel
     except ImportError:
         logger.error("qwen-asr dependency is not installed; cannot run Qwen3 ASR")
-        log_lyrics_event(song_id, "lyrics_asr_failed", provider="qwen3", reason="missing_dependency")
+        log_lyrics_event(
+            song_id, "lyrics_asr_failed", provider="qwen3", reason="missing_dependency"
+        )
         return None
 
     qwen_language = _resolve_qwen_language(transcription_language)
-    aligner_checkpoint = (os.getenv("LYRICS_QWEN_FORCED_ALIGNER") or "Qwen/Qwen3-ForcedAligner-0.6B").strip()
+    aligner_checkpoint = (
+        os.getenv("LYRICS_QWEN_FORCED_ALIGNER") or "Qwen/Qwen3-ForcedAligner-0.6B"
+    ).strip()
     use_aligner = bool(aligner_checkpoint)
     max_new_tokens = int(os.getenv("LYRICS_QWEN_MAX_NEW_TOKENS", "1024"))
 
@@ -466,7 +556,9 @@ def _transcribe_with_qwen3(
         model_kwargs["forced_aligner"] = aligner_checkpoint
         model_kwargs["forced_aligner_kwargs"] = {
             "dtype": qwen_dtype,
-            "device_map": resolved_device if _is_cuda_device(resolved_device) else "cpu",
+            "device_map": (
+                resolved_device if _is_cuda_device(resolved_device) else "cpu"
+            ),
         }
 
     activity_started = False
@@ -500,8 +592,13 @@ def _transcribe_with_qwen3(
             provider="qwen3",
             elapsed_ms=round((perf_counter() - transcribe_started_at) * 1000, 1),
         )
-    except Exception:
-        logger.error("Qwen3 ASR transcription failed for %s", vocals_path, exc_info=True)
+    except Exception as exc:
+        # A full GPU isn't this song's fault: the task waits and tries again.
+        if is_cuda_out_of_memory(exc):
+            raise
+        logger.error(
+            "Qwen3 ASR transcription failed for %s", vocals_path, exc_info=True
+        )
         log_lyrics_event(song_id, "lyrics_asr_failed", provider="qwen3")
         return None
     finally:
@@ -518,7 +615,13 @@ def _transcribe_with_qwen3(
         return None
 
     text = _normalize_text(str(_read_object_value(primary_result, ["text"]) or ""))
-    language = _normalize_text(str(_read_object_value(primary_result, ["language"]) or transcription_language or "unknown"))
+    language = _normalize_text(
+        str(
+            _read_object_value(primary_result, ["language"])
+            or transcription_language
+            or "unknown"
+        )
+    )
     time_stamps = _read_object_value(primary_result, ["time_stamps", "timestamps"])
 
     segments = _segment_qwen_timestamps(time_stamps)
@@ -561,9 +664,15 @@ def transcribe_lyrics_from_vocals(
     resolved_provider = _resolve_asr_provider(provider)
     resolved_device = _resolve_alignment_device(device)
     transcription_language = (language or "").strip() or None
-    model_env_var = "LYRICS_QWEN_ASR_MODEL" if resolved_provider == "qwen3" else "LYRICS_ASR_MODEL"
-    default_model_name = "Qwen/Qwen3-ASR-1.7B" if resolved_provider == "qwen3" else "small"
-    resolved_model_name = (model_name or os.getenv(model_env_var) or default_model_name).strip() or default_model_name
+    model_env_var = (
+        "LYRICS_QWEN_ASR_MODEL" if resolved_provider == "qwen3" else "LYRICS_ASR_MODEL"
+    )
+    default_model_name = (
+        "Qwen/Qwen3-ASR-1.7B" if resolved_provider == "qwen3" else "small"
+    )
+    resolved_model_name = (
+        model_name or os.getenv(model_env_var) or default_model_name
+    ).strip() or default_model_name
 
     logger.info(
         "Transcribing vocals for song %s with %s ASR (language=%s, device=%s, model=%s, hf_cache=%s)",

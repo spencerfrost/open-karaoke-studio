@@ -1,10 +1,11 @@
-// frontend/src/hooks/useYoutubeMusic.ts
+// frontend/src/hooks/api/useYoutubeMusic.ts
+import { keepPreviousData } from "@tanstack/react-query";
 import { useApiQuery } from "./useApi";
 import {
   YoutubeMusicSearchResponse,
   YoutubeMusicArtistResponse,
-  YoutubeMusicAlbumTracksResponse,
-  YoutubeMusicAlbum,
+  YoutubeMusicAlbumResponse,
+  YoutubeMusicSong,
 } from "../../types/Youtube";
 
 export function useYoutubeMusicSearch(query: string, enabled: boolean = true) {
@@ -22,57 +23,59 @@ export function useYoutubeMusicSearch(query: string, enabled: boolean = true) {
   );
 }
 
-export function useYoutubeMusicArtist(
-  artistId: string | null,
-  limit: number = 12,
-  enabled: boolean = true,
-) {
-  return useApiQuery<
-    { data: YoutubeMusicArtistResponse; error: string | null },
-    ["youtube-music-artist", string, number]
-  >(
-    ["youtube-music-artist", artistId!, limit],
-    `youtube-music/artist/${artistId}?limit=${limit}`,
+/** Suggestions for a partly typed search. Keeps the last list while the next loads. */
+export function useYoutubeMusicSuggestions(text: string, enabled = true) {
+  return useApiQuery<string[], ["youtube-music-suggestions", string]>(
+    ["youtube-music-suggestions", text],
+    `youtube-music/suggestions?q=${encodeURIComponent(text)}`,
     {
-      enabled: enabled && !!artistId,
-      staleTime: 1000 * 60 * 15, // 15 minutes - artist data doesn't change often
-      retry: 1,
+      enabled: enabled && !!text,
+      staleTime: 1000 * 60 * 5,
+      placeholderData: keepPreviousData,
+      retry: false,
     },
   );
 }
 
-export function useYoutubeMusicArtistReleases(
+export function useYoutubeMusicArtist(artistId: string | null) {
+  return useApiQuery<
+    YoutubeMusicArtistResponse,
+    ["youtube-music-artist", string]
+  >(["youtube-music-artist", artistId!], `youtube-music/artist/${artistId}`, {
+    enabled: !!artistId,
+    staleTime: 1000 * 60 * 15, // 15 minutes - artist data doesn't change often
+    retry: 1,
+  });
+}
+
+/** Every one of the artist's popular songs, for "Show all popular songs". */
+export function useYoutubeMusicArtistSongs(
   artistId: string | null,
-  channelId: string | null,
-  params: string | null,
-  enabled: boolean = false,
+  enabled: boolean,
 ) {
   return useApiQuery<
-    { data: YoutubeMusicAlbum[]; error: string | null },
-    ["youtube-music-releases", string, string, string]
+    YoutubeMusicSong[],
+    ["youtube-music-artist-songs", string]
   >(
-    ["youtube-music-releases", artistId!, channelId!, params!],
-    `youtube-music/artist/${artistId}/releases?channel_id=${encodeURIComponent(channelId ?? "")}&params=${encodeURIComponent(params ?? "")}`,
+    ["youtube-music-artist-songs", artistId!],
+    `youtube-music/artist/${artistId}/songs`,
     {
-      enabled: enabled && !!artistId && !!channelId && !!params,
+      enabled: enabled && !!artistId,
       staleTime: 1000 * 60 * 15,
       retry: 1,
     },
   );
 }
 
-export function useYoutubeMusicAlbumTracks(
-  albumId: string | null,
-  enabled: boolean = true,
-) {
+export function useYoutubeMusicAlbum(albumId: string | null) {
   return useApiQuery<
-    { data: YoutubeMusicAlbumTracksResponse; error: string | null },
+    YoutubeMusicAlbumResponse,
     ["youtube-music-album", string]
   >(
     ["youtube-music-album", albumId!],
     `youtube-music/album/${albumId}/tracks`,
     {
-      enabled: enabled && !!albumId,
+      enabled: !!albumId,
       staleTime: 1000 * 60 * 15, // 15 minutes
       retry: 1,
     },

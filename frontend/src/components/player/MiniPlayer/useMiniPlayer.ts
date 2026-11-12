@@ -5,6 +5,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import { useIsPlayerPage } from "@/hooks/useIsPlayerPage";
 
 export function useMiniPlayer() {
@@ -27,7 +28,25 @@ export function useMiniPlayer() {
     userPause,
     setMiniPlayerPosition,
     dismissMiniPlayer,
-  } = useKaraokePlayerStore();
+  } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      songId: s.songId,
+      songTitle: s.songTitle,
+      songArtist: s.songArtist,
+      isPlaying: s.isPlaying,
+      isReady: s.isReady,
+      songEnded: s.songEnded,
+      currentTime: s.currentTime,
+      duration: s.duration,
+      miniPlayerEnabled: s.miniPlayerEnabled,
+      miniPlayerPosition: s.miniPlayerPosition,
+      miniPlayerDismissed: s.miniPlayerDismissed,
+      userPlay: s.userPlay,
+      userPause: s.userPause,
+      setMiniPlayerPosition: s.setMiniPlayerPosition,
+      dismissMiniPlayer: s.dismissMiniPlayer,
+    })),
+  );
 
   // Determine if mini-player should be visible
   // Only show when song is actively playing, not when ended

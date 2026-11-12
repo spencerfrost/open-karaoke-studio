@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+
 from app.exceptions import ServiceError
 from app.services.lyrics_service import LyricsService
 
@@ -113,10 +114,12 @@ class TestLyricsService:
         mock_get.return_value = mock_response
 
         # Act
-        results = lyrics_service.search_lyrics_structured({
-            "track_name": "Test Song",
-            "artist_name": "Test Artist",
-        })
+        results = lyrics_service.search_lyrics_structured(
+            {
+                "track_name": "Test Song",
+                "artist_name": "Test Artist",
+            }
+        )
 
         # Assert
         assert len(results) == 1
@@ -159,11 +162,11 @@ class TestLyricsService:
         mock_response_error = Mock()
         mock_response_error.status_code = 500
         mock_response_error.json.return_value = {"error": "Internal server error"}
-        
+
         mock_response_success = Mock()
         mock_response_success.status_code = 200
         mock_response_success.json.return_value = [{"id": 1, "trackName": "Test"}]
-        
+
         mock_get.side_effect = [mock_response_error, mock_response_success]
 
         # Act

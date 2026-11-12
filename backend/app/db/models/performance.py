@@ -3,10 +3,10 @@
 Performance history model - records every song that starts playing.
 """
 
-from datetime import datetime
-
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
+from app.utils.clock import utc_now
 
 from .base import Base
 
@@ -34,7 +34,7 @@ class PerformanceHistory(Base):
     user_id = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    performed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    performed_at = Column(DateTime, default=utc_now, nullable=False)
 
     song = relationship("DbSong")
     session = relationship("KaraokeSession")

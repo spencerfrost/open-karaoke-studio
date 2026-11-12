@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web app's retro palette -->
+    <color name="background">#402512</color>
+    <color name="surface">#2a180c</color>
+    <color name="foreground">#f5f3c7</color>
+    <color name="foreground_dim">#a6f5f3c7</color>
+    <color name="primary">#fd9a02</color>
+    <color name="primary_foreground">#080705</color>
+</resources>

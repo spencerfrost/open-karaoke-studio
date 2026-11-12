@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
@@ -14,7 +13,6 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({
   song,
   onDone,
 }) => {
-  const { token } = useAuthStore();
   const [file, setFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -25,20 +23,11 @@ export const UploadReplacePanel: React.FC<ReplacePanelProps> = ({
   };
 
   const validateMutation = useMutation({
-    mutationFn: async (audioFile: File) => {
-      const formData = new FormData();
-      formData.append("audio_file", audioFile);
-      const res = await fetch(
-        `/api/songs/${song.id}/validate-upload-replacement`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        },
-      );
-      if (!res.ok) throw new Error("Validation request failed");
-      return res.json() as Promise<ValidationResult>;
-    },
+    mutationFn: (audioFile: File) =>
+      uploadFile<ValidationResult>(
+        `songs/${song.id}/validate-upload-replacement`,
+        audioFile,
+      ),
     onSuccess: (result) => setValidation(result),
     onError: (e: Error) => toast.error(e.message),
   });

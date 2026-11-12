@@ -5,7 +5,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { jobsWebSocketService } from "../../services/jobsWebSocketService";
-import { SongProcessingStatus, SongStatus } from "../../types/Song";
+import {
+  JOB_STEPS,
+  JobStep,
+  SongProcessingStatus,
+  SongStatus,
+} from "../../types/Song";
 
 interface JobData {
   id: string;
@@ -23,6 +28,14 @@ interface JobData {
   artist?: string;
   title?: string;
   engine_type?: string;
+  step?: string | null;
+  owner_tag?: string | null;
+}
+
+function parseStep(step: string | null | undefined): JobStep | null {
+  return (JOB_STEPS as readonly string[]).includes(step ?? "")
+    ? (step as JobStep)
+    : null;
 }
 
 /**
@@ -59,6 +72,9 @@ function mapJobToProcessingStatus(job: JobData): SongProcessingStatus {
     artist: job.artist,
     title: job.title,
     engineType: job.engine_type,
+    step: parseStep(job.step),
+    ownerTag: job.owner_tag ?? null,
+    createdAt: job.created_at,
   };
 }
 
@@ -71,6 +87,16 @@ export function useJobsWebSocket() {
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const cleanupFunctionsRef = useRef<(() => void)[]>([]);
+
+  // A song added or finished changes every view of the library, not just the
+  // flat song lists: the stage songbook browses by artist (and show), and
+  // those queries are cached for minutes, so they must be refreshed here too.
+  const invalidateLibrary = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["songs"] });
+    queryClient.invalidateQueries({ queryKey: ["artists"] });
+    queryClient.invalidateQueries({ queryKey: ["artist-songs"] });
+    queryClient.invalidateQueries({ queryKey: ["show-songs"] });
+  }, [queryClient]);
 
   // Update job in the list
   const updateJob = useCallback(
@@ -116,15 +142,20 @@ export function useJobsWebSocket() {
         processedJob.status === "processed" ||
         processedJob.status === "error"
       ) {
-        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        invalidateLibrary();
         if (jobData.song_id) {
           queryClient.invalidateQueries({
             queryKey: ["songs", jobData.song_id],
           });
+          // Word timings are cached apart from the song, and a lyrics job
+          // (a report's fix, a re-align) changes them along with the text.
+          queryClient.invalidateQueries({
+            queryKey: ["lyrics", jobData.song_id],
+          });
         }
       }
     },
-    [queryClient],
+    [queryClient, invalidateLibrary],
   );
 
   // Remove job from the list
@@ -151,10 +182,13 @@ export function useJobsWebSocket() {
         const newJobIds = new Set(processingJobs.map((j) => j.id));
         const completedJobs = prevJobs.filter((j) => !newJobIds.has(j.id));
         if (completedJobs.length > 0) {
-          queryClient.invalidateQueries({ queryKey: ["songs"] });
+          invalidateLibrary();
           completedJobs.forEach((j) => {
             if (j.song_id) {
               queryClient.invalidateQueries({ queryKey: ["songs", j.song_id] });
+              queryClient.invalidateQueries({
+                queryKey: ["lyrics", j.song_id],
+              });
             }
           });
         }
@@ -162,15 +196,15 @@ export function useJobsWebSocket() {
       });
       setError(null);
     },
-    [queryClient],
+    [queryClient, invalidateLibrary],
   );
 
   const handleJobCreated = useCallback(
     (jobData: JobData) => {
       updateJob(jobData);
-      queryClient.invalidateQueries({ queryKey: ["songs"] });
+      invalidateLibrary();
     },
-    [updateJob, queryClient],
+    [updateJob, invalidateLibrary],
   );
 
   // Poll for progress updates while jobs are actively processing

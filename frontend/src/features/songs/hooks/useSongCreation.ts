@@ -1,164 +1,126 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useSongs } from "@/hooks/api/useSongs";
-import { useYoutubeDownloadMutation } from "@/hooks/api/useYoutube";
+import { apiSend } from "@/hooks/api/useApi";
 import { createLogger } from "@/lib/logger";
+import type { ArtistCredit } from "@/types/Youtube";
 
 const logger = createLogger("hook:song-creation");
 
-// Generic song input interface for both YouTube sources
+/** A YouTube or YouTube Music song to add, as POST /songs/from-youtube takes it. */
 export interface SongInput {
-  title: string;
-  artist: string;
-  album?: string;
   videoId: string;
+  title: string;
+  /** Every credited artist, primary first, with their YouTube Music id. */
+  artists: ArtistCredit[];
+  album?: string | null;
+  durationSeconds?: number | null;
   source: "youtube" | "youtube_music";
-  url: string;
-  duration?: number; // seconds
-  thumbnail: string;
-  startTime?: number;
-  endTime?: number;
-  lyrics?: string;
 }
 
-export type SongSubmissionStatus = "idle" | "pending" | "queued";
+interface AddSongResponse {
+  songId: string;
+  jobId: string;
+  /** True when this restarted the song's failed copy instead of adding one. */
+  restarted: boolean;
+}
 
+/** What this page has done with a song: its request is in flight, or it's added. */
+export type SongSubmission =
+  | { status: "adding" }
+  | { status: "added"; songId: string };
+
+// Surface the backend's message (e.g. demo download limits, "already in the
+// songbook") when it's a real user-facing string; fall back for opaque errors.
+const addSongErrorMessage = (error: unknown): string => {
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.startsWith("HTTP error!")
+  ) {
+    return error.message;
+  }
+  return "Couldn't add that song. Try again.";
+};
+
+/**
+ * Adds songs from YouTube in one request each, and remembers what this page
+ * submitted so a row's button reflects it right away.
+ *
+ * The server restarts a song's failed copy instead of adding a duplicate, so
+ * there's nothing to decide here; a second tap while the first is in flight
+ * is ignored.
+ */
 export const useSongCreation = () => {
-  const [submissionStates, setSubmissionStates] = useState<
-    Record<string, "pending" | "queued">
+  const [submissions, setSubmissions] = useState<
+    Record<string, SongSubmission>
   >({});
-  const inFlightVideoIdRef = useRef<string | null>(null);
+  // Read synchronously, so a double tap can't slip past a pending state update.
+  const inFlightRef = useRef(new Set<string>());
+  const queryClient = useQueryClient();
 
-  const { useCreateSong } = useSongs();
-  const createSongMutation = useCreateSong();
+  const addSong = useCallback(
+    async (song: SongInput): Promise<string | null> => {
+      if (inFlightRef.current.has(song.videoId)) return null;
+      inFlightRef.current.add(song.videoId);
+      setSubmissions((current) => ({
+        ...current,
+        [song.videoId]: { status: "adding" },
+      }));
 
-  const youtubeDownloadMutation = useYoutubeDownloadMutation({
-    onError: (error) => {
-      logger.error("Error queueing song download:", error);
-    },
-  });
+      try {
+        const result = await apiSend<
+          AddSongResponse,
+          {
+            video_id: string;
+            title: string;
+            artists: ArtistCredit[];
+            album: string | null;
+            duration: number | null;
+            source: SongInput["source"];
+          }
+        >("songs/from-youtube", "post", {
+          video_id: song.videoId,
+          title: song.title,
+          artists: song.artists,
+          album: song.album ?? null,
+          duration: song.durationSeconds ?? null,
+          source: song.source,
+        });
+        logger.debug("Song added", { videoId: song.videoId, ...result });
 
-  const downloadFromYouTube = (songId: string, song: SongInput) => {
-    logger.debug("Queueing backend processing request", {
-      songId,
-      videoId: song.videoId,
-      title: song.title,
-      source: song.source,
-    });
-
-    return youtubeDownloadMutation.mutateAsync({
-      song_id: songId,
-      video_id: song.videoId,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      engine_type: "three_track",
-    });
-  };
-
-  const createSong = (song: SongInput) => {
-    const existingState = submissionStates[song.videoId];
-    logger.debug("createSong invoked", {
-      videoId: song.videoId,
-      title: song.title,
-      source: song.source,
-      existingState,
-      inFlightVideoId: inFlightVideoIdRef.current,
-    });
-
-    if (existingState === "queued") {
-      logger.debug("Ignoring duplicate song submission after song was queued", {
-        videoId: song.videoId,
-      });
-      return Promise.resolve(null);
-    }
-
-    if (
-      inFlightVideoIdRef.current === song.videoId ||
-      existingState === "pending"
-    ) {
-      logger.debug(
-        "Ignoring duplicate song submission while request is in flight",
-        {
-          videoId: song.videoId,
-        },
-      );
-      return Promise.resolve(null);
-    }
-
-    inFlightVideoIdRef.current = song.videoId;
-    setSubmissionStates((current) => ({
-      ...current,
-      [song.videoId]: "pending",
-    }));
-    logger.debug("Marked song as pending in local submission state", {
-      videoId: song.videoId,
-    });
-
-    const songData = {
-      title: song.title,
-      artist: song.artist,
-      album: song.album || "",
-      duration: song.duration,
-      source: song.source,
-      video_id: song.videoId,
-    };
-
-    return createSongMutation
-      .mutateAsync(songData)
-      .then(async (createdSong) => {
-        logger.debug("Song created successfully:", createdSong);
-
-        await downloadFromYouTube(createdSong.id, song);
-        setSubmissionStates((current) => ({
+        setSubmissions((current) => ({
           ...current,
-          [song.videoId]: "queued",
+          [song.videoId]: { status: "added", songId: result.songId },
         }));
-        logger.debug("Marked song as queued in local submission state", {
-          videoId: song.videoId,
-          songId: createdSong.id,
+        toast.success(
+          result.restarted
+            ? "Trying that song again"
+            : "Added to the songbook. Getting it ready…",
+        );
+        queryClient.invalidateQueries({ queryKey: ["songs"] });
+        return result.songId;
+      } catch (error) {
+        logger.error("Error adding song:", error);
+        setSubmissions((current) => {
+          const next = { ...current };
+          delete next[song.videoId];
+          return next;
         });
-        toast.success("Added to library and queued for processing");
+        toast.error(addSongErrorMessage(error));
+        return null;
+      } finally {
+        inFlightRef.current.delete(song.videoId);
+      }
+    },
+    [queryClient],
+  );
 
-        return createdSong;
-      })
-      .catch((error) => {
-        logger.error("Error creating song:", error);
-        setSubmissionStates((current) => {
-          const nextState = { ...current };
-          delete nextState[song.videoId];
-          return nextState;
-        });
-        logger.debug("Cleared local submission state after failure", {
-          videoId: song.videoId,
-        });
-        throw error;
-      })
-      .finally(() => {
-        inFlightVideoIdRef.current = null;
-        logger.debug("Reset transient add-song state", {
-          videoId: song.videoId,
-        });
-      });
-  };
+  const getSubmission = useCallback(
+    (videoId: string | null | undefined): SongSubmission | undefined =>
+      videoId ? submissions[videoId] : undefined,
+    [submissions],
+  );
 
-  const getSubmissionStatus = (videoId: string): SongSubmissionStatus => {
-    const state = submissionStates[videoId];
-    if (state === "pending" || state === "queued") {
-      return state;
-    }
-    return "idle";
-  };
-
-  return {
-    // State
-    submissionStates,
-    getSubmissionStatus,
-
-    // Actions
-    createSong,
-
-    // Mutations
-    createSongMutation,
-  };
+  return { addSong, getSubmission };
 };

@@ -3,12 +3,12 @@
  * currently owned by this browser.
  *
  * Deliberately lives in Settings, not on the stage/TV screen or in
- * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen) -
- * see docs/plans/archive/2026-08-29-roster-and-rotation.md's open decisions. Only
- * ever shown to the session owner; a performer's phone never sees it.
+ * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen),
+ * so a performer glancing at the TV never sees host controls. Only ever shown to the session owner; a performer's phone never sees it.
  */
 
 import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSetQueueOrderMode } from "@/hooks/api/useQueueOrderMode";
@@ -41,27 +41,31 @@ const RotationModeCard: React.FC = () => {
   };
 
   return (
-    <div className="bg-card text-card-foreground shadow-lg border border-border overflow-hidden mb-4 p-4 rounded-lg">
-      <h2 className="text-xl mb-3">Queue Order</h2>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="font-medium">
-            {isRotation ? "Rotation" : "Append"}
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-xl">Queue Order</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-medium">
+              {isRotation ? "Rotation" : "Append"}
+            </div>
+            <p className="text-sm opacity-75">
+              {isRotation
+                ? "Turns alternate fairly between everyone singing."
+                : "Songs play in the order they were added."}
+            </p>
           </div>
-          <p className="text-sm opacity-75">
-            {isRotation
-              ? "Turns alternate fairly between everyone singing."
-              : "Songs play in the order they were added."}
-          </p>
+          <Switch
+            checked={isRotation}
+            disabled={setMode.isPending}
+            onCheckedChange={handleToggle}
+            aria-label="Toggle rotation queue ordering"
+          />
         </div>
-        <Switch
-          checked={isRotation}
-          disabled={setMode.isPending}
-          onCheckedChange={handleToggle}
-          aria-label="Toggle rotation queue ordering"
-        />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

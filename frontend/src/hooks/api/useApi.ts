@@ -33,7 +33,7 @@ export function handleUnauthorized(response: Response): void {
 }
 
 // --- Helper function for GET requests ---
-const apiGet = async <T>(url: string): Promise<T> => {
+export const apiGet = async <T>(url: string): Promise<T> => {
   const response = await fetch(`/api/${url}`, {
     headers: { ...getAuthHeaders() },
     credentials: "include",

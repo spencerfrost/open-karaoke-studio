@@ -47,8 +47,16 @@ def test_idle_cleanup_releases_cached_cuda_memory(monkeypatch):
     collect = Mock()
 
     monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "is_available", lambda: True)
-    monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "memory_reserved", Mock(side_effect=[512 * 1024 * 1024, 128 * 1024 * 1024]))
-    monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "memory_allocated", Mock(side_effect=[256 * 1024 * 1024, 64 * 1024 * 1024]))
+    monkeypatch.setattr(
+        gpu_idle_cleanup.torch.cuda,
+        "memory_reserved",
+        Mock(side_effect=[512 * 1024 * 1024, 128 * 1024 * 1024]),
+    )
+    monkeypatch.setattr(
+        gpu_idle_cleanup.torch.cuda,
+        "memory_allocated",
+        Mock(side_effect=[256 * 1024 * 1024, 64 * 1024 * 1024]),
+    )
     monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "empty_cache", empty_cache)
     monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "ipc_collect", ipc_collect)
     monkeypatch.setattr(gpu_idle_cleanup.gc, "collect", collect)
@@ -59,7 +67,9 @@ def test_idle_cleanup_releases_cached_cuda_memory(monkeypatch):
     gpu_idle_cleanup._cleanup_generation = 7
     gpu_idle_cleanup._cleanup_timer = SimpleNamespace(cancel=lambda: None)
 
-    gpu_idle_cleanup._run_idle_cleanup_if_still_idle(expected_generation=7, timeout_seconds=30)
+    gpu_idle_cleanup._run_idle_cleanup_if_still_idle(
+        expected_generation=7, timeout_seconds=30
+    )
 
     collect.assert_called_once()
     empty_cache.assert_called_once()

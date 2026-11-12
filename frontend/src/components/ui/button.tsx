@@ -16,13 +16,17 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border border-primary text-primary shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-primary text-primary shadow-xs hover:bg-primary hover:text-primary-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         "outline-dark":
           "border border-secondary text-secondary bg-transparent shadow-xs hover:bg-secondary/10",
+        // Outline in the page's text color, for buttons sitting on the page
+        // background rather than on a card.
+        "outline-foreground":
+          "border-2 border-foreground text-foreground bg-transparent hover:bg-surface-hover",
         ghost: "text-primary hover:bg-primary/20",
         icon: "text-primary hover:bg-primary/20 rounded-full",
         link: "text-primary underline-offset-4 hover:underline",
-        pill: "rounded-full bg-primary/20 text-accent-foreground hover:bg-primary/70",
+        pill: "rounded-full bg-primary/20 text-foreground hover:bg-primary/70",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -34,6 +38,10 @@ const buttonVariants = cva(
         "icon-sm": "size-8",
         "icon-lg": "size-10",
         auto: "h-auto px-4 py-3",
+        // A row's action, at a comfortable touch height
+        touch: "h-11 rounded-lg px-4 text-base font-semibold has-[>svg]:px-3",
+        // A screen's one main action, full width on a phone
+        xl: "h-14 rounded-xl px-6 text-lg font-bold has-[>svg]:px-5",
       },
     },
     defaultVariants: {

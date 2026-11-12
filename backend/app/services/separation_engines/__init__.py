@@ -11,10 +11,10 @@ This package provides multiple separation engine implementations:
 - three_track_mel1143: Three-track with Mel-Roformer-Viperx-1143 for vocal split
 """
 
-from .demucs_standard import separate_with_demucs
 from .audio_sep_roformer import separate_with_roformer
-from .hybrid_sequential import separate_with_hybrid
 from .clean_backing import separate_with_clean_backing
+from .demucs_standard import separate_with_demucs
+from .hybrid_sequential import separate_with_hybrid
 from .three_track import separate_with_three_track
 from .three_track_duality_v2 import separate_with_three_track_duality_v2
 from .three_track_mel1143 import separate_with_three_track_mel1143

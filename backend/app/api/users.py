@@ -5,14 +5,14 @@ FastAPI router for user management endpoints.
 import logging
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.api.dependencies import get_current_user, get_db, require_admin
 from app.db.models import User
 from app.limiter import limiter
 from app.services.auth_service import create_access_token
-from app.services.demo_service import DEMO_TOKEN_EXPIRE_MINUTES, resolve_demo_login
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ class LoginResponse(BaseModel):
     token: str
     is_admin: bool = False
     is_host: bool = False
+    is_demo: bool = False
 
 
 class UpdateResponse(BaseModel):
@@ -81,7 +82,7 @@ class UserListItem(BaseModel):
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 @limiter.limit("3/minute")
-async def register_user(
+def register_user(
     request: Request, body: RegisterUserRequest, db: Session = Depends(get_db)
 ):
     """Register a new user."""
@@ -109,25 +110,9 @@ async def register_user(
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
-async def login_user(
-    request: Request, body: LoginUserRequest, db: Session = Depends(get_db)
-):
+def login_user(request: Request, body: LoginUserRequest, db: Session = Depends(get_db)):
     """Log in a user."""
     try:
-        demo_user = resolve_demo_login(db, body.username, body.password)
-        if demo_user is not None:
-            token = create_access_token(
-                demo_user, expires_minutes=DEMO_TOKEN_EXPIRE_MINUTES
-            )
-            return LoginResponse(
-                success=True,
-                id=str(demo_user.id),
-                display_name=demo_user.display_name,
-                token=token,
-                is_admin=False,
-                is_host=True,
-            )
-
         user = db.query(User).filter(User.username == body.username).first()
 
         if not user or not user.check_password(body.password):
@@ -142,6 +127,7 @@ async def login_user(
             token=token,
             is_admin=user.is_admin,
             is_host=user.is_host,
+            is_demo=bool(user.is_demo),
         )
 
     except HTTPException:
@@ -152,7 +138,7 @@ async def login_user(
 
 
 @router.patch("/{user_id}", response_model=UpdateResponse)
-async def update_user(
+def update_user(
     user_id: int,
     body: UpdateUserRequest,
     db: Session = Depends(get_db),
@@ -202,7 +188,7 @@ async def update_user(
 
 
 @router.get("", response_model=List[UserListItem])
-async def list_users(
+def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -221,7 +207,7 @@ async def list_users(
 
 
 @router.post("/{user_id}/set-host", response_model=UpdateResponse)
-async def set_user_host(
+def set_user_host(
     user_id: int,
     is_host: bool,
     db: Session = Depends(get_db),

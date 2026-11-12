@@ -1,0 +1,297 @@
+{
+ "0fe64307-5c14-4c87-8959-4562121517fb": {
+  "A♯2@47.83": "no_note",
+  "A6@84.92": "not_singer",
+  "kind": "rapped"
+ },
+ "1a43ea4a-ecc2-4b94-9bb3-bde8131bc71d": {
+  "kind": "sung",
+  "A♯5@16.02": "not_singer",
+  "C♯6@88.40": "not_singer"
+ },
+ "59eb76d6-1bdc-40c2-adf7-5cb0baceabb0": {
+  "C♯5@40.17": "not_singer",
+  "kind": "instrumental",
+  "A♯6@26.63": "not_singer"
+ },
+ "279df80f-5091-46b7-a479-4a75952c84fd": {
+  "kind": "sung",
+  "C♯4@97.06": "right",
+  "B5@109.60": "cant_tell",
+  "E4@156.06": "right"
+ },
+ "8f122f1d-91bf-4e5a-a775-729d917a518e": {
+  "kind": "mixed",
+  "C♯3@17.37": "no_note",
+  "D♯6@37.89": "not_singer"
+ },
+ "test-thumbnail-auto": {
+  "kind": "sung",
+  "G♯3@65.34": "right",
+  "A♯3@150.84": "right",
+  "A6@131.73": "not_singer",
+  "F4@205.94": "right"
+ },
+ "75b51054-91cb-4126-867b-8604e4eb144e": {
+  "kind": "mixed",
+  "A3@191.43": "right",
+  "A3@192.05": "right",
+  "A3@51.18": "right",
+  "E3@24.33": "no_note",
+  "E3@222.87": "no_note",
+  "E3@233.50": "no_note"
+ },
+ "1e8e8a75-6e79-4f2a-92a4-2acfeaaf861a": {
+  "A3@28.93": "right",
+  "E4@72.70": "right",
+  "A6@149.49": "not_singer",
+  "kind": "sung"
+ },
+ "5eb1a67a-a611-42bf-89dc-90af23fe5e9f": {
+  "A♯3@332.83": "not_singer",
+  "A♯6@259.90": "not_singer",
+  "kind": "sung"
+ },
+ "3ddd8ad1-5eec-40cd-804e-38651d736567": {
+  "E4@50.34": "right",
+  "kind": "sung",
+  "F6@69.87": "not_singer",
+  "C4@56.96": "right"
+ },
+ "f7982879-5f8a-4547-97d2-d13375a7b05b": {
+  "kind": "sung",
+  "C4@196.42": "right",
+  "C4@189.31": "right",
+  "G♯6@140.62": "not_singer",
+  "A4@163.47": "right",
+  "A4@206.31": "right"
+ },
+ "a9abae83-95fa-425d-ad8f-d66f2b22f76a": {
+  "kind": "sung",
+  "F3@35.87": "right",
+  "F3@25.52": "not_singer",
+  "A5@214.78": "octave_high",
+  "A5@214.81": "octave_high"
+ },
+ "5d96d589-5cb6-49f4-aea1-06b67e0053cc": {
+  "kind": "sung",
+  "F♯3@25.82": "right",
+  "A3@36.87": "right",
+  "F♯6@63.74": "not_singer",
+  "B4@42.66": "right"
+ },
+ "f5f53366-d7c0-4eba-9fe6-968da26f3830": {
+  "kind": "sung",
+  "F♯3@80.46": "right",
+  "F♯3@80.53": "right",
+  "D6@223.86": "not_singer",
+  "G♯4@292.78": "not_singer",
+  "F4@288.58": "not_singer"
+ },
+ "caac2ad4-8731-4b1f-a402-7a43bc37da73": {
+  "A3@87.33": "cant_tell",
+  "kind": "sung",
+  "G♯6@174.75": "not_singer",
+  "E5@157.01": "right"
+ },
+ "8f2b173b-9224-4f99-87b4-08e47bdd2e3e": {
+  "C♯3@8.54": "not_singer",
+  "F♯5@159.80": "not_singer",
+  "kind": "sung"
+ },
+ "2ba9697c-78cd-4a2e-90f2-91c3cf563c11": {
+  "kind": "sung",
+  "F3@17.76": "right",
+  "F3@22.83": "right",
+  "A♯4@64.16": "right",
+  "C♯6@208.10": "not_singer"
+ },
+ "9ec6a6a3-278e-402f-99f1-de72a5400b3d": {
+  "kind": "sung",
+  "E3@51.32": "right",
+  "B5@135.91": "not_singer",
+  "E3@76.95": "right",
+  "G♯5@94.37": "octave_high",
+  "B4@127.48": "right"
+ },
+ "3cfa92a9-8698-4ccd-ada6-bf31aa587069": {
+  "E3@41.68": "cant_tell",
+  "D♯6@74.30": "not_singer",
+  "kind": "sung",
+  "D4@283.03": "right"
+ },
+ "307360fa-e9f6-49d5-9a69-aa4fe2d4e343": {
+  "A♯3@114.13": "cant_tell",
+  "F3@130.29": "octave_low",
+  "C♯6@50.92": "octave_high",
+  "F♯4@55.54": "wrong_note",
+  "kind": "sung",
+  "F♯4@63.88": "wrong_note"
+ },
+ "653f4124-f93d-4a6d-9d26-a1f90da39b23": {
+  "B3@185.74": "right",
+  "G3@206.50": "wrong_note",
+  "B5@169.51": "octave_high",
+  "B5@169.58": "octave_high",
+  "kind": "sung",
+  "B5@169.55": "octave_high"
+ },
+ "cc4a5f3f-c609-4e57-9f32-5cad7c2a00d3": {
+  "kind": "sung",
+  "G3@145.73": "not_singer",
+  "E4@211.74": "not_singer",
+  "A4@49.37": "not_singer",
+  "D6@213.95": "not_singer"
+ },
+ "71d92608-fcb4-46b8-b57c-e42bdfdc24a4": {
+  "A3@37.57": "right",
+  "E4@74.30": "right",
+  "F6@32.07": "not_singer",
+  "A♯4@188.69": "not_singer",
+  "kind": "sung"
+ },
+ "6b962017-abfe-426e-be08-60d4ee4aba7e": {
+  "A2@58.31": "right",
+  "D3@64.25": "right",
+  "C♯5@98.80": "right",
+  "E4@121.09": "right",
+  "kind": "sung"
+ },
+ "ec0bbebf-94f8-4564-a932-f0529bea93fd": {
+  "D♯4@8.06": "wrong_note",
+  "C♯4@145.03": "cant_tell",
+  "A6@213.37": "not_singer",
+  "kind": "sung",
+  "D♯5@8.06": "wrong_note"
+ },
+ "183abe0e-6842-407b-a4e8-5b9b9f2960aa": {
+  "C4@73.79": "not_singer",
+  "F6@154.88": "not_singer",
+  "kind": "sung"
+ },
+ "3de7983d-dd7c-4e67-9ffd-3fbe39048477": {
+  "F3@122.58": "cant_tell",
+  "B6@205.31": "not_singer",
+  "kind": "sung"
+ },
+ "a1d2625f-59b8-4461-ac50-02c407ad1f41": {
+  "A♯2@26.10": "right",
+  "C♯3@37.34": "not_singer",
+  "A♯3@24.20": "not_singer",
+  "D5@102.42": "not_singer",
+  "kind": "sung"
+ },
+ "94b05f76-b9b8-45ec-9904-91be158ea693": {
+  "kind": "mixed",
+  "F3@23.31": "cant_tell",
+  "D6@53.96": "cant_tell"
+ },
+ "d224f25a-6389-458b-818f-422fcd2df4ac": {
+  "D3@160.12": "right",
+  "F♯6@218.22": "not_singer",
+  "F♯6@219.52": "not_singer",
+  "kind": "mixed"
+ },
+ "4e906c38-174f-47e5-80f8-760b3d41dd54": {
+  "A2@67.22": "no_note",
+  "A2@45.00": "no_note",
+  "D5@254.26": "no_note",
+  "A2@212.83": "no_note",
+  "kind": "rapped"
+ },
+ "ec6942f7-ad62-4209-9c9a-961869381b5d": {
+  "C3@22.43": "wrong_note",
+  "D♯4@43.56": "cant_tell",
+  "B5@41.52": "screamed",
+  "B4@170.97": "not_singer",
+  "B5@49.83": "screamed",
+  "B4@175.01": "not_singer",
+  "kind": "sung"
+ },
+ "f7d3262e-4235-4ce5-a40f-ffa4e510d994": {
+  "kind": "mixed",
+  "F♯3@51.27": "no_note",
+  "F6@69.33": "no_note"
+ },
+ "7638cf8d-d01c-44c3-8e9f-0a25a743aeab": {
+  "kind": "sung",
+  "F♯3@104.16": "right",
+  "F♯3@144.17": "not_singer",
+  "B5@60.77": "not_singer",
+  "D4@164.26": "right"
+ },
+ "1b3faaa5-b280-4768-8327-5d373a0ef945": {
+  "kind": "sung",
+  "E3@35.34": "cant_tell",
+  "D3@45.77": "right",
+  "G5@242.56": "octave_high"
+ },
+ "68d201b9-ce9b-4d85-b87a-80f16e4f068a": {
+  "C♯3@28.79": "right",
+  "G♯5@59.77": "cant_tell",
+  "D5@125.36": "octave_high",
+  "kind": "sung",
+  "D♯4@54.43": "no_note"
+ },
+ "80af62dc-9d58-4e3d-8500-fab5e8c74b0b": {
+  "G3@127.66": "not_singer",
+  "G3@127.41": "not_singer",
+  "D6@249.45": "not_singer",
+  "D6@249.27": "not_singer",
+  "G3@222.68": "not_singer",
+  "kind": "sung",
+  "F♯4@243.81": "right"
+ },
+ "3f7d21b3-0b5f-4b3a-9ea6-371a41095a68": {
+  "kind": "rapped",
+  "D♯3@23.45": "no_note",
+  "B5@181.65": "cant_tell"
+ },
+ "ab7b37b4-22ff-4031-859c-7602ddbc3f7d": {
+  "kind": "sung",
+  "D3@34.37": "right",
+  "D3@34.55": "right",
+  "A5@199.78": "octave_high",
+  "G♯5@251.50": "not_singer",
+  "A5@206.45": "octave_high"
+ },
+ "f92b6c5a-297d-4858-ad96-932cd4c42ea1": {
+  "E3@60.53": "right",
+  "A5@193.79": "octave_high",
+  "kind": "sung"
+ },
+ "9d54da14-ac25-4209-ae4a-10062c9a4cf3": {
+  "kind": "mixed"
+ },
+ "b6722754-d42e-4773-8a28-c5bdf1e80f58": {
+  "kind": "sung",
+  "A♯3@144.73": "cant_tell",
+  "C♯5@28.54": "right"
+ },
+ "7b0f6c2e-dfec-4d61-ad84-fb8a48274ef9": {
+  "kind": "mixed"
+ },
+ "4bc5ac7a-f849-46a1-8d4e-13368218f6bf": {
+  "C3@252.89": "right",
+  "E5@271.46": "octave_high",
+  "kind": "sung"
+ },
+ "7f8df30e-427d-4550-8f89-d0839346de78": {
+  "A3@159.34": "wrong_note",
+  "D4@100.68": "right",
+  "kind": "mixed"
+ },
+ "af4bfed5-7d55-4196-9ba3-7bbb3511692b": {
+  "C3@23.99": "right",
+  "A5@186.60": "octave_high",
+  "kind": "sung"
+ },
+ "c4eb5b46-3949-4d56-bf38-a83d7bfe9723": {
+  "E3@12.68": "right",
+  "kind": "sung",
+  "A4@107.95": "right"
+ },
+ "fe84fe3e-35ae-4658-8633-12d0075073d8": {
+  "D3@68.71": "right"
+ }
+}

@@ -5,7 +5,7 @@ Pydantic Schemas for Song objects.
 from datetime import datetime
 from typing import Any, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # Pydantic Models for Songs
@@ -18,6 +18,31 @@ class SongArtistRef(BaseModel):
     id: int
     name: str
     role: str  # 'primary' | 'featured'
+    # The name as this recording prints it, when it differs from `name`
+    creditedAs: Optional[str] = None
+
+
+class SongArtistCredit(BaseModel):
+    """One artist credit a person sets: on a song, or splitting a collab."""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    role: Literal["primary", "featured"]
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Artist name cannot be empty")
+        return v
+
+
+class AcoustIdSuggestion(BaseModel):
+    """The recording AcoustID found when it named the song differently."""
+
+    recordingId: str
+    title: Optional[str] = None
+    artist: Optional[str] = None
 
 
 class SongResponse(BaseModel):
@@ -29,27 +54,33 @@ class SongResponse(BaseModel):
     duration: Optional[float] = None
     dateAdded: Optional[datetime] = None
 
+    # Only three-track songs have a separate backing vocal stem
+    backingVocalPath: Optional[str] = None
     thumbnail: Optional[str] = None
 
     # Source
     source: Optional[str] = None
     sourceUrl: Optional[str] = None
     videoId: Optional[str] = None
+    # The video's picture is the album cover (an album track upload)
+    videoIsAlbumArt: Optional[bool] = None
 
     # Metadata
     album: Optional[str] = None
     releaseDate: Optional[str] = None
     year: Optional[int] = None
     showName: Optional[str] = None  # Musical/soundtrack, e.g. "Wicked"
+    language: Optional[str] = None  # Sung language, Whisper code ("en", "fr")
     # Lyrics
+    # A person saved the lyrics; automatic runs only time them
+    lyricsHandPicked: bool = False
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
     wordSyncedLyrics: Optional[str] = None
 
-    # iTunes metadata
-    itunesTrackId: Optional[int] = None
-    itunesExplicit: Optional[bool] = None
-    itunesPreviewUrl: Optional[str] = None  # 30-sec preview for song identification
+    explicit: Optional[bool] = None
+    # A person set the album name; automatic album lookups skip the song
+    albumHandSet: bool = False
 
     # Relational IDs and computed cover URL
     artistId: Optional[int] = None
@@ -62,22 +93,25 @@ class SongResponse(BaseModel):
     vocalRangeHigh: Optional[str] = None  # Highest sung note, e.g. "E5"
 
     # Loudness normalization
-    loudnessDbfs: Optional[float] = None  # RMS loudness in dBFS
-    gainDb: Optional[float] = None  # Gain correction to reach -14 dBFS target
+    loudnessLufs: Optional[float] = None  # EBU R128 integrated loudness
+    truePeakDbtp: Optional[float] = None  # Loudest instant, in dB true peak
+    gainDb: Optional[float] = None  # Correction the player applies
 
     # AcoustID fingerprinting
     musicbrainzRecordingId: Optional[str] = None
     acoustidScore: Optional[float] = None
     acoustidFingerprintStatus: Optional[str] = None
+    acoustidSuggestion: Optional[AcoustIdSuggestion] = None
+    metadataConfirmed: bool = False  # A person set the title/artist
 
     # Structured artist credits
     artists: List[SongArtistRef] = []
 
     status: str = "processed"
     errorMessage: Optional[str] = None
+    failedAt: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SongCreateRequest(BaseModel):
@@ -118,29 +152,22 @@ class SongUpdateRequest(BaseModel):
     year: Optional[int] = Field(None, ge=1800, le=2100)
     releaseDate: Optional[str] = Field(None, max_length=50)
     showName: Optional[str] = Field(None, max_length=200)
+    # Whisper code ("fr"); an empty string clears it so it's detected again
+    language: Optional[str] = Field(None, max_length=8)
+    # The credit list, primaries first. Replaces `artist`: the text is rebuilt
+    # from it.
+    artists: Optional[List[SongArtistCredit]] = Field(None, min_length=1, max_length=20)
 
     # Lyrics
     plainLyrics: Optional[str] = None
     syncedLyrics: Optional[str] = None
     wordSyncedLyrics: Optional[str] = None
 
-    # iTunes metadata
-    itunesTrackId: Optional[int] = Field(None, description="iTunes track ID")
-    itunesCollectionId: Optional[int] = Field(
-        None, description="iTunes collection/album ID"
-    )
-    itunesArtworkUrls: Optional[List[str]] = Field(
-        None, description="iTunes artwork URLs"
-    )
-    itunesExplicit: Optional[bool] = Field(
-        None, description="iTunes explicit content flag"
-    )
-    itunesPreviewUrl: Optional[str] = Field(
-        None, max_length=500, description="iTunes 30-sec preview URL"
-    )
-
     # Audio analysis
-    loudnessDbfs: Optional[float] = Field(None, description="RMS loudness in dBFS")
+    loudnessLufs: Optional[float] = Field(
+        None, description="EBU R128 integrated loudness"
+    )
+    truePeakDbtp: Optional[float] = Field(None, description="True peak in dBTP")
     gainDb: Optional[float] = Field(
         None, ge=-20, le=20, description="Gain correction in dB"
     )
@@ -304,13 +331,6 @@ class ReplacementValidationResponse(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     message: str  # Human-readable status message
-
-
-class SongArtistCredit(BaseModel):
-    """A single artist credit for manual collab splitting."""
-
-    name: str = Field(..., min_length=1, max_length=200)
-    role: Literal["primary", "featured"]
 
 
 class SplitArtistCreditsRequest(BaseModel):

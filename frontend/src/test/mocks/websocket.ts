@@ -26,12 +26,14 @@ export function createMockSessionWebSocketService() {
     // Connection state
     isConnected: false,
     currentSessionId: null as string | null,
+    memberDeviceId: null as string | null,
     deviceId: null as string | null,
 
     // Mock implementations
-    connectToSession: vi.fn((sessionId: string) => {
+    connectToSession: vi.fn((sessionId: string, memberDeviceId: string) => {
       mockService.isConnected = true;
       mockService.currentSessionId = sessionId;
+      mockService.memberDeviceId = memberDeviceId;
       mockService.deviceId = `mock-device-${Date.now()}`;
 
       // Simulate immediate connection
@@ -39,7 +41,7 @@ export function createMockSessionWebSocketService() {
         mockService.emit("session_connected", {
           session_id: sessionId,
           device_id: mockService.deviceId,
-          // Connections start unprivileged; host status arrives via `authenticated`.
+          // Host status arrives here, resolved from the opening `authenticate`.
           is_session_owner: false,
           performance_state: { ...mockPerformanceState },
         });
@@ -49,13 +51,17 @@ export function createMockSessionWebSocketService() {
     disconnect: vi.fn(() => {
       mockService.isConnected = false;
       mockService.currentSessionId = null;
+      mockService.memberDeviceId = null;
       mockService.deviceId = null;
       listeners.clear();
     }),
 
     reconnect: vi.fn(() => {
-      if (mockService.currentSessionId) {
-        mockService.connectToSession(mockService.currentSessionId);
+      if (mockService.currentSessionId && mockService.memberDeviceId) {
+        mockService.connectToSession(
+          mockService.currentSessionId,
+          mockService.memberDeviceId,
+        );
       }
     }),
 
@@ -133,6 +139,7 @@ export function createMockSessionWebSocketService() {
     reset: () => {
       mockService.isConnected = false;
       mockService.currentSessionId = null;
+      mockService.memberDeviceId = null;
       mockService.deviceId = null;
       listeners.clear();
       vi.clearAllMocks();

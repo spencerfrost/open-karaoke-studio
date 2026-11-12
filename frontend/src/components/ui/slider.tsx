@@ -67,12 +67,12 @@ function Slider({
           className={cn(
             "block shrink-0 border transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50",
             variant === "default" &&
-              "border-primary bg-card ring-ring/50 size-4 rounded-full shadow-sm hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden",
+              "border-primary bg-foreground ring-ring/50 size-4 rounded-full shadow-sm hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden",
             variant === "performance" && [
               "relative h-14 w-24 rounded-sm",
               "bg-gradient-to-b from-primary to-secondary border-primary/60",
-              "shadow-[inset_0_2px_1px_rgba(255,200,100,0.25),inset_0_-2px_1px_rgba(0,0,0,0.45),0_4px_10px_rgba(0,0,0,0.5)]",
-              "hover:shadow-[inset_0_2px_1px_rgba(255,200,100,0.35),inset_0_-2px_1px_rgba(0,0,0,0.5),0_4px_10px_rgba(0,0,0,0.5),0_0_12px_rgba(255,150,50,0.4)]",
+              "shadow-[inset_0_2px_1px_color-mix(in_oklab,color-mix(in_oklab,var(--primary),white_40%)_25%,transparent),inset_0_-2px_1px_rgba(0,0,0,0.45),0_4px_10px_rgba(0,0,0,0.5)]",
+              "hover:shadow-[inset_0_2px_1px_color-mix(in_oklab,color-mix(in_oklab,var(--primary),white_40%)_35%,transparent),inset_0_-2px_1px_rgba(0,0,0,0.5),0_4px_10px_rgba(0,0,0,0.5),0_0_12px_color-mix(in_oklab,var(--primary)_40%,transparent)]",
               "focus-visible:outline-hidden",
               "after:content-[''] after:absolute after:left-3 after:right-3 after:top-1/2 after:-translate-y-1/2 after:h-px after:bg-foreground/75 after:rounded-full after:pointer-events-none",
             ],

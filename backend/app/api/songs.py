@@ -17,14 +17,30 @@ import logging
 import os
 import uuid
 from collections import defaultdict
-from typing import Generator, List, Optional
+from datetime import datetime, timezone
+from typing import List, Optional, cast
 from urllib.parse import unquote
+
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
+from sqlalchemy import case, distinct, func, or_, select
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     RequesterContext,
     get_current_user,
+    get_db,
     require_admin,
-    require_host,
     require_host_or_session_member,
 )
 from app.api.validators import (
@@ -36,14 +52,12 @@ from app.api.validators import (
     validate_direction,
     validate_sort_field,
 )
+from app.api.youtube import get_session_manager
 from app.config import get_config
-from app.db.database import SessionLocal
-from app.db.models.artist import DbArtist
-from app.db.models.song import DbSong
+from app.db.models.artist import DbArtist, DbArtistAlias
+from app.db.models.song import DbSong, in_songbook
 from app.db.models.song_artist import DbSongArtist
 from app.db.models.user import User
-from app.repositories.album_repository import AlbumRepository
-from app.repositories.artist_repository import ArtistRepository
 from app.repositories.song_repository import SongRepository
 from app.schemas.song import (
     ArtistInfo,
@@ -62,22 +76,22 @@ from app.schemas.song import (
     SongSearchResponse,
     SongUpdateRequest,
 )
+from app.schemas.youtube import SongFromYouTubeRequest, SongFromYouTubeResponse
+from app.services.artist_parsing import ArtistCredit, credit_line
+from app.services.batch_jobs import record_scan
 from app.services.demo_service import enforce_demo_download_quota
-from app.services.file_service import FileService
-from app.utils.filing import filing_letter, filing_name
-from fastapi import (
-    APIRouter,
-    Body,
-    Depends,
-    File,
-    Form,
-    HTTPException,
-    Query,
-    UploadFile,
+from app.services.file_service import NON_SONG_DIRS, FileService
+from app.services.lyrics_language import normalize_language
+from app.services.song_artist_service import set_song_credits
+from app.services.song_intake_service import (
+    add_song_from_youtube,
+    create_song_record,
+    job_created_event,
+    restart_youtube_processing,
 )
-from fastapi.responses import FileResponse
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from app.utils.filing import filing_letter, filing_name
+from app.ws.connection_manager import SessionConnectionManager
+from app.ws.jobs import broadcast_job_created
 
 # ============================================================================
 # Router & Logger
@@ -86,65 +100,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/songs", tags=["songs"])
 
 # ============================================================================
-# Dependencies
-# ============================================================================
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    except Exception as e:
-        logger.error("Database session error: %s", e)
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
-# ============================================================================
 # Helpers
 # ============================================================================
-
-
-def _download_album_cover(collection_id: int, artwork_urls: list[str]) -> str | None:
-    """Download the highest-res iTunes artwork and cache it locally.
-
-    Returns the relative path 'covers/{collection_id}.jpg' on success, None on failure.
-    """
-    import requests
-
-    config = get_config()
-    covers_dir = config.library_path / "covers"
-    covers_dir.mkdir(exist_ok=True)
-    dest = covers_dir / f"{collection_id}.jpg"
-
-    # Derive 600px URL from the first artwork URL (iTunes URL pattern)
-    url_600 = None
-    for url in artwork_urls:
-        if url:
-            url_600 = url.replace("100x100bb", "600x600bb").replace(
-                "100x100", "600x600"
-            )
-            break
-
-    if not url_600:
-        return None
-
-    try:
-        response = requests.get(
-            url_600, timeout=10, headers={"User-Agent": "curl/8.0.0"}
-        )
-        response.raise_for_status()
-        dest.write_bytes(response.content)
-        logger.info("Downloaded album cover for collection %s", collection_id)
-        return f"covers/{collection_id}.jpg"
-    except Exception as e:
-        logger.warning(
-            "Failed to download album cover for collection %s: %s", collection_id, e
-        )
-        return None
 
 
 # ============================================================================
@@ -152,8 +109,12 @@ def _download_album_cover(collection_id: int, artwork_urls: list[str]) -> str | 
 # ============================================================================
 
 
-@router.get("", response_model=List[SongResponse])
-async def get_songs(
+@router.get(
+    "",
+    response_model=List[SongResponse],
+    dependencies=[Depends(require_host_or_session_member)],
+)
+def get_songs(
     limit: Optional[int] = Query(
         None, ge=1, le=500, description="Maximum number of songs to return"
     ),
@@ -177,7 +138,11 @@ async def get_songs(
     try:
         repo = SongRepository(db)
         songs = repo.fetch_all(
-            sort_by=sort_by, direction=direction, limit=limit, offset=offset
+            sort_by=sort_by,
+            direction=direction,
+            limit=limit,
+            offset=offset,
+            songbook_only=True,
         )
 
         response_data = [song.to_dict() for song in songs]
@@ -191,8 +156,12 @@ async def get_songs(
         )
 
 
-@router.get("/search", response_model=SongSearchResponse | ArtistSearchResponse)
-async def search_songs(
+@router.get(
+    "/search",
+    response_model=SongSearchResponse | ArtistSearchResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+def search_songs(
     q: str = Query("", description="Search query"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Results to skip"),
@@ -224,30 +193,64 @@ async def search_songs(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
+        term = f"%{query}%"
+        # Songs crediting an artist the query names, under any of their names:
+        # "Dixie Chicks" finds The Chicks, "IRah" finds a song they guest on.
+        credited_artist_ids = select(DbArtist.id).where(
+            or_(
+                DbArtist.display_name.ilike(term),
+                DbArtist.id.in_(
+                    select(DbArtistAlias.artist_id).where(
+                        DbArtistAlias.name.ilike(term)
+                    )
+                ),
+            )
+        )
+        credited_song_ids = select(DbSongArtist.song_id).where(
+            or_(
+                DbSongArtist.artist_id.in_(credited_artist_ids),
+                DbSongArtist.credited_as.ilike(term),
+            )
+        )
         search_filter = or_(
-            DbSong.title.ilike(f"%{query}%"),
-            DbSong.artist.ilike(f"%{query}%"),
-            DbSong.album.ilike(f"%{query}%"),
-            DbSong.show_name.ilike(f"%{query}%"),
+            DbSong.title.ilike(term),
+            DbSong.artist.ilike(term),
+            DbSong.album.ilike(term),
+            DbSong.show_name.ilike(term),
+            DbSong.id.in_(credited_song_ids),
         )
 
         if group_by_artist:
+            # Grouped by each song's primary artist row, not its artist text,
+            # so "Jay-Z" and "JAY-Z feat. X" land together.
             artist_query = (
-                db.query(DbSong.artist, func.count(DbSong.id).label("song_count"))
-                .filter(search_filter)
-                .group_by(DbSong.artist)
+                db.query(
+                    DbArtist.id,
+                    DbArtist.display_name,
+                    DbArtist.name,
+                    func.count(DbSong.id).label("song_count"),
+                )
+                .join(DbSong, DbSong.artist_id == DbArtist.id)
+                .filter(search_filter, in_songbook())
+                .group_by(DbArtist.id)
+                .order_by(DbArtist.display_name)
             )
             total_artists = artist_query.count()
             artist_results = artist_query.offset(offset).limit(limit).all()
 
             artists_data = []
             total_songs = 0
-            for artist, count in artist_results:
-                songs = db.query(DbSong).filter(DbSong.artist == artist).limit(5).all()
+            for artist_id, display_name, name, count in artist_results:
+                songs = (
+                    db.query(DbSong)
+                    .filter(DbSong.artist_id == artist_id, search_filter, in_songbook())
+                    .limit(5)
+                    .all()
+                )
                 total_songs += count
                 artists_data.append(
                     ArtistInfo(
-                        artist=artist,
+                        artist=display_name or name,
                         songCount=count,
                         songs=[song.to_dict() for song in songs],
                     )
@@ -265,7 +268,7 @@ async def search_songs(
                 ),
             )
         else:
-            base_query = db.query(DbSong).filter(search_filter)
+            base_query = db.query(DbSong).filter(search_filter, in_songbook())
 
             if sort == "relevance":
                 base_query = base_query.order_by(
@@ -296,41 +299,64 @@ async def search_songs(
         raise HTTPException(status_code=500, detail=f"Failed to search songs: {str(e)}")
 
 
-@router.get("/artists")
-async def get_artists(
+@router.get("/artists", dependencies=[Depends(require_host_or_session_member)])
+def get_artists(
     search: Optional[str] = Query(None, description="Search term to filter artists"),
     limit: Optional[int] = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """
-    Get a list of all unique artists with their song counts.
+    The artist list, with each artist's own and featured song counts.
+
+    Lists an artist with a primary credit, or featured on songs by two or more
+    different primary artists; a one-off guest files under the song's artist.
+    A search finds every artist, by name or alias, with `listed` saying which
+    the full list has.
 
     - **search**: Optional search term to filter artists
     - **limit**: Maximum number of artists to return (default: all)
     - **offset**: Number of artists to skip for pagination
     """
     try:
+        is_primary = DbSongArtist.role == "primary"
+        is_featured = DbSongArtist.role == "featured"
+        own_count = func.count(case((is_primary, 1)))
+        featured_count = func.count(case((is_featured, 1)))
+        # The different primary artists of the songs they're featured on
+        featured_with = func.count(distinct(case((is_featured, DbSong.artist_id))))
         query = (
             db.query(
                 DbArtist.id,
                 DbArtist.display_name,
                 DbArtist.name,
-                func.count(DbSongArtist.song_id).label("song_count"),
+                DbArtist.youtube_music_artist_id,
+                own_count.label("own_count"),
+                featured_count.label("featured_count"),
+                featured_with.label("featured_with"),
             )
             .join(DbSongArtist, DbSongArtist.artist_id == DbArtist.id)
+            # Counts only songs the songbook lists, so an artist whose only
+            # song failed drops out instead of leading to an empty list.
+            .join(DbSong, DbSong.id == DbSongArtist.song_id)
+            .filter(in_songbook())
             .group_by(DbArtist.id)
         )
 
-        # Apply search filter if provided
         if search and search.strip():
-            search_term = search.strip()
+            term = f"%{search.strip()}%"
+            aliased_ids = select(DbArtistAlias.artist_id).where(
+                DbArtistAlias.name.ilike(term)
+            )
             query = query.filter(
                 or_(
-                    DbArtist.name.ilike(f"%{search_term}%"),
-                    DbArtist.display_name.ilike(f"%{search_term}%"),
+                    DbArtist.name.ilike(term),
+                    DbArtist.display_name.ilike(term),
+                    DbArtist.id.in_(aliased_ids),
                 )
             )
+        else:
+            query = query.having(or_(own_count > 0, featured_with >= 2))
 
         # Sorted here rather than in SQL: filing ignores leading articles and
         # accents (see app.utils.filing), and a few hundred rows is nothing.
@@ -341,10 +367,21 @@ async def get_artists(
                     "id": artist_id,
                     "name": display_name or name,
                     "sortName": filing_name(display_name or name),
-                    "songCount": count,
+                    "ownCount": own,
+                    "featuredCount": featured,
                     "firstLetter": filing_letter(display_name or name),
+                    "youtubeMusicArtistId": ytm_id,
+                    "listed": own > 0 or featured_with_count >= 2,
                 }
-                for artist_id, display_name, name, count in query.all()
+                for (
+                    artist_id,
+                    display_name,
+                    name,
+                    ytm_id,
+                    own,
+                    featured,
+                    featured_with_count,
+                ) in query.all()
                 if display_name or name
             ),
             key=lambda a: a["sortName"],
@@ -368,8 +405,8 @@ async def get_artists(
         raise HTTPException(status_code=500, detail=f"Failed to get artists: {str(e)}")
 
 
-@router.get("/shows")
-async def get_shows(
+@router.get("/shows", dependencies=[Depends(require_host_or_session_member)])
+def get_shows(
     search: Optional[str] = Query(None, description="Search term to filter shows"),
     db: Session = Depends(get_db),
 ):
@@ -377,7 +414,7 @@ async def get_shows(
     try:
         query = (
             db.query(DbSong.show_name, func.count(DbSong.id).label("song_count"))
-            .filter(DbSong.show_name.isnot(None), DbSong.show_name != "")
+            .filter(DbSong.show_name.isnot(None), DbSong.show_name != "", in_songbook())
             .group_by(DbSong.show_name)
         )
 
@@ -404,9 +441,11 @@ async def get_shows(
         raise HTTPException(status_code=500, detail=f"Failed to get shows: {str(e)}")
 
 
-@router.get("/by-artist/{artist_name}")
-async def get_songs_by_artist(
-    artist_name: str,
+@router.get(
+    "/by-artist/{artist_id}", dependencies=[Depends(require_host_or_session_member)]
+)
+def get_songs_by_artist(
+    artist_id: int,
     limit: int = Query(
         20, ge=1, le=500, description="Maximum number of songs to return"
     ),
@@ -416,18 +455,16 @@ async def get_songs_by_artist(
     db: Session = Depends(get_db),
 ):
     """
-    Get songs for a specific artist with pagination.
+    An artist's songs: their own first, then the ones they're featured on.
 
-    - **artist_name**: The artist name (URL-encoded)
-    - **limit**: Maximum number of songs to return (1-100)
+    Each song carries `role`, the artist's role on it.
+
+    - **artist_id**: The artist's id
+    - **limit**: Maximum number of songs to return (1-500)
     - **offset**: Number of songs to skip
-    - **sort**: Sort field (title, album, year, dateAdded)
+    - **sort**: Sort field within each group (title, album, year, dateAdded)
     - **direction**: Sort direction (asc or desc)
     """
-    # Decode the artist name
-    artist_name = unquote(artist_name)
-
-    # Validate sort field and direction
     if sort not in VALID_ARTIST_SORT_FIELDS:
         raise HTTPException(
             status_code=400,
@@ -436,29 +473,37 @@ async def get_songs_by_artist(
     db_sort_field = CAMEL_TO_SNAKE_CASE.get(sort, sort)
     direction = validate_direction(direction, raise_on_invalid=True)
 
-    try:
-        # Subquery to get song IDs for this artist (avoids DISTINCT on JSON columns)
-        song_ids_subq = (
-            db.query(DbSongArtist.song_id)
-            .join(DbArtist, DbArtist.id == DbSongArtist.artist_id)
-            .filter(DbArtist.name == artist_name.lower().strip())
-            .subquery()
-        )
-        base_query = db.query(DbSong).filter(DbSong.id.in_(song_ids_subq))
+    artist = db.get(DbArtist, artist_id)
+    if artist is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
 
-        # Apply sorting
+    try:
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
-        if direction.lower() == "desc":
-            base_query = base_query.order_by(sort_column.desc())
-        else:
-            base_query = base_query.order_by(sort_column.asc())
+        base_query = (
+            db.query(DbSong, DbSongArtist.role)
+            .join(DbSongArtist, DbSongArtist.song_id == DbSong.id)
+            .filter(DbSongArtist.artist_id == artist_id, in_songbook())
+            .order_by(
+                # Own songs first
+                case((DbSongArtist.role == "primary", 0), else_=1),
+                (
+                    sort_column.desc()
+                    if direction.lower() == "desc"
+                    else sort_column.asc()
+                ),
+            )
+        )
 
         total_count = base_query.count()
-        songs = base_query.offset(offset).limit(limit).all()
+        rows = base_query.offset(offset).limit(limit).all()
 
         return {
-            "songs": [song.to_dict() for song in songs],
-            "artist": artist_name,
+            "songs": [{**song.to_dict(), "role": role} for song, role in rows],
+            "artist": {
+                "id": artist.id,
+                "name": artist.display_name or artist.name,
+                "youtubeMusicArtistId": artist.youtube_music_artist_id,
+            },
             "pagination": {
                 "total": total_count,
                 "limit": limit,
@@ -467,11 +512,9 @@ async def get_songs_by_artist(
             },
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(
-            f"Error fetching songs for artist '{artist_name}': {e}", exc_info=True
+            "Error fetching songs for artist %s: %s", artist_id, e, exc_info=True
         )
         raise HTTPException(
             status_code=500,
@@ -479,8 +522,10 @@ async def get_songs_by_artist(
         )
 
 
-@router.get("/by-show/{show_name}")
-async def get_songs_by_show(
+@router.get(
+    "/by-show/{show_name}", dependencies=[Depends(require_host_or_session_member)]
+)
+def get_songs_by_show(
     show_name: str,
     limit: int = Query(
         20, ge=1, le=500, description="Maximum number of songs to return"
@@ -510,7 +555,9 @@ async def get_songs_by_show(
     direction = validate_direction(direction, raise_on_invalid=True)
 
     try:
-        base_query = db.query(DbSong).filter(DbSong.show_name == show_name)
+        base_query = db.query(DbSong).filter(
+            DbSong.show_name == show_name, in_songbook()
+        )
 
         sort_column = getattr(DbSong, db_sort_field, DbSong.title)
         if direction.lower() == "desc":
@@ -543,15 +590,23 @@ async def get_songs_by_show(
 
 
 @router.get("/by-fingerprint-status", response_model=List[SongResponse])
-async def get_songs_by_fingerprint_status(
+def get_songs_by_fingerprint_status(
     status: str = Query(..., description="acoustid_fingerprint_status value"),
     limit: int = Query(500, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """Return songs filtered by acoustid_fingerprint_status."""
-    valid = {"no_match", "failed", "not_checked", "matched", "skipped", "ambiguous"}
+    valid = {
+        "not_checked",
+        "matched",
+        "suggested",
+        "ambiguous",
+        "no_match",
+        "failed",
+        "skipped",
+    }
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"status must be one of: {valid}")
     songs = SongRepository(db).fetch_all(
@@ -565,9 +620,9 @@ async def get_songs_by_fingerprint_status(
 
 
 @router.get("/library-audit")
-async def get_library_audit(
+def get_library_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Audit the karaoke library by cross-referencing filesystem directories with DB records.
@@ -637,6 +692,12 @@ async def get_library_audit(
                 }
             )
 
+    record_scan(
+        db,
+        "disk_check",
+        total=len(disk_ids | db_ids),
+        issues=len(orphaned_directories) + len(ghost_records) + len(incomplete_songs),
+    )
     return {
         "orphaned_directories": orphaned_directories,
         "ghost_records": ghost_records,
@@ -737,7 +798,12 @@ def _check_song_metadata(song: DbSong) -> list:
         issues.append(
             {"type": "missing_lyrics", "label": "No Lyrics", "severity": "info"}
         )
-    if not song.vocal_range_low and not song.vocal_range_high:
+    # A song measured with no sung range (rapped, say) has its answer.
+    if (
+        not song.vocal_range_low
+        and not song.vocal_range_high
+        and song.vocal_range_detail is None
+    ):
         issues.append(
             {
                 "type": "missing_vocal_range",
@@ -750,9 +816,9 @@ def _check_song_metadata(song: DbSong) -> list:
 
 
 @router.get("/metadata-audit", response_model=MetadataAuditResponse)
-async def get_metadata_audit(
+def get_metadata_audit(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Scan all songs for metadata quality issues.
@@ -781,6 +847,7 @@ async def get_metadata_audit(
                 )
             )
 
+    record_scan(db, "metadata_scan", total=len(all_songs), issues=len(flagged))
     return MetadataAuditResponse(
         flagged_songs=flagged,
         summary=dict(summary),
@@ -790,7 +857,7 @@ async def get_metadata_audit(
 
 
 @router.delete("/orphan/{dir_name}", status_code=200)
-async def delete_orphaned_directory(
+def delete_orphaned_directory(
     dir_name: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -800,8 +867,13 @@ async def delete_orphaned_directory(
     """
     config = get_config()
 
-    # Safety: reject any path traversal attempts
-    if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+    # Safety: reject any path traversal attempts and the shared artwork folders
+    if (
+        "/" in dir_name
+        or "\\" in dir_name
+        or ".." in dir_name
+        or dir_name in NON_SONG_DIRS
+    ):
         raise HTTPException(status_code=400, detail="Invalid directory name")
 
     # Confirm it's actually on disk
@@ -824,7 +896,7 @@ async def delete_orphaned_directory(
 
 
 @router.delete("/orphan-bulk", status_code=200)
-async def bulk_delete_orphaned_directories(
+def bulk_delete_orphaned_directories(
     request: BulkDeleteOrphansRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -840,8 +912,13 @@ async def bulk_delete_orphaned_directories(
     skipped = 0
 
     for dir_name in request.dir_names:
-        # Safety: reject any path traversal attempts
-        if "/" in dir_name or "\\" in dir_name or ".." in dir_name:
+        # Safety: reject any path traversal attempts and the shared artwork folders
+        if (
+            "/" in dir_name
+            or "\\" in dir_name
+            or ".." in dir_name
+            or dir_name in NON_SONG_DIRS
+        ):
             logger.warning("Bulk delete skipping invalid dir name: %r", dir_name)
             skipped += 1
             continue
@@ -865,7 +942,7 @@ async def bulk_delete_orphaned_directories(
 
 
 @router.delete("/ghost-bulk", status_code=200)
-async def bulk_delete_ghost_records(
+def bulk_delete_ghost_records(
     request: BulkDeleteGhostsRequest = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -891,9 +968,9 @@ async def bulk_delete_ghost_records(
 
 
 @router.get("/duplicates")
-async def get_duplicate_songs(
+def get_duplicate_songs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_admin),
 ):
     """
     Return clusters of songs that share the same case-insensitive title+artist.
@@ -913,6 +990,12 @@ async def get_duplicate_songs(
         ]
         for cluster in clusters
     ]
+    record_scan(
+        db,
+        "duplicates",
+        total=db.query(func.count(DbSong.id)).scalar() or 0,
+        issues=len(result),
+    )
     return {
         "clusters": result,
         "total_clusters": len(result),
@@ -920,8 +1003,12 @@ async def get_duplicate_songs(
     }
 
 
-@router.get("/{song_id}", response_model=SongResponse)
-async def get_song_details(song_id: str, db: Session = Depends(get_db)):
+@router.get(
+    "/{song_id}",
+    response_model=SongResponse,
+    dependencies=[Depends(require_host_or_session_member)],
+)
+def get_song_details(song_id: str, db: Session = Depends(get_db)):
     """
     Get detailed information about a specific song.
     """
@@ -944,7 +1031,7 @@ async def get_song_details(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=SongResponse, status_code=201)
-async def create_song(
+def create_song(
     song_data: SongCreateRequest,
     db: Session = Depends(get_db),
     requester: RequesterContext = Depends(require_host_or_session_member),
@@ -954,55 +1041,36 @@ async def create_song(
 
     Requires a logged-in account or active session membership.
     """
-    # Enforce demo download quota up front: the add-song flow creates the song
-    # here and then calls POST /api/youtube/download. Blocking only the download
-    # would leave an orphaned, track-less song in the library, so a demo user
-    # over quota must be rejected before anything is persisted. No-op for
-    # non-demo requesters.
+    # Enforce demo download quota up front: a song created here is followed by
+    # POST /api/youtube/download. Blocking only the download would leave an
+    # orphaned, track-less song in the library, so a demo user over quota must
+    # be rejected before anything is persisted. No-op for non-demo requesters.
+    # The add-song flow uses POST /api/songs/from-youtube, which does both.
     enforce_demo_download_quota(db, requester)
 
-    song_id = song_data.id or str(uuid.uuid4())
-    logger.info("Creating new song with ID: %s", song_id)
-
     try:
-        repo = SongRepository(db)
-
-        song_dict = {
-            "id": song_id,
-            "title": song_data.title,
-            "artist": song_data.artist,
-            "album": song_data.album,
-            "show_name": song_data.show_name,
-            "duration": song_data.duration,
-            "source": song_data.source,
-            "video_id": song_data.video_id,
-        }
-
-        song = repo.create(song_dict)
-
-        if not song:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to create song {song_id} in database"
-            )
-
-        # Populate song_artists join table
-        from app.services.song_artist_service import populate_song_artists
-
-        populate_song_artists(db, song, song_data.artist)
-
-        # Create the song directory
-        try:
-            file_service = FileService()
-            song_dir = file_service.get_song_directory(song_id)
-            song_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug("Created directory for song: %s", song_dir)
-        except Exception as e:
-            logger.warning("Error creating directory for song %s: %s", song_id, e)
+        song = create_song_record(
+            db,
+            {
+                "id": song_data.id,
+                "title": song_data.title,
+                "artist": song_data.artist,
+                "album": song_data.album,
+                "show_name": song_data.show_name,
+                # A show given here is a person's, not the recording's
+                "show_name_hand_set_at": (
+                    datetime.now(timezone.utc) if song_data.show_name else None
+                ),
+                "duration": song_data.duration,
+                "source": song_data.source,
+                "video_id": song_data.video_id,
+            },
+        )
 
         response = song.to_dict()
         response["status"] = "pending"
 
-        logger.info("Successfully created song: %s", song_id)
+        logger.info("Successfully created song: %s", song.id)
         return response
 
     except HTTPException:
@@ -1012,8 +1080,39 @@ async def create_song(
         raise HTTPException(status_code=500, detail=f"Failed to create song: {str(e)}")
 
 
+@router.post("/from-youtube", response_model=SongFromYouTubeResponse, status_code=202)
+async def add_song_from_youtube_route(
+    body: SongFromYouTubeRequest,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """
+    Add a YouTube song to the library and queue its processing, in one request.
+
+    When the song's only library copy failed, that copy is restarted instead of
+    adding a duplicate. 409 when a working copy is already there; 429/403 past
+    the demo's download quota.
+    """
+    added = await run_in_threadpool(
+        add_song_from_youtube,
+        db,
+        requester,
+        video_id=body.video_id,
+        title=body.title,
+        artists=[a.model_dump() for a in body.artists],
+        album=body.album,
+        duration=body.duration,
+        source=body.source,
+    )
+    await broadcast_job_created(manager, added.event)
+    return SongFromYouTubeResponse(
+        songId=added.song_id, jobId=added.job_id, restarted=added.restarted
+    )
+
+
 @router.patch("/{song_id}", response_model=SongResponse)
-async def update_song(
+def update_song(
     song_id: str,
     update_data: SongUpdateRequest,
     db: Session = Depends(get_db),
@@ -1034,17 +1133,96 @@ async def update_song(
         # Build update fields from provided data
         update_dict = update_data.model_dump(exclude_unset=True)
 
-        # Extract itunesCollectionId before mapping — handled separately (album linkage)
-        itunes_collection_id = update_dict.pop("itunesCollectionId", None)
-
-        # Extract itunesArtworkUrls — used below to download album cover, not stored in DB
-        update_dict.pop("itunesArtworkUrls", None)
+        # A credit list replaces the artist text, which is rebuilt from it.
+        credits_given = update_dict.pop("artists", None)
+        if credits_given is not None:
+            update_dict.pop("artist", None)
+            if not any(c["role"] == "primary" for c in credits_given):
+                raise HTTPException(
+                    status_code=422, detail="At least one primary artist is needed"
+                )
 
         # Extract lyrics fields for separate handling
         lyrics_data = extract_lyrics_fields(update_dict)
 
+        # Language is validated, and can be cleared, which the mapping below can't do
+        language_set = "language" in update_dict
+        if language_set:
+            try:
+                language = normalize_language(update_dict.pop("language"))
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+
         # Map remaining fields to DB columns
         update_fields = map_fields_to_db(update_dict)
+        if language_set:
+            update_fields["language"] = language
+        update_fields.pop("show_name", None)  # Handled below with its marker
+
+        # A person changing the title or artist confirms them, so AcoustID
+        # leaves them alone. The recording linked under the old names no
+        # longer describes the song, and the edit settles any review.
+        if any(
+            key in update_fields and update_fields[key] != getattr(db_song, key)
+            for key in ("title", "artist")
+        ):
+            update_fields.update(
+                metadata_confirmed_at=datetime.now(timezone.utc),
+                musicbrainz_recording_id=None,
+                acoustid_suggested_recording_id=None,
+                acoustid_suggested_title=None,
+                acoustid_suggested_artist=None,
+            )
+            if db_song.show_name_hand_set_at is None:
+                update_fields["show_name"] = None  # It came from that recording
+            if db_song.acoustid_fingerprint_status in (
+                "matched",
+                "suggested",
+                "ambiguous",
+                "no_match",
+            ):
+                update_fields["acoustid_fingerprint_status"] = "skipped"
+        artist_text_changed = (
+            "artist" in update_fields and update_fields["artist"] != db_song.artist
+        )
+
+        # Editing the credits confirms them too. The recording stays: a fixed
+        # credit list still describes the same recording.
+        if credits_given is not None:
+            update_fields.update(
+                artist=credit_line([(c["name"], c["role"]) for c in credits_given]),
+                metadata_confirmed_at=datetime.now(timezone.utc),
+            )
+
+        # A person setting the album name keeps automatic lookups off the
+        # song; the cover it had stays linked, so trimming "(Deluxe)" doesn't
+        # lose it. Clearing the name drops the cover too and lets the next
+        # lookup find one.
+        if "album" in update_dict:
+            album = (update_dict["album"] or "").strip() or None
+            if album is None:
+                update_fields.update(
+                    album=None,
+                    album_id=None,
+                    album_hand_set_at=None,
+                    album_checked_at=None,
+                )
+            elif album != db_song.album:
+                update_fields.update(
+                    album=album, album_hand_set_at=datetime.now(timezone.utc)
+                )
+            else:
+                update_fields.pop("album", None)
+
+        # A person setting or clearing the show takes it off the recording
+        # for good: cleared, the song stays out of every show.
+        if "showName" in update_dict:
+            show_name = (update_dict["showName"] or "").strip() or None
+            if show_name != db_song.show_name:
+                update_fields.update(
+                    show_name=show_name,
+                    show_name_hand_set_at=datetime.now(timezone.utc),
+                )
 
         if update_fields:
             updated_song = repo.update(song_id, **update_fields)
@@ -1053,49 +1231,45 @@ async def update_song(
                     status_code=500, detail="Failed to update song metadata"
                 )
 
-        # Re-populate song_artists join table when artist changes
-        if "artist" in update_dict:
-            from app.services.song_artist_service import populate_song_artists
-
+        # Credits as given, or parsed from retyped artist text
+        if credits_given is not None or artist_text_changed:
             db_song = repo.fetch(song_id)
-            populate_song_artists(db, db_song, db_song.artist)
+            set_song_credits(
+                db,
+                db_song,
+                (
+                    [
+                        ArtistCredit(name=c["name"], role=c["role"])
+                        for c in credits_given
+                    ]
+                    if credits_given is not None
+                    else None
+                ),
+            )
+            db.commit()
 
         # Update lyrics columns directly
+        lyrics_text_saved = False
         if lyrics_data:
             db_song = repo.fetch(song_id)
             if "plainLyrics" in lyrics_data:
                 db_song.plain_lyrics = lyrics_data["plainLyrics"] or None
                 db_song.word_synced_lyrics = None
+                lyrics_text_saved = True
             if "syncedLyrics" in lyrics_data:
                 db_song.synced_lyrics = lyrics_data["syncedLyrics"] or None
                 db_song.word_synced_lyrics = None
+                lyrics_text_saved = True
             if "wordSyncedLyrics" in lyrics_data:
                 db_song.word_synced_lyrics = lyrics_data["wordSyncedLyrics"] or None
+            if lyrics_text_saved:
+                # A person chose these lyrics: automatic runs now only time them.
+                db_song.lyrics_hand_picked_at = datetime.now(timezone.utc)
             db.commit()
+            if lyrics_text_saved:
+                from app.jobs.lyrics_dispatch import realign_hand_picked_lyrics
 
-        # Handle album + artist linkage when iTunes collection ID is provided
-        if itunes_collection_id is not None:
-            db_song = repo.fetch(song_id)
-            artist_name = update_data.artist or db_song.artist
-            artist = ArtistRepository(db).get_or_create(artist_name)
-
-            album_title = update_data.album or db_song.album or "Unknown Album"
-            album_repo = AlbumRepository(db)
-            album = album_repo.get_or_create(
-                title=album_title,
-                itunes_collection_id=itunes_collection_id,
-                artist_id=artist.id,
-                release_date=update_data.releaseDate or db_song.release_date,
-            )
-
-            if not album.cover_path and update_data.itunesArtworkUrls:
-                cover_path = _download_album_cover(
-                    itunes_collection_id, update_data.itunesArtworkUrls
-                )
-                if cover_path:
-                    album_repo.update_cover(album, cover_path)
-
-            repo.update(song_id, artist_id=artist.id, album_id=album.id)
+                realign_hand_picked_lyrics(db_song)
 
         # Re-fetch to get updated relationships
         db_song = repo.fetch(song_id)
@@ -1109,7 +1283,7 @@ async def update_song(
 
 
 @router.delete("/{song_id}")
-async def delete_song(
+def delete_song(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1149,7 +1323,7 @@ async def delete_song(
 
 
 @router.get("/{song_id}/thumbnail")
-async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
+def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
     """
     Serve the thumbnail image for a song, auto-detecting format.
     """
@@ -1199,7 +1373,7 @@ async def get_thumbnail(song_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{song_id}/download/{track_type}")
-async def download_song_track(
+def download_song_track(
     song_id: str,
     track_type: str,
     db: Session = Depends(get_db),
@@ -1268,7 +1442,7 @@ async def download_song_track(
 
 
 @router.post("/{song_id}/reprocess", status_code=202)
-async def reprocess_song(
+def reprocess_song(
     song_id: str,
     request: SongReprocessRequest,
     db: Session = Depends(get_db),
@@ -1286,7 +1460,7 @@ async def reprocess_song(
     from datetime import datetime, timezone
     from pathlib import Path
 
-    from app.db.models import Job, JobStatus
+    from app.db.models import Job, JobStatus, JobStep
     from app.repositories import JobRepository
 
     logger.info(
@@ -1330,6 +1504,7 @@ async def reprocess_song(
             id=job_id,
             filename="original.mp3",
             status=JobStatus.PENDING,
+            step=JobStep.SEPARATE,
             status_message=f"Queued for reprocessing with {request.engine_type}",
             progress=0,
             song_id=song_id,
@@ -1371,84 +1546,8 @@ async def reprocess_song(
         )
 
 
-@router.post("/fingerprint", status_code=202)
-async def batch_fingerprint_songs_endpoint(
-    force: bool = Query(
-        False, description="Re-fingerprint all songs, including already-processed ones"
-    ),
-    current_user: User = Depends(require_admin),
-):
-    """Dispatch a Celery task to fingerprint songs. Pass ?force=true to reprocess everything."""
-    from app.jobs.jobs import batch_fingerprint_songs
-
-    task = batch_fingerprint_songs.delay(reprocess_all=force)
-    return {"taskId": task.id, "status": "dispatched", "reprocess_all": force}
-
-
-@router.post("/backfill-artwork", status_code=202)
-async def backfill_artwork_endpoint(
-    force: bool = Query(
-        False, description="Reprocess all songs, including those already with album art"
-    ),
-    current_user: User = Depends(require_admin),
-):
-    """Dispatch a Celery task to backfill album art for songs missing it."""
-    from app.jobs.jobs import batch_backfill_artwork
-
-    task = batch_backfill_artwork.delay(force=force)
-    return {"taskId": task.id, "status": "dispatched", "force": force}
-
-
-@router.post("/backfill-duration", status_code=202)
-async def backfill_duration_endpoint(
-    mode: str = Query(
-        "missing",
-        description="'missing' to fill only null durations, 'all' to recompute every song",
-    ),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """Dispatch a Celery task to populate duration from the original audio file."""
-    if mode not in ("missing", "all"):
-        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
-
-    from app.jobs.jobs import batch_backfill_duration
-
-    query = db.query(DbSong.id)
-    if mode == "missing":
-        query = query.filter(DbSong.duration.is_(None))
-    queued = query.count()
-
-    task = batch_backfill_duration.delay(mode=mode)
-    return {"taskId": task.id, "queued": queued}
-
-
-@router.post("/backfill-vocal-range", status_code=202)
-async def backfill_vocal_range_endpoint(
-    mode: str = Query(
-        "missing",
-        description="'missing' to fill only songs without a range, 'all' to recompute every song",
-    ),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """Dispatch a Celery task to detect vocal range from each song's vocals stem."""
-    if mode not in ("missing", "all"):
-        raise HTTPException(status_code=400, detail="mode must be 'missing' or 'all'")
-
-    from app.jobs.jobs import batch_backfill_vocal_range
-
-    query = db.query(DbSong.id)
-    if mode == "missing":
-        query = query.filter(DbSong.vocal_range_low.is_(None))
-    queued = query.count()
-
-    task = batch_backfill_vocal_range.delay(mode=mode)
-    return {"taskId": task.id, "queued": queued}
-
-
 @router.post("/{song_id}/fingerprint/lookup")
-async def lookup_song_fingerprint(
+def lookup_song_fingerprint(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1491,115 +1590,178 @@ async def lookup_song_fingerprint(
 
 
 @router.post("/{song_id}/fingerprint/apply")
-async def apply_song_fingerprint(
+def apply_song_fingerprint(
     song_id: str,
     request: FingerprintApplyRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Apply a selected AcoustID candidate to the song record."""
+    """Apply a recording a person picked (from AcoustID or a MusicBrainz search)."""
     song_repo = SongRepository(db)
-    song = song_repo.fetch(song_id)
-    if not song:
+    if not song_repo.fetch(song_id):
         raise HTTPException(status_code=404, detail="Song not found")
 
-    song_repo.update(
+    _apply_picked_recording(
+        db,
         song_id,
+        recording_id=request.recording_id,
         title=request.title,
         artist=request.artist,
-        acoustid_score=request.score,
-        musicbrainz_recording_id=request.recording_id,
-        acoustid_fingerprint_status="matched",
+        score=request.score,
     )
-
-    # Re-populate song_artists join table so artist browse stays in sync
-    from app.services.song_artist_service import populate_song_artists
-
-    song = song_repo.fetch(song_id)
-    populate_song_artists(db, song, request.artist)
-
-    logger.info(
-        "fingerprint/apply: song %s → '%s' by '%s' (score=%.2f, recording=%s)",
-        song_id,
-        request.title,
-        request.artist,
-        request.score,
-        request.recording_id,
-    )
-
-    # Now that the song has a confirmed recording ID, run MusicBrainz enrichment
-    # (artist credits + soundtrack show_name).
-    from app.jobs.celery_app import celery
-
-    celery.send_task("enrich_song_artist_credits", args=[song_id])
-
     return {"status": "applied"}
 
 
-@router.post("/{song_id}/skip-fingerprint", status_code=200)
-async def skip_fingerprint(
+@router.post("/{song_id}/fingerprint/suggestion/accept")
+def accept_fingerprint_suggestion(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Mark a song's AcoustID status as skipped so it no longer appears in the review panel."""
+    """Rename the song as AcoustID suggested and link its recording."""
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if not song.acoustid_suggested_recording_id:
+        raise HTTPException(status_code=409, detail="Song has no AcoustID suggestion")
+
+    _apply_picked_recording(
+        db,
+        song_id,
+        recording_id=song.acoustid_suggested_recording_id,
+        title=song.acoustid_suggested_title or song.title,
+        artist=song.acoustid_suggested_artist or song.artist,
+        score=song.acoustid_score,
+    )
+    return {"status": "applied"}
+
+
+def _apply_picked_recording(
+    db: Session,
+    song_id: str,
+    *,
+    recording_id: str,
+    title: str,
+    artist: str,
+    score: Optional[float],
+) -> None:
+    """Set the title, artist and recording a person chose, and confirm them."""
+    from app.jobs.celery_app import celery
+
+    song_repo = SongRepository(db)
+    song_repo.update(
+        song_id,
+        title=title,
+        artist=artist,
+        acoustid_score=score,
+        musicbrainz_recording_id=recording_id,
+        acoustid_fingerprint_status="matched",
+        acoustid_suggested_recording_id=None,
+        acoustid_suggested_title=None,
+        acoustid_suggested_artist=None,
+        metadata_confirmed_at=datetime.now(timezone.utc),
+    )
+
+    logger.info(
+        "Picked recording for song %s → '%s' by '%s' (score=%s, recording=%s)",
+        song_id,
+        title,
+        artist,
+        f"{score:.2f}" if score is not None else "n/a",
+        recording_id,
+    )
+
+    # The credits come from the recording a person chose: the enrichment
+    # writes them (and the soundtrack show_name), overriding the lock.
+    celery.send_task(
+        "enrich_song_artist_credits", args=[song_id], kwargs={"picked": True}
+    )
+
+
+@router.post("/{song_id}/skip-fingerprint", status_code=200)
+def skip_fingerprint(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Keep the song's current title and artist: AcoustID won't change or suggest them."""
     repo = SongRepository(db)
     song = repo.fetch(song_id)
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
-    song.acoustid_fingerprint_status = "skipped"
-    db.commit()
-    logger.info("Marked song %s as fingerprint-skipped", song_id)
+    fields: dict = {
+        "acoustid_fingerprint_status": "skipped",
+        "acoustid_suggested_recording_id": None,
+        "acoustid_suggested_title": None,
+        "acoustid_suggested_artist": None,
+        "metadata_confirmed_at": datetime.now(timezone.utc),
+    }
+    # A suggested song has no recording that matches the names being kept.
+    if song.acoustid_fingerprint_status == "suggested":
+        fields["musicbrainz_recording_id"] = None
+    repo.update(song_id, **fields)
+    logger.info("Kept current title/artist for song %s", song_id)
     return {"status": "skipped"}
 
 
 @router.post("/{song_id}/analyze-vocal-range", status_code=200)
-async def analyze_vocal_range(
+def analyze_vocal_range(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Detect vocal range from the isolated vocals stem and persist the result."""
-    import asyncio
-    from pathlib import Path
+    """Measure the lead singer's range now and save it, as the backfill would.
 
-    from app.config import get_config
-    from app.services.audio import detect_vocal_range
+    Measures the singing map first when the song has none, since the range
+    reads it. Answers with the range, or with nulls and the label saying why
+    there's no sung range ("rapped", ...).
+    """
+    import json
+
+    from app.jobs.metadata_tasks import (
+        detect_and_store_singing_map,
+        detect_and_store_vocal_range,
+    )
 
     repo = SongRepository(db)
-    if not repo.fetch(song_id):
+    song = repo.fetch(song_id)
+    if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    config = get_config()
-    vocals_path = Path(config.BASE_LIBRARY_DIR) / song_id / "vocals.mp3"
-    if not vocals_path.exists():
+    if song.singing_map is None and detect_and_store_singing_map(song_id) != "ok":
         raise HTTPException(
             status_code=404,
             detail="Vocals stem not found — song may not be processed yet",
         )
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: detect_vocal_range(
-            vocals_path, lambda msg: logger.debug("VocalRange: %s", msg)
-        ),
-    )
-
-    if result is None:
+    outcome = detect_and_store_vocal_range(song_id)
+    if outcome == "no_audio":
         raise HTTPException(
             status_code=404,
-            detail="Could not detect vocal range (insufficient voiced frames)",
+            detail="Vocals stem not found — song may not be processed yet",
         )
+    if outcome in ("error", "waiting"):
+        logger.error("Vocal range analysis failed for song %s (%s)", song_id, outcome)
+        raise HTTPException(status_code=500, detail="Vocal range analysis failed")
 
-    low, high = result
-    repo.update(song_id, vocal_range_low=low, vocal_range_high=high)
-    logger.info("Vocal range detected for song %s: %s – %s", song_id, low, high)
-    return {"vocal_range_low": low, "vocal_range_high": high}
+    db.expire_all()
+    measured = repo.fetch(song_id)
+    if measured is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+    stored = cast(Optional[str], measured.vocal_range_detail)
+    label = json.loads(stored).get("label") if stored else None
+    low = cast(Optional[str], measured.vocal_range_low)
+    high = cast(Optional[str], measured.vocal_range_high)
+    logger.info("Vocal range for song %s: %s – %s (%s)", song_id, low, high, label)
+    return {
+        "vocal_range_low": low,
+        "vocal_range_high": high,
+        "vocal_range_label": label,
+    }
 
 
 @router.post("/{song_id}/fingerprint", status_code=202)
-async def fingerprint_single_song_endpoint(
+def fingerprint_single_song_endpoint(
     song_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -1614,7 +1776,7 @@ async def fingerprint_single_song_endpoint(
 
 
 @router.post("/{song_id}/validate-youtube-replacement", status_code=200)
-async def validate_youtube_replacement(
+def validate_youtube_replacement(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),
@@ -1803,52 +1965,79 @@ def _format_validation_message(status: str, score: Optional[float]) -> str:
 
 
 @router.post("/{song_id}/replace-youtube", status_code=202)
-async def replace_song_youtube(
+def replace_song_youtube(
     song_id: str,
     request: SongReplaceYouTubeRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     """Replace a song's audio source with a YouTube Music track and reprocess."""
-    from datetime import datetime, timezone
-
-    from app.repositories import JobRepository
-    from app.services.youtube_service import YouTubeService
-
     song_repo = SongRepository(db)
     db_song = song_repo.fetch(song_id)
     if not db_song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    job_repository = JobRepository()
-    active_jobs = job_repository.get_in_flight_jobs()
-    if any(j.song_id == song_id for j in active_jobs):
-        raise HTTPException(status_code=409, detail="Song is already being processed")
-
-    song_repo.update(
+    job_id = restart_youtube_processing(
+        song_repo,
         song_id,
-        status="processing",
-        error_message=None,
-        acoustid_fingerprint_status="not_checked",
-        acoustid_score=None,
-        musicbrainz_recording_id=None,
-        vocal_range_low=None,
-        vocal_range_high=None,
-        loudness_dbfs=None,
-        gain_db=None,
-        engine_type=None,
-    )
-
-    FileService().delete_song_files(song_id)
-
-    job_id = YouTubeService().download_and_process_async(
-        video_id_or_url=request.video_id,
-        song_id=song_id,
+        video_id=request.video_id,
         artist=request.artist or db_song.artist,
         title=request.title or db_song.title,
         engine_type=request.engine_type,
     )
     logger.info("replace-youtube: queued job %s for song %s", job_id, song_id)
+    return {"jobId": job_id, "status": "pending"}
+
+
+@router.post("/{song_id}/retry", status_code=202)
+async def retry_failed_song(
+    song_id: str,
+    db: Session = Depends(get_db),
+    requester: RequesterContext = Depends(require_host_or_session_member),
+    manager: SessionConnectionManager = Depends(get_session_manager),
+):
+    """Restart a failed song from its own YouTube source.
+
+    Open to anyone who can add songs: adding a song whose earlier attempt
+    failed restarts that row rather than creating a duplicate beside it.
+    Only failed songs qualify, so this can't disturb a working one.
+    """
+    song_repo = SongRepository(db)
+    db_song = song_repo.fetch(song_id)
+    if not db_song:
+        raise HTTPException(status_code=404, detail="Song not found")
+    if db_song.status != "error":
+        raise HTTPException(status_code=409, detail="Only a failed song can be retried")
+    if not db_song.video_id:
+        raise HTTPException(
+            status_code=400, detail="This song has no YouTube source to retry from"
+        )
+
+    # Counts against demo download quotas like any other add. No-op otherwise.
+    session_id, user_id = enforce_demo_download_quota(db, requester)
+
+    job_id = restart_youtube_processing(
+        song_repo,
+        song_id,
+        video_id=db_song.video_id,
+        artist=db_song.artist,
+        title=db_song.title,
+        engine_type="three_track",
+        session_id=session_id,
+        user_id=user_id,
+    )
+    logger.info("retry: queued job %s for failed song %s", job_id, song_id)
+
+    await broadcast_job_created(
+        manager,
+        job_created_event(
+            job_id=job_id,
+            song_id=song_id,
+            artist=db_song.artist,
+            title=db_song.title,
+            session_id=session_id,
+        ),
+    )
     return {"jobId": job_id, "status": "pending"}
 
 
@@ -1863,7 +2052,7 @@ async def replace_song_upload(
     """Replace a song's audio source with an uploaded MP3 and reprocess."""
     from datetime import datetime, timezone
 
-    from app.db.models import Job, JobStatus
+    from app.db.models import Job, JobStatus, JobStep
     from app.repositories import JobRepository
 
     song_repo = SongRepository(db)
@@ -1899,9 +2088,13 @@ async def replace_song_upload(
         acoustid_fingerprint_status="not_checked",
         acoustid_score=None,
         musicbrainz_recording_id=None,
+        acoustid_suggested_recording_id=None,
+        acoustid_suggested_title=None,
+        acoustid_suggested_artist=None,
         vocal_range_low=None,
         vocal_range_high=None,
-        loudness_dbfs=None,
+        loudness_lufs=None,
+        true_peak_dbtp=None,
         gain_db=None,
         engine_type=None,
     )
@@ -1915,6 +2108,7 @@ async def replace_song_upload(
         id=job_id,
         filename="original.mp3",
         status=JobStatus.PENDING,
+        step=JobStep.SEPARATE,
         status_message="Queued for reprocessing with uploaded audio",
         progress=0,
         song_id=song_id,

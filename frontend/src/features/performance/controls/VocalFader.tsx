@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Density } from "./density";
 
 interface VocalFaderProps {
   label: string;
@@ -19,10 +18,11 @@ interface VocalFaderProps {
   volume: number;
   onVolumeChange: (volume: number) => void;
   onToggleMute: () => void;
-  density: Density;
   disabled?: boolean;
   /** Shown over the track when disabled — explains why the channel is dead. */
   disabledHint?: string;
+  /** `data-tour` target for the guided demo's tour. */
+  tourId?: string;
 }
 
 const VocalFader: React.FC<VocalFaderProps> = ({
@@ -31,36 +31,29 @@ const VocalFader: React.FC<VocalFaderProps> = ({
   volume,
   onVolumeChange,
   onToggleMute,
-  density,
   disabled = false,
   disabledHint,
+  tourId,
 }) => {
-  const isTv = density === "tv";
   const isMuted = volume === 0;
 
   return (
     <div
+      data-tour={tourId}
       className={cn(
         "flex min-h-0 flex-col items-center gap-2.5",
         disabled && "opacity-50",
       )}
     >
       {/* Name row — the mute lives here, not as a separate button */}
-      <div
-        className={cn("flex w-full items-center", isTv ? "gap-1" : "gap-1.5")}
-      >
+      <div className="flex w-full items-center gap-1">
         <span className="shrink-0 text-primary">
           {React.cloneElement(
             icon as React.ReactElement<{ className?: string }>,
-            { className: isTv ? "size-4.5" : "size-4" },
+            { className: "size-4.5" },
           )}
         </span>
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate font-semibold",
-            isTv ? "text-[0.9375rem]" : "text-sm",
-          )}
-        >
+        <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold">
           {label}
         </span>
         <Button
@@ -69,25 +62,17 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           disabled={disabled}
           onClick={onToggleMute}
           aria-label={isMuted ? `Unmute ${label}` : `Mute ${label}`}
-          className={cn(
-            "shrink-0 text-foreground/55 hover:text-foreground",
-            "size-8",
-          )}
+          className="size-8 shrink-0 text-foreground-dim hover:text-foreground"
         >
           {isMuted ? (
-            <VolumeX className={isTv ? "size-5" : "size-4.5"} />
+            <VolumeX className="size-5" />
           ) : (
-            <Volume2 className={isTv ? "size-5" : "size-4.5"} />
+            <Volume2 className="size-5" />
           )}
         </Button>
       </div>
 
-      <div
-        className={cn(
-          "font-accent leading-none text-primary",
-          isTv ? "text-[2rem]" : "text-3xl",
-        )}
-      >
+      <div className="font-accent text-[2rem] leading-none text-primary">
         {Math.round(volume * 100)}%
       </div>
 
@@ -101,23 +86,15 @@ const VocalFader: React.FC<VocalFaderProps> = ({
           orientation="vertical"
           disabled={disabled}
           onValueChange={([v]) => onVolumeChange(v)}
-          // On the TV the thumb is a mouse target, not a thumb target, and the
-          // fader may shrink well below the phone's floor on a short screen.
-          className={cn(
-            "h-full",
-            isTv && "data-[orientation=vertical]:min-h-20",
-          )}
-          thumbClassName={isTv ? "h-10 w-16" : undefined}
+          // The thumb is a mouse target, not a finger target, and the fader
+          // may shrink well below the slider's default floor on a short TV.
+          className="h-full data-[orientation=vertical]:min-h-20"
+          thumbClassName="h-10 w-16"
           aria-label={`${label} volume`}
         />
         {disabled && disabledHint && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span
-              className={cn(
-                "max-w-full rounded-sm bg-overlay/70 px-2 py-1 text-center leading-tight text-foreground/70",
-                isTv ? "text-sm" : "text-xs",
-              )}
-            >
+            <span className="max-w-full rounded-sm bg-overlay/70 px-2 py-1 text-center text-sm leading-tight text-foreground-dim">
               {disabledHint}
             </span>
           </div>

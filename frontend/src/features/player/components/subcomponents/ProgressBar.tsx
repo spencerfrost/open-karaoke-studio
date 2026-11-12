@@ -3,7 +3,7 @@ import React from "react";
 interface ProgressBarProps {
   currentTime: number; // seconds
   duration?: number; // seconds
-  onSeek?: (value: number) => void; // callback receives seconds
+  onSeek?: (value: number) => void; // callback receives seconds; omit for display only
   className?: string;
 }
 
@@ -28,21 +28,23 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   return (
     <div className={`w-full ${className}`}>
       <div className="relative h-2">
-        <div className="absolute inset-0 overflow-hidden bg-dark-cyan/15">
+        <div className="absolute inset-0 overflow-hidden bg-decor-1/15">
           <div
-            className={`h-full rounded-full bg-gradient-to-r from-dark-cyan to-orange-peel px-1`}
+            className={`h-full rounded-full bg-gradient-to-r from-decor-1 to-decor-2 px-1`}
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <input
-          type="range"
-          min={0}
-          max={totalDuration || 100}
-          value={currentTime}
-          onChange={handleSeek}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          aria-label="Seek"
-        />
+        {onSeek && (
+          <input
+            type="range"
+            min={0}
+            max={totalDuration || 100}
+            value={currentTime}
+            onChange={handleSeek}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Seek"
+          />
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import {
   SongCard,
   PerformerSongCard,
 } from "@/features/songs/components/song-card";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useAccess } from "@/hooks/useAccess";
 import { Button } from "@/components/ui/button";
 import { Loader2, Youtube } from "lucide-react";
 import { useOpenAddSong } from "@/hooks/useOpenAddSong";
@@ -17,6 +17,8 @@ interface SongResultsGridProps {
   fetchNextPage?: () => void;
   searchTerm?: string;
   artistName?: string;
+  /** With artistName: their YouTube Music channel, for the browse card. */
+  youtubeMusicArtistId?: string | null;
   showArtist?: boolean;
 }
 
@@ -27,18 +29,20 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
   fetchNextPage,
   searchTerm,
   artistName,
+  youtubeMusicArtistId,
   showArtist = true,
 }) => {
   const openAddSong = useOpenAddSong();
-  const { isStageDevice } = useSessionStore();
-  const CardComponent = isStageDevice ? SongCard : PerformerSongCard;
+  // Admins manage songs from any device, not just the one running the Stage.
+  const { isStageDevice, isAdmin } = useAccess();
+  const CardComponent = isStageDevice || isAdmin ? SongCard : PerformerSongCard;
 
   if (songs.length === 0 && searchTerm) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4">
         <div className="text-center space-y-4 max-w-md">
-          <p className="text-lemon-chiffon/60">
-            No songs found in your library for "{searchTerm}"
+          <p className="text-foreground-dim">
+            No songs found in the songbook for "{searchTerm}"
           </p>
           <Button
             onClick={() => openAddSong({ query: searchTerm })}
@@ -52,7 +56,8 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
     );
   }
 
-  if (songs.length === 0) {
+  // An artist with no songs of their own still gets the browse card.
+  if (songs.length === 0 && !artistName) {
     return null;
   }
 
@@ -63,7 +68,12 @@ const SongResultsGrid: React.FC<SongResultsGridProps> = ({
         {songs.filter(Boolean).map((song) => (
           <CardComponent key={song.id} song={song} showArtist={showArtist} />
         ))}
-        {artistName && <BrowseArtistCard artistName={artistName} />}
+        {artistName && (
+          <BrowseArtistCard
+            artistName={artistName}
+            youtubeMusicArtistId={youtubeMusicArtistId}
+          />
+        )}
       </div>
 
       {/* Load More Button */}

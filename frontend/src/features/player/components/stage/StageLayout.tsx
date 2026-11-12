@@ -1,12 +1,15 @@
 /**
  * StageLayout - the stage itself: three columns filling the viewport.
  *
- * Left rail is the same ControlsStrip the phone renders; the centre column is
- * the player; the right rail is the queue. The transport sits under the centre
- * column only, so the rails keep the full height.
+ * Left rail is the controls strip (the phone lays out the same controls its
+ * own way); the centre column is the player; the right rail is the queue. The
+ * transport sits under the centre column only, so the rails keep the full
+ * height.
  *
  * While a song plays the rails collapse to icon strips and the chrome dims —
- * but nothing unmounts, so dialogs, drag state and focus all survive.
+ * but nothing unmounts, so dialogs, drag state and focus all survive. The join
+ * QR is the exception to the dimming: it shrinks into the foot of the right
+ * rail and stays fully visible, so latecomers can always scan in.
  *
  * The backdrop (sunburst, texture, scrim) belongs to the shell, not here: it is
  * shared with every other stage screen, and painting a second full-viewport
@@ -15,12 +18,14 @@
 
 import React, { useCallback } from "react";
 import { ControlsStrip } from "@/features/performance/controls";
+import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { cn } from "@/lib/utils";
 import type { PlayerUIHook } from "../../types/KaraokePlayer.types";
 import KaraokePlayer from "../KaraokePlayer";
 import StageTransport from "./StageTransport";
-import StageAmbientBar from "./StageAmbientBar";
+import StageAmbientBar, { STAGE_AMBIENT_BAR_HEIGHT } from "./StageAmbientBar";
+import StageJoinCode from "./StageJoinCode";
 import StageQueueRail from "./StageQueueRail";
 import StageRailIcons from "./StageRailIcons";
 import { useStageRails } from "./useStageRails";
@@ -33,6 +38,15 @@ import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 // to the mic.
 const RAIL_OPEN = "17rem";
 const RAIL_COLLAPSED = "6rem";
+// While collapsed the transport gives its height back to the lyrics, keeping
+// only what the ambient bar covers below the grid's own bottom padding (p-6).
+const COLLAPSED_TRANSPORT_RESERVE = `calc(${STAGE_AMBIENT_BAR_HEIGHT} - 1.5rem)`;
+// The join QR clears the ambient bar by a further 1rem: a waveform bar drawn
+// over its edge could stop it scanning.
+// Wider than the collapsed rail: it spills 1rem into the gap and the outer
+// padding on each side (1.5rem each), which reads better from the couch.
+const COLLAPSED_JOIN_CODE_SIZE = "7rem";
+const COLLAPSED_JOIN_CODE_RESERVE = `calc(${STAGE_AMBIENT_BAR_HEIGHT} - 0.5rem)`;
 
 interface StageLayoutProps {
   songId: string;
@@ -61,8 +75,11 @@ const StageLayout: React.FC<StageLayoutProps> = ({
 }) => {
   const isPlaying = useKaraokePlayerStore((state) => state.isPlaying);
   const { collapsed } = useStageRails(isPlaying);
+  const openSongSelect = useOpenSongSelect();
+  const openLibrary = useCallback(() => openSongSelect(), [openSongSelect]);
   useStageKeyboard({
     onToggleFullscreen: ui.toggleFullscreen,
+    onOpenLibrary: openLibrary,
     enabled: keyboardEnabled,
   });
   // keyboardEnabled is false exactly while another stage screen covers this one.
@@ -98,49 +115,71 @@ const StageLayout: React.FC<StageLayoutProps> = ({
           gridTemplateColumns: `${railWidth} minmax(0, 1fr) ${railWidth}`,
         }}
       >
-        {/* Left rail — the same channel strip as the phone */}
+        {/* Left rail — the channel strip */}
         <div className={railClass}>
           <div className={cn(!collapsed && "hidden")}>
             <StageRailIcons side="left" />
           </div>
-          <ControlsStrip
-            density="tv"
-            className={cn("flex-1", collapsed && "hidden")}
-          />
+          <ControlsStrip className={cn("flex-1", collapsed && "hidden")} />
         </div>
 
         {/* Centre — the player, with the transport under it */}
         <div className="flex min-h-0 flex-col items-center">
-          {/* Autoplay: "Sing it now", the queue rail and the handoff screen
-            all mean "start this", so a newly loaded song plays by itself. */}
-          <KaraokePlayer songId={songId} autoPlay dimHeader={collapsed} />
+          {/* Autoplay: "Sing it now", the queue rail, Next and the handoff
+            screen all mean "start this", so a new song counts in 3-2-1 and
+            then plays by itself (useSongStart). The count waits while
+            another screen covers the player. */}
+          <KaraokePlayer
+            songId={songId}
+            autoPlay
+            visible={keyboardEnabled}
+            singer={current?.songId === songId ? current.singer : undefined}
+            chromeCollapsed={collapsed}
+          />
+          {/* Fading alone would leave the lyrics stopping where the transport
+            used to be. The 1fr -> 0fr row animates the height out too. */}
           <div
             className={cn(
-              "w-full shrink-0 transition-opacity duration-500",
+              "grid w-full shrink-0 transition-[grid-template-rows,opacity,padding] duration-500",
               collapsed && "pointer-events-none opacity-0",
             )}
+            style={{
+              gridTemplateRows: collapsed ? "0fr" : "1fr",
+              paddingBottom: collapsed ? COLLAPSED_TRANSPORT_RESERVE : 0,
+            }}
           >
-            <StageTransport
-              onNext={nextItem ? handleNext : undefined}
-              onToggleFullscreen={ui.toggleFullscreen}
-              isFullscreen={ui.isFullscreen}
-            />
+            {/* Clip only while collapsed, so the play button's glow isn't cut. */}
+            <div className={cn("min-h-0", collapsed && "overflow-hidden")}>
+              <StageTransport
+                onNext={nextItem ? handleNext : undefined}
+                onToggleFullscreen={ui.toggleFullscreen}
+                isFullscreen={ui.isFullscreen}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Right rail — the queue */}
-        <div className={railClass}>
-          <div className={cn(!collapsed && "hidden")}>
-            <StageRailIcons side="right" queueCount={upcoming.length} />
+        {/* Right rail — the queue, then the join code. The code sits outside
+          the dimmed part so it stays scannable while the rail is collapsed. */}
+        <div className="flex min-h-0 flex-col gap-4">
+          <div className={cn(railClass, "flex-1")}>
+            <div className={cn(!collapsed && "hidden")}>
+              <StageRailIcons side="right" queueCount={upcoming.length} />
+            </div>
+            <div className={cn("min-h-0 flex-1", collapsed && "hidden")}>
+              <StageQueueRail
+                current={current}
+                upcoming={upcoming}
+                onPlay={onPlayFromQueue}
+                onRemove={onRemoveFromQueue}
+              />
+            </div>
           </div>
-          <div className={cn("min-h-0 flex-1", collapsed && "hidden")}>
-            <StageQueueRail
-              current={current}
-              upcoming={upcoming}
-              onPlay={onPlayFromQueue}
-              onRemove={onRemoveFromQueue}
-            />
-          </div>
+          <StageJoinCode
+            collapsed={collapsed}
+            collapsedSize={COLLAPSED_JOIN_CODE_SIZE}
+            collapsedInset={COLLAPSED_JOIN_CODE_RESERVE}
+          />
         </div>
       </div>
 

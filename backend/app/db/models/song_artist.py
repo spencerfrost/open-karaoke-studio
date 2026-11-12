@@ -10,8 +10,13 @@ class DbSongArtist(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     song_id = Column(String, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     artist_id = Column(Integer, ForeignKey("artists.id"), nullable=False)
-    role = Column(String(20), nullable=False, default="primary")  # 'primary' | 'featured'
+    role = Column(
+        String(20), nullable=False, default="primary"
+    )  # 'primary' | 'featured'
     display_order = Column(Integer, nullable=False, default=0)
+    # The name as printed on this recording ("Dixie Chicks"); the artist row
+    # carries the current one ("The Chicks").
+    credited_as = Column(String, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("song_id", "artist_id"),

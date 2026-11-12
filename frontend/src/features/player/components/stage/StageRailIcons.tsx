@@ -8,7 +8,6 @@
 import React from "react";
 import {
   Captions,
-  Grid2x2,
   Mic,
   MoreHorizontal,
   Search,
@@ -54,15 +53,12 @@ const StageRailIcons: React.FC<StageRailIconsProps> = ({
           <span className="font-accent text-[2rem] leading-none text-primary">
             {queueCount}
           </span>
-          <span className="text-[0.625rem] uppercase tracking-[0.08em] text-foreground/60">
+          <span className="text-[0.625rem] uppercase tracking-[0.08em] text-foreground-dim">
             Queue
           </span>
         </div>
         <div className={tileClass}>
           <Mic className="size-7.5 text-foreground" />
-        </div>
-        <div className={tileClass}>
-          <Grid2x2 className="size-7.5 text-foreground" />
         </div>
       </>
     )}

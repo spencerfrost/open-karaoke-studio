@@ -35,8 +35,7 @@ tmux capture-pane -t open-karaoke:0.0 -p | tail -20   # API server
 tmux capture-pane -t open-karaoke:0.1 -p | tail -20   # Frontend
 tmux capture-pane -t open-karaoke:0.2 -p | tail -20   # Celery worker
 
-# Setup
-./setup.sh                    # Initial setup (once)
+# Setup: see README "Getting Started" (first admin comes from ADMIN_USERNAME/ADMIN_PASSWORD)
 ./scripts/dev-tmux.sh         # Start all services
 ```
 
@@ -46,11 +45,15 @@ Topic conventions live in `.claude/rules/` and load automatically when Claude re
 - `backend.md` (`backend/**`) — venv, pytest, style, logging, errors, DB/Alembic, Celery.
 - `frontend.md` (`frontend/**`) — pnpm commands, logging, state, components.
 - `websocket.md` (`backend/app/ws/**`, `frontend/src/{services,stores}/**`) — endpoints + session isolation.
+- `docs.md` (`backend/app/**`, `frontend/src/**`, `docs/**`) — which domain doc each code area updates, and how docs are written.
 
 ## Documentation
 
-- **[FEATURES.md](FEATURES.md)** — Feature inventory with user stories (24 features across 8 domains)
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — WebSocket design, processing pipeline, DB schema, state management
-- **[TECH-DEBT.md](TECH-DEBT.md)** — Known issues and tech debt (21 items by severity)
-- **[ROADMAP.md](ROADMAP.md)** — Future improvements and feature ideas
-- **[docs/](docs/)** — Detailed guides for complex topics (future)
+The docs are a VitePress site in `docs/` (`cd docs && pnpm run build`).
+
+- **[docs/architecture.md](docs/architecture.md)** — Overview and map of the domain docs
+- **[docs/domains/](docs/domains/)** — One doc per slice (ingestion, song library, lyrics, sessions, player/stage, platform): how it works, diagrams, known debt
+- **[docs/features.md](docs/features.md)** — What a user can do
+- **[docs/api/](docs/api/)**, **[docs/websocket-protocol.md](docs/websocket-protocol.md)** — Endpoint and message reference
+- **[docs/tech-debt.md](docs/tech-debt.md)** · **[docs/roadmap.md](docs/roadmap.md)**
+- **[docs/plans/](docs/plans/)** — Working plans (not published on the site)

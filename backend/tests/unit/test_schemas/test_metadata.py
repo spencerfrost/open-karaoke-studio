@@ -5,7 +5,9 @@ from app.schemas.metadata import MetadataUpdateRequest
 
 
 def test_all_fields_valid():
-    req = MetadataUpdateRequest(title="Song Title", artist="Artist", album="Album", year=2020)
+    req = MetadataUpdateRequest(
+        title="Song Title", artist="Artist", album="Album", year=2020
+    )
     assert req.title == "Song Title"
     assert req.year == 2020
 
@@ -36,7 +38,6 @@ def test_artist_too_long_raises():
 def test_album_too_long_raises():
     with pytest.raises(ValidationError):
         MetadataUpdateRequest(album="x" * 201)
-
 
 
 def test_year_below_minimum_raises():

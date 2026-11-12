@@ -1,112 +1,134 @@
-"""Populate the song_artists join table for a given song."""
+"""Writing a song's artist credits (the song_artists join table).
+
+Credits arrive as a list from whatever knows the artists: YouTube Music when a
+song is added from search, MusicBrainz once a recording links, or a person
+editing them. The parser only runs when nothing does. set_song_credits is the
+one function that writes them.
+"""
 
 import logging
 import re
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.db.models.song import DbSong
 from app.db.models.song_artist import DbSongArtist
 from app.repositories.artist_repository import ArtistRepository
-from app.services.artist_parsing import parse_song_artists
+from app.services.artist_parsing import (
+    ArtistCredit,
+    normalize_artist_name,
+    parse_song_artists,
+    parse_title_featured,
+)
 
 logger = logging.getLogger(__name__)
 
-# Patterns that strongly suggest "&" is part of a band name, not a collaboration
-_BAND_AMPERSAND = re.compile(
-    r"&\s+(?:The|His|Her|Their|Los|Las|Les|Die|Das)\s",
+# Joins that might sit between two primary artists: "A & B", "A and B".
+_PRIMARY_JOIN = re.compile(r"\s+(?:&|and)\s+", re.IGNORECASE)
+# Patterns that strongly suggest the join is part of a band name
+_BAND_JOIN = re.compile(
+    r"^(?:The|His|Her|Their|Los|Las|Les|Die|Das)\s",
     re.IGNORECASE,
 )
 
 
-def try_ampersand_split(
-    credits: list[tuple[str, str]],
-    db: Session,
-) -> list[tuple[str, str]]:
-    """If credits contain a single primary with '&', try to split using local DB knowledge.
+def split_known_primaries(primary: str, db: Session) -> list[str]:
+    """Split a primary artist on "&" or "and" only when every half is an artist already.
 
-    Only splits when BOTH sides of '&' already exist as known artists in the database.
-    This avoids incorrectly splitting band names like "Bob Marley & The Wailers".
+    "Amber Mark & John The Blind" splits once both are in the library; "Chase &
+    Status" stays whole, and "Chase & Status and Bou" splits only at "and".
+    "X & The Y" is a band name and never splits.
     """
-    primaries = [(name, role) for name, role in credits if role == "primary"]
-    if len(primaries) != 1:
-        return credits  # Already split or no primary
+    repo = ArtistRepository(db)
+    for match in _PRIMARY_JOIN.finditer(primary):
+        left, right = primary[: match.start()].strip(), primary[match.end() :].strip()
+        if not left or not right or _BAND_JOIN.match(right):
+            continue
+        if repo.find(left) and repo.find(right):
+            logger.info("Split primary artist '%s' → '%s' + '%s'", primary, left, right)
+            return [left, right]
+    return [primary]
 
-    primary_name = primaries[0][0]
-    if " & " not in primary_name:
-        return credits
 
-    # "X & The Y" is almost always a band name
-    if _BAND_AMPERSAND.search(primary_name):
-        return credits
+def parse_credits(db: Session, artist_str: str, title: str = "") -> list[ArtistCredit]:
+    """Credits guessed from a song's artist text and title, for when no list is known.
 
-    parts = [p.strip() for p in primary_name.split(" & ", 1)]
-    if len(parts) != 2 or not all(parts):
-        return credits
-
-    # Check if both sides independently exist as artists in the DB
-    artist_repo = ArtistRepository(db)
-    a = artist_repo.get_by_name(parts[0])
-    b = artist_repo.get_by_name(parts[1])
-
-    if a and b:
-        # Both exist as separate artists — split into two primaries
-        featured = [(name, role) for name, role in credits if role == "featured"]
-        logger.info(
-            "Heuristic ampersand split: '%s' → '%s' + '%s'",
-            primary_name,
-            parts[0],
-            parts[1],
-        )
-        return [(parts[0], "primary"), (parts[1], "primary")] + featured
-
+    Featured artists come from the "feat." part of the artist and from a
+    "(feat. X)" in the title.
+    """
+    primary, featured = parse_song_artists(artist_str or "")
+    names = split_known_primaries(primary, db) if primary else []
+    credits = [ArtistCredit(name=name, role="primary") for name in names]
+    credits += [
+        ArtistCredit(name=name, role="featured")
+        for name in featured + parse_title_featured(title)
+    ]
     return credits
 
 
-def populate_song_artists(db: Session, song: DbSong, artist_str: str) -> None:
-    """Parse *artist_str*, create artist rows, and link them to *song* via song_artists.
+def set_song_credits(
+    db: Session, song: DbSong, credits: Optional[list[ArtistCredit]]
+) -> None:
+    """Replace a song's artist credits, and point songs.artist_id at the first primary.
 
-    This is idempotent — existing song_artists rows for the song are deleted first.
+    `credits` is the list whatever knows the artists gave, in order; None parses
+    it from the song's artist text and title. A list with no primary makes its
+    first artist primary. An artist named twice keeps their first credit.
+
+    Never touches songs.artist. Flushes; the caller commits.
     """
-    primary_name, featured_names = parse_song_artists(artist_str)
-
-    artist_repo = ArtistRepository(db)
-
-    # Resolve / create the primary artist
-    primary_artist = artist_repo.get_or_create(primary_name, display_name=primary_name)
-
-    # Update the song's FK shortcut
-    song.artist_id = primary_artist.id
-
-    # Clear existing links (idempotent)
-    db.query(DbSongArtist).filter(DbSongArtist.song_id == song.id).delete()
-
-    # Insert primary
-    db.add(
-        DbSongArtist(
-            song_id=song.id,
-            artist_id=primary_artist.id,
+    if credits is None:
+        credits = parse_credits(db, song.artist or "", song.title or "")
+    credits = [c for c in credits if normalize_artist_name(c.name)]
+    if not credits:
+        logger.warning("No artists to credit on song %s; credits unchanged", song.id)
+        return
+    if not any(c.role == "primary" for c in credits):
+        first = credits[0]
+        credits[0] = ArtistCredit(
+            name=first.name,
             role="primary",
-            display_order=0,
+            musicbrainz_id=first.musicbrainz_id,
+            youtube_music_id=first.youtube_music_id,
+            credited_as=first.credited_as,
         )
-    )
 
-    # Insert featured
-    for i, feat_name in enumerate(featured_names, start=1):
-        feat_artist = artist_repo.get_or_create(feat_name, display_name=feat_name)
-        db.add(
+    repo = ArtistRepository(db)
+    resolved = []
+    seen: set[int] = set()
+    for credit in credits:
+        artist = repo.resolve(
+            credit.name,
+            credit.musicbrainz_id,
+            credit.youtube_music_id,
+            credited_as=credit.credited_as,
+        )
+        if artist.id in seen:
+            continue
+        seen.add(artist.id)
+        credited_as = credit.credited_as or credit.name
+        repo.add_alias(artist, credited_as, "credited")
+        resolved.append((artist, credit.role, credited_as))
+
+    # Old rows go first: the new ones may credit the same artists.
+    song.song_artists.clear()
+    db.flush()
+    # Primaries before featured, each in the order given.
+    resolved.sort(key=lambda r: r[1] != "primary")
+    for order, (artist, role, credited_as) in enumerate(resolved):
+        song.song_artists.append(
             DbSongArtist(
-                song_id=song.id,
-                artist_id=feat_artist.id,
-                role="featured",
-                display_order=i,
+                artist_rel=artist,
+                role=role,
+                display_order=order,
+                credited_as=credited_as,
             )
         )
-
-    db.commit()
+    song.artist_rel = resolved[0][0]
+    db.flush()
     logger.info(
-        "Populated song_artists for song %s: primary=%s, featured=%s",
+        "Credited song %s: %s",
         song.id,
-        primary_name,
-        featured_names,
+        [(artist.display_name or artist.name, role) for artist, role, _ in resolved],
     )

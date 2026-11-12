@@ -84,4 +84,31 @@ describe("evaluateAccess", () => {
     const access = evaluateAccess(noAuth, { ...noSession, isRecovering: true });
     expect(access.isRecovering).toBe(true);
   });
+
+  it("marks a demo pool account, and nothing else, as the demo", () => {
+    const demo = evaluateAccess(
+      {
+        isAuthenticated: true,
+        user: {
+          isAdmin: false,
+          isHost: true,
+          isDemo: true,
+          displayName: "Demo Host",
+        },
+      },
+      noSession,
+    );
+    expect(demo.isDemo).toBe(true);
+
+    // A store persisted before the flag existed has no isDemo at all.
+    const host = evaluateAccess(
+      {
+        isAuthenticated: true,
+        user: { isAdmin: false, isHost: true, displayName: "Host" },
+      },
+      noSession,
+    );
+    expect(host.isDemo).toBe(false);
+    expect(evaluateAccess(noAuth, noSession).isDemo).toBe(false);
+  });
 });

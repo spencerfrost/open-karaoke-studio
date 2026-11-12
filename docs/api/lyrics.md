@@ -12,6 +12,8 @@ API documentation for lyrics search, storage, timing analysis, and word-level al
 
 Lyrics live in three forms on a song: `plainLyrics` (text), `syncedLyrics` (LRC with line timestamps), and `wordSyncedLyrics` (word-level alignment JSON produced by the alignment pipeline). Updating plain or synced lyrics invalidates any existing word-level alignment.
 
+Every read needs an account or session-member credential (see [Authentication](authentication.md)). The provider searches are rate limited at `20/minute` per client IP, and the two alignment endpoints, which each start a GPU job, at `10/minute`. Listing, resolving and undoing lyrics reports, and listing lyrics feedback, is admin-only.
+
 ---
 
 ## Search Endpoints
@@ -62,6 +64,15 @@ GET /api/lyrics/search-synced
 ---
 
 ## Song Lyrics CRUD
+
+### List Languages
+
+```http
+GET /api/lyrics/languages
+```
+
+Account or session-member credential. Returns the language codes a song's lyrics language can be
+set to: every language Whisper knows (`["en", "zh", "de", …]`).
 
 ### Get Song Lyrics
 
@@ -218,6 +229,155 @@ POST /api/lyrics/songs/{song_id}/align-db?language=en&source=plain
 
 ---
 
+## Lyrics Reports
+
+Anyone singing can report that a song's lyrics are wrong. A report records what was on screen and
+queues alignment to try a fix; see [Lyrics System § Reports](/domains/lyrics-system#reports-someone-singing-says-the-lyrics-are-wrong).
+
+### Report a Song's Lyrics
+
+```http
+POST /api/lyrics/songs/{song_id}/reports
+```
+
+Account or session-member credential.
+
+```json
+{ "kind": "words" }
+```
+
+`kind` is `words` (the text is wrong) or `timing` (the words are right but out of sync). Reports are
+merged per song, kind and lyrics text: reporting again bumps `reportCount`. A `words` report on
+hand-picked lyrics clears `lyrics_hand_picked_at`, so other sources may replace them. When the song
+has a vocals stem, alignment is queued.
+
+```json
+{
+  "report": {
+    "id": 7,
+    "songId": "…",
+    "title": "Hate Me",
+    "artist": "Blue October",
+    "kind": "words",
+    "reportCount": 2,
+    "reporterName": "Sam",
+    "createdAt": "2026-10-28T21:40:00",
+    "lastReportedAt": "2026-10-28T22:15:00",
+    "outcome": null,
+    "resolved": false,
+    "lyricsSource": "lrclib:1",
+    "lyricsHandPicked": false,
+    "canRestore": true
+  },
+  "alignment": {
+    "jobId": "…",
+    "taskId": "…",
+    "songId": "…",
+    "status": "pending",
+    "dispatched": true,
+    "includeRemote": true,
+    "source": null,
+    "language": null,
+    "message": "Lyrics alignment queued."
+  }
+}
+```
+
+`alignment` is the same object `POST …/align` returns; `dispatched` is `false` when a run for the
+song was already queued or running. `404` for an unknown song, `422` when the song has no lyrics. `alignment` is `null` without a
+vocals stem. `outcome` is filled in once the alignment run finishes: `replaced`, `retimed`,
+`transcribed` or `unchanged`.
+
+### List Open Reports
+
+```http
+GET /api/lyrics/reports
+```
+
+Admin only. Open reports, most recently reported first, each shaped like `report` above.
+
+### Resolve a Report
+
+```http
+POST /api/lyrics/reports/{report_id}/resolve
+```
+
+Admin only. Marks the report dealt with and returns it. Lyrics reported as wrong stay rejected, so
+alignment won't pick that text again. `404` for an unknown report.
+
+### Undo a Report
+
+```http
+POST /api/lyrics/reports/{report_id}/undo
+```
+
+Admin only. "The report was wrong": restores the reported text (marked hand-picked), deletes the
+report, which lifts the rejection, and re-aligns.
+
+```json
+{ "restored": true, "alignment": { "jobId": "…", "status": "pending", "dispatched": true, … } }
+```
+
+---
+
+## Lyrics Feedback
+
+After each song the stage asks "How were the lyrics?". Answers fix nothing; they record which songs need work and which are right.
+
+### Answer for a Finished Song
+
+```http
+POST /api/lyrics/feedback
+```
+
+Needs an account or session-member credential for the queue item's session. The song must still be the session's queue item (it is until the next song starts) and must have lyrics. Answering again for the same queue item replaces the answer.
+
+#### Request
+
+```json
+{ "queue_item_id": 41, "rating": "way_off" }
+```
+
+`rating` is `spot_on`, `a_bit_off` or `way_off`.
+
+#### Response
+
+```json
+{ "queueItemId": 41, "rating": "way_off" }
+```
+
+`404` when the queue item is gone, `403` for someone outside its session, `422` when the song has no lyrics or the rating is unknown.
+
+### List Feedback by Song
+
+```http
+GET /api/lyrics/feedback
+```
+
+Admin only. One entry per song with answers, worst first: most `wayOff`, then most `aBitOff`, then most `plays`.
+
+#### Response
+
+```json
+[
+  {
+    "songId": "…",
+    "title": "Hate Me",
+    "artist": "Blue October",
+    "spotOn": 0,
+    "aBitOff": 1,
+    "wayOff": 2,
+    "earlier": 1,
+    "plays": 6,
+    "lastAnsweredAt": "2026-10-28T22:15:00",
+    "lyricsSource": "lrclib:1",
+    "lyricsHandPicked": false
+  }
+]
+```
+
+`spotOn`, `aBitOff` and `wayOff` count answers about the lyrics and word timings the song shows now. `earlier` counts answers about lyrics or timings it has since replaced, so a fixed song drops to zero. `plays` counts the song's performance history rows.
+
 ## Batch Alignment
 
 ### Library Alignment Stats
@@ -225,6 +385,8 @@ POST /api/lyrics/songs/{song_id}/align-db?language=en&source=plain
 ```http
 GET /api/lyrics/batch/align
 ```
+
+**Requires an admin account.**
 
 #### Response
 
@@ -234,38 +396,23 @@ GET /api/lyrics/batch/align
   "withVocals": 140,
   "aligned": 90,
   "needsAlignment": 45,
-  "noLyrics": 5
+  "noLyrics": 5,
+  "repair": 12,
+  "repairReasons": {
+    "no_word_timing": 8,
+    "plain_only": 2,
+    "plain_timing": 1,
+    "words_mismatch": 1,
+    "reported": 1
+  }
 }
 ```
+
+`repair` counts the songs a `repair` run would queue; a song can have more than one reason.
 
 ### Run Batch Alignment
 
-Dispatch a Celery task to align songs across the library. **Requires authentication.** Returns `202 Accepted`.
-
-```http
-POST /api/lyrics/batch/align?mode=missing&language=en
-```
-
-`mode` is `missing` (only unaligned songs) or `all` (re-run everything).
-
-#### Response
-
-```json
-{
-  "taskId": "celery-task-id",
-  "status": "dispatched",
-  "mode": "missing",
-  "language": "en"
-}
-```
-
-### Poll Batch Status
-
-```http
-GET /api/lyrics/batch/align/status/{task_id}
-```
-
-`state` is one of `PENDING`, `STARTED`, `SUCCESS`, `FAILURE`; `SUCCESS` includes a `result` payload.
+Runs go through the `lyrics_alignment` batch job (modes `missing`, `repair`, `all`): see [Admin API](admin.md).
 
 ---
 
@@ -285,8 +432,9 @@ curl -X POST "http://localhost:5123/api/lyrics/songs/{song_id}?type=synced" \
 curl -X POST "http://localhost:5123/api/lyrics/songs/{song_id}/align" \
   -H "Authorization: Bearer {token}"
 
-# Check library-wide alignment status
-curl http://localhost:5123/api/lyrics/batch/align
+# Check library-wide alignment status (admin)
+curl http://localhost:5123/api/lyrics/batch/align \
+  -H "Authorization: Bearer {token}"
 ```
 
 ---
@@ -295,4 +443,5 @@ curl http://localhost:5123/api/lyrics/batch/align
 
 - [Songs API](songs.md) - Lyrics fields on the song object
 - [Jobs API](jobs.md) - Tracking alignment jobs
-- [Lyrics Analysis System](/lyrics-analysis-system) - How analysis and alignment work internally
+- [Lyrics System](/domains/lyrics-system) - How lyrics, alignment, reports and feedback work internally
+- [Lyrics Analysis](/lyrics-analysis-system) - The thinking behind section breaks and offset detection

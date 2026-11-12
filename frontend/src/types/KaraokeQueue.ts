@@ -4,8 +4,12 @@ export interface KaraokeQueueItem {
   id: string;
   songId: string;
   singer: string;
+  /**
+   * The roster seat this song belongs to. Null for rows that predate the
+   * roster; optional because older payloads did not send it.
+   */
+  performerId?: number | null;
   position: number;
-  lap: number;
   addedAt: string;
 }
 
@@ -33,7 +37,7 @@ export interface SessionTurn {
   performerId: number | null;
   performerName: string | null;
   itemId: number | null;
-  /** Active performers in rotation order. Empty in append mode. */
+  /** Active performers in seat order, starting with whoever is up. Empty in append mode. */
   circle: TurnPerformer[];
 }
 

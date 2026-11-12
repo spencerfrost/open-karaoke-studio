@@ -19,18 +19,20 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-import torch
 import soundfile as sf
-from audio_separator.separator import Separator
+import torch
 from demucs.api import Separator as DemucsSeparator
+
 from app.config import get_config
-from app.services.audio import (
-    create_audio_progress_mapper,
-    select_device_and_log,
-    make_progress_callback,
-    StopProcessingError,
-)
 from app.services import file_management
+from app.services.audio import (
+    StopProcessingError,
+    create_audio_progress_mapper,
+    make_progress_callback,
+    select_device_and_log,
+)
+
+from .roformer_loader import load_separator
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,9 @@ def separate_with_hybrid(
 
     try:
         # ===== STEP 1: Demucs Separation (35-60% progress) =====
-        status_callback("Progress: 35% - Step 1/3: Running Demucs for initial separation...")
+        status_callback(
+            "Progress: 35% - Step 1/3: Running Demucs for initial separation..."
+        )
 
         device = select_device_and_log(status_callback)
         config = get_config()
@@ -74,10 +78,12 @@ def separate_with_hybrid(
 
         # Create a wrapped progress callback that maps Demucs [0-100%] to job [35-60%]
         demucs_progress_callback = create_audio_progress_mapper(
-            engine_type='demucs',
+            engine_type="demucs",
             base_start=35,
             base_end=60,
-            update_fn=lambda prog, msg: status_callback(f"Step 1/3 (Demucs): {msg} [{prog}%]")
+            update_fn=lambda prog, msg: status_callback(
+                f"Step 1/3 (Demucs): {msg} [{prog}%]"
+            ),
         )
 
         demucs_separator = DemucsSeparator(
@@ -108,7 +114,7 @@ def separate_with_hybrid(
             str(temp_vocals_path),
             vocals_numpy,
             demucs_separator.samplerate,
-            subtype='PCM_16'
+            subtype="PCM_16",
         )
         logger.info("Demucs vocals saved to: %s", temp_vocals_path)
 
@@ -126,12 +132,14 @@ def separate_with_hybrid(
         temp_instrumental_path = temp_dir / "demucs_instrumental.wav"
 
         # Convert tensor to numpy and save with soundfile
-        instrumental_numpy = instrumental_tensor.cpu().numpy().T  # Transpose to (samples, channels)
+        instrumental_numpy = (
+            instrumental_tensor.cpu().numpy().T
+        )  # Transpose to (samples, channels)
         sf.write(
             str(temp_instrumental_path),
             instrumental_numpy,
             demucs_separator.samplerate,
-            subtype='PCM_16'
+            subtype="PCM_16",
         )
         logger.info("Demucs instrumental saved to: %s", temp_instrumental_path)
 
@@ -140,18 +148,14 @@ def separate_with_hybrid(
             raise StopProcessingError("Processing stopped by user")
 
         # ===== STEP 2: audio-separator Vocal Refinement (60-75% progress) =====
-        status_callback("Progress: 60% - Step 2/3: Refining vocals with audio-separator...")
-
-        # Initialize audio-separator
-        separator = Separator(
-            output_dir=str(temp_dir),
-            output_format="wav",
+        status_callback(
+            "Progress: 60% - Step 2/3: Refining vocals with audio-separator..."
         )
 
         # Load the Mel-Band Roformer ViperX model for lead/backing separation
         model_name = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
         status_callback(f"Loading model: {model_name}")
-        separator.load_model(model_filename=model_name)
+        separator = load_separator(model_name, str(temp_dir))
 
         # Separate the Demucs vocals into lead and backing
         status_callback("Progress: 67% - Splitting vocals into lead and backing...")
@@ -241,8 +245,12 @@ def separate_with_hybrid(
         # ===== STEP 4: Convert to MP3 and Move to Final Location =====
         status_callback("Progress: 80% - Converting to MP3 and finalizing...")
 
-        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
-        instrumental_final = file_management.get_instrumental_path_stem(song_dir).with_suffix(".mp3")
+        vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(
+            ".mp3"
+        )
+        instrumental_final = file_management.get_instrumental_path_stem(
+            song_dir
+        ).with_suffix(".mp3")
 
         # Convert WAV to MP3 using pydub
         from pydub import AudioSegment
@@ -276,8 +284,9 @@ def separate_with_hybrid(
 
         return True
 
-    except StopProcessingError:
-        # Clean up temp directory
+    except (StopProcessingError, torch.cuda.OutOfMemoryError):
+        # Cancellation and a full GPU are the job's to handle (cancel / retry
+        # later) - clean up and re-raise
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
         raise

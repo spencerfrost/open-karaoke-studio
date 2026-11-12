@@ -1,82 +1,151 @@
 """Tests for the fingerprint_single_song Celery task."""
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, call
 
+from unittest.mock import Mock, patch
+
+import acoustid
 import pytest
 
 from app.jobs.jobs import fingerprint_single_song
 
-
 SONG_ID = "song-abc-123"
-FAKE_LIB = "/fake/lib"
+RECORDING_ID = "rec-blackbird"
 
 
-def _make_db_context(mock_session=None):
-    """Return a mock for get_db_session used as a context manager."""
-    ctx = MagicMock()
-    ctx.__enter__ = Mock(return_value=mock_session or MagicMock())
-    ctx.__exit__ = Mock(return_value=False)
-    return ctx
+def _match(score, title="Blackbird", artist="The Beatles", recording_id=RECORDING_ID):
+    """One AcoustID result, in the raw shape acoustid.match(parse=False) returns."""
+    return {
+        "score": score,
+        "recordings": [
+            {
+                "id": recording_id,
+                "title": title,
+                "artists": [{"name": artist}],
+                "releases": [],
+            }
+        ],
+    }
 
 
-@patch("app.config.get_config", return_value=Mock(BASE_LIBRARY_DIR=FAKE_LIB))
-@patch("app.repositories.song_repository.SongRepository")
-@patch("app.services.acoustid_service.AcoustIdService")
-@patch("app.db.database.get_db_session")
-class TestFingerprintSingleSong:
-    def test_uses_instrumental_when_exists(
-        self, mock_get_db, mock_acoustid_cls, mock_repo_cls, mock_config
+def _response(*results):
+    return {"status": "ok", "results": list(results)}
+
+
+def _add_audio(library, *names, song_id=SONG_ID):
+    song_dir = library / song_id
+    song_dir.mkdir(exist_ok=True)
+    for name in names:
+        (song_dir / name).write_bytes(b"fake")
+
+
+@pytest.fixture
+def acoustid_match():
+    """Stand in for the AcoustID web lookup; everything after it runs for real."""
+    with (
+        patch(
+            "app.services.acoustid_service.get_config",
+            return_value=Mock(ACOUSTID_API_KEY="test-key"),
+        ),
+        patch("app.services.acoustid_service.acoustid.match") as match,
     ):
-        mock_session = MagicMock()
-        mock_get_db.return_value = _make_db_context(mock_session)
+        match.return_value = _response(_match(0.95))
+        yield match
 
-        with patch.object(Path, "exists", side_effect=[False, True, False]):
-            result = fingerprint_single_song(SONG_ID)
 
-        assert result == {"status": "ok", "song_id": SONG_ID}
-        mock_acoustid_cls.return_value.fingerprint_and_identify.assert_called_once()
-        args = mock_acoustid_cls.return_value.fingerprint_and_identify.call_args[0]
-        assert args[0] == SONG_ID
-        assert str(args[1]).endswith("instrumental.mp3")
+@pytest.fixture
+def mock_celery():
+    with patch("app.jobs.metadata_tasks.celery") as celery:
+        yield celery
 
-    def test_uses_vocals_when_instrumental_missing(
-        self, mock_get_db, mock_acoustid_cls, mock_repo_cls, mock_config
+
+@pytest.fixture
+def song(add_song):
+    return add_song(SONG_ID)
+
+
+@pytest.mark.parametrize(
+    "files, used",
+    [
+        (["original.mp3", "instrumental.mp3", "vocals.mp3"], "original.mp3"),
+        (["instrumental.mp3", "vocals.mp3"], "instrumental.mp3"),
+        (["vocals.mp3"], "vocals.mp3"),
+    ],
+)
+def test_fingerprints_the_first_audio_file_it_finds(
+    library, song, acoustid_match, mock_celery, fetch_song, files, used
+):
+    _add_audio(library, *files)
+
+    result = fingerprint_single_song(SONG_ID)
+
+    assert result == {"status": "matched", "song_id": SONG_ID}
+    assert acoustid_match.call_args.args[1] == str(library / SONG_ID / used)
+    saved = fetch_song(SONG_ID)
+    assert saved.acoustid_fingerprint_status == "matched"
+    assert saved.musicbrainz_recording_id == RECORDING_ID
+    assert saved.acoustid_score == 0.95
+
+
+def test_no_audio_marks_the_song_failed(
+    library, song, acoustid_match, mock_celery, fetch_song
+):
+    result = fingerprint_single_song(SONG_ID)
+
+    assert result == {"status": "no_audio", "song_id": SONG_ID}
+    assert fetch_song(SONG_ID).acoustid_fingerprint_status == "failed"
+    acoustid_match.assert_not_called()
+
+
+def test_an_unexpected_error_is_swallowed(library, song, mock_celery, fetch_song):
+    _add_audio(library, "original.mp3")
+
+    with patch(
+        "app.services.acoustid_service.AcoustIdService.fingerprint_and_link",
+        side_effect=Exception("AcoustID API down"),
     ):
-        mock_session = MagicMock()
-        mock_get_db.return_value = _make_db_context(mock_session)
+        result = fingerprint_single_song(SONG_ID)
 
-        with patch.object(Path, "exists", side_effect=[False, False, True]):
-            result = fingerprint_single_song(SONG_ID)
+    assert result == {"status": "error", "song_id": SONG_ID}
+    assert fetch_song(SONG_ID).acoustid_fingerprint_status == "not_checked"
+    mock_celery.send_task.assert_not_called()
 
-        assert result == {"status": "ok", "song_id": SONG_ID}
-        args = mock_acoustid_cls.return_value.fingerprint_and_identify.call_args[0]
-        assert str(args[1]).endswith("vocals.mp3")
 
-    def test_no_audio_updates_status_and_returns_no_audio(
-        self, mock_get_db, mock_acoustid_cls, mock_repo_cls, mock_config
-    ):
-        mock_session = MagicMock()
-        mock_get_db.return_value = _make_db_context(mock_session)
+def test_a_link_sends_the_credits_step(library, song, acoustid_match, mock_celery):
+    _add_audio(library, "original.mp3")
 
-        with patch.object(Path, "exists", return_value=False):
-            result = fingerprint_single_song(SONG_ID)
+    fingerprint_single_song(SONG_ID)
 
-        assert result == {"status": "no_audio", "song_id": SONG_ID}
-        mock_repo_cls.return_value.update.assert_called_once_with(
-            SONG_ID, acoustid_fingerprint_status="failed"
-        )
-        mock_acoustid_cls.return_value.fingerprint_and_identify.assert_not_called()
+    mock_celery.send_task.assert_called_once_with(
+        "enrich_song_artist_credits", args=[SONG_ID]
+    )
 
-    def test_fingerprint_exception_is_swallowed(
-        self, mock_get_db, mock_acoustid_cls, mock_repo_cls, mock_config
-    ):
-        mock_session = MagicMock()
-        mock_get_db.return_value = _make_db_context(mock_session)
-        mock_acoustid_cls.return_value.fingerprint_and_identify.side_effect = Exception(
-            "AcoustID API down"
-        )
 
-        with patch.object(Path, "exists", return_value=True):
-            result = fingerprint_single_song(SONG_ID)
+@pytest.mark.parametrize(
+    "lookup, outcome",
+    [
+        ({"return_value": _response(_match(0.95, title="Yesterday"))}, "suggested"),
+        (
+            {
+                "return_value": _response(
+                    _match(0.95, title="Yesterday", recording_id="rec-1"),
+                    _match(0.95, title="Help!", recording_id="rec-2"),
+                )
+            },
+            "ambiguous",
+        ),
+        ({"return_value": _response()}, "no_match"),
+        ({"side_effect": acoustid.WebServiceError("rate limited")}, "failed"),
+    ],
+)
+def test_no_link_sends_no_credits_step(
+    library, song, acoustid_match, mock_celery, fetch_song, lookup, outcome
+):
+    _add_audio(library, "original.mp3")
+    acoustid_match.configure_mock(**lookup)
 
-        assert result == {"status": "ok", "song_id": SONG_ID}
+    result = fingerprint_single_song(SONG_ID)
+
+    assert result["status"] == outcome
+    saved = fetch_song(SONG_ID)
+    assert saved.acoustid_fingerprint_status == outcome
+    assert saved.musicbrainz_recording_id is None
+    mock_celery.send_task.assert_not_called()

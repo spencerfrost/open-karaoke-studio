@@ -105,7 +105,7 @@ Frontend routes (session vs host vs admin):
 | **Business logic** | `services/` — `youtube_service.py`, `audio.py`, `lyrics_service.py` | Processing, lyrics fetch |
 | **AI separation** | `services/separation_engines/` (e.g. `three_track.py`, `demucs_standard.py`) | Engine behavior |
 | **Data** | `db/models/`, `repositories/`, `schemas/` | Schema, queries |
-| **Background work** | `jobs/audio_tasks.py`, `jobs/enrichment_tasks.py`, … | Celery pipelines |
+| **Background work** | `jobs/audio_tasks.py`, `jobs/metadata_tasks.py`, … | Celery pipelines |
 | **Config** | `app/config/` | Env, CORS, paths |
 
 Song files land under `karaoke_library/{song_id}/` (`original.mp3`, `vocals.mp3`, `instrumental.mp3`, optional `backing_vocals.mp3`).

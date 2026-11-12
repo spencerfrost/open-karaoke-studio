@@ -60,7 +60,7 @@ class PlayerErrorBoundary extends Component<Props, State> {
           <div className="text-destructive text-lg font-semibold mb-4">
             Karaoke Player Error
           </div>
-          <div className="text-foreground/70 mb-6 max-w-md">
+          <div className="text-foreground-dim mb-6 max-w-md">
             {this.state.error?.message ||
               "Something went wrong with the player."}
           </div>

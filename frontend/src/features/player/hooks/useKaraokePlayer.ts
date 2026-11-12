@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useMemo, useRef } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useShallow } from "zustand/react/shallow";
 import { useSongs } from "@/hooks/api/useSongs";
 import { getSongDuration } from "@/utils/songUtils";
 import type {
@@ -8,6 +9,7 @@ import type {
   PlayerError,
 } from "../types/KaraokePlayer.types";
 import { createLogger } from "@/lib/logger";
+import { useSongStart } from "./useSongStart";
 
 const logger = createLogger("hook:karaoke-player");
 
@@ -15,14 +17,13 @@ export const useKaraokePlayer = (
   songId?: string,
   options: PlayerOptions = {},
 ): KaraokePlayerHook => {
-  const { autoPlay = false, preload = false } = options;
+  const { autoPlay = false, visible = true, preload = false } = options;
 
   // Store state and actions
   const {
     songId: currentSongId,
     connect,
     connected,
-    currentTime,
     isReady,
     isPlaying,
     songEnded,
@@ -33,7 +34,6 @@ export const useKaraokePlayer = (
     instrumentalVolume,
     lyricsSize,
     lyricsOffset,
-    playbackSpeed,
     cleanup,
     seek: storeSeek,
     setSongAndLoad,
@@ -42,11 +42,37 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     setLyricsSize,
     setLyricsOffset,
-    setPlaybackSpeed,
     userPlay,
     userPause,
     getWaveformData,
-  } = useKaraokePlayerStore();
+  } = useKaraokePlayerStore(
+    useShallow((s) => ({
+      songId: s.songId,
+      connect: s.connect,
+      connected: s.connected,
+      isReady: s.isReady,
+      isPlaying: s.isPlaying,
+      songEnded: s.songEnded,
+      duration: s.duration,
+      error: s.error,
+      isLoading: s.isLoading,
+      vocalVolume: s.vocalVolume,
+      instrumentalVolume: s.instrumentalVolume,
+      lyricsSize: s.lyricsSize,
+      lyricsOffset: s.lyricsOffset,
+      cleanup: s.cleanup,
+      seek: s.seek,
+      setSongAndLoad: s.setSongAndLoad,
+      load: s.load,
+      setVocalVolume: s.setVocalVolume,
+      setInstrumentalVolume: s.setInstrumentalVolume,
+      setLyricsSize: s.setLyricsSize,
+      setLyricsOffset: s.setLyricsOffset,
+      userPlay: s.userPlay,
+      userPause: s.userPause,
+      getWaveformData: s.getWaveformData,
+    })),
+  );
 
   // Song data fetching
   const { useSong } = useSongs();
@@ -100,23 +126,18 @@ export const useKaraokePlayer = (
     load,
   ]);
 
-  // Auto-play: once per song, the first time it becomes ready. Keyed by song
-  // rather than re-checked on every `!isPlaying`, or pausing would be undone
-  // straight away. The song already loaded when this mounted is skipped too
-  // (seeded below): that is a page reload resuming the night, not someone
-  // asking to sing, and the browser would block audio before any click anyway.
-  const autoPlayedFor = useRef<string | null>(currentSongId);
-  useEffect(() => {
-    if (!autoPlay || !isReady || !song || currentSongId !== song.id) return;
-    if (autoPlayedFor.current === song.id) return;
-    autoPlayedFor.current = song.id;
-    // Same reason: a song that finishes loading before anyone has touched
-    // the page is a reload, and an AudioContext started now stays silent.
-    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
-      return;
-    }
-    if (!isPlaying) userPlay();
-  }, [autoPlay, isReady, isPlaying, song, currentSongId, userPlay]);
+  // Auto-play: a new song starts by itself after the stage's 3-2-1. See
+  // useSongStart; that is the one place a song start is decided.
+  useSongStart({
+    enabled: autoPlay,
+    visible,
+    songId,
+    loadedSongId: currentSongId,
+    isReady,
+    isPlaying,
+    failed: Boolean(storeError || songError),
+    play: userPlay,
+  });
 
   // Preload functionality
   const preloadSong = useCallback(async (preloadSongId: string) => {
@@ -236,7 +257,6 @@ export const useKaraokePlayer = (
     isReady,
     isPlaying,
     songEnded,
-    currentTime: currentTime, // Pass in seconds
     duration: durationSeconds,
     error,
     connectionStatus,
@@ -253,10 +273,6 @@ export const useKaraokePlayer = (
     setInstrumentalVolume,
     vocalVolume,
     instrumentalVolume,
-
-    // Playback speed
-    playbackSpeed,
-    setPlaybackSpeed,
 
     // Lyrics and display
     lyrics,

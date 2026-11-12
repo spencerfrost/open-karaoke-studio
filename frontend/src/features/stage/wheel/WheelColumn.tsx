@@ -13,7 +13,7 @@
  * the selected row while this column is at the front.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { WHEEL_TUNING, listScrollOffset } from "./wheelModel";
 
@@ -24,11 +24,15 @@ const COLUMN_HEIGHT = 660;
 const SLIDE_ROOM_ROWS = 3;
 /** How much of the list fades out at an end with more list beyond it. */
 const EDGE_FADE = "18%";
-/** One notch of a line-based wheel, or this many pixels of a smooth one. */
-const WHEEL_PIXELS_PER_ROW = 50;
 
 interface WheelColumnProps {
+  /** Which column this is; the wheel reads it off the element to route the
+   *  mouse wheel. */
+  column: number;
   label: string;
+  /** Keep the label for screen readers only. The list still starts at
+   *  `listTop`, so its rows line up with the other columns'. */
+  labelHidden?: boolean;
   /** Replaces the plain label - the song column puts the artist's name there. */
   header?: React.ReactNode;
   /** Pixels from the top where the list starts, below the header. */
@@ -52,14 +56,14 @@ interface WheelColumnProps {
   rowClassName?: string;
   onActivate: () => void;
   onRowClick: (index: number) => void;
-  /** Positive steps move down the list. Brings the column to the front. */
-  onWheelSteps: (dir: -1 | 1, steps: number) => void;
   /** Shown instead of rows when there are none yet. */
   placeholder?: React.ReactNode;
 }
 
 const WheelColumn: React.FC<WheelColumnProps> = ({
+  column,
   label,
+  labelHidden = false,
   header,
   listTop,
   width,
@@ -76,32 +80,14 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
   rowClassName,
   onActivate,
   onRowClick,
-  onWheelSteps,
   placeholder,
 }) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Native, because React's onWheel is passive and cannot stop the page
-  // scrolling. The scroll wheel spins whichever column the pointer is over and
-  // brings it to the front.
-  const wheelRef = useRef({ onWheelSteps, acc: 0 });
-  wheelRef.current.onWheelSteps = onWheelSteps;
+  // A column that turns up when the source changes fades in rather than
+  // appearing: it mounts at no opacity and takes its own a frame later.
+  const [shown, setShown] = useState(false);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const w = wheelRef.current;
-      const step =
-        e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 1 : WHEEL_PIXELS_PER_ROW;
-      w.acc += e.deltaY;
-      const steps = Math.trunc(w.acc / step);
-      if (steps === 0) return;
-      w.acc -= steps * step;
-      w.onWheelSteps(steps < 0 ? -1 : 1, Math.abs(steps));
-    };
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => el.removeEventListener("wheel", handleWheel);
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const viewportPx = COLUMN_HEIGHT - listTop;
@@ -130,8 +116,8 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         }}
         className={cn(
           "absolute inset-x-0 flex items-center overflow-hidden whitespace-nowrap",
-          isCurrent ? "font-semibold text-foreground" : "text-foreground/90",
-          disabled && "text-foreground/40",
+          isCurrent ? "font-semibold text-foreground" : "text-foreground",
+          disabled && "text-foreground-faint",
           isCurrent && active && "wheel-row-glow",
           rowClassName,
         )}
@@ -151,7 +137,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
 
   return (
     <div
-      ref={ref}
+      data-wheel-column={column}
       onClick={() => {
         if (!active) onActivate();
       }}
@@ -167,20 +153,22 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         left: -width / 2,
         width,
         transform,
-        opacity: brightness,
-        // Same duration and easing as the ring, so the counter-rotation that
-        // keeps the text facing forward stays in step with the turn.
+        opacity: shown ? brightness : 0,
+        // The ring's turn and the counter-rotation that keeps the text facing
+        // forward are functions of one transform list, so they animate in step.
         transition: `transform ${turnMs}ms ${WHEEL_TUNING.turnEasing}, opacity ${turnMs}ms`,
       }}
     >
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
-          active ? "text-primary" : "text-foreground/60",
-        )}
-      >
-        {header ?? label}
-      </div>
+      {!labelHidden && (
+        <div
+          className={cn(
+            "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
+            active ? "text-primary" : "text-foreground-dim",
+          )}
+        >
+          {header ?? label}
+        </div>
+      )}
 
       {/* The list starts below the header so rows do not scroll up behind
           it, and fades out only at an end with more list past it. */}
@@ -208,7 +196,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         />
         {count === 0 && placeholder ? (
           <div
-            className="absolute inset-x-0 top-0 flex items-center px-7 text-2xl text-foreground/50"
+            className="absolute inset-x-0 top-0 flex items-center px-7 text-2xl text-foreground-faint"
             style={{ height: rowHeight }}
           >
             {placeholder}

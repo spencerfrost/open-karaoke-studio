@@ -6,6 +6,10 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
+import {
+  type VocalRangeAnalysis,
+  vocalRangeMessage,
+} from "@/features/songs/utils/vocalRange";
 import { FingerprintLookupPanel } from "@/features/songs/components/admin/panels/FingerprintLookupPanel";
 import { MusicBrainzSearchPanel } from "@/features/songs/components/admin/panels/MusicBrainzSearchPanel";
 import { YouTubeMusicReplacePanel } from "@/features/songs/components/admin/panels/YouTubeMusicReplacePanel";
@@ -72,15 +76,10 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
         const err = await res.json().catch(() => null);
         throw new Error(err?.detail ?? "Vocal range analysis failed");
       }
-      return res.json() as Promise<{
-        vocal_range_low: string;
-        vocal_range_high: string;
-      }>;
+      return res.json() as Promise<VocalRangeAnalysis>;
     },
     onSuccess: (data) => {
-      toast.success(
-        `Vocal range: ${data.vocal_range_low} – ${data.vocal_range_high}`,
-      );
+      toast.success(vocalRangeMessage(data));
       onDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -92,10 +91,10 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to skip");
+      if (!res.ok) throw new Error("Failed to keep the details");
     },
     onSuccess: () => {
-      toast.success("Fingerprint skipped");
+      toast.success("Kept the current title and artist");
       onDone();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -217,8 +216,9 @@ export const ActionsTab: React.FC<ActionsTabProps> = ({ song, onDone }) => {
             size="sm"
             disabled={skipMutation.isPending}
             onClick={() => skipMutation.mutate()}
+            title="These details are right. AcoustID won't change or suggest others."
           >
-            Skip Fingerprint
+            Keep Current Details
           </Button>
         </div>
         {canRetryDownload && (

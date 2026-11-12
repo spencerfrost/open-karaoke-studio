@@ -6,26 +6,86 @@ from datetime import datetime
 from pathlib import Path
 
 import librosa
+from celery.utils.log import get_task_logger
 
-from app.db.models import JobStatus
+from app.db.models import JobStatus, JobStep
 from app.repositories import JobRepository
 from app.services import FileService, audio
 from app.services.audio import create_audio_progress_mapper
+from app.services.gpu_memory import track_gpu_memory
 from app.services.lyrics_timing import log_lyrics_event
-from celery.utils.log import get_task_logger
 
-from ._events import (
-    broadcast_job_event as _broadcast_job_event,
-    setup_event_subscriptions as _setup_event_subscriptions,
+from ._events import broadcast_job_event as _broadcast_job_event
+from ._events import setup_event_subscriptions as _setup_event_subscriptions
+from ._shared import (
+    TRANSIENT_RETRY_DELAYS,
+    _create_lyrics_alignment_job,
+    _get_lyrics_job_id,
 )
-from ._shared import _create_lyrics_alignment_job, _get_lyrics_job_id
 from .celery_app import celery
-from .exceptions import AudioProcessingError
+from .exceptions import AudioProcessingError, is_transient_processing_error
 from .separation import run_separation_with_fallback
 
 logger = get_task_logger(__name__)
 
 _setup_event_subscriptions()
+
+
+def _schedule_transient_retry(task, job, job_repository, exc):
+    """Park the job as pending with a reason and return the Retry to raise.
+
+    The song row stays "processing" — from the outside the song is just
+    taking longer, not broken.
+    """
+    from app.services.gpu_memory import free_cached_gpu_memory, is_cuda_out_of_memory
+
+    retries = task.request.retries
+    delay = TRANSIENT_RETRY_DELAYS[min(retries, len(TRANSIENT_RETRY_DELAYS) - 1)]
+    if is_cuda_out_of_memory(exc):
+        reason = "The server is busy"
+        free_cached_gpu_memory()
+    else:
+        reason = "Couldn't reach YouTube"
+
+    logger.warning(
+        "Job %s hit a transient failure, retry %s/%s in %ss: %s",
+        job.id,
+        retries + 1,
+        task.max_retries,
+        delay,
+        exc,
+    )
+    job.status = JobStatus.PENDING
+    job.status_message = f"{reason} — trying again in {max(1, delay // 60)} min"
+    job_repository.update(job)
+    return task.retry(countdown=delay, exc=exc)
+
+
+def _dispatch_vocals_ready_tasks(
+    song_id: str, vocals_path: Path, title: str | None, artist: str | None
+) -> None:
+    """Queue the step that needs vocals.mp3 alone: lyric alignment.
+
+    The vocal range also reads the singing map and the lyrics' line times, so
+    it's queued when the later of those two finishes (queue_vocal_range_if_ready).
+    """
+    logger.debug(
+        "[PIPELINE] vocals.mp3 ready (%s bytes), dispatching lyric alignment for song %s",
+        vocals_path.stat().st_size if vocals_path.exists() else "missing",
+        song_id,
+    )
+    log_lyrics_event(
+        song_id,
+        "vocals_ready",
+        vocals_path=vocals_path,
+        vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
+        pipeline_progress=70,
+    )
+    _create_lyrics_alignment_job(song_id, title=title, artist=artist)
+    celery.send_task("align_song_lyrics", args=[song_id])
+    log_lyrics_event(
+        song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id)
+    )
 
 
 @celery.task(bind=True, name="process_audio_job", max_retries=3)
@@ -40,11 +100,11 @@ def process_audio_job(self, job_id, engine_type="three_track"):
             logger.warning(
                 "Job %s not found, retrying in %s seconds (attempt %s/%s)",
                 job_id,
-                2 ** self.request.retries,
+                2**self.request.retries,
                 self.request.retries + 1,
                 self.max_retries + 1,
             )
-            raise self.retry(countdown=2 ** self.request.retries)
+            raise self.retry(countdown=2**self.request.retries)
 
         logger.error("Job %s not found after %s attempts", job_id, self.max_retries + 1)
         return {"status": "error", "message": "Job not found after retries"}
@@ -61,6 +121,7 @@ def process_audio_job(self, job_id, engine_type="three_track"):
     filename = filepath.name
 
     job.status = JobStatus.PROCESSING
+    job.step = JobStep.SEPARATE
     job.started_at = datetime.now()
     job.engine_type = engine_type
     job_repository.update(job)
@@ -105,22 +166,49 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
         update_progress(5, f"Created directory for {job_id}")
 
-        success, final_engine_type = run_separation_with_fallback(
-            engine_type=engine_type,
-            input_path=filepath,
-            song_dir=song_dir,
-            status_callback=lambda msg: update_progress(20, msg),
-            stop_event=stop_event,
+        # original.mp3 is already on disk, so everything the YouTube flow
+        # queues after its download can go now. Artwork only falls back to a
+        # YouTube thumbnail when the song has a video_id.
+        celery.send_task("fetch_song_artwork", args=[song_id])
+        celery.send_task("fingerprint_single_song", args=[song_id])
+        celery.send_task("prefetch_song_lyrics", args=[song_id])
+        logger.debug(
+            "[PIPELINE] dispatched fetch_song_artwork + fingerprint_single_song + prefetch_song_lyrics for song %s",
+            song_id,
         )
+
+        vocals_dispatched = False
+
+        def on_vocals_ready(vocals_path: Path) -> None:
+            nonlocal vocals_dispatched
+            vocals_dispatched = True
+            _dispatch_vocals_ready_tasks(song_id, vocals_path, job.title, job.artist)
+
+        with track_gpu_memory("separation", song_id):
+            success, final_engine_type = run_separation_with_fallback(
+                engine_type=engine_type,
+                input_path=filepath,
+                song_dir=song_dir,
+                status_callback=lambda msg: update_progress(20, msg),
+                stop_event=stop_event,
+                on_vocals_ready=on_vocals_ready,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
+
+        # Only three_track engines report vocals early; the rest finish first.
+        if not vocals_dispatched:
+            on_vocals_ready(song_dir / "vocals.mp3")
 
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
 
         with get_db_session() as session:
             repo = SongRepository(session)
-            update_kwargs: dict = {"engine_type": final_engine_type, "status": "processed"}
+            update_kwargs: dict = {
+                "engine_type": final_engine_type,
+                "status": "processed",
+            }
             try:
                 update_kwargs["duration"] = librosa.get_duration(path=str(filepath))
             except Exception as e:
@@ -131,12 +219,19 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         job.progress = 100
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
+        # The finished row stays: the demo download quotas count it, and the
+        # in-flight jobs list already leaves completed jobs out.
 
         _broadcast_job_event(job)
 
-        celery.send_task("post_process_song", args=[song_id])
-        logger.debug("Dispatched post_process_song for song %s", song_id)
+        # Loudness is measured on the stems, so it waits for separation.
+        celery.send_task("detect_song_loudness", args=[song_id])
+        logger.debug(
+            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
+            song_id,
+        )
+        # So is the singing map: when the lead and backing vocals are singing.
+        celery.send_task("detect_song_singing_map", args=[song_id])
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 
@@ -159,6 +254,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         return {"status": "cancelled", "job_id": job_id, "filename": filename}
 
     except Exception as e:
+        if is_transient_processing_error(e) and self.request.retries < self.max_retries:
+            raise _schedule_transient_retry(self, job, job_repository, e)
         error_message = str(e)[:2000]
         logger.error("Error processing job %s: %s", job_id, error_message)
         traceback.print_exc()
@@ -218,6 +315,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         return {"status": "error", "message": f"Song {song_id} not found"}
 
     job.status = JobStatus.DOWNLOADING
+    job.step = JobStep.DOWNLOAD
     job.status_message = "Downloading video from YouTube"
     job.started_at = datetime.now()
     job.progress = 5
@@ -227,24 +325,45 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
     celery.send_task("fetch_song_artwork", args=[song_id])
     logger.debug("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
 
-    def update_progress(progress, message, status=None):
+    def update_progress(progress, message, status=None, step=None):
         last_saved_progress = getattr(update_progress, "_last_saved_progress", 0)
         last_saved_status = getattr(update_progress, "_last_saved_status", None)
+        last_saved_step = getattr(update_progress, "_last_saved_step", job.step)
 
         job.progress = progress
         job.status_message = message
         if status:
             job.status = status
+        if step:
+            job.step = step
 
         progress_diff = abs(progress - last_saved_progress)
-        status_changed = status and status != last_saved_status
-        is_milestone = progress in [0, 5, 10, 12, 50, 60, 70, 73, 80, 90, 93, 95, 99, 100]
+        status_changed = (status and status != last_saved_status) or (
+            step and step != last_saved_step
+        )
+        is_milestone = progress in [
+            0,
+            5,
+            10,
+            12,
+            50,
+            60,
+            70,
+            73,
+            80,
+            90,
+            93,
+            95,
+            99,
+            100,
+        ]
         should_save = status_changed or progress_diff >= 5 or is_milestone
 
         if should_save:
             job_repository.update(job)
             update_progress._last_saved_progress = progress
             update_progress._last_saved_status = job.status
+            update_progress._last_saved_step = job.step
 
         if hasattr(self, "update_state"):
             self.update_state(
@@ -273,27 +392,49 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             raise AudioProcessingError(f"Job {job_id} has no associated song_id")
         song_dir = Path(config.BASE_LIBRARY_DIR) / song_id
 
-        update_progress(10, "Starting YouTube download")
-
-        youtube_service.download_video(
-            video_id_or_url=video_id,
-            song_id=song_id,
-            artist=metadata.get("artist"),
-            title=metadata.get("title"),
-        )
-
-        update_progress(12, f"Download complete, preparing {engine_type} engine", JobStatus.PROCESSING)
-
-        celery.send_task("fingerprint_single_song", args=[song_id])
-        celery.send_task("detect_song_loudness", args=[song_id])
-        celery.send_task("prefetch_song_lyrics", args=[song_id])
-        logger.debug("[PIPELINE] ~12%% — dispatched fingerprint_single_song + detect_song_loudness for song %s", song_id)
-        logger.debug("[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s", song_id)
-
         original_file = song_dir / "original.mp3"
 
+        # A retry after a transient failure (usually a full GPU) keeps the
+        # audio it already downloaded. First attempts always download, so
+        # replace-youtube still fetches fresh audio.
+        if self.request.retries > 0 and original_file.exists():
+            update_progress(
+                12,
+                f"Reusing downloaded audio, preparing {engine_type} engine",
+                JobStatus.PROCESSING,
+            )
+        else:
+            update_progress(10, "Starting YouTube download")
+
+            youtube_service.download_video(
+                video_id_or_url=video_id,
+                song_id=song_id,
+                artist=metadata.get("artist"),
+                title=metadata.get("title"),
+            )
+
+            update_progress(
+                12,
+                f"Download complete, preparing {engine_type} engine",
+                JobStatus.PROCESSING,
+                JobStep.SEPARATE,
+            )
+
+            celery.send_task("fingerprint_single_song", args=[song_id])
+            celery.send_task("prefetch_song_lyrics", args=[song_id])
+            logger.debug(
+                "[PIPELINE] ~12%% — dispatched fingerprint_single_song for song %s",
+                song_id,
+            )
+            logger.debug(
+                "[PIPELINE] ~12%% — dispatched prefetch_song_lyrics for song %s",
+                song_id,
+            )
+
         if not original_file.exists():
-            raise AudioProcessingError(f"Original audio file not found: {original_file}")
+            raise AudioProcessingError(
+                f"Original audio file not found: {original_file}"
+            )
 
         import threading
 
@@ -305,56 +446,69 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
             engine_type=engine_type,
             base_start=12,
             base_end=50,
-            update_fn=lambda prog, msg: update_progress(prog, f"Audio processing: {msg}"),
+            update_fn=lambda prog, msg: update_progress(
+                prog, f"Audio processing: {msg}"
+            ),
         )
+
+        vocals_dispatched = False
 
         def on_vocals_ready(vocals_path: Path) -> None:
-            logger.debug(
-                "[PIPELINE] ~70%% — vocals.mp3 ready (%s bytes), dispatching vocal range + lyric alignment for song %s",
-                vocals_path.stat().st_size if vocals_path.exists() else "missing",
-                song_id,
+            nonlocal vocals_dispatched
+            vocals_dispatched = True
+            _dispatch_vocals_ready_tasks(
+                song_id, vocals_path, metadata.get("title"), metadata.get("artist")
             )
-            log_lyrics_event(
-                song_id,
-                "vocals_ready",
-                vocals_path=vocals_path,
-                vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
-                pipeline_progress=70,
-            )
-            _create_lyrics_alignment_job(song_id, title=metadata.get("title"), artist=metadata.get("artist"))
-            celery.send_task("detect_song_vocal_range", args=[song_id])
-            celery.send_task("align_song_lyrics", args=[song_id])
-            log_lyrics_event(song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id))
 
-        success, final_engine_type = run_separation_with_fallback(
-            engine_type=engine_type,
-            input_path=original_file,
-            song_dir=song_dir,
-            status_callback=audio_progress_callback,
-            stop_event=stop_event,
-            on_vocals_ready=on_vocals_ready,
-        )
+        with track_gpu_memory("separation", song_id):
+            success, final_engine_type = run_separation_with_fallback(
+                engine_type=engine_type,
+                input_path=original_file,
+                song_dir=song_dir,
+                status_callback=audio_progress_callback,
+                stop_event=stop_event,
+                on_vocals_ready=on_vocals_ready,
+            )
         if not success:
             raise AudioProcessingError("Audio separation failed")
+
+        # Only three_track engines report vocals early; the rest finish first.
+        if not vocals_dispatched:
+            on_vocals_ready(song_dir / "vocals.mp3")
 
         try:
             with get_db_session() as session:
                 repo = SongRepository(session)
-                update_fields: dict = {"engine_type": final_engine_type, "status": "processed"}
+                update_fields: dict = {
+                    "engine_type": final_engine_type,
+                    "status": "processed",
+                }
                 try:
-                    update_fields["duration"] = librosa.get_duration(path=str(original_file))
+                    update_fields["duration"] = librosa.get_duration(
+                        path=str(original_file)
+                    )
                 except Exception as e:
-                    logger.warning("Duration detection failed for song %s: %s", song_id, e)
+                    logger.warning(
+                        "Duration detection failed for song %s: %s", song_id, e
+                    )
                 repo.update(song_id, **update_fields)
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
+
+        # Loudness is measured on the stems, so it waits for separation.
+        celery.send_task("detect_song_loudness", args=[song_id])
+        logger.debug(
+            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
+            song_id,
+        )
 
         job.status = JobStatus.COMPLETED
         job.progress = 100
         job.status_message = "Processing complete"
         job.completed_at = datetime.now()
         job_repository.update(job)
-        job_repository.delete_job(job.id)
+        # The finished row stays: the demo download quotas count it, and the
+        # in-flight jobs list already leaves completed jobs out.
 
         _broadcast_job_event(job)
 
@@ -376,6 +530,8 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         return {"status": "cancelled", "job_id": job_id}
 
     except Exception as e:
+        if is_transient_processing_error(e) and self.request.retries < self.max_retries:
+            raise _schedule_transient_retry(self, job, job_repository, e)
         error_message = str(e)[:2000]
         logger.error("Error processing YouTube job %s: %s", job_id, error_message)
         traceback.print_exc()

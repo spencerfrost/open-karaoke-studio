@@ -3,7 +3,6 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
-import { STAGE_3_PENDING } from './eslint.theme-migration.js'
 
 /*
  * Theme-token migration guardrails.
@@ -31,9 +30,8 @@ const RETIRED_COLOR_CLASSES = [
   },
 ]
 
-// Stage 3 of the migration is still in flight, so this ban is lifted for the
-// files listed in STAGE_3_PENDING. Shrink that list as screens are converted;
-// when it is empty, delete it and the override block at the bottom of this file.
+// The raw palette utilities no longer exist in @theme, so these classes would
+// silently render nothing — flag them here instead.
 const RAW_PALETTE_CLASSES = [
   {
     pattern: '(orange-peel|lemon-chiffon|russet|dark-cyan)|\\b-rust\\b',
@@ -73,14 +71,6 @@ export default tseslint.config(
         'error',
         ...asSelectors([...RETIRED_COLOR_CLASSES, ...RAW_PALETTE_CLASSES]),
       ],
-    },
-  },
-  {
-    // Screens Stage 3 has not reached yet: everything above still applies
-    // except the raw-palette ban.
-    files: STAGE_3_PENDING,
-    rules: {
-      'no-restricted-syntax': ['error', ...asSelectors(RETIRED_COLOR_CLASSES)],
     },
   },
 )

@@ -1,26 +1,29 @@
 """
-Demo account pool: alias login resolution and download quota enforcement.
+Demo account pool: handing out pool accounts and download quota enforcement.
 
-A pool of `is_demo` host accounts sits behind one published alias credential
-(DEMO_LOGIN_USERNAME / DEMO_LOGIN_PASSWORD env vars; feature disabled when
-unset). Alias logins are resolved to a free pool account and eagerly start
-that account's karaoke session, so concurrent visitors never share a session
-and the (short) session clock starts at login.
+A pool of `is_demo` host accounts backs POST /api/demo/start. Each start picks
+a free pool account and eagerly starts that account's karaoke session, so
+concurrent visitors never share a session and the (short) session clock starts
+straight away. No credential is published: the endpoint issues the token, and
+the token expires with that session. A demo account never starts or replaces a
+session itself (see app.api.sessions), so the only way to a fresh session, and a
+fresh download allowance, is another POST /api/demo/start.
 """
 
 import logging
-import os
-import secrets
 import uuid
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import timedelta
 from typing import Optional
+
+from fastapi import HTTPException
+from sqlalchemy import and_, func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import RequesterContext
 from app.db.models import DbJob, HostSettings, JobStatus, KaraokeSession, User
-from fastapi import HTTPException
-from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from app.utils.clock import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -30,38 +33,45 @@ DEMO_DAILY_DOWNLOAD_LIMIT = 20
 # (they back the in-app retry UI) rather than being deleted, so counting every
 # row would let one bad link cost a visitor a third of their session allowance.
 UNCOUNTED_JOB_STATUSES = (JobStatus.FAILED.value, JobStatus.CANCELLED.value)
-DEMO_TOKEN_EXPIRE_MINUTES = 30
 DEMO_SESSION_FALLBACK_DURATION_HOURS = 0.25
+DEMO_SESSION_ENDED_DETAIL = (
+    "Your demo session has ended — press Try it live to start a new one."
+)
 
 
-def resolve_demo_login(db: Session, username: str, password: str) -> Optional[User]:
-    """Resolve alias credentials to a free demo pool account.
+def demo_enabled(db: Session) -> bool:
+    """Whether this server offers the live demo: any pool account is seeded."""
+    return db.query(User.id).filter(User.is_demo.is_(True)).first() is not None
 
-    Returns None when the demo feature is disabled or the credentials don't
-    match the alias (the caller falls through to normal login — pool accounts'
-    own passwords keep working). Raises 503 when every pool account is busy.
+
+def start_demo(db: Session) -> tuple[User, KaraokeSession]:
+    """Hand a visitor a free demo pool account with its session started.
+
+    Raises 503 when no pool account is free (or none is seeded, which reads
+    the same to a visitor: there's no seat for them right now).
     """
-    alias_username = os.environ.get("DEMO_LOGIN_USERNAME")
-    alias_password = os.environ.get("DEMO_LOGIN_PASSWORD")
-    if not alias_username or not alias_password:
-        return None
-    if username != alias_username or not secrets.compare_digest(
-        password, alias_password
-    ):
-        return None
-
-    user = _acquire_pool_account(db)
-    if user is None:
-        logger.info("Demo alias login rejected: all pool accounts busy")
+    acquired = _acquire_pool_account(db)
+    if acquired is None:
+        logger.info("Demo start rejected: no free pool account")
         raise HTTPException(
             status_code=503,
             detail="The demo is busy right now — try again in a few minutes.",
         )
-    logger.info("Demo alias login resolved to pool account %s", user.username)
-    return user
+    user, session = acquired
+    logger.info(
+        "Demo started on pool account %s, session %s",
+        user.username,
+        session.session_id,
+    )
+    return user, session
 
 
-def _acquire_pool_account(db: Session) -> Optional[User]:
+def demo_token_minutes(session: KaraokeSession) -> float:
+    """Token lifetime for a demo start: whatever is left of its session."""
+    return max((session.expires_at - utc_now()).total_seconds() / 60, 0)
+
+
+def _acquire_pool_account(db: Session) -> Optional[tuple[User, KaraokeSession]]:
     """Pick a demo account with no live session and start its session."""
     pool = (
         db.query(User)
@@ -73,7 +83,7 @@ def _acquire_pool_account(db: Session) -> Optional[User]:
     if not pool:
         return None
 
-    now = datetime.utcnow()
+    now = utc_now()
     busy_rows = (
         db.query(KaraokeSession.host_user_id)
         .filter(
@@ -87,8 +97,7 @@ def _acquire_pool_account(db: Session) -> Optional[User]:
 
     for user in pool:
         if user.id not in busy:
-            _start_demo_session(db, user)
-            return user
+            return user, _start_demo_session(db, user)
     return None
 
 
@@ -129,6 +138,116 @@ def _start_demo_session(db: Session, user: User) -> KaraokeSession:
     raise HTTPException(status_code=500, detail="Failed to create demo session")
 
 
+def _resolve_requester_session(
+    db: Session, requester: RequesterContext
+) -> tuple[Optional[KaraokeSession], bool]:
+    """The requester's session, and whether it falls under demo quotas.
+
+    Quota counting only happens when the resolved session's host — or the
+    requester — is a demo account; everyone else is untouched.
+    """
+    user = requester.user
+
+    session: Optional[KaraokeSession] = None
+    if requester.session_id:
+        # A session device — membership already verified upstream.
+        session = (
+            db.query(KaraokeSession)
+            .filter(KaraokeSession.session_id == requester.session_id)
+            .first()
+        )
+    elif user is not None:
+        # Account holder — attribute to their active session, if any.
+        session = (
+            db.query(KaraokeSession)
+            .filter(
+                KaraokeSession.host_user_id == user.id,
+                KaraokeSession.is_active.is_(True),
+                KaraokeSession.expires_at > utc_now(),
+            )
+            .first()
+        )
+
+    demo_request = (session is not None and is_demo_session(db, session)) or (
+        user is not None and bool(user.is_demo)
+    )
+    return session, demo_request
+
+
+def is_demo_session(db: Session, session: KaraokeSession) -> bool:
+    """Whether a demo pool account hosts this session."""
+    if session.host_user_id is None:
+        return False
+    host = db.get(User, session.host_user_id)
+    return host is not None and bool(host.is_demo)
+
+
+# Finished download jobs keep their row, so these counts include completed
+# downloads. Session codes are recycled once a retired session is purged, so a
+# job only belongs to a session if it started after the session did.
+def _session_download_count(db: Session, session: KaraokeSession) -> int:
+    """Downloads this session has used, failed and cancelled ones excluded."""
+    return (
+        db.query(func.count(DbJob.id))
+        .filter(
+            DbJob.session_id == session.session_id,
+            DbJob.created_at >= session.created_at,
+            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
+        )
+        .scalar()
+        or 0
+    )
+
+
+def _daily_download_count(db: Session) -> int:
+    """Downloads every demo session together has used in the last 24 hours."""
+    cutoff = utc_now() - timedelta(hours=24)
+    return (
+        db.query(func.count(DbJob.id))
+        .join(
+            KaraokeSession,
+            and_(
+                KaraokeSession.session_id == DbJob.session_id,
+                KaraokeSession.created_at <= DbJob.created_at,
+            ),
+        )
+        .join(User, User.id == KaraokeSession.host_user_id)
+        .filter(
+            User.is_demo.is_(True),
+            DbJob.created_at >= cutoff,
+            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
+        )
+        .scalar()
+        or 0
+    )
+
+
+@dataclass
+class DemoQuota:
+    """What a demo session can still download."""
+
+    session_remaining: int
+    daily_remaining: int
+
+
+def get_demo_quota(db: Session, requester: RequesterContext) -> DemoQuota:
+    """How many new songs the requester's demo session can still add.
+
+    Read-only, with the same counting as enforce_demo_download_quota: the
+    guided tour on the stage asks this so it can offer a library song before
+    the visitor's phone hits the 429. Raises 403 outside a live demo session.
+    """
+    session, demo_request = _resolve_requester_session(db, requester)
+    if not demo_request or session is None:
+        raise HTTPException(status_code=403, detail="Not in a live demo session")
+    return DemoQuota(
+        session_remaining=max(
+            0, DEMO_SESSION_DOWNLOAD_LIMIT - _session_download_count(db, session)
+        ),
+        daily_remaining=max(0, DEMO_DAILY_DOWNLOAD_LIMIT - _daily_download_count(db)),
+    )
+
+
 def enforce_demo_download_quota(
     db: Session, requester: RequesterContext
 ) -> tuple[Optional[str], Optional[int]]:
@@ -142,54 +261,16 @@ def enforce_demo_download_quota(
     user = requester.user
     user_id = user.id if user else None
 
-    session: Optional[KaraokeSession] = None
-    if requester.session_id:
-        # Anonymous session guest — membership already verified upstream.
-        session = (
-            db.query(KaraokeSession)
-            .filter(KaraokeSession.session_id == requester.session_id)
-            .first()
-        )
-    elif user is not None:
-        # Account holder — attribute to their active session, if any.
-        session = (
-            db.query(KaraokeSession)
-            .filter(
-                KaraokeSession.host_user_id == user.id,
-                KaraokeSession.is_active.is_(True),
-                KaraokeSession.expires_at > datetime.utcnow(),
-            )
-            .first()
-        )
-
-    host: Optional[User] = None
-    if session is not None and session.host_user_id is not None:
-        host = db.get(User, session.host_user_id)
+    session, demo_request = _resolve_requester_session(db, requester)
     session_id = session.session_id if session else None
-
-    demo_request = (host is not None and host.is_demo) or (
-        user is not None and user.is_demo
-    )
     if not demo_request:
         return session_id, user_id
 
     if session is None:
         # Demo JWT with no live session (expired or never started).
-        raise HTTPException(
-            status_code=403,
-            detail="Your demo session has ended — log in again to start a new one.",
-        )
+        raise HTTPException(status_code=403, detail=DEMO_SESSION_ENDED_DETAIL)
 
-    session_count = (
-        db.query(func.count(DbJob.id))
-        .filter(
-            DbJob.session_id == session_id,
-            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
-        )
-        .scalar()
-        or 0
-    )
-    if session_count >= DEMO_SESSION_DOWNLOAD_LIMIT:
+    if _session_download_count(db, session) >= DEMO_SESSION_DOWNLOAD_LIMIT:
         raise HTTPException(
             status_code=429,
             detail=(
@@ -198,20 +279,7 @@ def enforce_demo_download_quota(
             ),
         )
 
-    cutoff = datetime.utcnow() - timedelta(hours=24)
-    daily_count = (
-        db.query(func.count(DbJob.id))
-        .join(KaraokeSession, KaraokeSession.session_id == DbJob.session_id)
-        .join(User, User.id == KaraokeSession.host_user_id)
-        .filter(
-            User.is_demo.is_(True),
-            DbJob.created_at >= cutoff,
-            DbJob.status.notin_(UNCOUNTED_JOB_STATUSES),
-        )
-        .scalar()
-        or 0
-    )
-    if daily_count >= DEMO_DAILY_DOWNLOAD_LIMIT:
+    if _daily_download_count(db) >= DEMO_DAILY_DOWNLOAD_LIMIT:
         raise HTTPException(
             status_code=429,
             detail=(

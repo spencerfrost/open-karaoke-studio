@@ -1,5 +1,7 @@
 """Shared validation utilities for API endpoints"""
+
 from typing import Literal
+
 from fastapi import HTTPException
 
 # Field mapping constants
@@ -8,9 +10,6 @@ CAMEL_TO_SNAKE_CASE = {
     "plainLyrics": "plain_lyrics",
     "releaseDate": "release_date",
     "showName": "show_name",
-    "itunesTrackId": "itunes_track_id",
-    "itunesExplicit": "itunes_explicit",
-    "itunesPreviewUrl": "itunes_preview_url",
     "dateAdded": "date_added",
 }
 

@@ -1,0 +1,1182 @@
+{
+ "dont stop me now": {
+  "songs": [
+   {
+    "resultType": "song",
+    "videoId": "1UjLFMg18cY",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Queen",
+      "id": "UCEPMVbUzImPl4p8k4LkGevA"
+     }
+    ],
+    "album": {
+     "name": "Jazz (Deluxe Edition)",
+     "id": "MPREb_2CF9CoGxphZ"
+    },
+    "duration": "3:30",
+    "duration_seconds": 210,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/4xtkVNlza0j9F5NVGXQlUd8JxlZCHGmATSlYdb9SgrJSZhWtrTM5CdWQu4kNeANx7ndxzbHquvQrhGU=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "LfhQUcfaX4Q",
+    "title": "Can't Stop Me Now",
+    "artists": [
+     {
+      "name": "NGHTMRE",
+      "id": "UC6acCbjcMxdILQRPyr6bYGA"
+     },
+     {
+      "name": "Flux Pavilion",
+      "id": null
+     }
+    ],
+    "album": {
+     "name": "Can't Stop Me Now",
+     "id": "MPREb_toMEn09bCcT"
+    },
+    "duration": "3:03",
+    "duration_seconds": 183,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/moE1Y7HcnHxocamyPb_4r1ad6a1yTSjZA8iRJVdpQG7f-dLW4RKQwrwT1BrXLHngwxmgeQd2mRUJjv4=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "aK2-L2y25Bg",
+    "title": "Don't Stop The Music",
+    "artists": [
+     {
+      "name": "Yarbrough & Peoples",
+      "id": "UCowRDrZCNx7FT7JgGO_vuIQ"
+     }
+    ],
+    "album": {
+     "name": "The Two Of Us",
+     "id": "MPREb_JGis83hykyC"
+    },
+    "duration": "7:52",
+    "duration_seconds": 472,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/7qPJLKXSQbrmQPzUK0tRq8bMLK6BXU85S9tshMfiwdKiFzSSAG5lowXOt0_hemApwmppWkXlvW_fj0U=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "DkjwyAk2GRw",
+    "title": "Don't Stop 'Til You Get Enough",
+    "artists": [
+     {
+      "name": "Michael Jackson",
+      "id": "UCoIOOL7QKuBhQHVKL8y7BEQ"
+     }
+    ],
+    "album": {
+     "name": "HIStory: PAST, PRESENT AND FUTURE, BOOK I",
+     "id": "MPREb_L7mH5RJKKdI"
+    },
+    "duration": "6:05",
+    "duration_seconds": 365,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/R7pwf7-lcPvK3dxv8jMkUd4SlbVmrM-nZOFEJqnHGLQFBl4lqj1gyeWSFO5X9HZxgUhTh4KM8n0l7j_k=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "QeLC0f-BZLg",
+    "title": "Don’t Stop Me Now",
+    "artists": [
+     {
+      "name": "University of South Carolina Marching Band",
+      "id": "UCLyBPGiFfVsMhiPMdsvhaFQ"
+     }
+    ],
+    "album": {
+     "name": "Carolina Bands: 100 Years",
+     "id": "MPREb_9NRXL4lWRwF"
+    },
+    "duration": "2:24",
+    "duration_seconds": 144,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/-8ok9EGllDdHX5qkDme9bMmJt-9gb6J3Y9pg9TaNppwxkzIshIXanScdzYeg3e2uC5E1-V425Nhm_Eki=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "zcTMt_VTKvk",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Jpt",
+      "id": null
+     }
+    ],
+    "album": {
+     "name": "Zomg'schwoasst",
+     "id": "MPREb_nhwx68qwupo"
+    },
+    "duration": "3:03",
+    "duration_seconds": 183,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/OoqRbYpZPTZKMibtTTYO8bh_52XoAQM0xLb3nPY5JBh4uJmtB472_4pU7dhGEtZR6Kae4plOdomE6AU=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "5yO6GGIoNoc",
+    "title": "Don't Stop Me Now (Talkbox Version)",
+    "artists": [
+     {
+      "name": "TBOX",
+      "id": "UCLa9fmo59XSOlKgKNT3CL0A"
+     }
+    ],
+    "album": {
+     "name": "Don't Stop Me Now (Talkbox Version)",
+     "id": "MPREb_QxT7FAveGdI"
+    },
+    "duration": "3:36",
+    "duration_seconds": 216,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/SQkcGiwFd0_b4tnrWlhEUNvZyZ6hEfHPO891S1vwWa9yGC6ldSuwStvYB_qy-KxyBIjk_XsLNbwbI2JVXg=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "1DBb3ZKRLOc",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Jonathan Young",
+      "id": "UCR-DFuX6gcT4KXJqmOQAULA"
+     }
+    ],
+    "album": {
+     "name": "Young's Old Covers (2019-2021)",
+     "id": "MPREb_MiRGW1vx508"
+    },
+    "duration": "3:46",
+    "duration_seconds": 226,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/4XET5Uin2m8PDmH9QrNGl3WacPq49DulspSdFRmE1sY96m_Mss1nMB6r0W4LNOPqCIvkS4IvTAK_SzA=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "JijzV3jlcfw",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "m-flo",
+      "id": "UCZeNdH-qUza0BlYSVhbSe7g"
+     }
+    ],
+    "album": {
+     "name": "SQUARE ONE",
+     "id": "MPREb_NkO0wU86geF"
+    },
+    "duration": "5:10",
+    "duration_seconds": 310,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/WX3ttD1Kg8DN5MTs_Gd6kTmtFjMm0YKoytSQjCodXq3de-whGh17vjo1Q2MmDQT9PJTDDadWSBxyRLum=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "T9q-IRWffmI",
+    "title": "Don't Stop",
+    "artists": [
+     {
+      "name": "Zion Y Lennox",
+      "id": "UC8U7wOw_Hd7ltvcWOWAp21g"
+     }
+    ],
+    "album": {
+     "name": "Motivando A La Yal (Special Edition)",
+     "id": "MPREb_HvEzNcFkzoa"
+    },
+    "duration": "3:40",
+    "duration_seconds": 220,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/cxF3KuFD-LTxOCd8oYfMhZvUcYDK-LPMIrFCn8o5D3cTJQpEDfi6PpQyvaULEj4UpmOIc_keqiL0GyEG=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "5n96aaZMR9k",
+    "title": "Don’t Stop Me Now",
+    "artists": [
+     {
+      "name": "Kenneth Acoustic",
+      "id": "UCgByaKhMn8fJgtiN6m4ikcw"
+     }
+    ],
+    "album": {
+     "name": "Don’t Stop Me Now",
+     "id": "MPREb_YmRtZrqcv68"
+    },
+    "duration": "3:44",
+    "duration_seconds": 224,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/nKOZvJwpZc7jpJoW9WzK8CCXwF0SNv7g_fXezNpM6sNI6YgbkIAcToWZPoH_0PRmZJPgk_KYfgLbHCYBjg=w60-h60-s-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "3l3p5qy9cqw",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Avalon Black",
+      "id": "UCg3ckusoAGrJ0KvFVx9mPyQ"
+     }
+    ],
+    "album": {
+     "name": "Don't Stop Me Now",
+     "id": "MPREb_lMoAcVEpDoj"
+    },
+    "duration": "3:34",
+    "duration_seconds": 214,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/HiCWtGrMlLtPLqAOgmDlSRy88fAe1eLVoD6J8Yz72wzcbqCmpN2XJ6b8-7KOz2AOzPoAkbHCz6m0IiGv=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "q6406jSCY8E",
+    "title": "Don't Stop Me Now - Acoustic",
+    "artists": [
+     {
+      "name": "VDVM",
+      "id": "UCqfk6McuoOHOhDfmz7V4syA"
+     }
+    ],
+    "album": {
+     "name": "Here I Go Again - Acoustic EP",
+     "id": "MPREb_mwUH8JXONcW"
+    },
+    "duration": "3:21",
+    "duration_seconds": 201,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/3s3MWGLWtSiPurXR2osX4kMILO641TIhXjjyzhuK5J0ZmTr8lHPgQtC2P2M8GjkqnxHTkAuKGfDfnpTq=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "1VJ-_aJbQ0w",
+    "title": "Don't Stop Me Now (BBC)",
+    "artists": [
+     {
+      "name": "The Vandals",
+      "id": "UC5t6EW0vpdbtKZg4MU-C22A"
+     }
+    ],
+    "album": {
+     "name": "BBC Sessions & Other Polished Turds",
+     "id": "MPREb_cxSeAVJ0idn"
+    },
+    "duration": "3:12",
+    "duration_seconds": 192,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/1JRg3-zZ4gYeLJKVlWWiKTRLc-eocUuXrkKbkPtAqm1Y7SOJdJmL9zg6V0I0wP50iLbR85PXvrNvgaHY=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "0Ppgim7ah90",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "The Mariachis",
+      "id": "UCC0w4bGzccLs3qCBJQptFJg"
+     }
+    ],
+    "album": {
+     "name": "Mexipop",
+     "id": "MPREb_BXFPtJ0N63k"
+    },
+    "duration": "4:41",
+    "duration_seconds": 281,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/t24hl-KZi_Cc7bMD8ryN4mo2mdkV3KjYJfY9Mc4bEImXLR-78U3iE7HGQqFO8DpwjPCInT4X_W9b43tO=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "5ia7jW0NNrw",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Francesco Parrino",
+      "id": "UC7bbJ9tMZn1pEhZPP0Zvsgw"
+     }
+    ],
+    "album": {
+     "name": "Piano Covers, Pt. 3",
+     "id": "MPREb_PUtvNTgwy6O"
+    },
+    "duration": "3:54",
+    "duration_seconds": 234,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/ppM8WePb17nua5Y6jVFcYYSN7ELFnGNUJHOciZqVo2SQ9eZaq80GDMtflVYGez1oly0gboiZ-ccocbE=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "9FkkOhsBHB4",
+    "title": "Can't Stop Me (feat. Ayanna Irish)",
+    "artists": [
+     {
+      "name": "Jadakiss",
+      "id": "UCtgewhJNJ03XJEkBkYBcZww"
+     }
+    ],
+    "album": {
+     "name": "The Last Kiss",
+     "id": "MPREb_MNT4JMkkElQ"
+    },
+    "duration": "3:53",
+    "duration_seconds": 233,
+    "isExplicit": true,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/PnIRkqdjholpZljV3b4xZgnYXmBQPLKE4iWXd7m9hrd50ZtrYgQulWCym1TaAXvm08z2JdJ3v0tdoJ0=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "BPnv2gmB3Ts",
+    "title": "Don't Stop Me Now (Live)",
+    "artists": [
+     {
+      "name": "KING Queen HR Tribute",
+      "id": null
+     }
+    ],
+    "album": {
+     "name": "Live at Montreux Freddie Days 2025",
+     "id": "MPREb_5ViYsCH1F3g"
+    },
+    "duration": "3:51",
+    "duration_seconds": 231,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/MQ1T3FH9ZCxrDn7LPWqzBjaGLu8Mj0cbVWIF6Ep7v3EEJ-OP_gvq0NYyP5RlYQfcJ7pVS5x1S8Z7-CA=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "hJrfXiTIBfU",
+    "title": "Don't Stop Me Now (Extended Workout Remix)",
+    "artists": [
+     {
+      "name": "Power Music Workout",
+      "id": "UCJ_0RXzMYYiFojv9Aydrj3Q"
+     }
+    ],
+    "album": {
+     "name": "Don't Stop Me Now",
+     "id": "MPREb_kJyTHx2ziiO"
+    },
+    "duration": "6:18",
+    "duration_seconds": 378,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/-EUdJ7fYuKp3K92Khx8M5ijx57g1fyfFB1LdnypNoS2vRtkU2CB6ZpnU1vfbYMSp1P40oCjrMvipQXqP=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "ojWi3OyBjvs",
+    "title": "Don't Stop Me Now",
+    "artists": [
+     {
+      "name": "Mitoy Yonting",
+      "id": "UCj5LsyoPcamkS3xKeb1I_4w"
+     }
+    ],
+    "album": {
+     "name": "The Voice Of The Philippines The Complete Season 1 Collection",
+     "id": "MPREb_78oVeE2QpuR"
+    },
+    "duration": "3:36",
+    "duration_seconds": 216,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/E9zZS38Uudwmtklik9JiQ7O-YN-uVBXAif355HKYf_5W6nJcQbeKX6oCkyNm4JIbjDsvg7WPIoqVUm0=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   }
+  ],
+  "artists": [
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/_Qx50zW4-diO8SuAKhaccaNLyTvObgE-TQv1jYS4M9Kma6llb3s-IHpBBvuZAkPh88lHvXTQGaWS7aE=w60-h60-p-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCEPMVbUzImPl4p8k4LkGevA",
+    "artist": "Queen"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/TJv3rAlCRfM5fF5km5fFdyLow2Cd8ZwyyA6gj99WJ41h3jC_V8ab0E0ZgVp7XlYuTHLufgILIQ=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCjymketYSQefUpvDHpPB1_w",
+    "artist": "Freddie Mercury"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/VEUAyVm8XyNMy3Ayg6m-4dg3unv2JucH0Of8MWuABaWgM3CcDcIiAS56Od_Qv78PDRKi3BK5UTxhWWcl=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCr4IL0CAkzhZR2HcPWhnW1w",
+    "artist": "Cie Don't Stop Me Now"
+   }
+  ]
+ },
+ "empire state of mind": {
+  "songs": [
+   {
+    "resultType": "song",
+    "videoId": "_ydMlTassYc",
+    "title": "Empire State Of Mind (feat. Alicia Keys)",
+    "artists": [
+     {
+      "name": "JAŸ-Z",
+      "id": "UCbJG1HvzgzaMe_15xfiUyWw"
+     }
+    ],
+    "album": {
+     "name": "The Blueprint 3",
+     "id": "MPREb_ZbWqeKbKuK5"
+    },
+    "duration": "4:37",
+    "duration_seconds": 277,
+    "isExplicit": true,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/cac7RCDKMaGadnmmVcJA1pJBi5Vcp3hwPHbKSHJzJ1H-JXOhASEuLYCvUPX3blZx6OlIyGtm8ld9BKFS=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "Ds7XOTIljYU",
+    "title": "EMPIRE STATE OF MIND",
+    "artists": [
+     {
+      "name": "BASSTON",
+      "id": null
+     },
+     {
+      "name": "STRØBE",
+      "id": "UCVNNjDXnhtrPWuIfiaWrk7A"
+     }
+    ],
+    "album": {
+     "name": "EMPIRE STATE OF MIND",
+     "id": "MPREb_um5eVvO8akH"
+    },
+    "duration": "2:10",
+    "duration_seconds": 130,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/eijdDtaU0NpF_GLStqFHpuKuqTixLphIaWnFStWaYZTzoTOwwcB_8Utp--Wh0_yhUo2aD2JPGYd9GBmB=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "4Ax8-s6w610",
+    "title": "Empire State Of Mind (Part 2) Broken Down [Karaoke Version] (In The Style Of 'Alicia Keys')",
+    "artists": [
+     {
+      "name": "The Coverband",
+      "id": "UCwPk_gTGmibZGHYfn9jj0qQ"
+     }
+    ],
+    "album": {
+     "name": "Empire State Of Mind (Part II) Broken Down",
+     "id": "MPREb_H9wdgFLoa7j"
+    },
+    "duration": "3:36",
+    "duration_seconds": 216,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/7GYo3Xs3yrS8i38pC4SS-M-wMIz_S5HzTKo_Bu-g4FmKdPIpqab7SVAwrdGWfMH66qs979OgWhBTdC-T=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "2uO59HErl4U",
+    "title": "Empire State Of Mind",
+    "artists": [
+     {
+      "name": "Sofie Fjellvang",
+      "id": null
+     }
+    ],
+    "album": {
+     "name": "The Voice 2021: Live 4",
+     "id": "MPREb_CiE4xEGayVK"
+    },
+    "duration": "2:35",
+    "duration_seconds": 155,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/TvTiAEwzyHwqVdX3QNa7H7fnBN-Qd_-cpfZ1tBuWdb2xWIHAxWTkWkuLvxVOIZOjsLzhDKB0eWHc8SkB6A=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "kF6tz42X_pE",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "miss rany",
+      "id": "UCqtM2PMnrWwnB3oga8pwnkg"
+     }
+    ],
+    "album": {
+     "name": "Velvet Chaos",
+     "id": "MPREb_kKvNQEHdM1O"
+    },
+    "duration": "3:14",
+    "duration_seconds": 194,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/2sXriTftOyZ2qkq1VYoAouelvhpKZqBsDQnAXXr0nkDRteV9aukk2TKuvDFU4rz-ZLzJpsbITh39o2ODiQ=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "_W44NZvHc9I",
+    "title": "Empire State of Mind (Part II) Broken Down",
+    "artists": [
+     {
+      "name": "Alicia Keys",
+      "id": "UCvaP3izVIy3fieneHVV6Drw"
+     }
+    ],
+    "album": {
+     "name": "The Element Of Freedom",
+     "id": "MPREb_ipP5UQKqaxl"
+    },
+    "duration": "3:37",
+    "duration_seconds": 217,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/7yqbPPdV_IGjjocCJJgYlBWCVQv8ES2sBmcRS_XRvh2LVYQnKZZu7XtnO9n770TMCJjH3U4qI57gXFO4=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "Ks72CU6gOu0",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "New Kids In Town",
+      "id": "UCBHgoQa6ubOysTv7x84WFFQ"
+     }
+    ],
+    "album": {
+     "name": "Shake It Out: Tribute to Glee",
+     "id": "MPREb_BqpvuAoFxAa"
+    },
+    "duration": "4:41",
+    "duration_seconds": 281,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/OQyHC_Iq5j4K-_VsCV3CSJXNMP2fQtJoB7RNP5toShcx6YOvefVFX9y7azMKiU9lUelgfmIaI0x_I0kFkw=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "7OFpJrRwnNI",
+    "title": "Jay-Z Feat. Alicia Keys - Empire State of Mind (Vocal Melody Version) (feat. Alicia Keys - Empire State of Mind)",
+    "artists": [
+     {
+      "name": "Ultimate Tribute Stars",
+      "id": "UC1vM4AHADyr_Z0gfRCAMJQg"
+     }
+    ],
+    "album": {
+     "name": "Jay-Z feat. Alicia Keys - Empire State Of Mind (Vocal Melody Version)",
+     "id": "MPREb_3UOeIvav3Gb"
+    },
+    "duration": "5:29",
+    "duration_seconds": 329,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/6tDPfEyrjI25egRBescWQGxaa2H9UwwiGQArOBCT0yB1RKI0_T5yq-6owbcFUH4qcVot9HSZFrQ8czgy=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "AdMAK1G6GMI",
+    "title": "New York Empire (Radio Edit) (feat. Jean Claudio Music)",
+    "artists": [
+     {
+      "name": "Tomas Gabriel",
+      "id": "UCuWyzutG_whRJ-_dr6eSGhQ"
+     }
+    ],
+    "album": {
+     "name": "New York Empire [Radio Edit]",
+     "id": "MPREb_UGKHQzew4O4"
+    },
+    "duration": "2:19",
+    "duration_seconds": 139,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/Eg4-x-zWmKEKssKbHqsOzQgjPTzADUFJPrOkhe7VAeI9JUNv0nGSZlJFtrt37nGu69iNMgAhncWu7rvgNQ=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "p0z5KV9RBtE",
+    "title": "Empire State Of Mind",
+    "artists": [
+     {
+      "name": "Crystal Rock",
+      "id": "UCiRQWO_wWatfY9oKwYD87xQ"
+     },
+     {
+      "name": "Robin White",
+      "id": "UCGCCW6DRtzrxEJyPoXkyR9A"
+     },
+     {
+      "name": "Cmagic5",
+      "id": "UCVsPi2tMnUOXt7XE0S3pXGQ"
+     }
+    ],
+    "album": {
+     "name": "Empire State Of Mind",
+     "id": "MPREb_OIgsG5meK9V"
+    },
+    "duration": "2:38",
+    "duration_seconds": 158,
+    "isExplicit": true,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/Z2v6z7JcngXtZYDSFHYIFf8DjQamUdwpHBJKwT6yTWZ13ora-h-USx0nhbJGqdb-S_VHH317SVpoFv7xCA=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "p98tXbL_EkU",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "Josh Vietti",
+      "id": "UCvGLDe7pArZ20qRaroDhhfQ"
+     }
+    ],
+    "album": {
+     "name": "Empire State of Mind",
+     "id": "MPREb_63JnqTfMSru"
+    },
+    "duration": "3:34",
+    "duration_seconds": 214,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/wcuvAS44k_xRV2167UdGVlCxVLA567OUgHqsn8D6WvDy4ptPKYAdREj8OwGQBDVkWTXq56Dar1wO6jqR=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "pEZh9IaUdWI",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "Josh Vietti",
+      "id": "UCvGLDe7pArZ20qRaroDhhfQ"
+     }
+    ],
+    "album": {
+     "name": "Best of Both Worlds",
+     "id": "MPREb_0XDZx9Gq4sC"
+    },
+    "duration": "4:50",
+    "duration_seconds": 290,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/2OlKoY4CvFaxdvFa3Vq7iAYkSkNWsYTFWMk9i6TDNpnNt5GGdHCP2kvvCX89ImR_G9K8_IKLb6haknQV=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "5f9GVO_2wKU",
+    "title": "Empire State Of Mind - Remake Cover",
+    "artists": [
+     {
+      "name": "renewwed",
+      "id": "UCGkafR7-8V64Sz3I2VnATlg"
+     },
+     {
+      "name": "capella",
+      "id": "UCMzwH2CeUomVZ2uhDSyoZ-w"
+     }
+    ],
+    "album": {
+     "name": "Empire State Of Mind - Remake Cover",
+     "id": "MPREb_Q6xULhH67TE"
+    },
+    "duration": "4:37",
+    "duration_seconds": 277,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/vhfJtFCOI9JxqAWCzyxBqu6cth8XmAcI2SPSUqPS_EvYqH_02bfQ-5hzRyGyAyBNau9Cpot1wqAEgcWr6w=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "WRMmA-2hqxQ",
+    "title": "Empire State Of Mind (12\" version)",
+    "artists": [
+     {
+      "name": "Mobo",
+      "id": "UC1Za6Kp9rtETgzI7ilhymYg"
+     }
+    ],
+    "album": {
+     "name": "Empire State Of Mind",
+     "id": "MPREb_Bzzr0s7XENb"
+    },
+    "duration": "5:11",
+    "duration_seconds": 311,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/jV5TqMwEpMcKdfc_k65xqvd0ntvHIhsKf1seS5yjuo2ha7coBZUMsvhLd6YDrWCshg0X1OOW0mQYjYEF=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "ujJa2v07L00",
+    "title": "Empire State of Mind (Cover)",
+    "artists": [
+     {
+      "name": "DJ B-SUPREME",
+      "id": "UCcdmCyHiJw4T5_z3uNlU_Ig"
+     }
+    ],
+    "album": {
+     "name": "BEST HITS ALL 100, 000, 000 ALL TIME BEST",
+     "id": "MPREb_UftU8GL7mg2"
+    },
+    "duration": "1:12",
+    "duration_seconds": 72,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/7uSlc-pENsPLgohp2-wgEc_6xBWaerFGBnKcCWl-Lvbs_C5hUV41DIKnnkDE8Ntx0BYHcViNrpxQ190N=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "fa9OGnqoocU",
+    "title": "Empire State Of Mind",
+    "artists": [
+     {
+      "name": "The Global HitMakers",
+      "id": "UC-MZrLvT-zGnGJ7MsdPzg0g"
+     }
+    ],
+    "album": {
+     "name": "The Global HitMakers: Alicia Keys, Vol. 3",
+     "id": "MPREb_imgC4VWvhEa"
+    },
+    "duration": "4:37",
+    "duration_seconds": 277,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/7vacjrygOOm7Ru5gEzDlgVG9cYL1HNVjIna3LgODrOB13KQNDHO02vQNrxCaGGo0nN00y6MWrA--0eG6=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "E_4YMDxVJZ8",
+    "title": "Empire State Of Mind",
+    "artists": [
+     {
+      "name": "Silent Jazz Case",
+      "id": "UCLNU0aB5VMmGaQA_tOTQj2Q"
+     }
+    ],
+    "album": {
+     "name": "Jazzin' R&B - The Best",
+     "id": "MPREb_BDNzyauiRCL"
+    },
+    "duration": "3:11",
+    "duration_seconds": 191,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/9KIjJhMC_x4nnKa7lY_maE-4ifI6Ral00I1xpSXuftVYu2xYtoiNKTxPDcnILRR-jT6oL2b3vFiZZa0=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "PhCmaI1oiOI",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "The Global HitMakers",
+      "id": "UC-MZrLvT-zGnGJ7MsdPzg0g"
+     }
+    ],
+    "album": {
+     "name": "The Global HitMakers: Jay-Z Vol. 2",
+     "id": "MPREb_7XDcoKABfWS"
+    },
+    "duration": "4:38",
+    "duration_seconds": 278,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/DCs2q3h_tPx1ZW4BSvk_s1ltXAC17SS-q7799wGy7EMmS1NLgXyctXQMXIcmUWh4cdatbp9EgE7lizJXAQ=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "CYb6v4SjdOw",
+    "title": "Empire State Of Mind",
+    "artists": [
+     {
+      "name": "Mix Factor",
+      "id": "UCowpej5pmuyL4xilfQIMT1w"
+     }
+    ],
+    "album": {
+     "name": "Hit Mix 2010 Vol. 1 - 15 Chart Hits",
+     "id": "MPREb_4shpogj0woe"
+    },
+    "duration": "4:38",
+    "duration_seconds": 278,
+    "isExplicit": false,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/tBuvezwYmDhUfynW-9IKuRzXR3A2vwr0qbKahwUdcSneLnkP0bAGmcxxxj8Aa5OQOb8LdJIHKJ8t8e1-=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   },
+   {
+    "resultType": "song",
+    "videoId": "x2yunmhrRCY",
+    "title": "Empire State of Mind",
+    "artists": [
+     {
+      "name": "Sebii",
+      "id": "UCYjUHSyWWa1fJQcdAGnUfNw"
+     }
+    ],
+    "album": {
+     "name": "Empire State of Mind",
+     "id": "MPREb_7X9ZIXzO94u"
+    },
+    "duration": "2:21",
+    "duration_seconds": 141,
+    "isExplicit": true,
+    "videoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/uLK-oMNAofcQ7UVVXeqPSagoIisJiONjIa7Gadg-BQtyVAjAAGhil42uEpQ4x9wrRL1wdWJK2PvrF8pk=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ]
+   }
+  ],
+  "artists": [
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/SK-iFcersg-ptS5IKuvoslOLOIVBFyUrkQsw9rZiBe01tD6_jP6dXNmUVJckdJwk1jidZz2QEd_YWGD9=w60-h60-p-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCvaP3izVIy3fieneHVV6Drw",
+    "artist": "Alicia Keys"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/YcGJemFC30LtMjWCOMXUgjHhVknIUlxtgh6yBkEl1NA8ZHhih7VE4UrFqFqvwGPraXBr_EDvfbQ0ZkVi=w60-h60-p-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCbJG1HvzgzaMe_15xfiUyWw",
+    "artist": "JAŸ-Z"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/R3TKqi0qio32T5YJGNTE3OWQQKCFiXiOHncoYmiXS_hcIl9eq4nJRXb1FLjwvRm4HBEVgIxX8e5AK5A=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCYNswNFfPv5Z_QREsvhZUZQ",
+    "artist": "Scottish Empire State of Mind"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://lh3.googleusercontent.com/IFlc3sf6sHV3TAZ_5vhyHQiKb9D4AdSlDkiTSgsRiicnzLASXwVr1n22EEg6Vtd2XBlyJslm8xlYiA=w60-h60-p-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCRY5dYsbIN5TylSbd7gVnZg",
+    "artist": "Kanye West"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/140jZiDSNt_poRgTM2g9pK7feZgqqx45WQTyAyap7eZc4Rfr1LCZ1cLjTHu50qBkg8phGLOYKHnxC6W1=w60-h60-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCFCh0e9RAH5RH8dcsPDZMMg",
+    "artist": "New York Empire State of Mind"
+   },
+   {
+    "resultType": "artist",
+    "thumbnails": [
+     {
+      "url": "https://yt3.googleusercontent.com/0-lQsiRvfH4JcsvXTbI8qej7lKWd8QF0Keq0sLtTCPQ9vmSQEFU2putxH9YyOAIhpB9Hm_8XoSfA74U=w60-h60-p-l90-rj",
+      "width": 60,
+      "height": 60
+     }
+    ],
+    "browseId": "UCyHB0BFvGwsLPBFXutnr7LQ",
+    "artist": "Keyshia Cole"
+   }
+  ]
+ }
+}

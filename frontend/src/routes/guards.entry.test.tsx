@@ -44,8 +44,11 @@ describe("Entry - return to and QR prefill", () => {
   it("carries the originally requested route through sign-in", async () => {
     renderRoute(<AppRoutes />, "/settings", ANON);
 
-    // Redirected to the entry screen, host sign-in section present.
-    expect(await screen.findByText("Join Karaoke Session")).toBeInTheDocument();
+    // Redirected to the entry screen, which opens on sign-in and says why.
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Sign in to open settings.")).toBeInTheDocument();
 
     // Sign in (bypassing the form - authStore.login talks to a real API).
     updateStore(useAuthStore, {
@@ -59,7 +62,7 @@ describe("Entry - return to and QR prefill", () => {
   it("prefills the code from a scanned QR link", () => {
     renderRoute(<AppRoutes />, "/join/WXYZ", ANON);
 
-    expect(screen.getByText("Joining session")).toBeInTheDocument();
+    expect(screen.getByText("You're joining")).toBeInTheDocument();
     expect(screen.getByText("WXYZ")).toBeInTheDocument();
   });
 });

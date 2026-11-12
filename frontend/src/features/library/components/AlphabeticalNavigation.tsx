@@ -51,13 +51,13 @@ const AlphabeticalNavigation: React.FC<AlphabeticalNavigationProps> = ({
           <div key={letter} className="relative group flex-1">
             <button
               onClick={() => onLetterClick(letter)}
-              className="w-7 p-0 text-s rounded bg-transparent text-lemon-chiffon hover:bg-orange-peel/40"
+              className="w-7 p-0 text-s rounded bg-transparent text-foreground hover:bg-primary/40"
               aria-label={`Jump to ${letter}`}
             >
               {letter}
             </button>
             <div
-              className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded bg-rust px-3 py-1 text-3xl font-bold text-lemon-chiffon opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+              className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded bg-secondary px-3 py-1 text-3xl font-bold text-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
               aria-hidden="true"
             >
               {letter}

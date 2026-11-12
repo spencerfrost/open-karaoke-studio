@@ -21,7 +21,7 @@ vi.mock("../pages/PerformanceControlsPage", () => ({
 vi.mock("../pages/Entry", () => ({
   default: () => <div>join-page</div>,
 }));
-vi.mock("../pages/AdminPanel", () => ({
+vi.mock("../features/admin/AdminLayout", () => ({
   default: () => <div>admin-page</div>,
 }));
 vi.mock("../pages/AdminThreeTrackComparePage", () => ({

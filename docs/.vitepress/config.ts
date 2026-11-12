@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   base: '/docs/',
   title: 'Open Karaoke Studio',
   description: 'Self-hosted AI-powered karaoke application',
@@ -8,6 +9,9 @@ export default defineConfig({
 
   // Internal working docs — keep in the repo, out of the published site
   srcExclude: ['plans/**', 'superpowers/**', 'research/**'],
+
+  // The guide links to the local dev servers
+  ignoreDeadLinks: 'localhostLinks',
 
   themeConfig: {
     nav: [
@@ -29,6 +33,18 @@ export default defineConfig({
           ]
         },
         {
+          text: 'How It Works',
+          collapsed: false,
+          items: [
+            { text: 'Ingestion & Processing', link: '/domains/ingestion-pipeline' },
+            { text: 'Song & Library Metadata', link: '/domains/song-library' },
+            { text: 'Lyrics System', link: '/domains/lyrics-system' },
+            { text: 'Sessions, Queue & Realtime', link: '/domains/sessions-realtime' },
+            { text: 'Player, Stage & Performance', link: '/domains/player-stage' },
+            { text: 'Platform Foundations', link: '/domains/platform-foundations' },
+          ]
+        },
+        {
           text: 'API Reference',
           collapsed: false,
           items: [
@@ -39,19 +55,20 @@ export default defineConfig({
             { text: 'Sessions API', link: '/api/sessions' },
             { text: 'Lyrics API', link: '/api/lyrics' },
             { text: 'Library API', link: '/api/library' },
+            { text: 'Admin API', link: '/api/admin' },
             { text: 'YouTube & Metadata Search', link: '/api/youtube' },
             { text: 'Authentication', link: '/api/authentication' },
+            { text: 'Demo API', link: '/api/demo' },
             { text: 'Error Handling', link: '/api/error-handling' },
             { text: 'Usage Examples', link: '/api/examples/README' },
           ]
         },
         {
-          text: 'Internals',
+          text: 'Reference',
           collapsed: false,
           items: [
             { text: 'WebSocket Protocol', link: '/websocket-protocol' },
-            { text: 'Lyrics Analysis System', link: '/lyrics-analysis-system' },
-            { text: 'Instrumental Intervals (Frontend)', link: '/instrumental-intervals-frontend' },
+            { text: 'Lyrics Analysis', link: '/lyrics-analysis-system' },
           ]
         },
         {
@@ -97,4 +114,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

@@ -46,9 +46,16 @@ GET /api/sessions/my
   ],
   "created_at": "2026-07-12T19:00:00",
   "expires_at": "2026-07-13T03:00:00",
-  "is_active": true
+  "is_active": true,
+  "queue_order_mode": "rotation",
+  "is_demo": false,
+  "owner_tag": "3f9a1c0e7b2d4a68"
 }
 ```
+
+`owner_tag` is the session's opaque job tag. Jobs this session starts carry the same value, so a device compares the two to tell its session's jobs from everyone else's (see [Job Fields](jobs.md#job-fields)). Every endpoint that returns this shape includes it.
+
+`is_demo` is true when a demo pool account hosts the session (see [Demo Accounts](../demo-accounts.md)). A guest who joins one goes straight to adding a song, because the stage's guided tour is waiting for one.
 
 ---
 
@@ -77,11 +84,21 @@ Session duration comes from the host's `session_duration_hours` setting (default
 
 Same shape as [Get My Session](#get-my-session), with `device_id` set for the calling device.
 
+#### Demo accounts
+
+A [demo account](/demo-accounts) only uses the session [`POST /api/demo/start`](demo.md#start-a-demo-session) opened for it. This endpoint joins that session, but returns `403 Forbidden` for a demo account when it has no live session, or when the request sends `"on_existing": "replace"`:
+
+```json
+{
+  "detail": "Your demo session has ended — press Try it live to start a new one."
+}
+```
+
 ---
 
 ### Create Session
 
-Create a new karaoke session (not tied to a host account's shared session).
+Create a new karaoke session (not tied to a host account's shared session). **Requires a host account** (`403` for any other account, including demo accounts).
 
 ```http
 POST /api/sessions
@@ -99,6 +116,10 @@ POST /api/sessions
 #### Response (`201 Created`)
 
 Same shape as above — includes the new session's `session_id`, `display_code`, and the creating device's `device_id`.
+
+#### Error Responses
+
+- `403 Forbidden` — The caller is a [demo account](/demo-accounts). Demo sessions come only from [`POST /api/demo/start`](demo.md#start-a-demo-session).
 
 ---
 
@@ -162,13 +183,20 @@ Same as join-by-code, plus `409 Conflict` if this device already joined the sess
 Get information about a session, including connected devices.
 
 ```http
-GET /api/sessions/{session_id}/info?device_id={device_id}
+GET /api/sessions/{session_id}/info
+X-Session-ID: {session_id}
+X-Device-ID: {device_id}
+Authorization: Bearer {token}    # optional; the host's account
 ```
 
-Pass your `device_id` as a query parameter so the response can correctly mark `is_self` and `is_host`.
+Only a member device of this session, the account that hosts it, or an admin may read it. `is_host`
+comes from the account token (the session's `host_user_id`); `is_self` marks the device named in
+`X-Device-ID`.
 
 #### Error Responses
 
+- `401 Unauthorized` — Invalid or expired token, and no valid session credential to fall back on
+- `403 Forbidden` — Not a member of that session (also returned for a code that doesn't exist)
 - `404 Not Found` — Session not found
 - `410 Gone` — Session has expired
 
@@ -223,6 +251,8 @@ Generate a YouTube Music playlist from the songs performed during a session.
 
 Trigger playlist generation. Returns `202 Accepted` immediately; poll the GET endpoint for status. Idempotent — repeat calls return the existing generation's status.
 
+**Only the session's host (or an admin) may call it**, since the playlist is created on the server's YouTube Music account. The stage calls it right after ending the session, so an ended session is fine. Anyone else's session returns `404`, the same as a missing one.
+
 ```http
 POST /api/sessions/{session_id}/playlist
 ```
@@ -249,7 +279,7 @@ POST /api/sessions/{session_id}/playlist
 GET /api/sessions/{session_id}/playlist
 ```
 
-Returns the same shape; when `status` is `ready`, `youtube_music_url` links to the created playlist. Returns `404` if generation was never started.
+Returns the same shape; when `status` is `ready`, `youtube_music_url` links to the created playlist. Returns `404` if generation was never started. Needs a member device of the session, its host's account, or an admin (`403` otherwise).
 
 ---
 
@@ -271,8 +301,10 @@ curl -X POST http://localhost:5123/api/sessions/join-by-code \
 curl http://localhost:5123/api/sessions/{session_id}/validate
 
 # After the party: generate the YouTube Music playlist
-curl -X POST http://localhost:5123/api/sessions/{session_id}/playlist
-curl http://localhost:5123/api/sessions/{session_id}/playlist
+curl -X POST http://localhost:5123/api/sessions/{session_id}/playlist \
+  -H "Authorization: Bearer {host-token}"
+curl http://localhost:5123/api/sessions/{session_id}/playlist \
+  -H "Authorization: Bearer {host-token}"
 ```
 
 ---

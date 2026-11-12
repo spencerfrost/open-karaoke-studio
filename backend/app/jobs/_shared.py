@@ -1,14 +1,17 @@
 """Shared helpers and state for job tasks."""
 
-import hashlib
 from datetime import datetime
 from typing import Optional
 
-from app.db.models import Job, JobStatus
+from app.db.models import Job, JobStatus, JobStep
 from app.repositories import JobRepository
 from app.services.lyrics_timing import log_lyrics_event
 
 LYRICS_JOB_ENGINE_TYPE = "lyrics_alignment"
+
+# Waits before each automatic retry of a transient failure (full GPU, network
+# blip): ~21 minutes in all, long enough for another job to let go of VRAM.
+TRANSIENT_RETRY_DELAYS = (60, 300, 900)
 
 # Keep a single repository instance shared by task modules.
 job_repository = JobRepository()
@@ -16,21 +19,6 @@ job_repository = JobRepository()
 
 def _get_lyrics_job_id(song_id: str) -> str:
     return f"lyrics-align:{song_id}"
-
-
-def _make_alignment_cache_key(
-    *,
-    source_type: str,
-    content: str,
-    language: str,
-    alignment_mode: str,
-) -> tuple[str, str, str, str]:
-    return (
-        source_type,
-        alignment_mode,
-        language,
-        hashlib.sha1(content.encode("utf-8")).hexdigest(),
-    )
 
 
 def _create_lyrics_alignment_job(
@@ -52,6 +40,7 @@ def _create_lyrics_alignment_job(
         title=title,
         artist=artist,
         engine_type=LYRICS_JOB_ENGINE_TYPE,
+        step=JobStep.ALIGN,
     )
     job_repository.create(lyrics_job)
     log_lyrics_event(
@@ -85,12 +74,14 @@ def _update_lyrics_alignment_job(
             song_id=song_id,
             error=error,
             engine_type=LYRICS_JOB_ENGINE_TYPE,
+            step=JobStep.ALIGN,
         )
     else:
         lyrics_job.status = status
         lyrics_job.progress = progress
         lyrics_job.status_message = message
         lyrics_job.error = error
+        lyrics_job.step = JobStep.ALIGN
 
     if status == JobStatus.PROCESSING and lyrics_job.started_at is None:
         lyrics_job.started_at = datetime.now()

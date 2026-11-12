@@ -7,66 +7,52 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface ArtistManagerProps {
-  primaryArtist: string;
-  featuredArtists: SongArtist[];
-  onPrimaryChange: (value: string) => void;
-  onFeaturedChange: (artists: SongArtist[]) => void;
+  /** The song's credits, primaries first. */
+  credits: SongArtist[];
+  onChange: (credits: SongArtist[]) => void;
 }
 
-export const ArtistManager: React.FC<ArtistManagerProps> = ({
-  primaryArtist,
-  featuredArtists,
-  onPrimaryChange,
-  onFeaturedChange,
-}) => {
-  const [showAddInput, setShowAddInput] = useState(false);
-  const [addInputValue, setAddInputValue] = useState("");
+const CreditGroup: React.FC<{
+  label: string;
+  role: SongArtist["role"];
+  credits: SongArtist[];
+  /** The last primary can't be removed: a song needs one. */
+  canRemove: boolean;
+  onAdd: (name: string) => void;
+  onRemove: (credit: SongArtist) => void;
+}> = ({ label, role, credits, canRemove, onAdd, onRemove }) => {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
 
-  const handleRemoveFeatured = (id: number) => {
-    onFeaturedChange(featuredArtists.filter((a) => a.id !== id));
-  };
-
-  const handleConfirmAdd = () => {
-    const trimmed = addInputValue.trim();
+  const confirm = () => {
+    const trimmed = name.trim();
     if (!trimmed) return;
-    onFeaturedChange([
-      ...featuredArtists,
-      { id: Date.now(), name: trimmed, role: "featured" },
-    ]);
-    setAddInputValue("");
-    setShowAddInput(false);
+    onAdd(trimmed);
+    setName("");
+    setAdding(false);
   };
 
-  const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      handleConfirmAdd();
+      confirm();
     } else if (e.key === "Escape") {
-      setAddInputValue("");
-      setShowAddInput(false);
+      setName("");
+      setAdding(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="primary-artist">Primary Artist</Label>
-        <Input
-          id="primary-artist"
-          value={primaryArtist}
-          onChange={(e) => onPrimaryChange(e.target.value)}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Featured Artists</Label>
-        <div className="flex flex-wrap gap-2">
-          {featuredArtists.map((artist) => (
-            <Badge key={artist.id} variant="secondary" className="gap-1 pr-1">
-              {artist.name}
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        {credits.map((credit) => (
+          <Badge key={credit.id} variant="secondary" className="gap-1 pr-1">
+            {credit.name}
+            {canRemove && (
               <button
                 type="button"
-                onClick={() => handleRemoveFeatured(artist.id)}
-                aria-label={`Remove ${artist.name}`}
+                onClick={() => onRemove(credit)}
+                aria-label={`Remove ${credit.name}`}
                 className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
               >
                 <XCircle
@@ -74,43 +60,93 @@ export const ArtistManager: React.FC<ArtistManagerProps> = ({
                   className="text-muted-foreground hover:text-card-foreground transition-colors"
                 />
               </button>
-            </Badge>
-          ))}
+            )}
+          </Badge>
+        ))}
 
-          {showAddInput ? (
-            <div className="flex items-center gap-1">
-              <Input
-                autoFocus
-                className="h-7 text-sm w-36"
-                value={addInputValue}
-                onChange={(e) => setAddInputValue(e.target.value)}
-                onKeyDown={handleAddKeyDown}
-                placeholder="Artist name"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs px-2"
-                onClick={handleConfirmAdd}
-                disabled={!addInputValue.trim()}
-              >
-                Add
-              </Button>
-            </div>
-          ) : (
-            <button
+        {adding ? (
+          <div className="flex items-center gap-1">
+            <Input
+              autoFocus
+              className="h-7 text-sm w-36"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Artist name"
+            />
+            <Button
               type="button"
-              onClick={() => setShowAddInput(true)}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-card-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
-              aria-label="Add featured artist"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={confirm}
+              disabled={!name.trim()}
             >
-              <Plus size={14} />
               Add
-            </button>
-          )}
-        </div>
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={() => setAdding(true)}
+            aria-label={
+              role === "primary" ? "Add an artist" : "Add a featured artist"
+            }
+          >
+            <Plus size={14} />
+            Add
+          </Button>
+        )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * The song's artists as a list: who it's by, and who it features. Saved as
+ * given; the song's artist line is rebuilt from it ("A & B feat. C").
+ */
+export const ArtistManager: React.FC<ArtistManagerProps> = ({
+  credits,
+  onChange,
+}) => {
+  const primaries = credits.filter((c) => c.role === "primary");
+  const featured = credits.filter((c) => c.role === "featured");
+
+  const add = (name: string, role: SongArtist["role"]) => {
+    // Negative ids stand in until the server gives the artist its own.
+    const id = -Date.now();
+    const added = { id, name, role };
+    onChange(
+      role === "primary"
+        ? [...primaries, added, ...featured]
+        : [...primaries, ...featured, added],
+    );
+  };
+  const remove = (credit: SongArtist) =>
+    onChange(credits.filter((c) => c !== credit));
+
+  return (
+    <div className="space-y-4">
+      <CreditGroup
+        label="Artist"
+        role="primary"
+        credits={primaries}
+        canRemove={primaries.length > 1}
+        onAdd={(name) => add(name, "primary")}
+        onRemove={remove}
+      />
+      <CreditGroup
+        label="Featuring"
+        role="featured"
+        credits={featured}
+        canRemove
+        onAdd={(name) => add(name, "featured")}
+        onRemove={remove}
+      />
     </div>
   );
 };

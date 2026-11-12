@@ -14,20 +14,29 @@ export interface KaraokePlayerProps {
   songId: string;
 
   // Player configuration
+  /** Start a newly loaded song by itself, after the stage's 3-2-1. */
   autoPlay?: boolean;
+  /**
+   * False while another screen covers the player. A new song's count waits
+   * until the player is shown again.
+   */
+  visible?: boolean;
+  /** Who is singing the song, for the countdown. */
+  singer?: string;
 
   // UI options
   controls?: boolean;
   showInfo?: boolean;
   showVisualizer?: boolean;
-  /** Dim the song header while the stage rails are collapsed. */
-  dimHeader?: boolean;
+  /**
+   * The stage rails are collapsed: dim the song header and hide the Songbook
+   * button along with the rest of the chrome.
+   */
+  chromeCollapsed?: boolean;
 
   // Event callbacks
   onPlay?: () => void;
   onPause?: () => void;
-  onEnd?: () => void;
-  onTimeUpdate?: (currentTime: number, duration: number) => void; // Both in seconds
   onError?: (error: Error) => void;
 
   // Styling
@@ -39,6 +48,8 @@ export interface KaraokePlayerProps {
 // Player options for useKaraokePlayer hook
 export interface PlayerOptions {
   autoPlay?: boolean;
+  /** See KaraokePlayerProps.visible. */
+  visible?: boolean;
   preload?: boolean;
 }
 
@@ -57,7 +68,6 @@ export interface KaraokePlayerHook {
   isReady: boolean;
   isPlaying: boolean;
   songEnded: boolean; // True when song finished naturally (not paused)
-  currentTime: number; // In seconds (changed from milliseconds)
   duration: number; // In seconds (changed from milliseconds)
   error: PlayerError | null;
   connectionStatus: "connected" | "disconnected" | "connecting";
@@ -74,10 +84,6 @@ export interface KaraokePlayerHook {
   setInstrumentalVolume: (volume: number) => void;
   vocalVolume: number;
   instrumentalVolume: number;
-
-  // Playback speed (pitch-preserving)
-  playbackSpeed: number;
-  setPlaybackSpeed: (speed: number) => void;
 
   // Lyrics and display
   lyrics: string;
