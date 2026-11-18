@@ -69,6 +69,40 @@ interface AuthState {
    * 401s toasts once.
    */
   expireSession: () => void;
+  /**
+   * Trade the token for a fresh one once it is a day old, so a device that is
+   * in use never reaches the end of its sign-in. Demo tokens are left alone:
+   * they end with their demo session.
+   */
+  renewIfDue: () => Promise<void>;
+}
+
+/** Renew once the token has been in use this long. */
+const RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A JWT's expiry in milliseconds, read from its payload. Null when the token
+ * can't be read; the server is still the judge of whether it's valid.
+ */
+export function tokenExpiryMs(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const exp = (JSON.parse(json) as { exp?: unknown }).exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Server tokens last this long; mirrors JWT_ACCESS_TOKEN_EXPIRE_MINUTES. */
+const TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** True when the token has been in use long enough to renew. */
+export function isRenewalDue(token: string, now = Date.now()): boolean {
+  const expiry = tokenExpiryMs(token);
+  if (expiry === null) return false;
+  return expiry - now < TOKEN_LIFETIME_MS - RENEW_AFTER_MS;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -132,6 +166,40 @@ export const useAuthStore = create<AuthState>()(
         } else {
           toast.error("Session expired. Please log in again.");
         }
+      },
+
+      renewIfDue: async () => {
+        const { token, isAuthenticated, user } = get();
+        if (!token || !isAuthenticated || user?.isDemo) return;
+        if (!isRenewalDue(token)) return;
+
+        let response: Response;
+        try {
+          response = await fetch("/api/users/refresh", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch (error) {
+          // Offline or the server is restarting: the token is still good for
+          // days, so try again on the next check.
+          logger.warn("Couldn't renew sign-in:", error);
+          return;
+        }
+
+        // Signed out or signed in as someone else while the request was out.
+        if (get().token !== token) return;
+
+        if (response.status === 401) {
+          get().expireSession();
+          return;
+        }
+        if (!response.ok) {
+          logger.warn("Couldn't renew sign-in: status", response.status);
+          return;
+        }
+
+        set(signedIn(await response.json()));
+        logger.info("Renewed sign-in");
       },
     }),
     {

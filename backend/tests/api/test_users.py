@@ -3,6 +3,7 @@ Tests for FastAPI users endpoints.
 """
 
 from app.db.models import User
+from app.services.auth_service import create_access_token, verify_token
 
 
 class TestUserRegistration:
@@ -120,6 +121,55 @@ class TestUserLogin:
         )
 
         assert response.status_code == 401
+
+
+class TestTokenRefresh:
+    """A still-valid token buys a fresh one; demo and dead tokens don't."""
+
+    def _user(self, db, username, **fields):
+        user = User(username=username, display_name="Sam", **fields)
+        user.set_password("password123")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def _refresh(self, client, token):
+        return client.post(
+            "/api/users/refresh", headers={"Authorization": f"Bearer {token}"}
+        )
+
+    def test_valid_token_gets_a_later_expiry(self, unauthenticated_client, db):
+        user = self._user(db, "refresh-sam", is_host=True)
+        old = create_access_token(user, expires_minutes=5)
+
+        response = self._refresh(unauthenticated_client, old)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(user.id)
+        assert data["is_host"] is True
+        assert data["is_demo"] is False
+        new_payload, old_payload = verify_token(data["token"]), verify_token(old)
+        assert new_payload is not None and old_payload is not None
+        assert new_payload["exp"] > old_payload["exp"]
+
+    def test_expired_token_is_401(self, unauthenticated_client, db):
+        user = self._user(db, "refresh-expired")
+        token = create_access_token(user, expires_minutes=-1)
+
+        assert self._refresh(unauthenticated_client, token).status_code == 401
+
+    def test_no_token_is_rejected(self, unauthenticated_client):
+        response = unauthenticated_client.post("/api/users/refresh")
+
+        assert response.status_code in (401, 403)
+
+    def test_demo_token_is_not_renewed(self, unauthenticated_client, db):
+        user = self._user(db, "demo-pool-refresh", is_demo=True)
+        token = create_access_token(user)
+
+        assert self._refresh(unauthenticated_client, token).status_code == 403
 
 
 class TestUserUpdate:

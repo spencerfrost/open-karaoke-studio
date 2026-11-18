@@ -335,9 +335,25 @@ reaches its `expires_at` while the stage is up, it calls `authStore.expireSessio
 
 `JWT_SECRET_KEY` comes from `.env`. If it's missing, `auth_service` generates a random key for
 that process and logs an error, and `main.py` logs it again at startup. Every restart, including
-a hot reload, then invalidates every token. The default lifetime is 7 days
-(`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`). There are no refresh tokens: when it expires, the
-next request 401s.
+a hot reload, then invalidates every token. Restarts and deploys with the key set leave tokens
+valid.
+
+### Staying signed in
+
+A token lasts 7 days (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`), and a device in use renews it
+before then. `useKeepSignedIn`, mounted in `App.tsx`, calls `authStore.renewIfDue()` when the app
+opens, when the tab comes back into view, and hourly while it stays open, which covers a TV left
+on for days. `renewIfDue` reads the expiry from the token's payload and only calls
+`POST /api/users/refresh` once the token is a day old. That endpoint takes a still-valid token
+and returns a fresh login response with a new 7-day token and the account's current roles.
+
+- A device nobody opens for 7 days still has to log in again: an expired token can't be renewed.
+- Demo tokens are never renewed. The client skips them, and the endpoint answers 403, because a
+  demo token is cut to end with its demo session.
+- A refresh the server rejects with 401 runs `expireSession()`. A network error or any other
+  status keeps the current token and tries again on the next check.
+- The client's "a day old" reading assumes the 7-day default. With a different
+  `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` the renewal still works, just earlier or later than a day in.
 
 ### Using the token, and what happens on 401
 
@@ -364,8 +380,9 @@ sequenceDiagram
 `expireSession` only clears the account. The session this browser joined stays, so a host whose
 token lapses mid-night is still a member and still sees the app, just without the Stage tab.
 
-Only three paths call `expireSession`: `apiGet` and `apiSend` in `useApi.ts`, and
-`sessionStore.resumeAccountHostSession`. The ~40 raw `fetch` calls elsewhere (see
+The paths that call `expireSession` on a 401 are `apiGet` and `apiSend` in `useApi.ts`,
+`useArtists` (through `handleUnauthorized`), `authStore.renewIfDue`, and
+`sessionStore.resumeAccountHostSession`. The other raw `fetch` calls (see
 [Two API clients](#two-api-clients)) surface a 401 as an ordinary error.
 
 ## Host settings

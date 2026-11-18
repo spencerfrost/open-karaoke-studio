@@ -974,13 +974,15 @@ change processing settings.
   the library and manage users on `/admin/users` (create an account, make it a host)
 - **What a guest's phone gets:** the songbook, adding songs, and the controls while in a session.
   Settings, the stage and admin pages are for accounts
-- **Stays signed in for 7 days.** When the sign-in expires the app says "Session expired"; a phone
-  that's also in a session carries on as a guest
+- **Stays signed in while you use it.** A device opened at least once a week never has to log in
+  again. One left unopened for 7 days says "Session expired"; a phone that's also in a session
+  carries on as a guest
 - **Leave session / Log out** from the name chip in the top-right corner of every page
 
 **Status:** ⚠️ Working, with gaps: registration is open to anyone (an open account can't reach
 anyone's session, but can add songs to the library), there's no screen to change a display name
-or password, and a role change shows in an already-signed-in browser only after it signs in again
+or password, and a role change shows in an already-signed-in browser only after it signs in again or renews
+its sign-in (at most a day)
 
 **How it works:** [Platform Foundations](/domains/platform-foundations)
 

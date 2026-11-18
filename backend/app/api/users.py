@@ -3,7 +3,7 @@ FastAPI router for user management endpoints.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -135,6 +135,28 @@ def login_user(request: Request, body: LoginUserRequest, db: Session = Depends(g
     except Exception as e:
         logger.error("Failed to login user: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to login: {str(e)}")
+
+
+@router.post("/refresh", response_model=LoginResponse)
+def refresh_token(current_user: User = Depends(get_current_user)):
+    """Trade a still-valid token for a fresh one, so a device in use stays signed in.
+
+    The app calls this when it opens and once a day while it stays open, so a
+    login only runs out on a device nobody has opened for a full token lifetime.
+    A demo token is cut to end with its demo session, so it is never renewed.
+    """
+    if bool(current_user.is_demo):
+        raise HTTPException(status_code=403, detail="Demo sign-ins aren't renewed.")
+
+    return LoginResponse(
+        success=True,
+        id=str(current_user.id),
+        display_name=cast(Optional[str], current_user.display_name),
+        token=create_access_token(current_user),
+        is_admin=bool(current_user.is_admin),
+        is_host=bool(current_user.is_host),
+        is_demo=False,
+    )
 
 
 @router.patch("/{user_id}", response_model=UpdateResponse)
