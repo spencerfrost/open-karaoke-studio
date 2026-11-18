@@ -55,6 +55,25 @@ def _clean_global_db():
         conn.commit()
 
 
+@pytest.fixture(autouse=True)
+def _no_real_celery():
+    """Keep every test off the real job queue.
+
+    The dev workers listen on the broker the tests are configured with, so a
+    task a test forgot to mock would run there, against the dev database.
+    Tests that care what was sent patch these themselves, on top of this.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from app.jobs.celery_app import celery
+
+    with (
+        patch.object(celery, "send_task", MagicMock(name="send_task")),
+        patch.object(celery.control, "revoke", MagicMock(name="revoke")),
+    ):
+        yield
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Remove the throwaway test database file (and SQLite sidecars) and library."""
     for suffix in ("", "-wal", "-shm"):
