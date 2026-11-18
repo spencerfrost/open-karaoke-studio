@@ -67,6 +67,7 @@ control that sends messages over the session WebSocket. The audio lives in the T
 | **Performance screen** | The player: lyrics in the middle, controls rail on the left, queue rail on the right. |
 | **Rails** | The two side columns of the performance screen. They collapse to icon strips while a song plays. |
 | **Handoff** | The screen between songs: who's up next and what they're singing. |
+| **Singer colour** | A swatch per roster entry, keyed by performer id (`singerSwatchKey` in [swatch.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/swatch.ts)), shown as `SingerDot` beside a name in a list, as the rail's mic and position number, and as the colour of the handoff screen's one big "Up next" name. Not keyed by seat: seats shift when someone is seated ahead. A song from before the roster falls back to the singer's name. |
 | **Wheel** | The stage's song select: columns on a turning cylinder, DDR-style. The first column picks a *source* (Artists A–Z or Recently added), and the source decides the columns after it. |
 | **Stems** | The separated audio files of a song: instrumental, vocals, and on newer songs backing vocals. |
 | **Facade** | `useKaraokePlayerStore`. It mirrors three smaller stores and is the only one components normally touch. |

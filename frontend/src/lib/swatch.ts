@@ -31,6 +31,15 @@ const DOT = [
   "bg-swatch-6",
 ] as const;
 
+const TEXT = [
+  "text-swatch-1",
+  "text-swatch-2",
+  "text-swatch-3",
+  "text-swatch-4",
+  "text-swatch-5",
+  "text-swatch-6",
+] as const;
+
 /** A stable 0-based swatch index for a key: a number is used as-is, a string is hashed. */
 export function swatchIndex(key: string | number): number {
   if (typeof key === "number") {
@@ -51,4 +60,22 @@ export function swatchTile(key: string | number): string {
 /** A solid dot in the swatch colour. */
 export function swatchDot(key: string | number): string {
   return DOT[swatchIndex(key)];
+}
+
+/** The swatch colour as text, for an icon standing in for the thing (a singer's mic). */
+export function swatchText(key: string | number): string {
+  return TEXT[swatchIndex(key)];
+}
+
+/**
+ * A singer's swatch key: their roster id, which never changes for the night.
+ * Not their seat: seats shift when someone is put in ahead of them or rejoins,
+ * and a colour that changes mid-song isn't theirs. A song from before the
+ * roster has no id, so its singer's name stands in.
+ */
+export function singerSwatchKey(
+  performerId: number | null | undefined,
+  name: string,
+): string | number {
+  return performerId ?? name;
 }

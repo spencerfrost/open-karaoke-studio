@@ -235,6 +235,10 @@ Playing, removing, bumping and reordering are for the session owner only.
 - From the [Handoff Screen](#handoff-screen): Skip my turn, Add performer (they sing now and keep
   that seat), Remove from rotation (with undo)
 - When two devices act at once, the first one wins and the other is quietly told
+- Each singer has a colour for the night, from the theme's swatches: the handoff screen's big
+  "Up next" name is in it, and a dot sits beside their name in the handoff screen's lists, the
+  "Who's singing?" buttons, the phone's top bar and the TV's bar, and on
+  the right rail as the Singing Now mic and their Up Next position number
 
 **Status:** ✅ Working
 

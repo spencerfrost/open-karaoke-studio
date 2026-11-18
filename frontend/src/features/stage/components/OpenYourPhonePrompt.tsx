@@ -16,6 +16,7 @@
 import React, { useEffect, useMemo } from "react";
 import { Smartphone } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SingerDot } from "@/components/session/SingerDot";
 import { useSongPosition } from "@/features/player/hooks";
 import { useSongs } from "@/hooks/api/useSongs";
 import {
@@ -86,7 +87,12 @@ const OpenYourPhonePrompt: React.FC<OpenYourPhonePromptProps> = ({
         className="pointer-events-auto w-auto max-w-xl border-secondary/60 px-6 py-4 shadow-lg [&>svg]:size-6"
       >
         <Smartphone className="text-secondary" />
-        <AlertTitle className="text-xl">
+        <AlertTitle className="flex items-center gap-2 text-xl">
+          <SingerDot
+            performerId={current.performerId}
+            name={current.singer}
+            className="size-3"
+          />
           {current.singer}, open your phone
         </AlertTitle>
         <AlertDescription className="text-base">
