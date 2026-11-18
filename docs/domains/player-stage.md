@@ -239,6 +239,27 @@ and `StageAmbientBar` (a waveform and a thin progress line) appears along the bo
   [sessions-realtime.md](sessions-realtime.md)). It folds away with the label when the rails
   collapse, and only shows with a fine pointer (`pointer-fine:`), so never on the TV.
 
+### Fixing a line
+
+A host can fix a wrong line on the TV while it plays (the lyrics side is in
+[lyrics-system.md](lyrics-system.md#line-fixes-a-host-fixes-one-line-on-the-stage)).
+
+- `StageLayout` turns fixing on for its song when the account is a host
+  ([`useLineFixStore`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useLineFixStore.ts)
+  `enable`), and off when it unmounts, so the lyrics anywhere else (the admin preview, the mini
+  player's song) never offer it.
+- Pointing at a line shows **Fix this line** at the right edge of its row
+  ([LineFix.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFix.tsx)).
+  It shows on plain `:hover`, not Tailwind's `group-hover`, which waits for `(hover: hover)`: the
+  Shield reports no pointer even with the mic-stand mouse plugged in. While hidden it takes no
+  clicks (`pointer-events-none`), so a tap on a line's right edge still seeks.
+- **E** opens the line being sung. The renderer keeps that line in the store as it changes.
+- The editor replaces the line in place; playback keeps going, and auto-scroll holds while it's
+  open so the line stays put. Enter saves, Cancel or Escape closes it. In fullscreen the browser
+  also leaves fullscreen on Escape.
+- `StageLayout` keeps `useLyricsLineFixes` mounted: it polls while a fixed line's words are being
+  timed, then refreshes the word timing so the line lights up on its new timing.
+
 ### Sizing to the TV
 
 [`useStageRootScale`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageRootScale.ts)
@@ -253,7 +274,7 @@ Four separate window `keydown` listeners, each live only while its screen is up:
 
 | Screen | Hook | Keys |
 |---|---|---|
-| Performance | [`useStageKeyboard`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageKeyboard.ts) | Space/Enter play-pause · ↑↓ vocal volume ±10% · ←→ lyrics offset ±100 ms · F fullscreen (on every screen) · L songbook |
+| Performance | [`useStageKeyboard`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageKeyboard.ts) | Space/Enter play-pause · ↑↓ vocal volume ±10% · ←→ lyrics offset ±100 ms · F fullscreen (on every screen) · L songbook · E fix the line being sung (hosts) |
 | Song select | `useWheelKeys` | ↑↓ move (with its own hold-to-accelerate, up to 36 rows/s) · ←→ turn the wheel · Enter pick · Back · L leave |
 | Confirm | inline in `SongConfirmScreen` | ↑↓ singer · ←→ "Sing it now" / "Add to queue" · Enter · Back |
 | Handoff | inline in `HandoffScreen` | Enter play their song (or open the songbook) · Back/L songbook |

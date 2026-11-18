@@ -16,6 +16,7 @@ from app.services.gpu_memory import (
     track_gpu_memory,
 )
 from app.services.lyrics_analysis import analyze_lyrics
+from app.services.lyrics_line_fixes import apply_fixes_to_attempts
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -144,12 +145,13 @@ class LyricsChangedDuringRun(Exception):
 
 
 def _lyrics_run_token(session, song) -> tuple:
-    """What a run must still see before it writes: no new pick, no new report.
+    """What a run must still see before it writes: no new pick, report or line fix.
 
     A person saving lyrics changes `lyrics_hand_picked_at`; a report adds a
-    row or bumps a count. Either means this run's candidates are out of date.
+    row or bumps a count; a line fix adds, changes or removes a row. Any of
+    them means this run's candidates are out of date.
     """
-    from app.db.models import LyricsReport
+    from app.db.models import LyricsLineFix, LyricsReport
 
     reports = (
         session.query(LyricsReport.id, LyricsReport.report_count)
@@ -157,9 +159,16 @@ def _lyrics_run_token(session, song) -> tuple:
         .order_by(LyricsReport.id)
         .all()
     )
+    fixes = (
+        session.query(LyricsLineFix.id, LyricsLineFix.new_text)
+        .filter(LyricsLineFix.song_id == song.id)
+        .order_by(LyricsLineFix.id)
+        .all()
+    )
     return (
         song.lyrics_hand_picked_at,
         tuple((row.id, row.report_count) for row in reports),
+        tuple((row.id, row.new_text) for row in fixes),
     )
 
 
@@ -759,11 +768,14 @@ def _load_song_lyrics_state(song_id: str) -> dict[str, Any] | None:
     `rejected_keys`: words keys of lyrics reported as having the wrong words.
     `pending_reports`: (id, kind, report_count) of open reports the app hasn't
     acted on yet; this run acts on them and records what it did.
+    `line_fixes`: lines people fixed, oldest first; every candidate gets them.
     """
     from app.db.database import get_db_session
     from app.db.models import LyricsReport
+    from app.repositories.lyrics_line_fix_repository import LyricsLineFixRepository
     from app.repositories.lyrics_report_repository import LyricsReportRepository
     from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_line_fixes import snapshot_fix
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
@@ -784,6 +796,10 @@ def _load_song_lyrics_state(song_id: str) -> dict[str, Any] | None:
             "hand_picked_at": song.lyrics_hand_picked_at,
             "rejected_keys": LyricsReportRepository(session).rejected_keys(song_id),
             "run_token": _lyrics_run_token(session, song),
+            "line_fixes": [
+                snapshot_fix(fix, fix.id)
+                for fix in LyricsLineFixRepository(session).for_song(song_id)
+            ],
             "pending_reports": [
                 (row.id, row.kind, row.report_count)
                 for row in session.query(
@@ -838,6 +854,9 @@ def prefetch_song_lyrics(
     )
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+    attempts = apply_fixes_to_attempts(
+        attempts, state.get("line_fixes", []), state["rejected_keys"]
+    )
 
     initial_lyrics_attempt = select_initial_lyrics(attempts)
     if not initial_lyrics_attempt:
@@ -1207,6 +1226,10 @@ def _align_song_lyrics(
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
     attempts = _format_synced_attempts(attempts)
+    # Lines people fixed go on every candidate, so whichever is stored keeps them.
+    attempts = apply_fixes_to_attempts(
+        attempts, state.get("line_fixes", []), rejected_keys
+    )
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
     # Every attempt is the same song's words, so the first one's text decides.
     language = _resolve_song_language(

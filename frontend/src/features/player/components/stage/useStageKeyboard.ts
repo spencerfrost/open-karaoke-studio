@@ -11,6 +11,7 @@
  *   Left/Right   lyrics offset -/+ 100ms (Left = lyrics later)
  *   F            toggle fullscreen
  *   L            open the library (Back or L there comes back)
+ *   E            fix the line being sung (hosts; see useLineFixStore)
  *
  * Escape is not bound: the Fullscreen API makes the browser exit on Escape and
  * the page cannot prevent it, so a handler here would only shadow it.
@@ -25,6 +26,8 @@ const VOCAL_STEP = 0.1;
 interface UseStageKeyboardOptions {
   onToggleFullscreen?: () => void;
   onOpenLibrary?: () => void;
+  /** Open the editor on the line being sung; absent when fixing is off. */
+  onFixCurrentLine?: () => void;
   /**
    * False while another stage screen covers the player. The guards below stop
    * typed keys reaching the shortcuts, but arrowing around a song grid is not
@@ -36,6 +39,7 @@ interface UseStageKeyboardOptions {
 export const useStageKeyboard = ({
   onToggleFullscreen,
   onOpenLibrary,
+  onFixCurrentLine,
   enabled = true,
 }: UseStageKeyboardOptions = {}) => {
   // Held in a ref so the listener below keeps its empty deps — toggleFullscreen
@@ -44,6 +48,8 @@ export const useStageKeyboard = ({
   onToggleFullscreenRef.current = onToggleFullscreen;
   const onOpenLibraryRef = useRef(onOpenLibrary);
   onOpenLibraryRef.current = onOpenLibrary;
+  const onFixCurrentLineRef = useRef(onFixCurrentLine);
+  onFixCurrentLineRef.current = onFixCurrentLine;
 
   // Same reason: flipping screens must not tear down and rebind the listener.
   const enabledRef = useRef(enabled);
@@ -83,6 +89,15 @@ export const useStageKeyboard = ({
         e.preventDefault();
         if (e.repeat) return;
         onOpenLibraryRef.current?.();
+        return;
+      }
+
+      if (e.code === "KeyE" && onFixCurrentLineRef.current) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        // The editor's text box takes focus; the key must not type an "e" in it.
+        e.preventDefault();
+        if (e.repeat) return;
+        onFixCurrentLineRef.current();
         return;
       }
 

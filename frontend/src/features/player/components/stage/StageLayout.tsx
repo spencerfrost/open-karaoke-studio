@@ -16,10 +16,13 @@
  * copy of it per screen is expensive enough to be felt on every click.
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { ControlsStrip } from "@/features/performance/controls";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
+import { useLineFixStore } from "@/stores/useLineFixStore";
+import { useAccess } from "@/hooks/useAccess";
+import { useLyricsLineFixes } from "@/hooks/api/useLyricsLineFixes";
 import { cn } from "@/lib/utils";
 import type { PlayerUIHook } from "../../types/KaraokePlayer.types";
 import KaraokePlayer from "../KaraokePlayer";
@@ -77,9 +80,27 @@ const StageLayout: React.FC<StageLayoutProps> = ({
   const { collapsed } = useStageRails(isPlaying);
   const openSongSelect = useOpenSongSelect();
   const openLibrary = useCallback(() => openSongSelect(), [openSongSelect]);
+
+  // Hosts fix lyrics lines here, on the TV, while the song plays. The lines
+  // only offer it while this screen is up.
+  const { isHost } = useAccess();
+  const enableLineFixes = useLineFixStore((s) => s.enable);
+  useEffect(() => {
+    enableLineFixes(isHost ? songId : null);
+    return () => enableLineFixes(null);
+  }, [enableLineFixes, isHost, songId]);
+  // Mounted for its polling: a fixed line lights up word by word again once
+  // its words are timed.
+  useLyricsLineFixes(songId, { enabled: isHost });
+  const fixCurrentLine = useCallback(() => {
+    const { activeLine, startEditing } = useLineFixStore.getState();
+    if (activeLine) startEditing(activeLine);
+  }, []);
+
   useStageKeyboard({
     onToggleFullscreen: ui.toggleFullscreen,
     onOpenLibrary: openLibrary,
+    onFixCurrentLine: isHost ? fixCurrentLine : undefined,
     enabled: keyboardEnabled,
   });
   // keyboardEnabled is false exactly while another stage screen covers this one.

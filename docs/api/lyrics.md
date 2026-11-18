@@ -12,7 +12,7 @@ API documentation for lyrics search, storage, timing analysis, and word-level al
 
 Lyrics live in three forms on a song: `plainLyrics` (text), `syncedLyrics` (LRC with line timestamps), and `wordSyncedLyrics` (word-level alignment JSON produced by the alignment pipeline). Updating plain or synced lyrics invalidates any existing word-level alignment.
 
-Every read needs an account or session-member credential (see [Authentication](authentication.md)). The provider searches are rate limited at `20/minute` per client IP, and the two alignment endpoints, which each start a GPU job, at `10/minute`. Listing, resolving and undoing lyrics reports, and listing lyrics feedback, is admin-only.
+Every read needs an account or session-member credential (see [Authentication](authentication.md)). The provider searches are rate limited at `20/minute` per client IP, and the two alignment endpoints, which each start a GPU job, at `10/minute`. Listing, resolving and undoing lyrics reports, and listing lyrics feedback, is admin-only. Line fixes need a host or admin account; saving one is rate limited at `30/minute`.
 
 ---
 
@@ -317,6 +317,92 @@ report, which lifts the rejection, and re-aligns.
 ```json
 { "restored": true, "alignment": { "jobId": "…", "status": "pending", "dispatched": true, … } }
 ```
+
+---
+
+## Line Fixes
+
+A host fixes one line on the stage while the song plays. The fix is kept for good: every later
+lyrics job (re-time, new fetch, re-alignment) puts the fixed text back on its line. Fixes need a
+host or admin account.
+
+### Save a Line Fix
+
+```http
+POST /api/lyrics/songs/{song_id}/line-fixes
+```
+
+```json
+{ "line_start": 14.0, "old_text": "Is this just fantasty", "new_text": "Is this just fantasy" }
+```
+
+`line_start` (seconds) and `old_text` are the line as the screen shows it. The new text
+replaces that line of the synced lyrics (and the same line of the plain lyrics) straight away. Only
+that line's word timing changes: the new words take over the timing the line had, and
+`align_lyrics_line` then times them inside the line's window. The song is not marked hand-picked
+and nothing else is re-aligned.
+
+Fixing a line that already has a fix updates that fix, which keeps the line's first text as its
+`oldText`. Typing the first text back removes the fix, and `fix` comes back `null`.
+
+```json
+{
+  "fix": {
+    "id": 7,
+    "songId": "…",
+    "oldText": "Is this just fantasty",
+    "newText": "Is this just fantasy",
+    "lineStart": 14.0,
+    "fixedBy": "spencer",
+    "createdAt": "2026-11-11T21:04:10",
+    "updatedAt": "2026-11-11T21:04:10",
+    "alignStatus": "pending",
+    "shown": true
+  },
+  "lineIndex": 1,
+  "text": "Is this just fantasy"
+}
+```
+
+`alignStatus` is `pending` while the line's words are timed, then `aligned` or `failed` (the words
+stay on the line's old timing). It is `aligned` straight away when only case or punctuation
+changed, since the words keep their own timing; `no_timing` when the song has no word timing to
+patch, no vocals, or a language without word timing. `shown` is false when the lyrics no longer
+show the fix.
+
+Errors: `404` unknown song; `409` the line isn't in the stored lyrics any more (they changed since
+it was shown); `422` the song has no synced lyrics, or the text is empty, more than one line,
+longer than 300 characters, or what the line already says.
+
+### List a Song's Line Fixes
+
+```http
+GET /api/lyrics/songs/{song_id}/line-fixes
+```
+
+The song's fixes, oldest first, each shaped like `fix` above. `404` for an unknown song.
+
+### Undo a Line Fix
+
+```http
+DELETE /api/lyrics/line-fixes/{fix_id}
+```
+
+Removes the fix. While the lyrics still show it, the line's first text goes back and its words are
+timed again; otherwise only the fix is removed. `404` for an unknown fix.
+
+```json
+{ "restored": true, "songId": "…" }
+```
+
+### List Lost Line Fixes
+
+```http
+GET /api/lyrics/line-fixes/lost
+```
+
+Admin only. Fixes the lyrics no longer show, newest first, each shaped like `fix` with `songTitle`
+and `songArtist` added.
 
 ---
 

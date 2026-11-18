@@ -125,7 +125,8 @@ Opened from the full song card (stage device and admins). Three tabs:
   - Vocal range: the lowest and highest note the lead singer holds, e.g. G2–E5; none for a
     rapped song
   - Editing the album name stops automatic album lookups from changing it
-- **Lyrics tab:** edit plain and synced lyrics, search for each, clear word timings
+- **Lyrics tab:** edit plain and synced lyrics, search for each, clear word timings; hosts also
+  see the lines fixed on the stage, each with Undo
 - **Actions tab:**
   - Retry download & processing (when the original audio is missing)
   - Identify the song: fingerprint lookup, MusicBrainz search
@@ -307,7 +308,7 @@ the show.
   line appear along the bottom. A click, a key or deliberate mouse movement brings them back.
   They collapse again after 4 seconds of no activity
 - **Keys:** Space/Enter play-pause · ↑↓ vocal volume · ←→ lyrics timing ±100 ms · F fullscreen ·
-  L songbook
+  L songbook · E fix the line being sung
 - **Scales to the screen:** the whole stage is sized from the viewport, so it keeps its
   proportions on any TV
 
@@ -541,6 +542,34 @@ How it works: [Lyrics System](/domains/lyrics-system).
 **Known Limitations:**
 - Picking a plain-only result on a song that has synced lyrics keeps the old synced lyrics on
   screen (same bug as [Manual Lyrics Input](#manual-lyrics-input))
+
+---
+
+### Fix a Line on the Stage
+**As the host, I want to fix a wrong line while it's on the TV** so it's right every time the
+song is sung after.
+
+**Features:**
+- Pointing at a line on the stage shows **Fix this line**; E opens the line being sung
+- The line's words open in a text box in place; playback keeps going. Enter saves, Cancel closes
+- Only that line changes, and only its words are timed again; the rest of the song keeps its
+  timing. Until its words are timed, they light up on the line's old timing
+- A fix is kept for good: fetching new lyrics or timing the song again puts it back on its line
+- Fixes are listed in the song's Lyrics tab with Undo. Fixes whose line is no longer in the
+  lyrics are listed on the admin **Lost line fixes** page
+- Hosts and admins only
+
+**Status:** ✅ Working
+
+**Key Files:**
+- [LineFix.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFix.tsx) - The button and the editor
+- [LineFixesList.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFixesList.tsx) - A song's fixes with Undo
+- [lyrics_line_fixes.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_line_fixes.py) - Finding a fixed line again
+
+**Known Limitations:**
+- Only words: a line can't be added, removed or re-timed by hand yet
+- Songs with only plain lyrics can't be fixed this way
+- Escape cancels, but in full screen the browser also leaves full screen on Escape
 
 ---
 

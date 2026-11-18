@@ -31,6 +31,7 @@ celery = Celery(
     include=[
         "app.jobs.audio_tasks",
         "app.jobs.lyrics_tasks",
+        "app.jobs.lyrics_line_tasks",
         "app.jobs.batch_tasks",
         "app.jobs.metadata_tasks",
         "app.jobs.lyrics_dispatch",
@@ -64,6 +65,7 @@ celery.conf.update(
         "detect_song_album_art_video": {"queue": "enrichment"},
         "update_song_step": {"queue": "enrichment"},
         "align_song_lyrics": {"queue": "lyrics"},
+        "align_lyrics_line": {"queue": "lyrics"},
         "fingerprint_single_song": {"queue": "enrichment"},
         "enrich_song_artist_credits": {"queue": "enrichment"},
         "batch_fingerprint_songs": {"queue": "enrichment"},

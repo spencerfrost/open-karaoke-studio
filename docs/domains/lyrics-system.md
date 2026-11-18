@@ -71,6 +71,11 @@ consistent.
 | `lyrics_hand_picked_at` | When a person last saved lyrics. While set, automatic runs only *time* the stored lyrics and never replace them | Every save path that a person triggers |
 | `language` | Whisper language code ("en", "fr"), or null until detected | Detection from the lyrics text inside the alignment task, or the song dialog |
 
+A `lyrics_line_fixes` table
+([lyrics_line_fix.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/lyrics_line_fix.py))
+holds lines a host fixed on the stage, a layer every job puts back over whatever lyrics it stores
+(see [Line fixes](#line-fixes-a-host-fixes-one-line-on-the-stage)).
+
 A separate `lyrics_reports` table
 ([lyrics_report.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/db/models/lyrics_report.py)) records "these lyrics are
 wrong" reports, and it doubles as the memory of rejected lyrics (see
@@ -199,6 +204,7 @@ honest version:
 | `POST …/analyze/apply` (section breaks) — no frontend caller | S | ✅ | ❌ | ❌ |
 | `POST …/analyze/offset/apply` (RMS estimator) — no frontend caller | S | ✅ | ❌ | ❌ |
 | `POST …/reports/{id}/undo` | restores P + S | ✅ | ✅ | ✅ |
+| `POST /api/lyrics/songs/{id}/line-fixes` and `DELETE /api/lyrics/line-fixes/{id}` | one line of S and its twin in P | only that line's words (retexted on their old timing) | ❌ | ❌, `align_lyrics_line` times the one line |
 | `prefetch_song_lyrics` / start of `align_song_lyrics` | P or S, **only if empty** | when it writes S | ❌ | — |
 | `align_song_lyrics` success paths | S (always the aligned text) + W; P on re-time/ASR | — | ❌ | — |
 
@@ -264,6 +270,10 @@ returns an ordered list of `{content, source_type, source, persist}`:
 3. Exact duplicates are dropped. Any candidate whose **words key** matches a "words" report is
    dropped too, *including the stored lyrics*.
 4. Sorted: stored before remote, synced before plain.
+5. After synced candidates are [formatted](#the-alignment-waterfall), every
+   [line fix](#line-fixes-a-host-fixes-one-line-on-the-stage) is put on its line in each candidate.
+   A candidate whose fixed words were reported as wrong is dropped, and candidates that read the
+   same once fixed are kept once. `prefetch_song_lyrics` does the same before storing.
 
 `include_remote` is forced off when the song is hand-picked, and when the only reports the app
 hasn't acted on yet are "timing" reports.
@@ -350,7 +360,7 @@ then invalidates both `["songs", id]` and `["lyrics", id]`.
 People can save or report lyrics while a run is working, and a run can take minutes because of
 ASR. Every write in the task goes through `_fetch_song_for_write`, which compares a **run token**
 against the one taken at the start. The token is `(lyrics_hand_picked_at, [(report id,
-report_count)…])`. If it changed, the task raises `LyricsChangedDuringRun`, stops without writing,
+report_count)…], [(line fix id, new text)…])`, so a line fixed mid-run starts the run again. If it changed, the task raises `LyricsChangedDuringRun`, stops without writing,
 and queues a fresh run with the same arguments. A change that lands after the last write is caught
 by a final `_lyrics_changed_since` check, which also queues a fresh run.
 
@@ -425,6 +435,72 @@ it offers `LyricsFixButtons` (search or paste) from
 its lyrics in step: `SongAudioPreview` reports its position every frame, and clicking a line jumps
 the audio there. [StemPreview](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/review/StemPreview.tsx) plays the
 separated stems.
+
+## Line fixes: a host fixes one line on the stage
+
+On the stage, a host points at a wrong line (or presses E for the line being sung) and types its
+words ([player-stage.md](player-stage.md#fixing-a-line) has the screen side). The fix is the
+human layer: it is kept over every later job, and only that line's timing is touched.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant TV as Stage (host)
+    participant API as POST /lyrics/songs/{id}/line-fixes
+    participant DB as songs + lyrics_line_fixes
+    participant T as align_lyrics_line (lyrics queue)
+
+    TV->>API: line_start + old_text (as shown), new_text
+    API->>DB: find the line by time and text (409 if it's gone)
+    API->>DB: write the line in S (and P), and its new words in W on the line's old timing
+    API->>DB: one fix row per line: old text, new text, its neighbours, its place
+    API-)T: song, line index, text, aligned_at of W
+    T->>T: force-align the line from the previous line's end<br/>to the next line's start
+    T->>DB: patch its words into W, if the line still reads the text<br/>and W is still that aligned_at
+    TV->>API: polls the fixes until alignStatus leaves "pending",<br/>then reads the word timing again
+```
+
+[lyrics_line_fix_service.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_line_fix_service.py)
+saves and undoes fixes; [lyrics_line_fixes.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_line_fixes.py)
+finds lines and patches words; [lyrics_line_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lyrics_line_tasks.py)
+is the task.
+
+- **Not a hand-pick.** A fix doesn't set `lyrics_hand_picked_at` and doesn't queue a whole-song
+  alignment, so remote lyrics can still replace the rest of the song; the fix goes back on them.
+- **One row per line.** Fixing a fixed line again updates its row, which keeps the line's first
+  text. A row counts as this line's only when a neighbour or the LRC time matches as well as the
+  words, so a lost fix isn't taken for another line that reads the same. Typing the first text
+  back removes the row. Undo puts the first text back while the lyrics
+  still show the fix, and otherwise only removes the row.
+- **Finding the line again.** Line numbers and timestamps move under a fix (re-timing, break
+  lines, a fetched LRC with a line more or less), so a fix keeps what is stable: lines reading its
+  old or new words (compared without case or punctuation) are candidates, ranked by how many of
+  the neighbouring sung lines match, then by being the same one of those candidates counting from
+  the start, then by closeness in time. That keeps a fix on the right one of a repeated chorus
+  line.
+- **Every job keeps fixes.** `align_song_lyrics` and `prefetch_song_lyrics` apply them to every
+  candidate (see [Candidates](#candidates)), so a re-time, an offset correction or a new fetch
+  stores the fixed text. The ASR fallback, which stores a transcript only when no lyrics exist,
+  doesn't: its words are timed to the transcript text.
+- **Lost fixes.** A fix with no candidate line changes nothing and is listed (`shown: false`) in
+  the song dialog's **Fixed lines** tab and on the admin **Lost line fixes** page
+  ([AdminLostLineFixesPage.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/AdminLostLineFixesPage.tsx)).
+- **Timing one line.** The window runs from the previous sung line's last word to the next sung
+  line's first word. A neighbour without words uses its LRC time (the previous one's start, so
+  this line's own time opens the window instead); the first line opens 5 s early, the last runs
+  10 s on. Words are checked against the line's text word for word. A
+  full GPU waits and retries like a whole-song run.
+- **The line always has words.** Saving puts the new words on the timing the line had
+  (`carry_line_words`): each word keeps its own times when the count is the same, otherwise they
+  share the line's span evenly with score 0. A fix that only changes case or punctuation is
+  `aligned` at once and queues nothing. If the task fails or can't run (no vocals, a language
+  without word timing), the line stays on that carried timing.
+- **When the task steps aside.** It runs while the line still reads its text and W has the
+  `aligned_at` the save patched, so fixes to other lines and offset shifts don't stop it. A line
+  edited again has its own task. Replaced lyrics or a new whole-song W were timed as a song, and
+  the task settles the fix (`aligned` if the lyrics show it and W exists, else `no_timing`), so a
+  fix never stays `pending`.
+- **Who.** Hosts and admins; the lost list is admin only.
 
 ## Feedback: "How were the lyrics?" after each song
 
@@ -624,6 +700,9 @@ All of these write through `useUpdateSong` → `PATCH /api/songs/{id}`:
 | Performance controls | [LyricsControlsCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/performance/controls/LyricsControlsCard.tsx) | Search & replace, paste, offset save, report |
 | Song dialog → Lyrics tab | [song-details/tabs/LyricsTab.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/songs/components/song-details/tabs/LyricsTab.tsx) | Edit plain, edit synced, search for each, clear word timings, view the raw word JSON |
 | Admin review pages | `LyricsFixButtons` in SongActions.tsx | Search, paste |
+
+One edit doesn't go through that PATCH: **Fix this line** on the stage, which fixes a single line
+through its own endpoint (see [Line fixes](#line-fixes-a-host-fixes-one-line-on-the-stage)).
 
 The shared dialogs are [LyricsFetchDialog.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LyricsFetchDialog.tsx)
 (defaults to the syncedlyrics provider and falls back to LRCLIB when it finds nothing; results
