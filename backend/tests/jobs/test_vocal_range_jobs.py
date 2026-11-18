@@ -42,7 +42,7 @@ def mock_detect():
 
 @pytest.fixture
 def send_task():
-    with patch("app.jobs.metadata_tasks.celery.send_task") as send:
+    with patch("app.jobs.song_steps.send_song_step") as send:
         yield send
 
 
@@ -164,7 +164,7 @@ class TestQueueVocalRangeIfReady:
 
         assert queue_vocal_range_if_ready(SONG_ID) is ready
         if ready:
-            send_task.assert_called_once_with("detect_song_vocal_range", args=[SONG_ID])
+            send_task.assert_called_once_with("vocal_range", SONG_ID, force=True)
         else:
             send_task.assert_not_called()
 
@@ -176,7 +176,7 @@ class TestQueueVocalRangeIfReady:
         ):
             detect_song_singing_map(SONG_ID)
 
-        send_task.assert_called_once_with("detect_song_vocal_range", args=[SONG_ID])
+        send_task.assert_called_once_with("vocal_range", SONG_ID, force=True)
 
 
 class TestBatchBackfillVocalRange:

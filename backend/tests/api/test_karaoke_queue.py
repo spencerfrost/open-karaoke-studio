@@ -61,7 +61,25 @@ def test_add_to_queue_brings_the_song_up_to_date(client, db):
         )
 
     assert response.status_code == 201
-    update.assert_called_once_with("test-song-123")
+    # Nothing was loaded or waiting, so the song starts at once.
+    update.assert_called_once_with("test-song-123", word_timing=False)
+
+
+def test_a_song_behind_another_may_have_its_word_timing_redone(client, db):
+    _make_session_with_song(db)
+    client.post(
+        "/api/karaoke-queue?session_code=AAAA",
+        json={"singer": "Spencer", "songId": "test-song-123"},
+    )
+
+    with patch("app.api.karaoke_queue.update_queued_song") as update:
+        response = client.post(
+            "/api/karaoke-queue?session_code=AAAA",
+            json={"singer": "Spencer", "songId": "test-song-123"},
+        )
+
+    assert response.status_code == 201
+    update.assert_called_once_with("test-song-123", word_timing=True)
 
 
 def test_add_to_queue_reuses_an_existing_performer(client, db):

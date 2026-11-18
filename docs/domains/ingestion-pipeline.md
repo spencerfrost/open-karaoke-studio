@@ -131,8 +131,8 @@ sequenceDiagram
     E-)W: on_vocals_ready(vocals.mp3) ~62%
     W-)R: align_song_lyrics
     E-->>W: instrumental.mp3 + backing_vocals.mp3
-    W->>DB: song.engine_type, duration, status "processed"
     W-)R: detect_song_loudness · detect_song_singing_map (both read the stems, so they wait for separation)
+    W->>DB: song.engine_type, duration, status "processed"
     R-)R: detect_song_vocal_range, from whichever of singing map and alignment finishes second
     W->>DB: job → COMPLETED 100% (the row stays)
     R->>EW: enrichment + lyrics tasks run independently
@@ -266,6 +266,14 @@ is still doing all of this.
 (the same filter the library-wide run selects with) gets `update_song_step`, which checks
 again when it starts, so a song queued twice in a row is done once.
 
+A song's own pipeline sends the same task with `force`, and it always runs. Both senders go
+through `send_song_step` ([song_steps.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/song_steps.py)),
+which keeps a Redis key per song and step from the moment it's sent until the task finishes
+(expiring after an hour if a worker died). The queue-time update skips a step whose key is
+there: a song processed moments ago, whose pipeline's loudness and singing map are still on the
+way, isn't measured twice. The pipeline sends loudness and the singing map before it marks the
+song `processed`, so a song can't be queued to sing in between without them being on the way.
+
 | Batch job | Per-song task | The song needs it when |
 |---|---|---|
 | `loudness` | `detect_song_loudness` | its `loudness_version` is behind |
@@ -274,6 +282,10 @@ again when it starts, so a song queued twice in a row is done once.
 | `song_albums` | `fetch_song_artwork` | never looked up, and it has no album cover |
 | `album_art_videos` | `detect_song_album_art_video` | `video_is_album_art` is null |
 | `fingerprint` | `fingerprint_single_song` | its status is `not_checked` |
+
+The update runs once the response is sent. A song that starts at once (nothing loaded or
+waiting in the session) keeps its word timing as it is: a re-time would land while it's being
+sung.
 
 Word timing goes through `enqueue_song_alignment` on the `lyrics` queue, which pulls the song
 forward if it was waiting in a library run. A song that has lyrics keeps its words and is only

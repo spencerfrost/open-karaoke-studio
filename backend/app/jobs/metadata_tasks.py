@@ -258,7 +258,9 @@ def _queue_vocal_range_if_ready(song_id: str) -> bool:
             and is_out_of_date(song)
         )
     if ready:
-        celery.send_task("detect_song_vocal_range", args=[song_id])
+        from app.jobs.song_steps import send_song_step
+
+        send_song_step("vocal_range", song_id, force=True)
     return ready
 
 
@@ -313,23 +315,30 @@ def detect_song_album_art_video(song_id: str) -> dict:
 
 
 @celery.task(name="update_song_step")
-def update_song_step(kind: str, song_id: str) -> dict:
-    """Run one batch job's per-song task for a song, if the song still needs it.
+def update_song_step(kind: str, song_id: str, force: bool = False) -> dict:
+    """Run one batch job's per-song task for a song.
 
-    Queued when a song is added to a session's queue (app.jobs.song_updates).
-    Checking again here means a song queued twice in a row is done once.
+    Sent by app.jobs.song_steps.send_song_step. A song's own pipeline sends it
+    with `force`, and it always runs. A song added to a session's queue sends
+    it without, and it runs only if the song still needs it: checking again
+    here means a step that finished while this one waited is done once.
     """
     from app.db.database import get_db_session
+    from app.jobs.song_steps import step_finished
     from app.services.batch_jobs import get_job, song_needs
 
-    job = get_job(kind)
-    if job.song_task is None:
-        raise ValueError(f"{kind} has no per-song task")
-    with get_db_session() as session:
-        if not song_needs(session, job, song_id):
-            return {"status": "up_to_date", "kind": kind, "song_id": song_id}
-    logger.info("update_song_step: %s for queued song %s", kind, song_id)
-    return celery.tasks[job.song_task](song_id)
+    try:
+        job = get_job(kind)
+        if job.song_task is None:
+            raise ValueError(f"{kind} has no per-song task")
+        if not force:
+            with get_db_session() as session:
+                if not song_needs(session, job, song_id):
+                    return {"status": "up_to_date", "kind": kind, "song_id": song_id}
+            logger.info("update_song_step: %s for queued song %s", kind, song_id)
+        return celery.tasks[job.song_task](song_id)
+    finally:
+        step_finished(kind, song_id)
 
 
 @celery.task(name="fingerprint_single_song")

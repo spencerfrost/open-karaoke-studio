@@ -12,7 +12,15 @@ This module provides REST API endpoints for queue management:
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload, subqueryload
 from starlette.concurrency import run_in_threadpool
@@ -330,6 +338,7 @@ def get_queue(
 @router.post("", response_model=QueueItemResponse, status_code=201)
 async def add_to_queue(
     queue_data: QueueAddRequest,
+    background_tasks: BackgroundTasks,
     session_code: str = Depends(require_queue_access),
     db: Session = Depends(get_db),
     manager: SessionConnectionManager = Depends(get_session_manager),
@@ -361,6 +370,14 @@ async def add_to_queue(
         raise HTTPException(status_code=404, detail="Song not found")
 
     playback_state = get_or_create_playback_state(db, session_code)
+
+    # With nothing loaded and nothing waiting, this song starts right away.
+    starts_now = (
+        db.query(KaraokeQueueItem.id)
+        .filter(KaraokeQueueItem.session_id == session_code)
+        .first()
+        is None
+    )
 
     # Get max upcoming position (exclude the current loaded item)
     max_position_query = db.query(KaraokeQueueItem.position).filter(
@@ -399,8 +416,12 @@ async def add_to_queue(
     await broadcast_queue_update(manager, session_code)
 
     # Anything the library has learned to do since this song was processed
-    # starts now, so it's ready by the song's turn.
-    await run_in_threadpool(update_queued_song, new_item.song_id)
+    # starts once the response is sent, so it's ready by the song's turn. A
+    # song that starts right away keeps its word timing: a re-time would land
+    # while it's being sung.
+    background_tasks.add_task(
+        update_queued_song, new_item.song_id, word_timing=not starts_now
+    )
 
     return QueueItemResponse(
         id=new_item.id,
