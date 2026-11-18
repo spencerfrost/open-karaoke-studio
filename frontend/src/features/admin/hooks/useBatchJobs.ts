@@ -54,6 +54,9 @@ export interface BatchRun {
   total: number | null;
   done: number;
   failed: number;
+  /** Ids counted in `failed` because the worker died on them; the run
+   * skipped them when it resumed. */
+  crashed: string[];
   error: string | null;
   /** Hand-run scans only: how many problems the scan found. */
   issues: number | null;
@@ -70,6 +73,8 @@ export interface BatchRun {
 export interface BatchJob {
   kind: JobKind;
   modes: RunMode[];
+  /** False for a job that does its work in one go (the credits rebuild). */
+  canPause: boolean;
   coverage: { have: number; of: number };
   /** How many songs (or artists) a run in each mode would work through. */
   modeCounts: Partial<Record<RunMode, number>>;

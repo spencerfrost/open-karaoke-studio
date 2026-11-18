@@ -176,3 +176,74 @@ class TestPause:
 
         with SessionLocal() as session:
             assert BatchRunRepository(session).active("duration") is not None
+
+    def test_resume_just_as_the_task_stops_queues_a_new_task(self, songs):
+        """Resume read the run as pausing, but the task got in first and
+        stopped: the run must not be left running with no task."""
+        run_id = _new_run(status="pausing")
+        with SessionLocal() as resume_session, SessionLocal() as task_session:
+            repo = BatchRunRepository(resume_session)
+            run = repo.get(run_id)  # Resume sees "pausing"...
+            # ...and the task, before its next song, marks the run paused.
+            assert BatchRunRepository(task_session).begin_item(run_id, "a") is True
+
+            assert repo.unpause(run) is True
+
+        assert _status(run_id) == "queued"
+
+    def test_a_task_stopping_does_not_pause_a_run_resumed_meanwhile(self, songs):
+        run_id = _new_run(status="running")
+
+        with SessionLocal() as session:
+            BatchRunRepository(session).mark_paused(run_id)
+
+        assert _status(run_id) == "running"
+
+
+class TestTakenOver:
+    """A run paused while queued, then resumed, can have two tasks in the
+    queue if the worker missed the revoke. Only the newer one works it."""
+
+    def test_the_task_the_run_was_not_last_queued_as_stops(self, songs):
+        run_id = _new_run(celery_task_id="new-task")
+
+        with patch("librosa.get_duration", return_value=200.0) as measure:
+            batch_backfill_duration.apply(
+                kwargs={"mode": "missing", "run_id": run_id}, task_id="old-task"
+            )
+
+        measure.assert_not_called()
+        run = _fetch_run(run_id)
+        assert (run.status, run.done, run.finished_at) == ("queued", 0, None)
+
+    def test_the_task_the_run_was_queued_as_works_it(self, songs):
+        run_id = _new_run(celery_task_id="new-task")
+
+        with patch("librosa.get_duration", return_value=200.0):
+            batch_backfill_duration.apply(
+                kwargs={"mode": "missing", "run_id": run_id}, task_id="new-task"
+            )
+
+        run = _fetch_run(run_id)
+        assert (run.status, run.done) == ("done", len(songs))
+
+    def test_a_task_overtaken_mid_run_stops_before_its_next_song(self, songs):
+        run_id = _new_run(celery_task_id="old-task")
+        measured = []
+
+        def get_duration(path):
+            measured.append(path.split("/")[-2])
+            with SessionLocal() as session:
+                repo = BatchRunRepository(session)
+                repo.set_task_id(repo.get(run_id), "new-task")
+            return 200.0
+
+        with patch("librosa.get_duration", side_effect=get_duration):
+            batch_backfill_duration.apply(
+                kwargs={"mode": "missing", "run_id": run_id}, task_id="old-task"
+            )
+
+        run = _fetch_run(run_id)
+        # It leaves the song it was on to the new task, and the run open.
+        assert measured == songs[:1]
+        assert (run.done, run.finished_at) == (0, None)

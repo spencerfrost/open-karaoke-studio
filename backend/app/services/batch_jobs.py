@@ -37,6 +37,9 @@ class BatchJob:
     others: dict[str, Callable[[Session], Query]] = field(default_factory=dict)
     # Whether a finished run saves a report (GET /admin/jobs/runs/{id}/report).
     reports: bool = False
+    # Whether a run can pause between songs. False for a job that does its
+    # work in one go, with nothing to stop between.
+    pausable: bool = True
     # Celery task that does the job for one song, taking the song id. A job
     # with one also runs for a song in `missing` when it's queued to sing
     # (app.jobs.song_updates).
@@ -191,6 +194,8 @@ JOBS: dict[str, BatchJob] = {
             missing=_songs_with_old_credits,
             others={"preview": _songs, "apply": _songs},
             reports=True,
+            # One transaction over the whole library.
+            pausable=False,
         ),
         # Alignment counts come from lyrics_repair instead; see alignment_summary.
         BatchJob(
@@ -332,6 +337,8 @@ def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
         "total": run.total,
         "done": run.done,
         "failed": run.failed,
+        # Ids counted in `failed` because the worker died on them.
+        "crashed": run.crashed_item_ids or [],
         "error": run.error,
         "issues": run.issues,
         # Runs waiting on their songs' own jobs: how many haven't finished.

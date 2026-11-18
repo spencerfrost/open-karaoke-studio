@@ -84,6 +84,15 @@ function formatWhen(iso: string | null): string {
   });
 }
 
+/** "3 failed", or "3 failed (1 crashed the worker)" */
+function describeFailed(run: BatchRun): string {
+  const failed = `${run.failed.toLocaleString()} failed`;
+  const crashed = run.crashed.length;
+  return crashed > 0
+    ? `${failed} (${crashed.toLocaleString()} crashed the worker)`
+    : failed;
+}
+
 /** "Oct 2, 9:14 PM · 1,500 songs · 3 failed" */
 function describeRun(run: BatchRun, unit: JobInfo["unit"]): string {
   const parts = [formatWhen(run.finishedAt ?? run.createdAt)];
@@ -94,7 +103,7 @@ function describeRun(run: BatchRun, unit: JobInfo["unit"]): string {
   if (run.mode === "preview") parts.push("preview");
   if (run.mode === "apply") parts.push("applied");
   if (run.total !== null) parts.push(countOf(run.total, unit));
-  if (run.failed > 0) parts.push(`${run.failed.toLocaleString()} failed`);
+  if (run.failed > 0) parts.push(describeFailed(run));
   return parts.join(" · ");
 }
 
@@ -207,10 +216,11 @@ const RunButton: React.FC<{
   );
 };
 
-const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
-  run,
-  info,
-}) => {
+const ActiveRun: React.FC<{
+  run: BatchRun;
+  info: JobInfo;
+  canPause: boolean;
+}> = ({ run, info, canPause }) => {
   const cancelRun = useCancelRun();
   const pauseRun = usePauseRun();
   const resumeRun = useResumeRun();
@@ -255,22 +265,24 @@ const ActiveRun: React.FC<{ run: BatchRun; info: JobInfo }> = ({
                     : run.waiting !== null
                       ? `${handled.toLocaleString()} of ${countOf(run.total, info.unit)} done · ${run.waiting.toLocaleString()} waiting their turn`
                       : `${handled.toLocaleString()} of ${countOf(run.total, info.unit)}`}
-          {run.failed > 0 && ` · ${run.failed.toLocaleString()} failed`}
+          {run.failed > 0 && ` · ${describeFailed(run)}`}
         </p>
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={togglePause}
-        disabled={pauseRun.isPending || resumeRun.isPending}
-      >
-        {paused ? (
-          <Play className="mr-1.5 h-3 w-3" />
-        ) : (
-          <Pause className="mr-1.5 h-3 w-3" />
-        )}
-        {paused ? "Resume" : "Pause"}
-      </Button>
+      {(canPause || paused) && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={togglePause}
+          disabled={pauseRun.isPending || resumeRun.isPending}
+        >
+          {paused ? (
+            <Play className="mr-1.5 h-3 w-3" />
+          ) : (
+            <Pause className="mr-1.5 h-3 w-3" />
+          )}
+          {paused ? "Resume" : "Pause"}
+        </Button>
+      )}
       <Button
         size="sm"
         variant="ghost"
@@ -328,7 +340,7 @@ const JobRow: React.FC<{
 
       <div className="space-y-2">
         {job.activeRun ? (
-          <ActiveRun run={job.activeRun} info={info} />
+          <ActiveRun run={job.activeRun} info={info} canPause={job.canPause} />
         ) : (
           <div className="flex flex-wrap gap-2 lg:justify-end">
             {job.modes.map((mode) => (

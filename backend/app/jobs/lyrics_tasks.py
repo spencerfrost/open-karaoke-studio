@@ -968,6 +968,19 @@ def align_song_lyrics(
     saves or reports the lyrics while it runs, it stops before its next write
     (or notices once it's done) and queues a fresh run with the new state.
     """
+    from .lyrics_dispatch import alignment_is_still_wanted
+
+    if not alignment_is_still_wanted(song_id, self.request.id):
+        # Taken off the queue (a paused or stopped library run), or replaced
+        # by a newer run for the song, and this worker missed the revoke.
+        logger.info(
+            "align_song_lyrics: skipping %s, task %s is no longer wanted",
+            song_id,
+            self.request.id,
+        )
+        log_lyrics_event(song_id, "lyrics_task_skipped", task_id=self.request.id)
+        return {"status": "skipped", "song_id": song_id}
+
     run: dict[str, Any] = {}
     try:
         with track_gpu_memory("lyrics", song_id):

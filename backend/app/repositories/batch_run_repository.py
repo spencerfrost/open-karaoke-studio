@@ -2,13 +2,16 @@
 Batch run repository: the record of every batch job run.
 """
 
+import logging
 from datetime import timedelta
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 from sqlalchemy.orm import Session
 
 from app.db.models import BatchRun
 from app.utils.clock import utc_now
+
+logger = logging.getLogger(__name__)
 
 # "interrupted" is active: the run carries on when an enrichment worker starts.
 # "pausing": someone pressed Pause and the task stops after the song it's on;
@@ -25,6 +28,9 @@ STALE_MESSAGE = (
 # A run whose task hands its songs to other jobs (lyrics alignment queues one
 # job per song) keeps those jobs' ids under this report key while it waits.
 WAITING_ON_KEY = "waitingOnJobs"
+# The Celery tasks behind those jobs. A song's job id is the same whoever
+# queued it, so pausing or stopping the run only touches jobs still on these.
+WAITING_TASKS_KEY = "waitingOnTasks"
 # Job statuses that mean a handed-off song hasn't finished.
 _UNFINISHED_JOB_STATUSES = ("pending", "downloading", "processing")
 
@@ -36,6 +42,11 @@ PAUSED_SONGS_KEY = "pausedSongIds"
 
 class RunNotActive(Exception):
     """The run was cancelled, or closed as stale, while its task still had work."""
+
+
+class RunTakenOver(RunNotActive):
+    """Another task has the run now (it was resumed while this one was still
+    queued or working); this one stops without touching it."""
 
 
 class RunPaused(Exception):
@@ -211,6 +222,16 @@ class BatchRunRepository:
         job_ids = report.get(WAITING_ON_KEY)
         return job_ids if isinstance(job_ids, list) else None
 
+    @staticmethod
+    def waiting_tasks(run: BatchRun) -> Optional[list[str]]:
+        """The tasks a handed-off run queued for its songs; None when it
+        didn't record them."""
+        report = run.report
+        if not isinstance(report, dict):
+            return None
+        task_ids = report.get(WAITING_TASKS_KEY)
+        return task_ids if isinstance(task_ids, list) else None
+
     def settle_pausing(self) -> int:
         """Mark every pausing run paused. Returns how many.
 
@@ -264,26 +285,70 @@ class BatchRunRepository:
     def unpause(self, run: BatchRun) -> bool:
         """Resume a paused or pausing run. Returns whether it needs its task
         queued again: a pausing run's task is still on its song and carries on
-        by itself; a paused one needs a new task (or, handed off, its songs
-        queued again by the caller)."""
+        by itself; a paused one needs a new task. (A paused run waiting on its
+        songs' jobs is resumed with resume_handed_off instead.)"""
         if run.status == "pausing":
-            run.status = "running"
-            run.updated_at = utc_now()
+            # Only if it's still pausing: its task may be marking it paused
+            # right now (begin_item), and then it has stopped and needs a new one.
+            still_working = (
+                self.db.query(BatchRun)
+                .filter(BatchRun.id == run.id, BatchRun.status == "pausing")
+                .update(
+                    {"status": "running", "updated_at": utc_now()},
+                    synchronize_session=False,
+                )
+            )
             self.db.commit()
-            return False
+            self.db.refresh(run)
+            if still_working:
+                return False
         if run.status != "paused":
             raise CannotPause("This run isn't paused")
-        report = run.report
-        if isinstance(report, dict) and PAUSED_SONGS_KEY in report:
-            report = dict(report)
-            report.pop(PAUSED_SONGS_KEY)
-            run.report = report
-            run.status = "running"
-        else:
-            run.status = "queued"
+        run.status = "queued"
         run.updated_at = utc_now()
         self.db.commit()
         return True
+
+    def resume_handed_off(self, run: BatchRun, task_ids: list[str]) -> None:
+        """Resume a paused run that waits on its songs' jobs, once the caller
+        has queued those songs again as `task_ids`. Only then does it read as
+        running: a running run with no job left is taken for finished."""
+        report = dict(run.report or {})
+        report.pop(PAUSED_SONGS_KEY, None)
+        report[WAITING_TASKS_KEY] = task_ids
+        run.report = report
+        run.status = "running"
+        run.updated_at = utc_now()
+        self.db.commit()
+
+    def begin_item(self, run_id: int, item: Any, task_id: Optional[str] = None) -> bool:
+        """Before the task's next song: whether the run is paused, and so the
+        task stops here. If not, records `item` as the one being worked on, so
+        a worker that dies on it doesn't resume onto it (see resume).
+
+        A pausing run becomes paused in the same statement that finds it
+        pausing, so a Resume pressed at that moment either gets in first (the
+        run is running again and the task carries on) or finds it paused and
+        queues a new task; it can't leave the run running with no task.
+        """
+        paused = (
+            self.db.query(BatchRun)
+            .filter(BatchRun.id == run_id, BatchRun.status.in_(("pausing", "paused")))
+            .update(
+                {"status": "paused", "updated_at": utc_now()},
+                synchronize_session=False,
+            )
+        )
+        self.db.commit()
+        if paused:
+            return True
+        run = self.get(run_id)
+        if run is not None:
+            self._check_owner(run, task_id)
+            run.item_started = item
+            run.updated_at = utc_now()
+            self.db.commit()
+        return False
 
     def is_pausing(self, run_id: int) -> bool:
         """Whether someone paused the run (or stopped it) since its task last looked."""
@@ -293,7 +358,7 @@ class BatchRunRepository:
     def mark_paused(self, run_id: int) -> None:
         """The task stopped between songs because the run was paused."""
         run = self.get(run_id)
-        if run is None or run.status not in ("pausing", "running", "paused"):
+        if run is None or run.status not in ("pausing", "paused"):
             return
         run.status = "paused"
         run.updated_at = utc_now()
@@ -306,13 +371,21 @@ class BatchRunRepository:
 
     # --- Writes from the running task ---
 
-    def start(self, run_id: int, total: int, item_ids: Optional[list] = None) -> None:
+    def start(
+        self,
+        run_id: int,
+        total: int,
+        item_ids: Optional[list] = None,
+        task_id: Optional[str] = None,
+    ) -> None:
         """Begin the run from scratch, counting from zero.
 
         `item_ids` are the songs (or artists) it will work through, in order,
         saved so it can resume; None for a run that can only start over.
+        `task_id` is the calling task's own id (see _check_owner).
         """
         run = self._active_or_raise(run_id)
+        self._check_owner(run, task_id)
         if run.status == "paused":
             raise RunPaused(run_id)
         now = utc_now()
@@ -322,26 +395,47 @@ class BatchRunRepository:
         run.failed = 0
         run.error = None
         run.item_ids = item_ids
+        run.item_started = None
+        run.crashed_item_ids = None
         run.started_at = run.started_at or now
         run.updated_at = now
         self.db.commit()
 
-    def resume(self, run_id: int) -> Optional[list]:
+    def resume(self, run_id: int, task_id: Optional[str] = None) -> Optional[list]:
         """The ids a resumed run has left, or None when it has to start over.
 
         A run that saved its ids has handled the first done + failed of them,
-        so it carries on after those. Marks the run running again.
+        so it carries on after those. If the task had started on the next one
+        when its worker died, that one is counted failed and skipped: a song
+        that crashes the worker would otherwise crash every worker that
+        resumes the run. Marks the run running again.
         """
         run = self._active_or_raise(run_id)
+        self._check_owner(run, task_id)
         if run.status == "paused":
             raise RunPaused(run_id)
         if run.item_ids is None:
             return None
+        handled = run.done + run.failed
+        if (
+            run.item_started is not None
+            and handled < len(run.item_ids)
+            and run.item_ids[handled] == run.item_started
+        ):
+            logger.warning(
+                "batch run %s: the worker died on %s; counting it failed",
+                run_id,
+                run.item_started,
+            )
+            run.failed += 1
+            run.crashed_item_ids = [*(run.crashed_item_ids or []), run.item_started]
+            run.item_started = None
+            handled += 1
         run.status = "running"
         run.error = None
         run.updated_at = utc_now()
         self.db.commit()
-        return list(run.item_ids[run.done + run.failed :])
+        return list(run.item_ids[handled:])
 
     def interrupt(self, run_id: int) -> None:
         """The worker stopped the run between songs; it resumes on the next start."""
@@ -353,8 +447,9 @@ class BatchRunRepository:
         run.updated_at = utc_now()
         self.db.commit()
 
-    def advance(self, run_id: int, *, ok: bool) -> None:
+    def advance(self, run_id: int, *, ok: bool, task_id: Optional[str] = None) -> None:
         run = self._active_or_raise(run_id)
+        self._check_owner(run, task_id)
         # A live task reporting again after its row went quiet and was marked
         # interrupted (interrupt_stale) is running after all. A pausing run
         # stays pausing: its task stops before the next song.
@@ -368,19 +463,31 @@ class BatchRunRepository:
         run.updated_at = utc_now()
         self.db.commit()
 
-    def hand_off(self, run_id: int, job_ids: list[str]) -> None:
+    def hand_off(
+        self, run_id: int, job_ids: list[str], task_ids: Optional[list[str]] = None
+    ) -> bool:
         """The task queued one job per song and is done: the run now waits on
-        those jobs, counting from zero (see refresh_handed_off)."""
+        those jobs, counting from zero (see refresh_handed_off).
+
+        Returns whether someone paused the run while the task was queuing. The
+        task can't stop part-way through queuing, so the caller pauses it now:
+        it takes the jobs back off the queue (see pause_handed_off).
+        """
         run = self._active_or_raise(run_id)
         if not job_ids:
             self._close(run, "done", None)
-        else:
-            run.total = len(job_ids)
-            run.done = 0
-            run.failed = 0
-            run.report = {WAITING_ON_KEY: job_ids}
-            run.updated_at = utc_now()
+            self.db.commit()
+            return False
+        run.total = len(job_ids)
+        run.done = 0
+        run.failed = 0
+        report: dict = {WAITING_ON_KEY: job_ids}
+        if task_ids is not None:
+            report[WAITING_TASKS_KEY] = task_ids
+        run.report = report
+        run.updated_at = utc_now()
         self.db.commit()
+        return run.status in ("pausing", "paused")
 
     def set_report(self, run_id: int, report: dict) -> None:
         run = self.get(run_id)
@@ -401,6 +508,20 @@ class BatchRunRepository:
         if run is None or run.status not in ACTIVE_STATUSES:
             raise RunNotActive(run_id)
         return run
+
+    @staticmethod
+    def _check_owner(run: BatchRun, task_id: Optional[str]) -> None:
+        """Stop a task that isn't the one the run was last queued as.
+
+        A run paused while queued has its task revoked, and Resume queues a
+        new one. A worker that missed the revoke (it was down) starts both,
+        and the enrichment worker runs several tasks at once, so without this
+        both would work the same songs and count each twice. Whoever queues a
+        run's task saves its id on the row first (queue_run_task). A task
+        called directly, or a run with no id saved, is not checked.
+        """
+        if task_id and run.celery_task_id and run.celery_task_id != task_id:
+            raise RunTakenOver(run.id)
 
     @staticmethod
     def _close(run: BatchRun, status: str, error: Optional[str]) -> None:

@@ -314,7 +314,11 @@ process outright: no Python exception, no task failure, nothing in the Celery lo
   when the worker consumes `enrichment`, where every `batch_*` task runs. Each run that is
   `interrupted`, or still `running` (its task died with the old worker), has its task queued
   again. A run saves the ids it works through (`batch_runs.item_ids`) when it starts, and a
-  resumed task skips the first `done + failed` of them. Runs that don't go song by song save no
+  resumed task skips the first `done + failed` of them. Before each song the task records it
+  (`item_started`). If that song is the next one unhandled when the run resumes, the worker died
+  on it (a CUDA segfault, say): it's counted failed, added to `crashed_item_ids`, and skipped, so
+  one song can't crash every worker that picks the run up. The admin Background jobs page shows
+  how many of a run's failures crashed the worker. Runs that don't go song by song save no
   ids and start over: lyrics alignment's queueing step, and the artist credits rebuild (one
   transaction, its MusicBrainz lookups cached on disk). A lyrics alignment run already waiting on
   its songs' jobs has nothing to resume and is skipped. This assumes one enrichment worker: a
@@ -343,7 +347,23 @@ isn't resumed when a worker starts, and a `pausing` run whose worker restarted i
 `paused`. **Resume** queues the task again and it carries on from its saved ids. A lyrics
 alignment run waiting on its songs pauses by taking the queued ones off the queue, and the
 `release_gpu_memory` task on the `lyrics` queue frees the lyrics worker's memory after the song
-it's aligning; Resume queues those songs again.
+it's aligning; Resume queues those songs again. The alignment task can't stop while it is still
+queuing songs, so a Pause pressed then takes effect when it has queued the last one
+(`RunTracker.hand_off`). The artist credits rebuild is one transaction and can't pause.
+
+Taking a task off the queue means revoking it, and a revoke only lives in the memory of the
+workers running at that moment: a worker that was down, or restarts before it reaches the
+message, would run the task anyway. Two checks cover that:
+
+- **One task per run.** Whoever queues a run's task saves the task's id on the row first
+  (`queue_run_task` in
+  [_batch_runs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/_batch_runs.py)).
+  A task that finds another id there stops without touching the run. So a run paused while
+  queued and then resumed is worked once, even if the old task turns up as well.
+- **One task per alignment.** `align_song_lyrics` runs only while its job row still names it
+  (`alignment_is_still_wanted` in
+  [lyrics_dispatch.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lyrics_dispatch.py)).
+  A paused or stopped run deletes its songs' rows, so their tasks align nothing if they run.
 
 ::: tip Operational gotcha
 Celery does not hot-reload — restart it after editing anything under `backend/app/jobs/` or the

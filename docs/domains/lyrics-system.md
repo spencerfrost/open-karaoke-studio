@@ -239,7 +239,9 @@ lyrics changed mid-run) go on `lyrics`. A library run passes `background=True` a
 `lyrics_backfill`. The lyrics worker serves both and always empties `lyrics` first, so a guest's
 fix waits for at most the one backfill song already running. When a waiting run finds the song
 still pending (likely sitting in a library run), it revokes that queued task and queues itself on
-`lyrics` in its place. A run that has already started is never replaced; the run token handles
+`lyrics` in its place. The job row is written before the task is sent and names the task; a task
+whose row is gone or names another task aligns nothing, so a revoke a worker missed costs
+nothing. A run that has already started is never replaced; the run token handles
 lyrics that change under it. Ingestion's `_dispatch_vocals_ready_tasks`
 ([audio_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/audio_tasks.py)) bypasses it. It creates the job row and
 calls `send_task` directly. In practice this is harmless, because nothing else has a reason to
@@ -576,7 +578,7 @@ run, and why:
 `batch_align_lyrics` ([batch_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/batch_tasks.py)) runs in mode
 `missing`, `repair`, `all` or `retime`. `retime` takes every song with vocals and lyrics and
 runs it without remote candidates, so each keeps its lyrics and only the timing is redone: the
-way to measure an aligner change on the same words. It aligns nothing itself. Its run stays open after queuing and counts the queued jobs as they finish (`refresh_handed_off` in [batch_run_repository.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/repositories/batch_run_repository.py)), and stopping or pausing it takes the waiting ones off the queue (Resume queues the paused ones again). It queues one `align_song_lyrics` per
+way to measure an aligner change on the same words. It aligns nothing itself. Its run stays open after queuing and counts the queued jobs as they finish (`refresh_handed_off` in [batch_run_repository.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/repositories/batch_run_repository.py)), and stopping or pausing it takes the waiting ones off the queue (Resume queues the paused ones again). It only takes off jobs still on the tasks it queued, so a song someone asked for by hand meanwhile keeps its place. It queues one `align_song_lyrics` per
 selected song on the low-priority `lyrics_backfill` queue, so a batch song goes through exactly
 the waterfall above, but only when no new song or fix is waiting. The admin control is the **Lyrics alignment** card on the
 Background jobs page ([jobInfo.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/admin/jobInfo.ts)). Its counts come

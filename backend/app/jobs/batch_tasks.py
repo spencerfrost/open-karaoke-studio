@@ -414,7 +414,9 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     While queuing, the run counts songs queued. Then it hands off to the
     queued jobs and stays running, counting them as they finish, until the
     last one does (BatchRunRepository.refresh_handed_off). A song already
-    aligning isn't queued again and isn't waited on.
+    aligning isn't queued again and isn't waited on. Queuing can't stop
+    part-way: a Pause pressed during it takes effect at the hand-off, which
+    takes the queued jobs back off (RunTracker.hand_off).
 
     `retime` keeps each song's stored lyrics and redoes only the timing, so a
     change to the aligner is measured on the same words.
@@ -429,6 +431,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
     results: list = []
     queued = 0
     queued_job_ids: list[str] = []
+    queued_task_ids: list[str] = []
 
     with tracked_run(run_id) as run:
         with get_db_session() as session:
@@ -442,6 +445,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
                 queued += int(dispatch["dispatched"])
                 if dispatch["dispatched"]:
                     queued_job_ids.append(dispatch["jobId"])
+                    queued_task_ids.append(dispatch["taskId"])
                 run.song_done()
                 results.append(
                     {
@@ -453,7 +457,7 @@ def batch_align_lyrics(mode: str = "missing", run_id: Optional[int] = None) -> d
                         "reasons": reasons,
                     }
                 )
-            run.hand_off(queued_job_ids)
+            run.hand_off(queued_job_ids, queued_task_ids)
 
     logger.info(
         "batch_align_lyrics: mode=%s, queued %d of %d selected songs (%d with vocals), reasons=%s",
