@@ -701,7 +701,9 @@ How it works: [Sessions, Queue & Realtime](/domains/sessions-realtime).
 **Features:**
 - **Session Display:**
   - The join code and QR are always on the TV (right rail, song wheel, handoff screen)
-  - The session popover with the QR code shows only on the stage
+  - On the song wheel, click the QR code to see **Who's here**: everyone in the rotation in turn
+    order, who's singing, who's up next, how many songs each has waiting, and whose phone is open.
+    It also shows the address and code to type when a camera won't scan
 - **Ending a Session:**
   - "Exit stage → End the session" (owner only) ends the night for everyone and shows a recap,
     with a YouTube Music playlist of the night's songs

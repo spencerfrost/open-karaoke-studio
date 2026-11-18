@@ -263,7 +263,7 @@ questions, and they are decided in different places on purpose:
 | Question | Is *this browser* the TV? | Does *this account* own the session? |
 | Decided by | The client, by how it entered: `joinAsHost` / `recoverHostSession` set it true, and joining by code sets it to the response's `is_host` (always false for a new device) | The server, in answer to the WebSocket `authenticate` message: it compares the JWT's user with `host_user_id` ([`resolve_host_claim`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/ws/session_specific.py)) |
 | Updated | When the session is set up | On every socket (re)open, by a module-level `session_connected` listener at the bottom of `sessionStore.ts` |
-| Gates | Routing: `RequireCapability device="performer"` bounces the TV off `/controls`. The session popover with the QR code (`SessionInfoDisplay`) renders only on the stage. | UI: "End the session" in the exit prompt, `RotationModeCard` in Settings, song-card host actions. Server: host-only WS messages. |
+| Gates | Routing: `RequireCapability device="performer"` bounces the TV off `/controls`. The song select screen's join QR and its "Who's here" panel (`StageWhosHere`) render only on the stage. | UI: "End the session" in the exit prompt, `RotationModeCard` in Settings, song-card host actions. Server: host-only WS messages. |
 
 They really are independent. The host's own phone, signed in and joined by code, is an owner but
 not the stage. The reverse doesn't happen in practice: the stage reaches its session through
@@ -573,7 +573,6 @@ flowchart TB
     end
 
     subgraph SessionFeature["features/session + components/session"]
-        Info["SessionInfoDisplay<br/><i>code + QR popover, stage mode</i>"]
         Rot["RotationModeCard<br/><i>owner only</i>"]
         Acct["AccountMenu<br/><i>leave / log out</i>"]
         EndModal["SessionEndModal<br/><i>recap + playlist poll</i>"]
@@ -606,7 +605,7 @@ flowchart TB
     Rot --> UM
     Exit --> EndModal --> UP
     EndModal --> QR
-    Stage --> Info --> QR
+    Stage --> QR
     Store --> Svc
     Store --> Auth
     UR -.->|roster_updated| Svc
@@ -705,9 +704,8 @@ rings.
 
 - **`update_performance_control` is open to every member.** It can only set the mix/display
   controls, but any joined phone can change them, not just the singer's.
-- **`connectedDevices` is never populated.** The store initializes it to `[]` and nothing writes
-  it. `SessionInfoDisplay`'s "N participants" therefore always says 0, and its device list never
-  renders. The data is in `sessionInfo.connected_devices`, from the last REST response.
+- **`connectedDevices` is dead state.** The store initializes it to `[]`, nothing writes it and
+  nothing reads it. Who is in the session comes from the roster and presence instead.
 - **The recap playlist is keyed by the 4-letter code, which gets reused.** Once
   `purge_stale_sessions` frees a code, a later session with the same code finds the old
   `playlist-ABCD` job. Both endpoints ignore a job older than the session row, so the old playlist

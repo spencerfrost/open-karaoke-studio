@@ -3,7 +3,7 @@
  * currently owned by this browser.
  *
  * Deliberately lives in Settings, not on the stage/TV screen or in
- * SessionInfoDisplay (which renders inside the stage's own SongSelectScreen),
+ * StageWhosHere (the "Who's here" panel on the stage's song select screen),
  * so a performer glancing at the TV never sees host controls. Only ever shown to the session owner; a performer's phone never sees it.
  */
 

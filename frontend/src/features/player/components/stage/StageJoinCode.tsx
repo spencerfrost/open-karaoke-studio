@@ -17,10 +17,9 @@
 
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSessionStore } from "@/stores/sessionStore";
-import { openPhoneView } from "@/lib/guestWindow";
+import { openPhoneViewOrWarn } from "@/lib/guestWindow";
 import { cn } from "@/lib/utils";
 
 const QR_OPEN = "9.5rem";
@@ -82,7 +81,7 @@ const StageJoinCode: React.FC<StageJoinCodeProps> = ({
             variant="link"
             size="sm"
             data-tour="open-phone-view"
-            onClick={() => handleOpenPhoneView(displayCode)}
+            onClick={() => openPhoneViewOrWarn(displayCode)}
             className="h-auto p-0 text-base"
           >
             No phone? Open a phone view
@@ -92,14 +91,6 @@ const StageJoinCode: React.FC<StageJoinCodeProps> = ({
     </div>
   );
 };
-
-function handleOpenPhoneView(displayCode: string) {
-  if (!openPhoneView(displayCode)) {
-    toast.error(
-      "The browser blocked the phone view. Allow pop-ups for this site and try again.",
-    );
-  }
-}
 
 /** Folds its content's height away (1fr -> 0fr) along with its opacity. */
 const Fold: React.FC<{

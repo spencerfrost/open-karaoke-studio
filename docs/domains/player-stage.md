@@ -627,7 +627,17 @@ flowchart LR
   cursor. Back from the add screen returns to the row.
 - **Search** is a quiet button in the top bar. Songs come up as library cards; artists are buttons
   that hand back to the wheel, landed on that artist.
-- **The join QR** sits bottom-right, where the performance screen has it.
+- **The join QR** sits bottom-right, where the performance screen has it. Clicking it (not
+  hovering: the mic-stand mouse crosses that corner all night) opens **Who's here**
+  ([`StageWhosHere`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/components/StageWhosHere.tsx)):
+  everyone still in the rotation, in turn order, each with where they stand
+  (singing now, up next, songs waiting, no song yet) and whether their phone is open. Below the
+  list, the address and code to type for a phone that won't scan, and on a computer **No phone?
+  Open a phone view**. The rows are worked out in
+  [`whosHere.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/whosHere.ts).
+  Nothing in it is a host control, since anyone at the TV can open it. The server connection is
+  only mentioned when it has been lost. **Hide the code** shrinks the corner to a small button
+  that brings it back.
 - **"Exit stage"** is deliberately small and out of reach of the arrow keys, so nobody ends the
   night by pressing Back once too often.
 
