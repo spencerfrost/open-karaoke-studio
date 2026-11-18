@@ -67,11 +67,10 @@ In no particular order.
   paste fix, and which lyrics the stage uses. Then the layout: two full-width columns with the
   song, its player and its actions on the left and the lyrics on the right.
   *(Plan: song management dialog)*
+- **More colour roles.** A second and third voice and singer swatches, so themes show more than one colour.
+  *(Plan: more colour roles)*
 - **Cyberpunk and Catppuccin themes.** Two more themes to pick in Settings, for fun.
   *(Plan: cyberpunk and Catppuccin themes)*
-- **New retro theme, vintage, cyberpunk as default.** The orange-gradient look becomes the
-  "vintage" theme. "Retro" becomes a near-black page with cream text, orange buttons and three
-  stripes under each header. Cyberpunk becomes the default. *(Plan: new retro theme)*
 - **Stop blocking the event loop.** The login checks every protected route runs, the queue and
   session routes, the queue broadcast and the session WebSocket still make blocking database
   calls on the API's one event loop: the same cause as the October prod freezes. Make every

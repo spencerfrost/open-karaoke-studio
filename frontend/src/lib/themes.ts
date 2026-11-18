@@ -1,12 +1,13 @@
 /**
- * The themes picked in Settings. Each id other than retro needs a matching
- * `[data-theme="<id>"]` block in index.css; retro is `:root`, so it's what an
- * unknown data-theme value paints. DEFAULT_THEME is what the app applies when
- * nothing (or nothing valid) is saved.
+ * The themes picked in Settings. Each id needs a matching
+ * `[data-theme="<id>"]` block in index.css, and the same list in the boot
+ * script in index.html. DEFAULT_THEME is what the app applies when nothing
+ * (or nothing valid) is saved.
  */
 export const THEMES = [
-  { id: "retro", label: "Retro" },
   { id: "cyberpunk", label: "Cyberpunk" },
+  { id: "retro", label: "Retro" },
+  { id: "vintage", label: "Vintage" },
   { id: "catppuccin", label: "Catppuccin" },
 ] as const;
 

@@ -158,7 +158,7 @@ What each kind of visitor can reach (this is the matrix in
 
 Four pages wrap themselves in [AppLayout](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/AppLayout.tsx):
 Library, AddSong, Settings and PerformanceControlsPage. It's a full-height column with the
-vintage background layers, a scrolling `<main>`, and [NavBar](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/NavBar.tsx)
+theme's background layers (`.theme-pattern` and `.theme-texture`, which each theme draws or hides), a scrolling `<main>`, and [NavBar](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/NavBar.tsx)
 pinned to the bottom as a tab bar.
 
 The tabs come from `useAccess` with the same checks the guards use:
@@ -461,7 +461,7 @@ Red cards are saved but never read. Of the 12 settings on the page, three do any
 
 | Setting | Read by |
 |---|---|
-| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are cyberpunk (the default, also set on `<html>` in `index.html`), retro and Catppuccin; the list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
+| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are cyberpunk (the default, also set on `<html>` in `index.html`), retro, vintage and Catppuccin; the boot script ignores a saved name that isn't one of them. Each is a `[data-theme]` block in index.css that sets every role, and `:root` holds only what they share. Colour roles: three voices ranked by importance (`primary` the main action, `secondary` the second voice for outline buttons, spinners and quiet emphasis, `accent` the third, used for readouts); job roles that each theme points at one of its colours (`selected` for the active or chosen thing, `ring`, `section-label`); status roles; and six swatches, the colours a theme gives *things* (a song or artist with no art, a letter group), handed out by key in [`swatch.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/swatch.ts). Hover and focus fills use `surface-hover`; ESLint rejects `accent` as a hover fill so a newly installed shadcn component gets switched. The list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
 | Lyrics Size | Seeds `useUIPreferencesStore.lyricsSize` when the app loads. Changing lyrics size from the player controls writes it back here, so it survives a reload. |
 | Preview Songs on Hover | `useSongPreview` |
 | All four Audio values, all three Processing values, Show Audio Visualizations, Show Progress Bar | nothing |
